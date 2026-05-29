@@ -2,7 +2,7 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const GAME_LOG_SERVICE_SCRIPT = preload("res://scripts/systems/persistence/game_log_service.gd")
+const GAME_LOG_SERVICE_SCRIPT = preload("res://scripts/systems/persistence/GameLogService.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -28,7 +28,8 @@ func _run() -> void:
 
 
 func _test_game_log_service_keeps_ring_buffer_without_default_file_output() -> void:
-	var log_service = GAME_LOG_SERVICE_SCRIPT.new(3)
+	var log_service = GAME_LOG_SERVICE_SCRIPT.new()
+	log_service.setup(3, false)
 	var virtual_path := String(log_service.get_virtual_log_path())
 	var absolute_path := String(log_service.get_log_path())
 
@@ -55,7 +56,8 @@ func _test_game_log_service_keeps_ring_buffer_without_default_file_output() -> v
 
 
 func _test_game_log_service_can_append_opt_in_file() -> void:
-	var log_service = GAME_LOG_SERVICE_SCRIPT.new(3, true)
+	var log_service = GAME_LOG_SERVICE_SCRIPT.new()
+	log_service.setup(3, true)
 	var virtual_path := String(log_service.get_virtual_log_path())
 	var absolute_path := String(log_service.get_log_path())
 
@@ -73,10 +75,10 @@ func _test_game_log_service_can_append_opt_in_file() -> void:
 	var lines := _read_non_empty_lines(virtual_path)
 	_assert_eq(lines.size(), 4, "jsonl 文件应追加所有写入日志，而不仅是 ring buffer。")
 	if lines.size() == 4:
-		var last_entry_variant = JSON.parse_string(lines[3])
-		_assert_true(last_entry_variant is Dictionary, "日志文件中的每一行都应是合法 JSON。")
-		if last_entry_variant is Dictionary:
-			var last_entry: Dictionary = last_entry_variant
+		var last_entry_option = JSON.parse_string(lines[3])
+		_assert_true(last_entry_option is Dictionary, "日志文件中的每一行都应是合法 JSON。")
+		if last_entry_option is Dictionary:
+			var last_entry: Dictionary = last_entry_option
 			_assert_eq(String(last_entry.get("event_id", "")), "battle.test.fourth", "日志文件应按顺序追加最新事件。")
 			_assert_eq(String(last_entry.get("level", "")), "error", "日志文件应保留日志级别。")
 			_assert_true(not String(last_entry.get("time_text", "")).is_empty(), "日志文件应额外保留可读时间文本。")

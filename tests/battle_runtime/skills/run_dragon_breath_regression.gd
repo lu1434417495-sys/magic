@@ -2,22 +2,21 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
-const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
-const BATTLE_COMMAND_SCRIPT = preload("res://scripts/systems/battle/core/battle_command.gd")
-const BATTLE_RUNTIME_MODULE_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
-const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_state.gd")
-const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
-const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
-const COMBAT_EFFECT_DEF_SCRIPT = preload("res://scripts/player/progression/combat_effect_def.gd")
-const COMBAT_SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/combat_skill_def.gd")
-const PASSIVE_SOURCE_CONTEXT_SCRIPT = preload("res://scripts/systems/progression/passive_source_context.gd")
-const RACE_DEF_SCRIPT = preload("res://scripts/player/progression/race_def.gd")
-const RACE_TRAIT_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/runtime/race_trait_resolver.gd")
-const RACIAL_GRANTED_SKILL_SCRIPT = preload("res://scripts/player/progression/racial_granted_skill.gd")
-const SKILL_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/skill_content_registry.gd")
-const SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/skill_def.gd")
-const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/AttributeService.cs")
+const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleCellState.cs")
+const BATTLE_RUNTIME_MODULE_SCRIPT = preload("res://scripts/systems/battle/runtime/BattleRuntimeModule.cs")
+const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleState.cs")
+const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleTimelineState.cs")
+const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
+const COMBAT_EFFECT_DEF_SCRIPT = preload("res://scripts/player/progression/CombatEffectDef.cs")
+const COMBAT_SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/CombatSkillDef.cs")
+const PASSIVE_SOURCE_CONTEXT_SCRIPT = preload("res://scripts/systems/progression/PassiveSourceContext.cs")
+const RACE_DEF_SCRIPT = preload("res://scripts/player/progression/RaceDef.cs")
+const RACE_TRAIT_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/runtime/RaceTraitResolver.cs")
+const RACIAL_GRANTED_SKILL_SCRIPT = preload("res://scripts/player/progression/RacialGrantedSkill.cs")
+const SKILL_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/SkillContentRegistry.cs")
+const SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/SkillDef.cs")
+const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/UnitBaseAttributes.cs")
 
 const DRAGON_BREATH_FIRE_CONE: StringName = &"dragon_breath_fire_cone"
 
@@ -82,7 +81,7 @@ func _test_official_dragon_breath_skill_resources_are_schema_stable() -> void:
 		_assert_eq(effect_def.effect_type, &"damage", "%s should use the normal damage effect pipeline." % String(skill_id))
 		_assert_eq(effect_def.damage_tag, spec.get("damage_tag", &""), "%s should keep its damage tag." % String(skill_id))
 		_assert_eq(effect_def.save_dc, 12, "%s should declare a dragon breath save DC." % String(skill_id))
-		_assert_eq(effect_def.save_ability, UNIT_BASE_ATTRIBUTES_SCRIPT.CONSTITUTION, "%s should use constitution saves." % String(skill_id))
+		_assert_eq(effect_def.save_ability, &"constitution", "%s should use constitution saves." % String(skill_id))
 		_assert_eq(effect_def.save_tag, &"dragon_breath", "%s should use the dragon_breath save tag." % String(skill_id))
 		_assert_true(effect_def.save_partial_on_success, "%s should keep half damage on successful save." % String(skill_id))
 
@@ -147,7 +146,7 @@ func _test_racial_skill_per_turn_charge_refreshes_from_identity_projection() -> 
 	var unit = BATTLE_UNIT_STATE_SCRIPT.new()
 	var grant = RACIAL_GRANTED_SKILL_SCRIPT.new()
 	grant.skill_id = &"dragon_breath_freeze_cone"
-	grant.charge_kind = RACIAL_GRANTED_SKILL_SCRIPT.CHARGE_KIND_PER_TURN
+	grant.charge_kind = &"per_turn"
 	grant.charges = 2
 	var race = RACE_DEF_SCRIPT.new()
 	race.race_id = &"dragon_fixture"
@@ -188,7 +187,7 @@ func _build_state(map_size: Vector2i) -> BATTLE_STATE_SCRIPT:
 func _build_cell(coord: Vector2i) -> BATTLE_CELL_STATE_SCRIPT:
 	var cell = BATTLE_CELL_STATE_SCRIPT.new()
 	cell.coord = coord
-	cell.base_terrain = BATTLE_CELL_STATE_SCRIPT.TERRAIN_LAND
+	cell.base_terrain = BATTLE_CELL_STATE_SCRIPT.TERRAIN_LAND()
 	cell.base_height = 4
 	cell.height_offset = 0
 	cell.recalculate_runtime_values()
@@ -214,8 +213,8 @@ func _build_unit(
 	unit.known_active_skill_ids = skill_ids.duplicate()
 	for skill_id in skill_ids:
 		unit.known_skill_level_map[skill_id] = 1
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX, 40)
-	unit.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.CONSTITUTION, 0)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX_ID(), 40)
+	unit.attribute_snapshot.set_value(&"constitution", 0)
 	unit.set_anchor_coord(coord)
 	return unit
 
@@ -231,7 +230,7 @@ func _build_dragon_breath_skill(skill_id: StringName, damage_tag: StringName, ar
 	effect.power = 12
 	effect.damage_tag = damage_tag
 	effect.save_dc = 12
-	effect.save_ability = UNIT_BASE_ATTRIBUTES_SCRIPT.CONSTITUTION
+	effect.save_ability = &"constitution"
 	effect.save_tag = &"dragon_breath"
 	effect.save_partial_on_success = true
 	var combat_profile = COMBAT_SKILL_DEF_SCRIPT.new()
@@ -257,9 +256,9 @@ func _build_dragon_breath_skill(skill_id: StringName, damage_tag: StringName, ar
 	return skill_def
 
 
-func _build_ground_skill_command(unit_id: StringName, skill_id: StringName, target_coord: Vector2i) -> BATTLE_COMMAND_SCRIPT:
-	var command = BATTLE_COMMAND_SCRIPT.new()
-	command.command_type = BATTLE_COMMAND_SCRIPT.TYPE_SKILL
+func _build_ground_skill_command(unit_id: StringName, skill_id: StringName, target_coord: Vector2i) -> BattleCommand:
+	var command = BattleCommand.new()
+	command.command_type = BattleCommand.TYPE_SKILL()
 	command.unit_id = unit_id
 	command.skill_id = skill_id
 	command.target_coord = target_coord
@@ -285,7 +284,7 @@ func _assert_current_official_skill_validation_errors(errors: Array[String], mes
 
 
 func _assert_log_contains(lines: Array, needle: String, message: String) -> void:
-	for line_variant in lines:
-		if String(line_variant).contains(needle):
+	for line_option in lines:
+		if String(line_option).contains(needle):
 			return
 	_test.fail("%s log=%s" % [message, str(lines)])

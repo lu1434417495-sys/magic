@@ -33,31 +33,6 @@ public partial class PassiveStatusOrchestrator : RefCounted
         unitState.subrace_trait_ids = new Godot.Collections.Array<StringName>();
         unitState.ascension_trait_ids = new Godot.Collections.Array<StringName>();
         unitState.bloodline_trait_ids = new Godot.Collections.Array<StringName>();
-        _clear_identity_skill_charges(unitState);
-    }
-
-    private static void _clear_identity_skill_charges(BattleUnitState unitState)
-    {
-        if (unitState == null)
-            return;
-        _clear_charge_keys_with_prefix(unitState.per_battle_charges, "racial_skill_");
-        _clear_charge_keys_with_prefix(unitState.per_turn_charges, "racial_skill_");
-        _clear_charge_keys_with_prefix(unitState.per_turn_charge_limits, "racial_skill_");
-    }
-
-    private static void _clear_charge_keys_with_prefix(
-        Godot.Collections.Dictionary charges,
-        string prefix
-    )
-    {
-        var keysToRemove = new Godot.Collections.Array();
-        foreach (var chargeKeyVariant in charges.Keys)
-        {
-            if (chargeKeyVariant.AsString().StartsWith(prefix))
-                keysToRemove.Add(chargeKeyVariant);
-        }
-        foreach (var key in keysToRemove)
-            charges.Remove(key);
     }
 
     private static bool _suppresses_original_race_traits(PassiveSourceContext context)
@@ -66,4 +41,3 @@ public partial class PassiveStatusOrchestrator : RefCounted
             && context.ascension_def.suppresses_original_race_traits;
     }
 }
-

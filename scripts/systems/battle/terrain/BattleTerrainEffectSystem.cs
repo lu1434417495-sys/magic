@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 using GArray = Godot.Collections.Array;
+using GDictionary = Godot.Collections.Dictionary;
 
 [GlobalClass]
 public partial class BattleTerrainEffectSystem : RefCounted
@@ -18,12 +18,13 @@ public partial class BattleTerrainEffectSystem : RefCounted
     private static readonly string ParamLifetimePolicy = "lifetime_policy";
     private static readonly string ParamMoveCostDelta = "move_cost_delta";
     private static readonly string ParamDoesNotStackWithStatusId = "does_not_stack_with_status_id";
-    private static readonly string ParamDoesNotStackWithStatusIds = "does_not_stack_with_status_ids";
+    private static readonly string ParamDoesNotStackWithStatusIds =
+        "does_not_stack_with_status_ids";
     private const int TuGranularity = 5;
 
-    private WeakReference<GodotObject> _runtimeRef = null;
+    private WeakReference<BattleRuntimeModule> _runtimeRef = null;
 
-    private GodotObject _ResolveRuntime()
+    private BattleRuntimeModule _ResolveRuntime()
     {
         if (_runtimeRef == null)
             return null;
@@ -31,10 +32,12 @@ public partial class BattleTerrainEffectSystem : RefCounted
         return runtime;
     }
 
-    public void Setup(GodotObject runtime)
+    public void Setup(BattleRuntimeModule runtime)
     {
-        _runtimeRef = runtime != null ? new WeakReference<GodotObject>(runtime) : null;
+        _runtimeRef = runtime != null ? new WeakReference<BattleRuntimeModule>(runtime) : null;
     }
+
+    public void setup(BattleRuntimeModule runtime) => Setup(runtime);
 
     public new void Dispose()
     {
@@ -42,24 +45,24 @@ public partial class BattleTerrainEffectSystem : RefCounted
         base.Dispose();
     }
 
-    public int GetMoveCostDeltaForUnitTarget(GodotObject unitStateObj, Vector2I targetCoord)
+    public void dispose() => Dispose();
+
+    public int GetMoveCostDeltaForUnitTarget(BattleUnitState unitState, Vector2I targetCoord)
     {
         var runtime = _ResolveRuntime();
-        var unitState = unitStateObj as BattleUnitState;
         if (runtime == null || unitState == null)
             return 0;
 
-        var state = runtime.Call("get_state").AsGodotObject();
-        var gridService = runtime.Call("get_grid_service").AsGodotObject();
+        BattleState state = runtime.get_state();
+        BattleGridService gridService = runtime.get_grid_service();
         if (state == null || gridService == null)
             return 0;
 
         int maxDelta = 0;
-        var targetCoords = gridService.Call("get_unit_target_coords", unitStateObj, targetCoord).AsGodotArray();
-        foreach (var coordVariant in targetCoords)
+        var targetCoords = gridService.get_unit_target_coords(unitState, targetCoord);
+        foreach (Vector2I coord in targetCoords)
         {
-            var coord = coordVariant.AsVector2I();
-            var cell = gridService.Call("get_cell", state, coord).As<BattleCellState>();
+            BattleCellState cell = gridService.get_cell(state, coord);
             if (cell == null || cell.timed_terrain_effects.Count == 0)
                 continue;
 
@@ -69,10 +72,18 @@ public partial class BattleTerrainEffectSystem : RefCounted
                 if (moveCostDelta <= 0)
                     continue;
 
-                var sourceUnit = effectState.source_unit_id != ""
-                    ? (state.Get("units").AsGodotDictionary()[effectState.source_unit_id].AsGodotObject() as BattleUnitState)
-                    : null;
-                if (!BattleTargetTeamRules.is_unit_valid_for_filter(sourceUnit, unitState, effectState.target_team_filter))
+                var sourceUnit =
+                    effectState.source_unit_id != ""
+                        ? GdInterop.GetObject(state.units, effectState.source_unit_id)
+                            as BattleUnitState
+                        : null;
+                if (
+                    !BattleTargetTeamRules.is_unit_valid_for_filter(
+                        sourceUnit,
+                        unitState,
+                        effectState.target_team_filter
+                    )
+                )
                     continue;
                 if (_IsBlockedByNonstackingStatus(unitState, effectState))
                     continue;
@@ -83,19 +94,34 @@ public partial class BattleTerrainEffectSystem : RefCounted
         return maxDelta;
     }
 
-    public bool UpsertTimedTerrainEffect(Vector2I effectCoord, GodotObject sourceUnit, GodotObject skillDef, GodotObject effectDefObj, StringName fieldInstanceId)
+    public int get_move_cost_delta_for_unit_target(BattleUnitState unit_state, Vector2I target_coord)
+    {
+        return GetMoveCostDeltaForUnitTarget(unit_state, target_coord);
+    }
+
+    public bool UpsertTimedTerrainEffect(
+        Vector2I effectCoord,
+        BattleUnitState sourceUnit,
+        SkillDef skillDef,
+        CombatEffectDef effectDef,
+        StringName fieldInstanceId
+    )
     {
         var runtime = _ResolveRuntime();
         if (runtime == null)
             return false;
 
-        var state = runtime.Call("get_state").AsGodotObject();
-        var gridService = runtime.Call("get_grid_service").AsGodotObject();
-        var effectDef = effectDefObj as CombatEffectDef;
-        if (state == null || gridService == null || effectDef == null || effectDef.terrain_effect_id == "")
+        BattleState state = runtime.get_state();
+        BattleGridService gridService = runtime.get_grid_service();
+        if (
+            state == null
+            || gridService == null
+            || effectDef == null
+            || effectDef.terrain_effect_id == ""
+        )
             return false;
 
-        var cell = gridService.Call("get_cell", state, effectCoord).As<BattleCellState>();
+        BattleCellState cell = gridService.get_cell(state, effectCoord);
         if (cell == null)
             return false;
 
@@ -117,7 +143,12 @@ public partial class BattleTerrainEffectSystem : RefCounted
                 return false;
             if (normalizedBehavior == StackBehaviorRefresh)
             {
-                var refreshedEffect = _BuildTimedTerrainEffect(sourceUnit, skillDef, effectDef, fieldInstanceId);
+                var refreshedEffect = _BuildTimedTerrainEffect(
+                    sourceUnit,
+                    skillDef,
+                    effectDef,
+                    fieldInstanceId
+                );
                 if (refreshedEffect == null)
                     return false;
                 cell.timed_terrain_effects[existingIndex] = refreshedEffect;
@@ -132,24 +163,40 @@ public partial class BattleTerrainEffectSystem : RefCounted
         return true;
     }
 
-    public void ProcessTimedTerrainEffects(GodotObject batch)
+    public bool upsert_timed_terrain_effect(
+        Vector2I effect_coord,
+        BattleUnitState source_unit,
+        SkillDef skill_def,
+        CombatEffectDef effect_def,
+        StringName field_instance_id
+    )
+    {
+        return UpsertTimedTerrainEffect(
+            effect_coord,
+            source_unit,
+            skill_def,
+            effect_def,
+            field_instance_id
+        );
+    }
+
+    public void ProcessTimedTerrainEffects(BattleEventBatch batch)
     {
         var runtime = _ResolveRuntime();
         if (runtime == null)
             return;
 
-        var state = runtime.Call("get_state").AsGodotObject();
-        var gridService = runtime.Call("get_grid_service").AsGodotObject();
-        var timeline = state.Get("timeline").AsGodotObject();
+        BattleState state = runtime.get_state();
+        BattleGridService gridService = runtime.get_grid_service();
+        BattleTimelineState timeline = state?.timeline;
         if (state == null || timeline == null || gridService == null)
             return;
 
         var processedTickKeys = new GDictionary();
-        var cells = state.Get("cells").AsGodotDictionary();
-        foreach (var coordKey in cells.Keys)
+        foreach (var coordKey in state.cells.Keys)
         {
             var coord = coordKey.AsVector2I();
-            var cell = cells[coordKey].As<BattleCellState>();
+            var cell = state.cells[coordKey].As<BattleCellState>();
             if (cell == null || cell.timed_terrain_effects.Count == 0)
                 continue;
 
@@ -168,11 +215,18 @@ public partial class BattleTerrainEffectSystem : RefCounted
                     continue;
                 }
 
-                int currentTu = timeline.Get("current_tu").AsInt32();
-                while (effectState.remaining_tu > 0 && effectState.tick_interval_tu > 0 && currentTu >= effectState.next_tick_at_tu)
+                int currentTu = timeline.current_tu;
+                while (
+                    effectState.remaining_tu > 0
+                    && effectState.tick_interval_tu > 0
+                    && currentTu >= effectState.next_tick_at_tu
+                )
                 {
                     ApplyTimedTerrainEffectTick(coord, effectState, processedTickKeys, batch);
-                    effectState.remaining_tu = Math.Max(effectState.remaining_tu - effectState.tick_interval_tu, 0);
+                    effectState.remaining_tu = Math.Max(
+                        effectState.remaining_tu - effectState.tick_interval_tu,
+                        0
+                    );
                     effectState.next_tick_at_tu += effectState.tick_interval_tu;
                     cellChanged = true;
                 }
@@ -186,42 +240,69 @@ public partial class BattleTerrainEffectSystem : RefCounted
             if (cellChanged)
             {
                 cell.timed_terrain_effects = retainedEffects;
-                runtime.Call("append_changed_coord", batch, coord);
+                runtime.append_changed_coord(batch, coord);
             }
         }
     }
 
-    public void ApplyTimedTerrainEffectTick(Vector2I targetCoord, GodotObject effectStateObj, GDictionary processedTickKeys, GodotObject batch)
+    public void process_timed_terrain_effects(BattleEventBatch batch) =>
+        ProcessTimedTerrainEffects(batch);
+
+    public void ApplyTimedTerrainEffectTick(
+        Vector2I targetCoord,
+        BattleTerrainEffectState effectState,
+        GDictionary processedTickKeys,
+        BattleEventBatch batch
+    )
     {
         var runtime = _ResolveRuntime();
         if (runtime == null)
             return;
 
-        var effectState = effectStateObj as BattleTerrainEffectState;
-        if (effectState != null && (effectState.effect_type == TerrainEffectMovementCost || effectState.effect_type == TerrainEffectNone))
+        if (
+            effectState != null
+            && (
+                effectState.effect_type == TerrainEffectMovementCost
+                || effectState.effect_type == TerrainEffectNone
+            )
+        )
             return;
 
-        var state = runtime.Call("get_state").AsGodotObject();
-        var gridService = runtime.Call("get_grid_service").AsGodotObject();
-        var damageResolver = runtime.Call("get_damage_resolver").AsGodotObject();
-        if (state == null || effectState == null || processedTickKeys == null || gridService == null || damageResolver == null)
+        BattleState state = runtime.get_state();
+        BattleGridService gridService = runtime.get_grid_service();
+        BattleDamageResolver damageResolver = runtime.get_damage_resolver();
+        if (
+            state == null
+            || effectState == null
+            || processedTickKeys == null
+            || gridService == null
+            || damageResolver == null
+        )
             return;
 
-        var cell = gridService.Call("get_cell", state, targetCoord).As<BattleCellState>();
+        BattleCellState cell = gridService.get_cell(state, targetCoord);
         if (cell == null || cell.occupant_unit_id == "")
             return;
 
-        var targetUnit = (state.Get("units").AsGodotDictionary()[cell.occupant_unit_id].AsGodotObject() as BattleUnitState);
+        var targetUnit = GdInterop.GetObject(state.units, cell.occupant_unit_id) as BattleUnitState;
         if (targetUnit == null || !targetUnit.is_alive)
             return;
 
-        var sourceUnit = effectState.source_unit_id != ""
-            ? (state.Get("units").AsGodotDictionary().GetValueOrDefault(effectState.source_unit_id, default).AsGodotObject() as BattleUnitState)
-            : null;
-        if (!BattleTargetTeamRules.is_unit_valid_for_filter(sourceUnit, targetUnit, effectState.target_team_filter))
+        var sourceUnit =
+            effectState.source_unit_id != ""
+                ? GdInterop.GetObject(state.units, effectState.source_unit_id) as BattleUnitState
+                : null;
+        if (
+            !BattleTargetTeamRules.is_unit_valid_for_filter(
+                sourceUnit,
+                targetUnit,
+                effectState.target_team_filter
+            )
+        )
             return;
 
-        var tickKey = $"{effectState.field_instance_id}|{targetUnit.unit_id}|{effectState.next_tick_at_tu}";
+        var tickKey =
+            $"{effectState.field_instance_id}|{targetUnit.unit_id}|{effectState.next_tick_at_tu}";
         if (processedTickKeys.ContainsKey(tickKey))
             return;
         processedTickKeys[tickKey] = true;
@@ -230,79 +311,111 @@ public partial class BattleTerrainEffectSystem : RefCounted
         tempEffect.effect_type = effectState.effect_type;
         tempEffect.power = effectState.power;
         tempEffect.damage_tag = effectState.damage_tag;
-        tempEffect.status_id = ProgressionDataUtils.to_string_name(effectState.@params.GetValueOrDefault("status_id", default));
+        tempEffect.status_id = ProgressionDataUtils.to_string_name(
+            effectState.@params.GetValueOrDefault("status_id", default)
+        );
         tempEffect.@params = (GDictionary)effectState.@params.Duplicate(true);
 
-        var result = damageResolver.Call("resolve_effects", sourceUnit, targetUnit, new GArray { tempEffect }).AsGodotDictionary();
-        if (!result.GetValueOrDefault("applied", default).AsBool())
+        var result = damageResolver.resolve_effects(sourceUnit, targetUnit, new GArray { tempEffect });
+        if (!GdInterop.GetBool(result, "applied"))
             return;
 
-        var statusEffectIds = result.GetValueOrDefault("status_effect_ids", default).AsGodotArray();
-        runtime.Call("mark_applied_statuses_for_turn_timing", targetUnit, statusEffectIds);
-        runtime.Call("append_result_source_status_effects", batch, sourceUnit, result);
-        runtime.Call("append_changed_unit_id", batch, targetUnit.unit_id);
-        runtime.Call("append_changed_unit_coords", batch, targetUnit);
+        var statusEffectIds = GdInterop.GetArray(result, "status_effect_ids");
+        runtime.mark_applied_statuses_for_turn_timing(targetUnit, statusEffectIds);
+        runtime.append_result_source_status_effects(batch, sourceUnit, result);
+        runtime.append_changed_unit_id(batch, targetUnit.unit_id);
+        runtime.append_changed_unit_coords(batch, targetUnit);
 
-        int damage = result.GetValueOrDefault("damage", default).AsInt32();
-        int healing = result.GetValueOrDefault("healing", default).AsInt32();
-        var damageSummary = runtime.Call("summarize_damage_result", result).AsGodotDictionary();
+        int damage = GdInterop.GetInt(result, "damage");
+        int healing = GdInterop.GetInt(result, "healing");
+        var damageSummary = runtime.summarize_damage_result(result);
         int killCount = 0;
 
-        if (damageSummary.GetValueOrDefault("has_damage_event", default).AsBool())
+        if (GdInterop.GetBool(damageSummary, "has_damage_event"))
         {
             if (damage > 0)
             {
-                var damageLine = $"{targetUnit.display_name} 受到 {_GetTimedTerrainEffectDisplayName(effectState)} 的 {damage} 点伤害";
-                if (damageSummary.GetValueOrDefault("any_double", default).AsBool())
+                var damageLine =
+                    $"{targetUnit.display_name} 受到 {_GetTimedTerrainEffectDisplayName(effectState)} 的 {damage} 点伤害";
+                if (GdInterop.GetBool(damageSummary, "any_double"))
                     damageLine += "（触发易伤）";
-                else if (damageSummary.GetValueOrDefault("any_half", default).AsBool())
+                else if (GdInterop.GetBool(damageSummary, "any_half"))
                     damageLine += "（减半后结算）";
-                runtime.Call("append_batch_log", batch, $"{damageLine}。");
-                if (damageSummary.GetValueOrDefault("shield_absorbed", default).AsInt32() > 0)
+                runtime.append_batch_log(batch, $"{damageLine}。");
+                if (GdInterop.GetInt(damageSummary, "shield_absorbed") > 0)
                 {
-                    runtime.Call("append_batch_log", batch, $"{targetUnit.display_name} 的护盾吸收了 {damageSummary.GetValueOrDefault("shield_absorbed", default).AsInt32()} 点伤害。");
+                    runtime.append_batch_log(
+                        batch,
+                        $"{targetUnit.display_name} 的护盾吸收了 {GdInterop.GetInt(damageSummary, "shield_absorbed")} 点伤害。"
+                    );
                 }
             }
             else
             {
-                if (damageSummary.GetValueOrDefault("any_immune", default).AsBool())
+                if (GdInterop.GetBool(damageSummary, "any_immune"))
                 {
-                    runtime.Call("append_batch_log", batch, $"{_GetTimedTerrainEffectDisplayName(effectState)} 命中，但 {targetUnit.display_name} 免疫该伤害。");
+                    runtime.append_batch_log(
+                        batch,
+                        $"{_GetTimedTerrainEffectDisplayName(effectState)} 命中，但 {targetUnit.display_name} 免疫该伤害。"
+                    );
                 }
-                else if (damageSummary.GetValueOrDefault("shield_absorbed", default).AsInt32() > 0)
+                else if (GdInterop.GetInt(damageSummary, "shield_absorbed") > 0)
                 {
-                    runtime.Call("append_batch_log", batch, $"{_GetTimedTerrainEffectDisplayName(effectState)} 命中，但被 {targetUnit.display_name} 的护盾吸收了 {damageSummary.GetValueOrDefault("shield_absorbed", default).AsInt32()} 点伤害。");
+                    runtime.append_batch_log(
+                        batch,
+                        $"{_GetTimedTerrainEffectDisplayName(effectState)} 命中，但被 {targetUnit.display_name} 的护盾吸收了 {GdInterop.GetInt(damageSummary, "shield_absorbed")} 点伤害。"
+                    );
                 }
                 else
                 {
-                    runtime.Call("append_batch_log", batch, $"{_GetTimedTerrainEffectDisplayName(effectState)} 命中，但 {targetUnit.display_name} 的伤害被{damageSummary.GetValueOrDefault("absorb_reason_text", default)}完全吸收。");
+                    runtime.append_batch_log(
+                        batch,
+                        $"{_GetTimedTerrainEffectDisplayName(effectState)} 命中，但 {targetUnit.display_name} 的伤害被{GdInterop.GetString(damageSummary, "absorb_reason_text")}完全吸收。"
+                    );
                 }
             }
-            if (damageSummary.GetValueOrDefault("shield_broken", default).AsBool())
+            if (GdInterop.GetBool(damageSummary, "shield_broken"))
             {
-                runtime.Call("append_batch_log", batch, $"{targetUnit.display_name} 的护盾被击碎。");
+                runtime.append_batch_log(
+                    batch,
+                    $"{targetUnit.display_name} 的护盾被击碎。"
+                );
             }
         }
         if (healing > 0)
         {
-            runtime.Call("append_batch_log", batch, $"{targetUnit.display_name} 受到 {_GetTimedTerrainEffectDisplayName(effectState)} 影响，恢复 {healing} 点生命。");
+            runtime.append_batch_log(
+                batch,
+                $"{targetUnit.display_name} 受到 {_GetTimedTerrainEffectDisplayName(effectState)} 影响，恢复 {healing} 点生命。"
+            );
         }
         foreach (var statusId in statusEffectIds)
         {
-            runtime.Call("append_batch_log", batch, $"{targetUnit.display_name} 获得状态 {statusId}。");
+            runtime.append_batch_log(
+                batch,
+                $"{targetUnit.display_name} 获得状态 {statusId}。"
+            );
         }
 
         if (!targetUnit.is_alive)
         {
             killCount = 1;
-            runtime.Call("clear_defeated_unit", targetUnit, batch);
-            runtime.Call("append_batch_log", batch, $"{targetUnit.display_name} 被击倒。");
-            runtime.Call("record_enemy_defeated_achievement", sourceUnit, targetUnit);
+            runtime.clear_defeated_unit(targetUnit, batch);
+            runtime.append_batch_log(batch, $"{targetUnit.display_name} 被击倒。");
+            runtime.record_enemy_defeated_achievement(sourceUnit, targetUnit);
         }
 
         if (sourceUnit != null)
         {
-            runtime.Call("record_battle_contribution_result", sourceUnit, targetUnit, damage, healing, killCount > 0, new StringName("terrain"), effectState.source_skill_id);
+            runtime.record_battle_contribution_result(
+                sourceUnit,
+                targetUnit,
+                damage,
+                healing,
+                killCount > 0,
+                new StringName("terrain"),
+                effectState.source_skill_id
+            );
         }
     }
 
@@ -312,40 +425,71 @@ public partial class BattleTerrainEffectSystem : RefCounted
             return 0;
         if (effectState.remaining_tu <= 0 && !_IsBattleLifetimeEffect(effectState))
             return 0;
-        return Math.Max(effectState.@params.GetValueOrDefault(ParamMoveCostDelta, default).AsInt32(), 0);
+        return Math.Max(
+            effectState.@params.GetValueOrDefault(ParamMoveCostDelta, default).AsInt32(),
+            0
+        );
     }
 
-    private bool _IsBlockedByNonstackingStatus(BattleUnitState unitState, BattleTerrainEffectState effectState)
+    private bool _IsBlockedByNonstackingStatus(
+        BattleUnitState unitState,
+        BattleTerrainEffectState effectState
+    )
     {
         if (unitState == null || effectState == null)
             return false;
-        if (_UnitHasStatusFromParam(unitState, effectState.@params.GetValueOrDefault(ParamDoesNotStackWithStatusId, default)))
+        if (
+            _UnitHasStatusFromParam(
+                unitState,
+                effectState.@params.GetValueOrDefault(ParamDoesNotStackWithStatusId, default)
+            )
+        )
             return true;
-        return _UnitHasStatusFromParam(unitState, effectState.@params.GetValueOrDefault(ParamDoesNotStackWithStatusIds, default));
+        return _UnitHasStatusFromParam(
+            unitState,
+            effectState.@params.GetValueOrDefault(ParamDoesNotStackWithStatusIds, default)
+        );
     }
 
-    private bool _UnitHasStatusFromParam(BattleUnitState unitState, Variant value)
+    private bool _UnitHasStatusFromParam(BattleUnitState unitState, object rawValue)
     {
         if (unitState == null)
             return false;
-        if (value.VariantType == Variant.Type.String || value.VariantType == Variant.Type.StringName)
+        if (rawValue is string || rawValue is StringName)
+        {
+            var statusId = ProgressionDataUtils.to_string_name(rawValue);
+            return statusId != "" && unitState.has_status_effect(statusId);
+        }
+        if (rawValue is not Variant value)
+        {
+            return false;
+        }
+        if (
+            value.VariantType == Variant.Type.String
+            || value.VariantType == Variant.Type.StringName
+        )
         {
             var statusId = ProgressionDataUtils.to_string_name(value);
-            return statusId != "" && unitState.HasMethod("has_status_effect") && unitState.Call("has_status_effect", statusId).AsBool();
+            return statusId != "" && unitState.has_status_effect(statusId);
         }
         if (value.VariantType == Variant.Type.Array)
         {
-            foreach (var statusVariant in value.AsGodotArray())
+            foreach (var statusValue in value.AsGodotArray())
             {
-                var statusId = ProgressionDataUtils.to_string_name(statusVariant);
-                if (statusId != "" && unitState.HasMethod("has_status_effect") && unitState.Call("has_status_effect", statusId).AsBool())
+                var statusId = ProgressionDataUtils.to_string_name(statusValue);
+                if (statusId != "" && unitState.has_status_effect(statusId))
                     return true;
             }
         }
         return false;
     }
 
-    private BattleTerrainEffectState _BuildTimedTerrainEffect(GodotObject sourceUnit, GodotObject skillDef, CombatEffectDef effectDef, StringName fieldInstanceId)
+    private BattleTerrainEffectState _BuildTimedTerrainEffect(
+        BattleUnitState sourceUnit,
+        SkillDef skillDef,
+        CombatEffectDef effectDef,
+        StringName fieldInstanceId
+    )
     {
         var lifetimePolicy = _ResolveLifetimePolicy(effectDef);
         int tickIntervalTu = 0;
@@ -357,8 +501,14 @@ public partial class BattleTerrainEffectSystem : RefCounted
         }
         else
         {
-            tickIntervalTu = _NormalizePositiveTuValue(effectDef.tick_interval_tu, "terrain effect tick_interval_tu");
-            durationTu = _NormalizePositiveTuValue(effectDef.duration_tu, "terrain effect duration_tu");
+            tickIntervalTu = _NormalizePositiveTuValue(
+                effectDef.tick_interval_tu,
+                "terrain effect tick_interval_tu"
+            );
+            durationTu = _NormalizePositiveTuValue(
+                effectDef.duration_tu,
+                "terrain effect duration_tu"
+            );
             if (tickIntervalTu <= 0 || durationTu <= 0)
                 return null;
         }
@@ -366,16 +516,25 @@ public partial class BattleTerrainEffectSystem : RefCounted
         var effectState = new BattleTerrainEffectState();
         effectState.field_instance_id = fieldInstanceId;
         effectState.effect_id = effectDef.terrain_effect_id;
-        effectState.effect_type = effectDef.tick_effect_type != ""
-            ? effectDef.tick_effect_type
-            : (lifetimePolicy == LifetimePolicyBattle ? TerrainEffectNone : TerrainEffectDamage);
-        effectState.source_unit_id = sourceUnit != null ? sourceUnit.Get("unit_id").AsStringName() : "";
-        effectState.source_skill_id = skillDef != null ? skillDef.Get("skill_id").AsStringName() : "";
-        effectState.target_team_filter = BattleTargetTeamRules.resolve_effect_target_filter(skillDef, effectDef);
+        effectState.effect_type =
+            effectDef.tick_effect_type != ""
+                ? effectDef.tick_effect_type
+                : (
+                    lifetimePolicy == LifetimePolicyBattle ? TerrainEffectNone : TerrainEffectDamage
+                );
+        effectState.source_unit_id =
+            sourceUnit != null ? sourceUnit.unit_id : "";
+        effectState.source_skill_id =
+            skillDef?.skill_id ?? new StringName("");
+        effectState.target_team_filter = BattleTargetTeamRules.resolve_effect_target_filter(
+            skillDef,
+            effectDef
+        );
         effectState.power = effectDef.power;
         effectState.damage_tag = effectDef.damage_tag;
         effectState.tick_interval_tu = tickIntervalTu;
-        effectState.remaining_tu = lifetimePolicy == LifetimePolicyBattle ? 0 : Math.Max(durationTu, tickIntervalTu);
+        effectState.remaining_tu =
+            lifetimePolicy == LifetimePolicyBattle ? 0 : Math.Max(durationTu, tickIntervalTu);
 
         var runtime = _ResolveRuntime();
         if (lifetimePolicy == LifetimePolicyBattle)
@@ -384,9 +543,12 @@ public partial class BattleTerrainEffectSystem : RefCounted
         }
         else if (runtime != null)
         {
-            var state = runtime.Call("get_state").AsGodotObject();
-            var timeline = state?.Get("timeline").AsGodotObject();
-            effectState.next_tick_at_tu = timeline != null ? timeline.Get("current_tu").AsInt32() + tickIntervalTu : tickIntervalTu;
+            BattleState state = runtime.get_state();
+            BattleTimelineState timeline = state?.timeline;
+            effectState.next_tick_at_tu =
+                timeline != null
+                    ? timeline.current_tu + tickIntervalTu
+                    : tickIntervalTu;
         }
         else
         {
@@ -401,11 +563,8 @@ public partial class BattleTerrainEffectSystem : RefCounted
         return effectState;
     }
 
-    public static bool IsTerrainEffectActive(GodotObject effectStateObj)
+    public static bool IsTerrainEffectActive(BattleTerrainEffectState effectState)
     {
-        if (effectStateObj == null)
-            return false;
-        var effectState = effectStateObj as BattleTerrainEffectState;
         if (effectState == null)
             return false;
         if (_IsBattleLifetimeEffectStatic(effectState))
@@ -413,11 +572,17 @@ public partial class BattleTerrainEffectSystem : RefCounted
         return effectState.remaining_tu > 0;
     }
 
+    public static bool is_terrain_effect_active(BattleTerrainEffectState effect_state) =>
+        IsTerrainEffectActive(effect_state);
+
     private static bool _IsBattleLifetimeEffectStatic(BattleTerrainEffectState effectState)
     {
         if (effectState == null || effectState.@params == null)
             return false;
-        var policyValue = effectState.@params.GetValueOrDefault(ParamLifetimePolicy, effectState.@params.GetValueOrDefault(ParamLifetimePolicy, default));
+        var policyValue = effectState.@params.GetValueOrDefault(
+            ParamLifetimePolicy,
+            effectState.@params.GetValueOrDefault(ParamLifetimePolicy, default)
+        );
         if (policyValue.VariantType == Variant.Type.StringName)
             return policyValue.AsStringName() == LifetimePolicyBattle;
         if (policyValue.VariantType == Variant.Type.String)
@@ -434,11 +599,18 @@ public partial class BattleTerrainEffectSystem : RefCounted
     {
         if (effectDef == null || effectDef.@params == null)
             return LifetimePolicyTimed;
-        var value = effectDef.@params.GetValueOrDefault(ParamLifetimePolicy, effectDef.@params.GetValueOrDefault(ParamLifetimePolicy, LifetimePolicyTimed));
+        var value = effectDef.@params.GetValueOrDefault(
+            ParamLifetimePolicy,
+            effectDef.@params.GetValueOrDefault(ParamLifetimePolicy, LifetimePolicyTimed)
+        );
         if (value.VariantType == Variant.Type.StringName)
-            return value.AsStringName() == LifetimePolicyBattle ? LifetimePolicyBattle : LifetimePolicyTimed;
+            return value.AsStringName() == LifetimePolicyBattle
+                ? LifetimePolicyBattle
+                : LifetimePolicyTimed;
         if (value.VariantType == Variant.Type.String)
-            return new StringName(value.AsString()) == LifetimePolicyBattle ? LifetimePolicyBattle : LifetimePolicyTimed;
+            return new StringName(value.AsString()) == LifetimePolicyBattle
+                ? LifetimePolicyBattle
+                : LifetimePolicyTimed;
         return LifetimePolicyTimed;
     }
 
@@ -453,12 +625,20 @@ public partial class BattleTerrainEffectSystem : RefCounted
     {
         if (value <= 0)
         {
-            GD.PushError($"{fieldLabel} must be positive and use {TuGranularity} TU steps, got {value}; skipping effect.");
+            GameLog.Error(
+                $"{fieldLabel} must be positive and use {TuGranularity} TU steps, got {value}; skipping effect.",
+                "battle.terrain.invalid_tu_positive",
+                "battle"
+            );
             return -1;
         }
         if (value % TuGranularity != 0)
         {
-            GD.PushError($"{fieldLabel} must use {TuGranularity} TU steps, got {value}; skipping effect.");
+            GameLog.Error(
+                $"{fieldLabel} must use {TuGranularity} TU steps, got {value}; skipping effect.",
+                "battle.terrain.invalid_tu_granularity",
+                "battle"
+            );
             return -1;
         }
         return value;

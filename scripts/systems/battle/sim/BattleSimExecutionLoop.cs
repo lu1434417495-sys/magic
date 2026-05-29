@@ -1,220 +1,261 @@
-using Godot;
-using Godot.Collections;
-
-[GlobalClass]
-public partial class BattleSimExecutionLoop : RefCounted
-{
-    private const int DefaultMaxIdleLoops = 25;
-    private const int DefaultTimelineTicksPerStep = 1;
-    private static readonly StringName DefaultManualPolicy = "wait";
-
-    public Dictionary run(GodotObject runtime, GodotObject state, GodotObject scenario_def, Dictionary options)
-    {
-        return Run(runtime, state, scenario_def, options);
-    }
-
-    public void advance_step(GodotObject runtime, GodotObject state, StringName manual_policy, int timeline_ticks_per_step)
-    {
-        AdvanceStep(runtime, state, manual_policy, timeline_ticks_per_step);
-    }
-
-    public bool has_ready_units(GodotObject state)
-    {
-        return HasReadyUnits(state);
-    }
-
-    public string build_progress_signature(GodotObject state)
-    {
-        return BuildProgressSignature(state);
-    }
-
-    public Dictionary Run(GodotObject runtime, GodotObject state, GodotObject scenarioDef, Dictionary options)
-    {
-        int iterations = 0;
-        int idleLoops = 0;
-        int timelineSteps = 0;
-        bool stalled = false;
-        int maxIterations = ResolveMaxIterations(scenarioDef, options);
-        int maxIdleLoops = ResolveMaxIdleLoops(options);
-        StringName manualPolicy = ResolveManualPolicy(scenarioDef, options);
-        int timelineTicksPerStep = ResolveTimelineTicksPerStep(scenarioDef, options);
-        int progressIterationInterval = Mathf.Max(DictionaryGet(options, "progress_iteration_interval", 0).AsInt32(), 0);
-        Callable progressCallback = DictionaryGet(options, "progress_callback", new Callable()).AsCallable();
-        Dictionary progressContext = DictionaryGet(options, "progress_context", new Dictionary()).VariantType == Variant.Type.Dictionary
-            ? DictionaryGet(options, "progress_context", new Dictionary()).AsGodotDictionary()
-            : new Dictionary();
-
-        while (state != null && state.Get("phase").AsStringName() != "battle_ended" && iterations < maxIterations)
-        {
-            iterations++;
-            var timeline = state.Get("timeline").AsGodotObject();
-            int previousTu = timeline != null ? timeline.Get("current_tu").AsInt32() : 0;
-            string previousSignature = BuildProgressSignature(state);
-            AdvanceStep(runtime, state, manualPolicy, timelineTicksPerStep);
-            timeline = state != null ? state.Get("timeline").AsGodotObject() : null;
-            int nextTu = state != null && timeline != null ? timeline.Get("current_tu").AsInt32() : previousTu;
-            if (nextTu != previousTu)
-                timelineSteps++;
-
-            if (progressIterationInterval > 0 && !progressCallback.Equals(default(Callable)) && iterations % progressIterationInterval == 0)
-            {
-                progressCallback.Call(new Dictionary
-                {
-                    ["iterations"] = iterations,
-                    ["idle_loops"] = idleLoops,
-                    ["timeline_steps"] = timelineSteps,
-                    ["state"] = state,
-                    ["context"] = progressContext,
-                });
-            }
-
-            string nextSignature = BuildProgressSignature(state);
-            if (previousSignature == nextSignature)
-            {
-                idleLoops++;
-                if (idleLoops >= maxIdleLoops)
-                {
-                    stalled = true;
-                    break;
-                }
-            }
-            else
-            {
-                idleLoops = 0;
-            }
-        }
-
-        return new Dictionary
-        {
-            ["iterations"] = iterations,
-            ["idle_loops"] = idleLoops,
-            ["timeline_steps"] = timelineSteps,
-            ["stalled"] = stalled,
-        };
-    }
-
-    public void AdvanceStep(GodotObject runtime, GodotObject state, StringName manualPolicy, int timelineTicksPerStep)
-    {
-        if (runtime == null || state == null)
-            return;
-
-        var phase = state.Get("phase").AsStringName();
-        if (phase == "unit_acting")
-        {
-            var units = state.Get("units").AsGodotDictionary();
-            var activeUnitId = state.Get("active_unit_id").AsStringName();
-            var activeUnit = DictionaryGet(units, activeUnitId, default).AsGodotObject();
-            if (activeUnit != null && activeUnit.Get("is_alive").AsBool() && activeUnit.Get("control_mode").AsStringName() == "manual")
-            {
-                IssueManualPolicy(runtime, manualPolicy, activeUnitId);
-            }
-            else
-            {
-                runtime.Call("advance", 0);
-            }
-            return;
-        }
-
-        if (HasReadyUnits(state))
-        {
-            runtime.Call("advance", 0);
-            return;
-        }
-
-        runtime.Call("advance", Mathf.Max(timelineTicksPerStep, DefaultTimelineTicksPerStep));
-    }
-
-    public bool HasReadyUnits(GodotObject state)
-    {
-        if (state == null)
-            return false;
-        var timeline = state.Get("timeline").AsGodotObject();
-        if (timeline == null)
-            return false;
-        var readyUnitIds = timeline.Get("ready_unit_ids").AsGodotArray();
-        return readyUnitIds.Count > 0;
-    }
-
-    public string BuildProgressSignature(GodotObject state)
-    {
-        if (state == null)
-            return "";
-
-        var units = state.Get("units").AsGodotDictionary();
-        var timeline = state.Get("timeline").AsGodotObject();
-        var unitParts = new System.Collections.Generic.List<string>();
-
-        foreach (var unitIdStr in ProgressionDataUtils.sorted_string_keys(units))
-        {
-            var unitState = DictionaryGet(units, (StringName)unitIdStr, default).AsGodotObject();
-            if (unitState == null)
-                continue;
-            var coord = unitState.Get("coord").AsVector2I();
-            unitParts.Add(string.Format("{0}:{1},{2}:{3}:{4}:{5}:{6}:{7}",
-                unitIdStr,
-                coord.X, coord.Y,
-                unitState.Get("is_alive").AsBool() ? 1 : 0,
-                unitState.Get("current_hp").AsInt32(),
-                unitState.Get("current_ap").AsInt32(),
-                unitState.Get("current_stamina").AsInt32(),
-                unitState.Get("current_move_points").AsInt32()));
-        }
-
-        return string.Format("{0}|{1}|{2}|{3}|{4}",
-            state.Get("phase").AsStringName().ToString(),
-            state.Get("active_unit_id").AsStringName().ToString(),
-            state.Get("winner_faction_id").AsStringName().ToString(),
-            timeline != null ? timeline.Get("current_tu").AsInt32() : 0,
-            string.Join(";", unitParts));
-    }
-
-    private void IssueManualPolicy(GodotObject runtime, StringName manualPolicy, StringName unitId)
-    {
-        var command = new BattleCommand();
-        command.unit_id = unitId;
-        command.command_type = BattleCommand.TYPE_WAIT();
-        switch (manualPolicy.ToString())
-        {
-            case "wait":
-            default:
-                runtime.Call("issue_command", command);
-                break;
-        }
-    }
-
-    private int ResolveMaxIterations(GodotObject scenarioDef, Dictionary options)
-    {
-        if (options.ContainsKey("max_iterations"))
-            return Mathf.Max(DictionaryGet(options, "max_iterations", 0).AsInt32(), 0);
-        return scenarioDef != null ? Mathf.Max(scenarioDef.Get("max_iterations").AsInt32(), 0) : 0;
-    }
-
-    private int ResolveMaxIdleLoops(Dictionary options)
-    {
-        return Mathf.Max(DictionaryGet(options, "max_idle_loops", DefaultMaxIdleLoops).AsInt32(), 1);
-    }
-
-    private StringName ResolveManualPolicy(GodotObject scenarioDef, Dictionary options)
-    {
-        if (options.ContainsKey("manual_policy"))
-            return ProgressionDataUtils.to_string_name(DictionaryGet(options, "manual_policy", DefaultManualPolicy));
-        return scenarioDef != null ? ProgressionDataUtils.to_string_name(scenarioDef.Get("manual_policy")) : DefaultManualPolicy;
-    }
-
-    private int ResolveTimelineTicksPerStep(GodotObject scenarioDef, Dictionary options)
-    {
-        int value = DefaultTimelineTicksPerStep;
-        if (options.ContainsKey("timeline_ticks_per_step"))
-            value = DictionaryGet(options, "timeline_ticks_per_step", DefaultTimelineTicksPerStep).AsInt32();
-        else if (scenarioDef != null)
-            value = scenarioDef.Get("timeline_ticks_per_step").AsInt32();
-        return Mathf.Max(value, DefaultTimelineTicksPerStep);
-    }
-
-    private static Variant DictionaryGet(Dictionary dictionary, Variant key, Variant fallback)
-    {
-        if (dictionary != null && dictionary.ContainsKey(key))
-            return dictionary[key];
-        return fallback;
-    }
+using Godot;
+
+public sealed class BattleSimExecutionLoop
+{
+    private const int DefaultMaxIdleLoops = 25;
+    private const int DefaultTimelineTicksPerStep = 1;
+
+    private static readonly StringName BattleEndedPhase = "battle_ended";
+    private static readonly StringName UnitActingPhase = "unit_acting";
+    private static readonly StringName ManualControlMode = "manual";
+    private static readonly StringName DefaultManualPolicy = "wait";
+
+    public BattleSimExecutionLoopResult Run(
+        BattleRuntimeModule runtime,
+        BattleState state,
+        BattleSimScenarioDef scenarioDef,
+        int maxIdleLoops = DefaultMaxIdleLoops
+    )
+    {
+        int maxIterations = Mathf.Max(scenarioDef?.max_iterations ?? 0, 0);
+        StringName manualPolicy = scenarioDef?.manual_policy ?? DefaultManualPolicy;
+        int timelineTicksPerStep = Mathf.Max(
+            scenarioDef?.timeline_ticks_per_step ?? DefaultTimelineTicksPerStep,
+            DefaultTimelineTicksPerStep
+        );
+        return Run(
+            runtime,
+            state,
+            maxIterations,
+            maxIdleLoops,
+            manualPolicy,
+            timelineTicksPerStep
+        );
+    }
+
+    public BattleSimExecutionLoopResult Run(
+        BattleRuntimeModule runtime,
+        BattleState state,
+        int maxIterations,
+        int maxIdleLoops = DefaultMaxIdleLoops,
+        StringName manualPolicy = default,
+        int timelineTicksPerStep = DefaultTimelineTicksPerStep
+    )
+    {
+        int iterations = 0;
+        int idleLoops = 0;
+        int timelineSteps = 0;
+        bool stalled = false;
+        maxIterations = Mathf.Max(maxIterations, 0);
+        maxIdleLoops = Mathf.Max(maxIdleLoops, 1);
+        timelineTicksPerStep = Mathf.Max(timelineTicksPerStep, DefaultTimelineTicksPerStep);
+        if (manualPolicy == default || string.IsNullOrEmpty(manualPolicy.ToString()))
+            manualPolicy = DefaultManualPolicy;
+        bool traceLoop = OS.HasEnvironment("SIM_LOOP_TRACE")
+            && OS.GetEnvironment("SIM_LOOP_TRACE").StripEdges() == "1";
+
+        while (
+            runtime != null
+            && state != null
+            && state.phase != BattleEndedPhase
+            && iterations < maxIterations
+        )
+        {
+            iterations++;
+
+            int previousTu = state.timeline?.current_tu ?? 0;
+            StringName previousPhase = state.phase;
+            StringName previousActiveUnitId = state.active_unit_id;
+
+            if (traceLoop && (iterations <= 50 || iterations % 100 == 0))
+            {
+                GameLog.Debug(
+                    $"[LoopTrace] before iteration={iterations} phase={state.phase} active={state.active_unit_id} tu={previousTu} ready={state.timeline?.ready_unit_ids.Count ?? 0}",
+                    "battlesim.loop.trace_before",
+                    "battlesim"
+                );
+            }
+            AiTraceRecorder recorder = null;
+            if (traceLoop)
+            {
+                recorder = new AiTraceRecorder();
+                recorder.set_event_capture_enabled(false);
+                AiTraceRecorder.set_instance(recorder);
+            }
+            ulong advanceStartMsec = traceLoop ? Time.GetTicksMsec() : 0;
+            BattleEventBatch batch = AdvanceStep(runtime, state, manualPolicy, timelineTicksPerStep);
+            if (traceLoop && (iterations <= 50 || iterations % 100 == 0))
+            {
+                ulong advanceElapsedMsec = Time.GetTicksMsec() - advanceStartMsec;
+                GameLog.Debug(
+                    $"[LoopTrace] after iteration={iterations} phase={state.phase} active={state.active_unit_id} tu={state.timeline?.current_tu ?? previousTu} ready={state.timeline?.ready_unit_ids.Count ?? 0} batch_null={batch == null} advance_ms={advanceElapsedMsec}",
+                    "battlesim.loop.trace_after",
+                    "battlesim"
+                );
+                if (advanceElapsedMsec >= 250 && recorder != null)
+                {
+                    PrintTraceStats(recorder, iterations);
+                }
+            }
+            if (traceLoop)
+            {
+                AiTraceRecorder.set_instance(null);
+            }
+
+            int nextTu = state.timeline?.current_tu ?? previousTu;
+            if (nextTu != previousTu)
+                timelineSteps++;
+
+            if (HasProgressed(state, batch, previousTu, previousPhase, previousActiveUnitId))
+            {
+                idleLoops = 0;
+                continue;
+            }
+
+            idleLoops++;
+            if (idleLoops >= maxIdleLoops)
+            {
+                stalled = true;
+                break;
+            }
+        }
+
+        return new BattleSimExecutionLoopResult
+        {
+            iterations = iterations,
+            idle_loops = idleLoops,
+            timeline_steps = timelineSteps,
+            stalled = stalled,
+        };
+    }
+
+    public BattleEventBatch AdvanceStep(
+        BattleRuntimeModule runtime,
+        BattleState state,
+        StringName manualPolicy,
+        int timelineTicksPerStep
+    )
+    {
+        if (runtime == null || state == null)
+            return null;
+
+        if (state.phase == UnitActingPhase)
+        {
+            BattleUnitState activeUnit = GetUnit(state, state.active_unit_id);
+            if (
+                activeUnit != null
+                && activeUnit.is_alive
+                && activeUnit.control_mode == ManualControlMode
+            )
+            {
+                return IssueManualPolicy(runtime, manualPolicy, activeUnit.unit_id);
+            }
+
+            return runtime.advance(0);
+        }
+
+        if (HasReadyUnits(state))
+            return runtime.advance(0);
+
+        return runtime.advance(Mathf.Max(timelineTicksPerStep, DefaultTimelineTicksPerStep));
+    }
+
+    public bool HasReadyUnits(BattleState state)
+    {
+        return state?.timeline?.ready_unit_ids != null && state.timeline.ready_unit_ids.Count > 0;
+    }
+
+    private static bool HasProgressed(
+        BattleState state,
+        BattleEventBatch batch,
+        int previousTu,
+        StringName previousPhase,
+        StringName previousActiveUnitId
+    )
+    {
+        if (state == null)
+            return false;
+        if ((state.timeline?.current_tu ?? previousTu) != previousTu)
+            return true;
+        if (state.phase != previousPhase || state.active_unit_id != previousActiveUnitId)
+            return true;
+        if (batch == null)
+            return false;
+        return batch.phase_changed
+            || batch.battle_ended
+            || batch.modal_requested
+            || batch.changed_unit_ids.Count > 0
+            || batch.changed_coords.Count > 0
+            || batch.log_lines.Count > 0
+            || batch.report_entries.Count > 0
+            || batch.progression_deltas.Count > 0;
+    }
+
+    private static BattleEventBatch IssueManualPolicy(
+        BattleRuntimeModule runtime,
+        StringName manualPolicy,
+        StringName unitId
+    )
+    {
+        var command = new BattleCommand
+        {
+            unit_id = unitId,
+            command_type = BattleCommand.TYPE_WAIT(),
+        };
+
+        switch (manualPolicy.ToString())
+        {
+            case "wait":
+            default:
+                return runtime.issue_command(command);
+        }
+    }
+
+    private static BattleUnitState GetUnit(BattleState state, StringName unitId)
+    {
+        if (state?.units == null || !state.units.ContainsKey(unitId))
+            return null;
+        return state.units[unitId].AsGodotObject() as BattleUnitState;
+    }
+
+    private static void PrintTraceStats(AiTraceRecorder recorder, int iteration)
+    {
+        var stats = recorder?.get_func_stats();
+        if (stats == null || stats.Count == 0)
+        {
+            return;
+        }
+        var entries = new System.Collections.Generic.List<(string Name, long TotalUsec, long Calls)>();
+        foreach (var key in stats.Keys)
+        {
+            var name = key.ToString();
+            if (stats[key].VariantType != Variant.Type.Dictionary)
+            {
+                continue;
+            }
+            var row = stats[key].AsGodotDictionary();
+            long totalUsec = row.GetValueOrDefault("total_usec", 0).AsInt64();
+            long calls = row.GetValueOrDefault("ncalls", 0).AsInt64();
+            entries.Add((name, totalUsec, calls));
+        }
+        entries.Sort((left, right) => right.TotalUsec.CompareTo(left.TotalUsec));
+        int limit = Mathf.Min(entries.Count, 8);
+        for (int index = 0; index < limit; index++)
+        {
+            var entry = entries[index];
+                GameLog.Debug(
+                    $"[LoopTraceStats] iteration={iteration} rank={index + 1} name={entry.Name} total_ms={entry.TotalUsec / 1000.0:F1} calls={entry.Calls}",
+                    "battlesim.loop.trace_stats",
+                    "battlesim"
+                );
+        }
+    }
+}
+
+public sealed class BattleSimExecutionLoopResult
+{
+    public int iterations;
+    public int idle_loops;
+    public int timeline_steps;
+    public bool stalled;
 }

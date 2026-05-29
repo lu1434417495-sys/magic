@@ -10,43 +10,65 @@ public partial class AscensionApplyService : RefCounted
         _content_bundle = contentBundle ?? new Godot.Collections.Dictionary();
     }
 
-    public bool apply_ascension(GodotObject memberState, StringName ascensionId, StringName ascensionStageId, int currentWorldStep)
+    public bool apply_ascension(
+        PartyMemberState memberState,
+        StringName ascensionId,
+        StringName ascensionStageId,
+        int currentWorldStep
+    )
     {
-        if (memberState == null || ascensionId == "" || ascensionStageId == "" || currentWorldStep < 0)
+        if (
+            memberState == null
+            || ascensionId == ""
+            || ascensionStageId == ""
+            || currentWorldStep < 0
+        )
             return false;
-        var ascensionDef = _get_content_def("ascension_defs", "ascension", ascensionId) as AscensionDef;
-        var stageDef = _get_content_def("ascension_stage_defs", "ascension_stage", ascensionStageId) as AscensionStageDef;
+        var ascensionDef =
+            _get_content_def("ascension_defs", "ascension", ascensionId) as AscensionDef;
+        var stageDef =
+            _get_content_def("ascension_stage_defs", "ascension_stage", ascensionStageId)
+            as AscensionStageDef;
         if (!_is_valid_ascension_stage_pair(ascensionDef, stageDef, ascensionId, ascensionStageId))
             return false;
         if (!_member_matches_allowed_identity(memberState, ascensionDef))
             return false;
-        if (memberState.Get("original_race_id_before_ascension").AsStringName() == "")
-            memberState.Set("original_race_id_before_ascension", memberState.Get("race_id").AsStringName());
-        memberState.Set("ascension_id", ascensionId);
-        memberState.Set("ascension_stage_id", ascensionStageId);
-        memberState.Set("ascension_started_at_world_step", currentWorldStep);
+        if (memberState.original_race_id_before_ascension == "")
+            memberState.original_race_id_before_ascension = memberState.race_id;
+        memberState.ascension_id = ascensionId;
+        memberState.ascension_stage_id = ascensionStageId;
+        memberState.ascension_started_at_world_step = currentWorldStep;
         return true;
     }
 
-    public bool revoke_ascension(GodotObject memberState, bool restoreOriginalRace = true)
+    public bool revoke_ascension(PartyMemberState memberState) => revoke_ascension(memberState, true);
+
+    public bool revoke_ascension(PartyMemberState memberState, bool restoreOriginalRace)
     {
         if (memberState == null)
             return false;
-        if (memberState.Get("ascension_id").AsStringName() == ""
-            && memberState.Get("ascension_stage_id").AsStringName() == ""
-            && memberState.Get("ascension_started_at_world_step").AsInt32() == -1
-            && memberState.Get("original_race_id_before_ascension").AsStringName() == "")
+        if (
+            memberState.ascension_id == ""
+            && memberState.ascension_stage_id == ""
+            && memberState.ascension_started_at_world_step == -1
+            && memberState.original_race_id_before_ascension == ""
+        )
             return false;
-        if (restoreOriginalRace && memberState.Get("original_race_id_before_ascension").AsStringName() != "")
-            memberState.Set("race_id", memberState.Get("original_race_id_before_ascension").AsStringName());
-        memberState.Set("ascension_id", "");
-        memberState.Set("ascension_stage_id", "");
-        memberState.Set("ascension_started_at_world_step", -1);
-        memberState.Set("original_race_id_before_ascension", "");
+        if (restoreOriginalRace && memberState.original_race_id_before_ascension != "")
+            memberState.race_id = memberState.original_race_id_before_ascension;
+        memberState.ascension_id = "";
+        memberState.ascension_stage_id = "";
+        memberState.ascension_started_at_world_step = -1;
+        memberState.original_race_id_before_ascension = "";
         return true;
     }
 
-    private bool _is_valid_ascension_stage_pair(AscensionDef ascensionDef, AscensionStageDef stageDef, StringName ascensionId, StringName ascensionStageId)
+    private bool _is_valid_ascension_stage_pair(
+        AscensionDef ascensionDef,
+        AscensionStageDef stageDef,
+        StringName ascensionId,
+        StringName ascensionStageId
+    )
     {
         if (ascensionDef == null || stageDef == null)
             return false;
@@ -59,28 +81,49 @@ public partial class AscensionApplyService : RefCounted
         return ascensionDef.stage_ids.Contains(ascensionStageId);
     }
 
-    private bool _member_matches_allowed_identity(GodotObject memberState, AscensionDef ascensionDef)
+    private bool _member_matches_allowed_identity(
+        PartyMemberState memberState,
+        AscensionDef ascensionDef
+    )
     {
         if (ascensionDef == null || memberState == null)
             return false;
-        if (ascensionDef.allowed_race_ids.Count > 0 && !ascensionDef.allowed_race_ids.Contains(memberState.Get("race_id").AsStringName()))
+        if (
+            ascensionDef.allowed_race_ids.Count > 0
+            && !ascensionDef.allowed_race_ids.Contains(memberState.race_id)
+        )
             return false;
-        if (ascensionDef.allowed_subrace_ids.Count > 0 && !ascensionDef.allowed_subrace_ids.Contains(memberState.Get("subrace_id").AsStringName()))
+        if (
+            ascensionDef.allowed_subrace_ids.Count > 0
+            && !ascensionDef.allowed_subrace_ids.Contains(memberState.subrace_id)
+        )
             return false;
-        if (ascensionDef.allowed_bloodline_ids.Count > 0 && !ascensionDef.allowed_bloodline_ids.Contains(memberState.Get("bloodline_id").AsStringName()))
+        if (
+            ascensionDef.allowed_bloodline_ids.Count > 0
+            && !ascensionDef.allowed_bloodline_ids.Contains(memberState.bloodline_id)
+        )
             return false;
         return true;
     }
 
-    private GodotObject _get_content_def(string primaryBucket, string aliasBucket, StringName entryId)
+    private GodotObject _get_content_def(
+        string primaryBucket,
+        string aliasBucket,
+        StringName entryId
+    )
     {
         if (entryId == "")
             return null;
         var bucket = _get_content_bucket(primaryBucket, aliasBucket);
-        return bucket != null && bucket.ContainsKey(entryId) ? bucket[entryId].AsGodotObject() : null;
+        return bucket != null && bucket.ContainsKey(entryId)
+            ? bucket[entryId].AsGodotObject()
+            : null;
     }
 
-    private Godot.Collections.Dictionary _get_content_bucket(string primaryBucket, string aliasBucket)
+    private Godot.Collections.Dictionary _get_content_bucket(
+        string primaryBucket,
+        string aliasBucket
+    )
     {
         if (_content_bundle.ContainsKey(primaryBucket))
         {

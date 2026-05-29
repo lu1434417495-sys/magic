@@ -1,9 +1,9 @@
-## Guards the correctness invariants that the A* optimization in
+## Guards the correctness inoptions that the A* optimization in
 ## `battle_grid_service.gd::resolve_unit_move_path` depends on. If any of these
 ## fail, the Manhattan heuristic may stop being admissible and AI / player
 ## movement can silently start choosing sub-optimal paths.
 ##
-## Invariants enforced here:
+## Inoptions enforced here:
 ##   1. `get_unit_move_cost` returns >= 1 for every base terrain id (so each step
 ##      contributes at least 1 to the true path cost — the floor Manhattan
 ##      heuristic relies on).
@@ -15,10 +15,10 @@
 extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
-const BattleGridService = preload("res://scripts/systems/battle/terrain/battle_grid_service.gd")
-const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
-const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
-const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
+const BattleGridService = preload("res://scripts/systems/battle/terrain/BattleGridService.cs")
+const BattleState = preload("res://scripts/systems/battle/core/BattleState.cs")
+const BattleCellState = preload("res://scripts/systems/battle/core/BattleCellState.cs")
+const BattleUnitState = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
 
 const ALL_TERRAINS: Array[StringName] = [
 	&"land",
@@ -51,17 +51,17 @@ func _run() -> void:
 	_test_path_tree_respects_occupant_blocks()
 
 	if _failures.is_empty():
-		print("Battle grid service pathfinding invariants: PASS")
+		print("Battle grid service pathfinding inoptions: PASS")
 		quit(0)
 		return
 
 	for failure in _failures:
 		push_error(failure)
-	print("Battle grid service pathfinding invariants: FAIL (%d)" % _failures.size())
+	print("Battle grid service pathfinding inoptions: FAIL (%d)" % _failures.size())
 	quit(1)
 
 
-# Invariant 1: Manhattan heuristic relies on step_cost >= 1 for every reachable cell.
+# Inoption 1: Manhattan heuristic relies on step_cost >= 1 for every reachable cell.
 # If a future terrain returns cost < 1, the A* optimization will start picking
 # sub-optimal paths silently.
 func _test_step_cost_floor() -> void:
@@ -80,7 +80,7 @@ func _test_step_cost_floor() -> void:
 			])
 
 
-# Invariant 2: On a flat, fully passable map, A* returns Manhattan distance.
+# Inoption 2: On a flat, fully passable map, A* returns Manhattan distance.
 # Anything else means the heuristic is over-estimating or the search prunes a
 # legal direct path.
 func _test_a_star_simple_optimality() -> void:
@@ -91,7 +91,7 @@ func _test_a_star_simple_optimality() -> void:
 		_test.fail("simple optimality: failed to place unit at origin.")
 		return
 	var to_coord := Vector2i(5, 3)
-	var result := _grid.resolve_unit_move_path(state, unit, unit.coord, to_coord, 99)
+	var result: Dictionary = _grid.resolve_unit_move_path(state, unit, unit.coord, to_coord, 99)
 	if not bool(result.get("allowed", false)):
 		_test.fail("simple optimality: expected straight path to be allowed, got %s." % str(result))
 		return
@@ -102,7 +102,7 @@ func _test_a_star_simple_optimality() -> void:
 		])
 
 
-# Invariant 3: Mixed-cost terrain. A* must match the embedded reference
+# Inoption 3: Mixed-cost terrain. A* must match the embedded reference
 # Dijkstra (which has no heuristic and is the simplest correct implementation).
 func _test_a_star_matches_reference_with_mud_stripe() -> void:
 	var state := _build_state(Vector2i(5, 5))
@@ -118,7 +118,7 @@ func _test_a_star_matches_reference_with_mud_stripe() -> void:
 		if cell != null:
 			cell.base_terrain = &"mud"
 	var to_coord := Vector2i(4, 4)
-	var a_star := _grid.resolve_unit_move_path(state, unit, unit.coord, to_coord, 99)
+	var a_star: Dictionary = _grid.resolve_unit_move_path(state, unit, unit.coord, to_coord, 99)
 	var reference_cost := _reference_dijkstra_cost(state, unit, unit.coord, to_coord)
 	if not bool(a_star.get("allowed", false)):
 		_test.fail("mud stripe: expected destination to be reachable.")
@@ -129,7 +129,7 @@ func _test_a_star_matches_reference_with_mud_stripe() -> void:
 		])
 
 
-# Invariant 4: Differential test against a reference Dijkstra on randomized maps.
+# Inoption 4: Differential test against a reference Dijkstra on randomized maps.
 # Catches subtle heuristic / tie-break bugs that handcrafted scenarios miss.
 func _test_a_star_matches_reference_randomized() -> void:
 	var rng := RandomNumberGenerator.new()
@@ -156,7 +156,7 @@ func _test_a_star_matches_reference_randomized() -> void:
 		if dest == unit.coord:
 			continue
 		var reference_cost := _reference_dijkstra_cost(state, unit, unit.coord, dest)
-		var a_star := _grid.resolve_unit_move_path(state, unit, unit.coord, dest, 9999)
+		var a_star: Dictionary = _grid.resolve_unit_move_path(state, unit, unit.coord, dest, 9999)
 		if reference_cost < 0:
 			if bool(a_star.get("allowed", false)):
 				_test.fail("randomized trial %d: reference says unreachable but A* allows path." % trial)
@@ -173,7 +173,7 @@ func _test_a_star_matches_reference_randomized() -> void:
 			])
 		trials_run += 1
 	if trials_run == 0:
-		_test.fail("randomized differential test ran 0 trials — RNG/setup degenerate, invariant unverified.")
+		_test.fail("randomized differential test ran 0 trials — RNG/setup degenerate, inoption unverified.")
 
 
 func _test_path_tree_matches_reference_with_mud_stripe() -> void:
@@ -187,7 +187,7 @@ func _test_path_tree_matches_reference_with_mud_stripe() -> void:
 		var cell := state.cells.get(Vector2i(x, 1)) as BattleCellState
 		if cell != null:
 			cell.base_terrain = &"mud"
-	var tree := _grid.build_unit_move_path_tree(state, unit, unit.coord, 99)
+	var tree: Dictionary = _grid.build_unit_move_path_tree(state, unit, unit.coord, 99)
 	var costs: Dictionary = tree.get("costs", {})
 	for y in range(state.map_size.y):
 		for x in range(state.map_size.x):
@@ -219,7 +219,7 @@ func _test_path_tree_respects_occupant_blocks() -> void:
 	if not _grid.place_unit(state, blocker, blocker.coord, true):
 		_test.fail("path tree occupant: failed to place blocker.")
 		return
-	var tree := _grid.build_unit_move_path_tree(state, unit, unit.coord, 99)
+	var tree: Dictionary = _grid.build_unit_move_path_tree(state, unit, unit.coord, 99)
 	var costs: Dictionary = tree.get("costs", {})
 	if costs.has(Vector2i(1, 0)):
 		_test.fail("path tree occupant: blocker coord should not be reachable.")
@@ -278,8 +278,8 @@ func _build_state(map_size: Vector2i) -> BattleState:
 
 func _build_unit(coord: Vector2i) -> BattleUnitState:
 	var unit := BattleUnitState.new()
-	unit.unit_id = &"path_invariant_unit"
-	unit.display_name = "PathInvariant"
+	unit.unit_id = &"path_inoption_unit"
+	unit.display_name = "PathInoption"
 	unit.faction_id = &"player"
 	unit.coord = coord
 	unit.is_alive = true

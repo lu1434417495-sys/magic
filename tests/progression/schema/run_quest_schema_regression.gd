@@ -2,11 +2,11 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const ItemContentRegistry = preload("res://scripts/player/warehouse/item_content_registry.gd")
-const CharacterManagementModule = preload("res://scripts/systems/progression/character_management_module.gd")
-const PartyState = preload("res://scripts/player/progression/party_state.gd")
-const QuestDef = preload("res://scripts/player/progression/quest_def.gd")
-const QuestState = preload("res://scripts/player/progression/quest_state.gd")
+const ItemContentRegistry = preload("res://scripts/player/warehouse/ItemContentRegistry.cs")
+const CharacterManagementModule = preload("res://scripts/systems/progression/CharacterManagementModule.cs")
+const PartyState = preload("res://scripts/player/progression/PartyState.cs")
+const QuestDef = preload("res://scripts/player/progression/QuestDef.cs")
+const QuestState = preload("res://scripts/player/progression/QuestState.cs")
 const QUEST_ITEM_IDS := [
 	&"sealed_dispatch",
 	&"bandit_insignia",
@@ -52,22 +52,22 @@ func _test_quest_def_round_trip_and_validation() -> void:
 	quest_def.objective_defs = [
 		{
 			"objective_id": "defeat_wolves",
-			"objective_type": QuestDef.OBJECTIVE_DEFEAT_ENEMY,
+			"objective_type": QuestDef.OBJECTIVE_DEFEAT_ENEMY(),
 			"target_id": "wolf_raider",
 			"target_value": 3,
 		},
 		{
 			"objective_id": "report_back",
-			"objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION,
+			"objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION(),
 			"target_id": "service_contract_board",
 			"target_value": 1,
 		},
 	]
 	quest_def.reward_entries = [
-		{"reward_type": QuestDef.REWARD_GOLD, "amount": 120},
-		{"reward_type": QuestDef.REWARD_ITEM, "item_id": "iron_ore", "quantity": 2},
+		{"reward_type": QuestDef.REWARD_GOLD(), "amount": 120},
+		{"reward_type": QuestDef.REWARD_ITEM(), "item_id": "iron_ore", "quantity": 2},
 		{
-			"reward_type": QuestDef.REWARD_PENDING_CHARACTER_REWARD,
+			"reward_type": QuestDef.REWARD_PENDING_CHARACTER_REWARD(),
 			"member_id": "hero",
 			"entries": [
 				{
@@ -87,8 +87,8 @@ func _test_quest_def_round_trip_and_validation() -> void:
 	var invalid_quest := QuestDef.new()
 	invalid_quest.quest_id = &"broken_contract"
 	invalid_quest.objective_defs = [
-		{"objective_id": "dup", "objective_type": QuestDef.OBJECTIVE_DEFEAT_ENEMY, "target_value": 1},
-		{"objective_id": "dup", "objective_type": QuestDef.OBJECTIVE_DEFEAT_ENEMY, "target_value": 1},
+		{"objective_id": "dup", "objective_type": QuestDef.OBJECTIVE_DEFEAT_ENEMY(), "target_value": 1},
+		{"objective_id": "dup", "objective_type": QuestDef.OBJECTIVE_DEFEAT_ENEMY(), "target_value": 1},
 	]
 	var errors: Array[String] = invalid_quest.validate_schema()
 	_assert_true(errors.size() >= 1, "重复 objective_id 应被 validate_schema() 拒绝。")
@@ -97,11 +97,11 @@ func _test_quest_def_round_trip_and_validation() -> void:
 	var invalid_reward_quest := QuestDef.new()
 	invalid_reward_quest.quest_id = &"broken_reward_contract"
 	invalid_reward_quest.objective_defs = [
-		{"objective_id": "report_back", "objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION, "target_value": 1},
+		{"objective_id": "report_back", "objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION(), "target_value": 1},
 	]
 	invalid_reward_quest.reward_entries = [
-		{"reward_type": QuestDef.REWARD_GOLD, "amount": 0},
-		{"reward_type": QuestDef.REWARD_ITEM, "item_id": "", "quantity": 0},
+		{"reward_type": QuestDef.REWARD_GOLD(), "amount": 0},
+		{"reward_type": QuestDef.REWARD_ITEM(), "item_id": "", "quantity": 0},
 	]
 	var reward_errors: Array[String] = invalid_reward_quest.validate_schema()
 	_assert_true(reward_errors.size() >= 2, "无效 gold/item reward 应被 validate_schema() 拒绝。")
@@ -110,10 +110,10 @@ func _test_quest_def_round_trip_and_validation() -> void:
 	string_gold_reward_quest.quest_id = &"string_gold_reward_contract"
 	string_gold_reward_quest.display_name = "字符串金币奖励契约"
 	string_gold_reward_quest.objective_defs = [
-		{"objective_id": "report_back", "objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION, "target_value": 1},
+		{"objective_id": "report_back", "objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION(), "target_value": 1},
 	]
 	string_gold_reward_quest.reward_entries = [
-		{"reward_type": QuestDef.REWARD_GOLD, "amount": "2"},
+		{"reward_type": QuestDef.REWARD_GOLD(), "amount": "2"},
 	]
 	var string_gold_reward_errors: Array[String] = string_gold_reward_quest.validate_schema()
 	_assert_true(
@@ -124,10 +124,10 @@ func _test_quest_def_round_trip_and_validation() -> void:
 	var legacy_item_reward_quest := QuestDef.new()
 	legacy_item_reward_quest.quest_id = &"legacy_item_reward_contract"
 	legacy_item_reward_quest.objective_defs = [
-		{"objective_id": "report_back", "objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION, "target_value": 1},
+		{"objective_id": "report_back", "objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION(), "target_value": 1},
 	]
 	legacy_item_reward_quest.reward_entries = [
-		{"reward_type": QuestDef.REWARD_ITEM, "target_id": "iron_ore", "amount": 2},
+		{"reward_type": QuestDef.REWARD_ITEM(), "target_id": "iron_ore", "amount": 2},
 	]
 	var legacy_reward_errors: Array[String] = legacy_item_reward_quest.validate_schema()
 	_assert_true(_has_error_containing(legacy_reward_errors, "item reward 缺少 item_id"), "item reward 不应继续把 target_id 当成 item_id。")
@@ -138,11 +138,11 @@ func _test_quest_def_round_trip_and_validation() -> void:
 	var invalid_pending_reward_quest := QuestDef.new()
 	invalid_pending_reward_quest.quest_id = &"broken_pending_reward_contract"
 	invalid_pending_reward_quest.objective_defs = [
-		{"objective_id": "report_back", "objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION, "target_value": 1},
+		{"objective_id": "report_back", "objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION(), "target_value": 1},
 	]
 	invalid_pending_reward_quest.reward_entries = [
 		{
-			"reward_type": QuestDef.REWARD_PENDING_CHARACTER_REWARD,
+			"reward_type": QuestDef.REWARD_PENDING_CHARACTER_REWARD(),
 			"entries": [
 				{
 					"entry_type": "",
@@ -160,11 +160,11 @@ func _test_quest_def_round_trip_and_validation() -> void:
 	unsupported_pending_reward_quest.display_name = "非法角色奖励契约"
 	unsupported_pending_reward_quest.provider_interaction_id = &"service_contract_board"
 	unsupported_pending_reward_quest.objective_defs = [
-		{"objective_id": "report_back", "objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION, "target_value": 1},
+		{"objective_id": "report_back", "objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION(), "target_value": 1},
 	]
 	unsupported_pending_reward_quest.reward_entries = [
 		{
-			"reward_type": QuestDef.REWARD_PENDING_CHARACTER_REWARD,
+			"reward_type": QuestDef.REWARD_PENDING_CHARACTER_REWARD(),
 			"member_id": "hero",
 			"entries": [
 				{
@@ -199,7 +199,7 @@ func _test_quest_def_round_trip_and_validation() -> void:
 	invalid_submit_item_quest.objective_defs = [
 		{
 			"objective_id": "deliver_ore",
-			"objective_type": QuestDef.OBJECTIVE_SUBMIT_ITEM,
+			"objective_type": QuestDef.OBJECTIVE_SUBMIT_ITEM(),
 			"target_id": "",
 			"target_value": 2,
 		},
@@ -220,7 +220,7 @@ func _test_quest_def_round_trip_and_validation() -> void:
 	missing_target_value_quest.quest_id = &"missing_target_value_contract"
 	missing_target_value_quest.display_name = "缺目标值契约"
 	missing_target_value_quest.objective_defs = [
-		{"objective_id": "report_back", "objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION},
+		{"objective_id": "report_back", "objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION()},
 	]
 	var missing_target_value_errors: Array[String] = missing_target_value_quest.validate_schema()
 	_assert_true(
@@ -232,7 +232,7 @@ func _test_quest_def_round_trip_and_validation() -> void:
 	string_target_value_quest.quest_id = &"string_target_value_contract"
 	string_target_value_quest.display_name = "字符串目标值契约"
 	string_target_value_quest.objective_defs = [
-		{"objective_id": "report_back", "objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION, "target_value": "1"},
+		{"objective_id": "report_back", "objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION(), "target_value": "1"},
 	]
 	var string_target_value_errors: Array[String] = string_target_value_quest.validate_schema()
 	_assert_true(
@@ -350,7 +350,7 @@ func _test_quest_def_from_dict_rejects_bad_schema() -> void:
 	)
 
 	var invalid_gold_reward_payload := _build_valid_quest_def_payload()
-	invalid_gold_reward_payload["reward_entries"] = [{"reward_type": QuestDef.REWARD_GOLD, "amount": "120"}]
+	invalid_gold_reward_payload["reward_entries"] = [{"reward_type": QuestDef.REWARD_GOLD(), "amount": "120"}]
 	_assert_true(
 		QuestDef.from_dict(invalid_gold_reward_payload) == null,
 		"QuestDef.reward_entries 内字符串 gold amount 应直接拒绝。"
@@ -370,12 +370,12 @@ func _test_quest_state_progress_and_round_trip() -> void:
 	quest_def.objective_defs = [
 		{
 			"objective_id": "defeat_wolves",
-			"objective_type": QuestDef.OBJECTIVE_DEFEAT_ENEMY,
+			"objective_type": QuestDef.OBJECTIVE_DEFEAT_ENEMY(),
 			"target_value": 3,
 		},
 		{
 			"objective_id": "report_back",
-			"objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION,
+			"objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION(),
 			"target_value": 1,
 		},
 	]
@@ -393,7 +393,7 @@ func _test_quest_state_progress_and_round_trip() -> void:
 	var missing_target_quest_def := QuestDef.new()
 	missing_target_quest_def.quest_id = &"contract_missing_target"
 	missing_target_quest_def.objective_defs = [
-		{"objective_id": "report_back", "objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION},
+		{"objective_id": "report_back", "objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION()},
 	]
 	var missing_target_state := QuestState.new()
 	missing_target_state.quest_id = missing_target_quest_def.quest_id
@@ -409,7 +409,7 @@ func _test_quest_state_progress_and_round_trip() -> void:
 	quest_state.mark_completed(18)
 	quest_state.mark_reward_claimed(19)
 	var restored: QuestState = QuestState.from_dict(quest_state.to_dict())
-	_assert_eq(restored.status_id, QuestState.STATUS_REWARDED, "QuestState 应保留完成后的状态。")
+	_assert_eq(restored.status_id, &"rewarded", "QuestState 应保留完成后的状态。")
 	_assert_eq(restored.reward_claimed_at_world_step, 19, "QuestState 应保留领奖时间。")
 	_assert_eq(
 		String(restored.last_progress_context.get("settlement_id", "")),
@@ -511,7 +511,7 @@ func _test_character_management_reads_only_string_name_quest_keys() -> void:
 		{},
 		formal_quest_defs
 	)
-	var formal_claim_result := formal_character_management.claim_quest_reward(&"contract_formal_key_reward", 3)
+	var formal_claim_result = formal_character_management.claim_quest_reward(&"contract_formal_key_reward", 3)
 	_assert_true(bool(formal_claim_result.get("ok", false)), "CharacterManagementModule 应按 StringName key 读取正式 quest_def。")
 	_assert_eq(int(formal_claim_result.get("gold_delta", 0)), 9, "正式 StringName key quest reward 应正常入账。")
 	_assert_true(formal_party_state.has_completed_quest(&"contract_formal_key_reward"), "正式 StringName key quest reward 领取后应进入 completed_quest_ids。")
@@ -535,7 +535,7 @@ func _test_character_management_reads_only_string_name_quest_keys() -> void:
 		{},
 		legacy_quest_defs
 	)
-	var legacy_claim_result := legacy_character_management.claim_quest_reward(&"contract_string_key_reward", 3)
+	var legacy_claim_result = legacy_character_management.claim_quest_reward(&"contract_string_key_reward", 3)
 	_assert_true(not bool(legacy_claim_result.get("ok", true)), "String key-only quest_def 不应被 CharacterManagementModule 恢复。")
 	_assert_eq(String(legacy_claim_result.get("error_code", "")), "quest_def_missing", "String key-only quest reward 应按缺失定义处理。")
 	_assert_true(legacy_party_state.has_claimable_quest(&"contract_string_key_reward"), "String key-only quest reward 失败后应继续停留在 claimable_quests。")
@@ -555,25 +555,25 @@ func _test_quest_item_cross_reference() -> void:
 	quest_def.objective_defs = [
 		{
 			"objective_id": "deliver_dispatch",
-			"objective_type": QuestDef.OBJECTIVE_SUBMIT_ITEM,
+			"objective_type": QuestDef.OBJECTIVE_SUBMIT_ITEM(),
 			"target_id": String(QUEST_ITEM_IDS[0]),
 			"target_value": 1,
 		},
 		{
 			"objective_id": "deliver_insignia",
-			"objective_type": QuestDef.OBJECTIVE_SUBMIT_ITEM,
+			"objective_type": QuestDef.OBJECTIVE_SUBMIT_ITEM(),
 			"target_id": String(QUEST_ITEM_IDS[1]),
 			"target_value": 2,
 		},
 		{
 			"objective_id": "deliver_sample",
-			"objective_type": QuestDef.OBJECTIVE_SUBMIT_ITEM,
+			"objective_type": QuestDef.OBJECTIVE_SUBMIT_ITEM(),
 			"target_id": String(QUEST_ITEM_IDS[2]),
 			"target_value": 1,
 		},
 	]
 	quest_def.reward_entries = [
-		{"reward_type": QuestDef.REWARD_GOLD, "amount": 36},
+		{"reward_type": QuestDef.REWARD_GOLD(), "amount": 36},
 	]
 
 	var restored: QuestDef = QuestDef.from_dict(quest_def.to_dict())
@@ -608,13 +608,13 @@ func _build_valid_quest_def_payload() -> Dictionary:
 		"objective_defs": [
 			{
 				"objective_id": "defeat_wolves",
-				"objective_type": QuestDef.OBJECTIVE_DEFEAT_ENEMY,
+				"objective_type": QuestDef.OBJECTIVE_DEFEAT_ENEMY(),
 				"target_id": "wolf_raider",
 				"target_value": 3,
 			},
 		],
 		"reward_entries": [
-			{"reward_type": QuestDef.REWARD_GOLD, "amount": 120},
+			{"reward_type": QuestDef.REWARD_GOLD(), "amount": 120},
 		],
 		"is_repeatable": false,
 	}
@@ -642,13 +642,13 @@ func _build_gold_reward_quest_def(quest_id: StringName, display_name: String, am
 	quest_def.objective_defs = [
 		{
 			"objective_id": "report_back",
-			"objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION,
+			"objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION(),
 			"target_id": "service_contract_board",
 			"target_value": 1,
 		},
 	]
 	quest_def.reward_entries = [
-		{"reward_type": QuestDef.REWARD_GOLD, "amount": amount},
+		{"reward_type": QuestDef.REWARD_GOLD(), "amount": amount},
 	]
 	return quest_def
 

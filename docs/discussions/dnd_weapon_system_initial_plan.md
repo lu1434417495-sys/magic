@@ -356,7 +356,7 @@ final_damage =
 ### 必改
 
 - `scripts/player/warehouse/item_def.gd`
-- `scripts/player/warehouse/item_content_registry.gd`
+- `scripts/player/warehouse/ItemContentRegistry.cs`
 - `data/configs/items/*.tres`
 - `scripts/systems/attribute_service.gd`
 - `scripts/systems/party_equipment_service.gd`

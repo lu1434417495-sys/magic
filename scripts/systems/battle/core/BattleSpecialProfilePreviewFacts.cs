@@ -16,7 +16,7 @@ public partial class BattleSpecialProfilePreviewFacts : RefCounted
     public Array<Dictionary> friendly_fire_numeric_summary = new();
     public Array<Dictionary> attack_roll_modifier_breakdown = new();
 
-    public Dictionary ToDict()
+    public virtual Dictionary ToDict()
     {
         return new Dictionary()
         {
@@ -34,5 +34,10 @@ public partial class BattleSpecialProfilePreviewFacts : RefCounted
         };
     }
 
-    public Array<Dictionary> GetFriendlyFireNumericSummary() => friendly_fire_numeric_summary.Duplicate(true);
+    public Dictionary to_dict() => ToDict();
+
+    public Array<Dictionary> GetFriendlyFireNumericSummary() =>
+        friendly_fire_numeric_summary.Duplicate(true);
+
+    public Array<Dictionary> get_friendly_fire_numeric_summary() => GetFriendlyFireNumericSummary();
 }

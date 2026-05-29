@@ -2,25 +2,23 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const BATTLE_SIM_SCENARIO_DEF_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_scenario_def.gd")
-const BATTLE_RUNTIME_MODULE_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
-const BATTLE_SIM_CONTENT_PROVIDER_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_content_provider.gd")
-const BATTLE_SIM_OVERRIDE_APPLIER_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_override_applier.gd")
-const BATTLE_SIM_PROFILE_DEF_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_profile_def.gd")
-const BATTLE_SIM_TERRAIN_GENERATOR_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_terrain_generator.gd")
-const BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_formal_combat_fixture.gd")
-const BATTLE_SIM_EXECUTION_LOOP_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_execution_loop.gd")
-const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/world/encounter_anchor_data.gd")
-const PROGRESSION_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/progression_content_registry.gd")
-const ITEM_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/warehouse/item_content_registry.gd")
-const TRUE_RANDOM_SEED_SERVICE_SCRIPT = preload("res://scripts/utils/true_random_seed_service.gd")
+const BATTLE_SIM_SCENARIO_DEF_SCRIPT = preload("res://scripts/systems/battle/sim/BattleSimScenarioDef.cs")
+const BATTLE_RUNTIME_MODULE_SCRIPT = preload("res://scripts/systems/battle/runtime/BattleRuntimeModule.cs")
+const BATTLE_SIM_CONTENT_PROVIDER_SCRIPT = preload("res://scripts/systems/battle/sim/BattleSimContentProvider.cs")
+const BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT = preload("res://scripts/systems/battle/sim/BattleSimFormalCombatFixture.cs")
+const BattleSimExecutionLoop = preload("res://scripts/systems/battle/sim/BattleSimExecutionLoop.cs")
+const BattleSimOverrideApplier = preload("res://scripts/systems/battle/sim/BattleSimOverrideApplier.cs")
+const BattleSimProfileDef = preload("res://scripts/systems/battle/sim/BattleSimProfileDef.cs")
+const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/world/EncounterAnchorData.cs")
+const PROGRESSION_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/ProgressionContentRegistry.cs")
+const ITEM_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/warehouse/ItemContentRegistry.cs")
 
 const MAX_IDLE_LOOPS := 25
 
 
 func _initialize() -> void:
 	var start_seed_source := "environment" if OS.has_environment("START_SEED") else "true_random"
-	var start_seed := int(OS.get_environment("START_SEED")) if OS.has_environment("START_SEED") else TRUE_RANDOM_SEED_SERVICE_SCRIPT.generate_seed()
+	var start_seed := int(OS.get_environment("START_SEED")) if OS.has_environment("START_SEED") else TrueRandomSeedService.generate_seed()
 	var run_count := int(OS.get_environment("COUNT")) if OS.has_environment("COUNT") else 10
 	var output_path := OS.get_environment("OUTPUT_FILE") if OS.has_environment("OUTPUT_FILE") else ""
 	var roster_options := _build_roster_options_from_environment()
@@ -33,14 +31,14 @@ func _initialize() -> void:
 		return
 
 	var content_provider = BATTLE_SIM_CONTENT_PROVIDER_SCRIPT.new()
-	var override_applier = BATTLE_SIM_OVERRIDE_APPLIER_SCRIPT.new()
-	var terrain_generator = BATTLE_SIM_TERRAIN_GENERATOR_SCRIPT.new()
+	var override_applier = BattleSimOverrideApplier.new()
+	var terrain_generator = BattleSimTerrainGenerator.new()
 	var progression_registry = PROGRESSION_CONTENT_REGISTRY_SCRIPT.new()
 	var item_registry = ITEM_CONTENT_REGISTRY_SCRIPT.new()
 
 	var skill_defs: Dictionary = _get_content_dictionary(content_provider, &"get_skill_defs")
 	var enemy_ai_brains: Dictionary = _get_content_dictionary(content_provider, &"get_enemy_ai_brains")
-	var baseline = BATTLE_SIM_PROFILE_DEF_SCRIPT.new()
+	var baseline = BattleSimProfileDef.new()
 	baseline.profile_id = &"baseline"
 	baseline.display_name = "Baseline"
 	var overrides := override_applier.apply_profile(skill_defs, enemy_ai_brains, baseline)
@@ -230,13 +228,13 @@ func _build_roster_options_from_environment() -> Dictionary:
 	if OS.has_environment("MAIN_CHARACTER_MEMBER_ID"):
 		var member_id := OS.get_environment("MAIN_CHARACTER_MEMBER_ID").strip_edges()
 		if not member_id.is_empty():
-			options[BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_OPTION_MAIN_CHARACTER_MEMBER_ID] = StringName(member_id)
+			options[BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_OPTION_MAIN_CHARACTER_MEMBER_ID_VALUE()] = StringName(member_id)
 	if OS.has_environment("LEADER_MEMBER_ID"):
 		var leader_id := OS.get_environment("LEADER_MEMBER_ID").strip_edges()
 		if not leader_id.is_empty():
 			options[BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_OPTION_LEADER_MEMBER_ID] = StringName(leader_id)
 	if OS.has_environment("MAIN_CHARACTER_REROLL_COUNT"):
-		options[BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_OPTION_MAIN_CHARACTER_REROLL_COUNT] = int(OS.get_environment("MAIN_CHARACTER_REROLL_COUNT"))
+		options[BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_OPTION_MAIN_CHARACTER_REROLL_COUNT_VALUE()] = int(OS.get_environment("MAIN_CHARACTER_REROLL_COUNT"))
 	return options
 
 
@@ -265,7 +263,7 @@ func _run_single_simulation(scenario_def, overrides: Dictionary, content_provide
 	var state = runtime.start_battle(encounter_anchor, seed, context)
 	fixture.apply_started_battle_metadata(state)
 
-	var execution_loop = BATTLE_SIM_EXECUTION_LOOP_SCRIPT.new()
+	var execution_loop = BattleSimExecutionLoop.new()
 	var loop_result: Dictionary = execution_loop.run(runtime, state, scenario_def, {
 		"max_idle_loops": MAX_IDLE_LOOPS,
 	})

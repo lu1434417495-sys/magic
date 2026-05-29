@@ -2,15 +2,14 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const BATTLE_SIM_SCENARIO_DEF_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_scenario_def.gd")
-const BATTLE_RUNTIME_MODULE_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
-const BATTLE_SIM_CONTENT_PROVIDER_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_content_provider.gd")
-const BATTLE_SIM_OVERRIDE_APPLIER_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_override_applier.gd")
-const BATTLE_SIM_PROFILE_DEF_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_profile_def.gd")
-const BATTLE_SIM_TERRAIN_GENERATOR_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_terrain_generator.gd")
-const BATTLE_SIM_EXECUTION_LOOP_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_execution_loop.gd")
-const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/world/encounter_anchor_data.gd")
-const CHARACTER_PROGRESSION_DELTA_SCRIPT = preload("res://scripts/systems/progression/character_progression_delta.gd")
+const BATTLE_SIM_SCENARIO_DEF_SCRIPT = preload("res://scripts/systems/battle/sim/BattleSimScenarioDef.cs")
+const BATTLE_RUNTIME_MODULE_SCRIPT = preload("res://scripts/systems/battle/runtime/BattleRuntimeModule.cs")
+const BATTLE_SIM_CONTENT_PROVIDER_SCRIPT = preload("res://scripts/systems/battle/sim/BattleSimContentProvider.cs")
+const BattleSimExecutionLoop = preload("res://scripts/systems/battle/sim/BattleSimExecutionLoop.cs")
+const BattleSimOverrideApplier = preload("res://scripts/systems/battle/sim/BattleSimOverrideApplier.cs")
+const BattleSimProfileDef = preload("res://scripts/systems/battle/sim/BattleSimProfileDef.cs")
+const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/world/EncounterAnchorData.cs")
+const CHARACTER_PROGRESSION_DELTA_SCRIPT = preload("res://scripts/systems/progression/CharacterProgressionDelta.cs")
 
 const MAX_IDLE_LOOPS := 25
 
@@ -68,12 +67,12 @@ func _initialize() -> void:
 		return
 
 	var content_provider = BATTLE_SIM_CONTENT_PROVIDER_SCRIPT.new()
-	var override_applier = BATTLE_SIM_OVERRIDE_APPLIER_SCRIPT.new()
-	var terrain_generator = BATTLE_SIM_TERRAIN_GENERATOR_SCRIPT.new()
+	var override_applier = BattleSimOverrideApplier.new()
+	var terrain_generator = BattleSimTerrainGenerator.new()
 
 	var skill_defs: Dictionary = _get_content_dictionary(content_provider, &"get_skill_defs")
 	var enemy_ai_brains: Dictionary = _get_content_dictionary(content_provider, &"get_enemy_ai_brains")
-	var baseline = BATTLE_SIM_PROFILE_DEF_SCRIPT.new()
+	var baseline = BattleSimProfileDef.new()
 	baseline.profile_id = &"baseline"
 	baseline.display_name = "Baseline"
 	var overrides := override_applier.apply_profile(skill_defs, enemy_ai_brains, baseline)
@@ -200,7 +199,7 @@ func _run_single_simulation(scenario_def, overrides: Dictionary, content_provide
 	var state = runtime.start_battle(encounter_anchor, seed, scenario_def.build_start_context())
 	runtime._character_gateway = gateway
 
-	var execution_loop = BATTLE_SIM_EXECUTION_LOOP_SCRIPT.new()
+	var execution_loop = BattleSimExecutionLoop.new()
 	var loop_result: Dictionary = execution_loop.run(runtime, state, scenario_def, {
 		"max_idle_loops": MAX_IDLE_LOOPS,
 	})

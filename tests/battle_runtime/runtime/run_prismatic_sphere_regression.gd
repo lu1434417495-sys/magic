@@ -3,17 +3,17 @@ extends SceneTree
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 const BattleRuntimeTestHelpers = preload("res://tests/shared/battle_runtime_test_helpers.gd")
 
-const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
-const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
-const BattleTimelineState = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
-const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
-const BattleEventBatch = preload("res://scripts/systems/battle/core/battle_event_batch.gd")
-const BattleStatusEffectState = preload("res://scripts/systems/battle/core/battle_status_effect_state.gd")
-const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
-const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
-const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
-const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
-const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
+const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/BattleRuntimeModule.cs")
+const BattleState = preload("res://scripts/systems/battle/core/BattleState.cs")
+const BattleTimelineState = preload("res://scripts/systems/battle/core/BattleTimelineState.cs")
+const BattleCellState = preload("res://scripts/systems/battle/core/BattleCellState.cs")
+const BattleEventBatch = preload("res://scripts/systems/battle/core/BattleEventBatch.cs")
+const BattleStatusEffectState = preload("res://scripts/systems/battle/core/BattleStatusEffectState.cs")
+const BattleUnitState = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
+const CombatEffectDef = preload("res://scripts/player/progression/CombatEffectDef.cs")
+const SkillDef = preload("res://scripts/player/progression/SkillDef.cs")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/AttributeService.cs")
+const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/UnitBaseAttributes.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -60,7 +60,7 @@ func _test_prismatic_sphere_blocks_deeper_breakers_until_outer_layer_breaks() ->
 	var batch := BattleEventBatch.new()
 
 	var magic_missile := _build_skill(&"mage_arcane_missile", "奥术飞弹", [&"mage", &"magic"])
-	var blocked_result: Dictionary = runtime._layered_barrier_service.resolve_skill_barrier_interaction(
+	var blocked_result: Dictionary = runtime._layered_barrier_service.ResolveSkillBarrierInteraction(
 		enemy,
 		caster,
 		magic_missile,
@@ -71,7 +71,7 @@ func _test_prismatic_sphere_blocks_deeper_breakers_until_outer_layer_breaks() ->
 	_assert_eq(_get_active_layer_id(_first_barrier(state)), &"red", "错误顺序的破解不应破坏红色层。")
 
 	var cone_of_cold := _build_skill(&"mage_cone_of_cold", "寒冰锥", [&"mage", &"magic", &"freeze"])
-	var break_result: Dictionary = runtime._layered_barrier_service.resolve_skill_barrier_interaction(
+	var break_result: Dictionary = runtime._layered_barrier_service.ResolveSkillBarrierInteraction(
 		enemy,
 		caster,
 		cone_of_cold,
@@ -82,7 +82,7 @@ func _test_prismatic_sphere_blocks_deeper_breakers_until_outer_layer_breaks() ->
 	_assert_eq(_get_active_layer_id(_first_barrier(state)), &"orange", "寒冰锥应只破坏最外侧红色层。")
 
 	var gust_of_wind := _build_skill(&"mage_gust_of_wind", "强风术", [&"mage", &"magic", &"air"])
-	var orange_break_result: Dictionary = runtime._layered_barrier_service.resolve_skill_barrier_interaction(
+	var orange_break_result: Dictionary = runtime._layered_barrier_service.ResolveSkillBarrierInteraction(
 		enemy,
 		caster,
 		gust_of_wind,
@@ -93,7 +93,7 @@ func _test_prismatic_sphere_blocks_deeper_breakers_until_outer_layer_breaks() ->
 	_assert_eq(_get_active_layer_id(_first_barrier(state)), &"yellow", "强风术应在红层破除后破解橙色层。")
 
 	var disintegrate := _build_skill(&"mage_spell_disjunction", "裂解术", [&"mage", &"magic", &"arcane"])
-	var yellow_break_result: Dictionary = runtime._layered_barrier_service.resolve_skill_barrier_interaction(
+	var yellow_break_result: Dictionary = runtime._layered_barrier_service.ResolveSkillBarrierInteraction(
 		enemy,
 		caster,
 		disintegrate,
@@ -104,7 +104,7 @@ func _test_prismatic_sphere_blocks_deeper_breakers_until_outer_layer_breaks() ->
 	_assert_eq(_get_active_layer_id(_first_barrier(state)), &"green", "裂解术应在橙层破除后破解黄色层。")
 
 	var passwall := _build_skill(&"mage_passwall", "穿墙术", [&"mage", &"magic", &"earth"])
-	var green_break_result: Dictionary = runtime._layered_barrier_service.resolve_skill_barrier_interaction(
+	var green_break_result: Dictionary = runtime._layered_barrier_service.ResolveSkillBarrierInteraction(
 		enemy,
 		caster,
 		passwall,
@@ -114,7 +114,7 @@ func _test_prismatic_sphere_blocks_deeper_breakers_until_outer_layer_breaks() ->
 	_assert_true(bool(green_break_result.get("blocked", false)), "穿墙术应被虹光法球消耗以破解绿色层。")
 	_assert_eq(_get_active_layer_id(_first_barrier(state)), &"blue", "穿墙术应在黄层破除后破解绿色层。")
 
-	var blue_break_result: Dictionary = runtime._layered_barrier_service.resolve_skill_barrier_interaction(
+	var blue_break_result: Dictionary = runtime._layered_barrier_service.ResolveSkillBarrierInteraction(
 		enemy,
 		caster,
 		magic_missile,
@@ -125,7 +125,7 @@ func _test_prismatic_sphere_blocks_deeper_breakers_until_outer_layer_breaks() ->
 	_assert_eq(_get_active_layer_id(_first_barrier(state)), &"indigo", "奥术飞弹应在绿层破除后破解蓝色层。")
 
 	var continual_light := _build_skill(&"mage_continual_light", "恒光术", [&"mage", &"magic", &"radiant"])
-	var indigo_break_result: Dictionary = runtime._layered_barrier_service.resolve_skill_barrier_interaction(
+	var indigo_break_result: Dictionary = runtime._layered_barrier_service.ResolveSkillBarrierInteraction(
 		enemy,
 		caster,
 		continual_light,
@@ -136,7 +136,7 @@ func _test_prismatic_sphere_blocks_deeper_breakers_until_outer_layer_breaks() ->
 	_assert_eq(_get_active_layer_id(_first_barrier(state)), &"violet", "恒光术应在蓝层破除后破解靛色层。")
 
 	var dispel_magic := _build_skill(&"mage_dispel_magic", "解除魔法", [&"mage", &"magic", &"dispel"])
-	var violet_break_result: Dictionary = runtime._layered_barrier_service.resolve_skill_barrier_interaction(
+	var violet_break_result: Dictionary = runtime._layered_barrier_service.ResolveSkillBarrierInteraction(
 		enemy,
 		caster,
 		dispel_magic,
@@ -194,7 +194,7 @@ func _test_green_layer_instant_death_uses_fatal_damage_chain() -> void:
 	_mark_layers_broken(state, [&"red", &"orange", &"yellow", &"blue", &"indigo", &"violet"])
 	_set_layer_save_roll_override(state, &"green", 1)
 
-	var result: Dictionary = runtime._layered_barrier_service.resolve_unit_boundary_crossing(
+	var result: Dictionary = runtime._layered_barrier_service.ResolveUnitBoundaryCrossing(
 		enemy,
 		Vector2i(5, 2),
 		Vector2i(4, 2),
@@ -247,7 +247,7 @@ func _test_violet_layer_teleports_non_summons_and_removes_summons() -> void:
 	_mark_layers_broken(state, [&"red", &"orange", &"yellow", &"green", &"blue", &"indigo"])
 	_set_layer_save_roll_override(state, &"violet", 1)
 
-	var result: Dictionary = runtime._layered_barrier_service.resolve_unit_boundary_crossing(
+	var result: Dictionary = runtime._layered_barrier_service.ResolveUnitBoundaryCrossing(
 		enemy,
 		Vector2i(5, 2),
 		Vector2i(4, 2),
@@ -260,7 +260,7 @@ func _test_violet_layer_teleports_non_summons_and_removes_summons() -> void:
 	var summon := _build_unit(&"summon", "召唤物", &"enemy", Vector2i(6, 2))
 	summon.ai_blackboard["summoned"] = true
 	_add_unit(runtime, state, summon, true)
-	var summon_result: Dictionary = runtime._layered_barrier_service.resolve_unit_boundary_crossing(
+	var summon_result: Dictionary = runtime._layered_barrier_service.ResolveUnitBoundaryCrossing(
 		summon,
 		Vector2i(6, 2),
 		Vector2i(4, 2),
@@ -277,7 +277,7 @@ func _test_cleanse_harmful_removes_madness_but_not_petrified() -> void:
 	_set_status(target, &"petrified")
 	var cleanse := CombatEffectDef.new()
 	cleanse.effect_type = &"cleanse_harmful"
-	var resolver = preload("res://scripts/systems/battle/rules/battle_damage_resolver.gd").new()
+	var resolver = preload("res://scripts/systems/battle/rules/BattleDamageResolver.cs").new()
 	resolver.resolve_effects(source, target, [cleanse])
 	_assert_true(not target.has_status_effect(&"madness"), "cleanse_harmful 应解除 madness。")
 	_assert_true(target.has_status_effect(&"petrified"), "cleanse_harmful 不应解除 petrified。")
@@ -295,7 +295,7 @@ func _test_dispel_magic_removes_magic_statuses_by_relation() -> void:
 		"remove_beneficial_from_enemies": true,
 		"remove_harmful_from_allies": true
 	}
-	var resolver = preload("res://scripts/systems/battle/rules/battle_damage_resolver.gd").new()
+	var resolver = preload("res://scripts/systems/battle/rules/BattleDamageResolver.cs").new()
 
 	_set_status(ally, &"blind")
 	_set_status(ally, &"petrified")
@@ -338,7 +338,7 @@ func _build_runtime_with_sphere() -> Dictionary:
 		"profile_id": "prismatic_sphere",
 		"radius_cells": 2
 	}
-	runtime._layered_barrier_service.apply_layered_barrier_effect(caster, caster, skill, effect, BattleEventBatch.new())
+	runtime._layered_barrier_service.ApplyLayeredBarrierEffect(caster, caster, skill, effect, BattleEventBatch.new())
 	return {
 		"runtime": runtime,
 		"state": state,
@@ -358,7 +358,7 @@ func _build_state(map_size: Vector2i) -> BattleState:
 		for x in range(map_size.x):
 			var cell := BattleCellState.new()
 			cell.coord = Vector2i(x, y)
-			cell.base_terrain = BattleCellState.TERRAIN_LAND
+			cell.base_terrain = BattleCellState.TERRAIN_LAND()
 			cell.base_height = 4
 			cell.recalculate_runtime_values()
 			state.cells[cell.coord] = cell
@@ -378,12 +378,12 @@ func _build_unit(unit_id: StringName, display_name: String, faction_id: StringNa
 	unit.current_ap = 2
 	unit.is_alive = true
 	unit.set_anchor_coord(coord)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX, 120)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX, 120)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX, 40)
-	unit.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.CONSTITUTION, 10)
-	unit.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.WILLPOWER, 10)
-	unit.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.INTELLIGENCE, 14)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX_ID(), 120)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX_ID(), 120)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX_ID(), 40)
+	unit.attribute_snapshot.set_value(&"constitution", 10)
+	unit.attribute_snapshot.set_value(&"willpower", 10)
+	unit.attribute_snapshot.set_value(&"intelligence", 14)
 	unit.attribute_snapshot.set_value(&"constitution_modifier", 0)
 	unit.attribute_snapshot.set_value(&"willpower_modifier", 0)
 	unit.attribute_snapshot.set_value(&"intelligence_modifier", 2)
@@ -428,8 +428,8 @@ func _first_barrier_key(state: BattleState) -> StringName:
 
 
 func _get_active_layer_id(barrier: Dictionary) -> StringName:
-	for layer_variant in barrier.get("layers", []):
-		var layer: Dictionary = layer_variant if layer_variant is Dictionary else {}
+	for layer_option in barrier.get("layers", []):
+		var layer: Dictionary = layer_option if layer_option is Dictionary else {}
 		if not layer.is_empty() and not bool(layer.get("broken", false)):
 			return StringName(layer.get("layer_id", ""))
 	return &""

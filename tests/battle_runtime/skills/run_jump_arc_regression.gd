@@ -6,11 +6,11 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
-const BattleGridService = preload("res://scripts/systems/battle/terrain/battle_grid_service.gd")
-const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
-const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
-const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
+const BattleCellState = preload("res://scripts/systems/battle/core/BattleCellState.cs")
+const BattleGridService = preload("res://scripts/systems/battle/terrain/BattleGridService.cs")
+const BattleState = preload("res://scripts/systems/battle/core/BattleState.cs")
+const BattleUnitState = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
+const CombatEffectDef = preload("res://scripts/player/progression/CombatEffectDef.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -47,7 +47,7 @@ func _run() -> void:
 
 func _test_flat_jump_succeeds_within_range() -> void:
 	var state := _build_flat_state(Vector2i(8, 4))
-	var unit := _build_jumper(Vector2i(1, 1), 12, BattleUnitState.BODY_SIZE_MEDIUM)
+	var unit := _build_jumper(Vector2i(1, 1), 12, BattleUnitState.BODY_SIZE_MEDIUM())
 	state.units[unit.unit_id] = unit
 	_register_unit_on_cells(state, unit)
 	var effect := _build_jump_effect()
@@ -58,7 +58,7 @@ func _test_flat_jump_succeeds_within_range() -> void:
 func _test_jump_up_a_step_succeeds() -> void:
 	var state := _build_flat_state(Vector2i(8, 4))
 	_set_cell_height(state, Vector2i(3, 1), 2)
-	var unit := _build_jumper(Vector2i(1, 1), 12, BattleUnitState.BODY_SIZE_MEDIUM)
+	var unit := _build_jumper(Vector2i(1, 1), 12, BattleUnitState.BODY_SIZE_MEDIUM())
 	state.units[unit.unit_id] = unit
 	_register_unit_on_cells(state, unit)
 	var effect := _build_jump_effect()
@@ -69,7 +69,7 @@ func _test_jump_up_a_step_succeeds() -> void:
 func _test_jump_down_cliff_succeeds() -> void:
 	var state := _build_flat_state(Vector2i(8, 4))
 	_set_cell_height(state, Vector2i(1, 1), 4)
-	var unit := _build_jumper(Vector2i(1, 1), 12, BattleUnitState.BODY_SIZE_MEDIUM)
+	var unit := _build_jumper(Vector2i(1, 1), 12, BattleUnitState.BODY_SIZE_MEDIUM())
 	state.units[unit.unit_id] = unit
 	_register_unit_on_cells(state, unit)
 	var effect := _build_jump_effect()
@@ -80,7 +80,7 @@ func _test_jump_down_cliff_succeeds() -> void:
 func _test_jump_clears_low_obstacle() -> void:
 	var state := _build_flat_state(Vector2i(8, 4))
 	_set_cell_height(state, Vector2i(2, 1), 1)
-	var unit := _build_jumper(Vector2i(1, 1), 12, BattleUnitState.BODY_SIZE_MEDIUM)
+	var unit := _build_jumper(Vector2i(1, 1), 12, BattleUnitState.BODY_SIZE_MEDIUM())
 	state.units[unit.unit_id] = unit
 	_register_unit_on_cells(state, unit)
 	var effect := _build_jump_effect()
@@ -91,7 +91,7 @@ func _test_jump_clears_low_obstacle() -> void:
 func _test_jump_blocked_by_tall_obstacle() -> void:
 	var state := _build_flat_state(Vector2i(8, 4))
 	_set_cell_height(state, Vector2i(2, 1), 8)
-	var unit := _build_jumper(Vector2i(1, 1), 12, BattleUnitState.BODY_SIZE_MEDIUM)
+	var unit := _build_jumper(Vector2i(1, 1), 12, BattleUnitState.BODY_SIZE_MEDIUM())
 	state.units[unit.unit_id] = unit
 	_register_unit_on_cells(state, unit)
 	var effect := _build_jump_effect()
@@ -101,10 +101,10 @@ func _test_jump_blocked_by_tall_obstacle() -> void:
 
 func _test_jump_landing_on_occupied_cell_fails() -> void:
 	var state := _build_flat_state(Vector2i(8, 4))
-	var unit := _build_jumper(Vector2i(1, 1), 12, BattleUnitState.BODY_SIZE_MEDIUM)
+	var unit := _build_jumper(Vector2i(1, 1), 12, BattleUnitState.BODY_SIZE_MEDIUM())
 	state.units[unit.unit_id] = unit
 	_register_unit_on_cells(state, unit)
-	var blocker := _build_jumper(Vector2i(3, 1), 8, BattleUnitState.BODY_SIZE_MEDIUM)
+	var blocker := _build_jumper(Vector2i(3, 1), 8, BattleUnitState.BODY_SIZE_MEDIUM())
 	blocker.unit_id = &"blocker"
 	state.units[blocker.unit_id] = blocker
 	_register_unit_on_cells(state, blocker)
@@ -116,7 +116,7 @@ func _test_jump_landing_on_occupied_cell_fails() -> void:
 func _test_jump_beyond_max_range_fails() -> void:
 	var state := _build_flat_state(Vector2i(12, 4))
 	# STR=4 + medium 体型 → budget=3.2, range_budget=1.92, max_range=2
-	var unit := _build_jumper(Vector2i(1, 1), 4, BattleUnitState.BODY_SIZE_MEDIUM)
+	var unit := _build_jumper(Vector2i(1, 1), 4, BattleUnitState.BODY_SIZE_MEDIUM())
 	state.units[unit.unit_id] = unit
 	_register_unit_on_cells(state, unit)
 	var effect := _build_jump_effect()
@@ -126,12 +126,12 @@ func _test_jump_beyond_max_range_fails() -> void:
 
 func _test_jump_blocked_by_friendly_in_path() -> void:
 	var state := _build_flat_state(Vector2i(8, 4))
-	var unit := _build_jumper(Vector2i(1, 1), 12, BattleUnitState.BODY_SIZE_MEDIUM)
+	var unit := _build_jumper(Vector2i(1, 1), 12, BattleUnitState.BODY_SIZE_MEDIUM())
 	state.units[unit.unit_id] = unit
 	_register_unit_on_cells(state, unit)
 	# 在路径中间的高地放一个友军，叠加 presence_height 后净空不够
 	_set_cell_height(state, Vector2i(2, 1), 3)
-	var ally := _build_jumper(Vector2i(2, 1), 8, BattleUnitState.BODY_SIZE_MEDIUM)
+	var ally := _build_jumper(Vector2i(2, 1), 8, BattleUnitState.BODY_SIZE_MEDIUM())
 	ally.unit_id = &"ally"
 	ally.faction_id = unit.faction_id
 	state.units[ally.unit_id] = ally
@@ -144,7 +144,7 @@ func _test_jump_blocked_by_friendly_in_path() -> void:
 func _test_small_unit_gets_agility_bonus() -> void:
 	var state := _build_flat_state(Vector2i(12, 4))
 	# STR=4 + small 体型 → +1 modifier → effective 5
-	var unit := _build_jumper(Vector2i(1, 1), 4, BattleUnitState.BODY_SIZE_SMALL)
+	var unit := _build_jumper(Vector2i(1, 1), 4, BattleUnitState.BODY_SIZE_SMALL())
 	state.units[unit.unit_id] = unit
 	_register_unit_on_cells(state, unit)
 	var effect := _build_jump_effect()
@@ -156,7 +156,7 @@ func _test_small_unit_gets_agility_bonus() -> void:
 func _test_huge_unit_takes_size_penalty() -> void:
 	var state := _build_flat_state(Vector2i(12, 4))
 	# STR=12 + huge 体型 → -10 modifier → effective 2
-	var unit := _build_jumper(Vector2i(1, 1), 12, BattleUnitState.BODY_SIZE_HUGE)
+	var unit := _build_jumper(Vector2i(1, 1), 12, BattleUnitState.BODY_SIZE_HUGE())
 	state.units[unit.unit_id] = unit
 	_register_unit_on_cells(state, unit)
 	var effect := _build_jump_effect()
@@ -168,7 +168,7 @@ func _test_huge_unit_takes_size_penalty() -> void:
 func _test_short_jump_clears_taller_obstacle_via_redistribution() -> void:
 	var state := _build_flat_state(Vector2i(8, 4))
 	_set_cell_height(state, Vector2i(2, 1), 3)
-	var unit := _build_jumper(Vector2i(1, 1), 22, BattleUnitState.BODY_SIZE_LARGE)
+	var unit := _build_jumper(Vector2i(1, 1), 22, BattleUnitState.BODY_SIZE_LARGE())
 	state.units[unit.unit_id] = unit
 	_register_unit_on_cells(state, unit)
 	var effect := _build_jump_effect()
@@ -179,7 +179,7 @@ func _test_short_jump_clears_taller_obstacle_via_redistribution() -> void:
 
 func _test_zero_distance_target_rejected() -> void:
 	var state := _build_flat_state(Vector2i(8, 4))
-	var unit := _build_jumper(Vector2i(1, 1), 12, BattleUnitState.BODY_SIZE_MEDIUM)
+	var unit := _build_jumper(Vector2i(1, 1), 12, BattleUnitState.BODY_SIZE_MEDIUM())
 	state.units[unit.unit_id] = unit
 	_register_unit_on_cells(state, unit)
 	var effect := _build_jump_effect()
@@ -195,7 +195,7 @@ func _build_flat_state(map_size: Vector2i) -> BattleState:
 		for x in range(map_size.x):
 			var cell := BattleCellState.new()
 			cell.coord = Vector2i(x, y)
-			cell.base_terrain = BattleCellState.TERRAIN_LAND
+			cell.base_terrain = BattleCellState.TERRAIN_LAND()
 			cell.base_height = 0
 			cell.height_offset = 0
 			cell.recalculate_runtime_values()

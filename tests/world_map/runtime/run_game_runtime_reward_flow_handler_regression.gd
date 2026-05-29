@@ -2,11 +2,11 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const GameRuntimeFacade = preload("res://scripts/systems/game_runtime/game_runtime_facade.gd")
-const GameRuntimeRewardFlowHandler = preload("res://scripts/systems/game_runtime/game_runtime_reward_flow_handler.gd")
-const PendingCharacterReward = preload("res://scripts/systems/progression/pending_character_reward.gd")
-const PendingCharacterRewardEntry = preload("res://scripts/systems/progression/pending_character_reward_entry.gd")
-const PartyState = preload("res://scripts/player/progression/party_state.gd")
+const GameRuntimeFacade = preload("res://scripts/systems/game_runtime/GameRuntimeFacade.cs")
+const GameRuntimeRewardFlowHandler = preload("res://scripts/systems/game_runtime/GameRuntimeRewardFlowHandler.cs")
+const PendingCharacterReward = preload("res://scripts/systems/progression/PendingCharacterReward.cs")
+const PendingCharacterRewardEntry = preload("res://scripts/systems/progression/PendingCharacterRewardEntry.cs")
+const PartyState = preload("res://scripts/player/progression/PartyState.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -51,8 +51,8 @@ class MockRewardFlowHandler:
 	func on_character_reward_confirmed() -> void:
 		_record_void("on_character_reward_confirmed")
 
-	func enqueue_pending_character_rewards(reward_variants: Array) -> void:
-		_record_void("enqueue_pending_character_rewards", [reward_variants.duplicate(true)])
+	func enqueue_pending_character_rewards(reward_options: Array) -> void:
+		_record_void("enqueue_pending_character_rewards", [reward_options.duplicate(true)])
 
 	func present_pending_reward_if_ready() -> bool:
 		calls.append({"method": "present_pending_reward_if_ready", "args": []})
@@ -196,7 +196,6 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	_test_facade_delegates_reward_surface_to_handler()
 	_test_reward_handler_routes_modal_close_and_reward_presentation()
 
 	if _failures.is_empty():

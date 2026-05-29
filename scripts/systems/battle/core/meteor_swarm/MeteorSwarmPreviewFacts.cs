@@ -11,7 +11,7 @@ public partial class MeteorSwarmPreviewFacts : BattleSpecialProfilePreviewFacts
     public Array<Dictionary> component_preview = new();
     public Array<Dictionary> target_numeric_summary = new();
 
-    public new Dictionary ToDict()
+    public override Dictionary ToDict()
     {
         var payload = base.ToDict();
         payload["impact_count"] = impact_count;

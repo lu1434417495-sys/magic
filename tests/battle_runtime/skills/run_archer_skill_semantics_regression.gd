@@ -3,13 +3,12 @@ extends SceneTree
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 const BattleRuntimeTestHelpers = preload("res://tests/shared/battle_runtime_test_helpers.gd")
 
-const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
-const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
-const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
-const BattleTimelineState = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
-const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
-const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
-const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
+const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/BattleRuntimeModule.cs")
+const BattleState = preload("res://scripts/systems/battle/core/BattleState.cs")
+const BattleTimelineState = preload("res://scripts/systems/battle/core/BattleTimelineState.cs")
+const BattleCellState = preload("res://scripts/systems/battle/core/BattleCellState.cs")
+const BattleUnitState = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
+const ProgressionContentRegistry = preload("res://scripts/player/progression/ProgressionContentRegistry.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -40,7 +39,7 @@ func _test_arrow_rain_leaves_suppression_zone_and_damage() -> void:
 	archer.current_mp = 6
 	archer.current_stamina = 60
 	archer.current_aura = 6
-	archer.weapon_profile_kind = BattleUnitState.WEAPON_PROFILE_KIND_EQUIPPED
+	archer.weapon_profile_kind = BattleUnitState.WEAPON_PROFILE_KIND_EQUIPPED()
 	archer.weapon_family = &"bow"
 	archer.weapon_attack_range = 5
 	archer.weapon_physical_damage_tag = &"physical_pierce"
@@ -60,7 +59,7 @@ func _test_arrow_rain_leaves_suppression_zone_and_damage() -> void:
 	runtime._state = state
 
 	var command := BattleCommand.new()
-	command.command_type = BattleCommand.TYPE_SKILL
+	command.command_type = BattleCommand.TYPE_SKILL()
 	command.unit_id = archer.unit_id
 	command.skill_id = &"archer_arrow_rain"
 	command.skill_variant_id = &"arrow_rain_tl"
@@ -108,7 +107,7 @@ func _test_skirmish_step_repositions_and_grants_pre_aim() -> void:
 	runtime._state = state
 
 	var command := BattleCommand.new()
-	command.command_type = BattleCommand.TYPE_SKILL
+	command.command_type = BattleCommand.TYPE_SKILL()
 	command.unit_id = archer.unit_id
 	command.skill_id = &"archer_skirmish_step"
 	command.target_unit_id = archer.unit_id
@@ -149,7 +148,7 @@ func _test_evasive_roll_repositions_and_grants_evasion() -> void:
 	runtime._state = state
 
 	var command := BattleCommand.new()
-	command.command_type = BattleCommand.TYPE_SKILL
+	command.command_type = BattleCommand.TYPE_SKILL()
 	command.unit_id = archer.unit_id
 	command.skill_id = &"archer_evasive_roll"
 	command.target_unit_id = archer.unit_id
@@ -191,7 +190,7 @@ func _build_skill_test_state(map_size: Vector2i) -> BattleState:
 func _build_cell(coord: Vector2i) -> BattleCellState:
 	var cell := BattleCellState.new()
 	cell.coord = coord
-	cell.base_terrain = BattleCellState.TERRAIN_LAND
+	cell.base_terrain = BattleCellState.TERRAIN_LAND()
 	cell.base_height = 4
 	cell.height_offset = 0
 	cell.recalculate_runtime_values()
@@ -221,9 +220,9 @@ func _add_unit(runtime: BattleRuntimeModule, state: BattleState, unit: BattleUni
 func _find_timed_terrain_effect(cell: BattleCellState, effect_id: StringName):
 	if cell == null:
 		return null
-	for effect_variant in cell.timed_terrain_effects:
-		if effect_variant != null and effect_variant.effect_id == effect_id:
-			return effect_variant
+	for effect_option in cell.timed_terrain_effects:
+		if effect_option != null and effect_option.effect_id == effect_id:
+			return effect_option
 	return null
 
 

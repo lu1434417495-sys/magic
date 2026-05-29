@@ -1,36 +1,664 @@
 using Godot;
+using GArray = Godot.Collections.Array;
+using GDictionary = Godot.Collections.Dictionary;
+using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 [GlobalClass]
 public partial class ProfessionRuleService : RefCounted
 {
-    private GodotObject _unit_progress;
-    private Godot.Collections.Dictionary _skill_defs = new();
-    private Godot.Collections.Dictionary _profession_defs = new();
+    private UnitProgress _unit_progress;
+    private GDictionary _skill_defs = new();
+    private GDictionary _profession_defs = new();
 
-    public void setup(GodotObject unitProgress, Variant skillDefs, Variant professionDefs) { _unit_progress = unitProgress; _skill_defs = _index_skill_defs(skillDefs); _profession_defs = _index_profession_defs(professionDefs); }
+    public void setup(UnitProgress unitProgress, GDictionary skillDefs, GDictionary professionDefs)
+    {
+        _unit_progress = unitProgress;
+        _skill_defs = IndexSkillDefs(skillDefs);
+        _profession_defs = IndexProfessionDefs(professionDefs);
+    }
 
-    public bool is_profession_knowledge_unlocked(StringName professionId) { var pd = _get_profession_def(professionId); if (pd == null || !pd.requires_knowledge_unlock()) return pd != null; return _unit_progress?.Call("has_knowledge", pd.unlock_knowledge_id).AsBool() ?? false; }
+    public bool is_profession_knowledge_unlocked(StringName professionId)
+    {
+        ProfessionDef professionDef = GetProfessionDef(professionId);
+        if (professionDef == null)
+            return false;
+        if (!professionDef.requires_knowledge_unlock())
+            return true;
+        return _unit_progress != null
+            && _unit_progress.has_knowledge(professionDef.unlock_knowledge_id);
+    }
 
-    public bool can_unlock_profession(StringName professionId) { var pd = _get_profession_def(professionId); if (pd == null || !is_profession_knowledge_unlocked(professionId)) return false; var pp = _get_profession_progress(professionId); if (pp != null && pp.Get("rank").AsInt32() > 0) return false; var ur = pd.unlock_requirement; if (ur == null) return true; if (!_can_satisfy_required_skill_ids_for_unlock(professionId, ur.required_skill_ids)) return false; if (!_can_satisfy_tag_rules_for_unlock(professionId, ur.required_tag_rules)) return false; if (!can_satisfy_profession_gates(ur.required_profession_ranks)) return false; if (!can_satisfy_attribute_rules(ur.required_attribute_rules)) return false; if (!can_satisfy_reputation_rules(ur.required_reputation_rules)) return false; return true; }
+    public bool can_unlock_profession(StringName professionId)
+    {
+        ProfessionDef professionDef = GetProfessionDef(professionId);
+        if (professionDef == null || !is_profession_knowledge_unlocked(professionId))
+            return false;
 
-    public bool can_rank_up_profession(StringName professionId) { var pd = _get_profession_def(professionId); if (pd == null || !is_profession_knowledge_unlocked(professionId)) return false; var pp = _get_profession_progress(professionId); if (pp == null || pp.Get("rank").AsInt32() <= 0) return false; if (pp.Get("rank").AsInt32() >= pd.max_rank) return false; if (!pp.Get("is_active").AsBool() || pp.Get("is_hidden").AsBool()) return false; var nextReqs = pd.get_rank_requirement(pp.Get("rank").AsInt32() + 1); if (nextReqs == null) return true; if (!_can_satisfy_profession_rank_requirements(professionId, nextReqs.target_rank)) return false; if (!can_satisfy_profession_gates(nextReqs.required_profession_ranks)) return false; return true; }
+        UnitProfessionProgress professionProgress = GetProfessionProgress(professionId);
+        if (professionProgress != null && professionProgress.rank > 0)
+            return false;
 
-    public bool can_satisfy_profession_gates(Godot.Collections.Array<ProfessionRankGate> gates) { if (gates.Count == 0) return true; foreach (var g in gates) { if (g == null) continue; var pp = _get_profession_progress(g.profession_id); if (pp == null || pp.Get("rank").AsInt32() < g.min_rank) return false; } return true; }
+        ProfessionPromotionRequirement unlockRequirement = professionDef.unlock_requirement;
+        if (unlockRequirement == null)
+            return true;
 
-    public bool can_satisfy_attribute_rules(Godot.Collections.Array<AttributeRequirement> rules) { if (rules.Count == 0) return true; var uba = _unit_progress?.Get("unit_base_attributes").AsGodotObject(); if (uba == null) return false; foreach (var r in rules) { if (r == null) continue; if (uba.Call("get_attribute_value", r.attribute_id).AsInt32() < r.min_value) return false; } return true; }
+        if (
+            !CanSatisfyRequiredSkillIdsForUnlock(professionId, unlockRequirement.required_skill_ids)
+        )
+            return false;
+        if (!CanSatisfyTagRulesForUnlock(professionId, unlockRequirement.required_tag_rules))
+            return false;
+        if (!can_satisfy_profession_gates(unlockRequirement.required_profession_ranks))
+            return false;
+        if (!can_satisfy_attribute_rules(unlockRequirement.required_attribute_rules))
+            return false;
+        if (!can_satisfy_reputation_rules(unlockRequirement.required_reputation_rules))
+            return false;
 
-    public bool can_satisfy_reputation_rules(Godot.Collections.Array<ReputationRequirement> rules) { if (rules.Count == 0) return true; var urs = _unit_progress?.Get("unit_reputation_state").AsGodotObject(); if (urs == null) return false; foreach (var r in rules) { if (r == null) continue; if (urs.Call("get_reputation_value", r.state_id).AsInt32() < r.min_value) return false; } return true; }
+        return true;
+    }
 
-    public ProfessionDef _get_profession_def(StringName pid) => _profession_defs.ContainsKey(pid) ? _profession_defs[pid].AsGodotObject() as ProfessionDef : null;
-    private GodotObject _get_profession_progress(StringName pid) => _unit_progress?.Call("get_profession_progress", pid).AsGodotObject();
+    public bool can_rank_up_profession(StringName professionId)
+    {
+        ProfessionDef professionDef = GetProfessionDef(professionId);
+        if (professionDef == null || !is_profession_knowledge_unlocked(professionId))
+            return false;
 
-    private bool _can_satisfy_required_skill_ids_for_unlock(StringName pid, Godot.Collections.Array<StringName> requiredIds) { if (requiredIds.Count == 0) return true; foreach (var sid in requiredIds) { if (sid == "" || _unit_progress.Call("get_skill_progress", sid).AsGodotObject() == null) return false; } return true; }
+        UnitProfessionProgress professionProgress = GetProfessionProgress(professionId);
+        if (professionProgress == null || professionProgress.rank <= 0)
+            return false;
+        if (professionProgress.rank >= professionDef.max_rank)
+            return false;
 
-    private bool _can_satisfy_tag_rules_for_unlock(StringName pid, Godot.Collections.Array<TagRequirement> tagRules) { if (tagRules.Count == 0) return true; var skills = _unit_progress.Get("skills").AsGodotDictionary(); var learned = new Godot.Collections.Array<StringName>(); foreach (var sk in skills.Keys) { var sp = skills[sk].AsGodotObject(); if (sp != null && sp.Get("is_learned").AsBool()) learned.Add(sp.Get("skill_id").AsStringName()); } foreach (var tr in tagRules) { if (tr == null) continue; string ns = (string)tr.get_normalized_skill_state(); string no = (string)tr.get_normalized_origin_filter(); string nr = (string)tr.get_normalized_selection_role(); int count = 0; foreach (var sid in learned) { var sp = skills.ContainsKey(sid) ? skills[sid].AsGodotObject() : null; if (sp == null) continue; bool stateOk = ns == "core_max" ? (sp.Get("is_learned").AsBool() && sp.Get("is_core").AsBool() && SkillEffectiveMaxLevelRules.is_at_effective_max_level(_skill_defs.ContainsKey(sid) ? _skill_defs[sid].AsGodotObject() : null, Variant.From(sp), _unit_progress)) : (ns == "core" ? sp.Get("is_core").AsBool() : sp.Get("is_learned").AsBool()); if (!stateOk) continue; if (no == "unmerged_only" && sp.Get("merged_from_skill_ids").AsGodotArray().Count > 0) continue; if (no == "merged_only" && sp.Get("merged_from_skill_ids").AsGodotArray().Count == 0) continue; if (nr == "qualifier" && sp.Get("is_core").AsBool()) continue; if (nr == "assigned_core" && !sp.Get("is_core").AsBool()) continue; if (tr.tag != "" && !_skill_defs.ContainsKey(sid)) continue; if (tr.tag != "") { var sd = _skill_defs[sid].AsGodotObject() as SkillDef; if (sd == null || !sd.tags.Contains(tr.tag)) continue; } count++; } if (count < tr.count) return false; } return true; }
+        int targetRank = professionProgress.rank + 1;
+        ProfessionRankRequirement rankRequirement = professionDef.get_rank_requirement(targetRank);
+        if (rankRequirement == null)
+            return false;
 
-    private bool _can_satisfy_profession_rank_requirements(StringName pid, int targetRank) { var pd = _get_profession_def(pid); if (pd == null) return false; var rankReqs = pd.get_rank_requirement(targetRank); if (rankReqs == null) return true; if (rankReqs.required_tag_rules.Count > 0 && !_can_satisfy_tag_rules_for_unlock(pid, rankReqs.required_tag_rules)) return false; if (!can_satisfy_profession_gates(rankReqs.required_profession_ranks)) return false; if (!can_satisfy_attribute_rules(rankReqs.required_attribute_rules)) return false; if (!can_satisfy_reputation_rules(rankReqs.required_reputation_rules)) return false; return true; }
+        GStringNameArray previewAssignedSkillIds = GetRankUpPreviewAssignedCoreSkillIds(
+            professionId
+        );
+        if (
+            !CanSatisfyTagRulesWithSkillIds(
+                GetRankUpCandidateSkillIds(professionId, previewAssignedSkillIds),
+                professionId,
+                rankRequirement.required_tag_rules,
+                false,
+                previewAssignedSkillIds
+            )
+        )
+        {
+            return false;
+        }
 
-    private Godot.Collections.Dictionary _index_skill_defs(Variant skillDefs) { var r = new Godot.Collections.Dictionary(); if (skillDefs.VariantType == Variant.Type.Dictionary) foreach (var k in skillDefs.AsGodotDictionary().Keys) { var sd = skillDefs.AsGodotDictionary()[k].AsGodotObject() as SkillDef; if (sd != null) { var id = sd.skill_id != "" ? sd.skill_id : ProgressionDataUtils.to_string_name(k); r[id] = sd; } } else if (skillDefs.VariantType == Variant.Type.Array) foreach (var sv in skillDefs.AsGodotArray()) { var sd = sv.AsGodotObject() as SkillDef; if (sd != null && sd.skill_id != "") r[sd.skill_id] = sd; } return r; }
+        if (!can_satisfy_profession_gates(rankRequirement.required_profession_ranks))
+            return false;
+        if (!can_satisfy_attribute_rules(rankRequirement.required_attribute_rules))
+            return false;
+        if (!can_satisfy_reputation_rules(rankRequirement.required_reputation_rules))
+            return false;
 
-    private Godot.Collections.Dictionary _index_profession_defs(Variant profDefs) { var r = new Godot.Collections.Dictionary(); if (profDefs.VariantType == Variant.Type.Dictionary) foreach (var k in profDefs.AsGodotDictionary().Keys) { var pd = profDefs.AsGodotDictionary()[k].AsGodotObject() as ProfessionDef; if (pd != null) { var id = pd.profession_id != "" ? pd.profession_id : ProgressionDataUtils.to_string_name(k); r[id] = pd; } } else if (profDefs.VariantType == Variant.Type.Array) foreach (var pv in profDefs.AsGodotArray()) { var pd = pv.AsGodotObject() as ProfessionDef; if (pd != null && pd.profession_id != "") r[pd.profession_id] = pd; } return r; }
+        return true;
+    }
+
+    public bool can_satisfy_tag_rules(
+        StringName professionId,
+        Godot.Collections.Array<TagRequirement> tagRules
+    )
+    {
+        return CanSatisfyTagRulesWithSkillIds(
+            GetRankUpCandidateSkillIds(professionId),
+            professionId,
+            tagRules,
+            false
+        );
+    }
+
+    public bool can_satisfy_profession_gates(Godot.Collections.Array<ProfessionRankGate> gates)
+    {
+        foreach (ProfessionRankGate gate in gates)
+        {
+            if (gate == null)
+                continue;
+
+            UnitProfessionProgress professionProgress = GetProfessionProgress(gate.profession_id);
+            if (professionProgress == null || professionProgress.rank < gate.min_rank)
+                return false;
+
+            StringName checkMode = ResolveGateCheckMode(gate);
+            if (
+                checkMode == "active_only"
+                && (!professionProgress.is_active || professionProgress.is_hidden)
+            )
+                return false;
+        }
+        return true;
+    }
+
+    public bool can_satisfy_attribute_rules(Godot.Collections.Array<AttributeRequirement> rules)
+    {
+        UnitBaseAttributes unitBaseAttributes = _unit_progress?.unit_base_attributes;
+        if (unitBaseAttributes == null)
+            return rules.Count == 0;
+
+        foreach (AttributeRequirement rule in rules)
+        {
+            if (rule == null)
+                continue;
+            if (!rule.matches_value(unitBaseAttributes.get_attribute_value(rule.attribute_id)))
+                return false;
+        }
+        return true;
+    }
+
+    public bool can_satisfy_reputation_rules(Godot.Collections.Array<ReputationRequirement> rules)
+    {
+        UnitReputationState reputationState = _unit_progress?.reputation_state;
+        if (reputationState == null)
+            return rules.Count == 0;
+
+        foreach (ReputationRequirement rule in rules)
+        {
+            if (rule == null)
+                continue;
+            if (!rule.matches_value(reputationState.get_reputation_value(rule.state_id)))
+                return false;
+        }
+        return true;
+    }
+
+    public GStringNameArray get_eligible_skill_ids(
+        StringName professionId,
+        Godot.Collections.Array<TagRequirement> tagRules,
+        bool allowUnassigned
+    )
+    {
+        GStringNameArray eligibleSkillIds = new();
+        if (_unit_progress == null || tagRules.Count == 0)
+            return eligibleSkillIds;
+
+        foreach (StringName skillId in GetAllLearnedSkillIds())
+        {
+            if (MatchesAnyTagRule(skillId, professionId, tagRules, allowUnassigned))
+                eligibleSkillIds.Add(skillId);
+        }
+        return eligibleSkillIds;
+    }
+
+    public bool skill_matches_tag_requirement(
+        StringName skillId,
+        StringName professionId,
+        TagRequirement tagRule,
+        bool allowUnassigned,
+        GStringNameArray previewAssignedSkillIds = null
+    )
+    {
+        return MatchesTagRequirement(
+            skillId,
+            professionId,
+            tagRule,
+            allowUnassigned,
+            previewAssignedSkillIds ?? new GStringNameArray()
+        );
+    }
+
+    public bool evaluate_profession_active_state(StringName professionId)
+    {
+        ProfessionDef professionDef = GetProfessionDef(professionId);
+        UnitProfessionProgress professionProgress = GetProfessionProgress(professionId);
+        if (professionDef == null || professionProgress == null)
+            return false;
+        if (professionProgress.rank <= 0)
+            return false;
+        return AreActiveConditionsSatisfied(professionDef);
+    }
+
+    public void refresh_all_profession_states()
+    {
+        if (_unit_progress == null)
+            return;
+
+        foreach (var professionKey in _unit_progress.professions.Keys)
+        {
+            StringName professionId = ProgressionDataUtils.to_string_name(professionKey);
+            UnitProfessionProgress professionProgress = GetProfessionProgress(professionId);
+            ProfessionDef professionDef = GetProfessionDef(professionId);
+            if (professionProgress == null || professionDef == null)
+                continue;
+
+            if (professionProgress.rank <= 0)
+            {
+                professionProgress.is_active = false;
+                professionProgress.is_hidden = false;
+                professionProgress.inactive_reason = "";
+                continue;
+            }
+
+            bool conditionsSatisfied = AreActiveConditionsSatisfied(professionDef);
+            if (conditionsSatisfied)
+            {
+                if (professionProgress.is_active)
+                {
+                    professionProgress.is_hidden = false;
+                    professionProgress.inactive_reason = "";
+                    continue;
+                }
+
+                if (professionDef.reactivation_mode == "auto")
+                {
+                    professionProgress.is_active = true;
+                    professionProgress.is_hidden = false;
+                    professionProgress.inactive_reason = "";
+                }
+                else
+                {
+                    professionProgress.is_hidden = true;
+                    professionProgress.inactive_reason = "manual_reactivation_required";
+                }
+            }
+            else
+            {
+                professionProgress.is_active = false;
+                professionProgress.is_hidden = true;
+                professionProgress.inactive_reason = "active_conditions_not_met";
+            }
+        }
+    }
+
+    private bool CanSatisfyRequiredSkillIdsForUnlock(
+        StringName professionId,
+        Godot.Collections.Array<StringName> requiredSkillIds
+    )
+    {
+        foreach (StringName requiredSkillId in requiredSkillIds)
+        {
+            if (!IsSkillEligibleForUnlock(requiredSkillId, professionId))
+                return false;
+        }
+        return true;
+    }
+
+    private bool CanSatisfyTagRulesForUnlock(
+        StringName professionId,
+        Godot.Collections.Array<TagRequirement> tagRules
+    )
+    {
+        return CanSatisfyTagRulesWithSkillIds(
+            GetUnlockCandidateSkillIds(professionId),
+            professionId,
+            tagRules,
+            true
+        );
+    }
+
+    private bool CanSatisfyTagRulesWithSkillIds(
+        GStringNameArray candidateSkillIds,
+        StringName professionId,
+        Godot.Collections.Array<TagRequirement> tagRules,
+        bool allowUnassigned,
+        GStringNameArray previewAssignedSkillIds = null
+    )
+    {
+        if (tagRules.Count == 0)
+            return true;
+
+        foreach (TagRequirement tagRule in tagRules)
+        {
+            if (tagRule == null || tagRule.tag == "")
+                continue;
+
+            int matchedCount = 0;
+            foreach (StringName skillId in candidateSkillIds)
+            {
+                if (
+                    MatchesTagRequirement(
+                        skillId,
+                        professionId,
+                        tagRule,
+                        allowUnassigned,
+                        previewAssignedSkillIds ?? new GStringNameArray()
+                    )
+                )
+                    matchedCount += 1;
+            }
+            if (matchedCount < tagRule.count)
+                return false;
+        }
+        return true;
+    }
+
+    private GStringNameArray GetUnlockCandidateSkillIds(StringName professionId)
+    {
+        return GetAllLearnedSkillIds();
+    }
+
+    private GStringNameArray GetRankUpCandidateSkillIds(
+        StringName professionId,
+        GStringNameArray previewAssignedSkillIds = null
+    )
+    {
+        GStringNameArray candidateSkillIds = new();
+        UnitProfessionProgress professionProgress = GetProfessionProgress(professionId);
+        if (professionProgress == null)
+            return candidateSkillIds;
+
+        foreach (StringName skillId in professionProgress.core_skill_ids)
+            candidateSkillIds.Add(skillId);
+
+        if (previewAssignedSkillIds != null)
+        {
+            foreach (StringName skillId in previewAssignedSkillIds)
+            {
+                if (skillId != "" && !candidateSkillIds.Contains(skillId))
+                    candidateSkillIds.Add(skillId);
+            }
+        }
+        return candidateSkillIds;
+    }
+
+    private GStringNameArray GetRankUpPreviewAssignedCoreSkillIds(StringName professionId)
+    {
+        GStringNameArray previewSkillIds = new();
+        StringName triggerSkillId = GetReadyActiveLevelTriggerSkillId();
+        if (triggerSkillId == "")
+            return previewSkillIds;
+        if (!IsSkillEligibleForProfession(triggerSkillId, professionId, true))
+            return previewSkillIds;
+
+        UnitSkillProgress skillProgress = _unit_progress.get_skill_progress(triggerSkillId);
+        if (skillProgress == null || skillProgress.assigned_profession_id != "")
+            return previewSkillIds;
+
+        previewSkillIds.Add(triggerSkillId);
+        return previewSkillIds;
+    }
+
+    private bool IsSkillEligibleForUnlock(StringName skillId, StringName professionId)
+    {
+        return IsSkillEligibleForProfession(skillId, professionId, true);
+    }
+
+    private bool IsSkillEligibleForProfession(
+        StringName skillId,
+        StringName professionId,
+        bool allowUnassigned
+    )
+    {
+        if (_unit_progress == null)
+            return false;
+
+        UnitSkillProgress skillProgress = _unit_progress.get_skill_progress(skillId);
+        if (skillProgress == null || !skillProgress.is_learned || !skillProgress.is_core)
+            return false;
+
+        SkillDef skillDef = GetSkillDef(skillId);
+        if (skillDef == null)
+            return false;
+        if (
+            !SkillEffectiveMaxLevelRules.is_at_effective_max_level(
+                skillDef,
+                skillProgress,
+                _unit_progress
+            )
+        )
+            return false;
+
+        if (skillProgress.assigned_profession_id == "")
+            return allowUnassigned;
+        return skillProgress.assigned_profession_id == professionId;
+    }
+
+    private bool MatchesAnyTagRule(
+        StringName skillId,
+        StringName professionId,
+        Godot.Collections.Array<TagRequirement> tagRules,
+        bool allowUnassigned
+    )
+    {
+        foreach (TagRequirement tagRule in tagRules)
+        {
+            if (MatchesTagRequirement(skillId, professionId, tagRule, allowUnassigned))
+                return true;
+        }
+        return false;
+    }
+
+    private bool MatchesTagRequirement(
+        StringName skillId,
+        StringName professionId,
+        TagRequirement tagRule,
+        bool allowUnassigned,
+        GStringNameArray previewAssignedSkillIds = null
+    )
+    {
+        if (tagRule == null || tagRule.tag == "" || _unit_progress == null)
+            return false;
+
+        UnitSkillProgress skillProgress = _unit_progress.get_skill_progress(skillId);
+        if (skillProgress == null || !skillProgress.is_learned)
+            return false;
+
+        SkillDef skillDef = GetSkillDef(skillId);
+        if (skillDef == null || !skillDef.tags.Contains(tagRule.tag))
+            return false;
+        if (!MatchesSkillState(skillProgress, skillDef, tagRule))
+            return false;
+        if (!MatchesOriginFilter(skillProgress, tagRule))
+            return false;
+        return MatchesAssignment(
+            skillProgress,
+            professionId,
+            allowUnassigned,
+            previewAssignedSkillIds ?? new GStringNameArray()
+        );
+    }
+
+    private bool MatchesSkillState(
+        UnitSkillProgress skillProgress,
+        SkillDef skillDef,
+        TagRequirement tagRule
+    )
+    {
+        StringName skillState = tagRule.get_normalized_skill_state();
+        if (skillState == TagRequirement.SKILL_STATE_LEARNED())
+            return skillProgress.is_learned;
+        if (skillState == TagRequirement.SKILL_STATE_CORE())
+            return skillProgress.is_core;
+        if (skillState == TagRequirement.SKILL_STATE_CORE_MAX())
+            return skillProgress.is_core
+                && SkillEffectiveMaxLevelRules.is_at_effective_max_level(
+                    skillDef,
+                    skillProgress,
+                    _unit_progress
+                );
+        return false;
+    }
+
+    private static bool MatchesOriginFilter(UnitSkillProgress skillProgress, TagRequirement tagRule)
+    {
+        StringName originFilter = tagRule.get_normalized_origin_filter();
+        if (originFilter == TagRequirement.ORIGIN_FILTER_ANY())
+            return true;
+        if (originFilter == TagRequirement.ORIGIN_FILTER_UNMERGED_ONLY())
+            return skillProgress.merged_from_skill_ids.Count == 0;
+        if (originFilter == TagRequirement.ORIGIN_FILTER_MERGED_ONLY())
+            return skillProgress.merged_from_skill_ids.Count > 0;
+        return false;
+    }
+
+    private static bool MatchesAssignment(
+        UnitSkillProgress skillProgress,
+        StringName professionId,
+        bool allowUnassigned,
+        GStringNameArray previewAssignedSkillIds
+    )
+    {
+        if (professionId != "" && skillProgress.assigned_profession_id == professionId)
+            return true;
+        if (skillProgress.assigned_profession_id != "")
+            return false;
+        return allowUnassigned || previewAssignedSkillIds.Contains(skillProgress.skill_id);
+    }
+
+    private StringName GetReadyActiveLevelTriggerSkillId()
+    {
+        if (_unit_progress == null)
+            return "";
+
+        StringName triggerSkillId = _unit_progress.active_level_trigger_core_skill_id;
+        if (triggerSkillId == "")
+            return "";
+
+        UnitSkillProgress skillProgress = _unit_progress.get_skill_progress(triggerSkillId);
+        SkillDef skillDef = GetSkillDef(triggerSkillId);
+        if (skillProgress == null || skillDef == null)
+            return "";
+        if (!skillProgress.is_learned || !skillProgress.is_core)
+            return "";
+        if (skillProgress.is_level_trigger_locked)
+            return "";
+        if (_unit_progress.locked_level_trigger_skill_ids.Contains(triggerSkillId))
+            return "";
+        if (
+            !SkillEffectiveMaxLevelRules.is_at_effective_max_level(
+                skillDef,
+                skillProgress,
+                _unit_progress
+            )
+        )
+            return "";
+        return triggerSkillId;
+    }
+
+    private GStringNameArray GetAllLearnedSkillIds()
+    {
+        GStringNameArray learnedSkillIds = new();
+        if (_unit_progress == null)
+            return learnedSkillIds;
+
+        foreach (string skillKey in ProgressionDataUtils.sorted_string_keys(_unit_progress.skills))
+        {
+            StringName skillId = new(skillKey);
+            UnitSkillProgress skillProgress = _unit_progress.get_skill_progress(skillId);
+            if (skillProgress != null && skillProgress.is_learned)
+                learnedSkillIds.Add(skillId);
+        }
+        return learnedSkillIds;
+    }
+
+    private StringName ResolveGateCheckMode(ProfessionRankGate gate)
+    {
+        if (gate.check_mode != "")
+            return gate.check_mode;
+
+        ProfessionDef sourceProfessionDef = GetProfessionDef(gate.profession_id);
+        if (sourceProfessionDef == null)
+            return "historical";
+        if (sourceProfessionDef.dependency_visibility_mode == "ignore_when_hidden")
+            return "active_only";
+        return "historical";
+    }
+
+    private bool AreActiveConditionsSatisfied(ProfessionDef professionDef)
+    {
+        if (professionDef.active_conditions.Count == 0)
+            return true;
+
+        UnitBaseAttributes unitBaseAttributes = _unit_progress?.unit_base_attributes;
+        UnitReputationState reputationState = _unit_progress?.reputation_state;
+
+        foreach (ProfessionActiveCondition activeCondition in professionDef.active_conditions)
+        {
+            if (activeCondition == null)
+                continue;
+
+            if (activeCondition.condition_type == "attribute_range")
+            {
+                if (unitBaseAttributes == null)
+                    return false;
+                if (
+                    !activeCondition.matches_value(
+                        unitBaseAttributes.get_attribute_value(activeCondition.attribute_id)
+                    )
+                )
+                    return false;
+            }
+            else if (activeCondition.condition_type == "reputation_range")
+            {
+                if (reputationState == null)
+                    return false;
+                if (
+                    !activeCondition.matches_value(
+                        reputationState.get_reputation_value(activeCondition.state_id)
+                    )
+                )
+                    return false;
+            }
+            else
+            {
+                GameLog.Warning(
+                    $"Unsupported profession active condition type: {activeCondition.condition_type}.",
+                    "progression.profession.unsupported_condition",
+                    "progression"
+                );
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private SkillDef GetSkillDef(StringName skillId)
+    {
+        return _skill_defs.ContainsKey(skillId)
+            ? _skill_defs[skillId].AsGodotObject() as SkillDef
+            : null;
+    }
+
+    private ProfessionDef GetProfessionDef(StringName professionId)
+    {
+        return _profession_defs.ContainsKey(professionId)
+            ? _profession_defs[professionId].AsGodotObject() as ProfessionDef
+            : null;
+    }
+
+    private UnitProfessionProgress GetProfessionProgress(StringName professionId)
+    {
+        return _unit_progress?.get_profession_progress(professionId);
+    }
+
+    private static GDictionary IndexSkillDefs(GDictionary skillDefs)
+    {
+        GDictionary indexedDefs = new();
+        if (skillDefs == null)
+            return indexedDefs;
+
+        foreach (var key in skillDefs.Keys)
+        {
+            if (skillDefs[key].AsGodotObject() is not SkillDef skillDef)
+                continue;
+            StringName indexedId =
+                skillDef.skill_id != "" ? skillDef.skill_id : ProgressionDataUtils.to_string_name(key);
+            indexedDefs[indexedId] = skillDef;
+        }
+        return indexedDefs;
+    }
+
+    private static GDictionary IndexProfessionDefs(GDictionary professionDefs)
+    {
+        GDictionary indexedDefs = new();
+        if (professionDefs == null)
+            return indexedDefs;
+
+        foreach (var key in professionDefs.Keys)
+        {
+            if (professionDefs[key].AsGodotObject() is not ProfessionDef professionDef)
+                continue;
+            StringName indexedId =
+                professionDef.profession_id != ""
+                    ? professionDef.profession_id
+                    : ProgressionDataUtils.to_string_name(key);
+            indexedDefs[indexedId] = professionDef;
+        }
+        return indexedDefs;
+    }
 }

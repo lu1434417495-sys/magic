@@ -20,11 +20,11 @@ func _run() -> void:
 
 
 func _test_required_runtime_barrier_files_exist() -> void:
-	_assert_file_exists("res://scripts/systems/battle/runtime/battle_barrier_service.gd", "BattleBarrierService must own barrier instances and interaction coordination.")
-	_assert_file_exists("res://scripts/systems/battle/runtime/battle_barrier_geometry_service.gd", "BattleBarrierGeometryService must own footprint/line/area barrier geometry.")
-	_assert_file_exists("res://scripts/systems/battle/runtime/battle_barrier_outcome_resolver.gd", "BattleBarrierOutcomeResolver must own whitelist outcome translation.")
-	_assert_file_exists("res://scripts/systems/battle/core/battle_barrier_instance_state.gd", "Typed barrier instance state must replace anonymous barrier dictionaries.")
-	_assert_file_exists("res://scripts/systems/battle/core/battle_barrier_layer_state.gd", "Typed barrier layer state must replace anonymous layer dictionaries.")
+	_assert_file_exists("res://scripts/systems/battle/runtime/BattleBarrierService.cs", "BattleBarrierService must own barrier instances and interaction coordination.")
+	_assert_file_exists("res://scripts/systems/battle/runtime/BattleBarrierGeometryService.cs", "BattleBarrierGeometryService must own footprint/line/area barrier geometry.")
+	_assert_file_exists("res://scripts/systems/battle/runtime/BattleBarrierOutcomeResolver.cs", "BattleBarrierOutcomeResolver must own whitelist outcome translation.")
+	_assert_file_exists("res://scripts/systems/battle/core/BattleBarrierInstanceState.cs", "Typed barrier instance state must replace anonymous barrier dictionaries.")
+	_assert_file_exists("res://scripts/systems/battle/core/BattleBarrierLayerState.cs", "Typed barrier layer state must replace anonymous layer dictionaries.")
 
 
 func _test_runtime_does_not_load_barrier_content_directly() -> void:
@@ -64,8 +64,8 @@ func _test_runtime_has_no_skill_id_text_category_guessing() -> void:
 
 
 func _test_control_status_no_longer_depends_on_barrier_service() -> void:
-	var timeline_text := _read_text("res://scripts/systems/battle/runtime/battle_timeline_driver.gd")
-	var runtime_text := _read_text("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
+	var timeline_text := _read_text("res://scripts/systems/battle/runtime/BattleTimelineDriver.cs")
+	var runtime_text := _read_text("res://scripts/systems/battle/runtime/BattleRuntimeModule.cs")
 	for forbidden in ["resolve_control_status_turn_start", "is_unit_ai_controlled_for_turn", "clear_turn_ai_control"]:
 		if timeline_text.contains(forbidden):
 			_failures.append("BattleTimelineDriver must not call barrier service control-status method '%s'." % forbidden)

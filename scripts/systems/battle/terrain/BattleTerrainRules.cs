@@ -18,16 +18,25 @@ public partial class BattleTerrainRules : RefCounted
     private static readonly StringName TagFly = "fly";
 
     public static StringName TERRAIN_LAND() => TerrainLand;
+
     public static StringName TERRAIN_FOREST() => TerrainForest;
+
     public static StringName TERRAIN_WATER() => TerrainWater;
+
     public static StringName TERRAIN_SHALLOW_WATER() => TerrainShallowWater;
+
     public static StringName TERRAIN_FLOWING_WATER() => TerrainFlowingWater;
+
     public static StringName TERRAIN_DEEP_WATER() => TerrainDeepWater;
+
     public static StringName TERRAIN_MUD() => TerrainMud;
+
     public static StringName TERRAIN_SPIKE() => TerrainSpike;
 
     public static StringName TAG_WADE() => TagWade;
+
     public static StringName TAG_AMPHIBIOUS() => TagAmphibious;
+
     public static StringName TAG_FLY() => TagFly;
 
     public static Vector2I STILL_FLOW() => Vector2I.Zero;
@@ -58,7 +67,11 @@ public partial class BattleTerrainRules : RefCounted
     public static int get_base_move_cost(StringName terrain_id)
     {
         StringName normalized = normalize_terrain_id(terrain_id);
-        if (normalized == TerrainMud || normalized == TerrainSpike || normalized == TerrainShallowWater)
+        if (
+            normalized == TerrainMud
+            || normalized == TerrainSpike
+            || normalized == TerrainShallowWater
+        )
         {
             return 2;
         }
@@ -73,7 +86,10 @@ public partial class BattleTerrainRules : RefCounted
         return 1;
     }
 
-    public static bool can_unit_enter_terrain(StringName terrain_id, Variant movement_tags = default)
+    public static bool can_unit_enter_terrain(
+        StringName terrain_id,
+        GArray movement_tags = null
+    )
     {
         if (has_movement_tag(movement_tags, TagFly))
         {
@@ -83,7 +99,7 @@ public partial class BattleTerrainRules : RefCounted
             || has_movement_tag(movement_tags, TagAmphibious);
     }
 
-    public static int get_unit_move_cost(StringName terrain_id, Variant movement_tags = default)
+    public static int get_unit_move_cost(StringName terrain_id, GArray movement_tags = null)
     {
         StringName normalized = normalize_terrain_id(terrain_id);
         if (has_movement_tag(movement_tags, TagFly) && is_water_terrain(normalized))
@@ -93,7 +109,10 @@ public partial class BattleTerrainRules : RefCounted
 
         if (normalized == TerrainShallowWater)
         {
-            if (has_movement_tag(movement_tags, TagAmphibious) || has_movement_tag(movement_tags, TagWade))
+            if (
+                has_movement_tag(movement_tags, TagAmphibious)
+                || has_movement_tag(movement_tags, TagWade)
+            )
             {
                 return 1;
             }
@@ -170,13 +189,8 @@ public partial class BattleTerrainRules : RefCounted
         return normalized == TerrainLand || normalized == TerrainForest;
     }
 
-    public static bool has_movement_tag(Variant movement_tags, StringName tag)
+    public static bool has_movement_tag(GArray movement_tags, StringName tag)
     {
-        return ToArray(movement_tags).Contains(tag);
-    }
-
-    private static GArray ToArray(Variant value)
-    {
-        return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : new GArray();
+        return movement_tags != null && movement_tags.Contains(tag);
     }
 }

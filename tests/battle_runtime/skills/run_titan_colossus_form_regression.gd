@@ -2,15 +2,14 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
-const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
-const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
-const BattleTimelineState = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
-const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
-const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
-const BattleStatusEffectState = preload("res://scripts/systems/battle/core/battle_status_effect_state.gd")
-const BodySizeRules = preload("res://scripts/systems/progression/body_size_rules.gd")
-const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
+const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/BattleRuntimeModule.cs")
+const BattleState = preload("res://scripts/systems/battle/core/BattleState.cs")
+const BattleTimelineState = preload("res://scripts/systems/battle/core/BattleTimelineState.cs")
+const BattleCellState = preload("res://scripts/systems/battle/core/BattleCellState.cs")
+const BattleUnitState = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
+const BattleStatusEffectState = preload("res://scripts/systems/battle/core/BattleStatusEffectState.cs")
+const BodySizeRules = preload("res://scripts/systems/progression/BodySizeRules.cs")
+const ProgressionContentRegistry = preload("res://scripts/player/progression/ProgressionContentRegistry.cs")
 
 const TITAN_COLOSSUS_FORM: StringName = &"titan_colossus_form"
 const TITAN_GIANT_FORM_STATUS: StringName = &"titan_giant_form"
@@ -43,7 +42,7 @@ func _test_titan_colossus_form_changes_and_restores_body_size() -> void:
 	var runtime := _build_runtime()
 	var state := _build_state(Vector2i(5, 5))
 	var titan := _build_unit(&"titan_user", Vector2i(1, 1))
-	_assert_true(titan.set_body_size_category(BodySizeRules.BODY_SIZE_CATEGORY_LARGE), "测试前置：泰坦升华单位应为 large。")
+	_assert_true(titan.set_body_size_category(BodySizeRules.body_size_category_large()()), "测试前置：泰坦升华单位应为 large。")
 	titan.known_active_skill_ids = [TITAN_COLOSSUS_FORM]
 	titan.known_skill_level_map = {TITAN_COLOSSUS_FORM: 1}
 	titan.per_battle_charges[TITAN_COLOSSUS_CHARGE_KEY] = 1
@@ -53,7 +52,7 @@ func _test_titan_colossus_form_changes_and_restores_body_size() -> void:
 	runtime._state = state
 
 	var command := BattleCommand.new()
-	command.command_type = BattleCommand.TYPE_SKILL
+	command.command_type = BattleCommand.TYPE_SKILL()
 	command.unit_id = titan.unit_id
 	command.skill_id = TITAN_COLOSSUS_FORM
 	command.target_unit_id = titan.unit_id
@@ -63,8 +62,8 @@ func _test_titan_colossus_form_changes_and_restores_body_size() -> void:
 
 	var batch := runtime.issue_command(command)
 	_assert_true(batch.changed_unit_ids.has(titan.unit_id), "Titan Colossus Form 应记录施法者变更。")
-	_assert_eq(titan.body_size_category, BodySizeRules.BODY_SIZE_CATEGORY_HUGE, "Titan Colossus Form 应临时改为 huge category。")
-	_assert_eq(titan.body_size, BodySizeRules.BODY_SIZE_HUGE, "Titan Colossus Form 应同步 huge 的 int body_size。")
+	_assert_eq(titan.body_size_category, BodySizeRules.body_size_category_huge()(), "Titan Colossus Form 应临时改为 huge category。")
+	_assert_eq(titan.body_size, BodySizeRules.body_size_huge()(), "Titan Colossus Form 应同步 huge 的 int body_size。")
 	_assert_true(titan.has_status_effect(TITAN_GIANT_FORM_STATUS), "Titan Colossus Form 应挂 battle-local status。")
 	_assert_eq(int(titan.per_battle_charges.get(TITAN_COLOSSUS_CHARGE_KEY, -1)), 0, "Titan Colossus Form 应消耗身份技能次数。")
 
@@ -76,15 +75,15 @@ func _test_titan_colossus_form_changes_and_restores_body_size() -> void:
 
 	_assert_true(runtime._advance_unit_status_durations(titan, 80), "巨神化持续时间耗尽时应产生状态变化。")
 	_assert_true(not titan.has_status_effect(TITAN_GIANT_FORM_STATUS), "巨神化过期后 status 应移除。")
-	_assert_eq(titan.body_size_category, BodySizeRules.BODY_SIZE_CATEGORY_LARGE, "巨神化过期后应恢复 large category。")
-	_assert_eq(titan.body_size, BodySizeRules.BODY_SIZE_LARGE, "巨神化过期后应恢复 large int body_size。")
+	_assert_eq(titan.body_size_category, BodySizeRules.body_size_category_large()(), "巨神化过期后应恢复 large category。")
+	_assert_eq(titan.body_size, BodySizeRules.body_size_large()(), "巨神化过期后应恢复 large int body_size。")
 
 
 func _test_body_size_restore_waits_when_previous_footprint_is_blocked() -> void:
 	var runtime := _build_runtime()
 	var state := _build_state(Vector2i(5, 5))
 	var shrunken := _build_unit(&"blocked_restore_user", Vector2i(1, 1))
-	_assert_true(shrunken.set_body_size_category(BodySizeRules.BODY_SIZE_CATEGORY_MEDIUM), "测试前置：单位当前为 medium。")
+	_assert_true(shrunken.set_body_size_category(BodySizeRules.body_size_category_medium()()), "测试前置：单位当前为 medium。")
 	var blocker := _build_unit(&"blocked_restore_occupant", Vector2i(2, 1))
 	_add_unit(runtime, state, shrunken)
 	_add_unit(runtime, state, blocker)
@@ -94,15 +93,15 @@ func _test_body_size_restore_waits_when_previous_footprint_is_blocked() -> void:
 	status.status_id = &"blocked_body_restore"
 	status.duration = 1
 	status.params = {
-		"body_size_category_override": String(BodySizeRules.BODY_SIZE_CATEGORY_MEDIUM),
-		"previous_body_size_category": String(BodySizeRules.BODY_SIZE_CATEGORY_LARGE),
+		"body_size_category_override": String(BodySizeRules.body_size_category_medium()()),
+		"previous_body_size_category": String(BodySizeRules.body_size_category_large()()),
 	}
 	shrunken.set_status_effect(status)
 
 	runtime._advance_unit_status_durations(shrunken, 5)
 
 	_assert_true(shrunken.has_status_effect(&"blocked_body_restore"), "恢复 footprint 被占用时，体型覆盖 status 应保留以便后续重试。")
-	_assert_eq(shrunken.body_size_category, BodySizeRules.BODY_SIZE_CATEGORY_MEDIUM, "恢复失败时不应切换到会覆盖占位者的 large category。")
+	_assert_eq(shrunken.body_size_category, BodySizeRules.body_size_category_medium()(), "恢复失败时不应切换到会覆盖占位者的 large category。")
 	var occupant = runtime._grid_service.get_unit_at_coord(state, blocker.coord)
 	_assert_true(occupant == blocker, "恢复失败时不应覆盖目标 footprint 上的其他单位。")
 
@@ -131,7 +130,7 @@ func _build_state(map_size: Vector2i) -> BattleState:
 func _build_cell(coord: Vector2i) -> BattleCellState:
 	var cell := BattleCellState.new()
 	cell.coord = coord
-	cell.base_terrain = BattleCellState.TERRAIN_LAND
+	cell.base_terrain = BattleCellState.TERRAIN_LAND()
 	cell.base_height = 4
 	cell.height_offset = 0
 	cell.recalculate_runtime_values()

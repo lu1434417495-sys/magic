@@ -2,21 +2,18 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 const BattleRuntimeTestHelpers = preload("res://tests/shared/battle_runtime_test_helpers.gd")
-
-const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
-const BATTLE_REPORT_FORMATTER_SCRIPT = preload("res://scripts/systems/battle/rules/battle_report_formatter.gd")
-const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
-const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
-const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
-const BattleStatusEffectState = preload("res://scripts/systems/battle/core/battle_status_effect_state.gd")
-const BattleTimelineState = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
-const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
-const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
-const GameRuntimeBattleSelection = preload("res://scripts/systems/game_runtime/game_runtime_battle_selection.gd")
-const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
-const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
-const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
-const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
+const BattleCellState = preload("res://scripts/systems/battle/core/BattleCellState.cs")
+const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/BattleRuntimeModule.cs")
+const BattleState = preload("res://scripts/systems/battle/core/BattleState.cs")
+const BattleStatusEffectState = preload("res://scripts/systems/battle/core/BattleStatusEffectState.cs")
+const BattleTimelineState = preload("res://scripts/systems/battle/core/BattleTimelineState.cs")
+const BattleUnitState = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
+const CombatEffectDef = preload("res://scripts/player/progression/CombatEffectDef.cs")
+const GameRuntimeBattleSelection = preload("res://scripts/systems/game_runtime/GameRuntimeBattleSelection.cs")
+const ProgressionContentRegistry = preload("res://scripts/player/progression/ProgressionContentRegistry.cs")
+const SkillDef = preload("res://scripts/player/progression/SkillDef.cs")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/AttributeService.cs")
+const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/UnitBaseAttributes.cs")
 
 const DOOM_SENTENCE_SKILL_ID: StringName = &"doom_sentence"
 const STATUS_DOOM_SENTENCE_VERDICT: StringName = &"doom_sentence_verdict"
@@ -190,7 +187,7 @@ func _test_doom_sentence_applies_verdict_and_teamwide_damage_amp() -> void:
 	caster.known_skill_level_map = {DOOM_SENTENCE_SKILL_ID: 1}
 	var ally_attacker := _build_unit(&"doom_sentence_ally", "协同输出", &"player", Vector2i(1, 2), 2)
 	var boss := _build_unit(&"doom_sentence_boss", "章末 Boss", &"enemy", Vector2i(2, 1), 2, &"", true)
-	boss.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 25)
+	boss.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 25)
 	boss.known_active_skill_ids = [WARRIOR_HEAVY_STRIKE_SKILL_ID]
 	boss.known_skill_level_map = {WARRIOR_HEAVY_STRIKE_SKILL_ID: 1}
 	var ally_target := _build_unit(&"doom_sentence_victim", "被打击者", &"player", Vector2i(3, 1), 2)
@@ -225,8 +222,8 @@ func _test_doom_sentence_applies_verdict_and_teamwide_damage_amp() -> void:
 	_assert_true(
 		batch != null and _has_report_entry_with_tag(
 			batch.report_entries if batch != null else [],
-			BATTLE_REPORT_FORMATTER_SCRIPT.REASON_DOOM_SENTENCE_APPLIED,
-			BATTLE_REPORT_FORMATTER_SCRIPT.TAG_DOOM_SENTENCE
+			&"doom_sentence_applied",
+			&"doom_sentence"
 		),
 		"厄命宣判成功后应补出带 doom_sentence 标签的结构化战报条目。 reports=%s" % [str(batch.report_entries if batch != null else [])]
 	)
@@ -285,7 +282,7 @@ func _test_doom_sentence_locks_main_skill_only_after_two_other_debuffs() -> void
 		"主技能被封锁时，preview 应明确说明原因。 log=%s" % [str(blocked_preview.log_lines if blocked_preview != null else [])]
 	)
 
-	var ap_before_issue := boss.current_ap
+	var ap_before_issue: int = boss.current_ap
 	var blocked_batch := runtime.issue_command(main_skill_command)
 	_assert_eq(boss.current_ap, ap_before_issue, "主技能被厄命宣判封锁时不应扣除 AP。")
 	_assert_true(
@@ -333,7 +330,7 @@ func _test_doom_sentence_is_limited_to_once_per_battle() -> void:
 	var blocked_preview := runtime.preview_command(second_command)
 	_assert_true(blocked_preview != null and not blocked_preview.allowed, "同战第二次施放厄命宣判应被 preview 拒绝。")
 	var calamity_before_issue := runtime.get_member_calamity(&"hero")
-	var ap_before_issue := caster.current_ap
+	var ap_before_issue: int = caster.current_ap
 	var blocked_batch := runtime.issue_command(second_command)
 	_assert_eq(runtime.get_member_calamity(&"hero"), calamity_before_issue, "二次施放被拒绝时不应再扣 calamity。")
 	_assert_eq(caster.current_ap, ap_before_issue, "二次施放被拒绝时不应再扣 AP。")
@@ -380,7 +377,7 @@ func _test_doom_sentence_is_not_selectable_when_calamity_cap_cannot_pay_cost() -
 		"preview 拒绝时应保留上限不足说明。 log=%s" % [str(blocked_preview.log_lines if blocked_preview != null else [])]
 	)
 
-	var ap_before_issue := caster.current_ap
+	var ap_before_issue: int = caster.current_ap
 	var blocked_batch := runtime.issue_command(command)
 	_assert_eq(caster.current_ap, ap_before_issue, "cap 不足时 issue 不应扣除 AP。")
 	_assert_true(not elite.has_status_effect(STATUS_DOOM_SENTENCE_VERDICT), "cap 不足时目标不应获得厄命宣判。")
@@ -422,7 +419,7 @@ func _build_skill_test_state(battle_id: StringName, map_size: Vector2i) -> Battl
 func _build_cell(coord: Vector2i) -> BattleCellState:
 	var cell := BattleCellState.new()
 	cell.coord = coord
-	cell.base_terrain = BattleCellState.TERRAIN_LAND
+	cell.base_terrain = BattleCellState.TERRAIN_LAND()
 	cell.base_height = 4
 	cell.height_offset = 0
 	cell.recalculate_runtime_values()
@@ -451,19 +448,19 @@ func _build_unit(
 	unit.current_aura = 0
 	unit.is_alive = true
 	unit.set_anchor_coord(coord)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX, 60)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX, 4)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX, 40)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.AURA_MAX, 2)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX_ID(), 60)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX_ID(), 4)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX_ID(), 40)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.AURA_MAX_ID(), 2)
 	unit.attribute_snapshot.set_value(&"action_points", maxi(current_ap, 1))
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 12)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 4)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 6)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 4)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 60)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 10)
-	unit.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.HIDDEN_LUCK_AT_BIRTH, 0)
-	unit.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.FAITH_LUCK_BONUS, 0)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 12)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 4)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 6)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 4)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 60)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 10)
+	unit.attribute_snapshot.set_value(&"hidden_luck_at_birth", 0)
+	unit.attribute_snapshot.set_value(&"faith_luck_bonus", 0)
 	unit.attribute_snapshot.set_value(FORTUNE_MARK_TARGET_STAT_ID, 1 if is_elite_or_boss else 0)
 	unit.apply_weapon_projection({
 		"weapon_profile_kind": "equipped",
@@ -482,7 +479,7 @@ func _build_unit(
 
 func _build_unit_skill_command(unit_id: StringName, skill_id: StringName, target_unit: BattleUnitState) -> BattleCommand:
 	var command := BattleCommand.new()
-	command.command_type = BattleCommand.TYPE_SKILL
+	command.command_type = BattleCommand.TYPE_SKILL()
 	command.unit_id = unit_id
 	command.skill_id = skill_id
 	command.target_unit_id = target_unit.unit_id if target_unit != null else &""
@@ -493,6 +490,7 @@ func _build_unit_skill_command(unit_id: StringName, skill_id: StringName, target
 func _build_damage_effect() -> CombatEffectDef:
 	var effect := CombatEffectDef.new()
 	effect.effect_type = &"damage"
+	effect.damage_tag = &"physical_slash"
 	effect.power = 12
 	return effect
 
@@ -500,7 +498,7 @@ func _build_damage_effect() -> CombatEffectDef:
 func _enable_doom_sentence_cap(unit_state: BattleUnitState) -> void:
 	if unit_state == null or unit_state.attribute_snapshot == null:
 		return
-	unit_state.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.HIDDEN_LUCK_AT_BIRTH, -5)
+	unit_state.attribute_snapshot.set_value(&"hidden_luck_at_birth", -5)
 	unit_state.attribute_snapshot.set_value(&"calamity_capacity_bonus", 2)
 
 
@@ -527,13 +525,13 @@ func _add_unit(runtime: BattleRuntimeModule, state: BattleState, unit: BattleUni
 	runtime._grid_service.place_unit(state, unit, unit.coord, true)
 
 
-func _has_report_entry_with_tag(entries_variant, reason_id: StringName, event_tag: StringName) -> bool:
-	if entries_variant is not Array:
+func _has_report_entry_with_tag(entries_option, reason_id: StringName, event_tag: StringName) -> bool:
+	if entries_option is not Array:
 		return false
-	for entry_variant in entries_variant:
-		if entry_variant is not Dictionary:
+	for entry_option in entries_option:
+		if entry_option is not Dictionary:
 			continue
-		var entry: Dictionary = entry_variant
+		var entry: Dictionary = entry_option
 		if String(entry.get("reason_id", "")) != String(reason_id):
 			continue
 		var event_tags = entry.get("event_tags", [])

@@ -32,14 +32,23 @@ public partial class BattleEdgeFeatureState : RefCounted
     };
 
     public static StringName FEATURE_NONE() => _FEATURE_NONE;
+
     public static StringName FEATURE_WALL() => _FEATURE_WALL;
+
     public static StringName FEATURE_LOW_WALL() => _FEATURE_LOW_WALL;
+
     public static StringName FEATURE_DOOR() => _FEATURE_DOOR;
+
     public static StringName FEATURE_GATE() => _FEATURE_GATE;
+
     public static StringName RENDER_NONE() => _RENDER_NONE;
+
     public static StringName RENDER_WALL() => _RENDER_WALL;
+
     public static StringName INTERACT_NONE() => _INTERACT_NONE;
+
     public static StringName INTERACT_TOGGLE() => _INTERACT_TOGGLE;
+
     public static StringName INTERACT_BREAK() => _INTERACT_BREAK;
 
     public StringName feature_kind { get; set; } = _FEATURE_NONE;
@@ -81,54 +90,45 @@ public partial class BattleEdgeFeatureState : RefCounted
         };
     }
 
-    public static BattleEdgeFeatureState from_dict(Variant data)
+    public static BattleEdgeFeatureState from_dict(GDictionary featureDict)
     {
-        if (data.VariantType != Variant.Type.Dictionary)
-        {
+        if (featureDict == null)
             return null;
-        }
-        GDictionary featureDict = data.AsGodotDictionary();
         if (!HasExactSchemaFields(featureDict))
         {
             return null;
         }
 
-        Variant featureKind = Get(featureDict, "feature_kind");
-        Variant renderKind = Get(featureDict, "render_kind");
-        Variant renderLayers = Get(featureDict, "render_layers");
-        Variant blocksMoveValue = Get(featureDict, "blocks_move");
-        Variant blocksOccupancyValue = Get(featureDict, "blocks_occupancy");
-        Variant blocksLosValue = Get(featureDict, "blocks_los");
-        Variant interactionKind = Get(featureDict, "interaction_kind");
-        Variant stateTag = Get(featureDict, "state_tag");
-
-        if (!IsNonEmptyStringLike(featureKind))
+        if (!TryGetStringLike(featureDict, "feature_kind", out string featureKind)
+            || string.IsNullOrEmpty(featureKind))
             return null;
-        if (!IsNonEmptyStringLike(renderKind))
+        if (!TryGetStringLike(featureDict, "render_kind", out string renderKind)
+            || string.IsNullOrEmpty(renderKind))
             return null;
-        if (!IsNonEmptyStringLike(interactionKind))
+        if (!TryGetStringLike(featureDict, "interaction_kind", out string interactionKind)
+            || string.IsNullOrEmpty(interactionKind))
             return null;
-        if (!IsStringLike(stateTag))
+        if (!TryGetStringLike(featureDict, "state_tag", out string stateTag))
             return null;
-        if (renderLayers.VariantType != Variant.Type.Int || renderLayers.AsInt32() < 0)
+        if (!TryGetStrictInt(featureDict, "render_layers", out int renderLayers) || renderLayers < 0)
             return null;
-        if (blocksMoveValue.VariantType != Variant.Type.Bool ||
-            blocksOccupancyValue.VariantType != Variant.Type.Bool ||
-            blocksLosValue.VariantType != Variant.Type.Bool)
+        if (!TryGetBool(featureDict, "blocks_move", out bool blocksMove)
+            || !TryGetBool(featureDict, "blocks_occupancy", out bool blocksOccupancy)
+            || !TryGetBool(featureDict, "blocks_los", out bool blocksLos))
         {
             return null;
         }
 
         return new BattleEdgeFeatureState
         {
-            feature_kind = ToStringName(featureKind),
-            render_kind = ToStringName(renderKind),
-            render_layers = renderLayers.AsInt32(),
-            blocks_move = blocksMoveValue.AsBool(),
-            blocks_occupancy = blocksOccupancyValue.AsBool(),
-            blocks_los = blocksLosValue.AsBool(),
-            interaction_kind = ToStringName(interactionKind),
-            state_tag = ToStringName(stateTag),
+            feature_kind = new StringName(featureKind),
+            render_kind = new StringName(renderKind),
+            render_layers = renderLayers,
+            blocks_move = blocksMove,
+            blocks_occupancy = blocksOccupancy,
+            blocks_los = blocksLos,
+            interaction_kind = new StringName(interactionKind),
+            state_tag = new StringName(stateTag),
         };
     }
 
@@ -181,13 +181,13 @@ public partial class BattleEdgeFeatureState : RefCounted
         {
             return false;
         }
-        foreach (Variant keyVariant in featureDict.Keys)
+        foreach (var keyValue in featureDict.Keys)
         {
-            if (keyVariant.VariantType != Variant.Type.String)
+            if (!TryAsStrictStringKey(keyValue, out string key))
             {
                 return false;
             }
-            if (!HasString(SchemaFields, keyVariant.AsString()))
+            if (!HasString(SchemaFields, key))
             {
                 return false;
             }
@@ -202,19 +202,96 @@ public partial class BattleEdgeFeatureState : RefCounted
         return true;
     }
 
-    private static bool IsStringLike(Variant value)
+    private static bool TryGetStringLike(GDictionary data, string key, out string value)
     {
-        return value.VariantType == Variant.Type.String || value.VariantType == Variant.Type.StringName;
+        if (TryGetExactValue(data, key, out Variant rawValue)
+            && TryAsStringLike(rawValue, out value))
+        {
+            return true;
+        }
+        value = "";
+        return false;
     }
 
-    private static bool IsNonEmptyStringLike(Variant value)
+    private static bool TryGetStrictInt(GDictionary data, string key, out int value)
     {
-        return IsStringLike(value) && !string.IsNullOrEmpty(value.AsString());
+        if (TryGetExactValue(data, key, out Variant rawValue)
+            && TryAsStrictInt(rawValue, out value))
+        {
+            return true;
+        }
+        value = 0;
+        return false;
     }
 
-    private static StringName ToStringName(Variant value)
+    private static bool TryGetBool(GDictionary data, string key, out bool value)
     {
-        return IsStringLike(value) ? new StringName(value.AsString()) : "";
+        if (TryGetExactValue(data, key, out Variant rawValue) && TryAsBool(rawValue, out value))
+        {
+            return true;
+        }
+        value = false;
+        return false;
+    }
+
+    private static bool TryAsStrictStringKey(Variant rawValue, out string value)
+    {
+        if (rawValue.VariantType == Variant.Type.String)
+        {
+            value = rawValue.AsString();
+            return true;
+        }
+        value = "";
+        return false;
+    }
+
+    private static bool TryAsStringLike(Variant rawValue, out string value)
+    {
+        if (rawValue.VariantType == Variant.Type.String)
+        {
+            value = rawValue.AsString();
+            return true;
+        }
+        if (rawValue.VariantType == Variant.Type.StringName)
+        {
+            value = rawValue.AsStringName().ToString();
+            return true;
+        }
+        value = "";
+        return false;
+    }
+
+    private static bool TryAsStrictInt(Variant rawValue, out int value)
+    {
+        if (rawValue.VariantType == Variant.Type.Int)
+        {
+            value = rawValue.AsInt32();
+            return true;
+        }
+        value = 0;
+        return false;
+    }
+
+    private static bool TryAsBool(Variant rawValue, out bool value)
+    {
+        if (rawValue.VariantType == Variant.Type.Bool)
+        {
+            value = rawValue.AsBool();
+            return true;
+        }
+        value = false;
+        return false;
+    }
+
+    private static bool TryGetExactValue(GDictionary data, string key, out Variant value)
+    {
+        if (data != null && data.ContainsKey(key))
+        {
+            value = data[key];
+            return true;
+        }
+        value = default;
+        return false;
     }
 
     private static bool HasString(string[] values, string value)
@@ -229,8 +306,4 @@ public partial class BattleEdgeFeatureState : RefCounted
         return false;
     }
 
-    private static Variant Get(GDictionary payload, string key)
-    {
-        return payload.ContainsKey(key) ? payload[key] : default;
-    }
 }

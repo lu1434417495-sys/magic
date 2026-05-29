@@ -2,9 +2,10 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
-const CombatSkillDef = preload("res://scripts/player/progression/combat_skill_def.gd")
-const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
+const SkillDef = preload("res://scripts/player/progression/SkillDef.cs")
+const CombatSkillDef = preload("res://scripts/player/progression/CombatSkillDef.cs")
+const CombatEffectDef = preload("res://scripts/player/progression/CombatEffectDef.cs")
+const BattleEffectCategoryResolver = preload("res://scripts/systems/battle/rules/BattleEffectCategoryResolver.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -31,13 +32,13 @@ func _test_category_fields_are_formal_schema() -> void:
 
 func _test_resolver_uses_explicit_delivery_and_effect_categories() -> void:
 	var resolver = _new_resolver()
-	if resolver == null or not _assert_has_method(resolver, "resolve_categories", "BattleEffectCategoryResolver must expose resolve_categories(skill_def, effect_defs)."):
+	if resolver == null or not _assert_has_method(resolver, "ResolveCategories", "BattleEffectCategoryResolver must expose ResolveCategories(skill_def, effect_defs)."):
 		return
 	var skill := _build_skill(&"contract_explicit_categories", [&"spell", &"projectile"])
 	var effect := CombatEffectDef.new()
 	if _has_property(effect, "effect_categories"):
 		effect.set("effect_categories", [&"force_effect", &"mental_attack"])
-	var categories: Array = resolver.resolve_categories(skill, [effect])
+	var categories: Array = resolver.ResolveCategories(skill, [effect])
 	_assert_true(categories.has(&"spell"), "Resolver must include explicit delivery category spell.")
 	_assert_true(categories.has(&"projectile"), "Resolver must include explicit delivery category projectile.")
 	_assert_true(categories.has(&"force_effect"), "Resolver must include explicit effect category force_effect.")
@@ -46,28 +47,28 @@ func _test_resolver_uses_explicit_delivery_and_effect_categories() -> void:
 
 func _test_resolver_ignores_legacy_params_barrier_categories() -> void:
 	var resolver = _new_resolver()
-	if resolver == null or not resolver.has_method("resolve_categories"):
+	if resolver == null or not resolver.has_method("ResolveCategories"):
 		return
 	var skill := _build_skill(&"contract_legacy_params", [])
 	var effect := CombatEffectDef.new()
 	effect.params = {
 		"barrier_categories": [&"spell", &"force_effect"],
 	}
-	var categories: Array = resolver.resolve_categories(skill, [effect])
+	var categories: Array = resolver.ResolveCategories(skill, [effect])
 	_assert_true(not categories.has(&"spell"), "Resolver must not read legacy params.barrier_categories.")
 	_assert_true(not categories.has(&"force_effect"), "Resolver must not read legacy params.barrier_categories.")
 
 
 func _test_resolver_does_not_guess_from_skill_id_or_tags() -> void:
 	var resolver = _new_resolver()
-	if resolver == null or not resolver.has_method("resolve_categories"):
+	if resolver == null or not resolver.has_method("ResolveCategories"):
 		return
 	var skill := SkillDef.new()
 	skill.skill_id = &"mage_arcane_missile_detect_breath"
 	skill.display_name = "Misleading Contract Skill"
 	skill.tags = [&"mage", &"magic", &"missile", &"breath", &"psychic"]
 	skill.combat_profile = CombatSkillDef.new()
-	var categories: Array = resolver.resolve_categories(skill, [])
+	var categories: Array = resolver.ResolveCategories(skill, [])
 	_assert_true(not categories.has(&"magical_missile"), "Resolver must not infer magical_missile from skill_id text.")
 	_assert_true(not categories.has(&"detection"), "Resolver must not infer detection from skill_id text.")
 	_assert_true(not categories.has(&"breath_weapon"), "Resolver must not infer breath_weapon from tags without formal categories.")
@@ -86,15 +87,7 @@ func _build_skill(skill_id: StringName, delivery_categories: Array[StringName]) 
 
 
 func _new_resolver():
-	var resolver_path := "res://scripts/systems/battle/rules/battle_effect_category_resolver.gd"
-	if not FileAccess.file_exists(resolver_path):
-		_failures.append("BattleEffectCategoryResolver script is missing.")
-		return null
-	var resolver_script = load(resolver_path)
-	if resolver_script == null:
-		_failures.append("BattleEffectCategoryResolver script is missing.")
-		return null
-	return resolver_script.new()
+	return BattleEffectCategoryResolver.new()
 
 
 func _assert_has_method(object, method_name: String, message: String) -> bool:

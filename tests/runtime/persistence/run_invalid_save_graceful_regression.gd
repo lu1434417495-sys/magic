@@ -2,7 +2,7 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_session.gd")
+const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/GameSession.cs")
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
 const INVALID_GENERATION_CONFIG_PATH := "user://invalid_generation_config_resource.tres"
@@ -619,10 +619,10 @@ func _test_mounted_submap_rejects_extra_fields() -> void:
 func _test_save_index_version_requires_exact_int() -> void:
 	var game_session = GAME_SESSION_SCRIPT.new()
 	var serializer = game_session._save_serializer
-	_assert_true(serializer.is_save_index_integer_value(3), "save index version 应接受 int。")
-	_assert_true(not serializer.is_save_index_integer_value(3.0), "save index version 不应接受 float。")
-	_assert_true(not serializer.is_save_index_integer_value("3"), "save index version 不应接受 string。")
-	_assert_true(not serializer.is_save_index_integer_value(true), "save index version 不应接受 bool。")
+	_assert_true(serializer.is_save_index_int_value(3), "save index version 应接受 int。")
+	_assert_true(not serializer.is_save_index_float_value(3.0), "save index version 不应接受 float。")
+	_assert_true(not serializer.is_save_index_string_value("3"), "save index version 不应接受 string。")
+	_assert_true(not serializer.is_save_index_bool_value(true), "save index version 不应接受 bool。")
 	game_session.free()
 
 

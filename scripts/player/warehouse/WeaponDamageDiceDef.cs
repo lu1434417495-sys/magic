@@ -8,11 +8,19 @@ public partial class WeaponDamageDiceDef : Resource
     public const int FlatBonusMin = -999;
     public const int FlatBonusMax = 999;
 
-    [Export] public int dice_count = 1;
-    [Export] public int dice_sides = 6;
-    [Export] public int flat_bonus = 0;
+    [Export]
+    public int dice_count = 1;
 
-    public static Godot.Collections.Array<string> validate_dice(string label, WeaponDamageDiceDef dice)
+    [Export]
+    public int dice_sides = 6;
+
+    [Export]
+    public int flat_bonus = 0;
+
+    public static Godot.Collections.Array<string> validate_dice(
+        string label,
+        WeaponDamageDiceDef dice
+    )
     {
         var errors = new Godot.Collections.Array<string>();
         if (dice == null)
@@ -34,7 +42,9 @@ public partial class WeaponDamageDiceDef : Resource
 
         if (dice.flat_bonus < FlatBonusMin || dice.flat_bonus > FlatBonusMax)
         {
-            errors.Add($"{label}.flat_bonus must be {FlatBonusMin}..{FlatBonusMax}, got {dice.flat_bonus}.");
+            errors.Add(
+                $"{label}.flat_bonus must be {FlatBonusMin}..{FlatBonusMax}, got {dice.flat_bonus}."
+            );
         }
         return errors;
     }
@@ -45,7 +55,7 @@ public partial class WeaponDamageDiceDef : Resource
         {
             dice_count = get_dice_count(),
             dice_sides = get_dice_sides(),
-            flat_bonus = flat_bonus
+            flat_bonus = flat_bonus,
         };
     }
 
@@ -74,6 +84,8 @@ public partial class WeaponDamageDiceDef : Resource
     }
 
     public int GetDiceCount() => get_dice_count();
+
     public int GetDiceSides() => get_dice_sides();
+
     public string ToRollLabel() => to_roll_label();
 }

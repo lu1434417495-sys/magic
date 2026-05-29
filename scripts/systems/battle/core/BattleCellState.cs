@@ -38,14 +38,23 @@ public partial class BattleCellState : RefCounted
     };
 
     public static StringName TERRAIN_LAND() => _TERRAIN_LAND;
+
     public static StringName TERRAIN_FOREST() => _TERRAIN_FOREST;
+
     public static StringName TERRAIN_WATER() => _TERRAIN_WATER;
+
     public static StringName TERRAIN_SHALLOW_WATER() => _TERRAIN_SHALLOW_WATER;
+
     public static StringName TERRAIN_FLOWING_WATER() => _TERRAIN_FLOWING_WATER;
+
     public static StringName TERRAIN_DEEP_WATER() => _TERRAIN_DEEP_WATER;
+
     public static StringName TERRAIN_MUD() => _TERRAIN_MUD;
+
     public static StringName TERRAIN_SPIKE() => _TERRAIN_SPIKE;
+
     public static int MIN_RUNTIME_HEIGHT() => _MIN_RUNTIME_HEIGHT;
+
     public static int MAX_RUNTIME_HEIGHT() => _MAX_RUNTIME_HEIGHT;
 
     public Vector2I coord = Vector2I.Zero;
@@ -76,7 +85,11 @@ public partial class BattleCellState : RefCounted
         {
             flow_direction = Vector2I.Zero;
         }
-        current_height = Mathf.Clamp(base_height + height_offset, _MIN_RUNTIME_HEIGHT, _MAX_RUNTIME_HEIGHT);
+        current_height = Mathf.Clamp(
+            base_height + height_offset,
+            _MIN_RUNTIME_HEIGHT,
+            _MAX_RUNTIME_HEIGHT
+        );
         stack_layer = current_height;
         passable = BattleTerrainRules.get_global_passable(base_terrain);
         move_cost = BattleTerrainRules.get_base_move_cost(base_terrain);
@@ -162,103 +175,121 @@ public partial class BattleCellState : RefCounted
             ["occupant_unit_id"] = occupant_unit_id.ToString(),
             ["prop_ids"] = StringNameArrayToStrings(prop_ids),
             ["terrain_effect_ids"] = StringNameArrayToStrings(terrain_effect_ids),
-            ["timed_terrain_effects"] = BattleTerrainEffectState.to_dict_array(timed_terrain_effects),
+            ["timed_terrain_effects"] = BattleTerrainEffectState.to_dict_array(
+                timed_terrain_effects
+            ),
             ["flow_direction"] = flow_direction,
             ["edge_feature_east"] = EdgeFeatureToDict(edge_feature_east),
             ["edge_feature_south"] = EdgeFeatureToDict(edge_feature_south),
         };
     }
 
-    public static BattleCellState from_dict(Variant data)
+    public static BattleCellState from_dict(GDictionary payload)
     {
-        if (data.VariantType != Variant.Type.Dictionary)
-        {
+        if (payload == null)
             return null;
-        }
-        GDictionary payload = data.AsGodotDictionary();
         if (!HasExactRequiredKeys(payload))
         {
             return null;
         }
-        if (Get(payload, "coord").VariantType != Variant.Type.Vector2I)
+        if (!TryGetExactValue(payload, "coord", out object coordValue)
+            || !TryAsVector2I(coordValue, out Vector2I coord))
         {
             return null;
         }
-        if (Get(payload, "flow_direction").VariantType != Variant.Type.Vector2I)
+        if (!TryGetExactValue(payload, "flow_direction", out object flowDirectionValue)
+            || !TryAsVector2I(flowDirectionValue, out Vector2I flowDirection))
         {
             return null;
         }
-        if (!IsIntValue(Get(payload, "stack_layer")))
+        if (!TryGetStrictInt(payload, "stack_layer", out int stackLayer))
         {
             return null;
         }
-        if (!IsIntValue(Get(payload, "base_height")))
+        if (!TryGetStrictInt(payload, "base_height", out int baseHeight))
         {
             return null;
         }
-        if (!IsIntValue(Get(payload, "height_offset")))
+        if (!TryGetStrictInt(payload, "height_offset", out int heightOffset))
         {
             return null;
         }
-        if (!IsIntValue(Get(payload, "current_height")))
+        if (!TryGetStrictInt(payload, "current_height", out int currentHeight))
         {
             return null;
         }
-        if (!IsIntValue(Get(payload, "move_cost")))
+        if (!TryGetStrictInt(payload, "move_cost", out int moveCost))
         {
             return null;
         }
-        if (Get(payload, "move_cost").AsInt32() <= 0)
+        if (moveCost <= 0)
         {
             return null;
         }
-        if (!IsNonEmptyStringLike(Get(payload, "base_terrain")))
+        if (!TryGetExactValue(payload, "base_terrain", out object baseTerrainValue)
+            || !TryAsStringLike(baseTerrainValue, out string baseTerrainText)
+            || string.IsNullOrEmpty(baseTerrainText))
         {
             return null;
         }
-        StringName normalizedTerrain = BattleTerrainRules.normalize_terrain_id(ToStringName(Get(payload, "base_terrain")));
+        StringName normalizedTerrain = BattleTerrainRules.normalize_terrain_id(
+            new StringName(baseTerrainText)
+        );
         if (string.IsNullOrEmpty(normalizedTerrain.ToString()))
         {
             return null;
         }
-        if (!IsStringLike(Get(payload, "occupant_unit_id")))
+        if (!TryGetExactValue(payload, "occupant_unit_id", out object occupantUnitIdValue)
+            || !TryAsStringLike(occupantUnitIdValue, out string occupantUnitId))
         {
             return null;
         }
-        if (Get(payload, "passable").VariantType != Variant.Type.Bool)
+        if (!TryGetExactValue(payload, "passable", out object passableValue)
+            || !TryAsBool(passableValue, out bool isPassable))
         {
             return null;
         }
 
-        Godot.Collections.Array<StringName> parsedPropIds = StringsToStringNameArray(Get(payload, "prop_ids"));
+        Godot.Collections.Array<StringName> parsedPropIds = StringsToStringNameArray(
+            GetExactValueOrNull(payload, "prop_ids")
+        );
         if (parsedPropIds == null)
         {
             return null;
         }
-        Godot.Collections.Array<StringName> parsedTerrainEffectIds = StringsToStringNameArray(Get(payload, "terrain_effect_ids"));
+        Godot.Collections.Array<StringName> parsedTerrainEffectIds = StringsToStringNameArray(
+            GetExactValueOrNull(payload, "terrain_effect_ids")
+        );
         if (parsedTerrainEffectIds == null)
         {
             return null;
         }
-        Godot.Collections.Array<BattleTerrainEffectState> parsedTimedTerrainEffects = TerrainEffectsFromPayload(Get(payload, "timed_terrain_effects"));
+        Godot.Collections.Array<BattleTerrainEffectState> parsedTimedTerrainEffects =
+            TerrainEffectsFromPayload(GetExactValueOrNull(payload, "timed_terrain_effects"));
         if (parsedTimedTerrainEffects == null)
         {
             return null;
         }
-        if (Get(payload, "edge_feature_east").VariantType != Variant.Type.Dictionary)
+        if (!TryGetExactValue(payload, "edge_feature_east", out object eastFeatureValue)
+            || !TryAsDictionary(eastFeatureValue, out GDictionary eastFeaturePayload))
         {
             return null;
         }
-        if (Get(payload, "edge_feature_south").VariantType != Variant.Type.Dictionary)
+        if (!TryGetExactValue(payload, "edge_feature_south", out object southFeatureValue)
+            || !TryAsDictionary(southFeatureValue, out GDictionary southFeaturePayload))
         {
             return null;
         }
-        BattleEdgeFeatureState eastFeature = BattleEdgeFeatureState.from_dict(Get(payload, "edge_feature_east"));
+        BattleEdgeFeatureState eastFeature = BattleEdgeFeatureState.from_dict(
+            eastFeaturePayload
+        );
         if (eastFeature == null)
         {
             return null;
         }
-        BattleEdgeFeatureState southFeature = BattleEdgeFeatureState.from_dict(Get(payload, "edge_feature_south"));
+        BattleEdgeFeatureState southFeature = BattleEdgeFeatureState.from_dict(
+            southFeaturePayload
+        );
         if (southFeature == null)
         {
             return null;
@@ -266,19 +297,19 @@ public partial class BattleCellState : RefCounted
 
         var cellState = new BattleCellState
         {
-            coord = Get(payload, "coord").AsVector2I(),
-            stack_layer = Get(payload, "stack_layer").AsInt32(),
+            coord = coord,
+            stack_layer = stackLayer,
             base_terrain = normalizedTerrain,
-            base_height = Get(payload, "base_height").AsInt32(),
-            height_offset = Get(payload, "height_offset").AsInt32(),
-            current_height = Get(payload, "current_height").AsInt32(),
-            passable = Get(payload, "passable").AsBool(),
-            move_cost = Get(payload, "move_cost").AsInt32(),
-            occupant_unit_id = ToStringName(Get(payload, "occupant_unit_id")),
+            base_height = baseHeight,
+            height_offset = heightOffset,
+            current_height = currentHeight,
+            passable = isPassable,
+            move_cost = moveCost,
+            occupant_unit_id = new StringName(occupantUnitId),
             prop_ids = parsedPropIds,
             terrain_effect_ids = parsedTerrainEffectIds,
             timed_terrain_effects = parsedTimedTerrainEffects,
-            flow_direction = Get(payload, "flow_direction").AsVector2I(),
+            flow_direction = flowDirection,
             edge_feature_east = NormalizeEdgeFeature(eastFeature),
             edge_feature_south = NormalizeEdgeFeature(southFeature),
         };
@@ -289,19 +320,21 @@ public partial class BattleCellState : RefCounted
     public static GDictionary build_columns_from_surface_cells(GDictionary surface_cells)
     {
         GDictionary columns = new();
-        foreach (Variant coordVariant in surface_cells?.Keys ?? new GArray())
+        if (surface_cells == null)
         {
-            if (coordVariant.VariantType != Variant.Type.Vector2I)
+            return columns;
+        }
+        // 直接遍历键值对，省掉旧实现里对每个坐标的二次字典查表（Keys + 索引）。
+        foreach (var entry in surface_cells)
+        {
+            if (!TryAsVector2I(entry.Key, out Vector2I coord))
             {
                 continue;
             }
-            Variant surfaceCellValue = surface_cells[coordVariant];
-            var surfaceCell = surfaceCellValue.AsGodotObject() as BattleCellState;
-            if (surfaceCell == null)
+            if (!TryAsObject(entry.Value, out BattleCellState surfaceCell))
             {
                 continue;
             }
-            Vector2I coord = coordVariant.AsVector2I();
             columns[coord] = build_stacked_cells_from_surface_cell(surfaceCell);
         }
         return columns;
@@ -310,32 +343,33 @@ public partial class BattleCellState : RefCounted
     public static GDictionary clone_columns(GDictionary columns)
     {
         GDictionary cloned = new();
-        foreach (Variant coordVariant in columns?.Keys ?? new GArray())
+        foreach (object coordValue in columns?.Keys ?? new GArray())
         {
-            if (coordVariant.VariantType != Variant.Type.Vector2I)
+            if (!TryAsVector2I(coordValue, out Vector2I coord))
             {
                 continue;
             }
-            Variant columnVariant = columns[coordVariant];
             var clonedColumn = new Godot.Collections.Array<BattleCellState>();
-            if (columnVariant.VariantType == Variant.Type.Array)
+            if (TryGetExactValue(columns, coordValue, out object columnValue)
+                && TryRawArray(columnValue, out GArray rawColumn))
             {
-                foreach (Variant layerVariant in columnVariant.AsGodotArray())
+                foreach (object layerValue in rawColumn)
                 {
-                    var layerCell = layerVariant.AsGodotObject() as BattleCellState;
-                    if (layerCell == null)
+                    if (!TryAsObject(layerValue, out BattleCellState layerCell))
                     {
                         continue;
                     }
                     clonedColumn.Add(layerCell.duplicate_cell());
                 }
             }
-            cloned[coordVariant.AsVector2I()] = clonedColumn;
+            cloned[coord] = clonedColumn;
         }
         return cloned;
     }
 
-    public static Godot.Collections.Array<BattleCellState> build_stacked_cells_from_surface_cell(BattleCellState surface_cell)
+    public static Godot.Collections.Array<BattleCellState> build_stacked_cells_from_surface_cell(
+        BattleCellState surface_cell
+    )
     {
         var column = new Godot.Collections.Array<BattleCellState>();
         if (surface_cell == null)
@@ -374,59 +408,66 @@ public partial class BattleCellState : RefCounted
         return column;
     }
 
-    private static Godot.Collections.Array<string> StringNameArrayToStrings(Godot.Collections.Array<StringName> values)
+    private static Godot.Collections.Array<string> StringNameArrayToStrings(
+        Godot.Collections.Array<StringName> values
+    )
     {
         var results = new Godot.Collections.Array<string>();
-        foreach (Variant value in values ?? new Godot.Collections.Array<StringName>())
+        foreach (StringName value in values ?? new Godot.Collections.Array<StringName>())
         {
-            results.Add(value.AsString());
+            results.Add(value.ToString());
         }
         return results;
     }
 
-    private static Godot.Collections.Array<StringName> StringsToStringNameArray(Variant values)
+    private static Godot.Collections.Array<StringName> StringsToStringNameArray(object values)
     {
         var results = new Godot.Collections.Array<StringName>();
-        if (values.VariantType != Variant.Type.Array)
+        if (!TryRawArray(values, out GArray rawValues))
         {
             return null;
         }
-        foreach (Variant value in values.AsGodotArray())
+        foreach (object value in rawValues)
         {
-            if (!IsNonEmptyStringLike(value))
+            if (!TryAsStringLike(value, out string text) || string.IsNullOrEmpty(text))
             {
                 return null;
             }
-            results.Add(ToStringName(value));
+            results.Add(new StringName(text));
         }
         return results;
     }
 
-    private static Godot.Collections.Array<BattleTerrainEffectState> TerrainEffectsFromPayload(Variant values)
+    private static Godot.Collections.Array<BattleTerrainEffectState> TerrainEffectsFromPayload(
+        object values
+    )
     {
-        if (values.VariantType != Variant.Type.Array)
+        if (!TryRawArray(values, out GArray rawValues))
         {
             return null;
         }
-        foreach (Variant value in values.AsGodotArray())
+        var effectPayloads = new Godot.Collections.Array<GDictionary>();
+        foreach (object value in rawValues)
         {
-            if (value.VariantType != Variant.Type.Dictionary)
+            if (!TryAsDictionary(value, out GDictionary effectPayload))
             {
                 return null;
             }
+            effectPayloads.Add(effectPayload);
         }
-        Godot.Collections.Array<BattleTerrainEffectState> effectStates = BattleTerrainEffectState.from_dict_array(values);
+        Godot.Collections.Array<BattleTerrainEffectState> effectStates =
+            BattleTerrainEffectState.from_dict_array(effectPayloads);
         if (effectStates == null)
         {
             return null;
         }
-        if (effectStates.Count != values.AsGodotArray().Count)
+        if (effectStates.Count != rawValues.Count)
         {
             return null;
         }
-        foreach (Variant effectState in effectStates)
+        foreach (BattleTerrainEffectState effectState in effectStates)
         {
-            if (effectState.AsGodotObject() is not BattleTerrainEffectState)
+            if (effectState == null)
             {
                 return null;
             }
@@ -456,19 +497,127 @@ public partial class BattleCellState : RefCounted
         return true;
     }
 
-    private static bool IsIntValue(Variant value)
+    private static bool TryGetStrictInt(GDictionary data, string key, out int value)
     {
-        return value.VariantType == Variant.Type.Int;
+        if (TryGetExactValue(data, key, out object rawValue)
+            && TryAsStrictInt(rawValue, out value))
+        {
+            return true;
+        }
+        value = 0;
+        return false;
     }
 
-    private static bool IsStringLike(Variant value)
+    private static bool TryAsVector2I(object rawValue, out Vector2I value)
     {
-        return value.VariantType == Variant.Type.String || value.VariantType == Variant.Type.StringName;
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Vector2I)
+        {
+            value = variant.AsVector2I();
+            return true;
+        }
+        if (rawValue is Vector2I coord)
+        {
+            value = coord;
+            return true;
+        }
+        value = Vector2I.Zero;
+        return false;
     }
 
-    private static bool IsNonEmptyStringLike(Variant value)
+    private static bool TryAsStrictInt(object rawValue, out int value)
     {
-        return IsStringLike(value) && !string.IsNullOrEmpty(value.AsString());
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Int)
+        {
+            value = variant.AsInt32();
+            return true;
+        }
+        if (rawValue is int intValue)
+        {
+            value = intValue;
+            return true;
+        }
+        value = 0;
+        return false;
+    }
+
+    private static bool TryAsBool(object rawValue, out bool value)
+    {
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Bool)
+        {
+            value = variant.AsBool();
+            return true;
+        }
+        if (rawValue is bool boolValue)
+        {
+            value = boolValue;
+            return true;
+        }
+        value = false;
+        return false;
+    }
+
+    private static bool TryAsDictionary(object rawValue, out GDictionary value)
+    {
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Dictionary)
+        {
+            value = variant.AsGodotDictionary();
+            return true;
+        }
+        if (rawValue is GDictionary dictionary)
+        {
+            value = dictionary;
+            return true;
+        }
+        value = new GDictionary();
+        return false;
+    }
+
+    private static bool TryAsObject<T>(object rawValue, out T value)
+        where T : GodotObject
+    {
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Object)
+        {
+            value = variant.AsGodotObject() as T;
+            return value != null;
+        }
+        if (rawValue is T typedValue)
+        {
+            value = typedValue;
+            return true;
+        }
+        value = null;
+        return false;
+    }
+
+    private static bool TryAsStringLike(object rawValue, out string value)
+    {
+        if (rawValue is Variant variant)
+        {
+            if (variant.VariantType == Variant.Type.String)
+            {
+                value = variant.AsString();
+                return true;
+            }
+            if (variant.VariantType == Variant.Type.StringName)
+            {
+                value = variant.AsStringName().ToString();
+                return true;
+            }
+            value = "";
+            return false;
+        }
+        if (rawValue is StringName stringName)
+        {
+            value = stringName.ToString();
+            return true;
+        }
+        if (rawValue is string text)
+        {
+            value = text;
+            return true;
+        }
+        value = "";
+        return false;
     }
 
     private static BattleEdgeFeatureState NormalizeEdgeFeature(BattleEdgeFeatureState featureState)
@@ -480,23 +629,82 @@ public partial class BattleCellState : RefCounted
         return featureState.duplicate_feature();
     }
 
-    private static Godot.Collections.Array<StringName> DuplicateStringNameArray(Godot.Collections.Array<StringName> values)
+    private static Godot.Collections.Array<StringName> DuplicateStringNameArray(
+        Godot.Collections.Array<StringName> values
+    )
     {
         var duplicated = new Godot.Collections.Array<StringName>();
-        foreach (Variant value in values ?? new Godot.Collections.Array<StringName>())
+        foreach (StringName value in values ?? new Godot.Collections.Array<StringName>())
         {
-            duplicated.Add(new StringName(value.AsString()));
+            duplicated.Add(new StringName(value.ToString()));
         }
         return duplicated;
     }
 
-    private static StringName ToStringName(Variant value)
+    private static object GetExactValueOrNull(GDictionary data, string key)
     {
-        return IsStringLike(value) ? new StringName(value.AsString()) : "";
+        return TryGetExactValue(data, key, out object value) ? value : null;
     }
 
-    private static Variant Get(GDictionary payload, string key)
+    private static bool TryGetExactValue(GDictionary data, string key, out object value)
     {
-        return payload.ContainsKey(key) ? payload[key] : default;
+        if (data != null && data.ContainsKey(key))
+        {
+            value = data[key];
+            return true;
+        }
+        value = null;
+        return false;
     }
+
+    private static bool TryGetExactValue(GDictionary data, object key, out object value)
+    {
+        if (data == null || key == null)
+        {
+            value = null;
+            return false;
+        }
+        if (key is Variant variantKey)
+        {
+            if (data.ContainsKey(variantKey))
+            {
+                value = data[variantKey];
+                return true;
+            }
+        }
+        else if (key is Vector2I coordKey && data.ContainsKey(coordKey))
+        {
+            value = data[coordKey];
+            return true;
+        }
+        else if (key is string stringKey && data.ContainsKey(stringKey))
+        {
+            value = data[stringKey];
+            return true;
+        }
+        else if (key is StringName stringNameKey && data.ContainsKey(stringNameKey))
+        {
+            value = data[stringNameKey];
+            return true;
+        }
+        value = null;
+        return false;
+    }
+
+    private static bool TryRawArray(object rawValue, out GArray values)
+    {
+        if (rawValue is Variant value && value.VariantType == Variant.Type.Array)
+        {
+            values = value.AsGodotArray();
+            return true;
+        }
+        if (rawValue is GArray array)
+        {
+            values = array;
+            return true;
+        }
+        values = new GArray();
+        return false;
+    }
+
 }

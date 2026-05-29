@@ -1,10 +1,11 @@
+using System;
 using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
 [GlobalClass]
-public partial class BattleAiContext : RefCounted
+public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
 {
     private static readonly StringName StatusTaunted = "taunted";
     private static readonly StringName AnonymousAction = "anonymous_action";
@@ -37,42 +38,380 @@ public partial class BattleAiContext : RefCounted
 
     public BattleState state { get; set; }
     public BattleUnitState unit_state { get; set; }
-    public GodotObject grid_service { get; set; }
+    public BattleGridService grid_service { get; set; }
     public GDictionary skill_defs { get; set; } = new();
-    public Callable preview_callback { get; set; } = new();
-    public Callable skill_score_input_callback { get; set; } = new();
-    public Callable action_score_input_callback { get; set; } = new();
-    public Callable move_cost_callback { get; set; } = new();
+    public Func<
+        BattleAiContext,
+        SkillDef,
+        BattleCommand,
+        BattlePreview,
+        GArray,
+        GDictionary,
+        BattleAiScoreInput
+    > skill_score_input_callback { get; set; }
+    public Func<
+        BattleAiContext,
+        StringName,
+        string,
+        StringName,
+        BattleCommand,
+        BattlePreview,
+        GDictionary,
+        BattleAiScoreInput
+    > action_score_input_callback { get; set; }
+    public Func<BattleUnitState, Vector2I, int> move_cost_callback { get; set; }
     public BattleAiRuntimeActionPlan runtime_action_plan { get; set; }
     public BattleAiQueryService ai_query_service;
     public BattleAiCandidateEvaluationService candidate_evaluator { get; set; }
     public bool allow_authored_action_fallback_for_tests { get; set; }
     public bool trace_enabled { get; set; }
     public GArray action_traces { get; set; } = new();
-    public GDictionary score_projection_cache { get; set; } = new();
+    public Dictionary<string, object> score_projection_cache { get; set; } = new();
     public GArray mutation_guard_violations { get; set; } = new();
 
     private int _action_trace_nonce;
-    private readonly List<GDictionary> _action_metadata_stack = new();
+    private readonly List<RuntimeActionMetadata> _action_metadata_stack = new();
+    private readonly List<ActionTraceEntry> _action_trace_entries = new();
     private readonly BattleAiSkillAffordanceClassifier _skill_affordance_classifier = new();
-    private readonly GDictionary _skill_affordance_cache = new();
+    private readonly Dictionary<StringName, BattleAiSkillAffordanceRecord> _skill_affordance_records_by_skill_id =
+        new();
 
-    public BattlePreview preview_command(GodotObject command)
+    private sealed class RuntimeActionMetadata
     {
-        AiTraceRecorder.enter("preview_command");
-        BattlePreview result = _preview_command_impl(command);
-        AiTraceRecorder.exit("preview_command");
-        return result;
+        private readonly List<RuntimeMetadataEntry> _entries = new();
+
+        public IReadOnlyList<RuntimeMetadataEntry> Entries => _entries;
+
+        public RuntimeActionMetadata Clone()
+        {
+            var clone = new RuntimeActionMetadata();
+            foreach (RuntimeMetadataEntry entry in _entries)
+            {
+                clone.Set(entry);
+            }
+            return clone;
+        }
+
+        public bool ContainsKey(string key)
+        {
+            foreach (RuntimeMetadataEntry entry in _entries)
+            {
+                if (entry.Key == key)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        public void Set(RuntimeMetadataEntry entry)
+        {
+            if (string.IsNullOrEmpty(entry.Key))
+            {
+                return;
+            }
+            for (int index = 0; index < _entries.Count; index += 1)
+            {
+                if (_entries[index].Key == entry.Key)
+                {
+                    _entries[index] = entry.Clone();
+                    return;
+                }
+            }
+            _entries.Add(entry.Clone());
+        }
+
+        public bool TryGetValue(string key, out RuntimeMetadataValue value)
+        {
+            foreach (RuntimeMetadataEntry entry in _entries)
+            {
+                if (entry.Key == key)
+                {
+                    value = entry.Value;
+                    return true;
+                }
+            }
+            value = RuntimeMetadataValue.Nil();
+            return false;
+        }
+
+        public GDictionary ToDictionary()
+        {
+            var result = new GDictionary();
+            foreach (RuntimeMetadataEntry entry in _entries)
+            {
+                result[entry.Key] = entry.Value.ToVariant();
+            }
+            return result;
+        }
+
+        public static RuntimeActionMetadata FromDictionary(GDictionary source)
+        {
+            var result = new RuntimeActionMetadata();
+            foreach (RuntimeMetadataEntry entry in ReadRuntimeMetadataEntries(source))
+            {
+                result.Set(entry);
+            }
+            return result;
+        }
     }
 
-    public BattlePreview _preview_command_impl(GodotObject command)
+    private sealed class ActionTraceEntry
     {
-        if (!IsCallableValid(preview_callback))
+        private readonly List<RuntimeMetadataEntry> _entries = new();
+
+        public StringName TraceId { get; private set; } = "";
+
+        public void MarkChosen(BattleAiDecision decision)
         {
-            return new BattlePreview();
+            Set("chosen", true);
+            if (decision == null)
+            {
+                return;
+            }
+            Set("chosen_reason_text", decision.reason_text);
+            Set("chosen_command", BuildCommandDictionary(decision.command));
+            BattleAiScoreInput scoreInput = ResolveDecisionScoreInput(decision);
+            Set(
+                "chosen_score_input",
+                scoreInput != null ? scoreInput.to_dict() : new GDictionary()
+            );
         }
-        GodotObject previewObject = preview_callback.Call(command).AsGodotObject();
-        return previewObject as BattlePreview ?? new BattlePreview();
+
+        public GDictionary ToDictionary()
+        {
+            var result = new GDictionary();
+            foreach (RuntimeMetadataEntry entry in _entries)
+            {
+                result[entry.Key] = entry.Value.ToVariant();
+            }
+            return result;
+        }
+
+        public static ActionTraceEntry FromDictionary(GDictionary source)
+        {
+            var result = new ActionTraceEntry();
+            foreach (RuntimeMetadataEntry entry in ReadRuntimeMetadataEntries(source))
+            {
+                result.Set(entry);
+            }
+            result.TraceId = GdInterop.GetStringName(source ?? new GDictionary(), "trace_id");
+            return result;
+        }
+
+        private void Set(string key, bool value)
+        {
+            Set(new RuntimeMetadataEntry(key, RuntimeMetadataValue.FromVariant(Variant.From(value))));
+        }
+
+        private void Set(string key, string value)
+        {
+            Set(
+                new RuntimeMetadataEntry(
+                    key,
+                    RuntimeMetadataValue.FromVariant(Variant.From(value ?? ""))
+                )
+            );
+        }
+
+        private void Set(string key, GDictionary value)
+        {
+            Set(
+                new RuntimeMetadataEntry(
+                    key,
+                    RuntimeMetadataValue.FromDictionary(value ?? new GDictionary())
+                )
+            );
+        }
+
+        private void Set(RuntimeMetadataEntry entry)
+        {
+            if (string.IsNullOrEmpty(entry.Key))
+            {
+                return;
+            }
+            for (int index = 0; index < _entries.Count; index += 1)
+            {
+                if (_entries[index].Key == entry.Key)
+                {
+                    _entries[index] = entry.Clone();
+                    return;
+                }
+            }
+            _entries.Add(entry.Clone());
+        }
+    }
+
+    private readonly struct RuntimeMetadataEntry
+    {
+        public RuntimeMetadataEntry(string key, RuntimeMetadataValue value)
+        {
+            Key = key ?? "";
+            Value = value ?? RuntimeMetadataValue.Nil();
+        }
+
+        public string Key { get; }
+
+        public RuntimeMetadataValue Value { get; }
+
+        public RuntimeMetadataEntry Clone() => new(Key, Value.Clone());
+    }
+
+    private enum RuntimeMetadataValueKind
+    {
+        Nil,
+        Bool,
+        Integer,
+        Float,
+        Text,
+        StringName,
+        Vector2I,
+        Dictionary,
+        Array,
+        Object,
+        Fallback,
+    }
+
+    private sealed class RuntimeMetadataValue
+    {
+        private readonly RuntimeMetadataValueKind _kind;
+        private readonly bool _boolValue;
+        private readonly long _integerValue;
+        private readonly double _floatValue;
+        private readonly string _textValue;
+        private readonly StringName _stringNameValue;
+        private readonly Vector2I _vector2IValue;
+        private readonly GDictionary _dictionaryValue;
+        private readonly GArray _arrayValue;
+        private readonly GodotObject _objectValue;
+        private readonly Variant _fallbackValue;
+
+        private RuntimeMetadataValue(
+            RuntimeMetadataValueKind kind,
+            bool boolValue = false,
+            long integerValue = 0,
+            double floatValue = 0,
+            string textValue = "",
+            StringName stringNameValue = default,
+            Vector2I vector2IValue = default,
+            GDictionary dictionaryValue = null,
+            GArray arrayValue = null,
+            GodotObject objectValue = null,
+            Variant fallbackValue = default
+        )
+        {
+            _kind = kind;
+            _boolValue = boolValue;
+            _integerValue = integerValue;
+            _floatValue = floatValue;
+            _textValue = textValue ?? "";
+            _stringNameValue = stringNameValue;
+            _vector2IValue = vector2IValue;
+            _dictionaryValue = dictionaryValue;
+            _arrayValue = arrayValue;
+            _objectValue = objectValue;
+            _fallbackValue = fallbackValue;
+        }
+
+        public RuntimeMetadataValue Clone()
+        {
+            return _kind switch
+            {
+                RuntimeMetadataValueKind.Dictionary
+                    => FromDictionary(_dictionaryValue?.Duplicate(true) ?? new GDictionary()),
+                RuntimeMetadataValueKind.Array
+                    => FromArray(_arrayValue?.Duplicate(true) ?? new GArray()),
+                _ => this,
+            };
+        }
+
+        public bool TryGetDictionary(out GDictionary value)
+        {
+            if (_kind == RuntimeMetadataValueKind.Dictionary)
+            {
+                value = _dictionaryValue?.Duplicate(true) ?? new GDictionary();
+                return true;
+            }
+            value = new GDictionary();
+            return false;
+        }
+
+        public Variant ToVariant()
+        {
+            return _kind switch
+            {
+                RuntimeMetadataValueKind.Nil => default,
+                RuntimeMetadataValueKind.Bool => Variant.From(_boolValue),
+                RuntimeMetadataValueKind.Integer => Variant.From(_integerValue),
+                RuntimeMetadataValueKind.Float => Variant.From(_floatValue),
+                RuntimeMetadataValueKind.Text => Variant.From(_textValue),
+                RuntimeMetadataValueKind.StringName => Variant.From(_stringNameValue),
+                RuntimeMetadataValueKind.Vector2I => Variant.From(_vector2IValue),
+                RuntimeMetadataValueKind.Dictionary
+                    => Variant.From(_dictionaryValue?.Duplicate(true) ?? new GDictionary()),
+                RuntimeMetadataValueKind.Array
+                    => Variant.From(_arrayValue?.Duplicate(true) ?? new GArray()),
+                RuntimeMetadataValueKind.Object => Variant.From(_objectValue),
+                RuntimeMetadataValueKind.Fallback => _fallbackValue,
+                _ => default,
+            };
+        }
+
+        public static RuntimeMetadataValue Nil() => new(RuntimeMetadataValueKind.Nil);
+
+        public static RuntimeMetadataValue FromDictionary(GDictionary value) =>
+            new(
+                RuntimeMetadataValueKind.Dictionary,
+                dictionaryValue: value?.Duplicate(true) ?? new GDictionary()
+            );
+
+        public static RuntimeMetadataValue FromArray(GArray value) =>
+            new(
+                RuntimeMetadataValueKind.Array,
+                arrayValue: value?.Duplicate(true) ?? new GArray()
+            );
+
+        public static RuntimeMetadataValue FromVariant(Variant value)
+        {
+            return value.VariantType switch
+            {
+                Variant.Type.Nil => Nil(),
+                Variant.Type.Bool => new RuntimeMetadataValue(
+                    RuntimeMetadataValueKind.Bool,
+                    boolValue: value.AsBool()
+                ),
+                Variant.Type.Int => new RuntimeMetadataValue(
+                    RuntimeMetadataValueKind.Integer,
+                    integerValue: value.AsInt64()
+                ),
+                Variant.Type.Float => new RuntimeMetadataValue(
+                    RuntimeMetadataValueKind.Float,
+                    floatValue: value.AsDouble()
+                ),
+                Variant.Type.String => new RuntimeMetadataValue(
+                    RuntimeMetadataValueKind.Text,
+                    textValue: value.AsString()
+                ),
+                Variant.Type.StringName => new RuntimeMetadataValue(
+                    RuntimeMetadataValueKind.StringName,
+                    stringNameValue: value.AsStringName()
+                ),
+                Variant.Type.Vector2I => new RuntimeMetadataValue(
+                    RuntimeMetadataValueKind.Vector2I,
+                    vector2IValue: value.AsVector2I()
+                ),
+                Variant.Type.Dictionary => FromDictionary(value.AsGodotDictionary()),
+                Variant.Type.Array => FromArray(value.AsGodotArray()),
+                Variant.Type.Object => new RuntimeMetadataValue(
+                    RuntimeMetadataValueKind.Object,
+                    objectValue: value.AsGodotObject()
+                ),
+                _ => new RuntimeMetadataValue(
+                    RuntimeMetadataValueKind.Fallback,
+                    fallbackValue: value
+                ),
+            };
+        }
     }
 
     public BattleAiQueryService get_ai_query_service()
@@ -80,7 +419,7 @@ public partial class BattleAiContext : RefCounted
         return ai_query_service;
     }
 
-    public BattleAiDecision evaluate_candidate_request(GodotObject request)
+    public BattleAiDecision evaluate_candidate_request(BattleAiCandidateRequest request)
     {
         AiTraceRecorder.enter("candidate:context.evaluate_request");
         BattleAiDecision result = _evaluate_candidate_request_impl(request);
@@ -88,88 +427,96 @@ public partial class BattleAiContext : RefCounted
         return result;
     }
 
-    public BattleAiDecision _evaluate_candidate_request_impl(GodotObject request)
+    public BattleAiDecision _evaluate_candidate_request_impl(BattleAiCandidateRequest request)
     {
-        var candidateRequest = request as BattleAiCandidateRequest;
-        if (candidateRequest == null)
+        if (request == null)
         {
             BattleAiPayloadGuard.FailLoud(
                 "evaluate_candidate_request requires BattleAiCandidateRequest.",
-                new GDictionary { ["source"] = "BattleAiContext" });
+                new GDictionary { ["source"] = "BattleAiContext" }
+            );
             return null;
         }
         if (candidate_evaluator == null)
         {
             BattleAiPayloadGuard.FailLoud(
                 "evaluate_candidate_request requires candidate_evaluator.",
-                new GDictionary { ["source"] = "BattleAiContext" });
+                new GDictionary { ["source"] = "BattleAiContext" }
+            );
             return null;
         }
         if (ai_query_service == null)
         {
             BattleAiPayloadGuard.FailLoud(
                 "evaluate_candidate_request requires ai_query_service.",
-                new GDictionary { ["source"] = "BattleAiContext" });
+                new GDictionary { ["source"] = "BattleAiContext" }
+            );
             return null;
         }
-        return candidate_evaluator.evaluate(candidateRequest, ai_query_service).AsGodotObject() as BattleAiDecision;
+        return candidate_evaluator.evaluate(request, ai_query_service);
     }
 
-    public int get_move_cost(GodotObject target_unit_state, Vector2I target_coord)
+    public int get_move_cost(BattleUnitState target_unit_state, Vector2I target_coord)
     {
-        if (IsCallableValid(move_cost_callback))
+        if (move_cost_callback != null)
         {
-            return move_cost_callback.Call(target_unit_state, target_coord).AsInt32();
+            return move_cost_callback.Invoke(target_unit_state, target_coord);
         }
-        if (grid_service != null && state != null && grid_service.HasMethod("get_unit_move_cost"))
+        if (grid_service != null && state != null)
         {
-            return grid_service.Call("get_unit_move_cost", state, target_unit_state, target_coord).AsInt32();
+            return grid_service.get_unit_move_cost(
+                state,
+                target_unit_state,
+                target_coord
+            );
         }
         return 1;
     }
 
     public BattleAiScoreInput build_skill_score_input(
-        GodotObject skill_def,
-        GodotObject command,
+        SkillDef skill_def,
+        BattleCommand command,
         BattlePreview preview,
         GArray effect_defs = null,
-        GDictionary metadata = null)
+        GDictionary metadata = null
+    )
     {
-        if (!IsCallableValid(skill_score_input_callback))
+        if (skill_score_input_callback == null || skill_def == null || command == null)
         {
             return null;
         }
-        GodotObject scoreInput = skill_score_input_callback.Call(
+        return skill_score_input_callback.Invoke(
             this,
             skill_def,
             command,
             preview,
             effect_defs ?? new GArray(),
-            metadata ?? new GDictionary()).AsGodotObject();
-        return scoreInput as BattleAiScoreInput;
+            metadata ?? new GDictionary()
+        );
     }
 
     public BattleAiScoreInput build_action_score_input(
         StringName action_kind,
         string action_label,
         StringName score_bucket_id,
-        GodotObject command,
+        BattleCommand command,
         BattlePreview preview,
-        GDictionary metadata = null)
+        GDictionary metadata = null
+    )
     {
-        if (!IsCallableValid(action_score_input_callback))
+        if (action_score_input_callback == null || command == null)
         {
             return null;
         }
-        GodotObject scoreInput = action_score_input_callback.Call(
+        return action_score_input_callback.Invoke(
             this,
             action_kind,
             action_label,
             score_bucket_id,
             command,
             preview,
-            metadata ?? new GDictionary()).AsGodotObject();
-        return scoreInput as BattleAiScoreInput;
+            metadata ?? new GDictionary()
+        );
     }
 
     public GArray get_runtime_actions(StringName state_id)
@@ -178,22 +525,38 @@ public partial class BattleAiContext : RefCounted
         {
             return new GArray();
         }
-        return runtime_action_plan != null ? runtime_action_plan.get_actions(state_id) : new GArray();
+        return runtime_action_plan != null
+            ? runtime_action_plan.get_actions(state_id)
+            : new GArray();
+    }
+
+    internal IReadOnlyList<EnemyAiAction> GetRuntimeActionsTyped(StringName state_id)
+    {
+        if (IsEmpty(state_id) || runtime_action_plan == null)
+        {
+            return System.Array.Empty<EnemyAiAction>();
+        }
+        return runtime_action_plan.GetTypedActions(state_id);
     }
 
     public bool has_runtime_action_state(StringName state_id)
     {
-        return !IsEmpty(state_id) && runtime_action_plan != null && runtime_action_plan.has_state(state_id);
+        return !IsEmpty(state_id)
+            && runtime_action_plan != null
+            && runtime_action_plan.has_state(state_id);
     }
 
-    public bool is_runtime_action_plan_stale(GodotObject brain)
+    public bool is_runtime_action_plan_stale(EnemyAiBrainDef brain)
     {
-        return runtime_action_plan != null && runtime_action_plan.is_stale_for(unit_state, brain, skill_defs);
+        return runtime_action_plan != null
+            && runtime_action_plan.is_stale_for(unit_state, brain, skill_defs);
     }
 
-    public GDictionary get_runtime_action_metadata(GodotObject action)
+    public GDictionary get_runtime_action_metadata(EnemyAiAction action)
     {
-        return runtime_action_plan != null ? runtime_action_plan.get_action_metadata(action) : new GDictionary();
+        return runtime_action_plan != null
+            ? runtime_action_plan.get_action_metadata(action)
+            : new GDictionary();
     }
 
     public GDictionary get_skill_affordance_record(StringName skill_id)
@@ -205,24 +568,28 @@ public partial class BattleAiContext : RefCounted
         }
         if (runtime_action_plan != null)
         {
-            GDictionary planRecord = runtime_action_plan.get_skill_affordance_record(normalizedSkillId);
+            GDictionary planRecord = runtime_action_plan.get_skill_affordance_record(
+                normalizedSkillId
+            );
             if (planRecord.Count > 0)
             {
-                return planRecord;
+                BattleAiSkillAffordanceRecord typedPlanRecord =
+                    BattleAiSkillAffordanceRecord.FromDictionary(normalizedSkillId, planRecord);
+                _skill_affordance_records_by_skill_id[normalizedSkillId] = typedPlanRecord;
+                return typedPlanRecord.ToDictionary();
             }
         }
-        if (_skill_affordance_cache.ContainsKey(normalizedSkillId)
-            && _skill_affordance_cache[normalizedSkillId].VariantType == Variant.Type.Dictionary)
+        if (
+            _skill_affordance_records_by_skill_id.TryGetValue(
+                normalizedSkillId,
+                out BattleAiSkillAffordanceRecord cachedRecord
+            )
+        )
         {
-            return _skill_affordance_cache[normalizedSkillId].AsGodotDictionary().Duplicate(true);
+            return cachedRecord.ToDictionary();
         }
 
-        SkillDef skillDef = null;
-        if (skill_defs != null && skill_defs.ContainsKey(normalizedSkillId))
-        {
-            skillDef = skill_defs[normalizedSkillId].AsGodotObject() as SkillDef;
-        }
-        if (skillDef == null)
+        if (!TryGetSkillDef(normalizedSkillId, out SkillDef skillDef))
         {
             return new GDictionary();
         }
@@ -232,27 +599,31 @@ public partial class BattleAiContext : RefCounted
         {
             skillLevel = unit_state.known_skill_level_map[normalizedSkillId].AsInt32();
         }
-        GDictionary record = _skill_affordance_classifier.classify_skill(skillDef, skillLevel);
-        _skill_affordance_cache[normalizedSkillId] = record.Duplicate(true);
-        return record;
+        BattleAiSkillAffordanceRecord record = _skill_affordance_classifier.ClassifySkill(
+            skillDef,
+            skillLevel
+        );
+        if (record.skill_id == "")
+        {
+            record.skill_id = normalizedSkillId;
+        }
+        _skill_affordance_records_by_skill_id[normalizedSkillId] = record;
+        return record.ToDictionary();
     }
 
     public bool has_skill_affordance(GArray affordances)
     {
-        if (unit_state == null || affordances == null || affordances.Count == 0)
+        return HasSkillAffordanceValues(DecodeStringNameList(affordances));
+    }
+
+    internal bool HasSkillAffordanceValues(IEnumerable<StringName> affordances)
+    {
+        if (unit_state == null || affordances == null)
         {
             return false;
         }
 
-        var desiredLookup = new GDictionary();
-        foreach (Variant affordanceVariant in affordances)
-        {
-            StringName affordance = ProgressionDataUtils.to_string_name(affordanceVariant);
-            if (!IsEmpty(affordance))
-            {
-                desiredLookup[affordance] = true;
-            }
-        }
+        HashSet<StringName> desiredLookup = DecodeStringNameSet(affordances);
         if (desiredLookup.Count == 0)
         {
             return false;
@@ -265,15 +636,9 @@ public partial class BattleAiContext : RefCounted
             {
                 continue;
             }
-            GDictionary record = get_skill_affordance_record(skillId);
-            if (!record.ContainsKey("affordances") || record["affordances"].VariantType != Variant.Type.Array)
+            foreach (StringName skillAffordance in GetSkillAffordanceValues(skillId))
             {
-                continue;
-            }
-            foreach (Variant skillAffordanceVariant in record["affordances"].AsGodotArray())
-            {
-                StringName skillAffordance = ProgressionDataUtils.to_string_name(skillAffordanceVariant);
-                if (desiredLookup.ContainsKey(skillAffordance))
+                if (!IsEmpty(skillAffordance) && desiredLookup.Contains(skillAffordance))
                 {
                     return true;
                 }
@@ -282,9 +647,97 @@ public partial class BattleAiContext : RefCounted
         return false;
     }
 
+    private IReadOnlyList<StringName> GetSkillAffordanceValues(StringName skillId)
+    {
+        StringName normalizedSkillId = ProgressionDataUtils.to_string_name(skillId);
+        if (IsEmpty(normalizedSkillId))
+        {
+            return System.Array.Empty<StringName>();
+        }
+        if (
+            runtime_action_plan != null
+            && runtime_action_plan.TryGetSkillAffordances(
+                normalizedSkillId,
+                out IReadOnlyList<StringName> planAffordances
+            )
+        )
+        {
+            return planAffordances;
+        }
+        if (
+            _skill_affordance_records_by_skill_id.TryGetValue(
+                normalizedSkillId,
+                out BattleAiSkillAffordanceRecord cachedRecord
+            )
+        )
+        {
+            return cachedRecord.affordances;
+        }
+        get_skill_affordance_record(normalizedSkillId);
+        return _skill_affordance_records_by_skill_id.TryGetValue(
+            normalizedSkillId,
+            out BattleAiSkillAffordanceRecord resolvedRecord
+        )
+            ? resolvedRecord.affordances
+            : System.Array.Empty<StringName>();
+    }
+
+    private bool TryGetSkillDef(StringName skillId, out SkillDef skillDef)
+    {
+        skillDef = null;
+        StringName normalizedSkillId = ProgressionDataUtils.to_string_name(skillId);
+        if (
+            skill_defs == null
+            || IsEmpty(normalizedSkillId)
+            || !skill_defs.ContainsKey(normalizedSkillId)
+        )
+        {
+            return false;
+        }
+
+        skillDef = skill_defs[normalizedSkillId].AsGodotObject() as SkillDef;
+        return skillDef != null;
+    }
+
+    private static HashSet<StringName> DecodeStringNameSet(IEnumerable<StringName> values)
+    {
+        var result = new HashSet<StringName>();
+        if (values == null)
+        {
+            return result;
+        }
+        foreach (StringName value in values)
+        {
+            StringName normalizedValue = ProgressionDataUtils.to_string_name(value);
+            if (!IsEmpty(normalizedValue))
+            {
+                result.Add(normalizedValue);
+            }
+        }
+        return result;
+    }
+
+    private static List<StringName> DecodeStringNameList(GArray values)
+    {
+        var result = new List<StringName>();
+        if (values == null)
+        {
+            return result;
+        }
+        foreach (var value in values)
+        {
+            StringName normalizedValue = ProgressionDataUtils.to_string_name(value);
+            if (!IsEmpty(normalizedValue))
+            {
+                result.Add(normalizedValue);
+            }
+        }
+        return result;
+    }
+
     public void push_action_metadata(GDictionary metadata)
     {
-        _action_metadata_stack.Add(_normalize_runtime_action_metadata(metadata ?? new GDictionary()));
+        _action_metadata_stack.Add(RuntimeActionMetadata.FromDictionary(metadata));
     }
 
     public GDictionary pop_action_metadata()
@@ -294,7 +747,7 @@ public partial class BattleAiContext : RefCounted
             return new GDictionary();
         }
         int lastIndex = _action_metadata_stack.Count - 1;
-        GDictionary result = _action_metadata_stack[lastIndex];
+        GDictionary result = _action_metadata_stack[lastIndex].ToDictionary();
         _action_metadata_stack.RemoveAt(lastIndex);
         return result;
     }
@@ -305,37 +758,44 @@ public partial class BattleAiContext : RefCounted
         {
             return new GDictionary();
         }
-        return _action_metadata_stack[^1].Duplicate(true);
+        return _action_metadata_stack[^1].ToDictionary();
     }
 
     public GDictionary merge_current_action_metadata(GDictionary metadata = null)
     {
-        GDictionary merged = get_current_action_metadata().Duplicate(true);
-        metadata ??= new GDictionary();
-        foreach (Variant key in metadata.Keys)
+        RuntimeActionMetadata merged =
+            _action_metadata_stack.Count > 0 ? _action_metadata_stack[^1].Clone() : new RuntimeActionMetadata();
+        RuntimeActionMetadata incoming = RuntimeActionMetadata.FromDictionary(metadata);
+        foreach (RuntimeMetadataEntry entry in incoming.Entries)
         {
-            if (_is_runtime_fixed_metadata_key(key) && merged.ContainsKey(key))
+            if (_is_runtime_fixed_metadata_key(entry.Key) && merged.ContainsKey(entry.Key))
             {
                 continue;
             }
-            merged[key] = metadata[key];
+            merged.Set(entry);
         }
 
-        GDictionary runtimeActionMetadata = new();
-        if (merged.ContainsKey("runtime_action_metadata")
-            && merged["runtime_action_metadata"].VariantType == Variant.Type.Dictionary)
+        RuntimeActionMetadata runtimeActionMetadata = new();
+        if (merged.TryGetValue("runtime_action_metadata", out RuntimeMetadataValue runtimeValue))
         {
-            runtimeActionMetadata = merged["runtime_action_metadata"].AsGodotDictionary().Duplicate(true);
+            runtimeActionMetadata = runtimeValue.TryGetDictionary(out GDictionary runtimeDictionary)
+                ? RuntimeActionMetadata.FromDictionary(runtimeDictionary)
+                : new RuntimeActionMetadata();
         }
-        foreach (Variant key in merged.Keys)
+        foreach (RuntimeMetadataEntry entry in merged.Entries)
         {
-            if (_is_runtime_metadata_export_key(key))
+            if (_is_runtime_metadata_export_key(entry.Key))
             {
-                runtimeActionMetadata[key] = merged[key];
+                runtimeActionMetadata.Set(entry);
             }
         }
-        merged["runtime_action_metadata"] = runtimeActionMetadata;
-        return merged;
+        merged.Set(
+            new RuntimeMetadataEntry(
+                "runtime_action_metadata",
+                RuntimeMetadataValue.FromDictionary(runtimeActionMetadata.ToDictionary())
+            )
+        );
+        return merged.ToDictionary();
     }
 
     public BattleUnitState resolve_forced_target_unit(StringName target_filter)
@@ -355,11 +815,11 @@ public partial class BattleAiContext : RefCounted
             return null;
         }
         StringName sourceId = ProgressionDataUtils.to_string_name(tauntEntry.source_unit_id);
-        if (IsEmpty(sourceId) || !state.units.ContainsKey(sourceId))
+        if (IsEmpty(sourceId))
         {
             return null;
         }
-        BattleUnitState sourceUnit = state.units[sourceId].AsGodotObject() as BattleUnitState;
+        state.TryGetUnitTyped(sourceId, out BattleUnitState sourceUnit);
         if (sourceUnit == null || !sourceUnit.is_alive)
         {
             return null;
@@ -384,38 +844,29 @@ public partial class BattleAiContext : RefCounted
         {
             return;
         }
-        action_traces.Add(action_trace.Duplicate(true));
+        _action_trace_entries.Add(ActionTraceEntry.FromDictionary(action_trace));
+        SyncActionTracesMirror();
     }
 
-    public void mark_action_trace_chosen(StringName action_trace_id, BattleAiDecision decision = null)
+    public void mark_action_trace_chosen(
+        StringName action_trace_id,
+        BattleAiDecision decision = null
+    )
     {
         if (IsEmpty(action_trace_id))
         {
             return;
         }
 
-        for (int traceIndex = 0; traceIndex < action_traces.Count; traceIndex += 1)
+        foreach (ActionTraceEntry actionTrace in _action_trace_entries)
         {
-            if (action_traces[traceIndex].VariantType != Variant.Type.Dictionary)
-            {
-                continue;
-            }
-            GDictionary actionTrace = action_traces[traceIndex].AsGodotDictionary();
-            StringName traceId = GdInterop.GetStringName(actionTrace, "trace_id");
-            if (traceId != action_trace_id)
+            if (actionTrace.TraceId != action_trace_id)
             {
                 continue;
             }
 
-            actionTrace["chosen"] = true;
-            if (decision != null)
-            {
-                actionTrace["chosen_reason_text"] = decision.reason_text;
-                actionTrace["chosen_command"] = _build_command_dict(decision.command);
-                BattleAiScoreInput scoreInput = ResolveDecisionScoreInput(decision);
-                actionTrace["chosen_score_input"] = scoreInput != null ? scoreInput.to_dict() : new GDictionary();
-            }
-            action_traces[traceIndex] = actionTrace;
+            actionTrace.MarkChosen(decision);
+            SyncActionTracesMirror();
             return;
         }
     }
@@ -431,7 +882,11 @@ public partial class BattleAiContext : RefCounted
         }
 
         int turnStartedTu = -1;
-        if (unit_state != null && unit_state.ai_blackboard != null && unit_state.ai_blackboard.ContainsKey("turn_started_tu"))
+        if (
+            unit_state != null
+            && unit_state.ai_blackboard != null
+            && unit_state.ai_blackboard.ContainsKey("turn_started_tu")
+        )
         {
             turnStartedTu = unit_state.ai_blackboard["turn_started_tu"].AsInt32();
         }
@@ -447,10 +902,14 @@ public partial class BattleAiContext : RefCounted
             ["state_id"] = resolvedStateId,
             ["action_id"] = decision != null ? decision.action_id.ToString() : "",
             ["reason_text"] = decision != null ? decision.reason_text : "",
-            ["command"] = decision != null ? _build_command_dict(decision.command) : new GDictionary(),
-            ["transition"] = decision != null && decision.transition != null ? decision.transition.Duplicate(true) : new GDictionary(),
+            ["command"] =
+                decision != null ? BuildCommandDictionary(decision.command) : new GDictionary(),
+            ["transition"] =
+                decision != null && decision.transition != null
+                    ? decision.transition.Duplicate(true)
+                    : new GDictionary(),
             ["score_input"] = new GDictionary(),
-            ["action_traces"] = action_traces.Duplicate(true),
+            ["action_traces"] = BuildActionTraceArray(),
         };
 
         if (decision != null)
@@ -465,6 +924,11 @@ public partial class BattleAiContext : RefCounted
     }
 
     public GDictionary _build_command_dict(BattleCommand command)
+    {
+        return BuildCommandDictionary(command);
+    }
+
+    private static GDictionary BuildCommandDictionary(BattleCommand command)
     {
         if (command == null)
         {
@@ -483,19 +947,64 @@ public partial class BattleAiContext : RefCounted
         };
     }
 
+    private void SyncActionTracesMirror()
+    {
+        action_traces = BuildActionTraceArray();
+    }
+
+    private GArray BuildActionTraceArray()
+    {
+        var result = new GArray();
+        foreach (ActionTraceEntry entry in _action_trace_entries)
+        {
+            result.Add(entry.ToDictionary());
+        }
+        return result;
+    }
+
     public GDictionary _normalize_runtime_action_metadata(GDictionary metadata)
     {
-        return metadata?.Duplicate(true) ?? new GDictionary();
+        return RuntimeActionMetadata.FromDictionary(metadata).ToDictionary();
     }
 
-    public bool _is_runtime_fixed_metadata_key(Variant key)
+    private static bool _is_runtime_fixed_metadata_key(string key)
     {
-        return RuntimeFixedMetadataKeys.Contains(key.ToString());
+        return RuntimeFixedMetadataKeys.Contains(key ?? "");
     }
 
-    public bool _is_runtime_metadata_export_key(Variant key)
+    private static bool _is_runtime_metadata_export_key(string key)
     {
-        return RuntimeMetadataExportKeys.Contains(key.ToString());
+        return RuntimeMetadataExportKeys.Contains(key ?? "");
+    }
+
+    private static List<RuntimeMetadataEntry> ReadRuntimeMetadataEntries(GDictionary source)
+    {
+        var result = new List<RuntimeMetadataEntry>();
+        if (source == null)
+        {
+            return result;
+        }
+        foreach (var rawKey in source.Keys)
+        {
+            string key = ReadRuntimeMetadataKey(rawKey);
+            if (string.IsNullOrEmpty(key))
+            {
+                continue;
+            }
+            result.Add(new RuntimeMetadataEntry(key, RuntimeMetadataValue.FromVariant(source[rawKey])));
+        }
+        return result;
+    }
+
+    private static string ReadRuntimeMetadataKey(Variant rawKey)
+    {
+        return rawKey.VariantType switch
+        {
+            Variant.Type.String => rawKey.AsString(),
+            Variant.Type.StringName => rawKey.AsStringName().ToString(),
+            Variant.Type.Nil => "",
+            _ => rawKey.ToString(),
+        };
     }
 
     private static BattleAiScoreInput ResolveDecisionScoreInput(BattleAiDecision decision)
@@ -504,12 +1013,7 @@ public partial class BattleAiContext : RefCounted
         {
             return null;
         }
-        return decision.score_input as BattleAiScoreInput ?? decision.skill_score_input as BattleAiScoreInput;
-    }
-
-    private static bool IsCallableValid(Callable callable)
-    {
-        return !callable.Equals(default(Callable)) && !string.IsNullOrEmpty(callable.Method.ToString());
+        return decision.score_input ?? decision.skill_score_input;
     }
 
     private static bool IsEmpty(StringName value)

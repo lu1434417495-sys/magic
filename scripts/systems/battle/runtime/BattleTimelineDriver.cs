@@ -1,26 +1,27 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using Godot.Collections;
+using GDictionary = Godot.Collections.Dictionary;
+using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-[GlobalClass]
-public partial class BattleTimelineDriver : RefCounted
+public sealed class BattleTimelineDriver : IDisposable
 {
     private const int TuGranularity = 5;
     private const int StaminaRecoveryProgressBase = 11;
     private const int StaminaRecoveryProgressDenominator = 10;
     private const int StaminaRestingRecoveryMultiplier = 2;
-    private static readonly StringName StaminaRecoveryPercentBonus = "stamina_recovery_percent_bonus";
+    private static readonly StringName StaminaRecoveryPercentBonus =
+        "stamina_recovery_percent_bonus";
     private static readonly StringName CalamityReasonLowHpEndTurn = "low_hp_end_turn";
 
-    private WeakReference<GodotObject> _runtimeRef;
+    private WeakReference<BattleRuntimeModule> _runtimeRef;
 
-    public void Setup(GodotObject runtime)
+    public void Setup(BattleRuntimeModule runtime)
     {
-        _runtimeRef = runtime != null ? new WeakReference<GodotObject>(runtime) : null;
+        _runtimeRef = runtime != null ? new WeakReference<BattleRuntimeModule>(runtime) : null;
     }
 
-    public new void Dispose()
+    public void Dispose()
     {
         _runtimeRef = null;
     }
@@ -45,7 +46,7 @@ public partial class BattleTimelineDriver : RefCounted
         var runtime = _ResolveRuntime();
         if (runtime == null)
             return;
-        runtime.Call("_record_turn_started", unitState);
+        runtime._record_turn_started(unitState);
     }
 
     private int _GetUnitStaminaMax(BattleUnitState unitState)
@@ -53,7 +54,7 @@ public partial class BattleTimelineDriver : RefCounted
         var runtime = _ResolveRuntime();
         if (runtime == null)
             return 0;
-        return runtime.Call("_get_unit_stamina_max", unitState).AsInt32();
+        return runtime._get_unit_stamina_max(unitState);
     }
 
     private void _AppendChangedUnitId(BattleEventBatch batch, StringName unitId)
@@ -61,15 +62,18 @@ public partial class BattleTimelineDriver : RefCounted
         var runtime = _ResolveRuntime();
         if (runtime == null)
             return;
-        runtime.Call("_append_changed_unit_id", batch, unitId);
+        runtime._append_changed_unit_id(batch, unitId);
     }
 
-    private void _CollectDefeatedUnitLoot(BattleUnitState unitState, BattleUnitState killerUnit = null)
+    private void _CollectDefeatedUnitLoot(
+        BattleUnitState unitState,
+        BattleUnitState killerUnit = null
+    )
     {
         var runtime = _ResolveRuntime();
         if (runtime == null)
             return;
-        runtime.Call("_collect_defeated_unit_loot", unitState, killerUnit);
+        runtime._collect_defeated_unit_loot(unitState, killerUnit);
     }
 
     private void _ClearDefeatedUnit(BattleUnitState unitState, BattleEventBatch batch = null)
@@ -77,7 +81,7 @@ public partial class BattleTimelineDriver : RefCounted
         var runtime = _ResolveRuntime();
         if (runtime == null)
             return;
-        runtime.Call("_clear_defeated_unit", unitState, batch);
+        runtime._clear_defeated_unit(unitState, batch);
     }
 
     private void _AdvanceUnitTurnTimers(BattleUnitState unitState, BattleEventBatch batch)
@@ -85,31 +89,39 @@ public partial class BattleTimelineDriver : RefCounted
         var runtime = _ResolveRuntime();
         if (runtime == null)
             return;
-        runtime.Call("_advance_unit_turn_timers", unitState, batch);
+        runtime._advance_unit_turn_timers(unitState, batch);
     }
 
-    private Dictionary _ApplyTurnStartStatuses(BattleUnitState unitState, BattleEventBatch batch)
+    private GDictionary _ApplyTurnStartStatuses(BattleUnitState unitState, BattleEventBatch batch)
     {
         var runtime = _ResolveRuntime();
         if (runtime == null)
-            return new Dictionary();
-        return runtime.Call("_apply_turn_start_statuses", unitState, batch).AsGodotDictionary();
+            return new GDictionary();
+        return runtime._apply_turn_start_statuses(unitState, batch);
     }
 
-    private Dictionary _ApplyUnitStatusPeriodicTicks(BattleUnitState unitState, int elapsedTu, BattleEventBatch batch)
+    private GDictionary _ApplyUnitStatusPeriodicTicks(
+        BattleUnitState unitState,
+        int elapsedTu,
+        BattleEventBatch batch
+    )
     {
         var runtime = _ResolveRuntime();
         if (runtime == null)
-            return new Dictionary();
-        return runtime.Call("_apply_unit_status_periodic_ticks", unitState, elapsedTu, batch).AsGodotDictionary();
+            return new GDictionary();
+        return runtime._apply_unit_status_periodic_ticks(unitState, elapsedTu, batch);
     }
 
-    private bool _AdvanceUnitStatusDurations(BattleUnitState unitState, int elapsedTu, BattleEventBatch batch = null)
+    private bool _AdvanceUnitStatusDurations(
+        BattleUnitState unitState,
+        int elapsedTu,
+        BattleEventBatch batch = null
+    )
     {
         var runtime = _ResolveRuntime();
         if (runtime == null)
             return false;
-        return runtime.Call("_advance_unit_status_durations", unitState, elapsedTu, batch).AsBool();
+        return runtime._advance_unit_status_durations(unitState, elapsedTu, batch);
     }
 
     private void _PrepareAiTurn(BattleUnitState unitState)
@@ -117,7 +129,7 @@ public partial class BattleTimelineDriver : RefCounted
         var runtime = _ResolveRuntime();
         if (runtime == null)
             return;
-        runtime.Call("_prepare_ai_turn", unitState);
+        runtime._prepare_ai_turn(unitState);
     }
 
     private void _CleanupAiTurn(BattleUnitState unitState)
@@ -125,15 +137,15 @@ public partial class BattleTimelineDriver : RefCounted
         var runtime = _ResolveRuntime();
         if (runtime == null)
             return;
-        runtime.Call("_cleanup_ai_turn", unitState);
+        runtime._cleanup_ai_turn(unitState);
     }
 
-    private GodotObject _BuildBattleResolutionResult()
+    private BattleResolutionResult _BuildBattleResolutionResult()
     {
         var runtime = _ResolveRuntime();
         if (runtime == null)
             return null;
-        return runtime.Call("_build_battle_resolution_result").AsGodotObject();
+        return runtime._build_battle_resolution_result();
     }
 
     public bool UseDiscreteTimelineTicks()
@@ -150,7 +162,11 @@ public partial class BattleTimelineDriver : RefCounted
             return;
         if (tuDelta > 0 && tuDelta % TuGranularity != 0)
         {
-            GD.PushError($"Battle timeline can only advance in {TuGranularity} TU steps, got {tuDelta}.");
+            GameLog.Error(
+                $"Battle timeline can only advance in {TuGranularity} TU steps, got {tuDelta}.",
+                "battle.timeline.invalid_tu_delta",
+                "battle"
+            );
             return;
         }
         if (tuDelta > 0)
@@ -158,10 +174,8 @@ public partial class BattleTimelineDriver : RefCounted
             state.timeline.current_tu += tuDelta;
             ResolveTimelineStatusPhase(batch, tuDelta);
         }
-        var terrainEffectSystem = runtime?.Get("_terrain_effect_system").AsGodotObject();
-        terrainEffectSystem?.Call("process_timed_terrain_effects", batch);
-        var barrierService = runtime?.Get("_layered_barrier_service").AsGodotObject();
-        barrierService?.Call("advance_barrier_durations", tuDelta, batch);
+        runtime?._terrain_effect_system?.process_timed_terrain_effects(batch);
+        runtime?._layered_barrier_service?.AdvanceBarrierDurations(tuDelta, batch);
         if (tuDelta > 0)
         {
             CollectTimelineReadyUnits(batch, tuDelta);
@@ -176,7 +190,9 @@ public partial class BattleTimelineDriver : RefCounted
             return;
         foreach (StringName unitId in GetUnitsInOrder())
         {
-            var unitState = state.units.ContainsKey(unitId) ? state.units[unitId].As<BattleUnitState>() : null;
+            var unitState = state.units.ContainsKey(unitId)
+                ? state.units[unitId].As<BattleUnitState>()
+                : null;
             if (unitState == null || !unitState.is_alive)
                 continue;
             var statusTickResult = _ApplyUnitStatusPeriodicTicks(unitState, tuDelta, batch);
@@ -184,17 +200,26 @@ public partial class BattleTimelineDriver : RefCounted
                 _AppendChangedUnitId(batch, unitState.unit_id);
             if (!unitState.is_alive)
             {
-                var defeatSourceUnitId = ProgressionDataUtils.to_string_name(statusTickResult.GetValueOrDefault("defeat_source_unit_id", ""));
-                var defeatSourceUnit = (!string.IsNullOrEmpty(defeatSourceUnitId.ToString()) && state.units.ContainsKey(defeatSourceUnitId))
-                    ? state.units[defeatSourceUnitId].As<BattleUnitState>()
-                    : null;
+                var defeatSourceUnitId = ProgressionDataUtils.to_string_name(
+                    statusTickResult.GetValueOrDefault("defeat_source_unit_id", "")
+                );
+                var defeatSourceUnit =
+                    (
+                        !string.IsNullOrEmpty(defeatSourceUnitId.ToString())
+                        && state.units.ContainsKey(defeatSourceUnitId)
+                    )
+                        ? state.units[defeatSourceUnitId].As<BattleUnitState>()
+                        : null;
                 var runtime = _ResolveRuntime();
-                runtime?.Call("handle_unit_defeated_by_runtime_effect",
+                runtime?.handle_unit_defeated_by_runtime_effect(
                     unitState,
                     defeatSourceUnit,
                     batch,
                     $"{unitState.display_name} 因持续效果倒下。",
-                    new Dictionary { ["record_enemy_defeated_achievement"] = defeatSourceUnit != null }
+                    new GDictionary
+                    {
+                        ["record_enemy_defeated_achievement"] = defeatSourceUnit != null,
+                    }
                 );
                 continue;
             }
@@ -209,9 +234,11 @@ public partial class BattleTimelineDriver : RefCounted
         var state = _ResolveState();
         if (state == null || state.timeline == null || tuDelta <= 0)
             return;
-        foreach (StringName unitId in _GetUnitsInOrder())
+        foreach (StringName unitId in GetUnitsInOrder())
         {
-            var unitState = state.units.ContainsKey(unitId) ? state.units[unitId].As<BattleUnitState>() : null;
+            var unitState = state.units.ContainsKey(unitId)
+                ? state.units[unitId].As<BattleUnitState>()
+                : null;
             if (unitState == null || !unitState.is_alive)
                 continue;
             if (ApplyStaminaRecovery(unitState, tuDelta))
@@ -269,10 +296,14 @@ public partial class BattleTimelineDriver : RefCounted
         for (int i = 0; i < tickCount; i++)
         {
             unitState.stamina_recovery_progress += progressGainPerTick;
-            var recovered = unitState.stamina_recovery_progress / StaminaRecoveryProgressDenominator;
+            var recovered =
+                unitState.stamina_recovery_progress / StaminaRecoveryProgressDenominator;
             if (recovered <= 0)
                 continue;
-            unitState.current_stamina = Mathf.Min(unitState.current_stamina + recovered, staminaMax);
+            unitState.current_stamina = Mathf.Min(
+                unitState.current_stamina + recovered,
+                staminaMax
+            );
             unitState.stamina_recovery_progress %= StaminaRecoveryProgressDenominator;
             changed = true;
             if (unitState.current_stamina >= staminaMax)
@@ -291,8 +322,7 @@ public partial class BattleTimelineDriver : RefCounted
         if (unitState == null || unitState.attribute_snapshot == null)
             return 0;
         var snapshot = unitState.attribute_snapshot;
-        var value = snapshot.Call("get_value", "constitution");
-        return Mathf.Max(value.AsInt32(), 0);
+        return Mathf.Max(snapshot.get_value("constitution"), 0);
     }
 
     public int _ApplyStaminaRecoveryPercentBonus(BattleUnitState unitState, int baseProgressGain)
@@ -300,8 +330,7 @@ public partial class BattleTimelineDriver : RefCounted
         if (unitState == null || unitState.attribute_snapshot == null)
             return baseProgressGain;
         var snapshot = unitState.attribute_snapshot;
-        var value = snapshot.Call("get_value", StaminaRecoveryPercentBonus);
-        var percentBonus = Mathf.Max(value.AsInt32(), 0);
+        var percentBonus = Mathf.Max(snapshot.get_value(StaminaRecoveryPercentBonus), 0);
         if (percentBonus <= 0)
             return baseProgressGain;
         return (baseProgressGain * (100 + percentBonus)) / 100;
@@ -311,12 +340,16 @@ public partial class BattleTimelineDriver : RefCounted
     {
         if (actionThreshold <= 0)
         {
-            GD.PushError($"Battle unit action_threshold must be positive, got {actionThreshold}.");
+            GameLog.Error($"Battle unit action_threshold must be positive, got {actionThreshold}.", "battle.timeline.invalid_threshold", "battle");
             return BattleUnitState.DEFAULT_ACTION_THRESHOLD();
         }
         if (actionThreshold % TuGranularity != 0)
         {
-            GD.PushError($"Battle unit action_threshold must be a multiple of {TuGranularity}, got {actionThreshold}.");
+            GameLog.Error(
+                $"Battle unit action_threshold must be a multiple of {TuGranularity}, got {actionThreshold}.",
+                "battle.timeline.invalid_threshold_multiple",
+                "battle"
+            );
             return BattleUnitState.DEFAULT_ACTION_THRESHOLD();
         }
         return actionThreshold;
@@ -327,9 +360,9 @@ public partial class BattleTimelineDriver : RefCounted
         var state = _ResolveState();
         if (state == null || state.units == null)
             return;
-        foreach (Variant unitVariant in state.units.Values)
+        foreach (var unitValue in state.units.Values)
         {
-            ResolveUnitActionThreshold(unitVariant.As<BattleUnitState>());
+            ResolveUnitActionThreshold(unitValue.As<BattleUnitState>());
         }
     }
 
@@ -337,15 +370,20 @@ public partial class BattleTimelineDriver : RefCounted
     {
         var runtime = _ResolveRuntime();
         var state = _ResolveState();
-        var traitTriggerHooks = runtime?.Get("_trait_trigger_hooks").AsGodotObject();
+        var traitTriggerHooks = runtime?._trait_trigger_hooks;
         if (state == null || state.units == null || traitTriggerHooks == null)
             return;
         foreach (string unitIdStr in ProgressionDataUtils.sorted_string_keys(state.units))
         {
-            var unitState = state.units.ContainsKey(unitIdStr) ? state.units[unitIdStr].As<BattleUnitState>() : null;
+            var unitState = state.units.ContainsKey(unitIdStr)
+                ? state.units[unitIdStr].As<BattleUnitState>()
+                : null;
             if (unitState == null)
                 continue;
-            traitTriggerHooks.Call("on_battle_start", unitState, new Dictionary { ["battle_state"] = state });
+            traitTriggerHooks.on_battle_start(
+                unitState,
+                new GDictionary { ["battle_state"] = state }
+            );
         }
     }
 
@@ -365,14 +403,18 @@ public partial class BattleTimelineDriver : RefCounted
         return normalizedThreshold;
     }
 
-    public int ResolveTimelineTuPerTick(Dictionary context)
+    public int ResolveTimelineTuPerTick(GDictionary context)
     {
-        var tuPerTick = (int)DictionaryGet(context, "tu_per_tick", TuGranularity);
+        var tuPerTick = GdInterop.GetInt(context, "tu_per_tick", TuGranularity);
         if (tuPerTick <= 0)
             return TuGranularity;
         if (tuPerTick % TuGranularity != 0)
         {
-            GD.PushError($"timeline.tu_per_tick must be a multiple of {TuGranularity}, got {tuPerTick}.");
+            GameLog.Error(
+                $"timeline.tu_per_tick must be a multiple of {TuGranularity}, got {tuPerTick}.",
+                "battle.timeline.invalid_tu_per_tick",
+                "battle"
+            );
             return TuGranularity;
         }
         return tuPerTick;
@@ -384,11 +426,13 @@ public partial class BattleTimelineDriver : RefCounted
         var state = _ResolveState();
         if (state == null || batch == null)
             return false;
+        if (state.phase == (StringName)"battle_ended")
+            return true;
         state.normalize_unit_id_arrays();
         var allyUnitIds = state.get_ally_unit_ids_typed();
         var enemyUnitIds = state.get_enemy_unit_ids_typed();
-        var livingAllies = _CountLivingUnits(allyUnitIds);
-        var livingEnemies = _CountLivingUnits(enemyUnitIds);
+        var livingAllies = CountLivingUnits(allyUnitIds);
+        var livingEnemies = CountLivingUnits(enemyUnitIds);
         if (livingAllies > 0 && livingEnemies > 0)
             return false;
 
@@ -402,15 +446,12 @@ public partial class BattleTimelineDriver : RefCounted
         state.active_unit_id = "";
         state.timeline.ready_unit_ids.Clear();
         state.timeline.frozen = true;
-        var ratingSystem = runtime?.Get("_battle_rating_system").AsGodotObject();
-        ratingSystem?.Call("record_battle_won_achievements");
-        ratingSystem?.Call("finalize_battle_rating_rewards");
-        var battleResolutionResult = runtime?.Get("_battle_resolution_result");
-        if (battleResolutionResult == null || battleResolutionResult.Value.VariantType == Variant.Type.Nil)
-        {
-            runtime?.Set("_battle_resolution_result", _BuildBattleResolutionResult());
-        }
-        runtime?.Set("_battle_resolution_result_consumed", false);
+        runtime?._battle_rating_system?.record_battle_won_achievements();
+        runtime?._battle_rating_system?.finalize_battle_rating_rewards();
+        if (runtime?._battle_resolution_result == null)
+            runtime._battle_resolution_result = _BuildBattleResolutionResult();
+        if (runtime != null)
+            runtime._battle_resolution_result_consumed = false;
         batch.phase_changed = true;
         batch.battle_ended = true;
         var line = $"战斗结束，胜利方：{state.winner_faction_id}。";
@@ -419,13 +460,16 @@ public partial class BattleTimelineDriver : RefCounted
         return true;
     }
 
-    public int _CountLivingUnits(Array<StringName> unitIds)
+    public int CountLivingUnits(GStringNameArray unitIds)
     {
         var state = _ResolveState();
         int count = 0;
         foreach (StringName unitId in unitIds)
         {
-            var unitState = state?.units.ContainsKey(unitId) == true ? state.units[unitId].As<BattleUnitState>() : null;
+            var unitState =
+                state?.units.ContainsKey(unitId) == true
+                    ? state.units[unitId].As<BattleUnitState>()
+                    : null;
             if (unitState != null && unitState.is_alive)
                 count++;
         }
@@ -438,30 +482,29 @@ public partial class BattleTimelineDriver : RefCounted
         var state = _ResolveState();
         if (state == null || batch == null)
             return;
-        var activeUnit = state.units.ContainsKey(state.active_unit_id) ? state.units[state.active_unit_id].As<BattleUnitState>() : null;
+        var activeUnit = state.units.ContainsKey(state.active_unit_id)
+            ? state.units[state.active_unit_id].As<BattleUnitState>()
+            : null;
         if (activeUnit != null && activeUnit.is_alive && !activeUnit.has_taken_action_this_turn)
         {
             activeUnit.is_resting = true;
             _AppendChangedUnitId(batch, activeUnit.unit_id);
         }
-        if (activeUnit != null && runtime != null && runtime.HasMethod("handle_misfortune_trigger"))
+        if (activeUnit != null && runtime != null)
         {
-            runtime.Call("handle_misfortune_trigger",
+            runtime.handle_misfortune_trigger(
                 CalamityReasonLowHpEndTurn,
-                new Dictionary { ["unit_state"] = activeUnit }
+                new GDictionary { ["unit_state"] = activeUnit }
             );
         }
         if (activeUnit != null && activeUnit.control_mode != "manual")
             _CleanupAiTurn(activeUnit);
         else if (activeUnit != null)
         {
-            var skillTurnResolver = runtime?.Get("_skill_turn_resolver").AsGodotObject();
-            if (skillTurnResolver != null)
-            {
-                var isAiOverride = skillTurnResolver.Call("is_turn_ai_override_active", activeUnit).AsBool();
-                if (isAiOverride)
-                    _CleanupAiTurn(activeUnit);
-            }
+            var isAiOverride =
+                runtime?._skill_turn_resolver?.is_turn_ai_override_active(activeUnit) == true;
+            if (isAiOverride)
+                _CleanupAiTurn(activeUnit);
         }
         state.phase = "timeline_running";
         state.active_unit_id = "";
@@ -478,7 +521,9 @@ public partial class BattleTimelineDriver : RefCounted
         {
             var nextUnitId = state.timeline.ready_unit_ids[0];
             state.timeline.ready_unit_ids.RemoveAt(0);
-            var unitState = state.units.ContainsKey(nextUnitId) ? state.units[nextUnitId].As<BattleUnitState>() : null;
+            var unitState = state.units.ContainsKey(nextUnitId)
+                ? state.units[nextUnitId].As<BattleUnitState>()
+                : null;
             if (unitState == null || !unitState.is_alive)
                 continue;
             state.phase = "unit_acting";
@@ -487,10 +532,13 @@ public partial class BattleTimelineDriver : RefCounted
             unitState.has_moved_this_turn = false;
             unitState.can_use_locked_move_points_this_turn = false;
             unitState.reset_per_turn_charges();
-            var traitTriggerHooks = runtime?.Get("_trait_trigger_hooks").AsGodotObject();
-            Dictionary traitTurnStartResult = new();
+            var traitTriggerHooks = runtime?._trait_trigger_hooks;
+            GDictionary traitTurnStartResult = new();
             if (traitTriggerHooks != null)
-                traitTurnStartResult = traitTriggerHooks.Call("on_turn_start", unitState, new Dictionary { ["battle_state"] = state }).AsGodotDictionary();
+                traitTurnStartResult = traitTriggerHooks.on_turn_start(
+                    unitState,
+                    new GDictionary { ["battle_state"] = state }
+                );
             if (traitTurnStartResult.GetValueOrDefault("changed", false).AsBool())
                 _AppendChangedUnitId(batch, unitState.unit_id);
             _AdvanceUnitTurnTimers(unitState, batch);
@@ -498,24 +546,33 @@ public partial class BattleTimelineDriver : RefCounted
             var actionPoints = 1;
             if (unitState.attribute_snapshot != null)
             {
-                var apValue = unitState.attribute_snapshot.Call("get_value", "action_points");
-                actionPoints = Mathf.Max(apValue.AsInt32(), 1);
+                actionPoints = Mathf.Max(unitState.attribute_snapshot.get_value("action_points"), 1);
             }
             unitState.current_ap = actionPoints;
             unitState.current_move_points = BattleUnitState.DEFAULT_MOVE_POINTS_PER_TURN();
             var turnStartResult = _ApplyTurnStartStatuses(unitState, batch);
             if (!unitState.is_alive)
             {
-                var defeatSourceUnitId = ProgressionDataUtils.to_string_name(turnStartResult.GetValueOrDefault("defeat_source_unit_id", ""));
-                var defeatSourceUnit = (!string.IsNullOrEmpty(defeatSourceUnitId.ToString()) && state.units.ContainsKey(defeatSourceUnitId))
-                    ? state.units[defeatSourceUnitId].As<BattleUnitState>()
-                    : null;
-                runtime?.Call("handle_unit_defeated_by_runtime_effect",
+                var defeatSourceUnitId = ProgressionDataUtils.to_string_name(
+                    turnStartResult.GetValueOrDefault("defeat_source_unit_id", "")
+                );
+                var defeatSourceUnit =
+                    (
+                        !string.IsNullOrEmpty(defeatSourceUnitId.ToString())
+                        && state.units.ContainsKey(defeatSourceUnitId)
+                    )
+                        ? state.units[defeatSourceUnitId].As<BattleUnitState>()
+                        : null;
+                runtime?.handle_unit_defeated_by_runtime_effect(
                     unitState,
                     defeatSourceUnit,
                     batch,
                     $"{unitState.display_name} 因持续效果倒下。",
-                    new Dictionary { ["record_enemy_defeated_achievement"] = defeatSourceUnit != null, ["check_battle_end"] = false }
+                    new GDictionary
+                    {
+                        ["record_enemy_defeated_achievement"] = defeatSourceUnit != null,
+                        ["check_battle_end"] = false,
+                    }
                 );
                 state.phase = "timeline_running";
                 state.active_unit_id = "";
@@ -526,10 +583,10 @@ public partial class BattleTimelineDriver : RefCounted
                     return;
                 continue;
             }
-            var skillTurnResolver = runtime?.Get("_skill_turn_resolver").AsGodotObject();
-            Dictionary controlStatusResult = new();
+            var skillTurnResolver = runtime?._skill_turn_resolver;
+            GDictionary controlStatusResult = new();
             if (skillTurnResolver != null)
-                controlStatusResult = skillTurnResolver.Call("resolve_turn_control_status", unitState, batch).AsGodotDictionary();
+                controlStatusResult = skillTurnResolver.resolve_turn_control_status(unitState, batch);
             if (controlStatusResult.GetValueOrDefault("skip_turn", false).AsBool())
             {
                 state.phase = "timeline_running";
@@ -538,7 +595,10 @@ public partial class BattleTimelineDriver : RefCounted
                 batch.changed_unit_ids.Add(nextUnitId);
                 continue;
             }
-            if (unitState.control_mode != "manual" || controlStatusResult.GetValueOrDefault("ai_controlled", false).AsBool())
+            if (
+                unitState.control_mode != "manual"
+                || controlStatusResult.GetValueOrDefault("ai_controlled", false).AsBool()
+            )
                 _PrepareAiTurn(unitState);
             batch.phase_changed = true;
             batch.changed_unit_ids.Add(nextUnitId);
@@ -554,27 +614,33 @@ public partial class BattleTimelineDriver : RefCounted
         var state = _ResolveState();
         if (state == null || state.timeline == null)
             return;
-        var orderedReadyIds = new Array<StringName>();
-        var seenIds = new Dictionary();
-        foreach (Variant unitIdVariant in state.timeline.ready_unit_ids)
+        var orderedReadyIds = new GStringNameArray();
+        var seenIds = new HashSet<StringName>();
+        foreach (var unitIdValue in state.timeline.ready_unit_ids)
         {
-            var unitId = ProgressionDataUtils.to_string_name(unitIdVariant);
-            if (unitId == "" || seenIds.ContainsKey(unitId))
+            var unitId = ProgressionDataUtils.to_string_name(unitIdValue);
+            if (unitId == "" || seenIds.Contains(unitId))
                 continue;
-            var unitState = state.units.ContainsKey(unitId) ? state.units[unitId].As<BattleUnitState>() : null;
+            var unitState = state.units.ContainsKey(unitId)
+                ? state.units[unitId].As<BattleUnitState>()
+                : null;
             if (unitState == null || !unitState.is_alive)
                 continue;
-            seenIds[unitId] = true;
+            seenIds.Add(unitId);
             orderedReadyIds.Add(unitId);
         }
         var list = new System.Collections.Generic.List<StringName>(orderedReadyIds);
-        list.Sort((a, b) =>
-        {
-            if (IsLeftReadyUnitHigherPriority(a, b)) return -1;
-            if (IsLeftReadyUnitHigherPriority(b, a)) return 1;
-            return 0;
-        });
-        var sorted = new Array<StringName>();
+        list.Sort(
+            (a, b) =>
+            {
+                if (IsLeftReadyUnitHigherPriority(a, b))
+                    return -1;
+                if (IsLeftReadyUnitHigherPriority(b, a))
+                    return 1;
+                return 0;
+            }
+        );
+        var sorted = new GStringNameArray();
         foreach (var id in list)
             sorted.Add(id);
         state.timeline.ready_unit_ids = sorted;
@@ -583,8 +649,14 @@ public partial class BattleTimelineDriver : RefCounted
     public bool IsLeftReadyUnitHigherPriority(StringName leftUnitId, StringName rightUnitId)
     {
         var state = _ResolveState();
-        var leftUnit = state?.units.ContainsKey(leftUnitId) == true ? state.units[leftUnitId].As<BattleUnitState>() : null;
-        var rightUnit = state?.units.ContainsKey(rightUnitId) == true ? state.units[rightUnitId].As<BattleUnitState>() : null;
+        var leftUnit =
+            state?.units.ContainsKey(leftUnitId) == true
+                ? state.units[leftUnitId].As<BattleUnitState>()
+                : null;
+        var rightUnit =
+            state?.units.ContainsKey(rightUnitId) == true
+                ? state.units[rightUnitId].As<BattleUnitState>()
+                : null;
         if (leftUnit == null || !leftUnit.is_alive)
             return false;
         if (rightUnit == null || !rightUnit.is_alive)
@@ -601,15 +673,18 @@ public partial class BattleTimelineDriver : RefCounted
         var rightMovePoints = Mathf.Max(rightUnit.current_move_points, 0);
         if (leftMovePoints != rightMovePoints)
             return leftMovePoints > rightMovePoints;
-        return string.Compare(leftUnitId.ToString(), rightUnitId.ToString(), StringComparison.Ordinal) < 0;
+        return string.Compare(
+                leftUnitId.ToString(),
+                rightUnitId.ToString(),
+                StringComparison.Ordinal
+            ) < 0;
     }
 
     public int _GetUnitTurnOrderAttribute(BattleUnitState unitState, StringName attributeId)
     {
         if (unitState == null || unitState.attribute_snapshot == null)
             return 0;
-        var value = unitState.attribute_snapshot.Call("get_value", attributeId);
-        return value.AsInt32();
+        return unitState.attribute_snapshot.get_value(attributeId);
     }
 
     public int _GetUnitTurnOrderActionPoints(BattleUnitState unitState)
@@ -620,18 +695,21 @@ public partial class BattleTimelineDriver : RefCounted
         return Mathf.Max(unitState.current_ap, 0);
     }
 
-    public Array<StringName> GetUnitsInOrder()
+    public GStringNameArray GetUnitsInOrder()
     {
         var state = _ResolveState();
-        var orderedIds = new Array<StringName>();
+        var orderedIds = new GStringNameArray();
         foreach (string unitIdStr in ProgressionDataUtils.sorted_string_keys(state.units))
             orderedIds.Add(new StringName(unitIdStr));
         return orderedIds;
     }
 
-    private GodotObject _ResolveRuntime()
+    private BattleRuntimeModule _ResolveRuntime()
     {
-        if (_runtimeRef == null || !_runtimeRef.TryGetTarget(out GodotObject target) || !GodotObject.IsInstanceValid(target))
+        if (
+            _runtimeRef == null
+            || !_runtimeRef.TryGetTarget(out BattleRuntimeModule target)
+        )
             return null;
         return target;
     }
@@ -641,14 +719,7 @@ public partial class BattleTimelineDriver : RefCounted
         var runtime = _ResolveRuntime();
         if (runtime == null)
             return null;
-        return runtime.Get("_state").As<BattleState>();
-    }
-
-    private static Variant DictionaryGet(Dictionary dictionary, Variant key, Variant fallback)
-    {
-        if (dictionary == null || !dictionary.ContainsKey(key))
-            return fallback;
-        return dictionary[key];
+        return runtime._state;
     }
 
 }

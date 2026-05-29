@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="AscensionDef" format=3]
 
-[ext_resource type="Script" path="res://scripts/player/progression/ascension_def.gd" id="1_ascension"]
+[ext_resource type="Script" path="res://scripts/player/progression/AscensionDef.cs" id="1_ascension"]
 
 [resource]
 script = ExtResource("1_ascension")

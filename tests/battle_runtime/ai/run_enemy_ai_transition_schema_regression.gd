@@ -1,11 +1,11 @@
 extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
-const ENEMY_AI_BRAIN_DEF_SCRIPT = preload("res://scripts/enemies/enemy_ai_brain_def.gd")
-const ENEMY_AI_STATE_DEF_SCRIPT = preload("res://scripts/enemies/enemy_ai_state_def.gd")
-const ENEMY_AI_TRANSITION_RULE_DEF_SCRIPT = preload("res://scripts/enemies/enemy_ai_transition_rule_def.gd")
-const ENEMY_AI_TRANSITION_CONDITION_DEF_SCRIPT = preload("res://scripts/enemies/enemy_ai_transition_condition_def.gd")
-const WAIT_ACTION_SCRIPT = preload("res://scripts/enemies/actions/wait_action.gd")
+const ENEMY_AI_BRAIN_DEF_SCRIPT = preload("res://scripts/enemies/EnemyAiBrainDef.cs")
+const ENEMY_AI_STATE_DEF_SCRIPT = preload("res://scripts/enemies/EnemyAiStateDef.cs")
+const ENEMY_AI_TRANSITION_RULE_DEF_SCRIPT = preload("res://scripts/enemies/EnemyAiTransitionRuleDef.cs")
+const ENEMY_AI_TRANSITION_CONDITION_DEF_SCRIPT = preload("res://scripts/enemies/EnemyAiTransitionConditionDef.cs")
+const WAIT_ACTION_SCRIPT = preload("res://scripts/enemies/actions/WaitAction.cs")
 
 var _test := TestRunner.new()
 
@@ -123,10 +123,10 @@ func _condition(predicate: StringName, args: Dictionary = {}):
 	condition.max_distance = int(args.get("max_distance", -1))
 	var state_ids: Array[StringName] = []
 	for state_id in args.get("state_ids", []):
-		state_ids.append(ProgressionDataUtils.to_string_name(state_id))
+		state_ids.append(_to_string_name(state_id))
 	var affordances: Array[StringName] = []
 	for affordance in args.get("affordances", []):
-		affordances.append(ProgressionDataUtils.to_string_name(affordance))
+		affordances.append(_to_string_name(affordance))
 	condition.state_ids = state_ids
 	condition.affordances = affordances
 	return condition
@@ -137,3 +137,9 @@ func _errors_contain(errors: Array[String], fragment: String) -> bool:
 		if String(error).contains(fragment):
 			return true
 	return false
+
+
+func _to_string_name(value) -> StringName:
+	if value is StringName:
+		return value
+	return StringName(String(value))

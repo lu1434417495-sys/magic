@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="StageAdvancementModifier" format=3]
 
-[ext_resource type="Script" path="res://scripts/player/progression/stage_advancement_modifier.gd" id="1_modifier"]
+[ext_resource type="Script" path="res://scripts/player/progression/StageAdvancementModifier.cs" id="1_modifier"]
 
 [resource]
 script = ExtResource("1_modifier")

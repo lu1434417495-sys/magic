@@ -2,11 +2,11 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const AgeProfileDef = preload("res://scripts/player/progression/age_profile_def.gd")
-const AgeStageRule = preload("res://scripts/player/progression/age_stage_rule.gd")
-const CharacterCreationIdentityOptionService = preload("res://scripts/systems/progression/character_creation_identity_option_service.gd")
-const RaceDef = preload("res://scripts/player/progression/race_def.gd")
-const SubraceDef = preload("res://scripts/player/progression/subrace_def.gd")
+const AgeProfileDef = preload("res://scripts/player/progression/AgeProfileDef.cs")
+const AgeStageRule = preload("res://scripts/player/progression/AgeStageRule.cs")
+const CharacterCreationIdentityOptionService = preload("res://scripts/systems/progression/CharacterCreationIdentityOptionService.cs")
+const RaceDef = preload("res://scripts/player/progression/RaceDef.cs")
+const SubraceDef = preload("res://scripts/player/progression/SubraceDef.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures

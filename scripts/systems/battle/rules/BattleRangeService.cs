@@ -9,36 +9,42 @@ public partial class BattleRangeService : RefCounted
 {
     private static readonly StringName EmptyStringName = "";
     private static readonly StringName StatusArcherRangeUp = "archer_range_up";
-    private static readonly StringName StatusArcherShootingSpecialization = "archer_shooting_specialization";
+    private static readonly StringName StatusArcherShootingSpecialization =
+        "archer_shooting_specialization";
     private static readonly StringName WeaponProfileKindEquipped = "equipped";
     private static readonly StringName WeaponFamilyBow = "bow";
 
     private sealed class UnitRangeInfo
     {
+        public BattleUnitState UnitState;
         public int WeaponAttackRange;
         public StringName WeaponProfileKind = EmptyStringName;
         public StringName WeaponPhysicalDamageTag = EmptyStringName;
         public StringName WeaponFamily = EmptyStringName;
-        public readonly Dictionary<StringName, int> KnownSkillLevels = new();
-        public readonly HashSet<StringName> KnownActiveSkillIds = new();
         public readonly Dictionary<StringName, StatusEffectData> StatusEffects = new();
     }
 
     private readonly record struct StatusEffectData(int Power, int RangeBonus);
 
-    public static int get_weapon_attack_range(GodotObject unit_state)
+    public static int get_weapon_attack_range(BattleUnitState unit_state)
     {
         return BuildUnitRangeInfo(unit_state).WeaponAttackRange;
     }
 
-    public static bool unit_has_melee_weapon(GodotObject unit_state)
+    public static bool unit_has_melee_weapon(BattleUnitState unit_state)
     {
         return UnitHasMeleeWeapon(BuildUnitRangeInfo(unit_state));
     }
 
-    public static bool unit_matches_required_weapon_families(GodotObject unit_state, GArray required_weapon_families)
+    public static bool unit_matches_required_weapon_families(
+        BattleUnitState unit_state,
+        Godot.Collections.Array<StringName> required_weapon_families
+    )
     {
-        return UnitMatchesRequiredWeaponFamilies(BuildUnitRangeInfo(unit_state), required_weapon_families);
+        return UnitMatchesRequiredWeaponFamilies(
+            BuildUnitRangeInfo(unit_state),
+            required_weapon_families
+        );
     }
 
     private static bool UnitHasMeleeWeapon(UnitRangeInfo unitInfo)
@@ -49,7 +55,10 @@ public partial class BattleRangeService : RefCounted
             && !IsEmpty(unitInfo.WeaponPhysicalDamageTag);
     }
 
-    private static bool UnitMatchesRequiredWeaponFamilies(UnitRangeInfo unitInfo, GArray required_weapon_families)
+    private static bool UnitMatchesRequiredWeaponFamilies(
+        UnitRangeInfo unitInfo,
+        Godot.Collections.Array<StringName> required_weapon_families
+    )
     {
         if (required_weapon_families == null || required_weapon_families.Count == 0)
         {
@@ -64,9 +73,9 @@ public partial class BattleRangeService : RefCounted
         {
             return false;
         }
-        foreach (Variant familyValue in required_weapon_families)
+        foreach (StringName familyValue in required_weapon_families)
         {
-            if (new StringName(familyValue.ToString()) == currentFamily)
+            if (familyValue == currentFamily)
             {
                 return true;
             }
@@ -74,15 +83,15 @@ public partial class BattleRangeService : RefCounted
         return false;
     }
 
-    public static int get_effective_skill_range(GodotObject unit_state, GodotObject skill_def)
+    public static int get_effective_skill_range(BattleUnitState unit_state, SkillDef skill_def)
     {
         UnitRangeInfo unitInfo = BuildUnitRangeInfo(unit_state);
         return GetEffectiveSkillRange(unitInfo, skill_def);
     }
 
-    private static int GetEffectiveSkillRange(UnitRangeInfo unitInfo, GodotObject skill_def)
+    private static int GetEffectiveSkillRange(UnitRangeInfo unitInfo, SkillDef skill_def)
     {
-        GodotObject combatProfile = GdInterop.GetObject(skill_def, "combat_profile");
+        CombatSkillDef combatProfile = skill_def?.combat_profile;
         if (skill_def == null || combatProfile == null)
         {
             return 0;
@@ -92,7 +101,10 @@ public partial class BattleRangeService : RefCounted
         return Math.Max(skillRange, 0);
     }
 
-    public static int get_effective_skill_threat_range(GodotObject unit_state, GodotObject skill_def)
+    public static int get_effective_skill_threat_range(
+        BattleUnitState unit_state,
+        SkillDef skill_def
+    )
     {
         UnitRangeInfo unitInfo = BuildUnitRangeInfo(unit_state);
         int skillRange = GetEffectiveSkillRange(unitInfo, skill_def);
@@ -100,7 +112,10 @@ public partial class BattleRangeService : RefCounted
         return Math.Max(skillRange, 0);
     }
 
-    public static int get_effective_skill_distance_contract_range(GodotObject unit_state, GodotObject skill_def)
+    public static int get_effective_skill_distance_contract_range(
+        BattleUnitState unit_state,
+        SkillDef skill_def
+    )
     {
         UnitRangeInfo unitInfo = BuildUnitRangeInfo(unit_state);
         int skillRange = GetEffectiveSkillRange(unitInfo, skill_def);
@@ -108,25 +123,24 @@ public partial class BattleRangeService : RefCounted
         return Math.Max(skillRange, 0);
     }
 
-    public static bool requires_current_melee_weapon(GodotObject skill_def)
+    public static bool requires_current_melee_weapon(SkillDef skill_def)
     {
-        GodotObject combatProfile = GdInterop.GetObject(skill_def, "combat_profile");
-        if (skill_def == null || combatProfile == null)
+        CombatSkillDef typedCombatProfile = skill_def?.combat_profile;
+        if (skill_def == null || typedCombatProfile == null)
         {
             return false;
         }
-        if (GdInterop.GetArray(combatProfile, "required_weapon_families").Count > 0)
+        if (typedCombatProfile.required_weapon_families.Count > 0)
         {
             return true;
         }
-        if (EffectListRequiresWeapon(GdInterop.GetArray(combatProfile, "effect_defs")))
+        if (EffectListRequiresWeapon(typedCombatProfile.effect_defs))
         {
             return true;
         }
-        foreach (Variant variantValue in GdInterop.GetArray(combatProfile, "cast_variants"))
+        foreach (CombatCastVariantDef castVariant in typedCombatProfile.cast_variants)
         {
-            GodotObject castVariant = variantValue.AsGodotObject();
-            if (castVariant != null && EffectListRequiresWeapon(GdInterop.GetArray(castVariant, "effect_defs")))
+            if (castVariant != null && EffectListRequiresWeapon(castVariant.effect_defs))
             {
                 return true;
             }
@@ -134,25 +148,27 @@ public partial class BattleRangeService : RefCounted
         return false;
     }
 
-    public static bool is_weapon_range_skill(GodotObject skill_def)
+    public static bool is_weapon_range_skill(SkillDef skill_def)
     {
-        return SkillHasTag(skill_def, "melee") || SkillHasTag(skill_def, "bow") || SkillHasTag(skill_def, "weapon");
+        return SkillHasTag(skill_def, "melee")
+            || SkillHasTag(skill_def, "bow")
+            || SkillHasTag(skill_def, "weapon");
     }
 
-    public static int resolve_base_skill_range(GodotObject unit_state, GodotObject skill_def)
+    public static int resolve_base_skill_range(BattleUnitState unit_state, SkillDef skill_def)
     {
         return ResolveBaseSkillRange(BuildUnitRangeInfo(unit_state), skill_def);
     }
 
-    private static int ResolveBaseSkillRange(UnitRangeInfo unitInfo, GodotObject skill_def)
+    private static int ResolveBaseSkillRange(UnitRangeInfo unitInfo, SkillDef skill_def)
     {
-        GodotObject combatProfile = GdInterop.GetObject(skill_def, "combat_profile");
+        CombatSkillDef combatProfile = skill_def?.combat_profile;
         if (skill_def == null || combatProfile == null)
         {
             return 0;
         }
-        int skillLevel = GetUnitSkillLevel(unitInfo, GdInterop.GetStringName(skill_def, "skill_id"));
-        int configuredRange = Math.Max(combatProfile.Call("get_effective_range_value", skillLevel).AsInt32(), 0);
+        int skillLevel = GetUnitSkillLevel(unitInfo, skill_def.skill_id);
+        int configuredRange = Math.Max(combatProfile.get_effective_range_value(skillLevel), 0);
         if (is_ground_relocation_skill(skill_def))
         {
             return configuredRange;
@@ -176,26 +192,32 @@ public partial class BattleRangeService : RefCounted
         return configuredRange;
     }
 
-    public static bool is_ground_jump_skill(GodotObject skill_def)
+    public static bool is_ground_jump_skill(SkillDef skill_def)
     {
         return is_ground_relocation_skill(skill_def);
     }
 
-    public static bool is_ground_relocation_skill(GodotObject skill_def)
+    public static bool is_ground_relocation_skill(SkillDef skill_def)
     {
-        GodotObject combatProfile = GdInterop.GetObject(skill_def, "combat_profile");
-        if (skill_def == null || combatProfile == null || BattleTypedNames.ToTargetMode(GdInterop.GetStringName(combatProfile, "target_mode")) != BattleTargetMode.Ground)
+        CombatSkillDef combatProfile = skill_def?.combat_profile;
+        if (
+            skill_def == null
+            || combatProfile == null
+            || BattleTypedNames.ToTargetMode(combatProfile.target_mode) != BattleTargetMode.Ground
+        )
         {
             return false;
         }
-        if (EffectListHasGroundRelocation(GdInterop.GetArray(combatProfile, "effect_defs")))
+        if (EffectListHasGroundRelocation(combatProfile.effect_defs))
         {
             return true;
         }
-        foreach (Variant variantValue in GdInterop.GetArray(combatProfile, "cast_variants"))
+        foreach (var castVariant in combatProfile.cast_variants)
         {
-            GodotObject castVariant = variantValue.AsGodotObject();
-            if (castVariant != null && EffectListHasGroundRelocation(GdInterop.GetArray(castVariant, "effect_defs")))
+            if (
+                castVariant != null
+                && EffectListHasGroundRelocation(castVariant.effect_defs)
+            )
             {
                 return true;
             }
@@ -203,59 +225,82 @@ public partial class BattleRangeService : RefCounted
         return false;
     }
 
-    public static bool effect_uses_weapon_physical_damage_tag(GodotObject effect_def)
+    public static bool effect_uses_weapon_physical_damage_tag(CombatEffectDef effect_def)
     {
-        return effect_def != null && GdInterop.GetBool(GdInterop.GetDictionary(effect_def, "params"), "use_weapon_physical_damage_tag");
+        return effect_def != null
+            && GdInterop.GetBool(effect_def.@params, "use_weapon_physical_damage_tag");
     }
 
-    public static bool effect_requires_weapon(GodotObject effect_def)
+    public static bool effect_requires_weapon(CombatEffectDef effect_def)
     {
         return EffectRequiresWeapon(effect_def);
     }
 
-    private static int GetRangeModifierBonus(UnitRangeInfo unitInfo, GodotObject skillDef)
+    private static int GetRangeModifierBonus(UnitRangeInfo unitInfo, SkillDef skillDef)
     {
         int bonus = HasStatusEffect(unitInfo, StatusArcherRangeUp) ? 1 : 0;
-        if (TryGetStatusEffectData(unitInfo, StatusArcherShootingSpecialization, out StatusEffectData shootingStatus)
-            && UnitMatchesRequiredWeaponFamilies(unitInfo, new GArray { WeaponFamilyBow })
-            && (requires_current_melee_weapon(skillDef) || is_weapon_range_skill(skillDef)))
+        if (
+            TryGetStatusEffectData(
+                unitInfo,
+                StatusArcherShootingSpecialization,
+                out StatusEffectData shootingStatus
+            )
+            && UnitMatchesRequiredWeaponFamilies(
+                unitInfo,
+                new Godot.Collections.Array<StringName> { WeaponFamilyBow }
+            )
+            && (requires_current_melee_weapon(skillDef) || is_weapon_range_skill(skillDef))
+        )
         {
             bonus += Math.Max(shootingStatus.RangeBonus, 0);
         }
         return bonus;
     }
 
-    private static int GetGroundEffectReachBonus(UnitRangeInfo unitInfo, GodotObject skillDef)
+    private static int GetGroundEffectReachBonus(UnitRangeInfo unitInfo, SkillDef skillDef)
     {
-        GodotObject combatProfile = GdInterop.GetObject(skillDef, "combat_profile");
+        CombatSkillDef combatProfile = skillDef?.combat_profile;
         if (skillDef == null || combatProfile == null)
         {
             return 0;
         }
-        if (BattleTypedNames.ToTargetMode(GdInterop.GetStringName(combatProfile, "target_mode")) != BattleTargetMode.Ground || is_ground_relocation_skill(skillDef))
+        if (
+            BattleTypedNames.ToTargetMode(combatProfile.target_mode) != BattleTargetMode.Ground
+            || is_ground_relocation_skill(skillDef)
+        )
         {
             return 0;
         }
-        int skillLevel = GetUnitSkillLevel(unitInfo, GdInterop.GetStringName(skillDef, "skill_id"));
-        BattleAreaPattern areaPattern = BattleTypedNames.ToAreaPattern(combatProfile.Call("get_effective_area_pattern", skillLevel).AsStringName());
-        int areaValue = combatProfile.Call("get_effective_area_value", skillLevel).AsInt32();
+        int skillLevel = GetUnitSkillLevel(unitInfo, skillDef.skill_id);
+        BattleAreaPattern areaPattern = BattleTypedNames.ToAreaPattern(
+            combatProfile.get_effective_area_pattern(skillLevel)
+        );
+        int areaValue = combatProfile.get_effective_area_value(skillLevel);
         return BattleTypedNames.GetAreaPatternThreatReachBonus(areaPattern, areaValue);
     }
 
-    private static int GetGroundEffectDistanceContractBonus(UnitRangeInfo unitInfo, GodotObject skillDef)
+    private static int GetGroundEffectDistanceContractBonus(
+        UnitRangeInfo unitInfo,
+        SkillDef skillDef
+    )
     {
-        GodotObject combatProfile = GdInterop.GetObject(skillDef, "combat_profile");
+        CombatSkillDef combatProfile = skillDef?.combat_profile;
         if (skillDef == null || combatProfile == null)
         {
             return 0;
         }
-        if (BattleTypedNames.ToTargetMode(GdInterop.GetStringName(combatProfile, "target_mode")) != BattleTargetMode.Ground || is_ground_relocation_skill(skillDef))
+        if (
+            BattleTypedNames.ToTargetMode(combatProfile.target_mode) != BattleTargetMode.Ground
+            || is_ground_relocation_skill(skillDef)
+        )
         {
             return 0;
         }
-        int skillLevel = GetUnitSkillLevel(unitInfo, GdInterop.GetStringName(skillDef, "skill_id"));
-        BattleAreaPattern areaPattern = BattleTypedNames.ToAreaPattern(combatProfile.Call("get_effective_area_pattern", skillLevel).AsStringName());
-        int areaValue = combatProfile.Call("get_effective_area_value", skillLevel).AsInt32();
+        int skillLevel = GetUnitSkillLevel(unitInfo, skillDef.skill_id);
+        BattleAreaPattern areaPattern = BattleTypedNames.ToAreaPattern(
+            combatProfile.get_effective_area_pattern(skillLevel)
+        );
+        int areaValue = combatProfile.get_effective_area_value(skillLevel);
         return BattleTypedNames.GetAreaPatternDistanceContractBonus(areaPattern, areaValue);
     }
 
@@ -265,18 +310,31 @@ public partial class BattleRangeService : RefCounted
         {
             return 0;
         }
-        if (unitInfo.KnownSkillLevels.TryGetValue(skillId, out int skillLevel))
+        BattleUnitState unitState = unitInfo.UnitState;
+        if (unitState == null)
+        {
+            return 0;
+        }
+        int skillLevel = GdInterop.GetInt(unitState.known_skill_level_map, skillId, 0);
+        if (skillLevel > 0)
         {
             return skillLevel;
         }
-        return unitInfo.KnownActiveSkillIds.Contains(skillId) ? 1 : 0;
+        return unitState.known_active_skill_ids.Contains(skillId) ? 1 : 0;
     }
 
-    private static bool EffectListRequiresWeapon(GArray effectDefs)
+    private static bool EffectRequiresWeapon(CombatEffectDef effectDef)
     {
-        foreach (Variant effectValue in effectDefs)
+        return effectDef != null && GdInterop.GetBool(effectDef.@params, "requires_weapon");
+    }
+
+    private static bool EffectListRequiresWeapon(
+        Godot.Collections.Array<CombatEffectDef> effectDefs
+    )
+    {
+        foreach (CombatEffectDef effectDef in effectDefs ?? new Godot.Collections.Array<CombatEffectDef>())
         {
-            if (EffectRequiresWeapon(effectValue.AsGodotObject()))
+            if (EffectRequiresWeapon(effectDef))
             {
                 return true;
             }
@@ -284,16 +342,13 @@ public partial class BattleRangeService : RefCounted
         return false;
     }
 
-    private static bool EffectRequiresWeapon(GodotObject effectDef)
+    private static bool EffectListHasGroundRelocation(
+        Godot.Collections.Array<CombatEffectDef> effectDefs
+    )
     {
-        return effectDef != null && GdInterop.GetBool(GdInterop.GetDictionary(effectDef, "params"), "requires_weapon");
-    }
-
-    private static bool EffectListHasGroundRelocation(GArray effectDefs)
-    {
-        foreach (Variant effectValue in effectDefs)
+        foreach (CombatEffectDef effectDef in effectDefs ?? new Godot.Collections.Array<CombatEffectDef>())
         {
-            if (IsGroundRelocationEffect(effectValue.AsGodotObject()))
+            if (IsGroundRelocationEffect(effectDef))
             {
                 return true;
             }
@@ -301,25 +356,28 @@ public partial class BattleRangeService : RefCounted
         return false;
     }
 
-    private static bool IsGroundRelocationEffect(GodotObject effectDef)
+    private static bool IsGroundRelocationEffect(CombatEffectDef effectDef)
     {
-        if (effectDef == null || BattleTypedNames.ToEffectKind(GdInterop.GetStringName(effectDef, "effect_type")) != BattleEffectKind.ForcedMove)
+        if (
+            effectDef == null
+            || BattleTypedNames.ToEffectKind(effectDef.effect_type) != BattleEffectKind.ForcedMove
+        )
         {
             return false;
         }
-        BattleForcedMoveMode mode = BattleTypedNames.ToForcedMoveMode(GdInterop.GetStringName(effectDef, "forced_move_mode"));
+        BattleForcedMoveMode mode = BattleTypedNames.ToForcedMoveMode(effectDef.forced_move_mode);
         return mode is BattleForcedMoveMode.Jump or BattleForcedMoveMode.Blink;
     }
 
-    private static bool SkillHasTag(GodotObject skillDef, StringName expectedTag)
+    private static bool SkillHasTag(SkillDef skillDef, StringName expectedTag)
     {
         if (skillDef == null || IsEmpty(expectedTag))
         {
             return false;
         }
-        foreach (Variant tag in GdInterop.GetArray(skillDef, "tags"))
+        foreach (StringName tag in skillDef.tags)
         {
-            if (new StringName(tag.ToString()) == expectedTag)
+            if (tag == expectedTag)
             {
                 return true;
             }
@@ -332,7 +390,11 @@ public partial class BattleRangeService : RefCounted
         return TryGetStatusEffectData(unitInfo, statusId, out _);
     }
 
-    private static bool TryGetStatusEffectData(UnitRangeInfo unitInfo, StringName statusId, out StatusEffectData statusData)
+    private static bool TryGetStatusEffectData(
+        UnitRangeInfo unitInfo,
+        StringName statusId,
+        out StatusEffectData statusData
+    )
     {
         statusData = default;
         if (unitInfo == null || IsEmpty(statusId))
@@ -342,70 +404,41 @@ public partial class BattleRangeService : RefCounted
         return unitInfo.StatusEffects.TryGetValue(statusId, out statusData);
     }
 
-    private static UnitRangeInfo BuildUnitRangeInfo(GodotObject unitState)
+    private static UnitRangeInfo BuildUnitRangeInfo(BattleUnitState unitState)
     {
         var info = new UnitRangeInfo();
         if (unitState == null)
         {
             return info;
         }
-        info.WeaponAttackRange = Math.Max(unitState.Call("get_weapon_attack_range").AsInt32(), 0);
-        info.WeaponProfileKind = GdInterop.GetStringName(unitState, "weapon_profile_kind");
-        info.WeaponPhysicalDamageTag = GdInterop.GetStringName(unitState, "weapon_physical_damage_tag");
-        info.WeaponFamily = GdInterop.GetStringName(unitState, "weapon_family");
+        info.UnitState = unitState;
+        info.WeaponAttackRange = Math.Max(unitState.get_weapon_attack_range(), 0);
+        info.WeaponProfileKind = unitState.weapon_profile_kind;
+        info.WeaponPhysicalDamageTag = unitState.weapon_physical_damage_tag;
+        info.WeaponFamily = unitState.weapon_family;
 
-        foreach ((StringName skillId, int skillLevel) in BuildStringNameIntMap(GdInterop.GetDictionary(unitState, "known_skill_level_map")))
-        {
-            info.KnownSkillLevels[skillId] = skillLevel;
-        }
-        foreach (StringName skillId in BuildStringNameSet(GdInterop.GetArray(unitState, "known_active_skill_ids")))
-        {
-            info.KnownActiveSkillIds.Add(skillId);
-        }
-        GDictionary statusEffects = GdInterop.GetDictionary(unitState, "status_effects");
-        foreach (Variant statusKeyValue in statusEffects.Keys)
-        {
-            StringName statusKey = ToStringName(statusKeyValue);
-            if (IsEmpty(statusKey))
-            {
-                continue;
-            }
-            Variant effectValue = statusEffects[statusKeyValue];
-            if (effectValue.VariantType == Variant.Type.Nil)
-            {
-                continue;
-            }
-
-            if (effectValue.VariantType == Variant.Type.Dictionary)
-            {
-                GDictionary effectData = effectValue.AsGodotDictionary();
-                if (IsEmpty(GdInterop.GetStringName(effectData, "status_id")))
-                {
-                    continue;
-                }
-                Variant rawParams = GdInterop.TryGet(effectData, "params", out Variant paramsValue) ? paramsValue : default;
-                GDictionary statusParams = rawParams.VariantType == Variant.Type.Dictionary ? rawParams.AsGodotDictionary() : new GDictionary();
-                int power = GdInterop.GetInt(effectData, "power");
-                info.StatusEffects[statusKey] = BuildStatusEffectData(power, statusParams);
-                continue;
-            }
-
-            GodotObject effectState = effectValue.AsGodotObject();
-            if (effectState == null || IsEmpty(GdInterop.GetStringName(effectState, "status_id")))
-            {
-                continue;
-            }
-            int effectPower = GdInterop.GetInt(effectState, "power");
-            info.StatusEffects[statusKey] = BuildStatusEffectData(effectPower, GdInterop.GetDictionary(effectState, "params"));
-        }
+        AddStatusEffectData(info, unitState, StatusArcherRangeUp);
+        AddStatusEffectData(info, unitState, StatusArcherShootingSpecialization);
         return info;
+    }
+
+    private static void AddStatusEffectData(
+        UnitRangeInfo info,
+        BattleUnitState unitState,
+        StringName statusId
+    )
+    {
+        BattleStatusEffectState effectState = unitState.get_status_effect(statusId);
+        if (effectState == null || effectState.is_empty())
+        {
+            return;
+        }
+        info.StatusEffects[statusId] = BuildStatusEffectData(effectState.power, effectState.@params);
     }
 
     private static StatusEffectData BuildStatusEffectData(int power, GDictionary parameters)
     {
-        int rangeBonus = GdInterop.TryGet(parameters, "range_bonus", out Variant rawRangeBonus)
-            ? rawRangeBonus.AsInt32()
-            : power;
+        int rangeBonus = GdInterop.GetInt(parameters, "range_bonus", power);
         return new StatusEffectData(power, rangeBonus);
     }
 
@@ -416,12 +449,12 @@ public partial class BattleRangeService : RefCounted
         {
             return result;
         }
-        foreach (Variant keyValue in rawMap.Keys)
+        foreach (object keyValue in rawMap.Keys)
         {
             StringName key = ToStringName(keyValue);
             if (!IsEmpty(key))
             {
-                result[key] = rawMap[keyValue].AsInt32();
+                result[key] = GdInterop.GetInt(rawMap, keyValue);
             }
         }
         return result;
@@ -430,7 +463,7 @@ public partial class BattleRangeService : RefCounted
     private static HashSet<StringName> BuildStringNameSet(GArray rawValues)
     {
         var result = new HashSet<StringName>();
-        foreach (Variant value in rawValues)
+        foreach (object value in rawValues)
         {
             StringName item = ToStringName(value);
             if (!IsEmpty(item))
@@ -441,8 +474,12 @@ public partial class BattleRangeService : RefCounted
         return result;
     }
 
-    private static StringName ToStringName(Variant value)
+    private static StringName ToStringName(object rawValue)
     {
+        if (rawValue is not Variant value)
+        {
+            return new StringName(rawValue?.ToString() ?? "");
+        }
         return value.VariantType switch
         {
             Variant.Type.StringName => value.AsStringName(),
@@ -451,9 +488,92 @@ public partial class BattleRangeService : RefCounted
         };
     }
 
+    private static IEnumerable<T> Objects<T>(GArray values)
+        where T : GodotObject
+    {
+        if (values == null)
+        {
+            yield break;
+        }
+        foreach (object rawValue in values)
+        {
+            if (TryAsObject(rawValue, out T value))
+            {
+                yield return value;
+            }
+        }
+    }
+
+    private static bool TryAsDictionary(object rawValue, out GDictionary value)
+    {
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Dictionary)
+        {
+            value = variant.AsGodotDictionary();
+            return true;
+        }
+        if (rawValue is GDictionary dictionary)
+        {
+            value = dictionary;
+            return true;
+        }
+        value = new GDictionary();
+        return false;
+    }
+
+    private static bool TryAsObject<T>(object rawValue, out T value)
+        where T : GodotObject
+    {
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Object)
+        {
+            value = variant.AsGodotObject() as T;
+            return value != null;
+        }
+        if (rawValue is T typedValue)
+        {
+            value = typedValue;
+            return true;
+        }
+        value = null;
+        return false;
+    }
+
+    private static bool TryGetExactValue(GDictionary data, object key, out object value)
+    {
+        if (data == null || key == null)
+        {
+            value = null;
+            return false;
+        }
+        if (key is Variant variantKey)
+        {
+            if (data.ContainsKey(variantKey))
+            {
+                value = data[variantKey];
+                return true;
+            }
+        }
+        else if (key is StringName stringNameKey && data.ContainsKey(stringNameKey))
+        {
+            value = data[stringNameKey];
+            return true;
+        }
+        else if (key is string stringKey && data.ContainsKey(stringKey))
+        {
+            value = data[stringKey];
+            return true;
+        }
+        value = null;
+        return false;
+    }
+
+    private static bool IsNil(object rawValue)
+    {
+        return rawValue == null
+            || rawValue is Variant variant && variant.VariantType == Variant.Type.Nil;
+    }
+
     private static bool IsEmpty(StringName value)
     {
         return value == null || string.IsNullOrEmpty(value.ToString());
     }
-
 }

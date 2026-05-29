@@ -105,7 +105,7 @@ Layer 2-C  深度 Profile · Chrome Tracing（按需启用、轻侵入）
 `ai_performance_probe.gd`：
 
 ```gdscript
-extends "res://scripts/systems/battle/ai/battle_ai_service.gd"
+extends "res://scripts/systems/battle/ai/BattleAiService.cs"
 class_name AiServiceProbe
 
 class LayerStats:
@@ -416,7 +416,7 @@ AI_TRACE=1 AI_PROFILE=1 godot --headless --script ...
 - `tests/battle_runtime/benchmarks/baselines/ai_baseline.json`（首次跑生成）
 
 **参考与复用的现有文件：**
-- `scripts/systems/battle/ai/battle_ai_service.gd:40` — `choose_command` 入口，被子类化
+- `scripts/systems/battle/ai/BattleAiService.cs:40` — `choose_command` 入口，被子类化
 - `scripts/systems/battle/ai/battle_ai_score_service.gd:44` — `build_skill_score_input` 真正实现（probe 通过 `BattleAiService` 间接 wrap，无需直接修改此处）
 - `scripts/systems/battle/ai/battle_ai_action_assembler.gd` — `build_unit_action_plan` 被子类化
 - `scripts/systems/battle/runtime/battle_runtime_module.gd:187-188` — `_ai_service` / `_ai_action_assembler` 字段替换点

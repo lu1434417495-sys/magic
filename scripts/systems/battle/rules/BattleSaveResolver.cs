@@ -46,35 +46,57 @@ public partial class BattleSaveResolver : RefCounted
     private const int SpellSaveDcBase = 8;
 
     public static StringName SAVE_TAG_SLEEP() => SaveTagSleep;
+
     public static StringName SAVE_TAG_PARALYSIS() => SaveTagParalysis;
+
     public static StringName SAVE_TAG_CHARM() => SaveTagCharm;
+
     public static StringName SAVE_TAG_POISON() => SaveTagPoison;
+
     public static StringName SAVE_TAG_DRAGON_BREATH() => SaveTagDragonBreath;
+
     public static StringName SAVE_TAG_FIREBALL() => SaveTagFireball;
+
     public static StringName SAVE_TAG_CHAIN_LIGHTNING() => SaveTagChainLightning;
+
     public static StringName SAVE_TAG_EQUIPMENT_DISJUNCTION() => SaveTagEquipmentDisjunction;
+
     public static StringName SAVE_TAG_MAGIC() => SaveTagMagic;
+
     public static StringName SAVE_TAG_ILLUSION() => SaveTagIllusion;
+
     public static StringName SAVE_TAG_FRIGHTENED() => SaveTagFrightened;
+
     public static StringName SAVE_TAG_EXECUTE() => SaveTagExecute;
+
     public static StringName SAVE_TAG_STRENGTH() => SaveTagStrength;
+
     public static StringName SAVE_TAG_AGILITY() => SaveTagAgility;
+
     public static StringName SAVE_TAG_CONSTITUTION() => SaveTagConstitution;
+
     public static StringName SAVE_TAG_PERCEPTION() => SaveTagPerception;
+
     public static StringName SAVE_TAG_INTELLIGENCE() => SaveTagIntelligence;
+
     public static StringName SAVE_TAG_WILLPOWER() => SaveTagWillpower;
 
     public static StringName ADVANTAGE_STATE_NORMAL() => AdvantageStateNormal;
+
     public static StringName ADVANTAGE_STATE_ADVANTAGE() => AdvantageStateAdvantage;
+
     public static StringName ADVANTAGE_STATE_DISADVANTAGE() => AdvantageStateDisadvantage;
+
     public static StringName SAVE_DC_MODE_STATIC() => SaveDcModeStatic;
+
     public static StringName SAVE_DC_MODE_CASTER_SPELL() => SaveDcModeCasterSpell;
 
     public static GDictionary resolve_save(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         GodotObject effect_def,
-        GDictionary context = null)
+        GDictionary context = null
+    )
     {
         GDictionary normalizedContext = context ?? new GDictionary();
         int resolvedDc = _resolve_save_dc(source_unit, effect_def, normalizedContext);
@@ -112,7 +134,12 @@ public partial class BattleSaveResolver : RefCounted
         int abilityModifier = GetTargetAbilityModifier(target_unit, saveAbility);
         int saveBonus = GetStatusSaveBonus(target_unit, saveTag);
         int rollTotal = naturalRoll + abilityModifier + saveBonus;
-        bool success = DoesNaturalSaveRollSucceed(naturalRoll, resolvedDc, abilityModifier, saveBonus);
+        bool success = DoesNaturalSaveRollSucceed(
+            naturalRoll,
+            resolvedDc,
+            abilityModifier,
+            saveBonus
+        );
         return new GDictionary
         {
             ["has_save"] = true,
@@ -135,7 +162,8 @@ public partial class BattleSaveResolver : RefCounted
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         GodotObject effect_def,
-        GDictionary context = null)
+        GDictionary context = null
+    )
     {
         GDictionary normalizedContext = context ?? new GDictionary();
         int resolvedDc = _resolve_save_dc(source_unit, effect_def, normalizedContext);
@@ -199,7 +227,11 @@ public partial class BattleSaveResolver : RefCounted
         return _resolve_save_dc(source_unit, effect_def, new GDictionary());
     }
 
-    public static int _resolve_save_dc(BattleUnitState source_unit, GodotObject effect_def, GDictionary context = null)
+    public static int _resolve_save_dc(
+        BattleUnitState source_unit,
+        GodotObject effect_def,
+        GDictionary context = null
+    )
     {
         if (effect_def == null)
         {
@@ -223,16 +255,24 @@ public partial class BattleSaveResolver : RefCounted
         return GdInterop.GetBool(CollectSaveTagState(unit_state, save_tag), "immune");
     }
 
-    private static int ResolveCasterSpellSaveDc(BattleUnitState sourceUnit, GodotObject effectDef, GDictionary context)
+    private static int ResolveCasterSpellSaveDc(
+        BattleUnitState sourceUnit,
+        GodotObject effectDef,
+        GDictionary context
+    )
     {
         if (sourceUnit == null || sourceUnit.attribute_snapshot == null || effectDef == null)
         {
             return 0;
         }
-        StringName sourceAbility = ToStringName(GdInterop.GetStringName(effectDef, "save_dc_source_ability"));
+        StringName sourceAbility = ToStringName(
+            GdInterop.GetStringName(effectDef, "save_dc_source_ability")
+        );
         if (IsEmpty(sourceAbility) && context != null)
         {
-            sourceAbility = ToStringName(GdInterop.GetStringName(context, "save_dc_source_ability"));
+            sourceAbility = ToStringName(
+                GdInterop.GetStringName(context, "save_dc_source_ability")
+            );
         }
         if (IsEmpty(sourceAbility))
         {
@@ -296,10 +336,17 @@ public partial class BattleSaveResolver : RefCounted
             return state;
         }
 
-        ApplySaveTagValues(state, ToUntypedArray(unitState.save_advantage_tags), saveTag, "unit", "save_advantage_tags", "");
-        foreach (Variant statusIdVariant in unitState.status_effects.Keys)
+        ApplySaveTagValues(
+            state,
+            ToUntypedArray(unitState.save_advantage_tags),
+            saveTag,
+            "unit",
+            "save_advantage_tags",
+            ""
+        );
+        foreach (var statusIdValue in unitState.status_effects.Keys)
         {
-            StringName statusId = ToStringName(statusIdVariant);
+            StringName statusId = ToStringName(statusIdValue);
             BattleStatusEffectState statusEntry = unitState.get_status_effect(statusId);
             if (statusEntry == null || statusEntry.@params == null)
             {
@@ -347,9 +394,10 @@ public partial class BattleSaveResolver : RefCounted
         StringName saveTag,
         StringName sourceId,
         string sourceType,
-        StringName forcedMode)
+        StringName forcedMode
+    )
     {
-        foreach (Variant rawValue in values)
+        foreach (var rawValue in values)
         {
             StringName parsedValue = ToStringName(rawValue);
             StringName mode = ResolveSaveTagMode(parsedValue, saveTag, forcedMode);
@@ -371,18 +419,24 @@ public partial class BattleSaveResolver : RefCounted
             }
 
             GArray sources = GdInterop.GetArray(state, "sources");
-            sources.Add(new GDictionary
-            {
-                ["source_id"] = sourceId.ToString(),
-                ["type"] = sourceType,
-                ["tag"] = parsedValue.ToString(),
-                ["mode"] = mode.ToString(),
-            });
+            sources.Add(
+                new GDictionary
+                {
+                    ["source_id"] = sourceId.ToString(),
+                    ["type"] = sourceType,
+                    ["tag"] = parsedValue.ToString(),
+                    ["mode"] = mode.ToString(),
+                }
+            );
             state["sources"] = sources;
         }
     }
 
-    private static StringName ResolveSaveTagMode(StringName value, StringName saveTag, StringName forcedMode)
+    private static StringName ResolveSaveTagMode(
+        StringName value,
+        StringName saveTag,
+        StringName forcedMode
+    )
     {
         if (IsEmpty(value) || IsEmpty(saveTag))
         {
@@ -391,10 +445,12 @@ public partial class BattleSaveResolver : RefCounted
         string saveTagText = saveTag.ToString();
         if (!IsEmpty(forcedMode))
         {
-            if (value == saveTag
+            if (
+                value == saveTag
                 || value == new StringName($"{saveTagText}_advantage")
                 || value == new StringName($"{saveTagText}_disadvantage")
-                || value == new StringName($"{saveTagText}_immunity"))
+                || value == new StringName($"{saveTagText}_immunity")
+            )
             {
                 return forcedMode;
             }
@@ -470,13 +526,16 @@ public partial class BattleSaveResolver : RefCounted
         int dc,
         int abilityModifier,
         int saveBonus,
-        GDictionary context)
+        GDictionary context
+    )
     {
         GArray rolls = GetSaveRollOverrides(context);
         if (rolls.Count > 0)
         {
             int selectedRoll = SelectSaveRollForAdvantageState(advantageState, rolls);
-            return DoesNaturalSaveRollSucceed(selectedRoll, dc, abilityModifier, saveBonus) ? 10000 : 0;
+            return DoesNaturalSaveRollSucceed(selectedRoll, dc, abilityModifier, saveBonus)
+                ? 10000
+                : 0;
         }
 
         int successCount = 0;
@@ -529,7 +588,12 @@ public partial class BattleSaveResolver : RefCounted
         return Math.Clamp(Mathf.RoundToInt((float)successCount * 10000.0f / totalCount), 0, 10000);
     }
 
-    private static bool DoesNaturalSaveRollSucceed(int naturalRoll, int dc, int abilityModifier, int saveBonus)
+    private static bool DoesNaturalSaveRollSucceed(
+        int naturalRoll,
+        int dc,
+        int abilityModifier,
+        int saveBonus
+    )
     {
         if (naturalRoll <= 1)
         {
@@ -554,10 +618,12 @@ public partial class BattleSaveResolver : RefCounted
             result.Add(Math.Clamp(overrideValue.AsInt32(), 1, 20));
             return result;
         }
-        if (GdInterop.TryGet(context, "save_roll_overrides", out Variant rollsValue)
-            && rollsValue.VariantType == Variant.Type.Array)
+        if (
+            GdInterop.TryGet(context, "save_roll_overrides", out Variant rollsValue)
+            && rollsValue.VariantType == Variant.Type.Array
+        )
         {
-            foreach (Variant rawRoll in rollsValue.AsGodotArray())
+            foreach (var rawRoll in rollsValue.AsGodotArray())
             {
                 result.Add(Math.Clamp(rawRoll.AsInt32(), 1, 20));
             }
@@ -569,7 +635,8 @@ public partial class BattleSaveResolver : RefCounted
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         GodotObject effect_def,
-        GDictionary context)
+        GDictionary context
+    )
     {
         return resolve_save(source_unit, target_unit, effect_def, context);
     }
@@ -590,17 +657,24 @@ public partial class BattleSaveResolver : RefCounted
             return 0;
         }
         StringName modifierId = GetBaseAttributeModifierId(saveAbility);
-        return IsEmpty(modifierId) ? 0 : GetAttributeValue(targetUnit.attribute_snapshot, modifierId);
+        return IsEmpty(modifierId)
+            ? 0
+            : GetAttributeValue(targetUnit.attribute_snapshot, modifierId);
     }
 
-    private static int GetSourceAbilityModifier(BattleUnitState sourceUnit, StringName sourceAbility)
+    private static int GetSourceAbilityModifier(
+        BattleUnitState sourceUnit,
+        StringName sourceAbility
+    )
     {
         if (sourceUnit == null || sourceUnit.attribute_snapshot == null || IsEmpty(sourceAbility))
         {
             return 0;
         }
         StringName modifierId = GetBaseAttributeModifierId(sourceAbility);
-        return IsEmpty(modifierId) ? 0 : GetAttributeValue(sourceUnit.attribute_snapshot, modifierId);
+        return IsEmpty(modifierId)
+            ? 0
+            : GetAttributeValue(sourceUnit.attribute_snapshot, modifierId);
     }
 
     private static int GetSourceSpellProficiencyBonus(BattleUnitState sourceUnit)
@@ -612,7 +686,10 @@ public partial class BattleSaveResolver : RefCounted
         return Math.Max(GetAttributeValue(sourceUnit.attribute_snapshot, SpellProficiencyBonus), 0);
     }
 
-    private static int GetSkillLockHitBonusFromContext(BattleUnitState sourceUnit, GDictionary context)
+    private static int GetSkillLockHitBonusFromContext(
+        BattleUnitState sourceUnit,
+        GDictionary context
+    )
     {
         if (sourceUnit == null || context == null)
         {
@@ -633,9 +710,9 @@ public partial class BattleSaveResolver : RefCounted
             return 0;
         }
         int bonus = 0;
-        foreach (Variant statusIdVariant in targetUnit.status_effects.Keys)
+        foreach (var statusIdValue in targetUnit.status_effects.Keys)
         {
-            StringName statusId = ToStringName(statusIdVariant);
+            StringName statusId = ToStringName(statusIdValue);
             BattleStatusEffectState statusEntry = targetUnit.get_status_effect(statusId);
             if (statusEntry == null || statusEntry.@params == null)
             {
@@ -644,7 +721,10 @@ public partial class BattleSaveResolver : RefCounted
             bonus = Math.Max(bonus, GdInterop.GetInt(statusEntry.@params, "save_bonus"));
             if (IsControlSaveTag(saveTag))
             {
-                bonus = Math.Max(bonus, GdInterop.GetInt(statusEntry.@params, "control_save_bonus"));
+                bonus = Math.Max(
+                    bonus,
+                    GdInterop.GetInt(statusEntry.@params, "control_save_bonus")
+                );
             }
         }
         return bonus;
@@ -665,18 +745,24 @@ public partial class BattleSaveResolver : RefCounted
         {
             return 0;
         }
-        Variant value = attributeSnapshot.Call("get_value", attributeId);
+        var value = attributeSnapshot.Call("get_value", attributeId);
         return value.VariantType == Variant.Type.Nil ? 0 : value.AsInt32();
     }
 
     private static StringName GetBaseAttributeModifierId(StringName attributeId)
     {
-        if (attributeId == SaveTagStrength) return StrengthModifier;
-        if (attributeId == SaveTagAgility) return AgilityModifier;
-        if (attributeId == SaveTagConstitution) return ConstitutionModifier;
-        if (attributeId == SaveTagPerception) return PerceptionModifier;
-        if (attributeId == SaveTagIntelligence) return IntelligenceModifier;
-        if (attributeId == SaveTagWillpower) return WillpowerModifier;
+        if (attributeId == SaveTagStrength)
+            return StrengthModifier;
+        if (attributeId == SaveTagAgility)
+            return AgilityModifier;
+        if (attributeId == SaveTagConstitution)
+            return ConstitutionModifier;
+        if (attributeId == SaveTagPerception)
+            return PerceptionModifier;
+        if (attributeId == SaveTagIntelligence)
+            return IntelligenceModifier;
+        if (attributeId == SaveTagWillpower)
+            return WillpowerModifier;
         return "";
     }
 
@@ -696,7 +782,7 @@ public partial class BattleSaveResolver : RefCounted
         {
             return result;
         }
-        foreach (Variant value in values)
+        foreach (var value in values)
         {
             result.Add(value);
         }
@@ -717,8 +803,12 @@ public partial class BattleSaveResolver : RefCounted
         return result;
     }
 
-    private static StringName ToStringName(Variant value)
+    private static StringName ToStringName(object rawValue)
     {
+        if (rawValue is not Variant value)
+        {
+            return rawValue is StringName stringName ? stringName : new StringName(rawValue?.ToString() ?? "");
+        }
         return GdInterop.ToStringName(value);
     }
 

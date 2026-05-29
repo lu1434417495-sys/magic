@@ -72,7 +72,17 @@
 </table>
 
 <div class="callout">
-  <strong>未走 facade 通道</strong>：<code>reset_movement</code>（重置本回合移动累计）。需要先确认 facade 是否要新增 <code>command_battle_reset_movement</code> —— 这是 A2 唯一可能涉及"动 facade"的点，建议先排查再下手。
+  <strong>排查结论：移除 ResetMovementButton</strong>（2026-05-16）
+  <ul>
+    <li><code>game_runtime_battle_selection.gd:274</code> 的 <code>reset_battle_movement()</code> 名字骗人，实际语义只是"把选择光标聚焦到当前行动单位"，对应 facade 已有 <code>reset_battle_focus()</code>，<strong>不重置任何移动状态</strong>。</li>
+    <li>真正意义上的"撤销本回合移动"在运行时不存在：<code>attempt_battle_move_to</code> → <code>_issue_battle_command</code> → <code>battle_movement_service.gd:216</code> 每步立即扣 <code>current_move_points</code>，没有"待提交累计"概念。</li>
+    <li>要做撤销得引入回合开始快照 + rollback 基础设施，属于回合系统改造，<strong>不在 A2 范围</strong>。</li>
+  </ul>
+  因此 A2 取消 ResetMovementButton，<code>command_dock</code> 字段相应不出现 <code>reset_movement_enabled</code>。
+</div>
+
+<div class="callout">
+  <strong>顺带发现（不在 A2 范围，建 issue 单独清理）</strong>：KEY_R 在两个 input handler 里语义冲突——<code>world_map_system._handle_battle_input</code> 把它映到 <code>command_battle_clear_skill()</code>（清技能选择），但 <code>battle_session_facade.handle_battle_input</code> 把它映到 <code>battle_selection.reset_battle_movement()</code>（聚焦单位）。同一按键两条路径行为不同，是历史遗留的不一致。
 </div>
 
 <h2>3. snapshot 已就绪的字段（adapter 已产出）</h2>
@@ -97,7 +107,6 @@
 
 <pre>command_dock = {
     "resolve_enabled": bool,         # confirm_ready &amp;&amp; not modal
-    "reset_movement_enabled": bool,  # 本回合有移动累计
     "clear_skill_enabled": bool,     # selected_skill_id != ""
     "prev_variant_enabled": bool,    # current_variant > 0
     "next_variant_enabled": bool,    # current_variant < max
@@ -106,9 +115,9 @@
 
 <h2>4. 节点 / 信号设计</h2>
 
-<p>被删除的历史节点名（来自 A2 原始列表）：<code>ResolveBattleButton</code>、<code>ResetMovementButton</code>、<code>PrevVariantButton</code>、<code>NextVariantButton</code>、<code>ClearSkillButton</code>、<code>CommandDock</code>、<code>CommandSummaryLabel</code>、<code>HintLabel</code>、<code>LogLabel</code>、<code>UnitDetailLabel</code>。</p>
+<p>被删除的历史节点名（来自 A2 原始列表）：<code>ResolveBattleButton</code>、<s><code>ResetMovementButton</code></s>（取消，见上节排查）、<code>PrevVariantButton</code>、<code>NextVariantButton</code>、<code>ClearSkillButton</code>、<code>CommandDock</code>、<code>CommandSummaryLabel</code>、<code>HintLabel</code>、<code>LogLabel</code>、<code>UnitDetailLabel</code>。</p>
 
-<p>建议恢复 8 个节点，组织成 3 个区块：</p>
+<p>建议恢复 7 个节点，组织成 3 个区块：</p>
 
 <h3>区块 A — TopBar 右端（C4 顺带做）</h3>
 
@@ -123,7 +132,6 @@
 ├─ PrevVariantButton (Button)     # ← 显示 "Q"
 ├─ VariantNameLabel               # 当前 variant 名（从 skill_title 拆出来）
 ├─ NextVariantButton (Button)     # → 显示 "E"
-├─ ResetMovementButton (Button)   # "重置本回合移动"
 └─ CommandSummaryLabel            # "已选 2/3 目标 · 50 STA"</pre>
 
 <h3>区块 C — BottomPanel 右侧（信息位）</h3>
@@ -137,7 +145,6 @@
 <p>每个按钮发面板级 signal，由 <code>world_map_system</code> 统一接 facade：</p>
 
 <pre>signal battle_resolve_pressed
-signal battle_reset_movement_pressed
 signal battle_cycle_variant_pressed(step: int)
 signal battle_clear_skill_pressed
 signal battle_mode_toggle_pressed</pre>
@@ -151,16 +158,15 @@ signal battle_mode_toggle_pressed</pre>
     <tr><th>步骤</th><th>改动</th><th>文件</th></tr>
   </thead>
   <tbody>
-    <tr><td>1</td><td>排查 reset_movement 是否需要新 facade 命令</td><td><code>battle_session_facade.gd</code>、<code>battle_selection.gd</code></td></tr>
-    <tr><td>2</td><td>adapter 加 <code>command_dock</code> / <code>hint_text</code> / <code>recent_battle_log_lines</code> 三个 snapshot 字段</td><td><code>battle_hud_adapter.gd</code></td></tr>
-    <tr><td>3</td><td>场景 <code>.tscn</code> 加 8 个新节点 + 布局</td><td><code>battle_map_panel.tscn</code></td></tr>
-    <tr><td>4</td><td>面板加 <code>_create_command_dock()</code> / <code>_apply_command_dock(snapshot)</code> + 5 个 signal</td><td><code>battle_map_panel.gd</code></td></tr>
-    <tr><td>5</td><td><code>world_map_system</code> 接 5 个 signal → facade</td><td><code>world_map_system.gd</code></td></tr>
-    <tr><td>6</td><td>C4 <code>ModeValueLabel</code> → <code>ModeButton</code>（替换 Label 节点类型）</td><td><code>battle_map_panel.tscn</code></td></tr>
-    <tr><td>7</td><td>A1 残留：<code>confirm_ready</code> 灯挂到 <code>ResolveBattleButton</code> 高亮态</td><td>面板</td></tr>
-    <tr><td>8</td><td>regression：<code>run_battle_ui_regression.gd</code> 补按钮启用态 / 点击路径 fixture</td><td>tests</td></tr>
-    <tr><td>9</td><td><code>game_text_snapshot_renderer</code> 同步打印新字段</td><td><code>game_text_snapshot_renderer.gd</code></td></tr>
-    <tr><td>10</td><td>移除 <code>_handle_battle_input</code> 里 KEY_1 - KEY_9 的 <code>command_battle_select_skill</code> 绑定；同步清理依赖该绑定的 regression / 文本命令路径</td><td><code>world_map_system.gd:485-486</code>、<code>run_battle_ui_regression.gd</code>、<code>game_text_command_runner.gd</code></td></tr>
+    <tr><td>1</td><td>adapter 加 <code>command_dock</code> / <code>hint_text</code> / <code>recent_battle_log_lines</code> 三个 snapshot 字段</td><td><code>battle_hud_adapter.gd</code></td></tr>
+    <tr><td>2</td><td>场景 <code>.tscn</code> 加 7 个新节点 + 布局</td><td><code>battle_map_panel.tscn</code></td></tr>
+    <tr><td>3</td><td>面板加 <code>_create_command_dock()</code> / <code>_apply_command_dock(snapshot)</code> + 4 个 signal</td><td><code>battle_map_panel.gd</code></td></tr>
+    <tr><td>4</td><td><code>world_map_system</code> 接 4 个 signal → facade</td><td><code>world_map_system.gd</code></td></tr>
+    <tr><td>5</td><td>C4 <code>ModeValueLabel</code> → <code>ModeButton</code>（替换 Label 节点类型）</td><td><code>battle_map_panel.tscn</code></td></tr>
+    <tr><td>6</td><td>A1 残留：<code>confirm_ready</code> 灯挂到 <code>ResolveBattleButton</code> 高亮态</td><td>面板</td></tr>
+    <tr><td>7</td><td>regression：<code>run_battle_ui_regression.gd</code> 补按钮启用态 / 点击路径 fixture</td><td>tests</td></tr>
+    <tr><td>8</td><td><code>game_text_snapshot_renderer</code> 同步打印新字段</td><td><code>game_text_snapshot_renderer.gd</code></td></tr>
+    <tr><td>9</td><td>移除 <code>_handle_battle_input</code> 里 KEY_1 - KEY_9 的 <code>command_battle_select_skill</code> 绑定；同步清理依赖该绑定的 regression / 文本命令路径</td><td><code>world_map_system.gd:485-486</code>、<code>run_battle_ui_regression.gd</code>、<code>game_text_command_runner.gd</code></td></tr>
   </tbody>
 </table>
 
@@ -196,10 +202,14 @@ signal battle_mode_toggle_pressed</pre>
 <h2>8. 实现前需要先决议</h2>
 
 <ol>
-  <li><strong><code>reset_movement</code> 是否需要新 facade 命令？</strong> 现状 <code>battle_session_facade</code> 没有暴露重置本回合移动累计的 API，必须先排查 <code>battle_selection</code> 是否已有内部方法，没有则前置加一个 <code>command_battle_reset_movement</code>。</li>
-  <li><strong><code>hint_text</code> 状态机定义</strong> 至少覆盖 5 个状态：无技能选中 / 技能已选未达最小目标数 / 已达最小目标数可施法 / 模态阻断（战斗结算中）/ 自动模式。adapter 需要明确这块的状态来源（<code>battle_selection</code> 还是 <code>battle_state.modal_state</code>）。</li>
-  <li><strong>LogLabel 行数与时机</strong> 默认 3 行 + 战斗事件触发时刷新。需要决定是否在面板上做"点开看完整 log"的链接（推荐不做，留给 RuntimeLogDock）。</li>
+  <li><strong><code>hint_text</code> 状态机定义</strong>：至少覆盖 5 个状态——无技能选中 / 技能已选未达最小目标数 / 已达最小目标数可施法 / 模态阻断（战斗结算中）/ 自动模式。adapter 需要明确这块的状态来源（<code>battle_selection</code> 还是 <code>battle_state.modal_state</code>）。</li>
+  <li><strong>LogLabel 行数与时机</strong>：默认 3 行 + 战斗事件触发时刷新。需要决定是否在面板上做"点开看完整 log"的链接（推荐不做，留给 RuntimeLogDock）。</li>
 </ol>
+
+<p>已排查决议（2026-05-16）：</p>
+<ul>
+  <li>~~ResetMovementButton 是否需要新 facade 命令~~——已确认取消（见第 2 节 callout）。</li>
+</ul>
 
 </body>
 </html>

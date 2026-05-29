@@ -2,12 +2,12 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const BattleSessionFacade = preload("res://scripts/systems/game_runtime/battle_session_facade.gd")
-const CharacterProgressionDelta = preload("res://scripts/systems/progression/character_progression_delta.gd")
-const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
-const PartyState = preload("res://scripts/player/progression/party_state.gd")
-const PendingProfessionChoice = preload("res://scripts/player/progression/pending_profession_choice.gd")
-const ProfessionDef = preload("res://scripts/player/progression/profession_def.gd")
+const BattleSessionFacade = preload("res://scripts/systems/game_runtime/BattleSessionFacade.cs")
+const CharacterProgressionDelta = preload("res://scripts/systems/progression/CharacterProgressionDelta.cs")
+const PartyMemberState = preload("res://scripts/player/progression/PartyMemberState.cs")
+const PartyState = preload("res://scripts/player/progression/PartyState.cs")
+const PendingProfessionChoice = preload("res://scripts/player/progression/PendingProfessionChoice.cs")
+const ProfessionDef = preload("res://scripts/player/progression/ProfessionDef.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -50,7 +50,7 @@ func _test_promotion_prompt_filters_invalid_candidates() -> void:
 	delta.needs_promotion_modal = true
 	delta.pending_profession_choices.append(pending_choice)
 
-	var prompt := facade.build_promotion_prompt(delta)
+	var prompt := facade.build_promotion_prompt(delta, "确认后将在战斗中立即生效。")
 	var choices: Array = prompt.get("choices", [])
 	_assert_eq(choices.size(), 1, "Prompt should expose only candidates with a known profession and positive target rank.")
 	_assert_eq(String(choices[0].get("profession_id", "")), "warrior", "Prompt should keep the valid warrior candidate.")

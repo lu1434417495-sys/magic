@@ -2,11 +2,11 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const AttributeSnapshot = preload("res://scripts/player/progression/attribute_snapshot.gd")
-const AttributeService = preload("res://scripts/systems/attributes/attribute_service.gd")
-const ProfessionDef = preload("res://scripts/player/progression/profession_def.gd")
-const UnitProfessionProgress = preload("res://scripts/player/progression/unit_profession_progress.gd")
-const UnitProgress = preload("res://scripts/player/progression/unit_progress.gd")
+const AttributeSnapshot = preload("res://scripts/player/progression/AttributeSnapshot.cs")
+const AttributeService = preload("res://scripts/systems/attributes/AttributeService.cs")
+const ProfessionDef = preload("res://scripts/player/progression/ProfessionDef.cs")
+const UnitProfessionProgress = preload("res://scripts/player/progression/UnitProfessionProgress.cs")
+const UnitProgress = preload("res://scripts/player/progression/UnitProgress.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -48,7 +48,7 @@ func _test_single_class_full_bab_table() -> void:
 	for entry in expected_bab:
 		var rank: int = entry[0]
 		var expected: int = entry[1]
-		var actual := AttributeSnapshot.calculate_base_attack_bonus([[rank, AttributeSnapshot.BAB_PROGRESSION_FULL]])
+		var actual := AttributeSnapshot.calculate_base_attack_bonus([[rank, AttributeSnapshot.BAB_PROGRESSION_FULL()]])
 		_assert_eq(actual, expected, "Full BAB rank %d 应为 %d。" % [rank, expected])
 
 
@@ -59,7 +59,7 @@ func _test_single_class_three_quarter_bab_table() -> void:
 	for entry in expected_bab:
 		var rank: int = entry[0]
 		var expected: int = entry[1]
-		var actual := AttributeSnapshot.calculate_base_attack_bonus([[rank, AttributeSnapshot.BAB_PROGRESSION_THREE_QUARTER]])
+		var actual := AttributeSnapshot.calculate_base_attack_bonus([[rank, AttributeSnapshot.BAB_PROGRESSION_THREE_QUARTER()]])
 		_assert_eq(actual, expected, "¾ BAB rank %d 应为 %d。" % [rank, expected])
 
 
@@ -70,15 +70,15 @@ func _test_single_class_half_bab_table() -> void:
 	for entry in expected_bab:
 		var rank: int = entry[0]
 		var expected: int = entry[1]
-		var actual := AttributeSnapshot.calculate_base_attack_bonus([[rank, AttributeSnapshot.BAB_PROGRESSION_HALF]])
+		var actual := AttributeSnapshot.calculate_base_attack_bonus([[rank, AttributeSnapshot.BAB_PROGRESSION_HALF()]])
 		_assert_eq(actual, expected, "½ BAB rank %d 应为 %d。" % [rank, expected])
 
 
 func _test_multi_class_accumulates_numerator_before_floor() -> void:
 	# 法师 7 + 牧师 5：每职业 floor 早算只得 2，先乘后除得 3，差 1 BAB。
 	var pairs := [
-		[7, AttributeSnapshot.BAB_PROGRESSION_HALF],
-		[5, AttributeSnapshot.BAB_PROGRESSION_THREE_QUARTER],
+		[7, AttributeSnapshot.BAB_PROGRESSION_HALF()],
+		[5, AttributeSnapshot.BAB_PROGRESSION_THREE_QUARTER()],
 	]
 	_assert_eq(
 		AttributeSnapshot.calculate_base_attack_bonus(pairs),
@@ -88,9 +88,9 @@ func _test_multi_class_accumulates_numerator_before_floor() -> void:
 
 	# 战士 1 + 法师 1 + 牧师 1：三职 rank 1 各自 floor 都是 0，累加分子才能凑出 BAB 1。
 	var trio := [
-		[1, AttributeSnapshot.BAB_PROGRESSION_FULL],
-		[1, AttributeSnapshot.BAB_PROGRESSION_HALF],
-		[1, AttributeSnapshot.BAB_PROGRESSION_THREE_QUARTER],
+		[1, AttributeSnapshot.BAB_PROGRESSION_FULL()],
+		[1, AttributeSnapshot.BAB_PROGRESSION_HALF()],
+		[1, AttributeSnapshot.BAB_PROGRESSION_THREE_QUARTER()],
 	]
 	_assert_eq(
 		AttributeSnapshot.calculate_base_attack_bonus(trio),
@@ -100,9 +100,9 @@ func _test_multi_class_accumulates_numerator_before_floor() -> void:
 
 	# 战士 3 + 法师 3 + 牧师 3：先乘后除 = 27/8 = 3，per-prof floor 只得 2。
 	var triple_three := [
-		[3, AttributeSnapshot.BAB_PROGRESSION_FULL],
-		[3, AttributeSnapshot.BAB_PROGRESSION_HALF],
-		[3, AttributeSnapshot.BAB_PROGRESSION_THREE_QUARTER],
+		[3, AttributeSnapshot.BAB_PROGRESSION_FULL()],
+		[3, AttributeSnapshot.BAB_PROGRESSION_HALF()],
+		[3, AttributeSnapshot.BAB_PROGRESSION_THREE_QUARTER()],
 	]
 	_assert_eq(
 		AttributeSnapshot.calculate_base_attack_bonus(triple_three),
@@ -114,18 +114,18 @@ func _test_multi_class_accumulates_numerator_before_floor() -> void:
 func _test_total_rank_capped_at_twenty_keeps_bab_at_or_below_ten() -> void:
 	# 多职业上限 = 总 rank 20 时，无论怎么分配都不会超过 +10。
 	var distributions: Array = [
-		[[20, AttributeSnapshot.BAB_PROGRESSION_FULL]],
-		[[10, AttributeSnapshot.BAB_PROGRESSION_FULL], [10, AttributeSnapshot.BAB_PROGRESSION_FULL]],
-		[[15, AttributeSnapshot.BAB_PROGRESSION_FULL], [5, AttributeSnapshot.BAB_PROGRESSION_THREE_QUARTER]],
-		[[10, AttributeSnapshot.BAB_PROGRESSION_FULL], [10, AttributeSnapshot.BAB_PROGRESSION_HALF]],
-		[[5, AttributeSnapshot.BAB_PROGRESSION_FULL], [5, AttributeSnapshot.BAB_PROGRESSION_FULL], [5, AttributeSnapshot.BAB_PROGRESSION_THREE_QUARTER], [5, AttributeSnapshot.BAB_PROGRESSION_HALF]],
+		[[20, AttributeSnapshot.BAB_PROGRESSION_FULL()]],
+		[[10, AttributeSnapshot.BAB_PROGRESSION_FULL()], [10, AttributeSnapshot.BAB_PROGRESSION_FULL()]],
+		[[15, AttributeSnapshot.BAB_PROGRESSION_FULL()], [5, AttributeSnapshot.BAB_PROGRESSION_THREE_QUARTER()]],
+		[[10, AttributeSnapshot.BAB_PROGRESSION_FULL()], [10, AttributeSnapshot.BAB_PROGRESSION_HALF()]],
+		[[5, AttributeSnapshot.BAB_PROGRESSION_FULL()], [5, AttributeSnapshot.BAB_PROGRESSION_FULL()], [5, AttributeSnapshot.BAB_PROGRESSION_THREE_QUARTER()], [5, AttributeSnapshot.BAB_PROGRESSION_HALF()]],
 	]
 	for pairs in distributions:
 		var bab: int = AttributeSnapshot.calculate_base_attack_bonus(pairs)
 		_assert_true(bab <= 10, "总 rank ≤ 20 时 BAB 不应超 +10，得到 %d，分布 %s。" % [bab, str(pairs)])
 	# rank 20 全 Full 时恰好顶上限。
 	_assert_eq(
-		AttributeSnapshot.calculate_base_attack_bonus([[20, AttributeSnapshot.BAB_PROGRESSION_FULL]]),
+		AttributeSnapshot.calculate_base_attack_bonus([[20, AttributeSnapshot.BAB_PROGRESSION_FULL()]]),
 		10,
 		"纯 Full BAB rank 20 应为 +10。"
 	)
@@ -134,7 +134,7 @@ func _test_total_rank_capped_at_twenty_keeps_bab_at_or_below_ten() -> void:
 func _test_unknown_progression_falls_back_to_half() -> void:
 	# 未知 progression 字符串应回退到 half，避免空字段意外把法师变成战士。
 	var unknown_pair := [10, &"unknown_value"]
-	var half_pair := [10, AttributeSnapshot.BAB_PROGRESSION_HALF]
+	var half_pair := [10, AttributeSnapshot.BAB_PROGRESSION_HALF()]
 	_assert_eq(
 		AttributeSnapshot.calculate_base_attack_bonus([unknown_pair]),
 		AttributeSnapshot.calculate_base_attack_bonus([half_pair]),
@@ -143,17 +143,17 @@ func _test_unknown_progression_falls_back_to_half() -> void:
 
 
 func _test_attribute_service_writes_base_attack_bonus_for_full_warrior() -> void:
-	var warrior := _make_profession(&"warrior", AttributeSnapshot.BAB_PROGRESSION_FULL)
+	var warrior := _make_profession(&"warrior", AttributeSnapshot.BAB_PROGRESSION_FULL())
 	var progress := _make_progress(&"hero")
 	progress.set_profession_progress(_make_profession_progress(&"warrior", 5, true, false))
 
 	var snapshot = _build_snapshot(progress, [warrior])
-	_assert_eq(snapshot.get_value(AttributeService.BASE_ATTACK_BONUS), 2, "战士 rank 5 在 snapshot 中应写入 BAB 2。")
+	_assert_eq(snapshot.get_value(AttributeService.BASE_ATTACK_BONUS_ID()), 2, "战士 rank 5 在 snapshot 中应写入 BAB 2。")
 
 
 func _test_attribute_service_excludes_inactive_and_hidden_professions() -> void:
-	var warrior := _make_profession(&"warrior", AttributeSnapshot.BAB_PROGRESSION_FULL)
-	var mage := _make_profession(&"mage", AttributeSnapshot.BAB_PROGRESSION_HALF)
+	var warrior := _make_profession(&"warrior", AttributeSnapshot.BAB_PROGRESSION_FULL())
+	var mage := _make_profession(&"mage", AttributeSnapshot.BAB_PROGRESSION_HALF())
 
 	var inactive_progress := _make_progress(&"inactive_hero")
 	inactive_progress.set_profession_progress(_make_profession_progress(&"warrior", 10, false, false))
@@ -161,7 +161,7 @@ func _test_attribute_service_excludes_inactive_and_hidden_professions() -> void:
 
 	var inactive_snapshot = _build_snapshot(inactive_progress, [warrior, mage])
 	_assert_eq(
-		inactive_snapshot.get_value(AttributeService.BASE_ATTACK_BONUS),
+		inactive_snapshot.get_value(AttributeService.BASE_ATTACK_BONUS_ID()),
 		1,
 		"未激活的战士 rank 10 不应贡献 BAB；仅法师 rank 4 (½) = 1。"
 	)
@@ -172,16 +172,16 @@ func _test_attribute_service_excludes_inactive_and_hidden_professions() -> void:
 
 	var hidden_snapshot = _build_snapshot(hidden_progress, [warrior, mage])
 	_assert_eq(
-		hidden_snapshot.get_value(AttributeService.BASE_ATTACK_BONUS),
+		hidden_snapshot.get_value(AttributeService.BASE_ATTACK_BONUS_ID()),
 		1,
 		"被隐藏的战士不应贡献 BAB；仅法师 rank 4 (½) = 1。"
 	)
 
 
 func _test_attribute_service_multi_class_matches_static_calculation() -> void:
-	var warrior := _make_profession(&"warrior", AttributeSnapshot.BAB_PROGRESSION_FULL)
-	var mage := _make_profession(&"mage", AttributeSnapshot.BAB_PROGRESSION_HALF)
-	var priest := _make_profession(&"priest", AttributeSnapshot.BAB_PROGRESSION_THREE_QUARTER)
+	var warrior := _make_profession(&"warrior", AttributeSnapshot.BAB_PROGRESSION_FULL())
+	var mage := _make_profession(&"mage", AttributeSnapshot.BAB_PROGRESSION_HALF())
+	var priest := _make_profession(&"priest", AttributeSnapshot.BAB_PROGRESSION_THREE_QUARTER())
 
 	var progress := _make_progress(&"multi_hero")
 	progress.set_profession_progress(_make_profession_progress(&"warrior", 3, true, false))
@@ -191,7 +191,7 @@ func _test_attribute_service_multi_class_matches_static_calculation() -> void:
 	var snapshot = _build_snapshot(progress, [warrior, mage, priest])
 	# 静态计算：(3*4 + 3*2 + 3*3)/8 = 27/8 = 3
 	_assert_eq(
-		snapshot.get_value(AttributeService.BASE_ATTACK_BONUS),
+		snapshot.get_value(AttributeService.BASE_ATTACK_BONUS_ID()),
 		3,
 		"战士 3 + 法师 3 + 牧师 3 在 service 应得 BAB 3，与静态算法一致。"
 	)
@@ -199,7 +199,10 @@ func _test_attribute_service_multi_class_matches_static_calculation() -> void:
 
 func _build_snapshot(progress: UnitProgress, profession_defs: Array):
 	var service = AttributeService.new()
-	service.setup(progress, null, profession_defs)
+	var indexed_profession_defs := {}
+	for profession_def in profession_defs:
+		indexed_profession_defs[profession_def.profession_id] = profession_def
+	service.setup(progress, {}, indexed_profession_defs)
 	return service.get_snapshot()
 
 
@@ -226,7 +229,7 @@ func _make_progress(unit_id: StringName) -> UnitProgress:
 	var progress := UnitProgress.new()
 	progress.unit_id = unit_id
 	progress.display_name = String(unit_id).capitalize()
-	for attribute_id in UnitBaseAttributes.BASE_ATTRIBUTE_IDS:
+	for attribute_id in [&"strength", &"agility", &"constitution", &"perception", &"intelligence", &"willpower"]:
 		progress.unit_base_attributes.set_attribute_value(attribute_id, 10)
 	return progress
 

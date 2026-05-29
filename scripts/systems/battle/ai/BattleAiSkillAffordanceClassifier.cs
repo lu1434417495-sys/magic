@@ -1,5 +1,5 @@
+using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
 [GlobalClass]
@@ -10,115 +10,116 @@ public partial class BattleAiSkillAffordanceClassifier : RefCounted
 
     public GDictionary classify_skill(SkillDef skill_def, int skill_level = 1)
     {
-        GDictionary record = EmptyRecord(skill_def);
+        return ClassifySkill(skill_def, skill_level).ToDictionary();
+    }
+
+    internal BattleAiSkillAffordanceRecord ClassifySkill(SkillDef skill_def, int skill_level = 1)
+    {
+        BattleAiSkillAffordanceRecord record = BattleAiSkillAffordanceRecord.Empty(skill_def);
         CombatSkillDef combatProfile = skill_def?.combat_profile as CombatSkillDef;
         if (skill_def == null || combatProfile == null || skill_def.skill_type != "active")
         {
-            record["skip_reason"] = "passive_or_no_combat";
+            record.skip_reason = "passive_or_no_combat";
             return record;
         }
 
-        record["target_mode"] = Normalize(combatProfile.target_mode);
-        record["target_filter"] = Normalize(combatProfile.target_team_filter);
-        record["selection_mode"] = Normalize(combatProfile.target_selection_mode);
-        record["team_intent"] = ResolveTeamIntent(skill_def, combatProfile, skill_level);
+        record.target_mode = Normalize(combatProfile.target_mode);
+        record.target_filter = Normalize(combatProfile.target_team_filter);
+        record.selection_mode = Normalize(combatProfile.target_selection_mode);
+        record.team_intent = ResolveTeamIntent(skill_def, combatProfile, skill_level);
 
-        ClassifyVariants(record, combatProfile, skill_level);
+        ClassifyOptions(record, combatProfile, skill_level);
         ClassifySelectionMode(record, combatProfile);
         ClassifyEffectsAndTargetMode(record, skill_def, combatProfile, skill_level);
 
-        if (GetArray(record, "affordances").Count > 0 && GetArray(record, "action_families").Count > 0)
+        if (record.affordances.Count > 0 && record.action_families.Count > 0)
         {
-            record["is_generatable"] = true;
-            record["skip_reason"] = "";
+            record.is_generatable = true;
+            record.skip_reason = "";
         }
         else
         {
-            record["is_generatable"] = false;
-            record["skip_reason"] = "unsupported_or_special";
+            record.is_generatable = false;
+            record.skip_reason = "unsupported_or_special";
         }
-        record["requires_positioning_action"] = RequiresPositioningAction(record);
+        record.requires_positioning_action = RequiresPositioningAction(record);
         return record;
     }
 
-    private static GDictionary EmptyRecord(SkillDef skillDef)
-    {
-        return new GDictionary
-        {
-            ["skill_id"] = skillDef != null ? skillDef.skill_id : new StringName(""),
-            ["is_generatable"] = false,
-            ["skip_reason"] = "",
-            ["team_intent"] = new StringName(""),
-            ["target_mode"] = new StringName(""),
-            ["target_filter"] = new StringName(""),
-            ["selection_mode"] = new StringName(""),
-            ["effect_roles"] = new GArray(),
-            ["affordances"] = new GArray(),
-            ["action_families"] = new GArray(),
-            ["requires_positioning_action"] = false,
-            ["variant_ids"] = new GArray(),
-            ["blocked_reason"] = "",
-        };
-    }
-
-    private static void ClassifyVariants(GDictionary record, CombatSkillDef combatProfile, int skillLevel)
+    private static void ClassifyOptions(
+        BattleAiSkillAffordanceRecord record,
+        CombatSkillDef combatProfile,
+        int skillLevel
+    )
     {
         if (Normalize(combatProfile.special_resolution_profile_id) == MeteorSwarmProfileId)
         {
-            AddUnique(GetArray(record, "affordances"), new StringName("special_ground"));
-            AddUnique(GetArray(record, "affordances"), new StringName("ground_hostile.aoe"));
-            AddUnique(GetArray(record, "action_families"), new StringName("use_ground_skill"));
+            record.AddAffordance(new StringName("special_ground"));
+            record.AddAffordance(new StringName("ground_hostile.aoe"));
+            record.AddActionFamily(new StringName("use_ground_skill"));
         }
 
-        foreach (CombatCastVariantDef variant in combatProfile.get_unlocked_cast_variants(skillLevel))
+        foreach (
+            CombatCastVariantDef option in combatProfile.get_unlocked_cast_variants(skillLevel)
+        )
         {
-            if (variant == null)
+            if (option == null)
             {
                 continue;
             }
-            if (variant.variant_id != "")
+            if (option.variant_id != "")
             {
-                AddUnique(GetArray(record, "variant_ids"), variant.variant_id);
+                record.AddVariantId(option.variant_id);
             }
-            bool hasCharge = VariantHasEffect(variant, "charge");
-            bool hasPathAoe = VariantHasEffect(variant, PathStepAoeEffectType);
+            bool hasCharge = OptionHasEffect(option, "charge");
+            bool hasPathAoe = OptionHasEffect(option, PathStepAoeEffectType);
             if (hasCharge && hasPathAoe)
             {
-                AddUnique(GetArray(record, "effect_roles"), new StringName("charge"));
-                AddUnique(GetArray(record, "effect_roles"), PathStepAoeEffectType);
-                AddUnique(GetArray(record, "affordances"), new StringName("charge_path_aoe"));
-                AddUnique(GetArray(record, "action_families"), new StringName("use_charge_path_aoe"));
+                record.AddEffectRole(new StringName("charge"));
+                record.AddEffectRole(PathStepAoeEffectType);
+                record.AddAffordance(new StringName("charge_path_aoe"));
+                record.AddActionFamily(new StringName("use_charge_path_aoe"));
             }
             else if (hasCharge)
             {
-                AddUnique(GetArray(record, "effect_roles"), new StringName("charge"));
-                AddUnique(GetArray(record, "affordances"), new StringName("charge_engage"));
-                AddUnique(GetArray(record, "action_families"), new StringName("use_charge"));
+                record.AddEffectRole(new StringName("charge"));
+                record.AddAffordance(new StringName("charge_engage"));
+                record.AddActionFamily(new StringName("use_charge"));
             }
         }
     }
 
-    private static void ClassifySelectionMode(GDictionary record, CombatSkillDef combatProfile)
+    private static void ClassifySelectionMode(
+        BattleAiSkillAffordanceRecord record,
+        CombatSkillDef combatProfile
+    )
     {
         StringName selectionMode = Normalize(combatProfile.target_selection_mode);
         if (selectionMode == "random_chain")
         {
-            AddUnique(GetArray(record, "affordances"), new StringName("random_chain"));
-            AddUnique(GetArray(record, "action_families"), new StringName("use_random_chain_skill"));
-            AddUnique(GetArray(record, "action_families"), new StringName("move_to_range"));
+            record.AddAffordance(new StringName("random_chain"));
+            record.AddActionFamily(new StringName("use_random_chain_skill"));
+            record.AddActionFamily(new StringName("move_to_range"));
         }
         else if (selectionMode == "multi_unit")
         {
-            AddUnique(GetArray(record, "affordances"), new StringName("multi_unit"));
-            AddUnique(GetArray(record, "action_families"), new StringName("use_multi_unit_skill"));
-            AddUnique(GetArray(record, "action_families"), new StringName("move_to_multi_unit_skill_position"));
+            record.AddAffordance(new StringName("multi_unit"));
+            record.AddActionFamily(new StringName("use_multi_unit_skill"));
+            record.AddActionFamily(new StringName("move_to_multi_unit_skill_position"));
         }
     }
 
-    private static void ClassifyEffectsAndTargetMode(GDictionary record, SkillDef skillDef, CombatSkillDef combatProfile, int skillLevel)
+    private static void ClassifyEffectsAndTargetMode(
+        BattleAiSkillAffordanceRecord record,
+        SkillDef skillDef,
+        CombatSkillDef combatProfile,
+        int skillLevel
+    )
     {
-        StringName targetMode = Normalize(combatProfile.target_mode);
-        StringName teamIntent = Normalize(record["team_intent"]);
+        BattleTargetMode targetMode = BattleTypedNames.ToTargetMode(
+            Normalize(combatProfile.target_mode)
+        );
+        StringName teamIntent = ProgressionDataUtils.to_string_name(record.team_intent);
         bool hasDamage = false;
         bool hasHeal = false;
         bool hasControl = false;
@@ -135,81 +136,95 @@ public partial class BattleAiSkillAffordanceClassifier : RefCounted
             if (IsDamageEffect(effectDef))
             {
                 hasDamage = true;
-                AddUnique(GetArray(record, "effect_roles"), new StringName("damage"));
+                record.AddEffectRole(new StringName("damage"));
             }
             if (IsHealEffect(effectDef))
             {
                 hasHeal = true;
-                AddUnique(GetArray(record, "effect_roles"), new StringName("heal"));
+                record.AddEffectRole(new StringName("heal"));
             }
             if (IsControlEffect(effectDef))
             {
                 hasControl = true;
-                AddUnique(GetArray(record, "effect_roles"), new StringName("control"));
+                record.AddEffectRole(new StringName("control"));
             }
             if (IsGroundControlEffect(effectDef))
             {
                 hasGroundControl = true;
-                AddUnique(GetArray(record, "effect_roles"), new StringName("ground_control"));
+                record.AddEffectRole(new StringName("ground_control"));
             }
             if (effectType == "forced_move")
             {
                 hasReposition = true;
-                AddUnique(GetArray(record, "effect_roles"), new StringName("forced_move"));
+                record.AddEffectRole(new StringName("forced_move"));
             }
         }
 
-        if (targetMode == "ground")
+        if (targetMode == BattleTargetMode.Ground)
         {
             if (hasDamage && teamIntent != "support")
             {
-                AddUnique(GetArray(record, "affordances"), new StringName("ground_hostile.aoe"));
+                record.AddAffordance(new StringName("ground_hostile.aoe"));
             }
             if (hasGroundControl || hasControl)
             {
-                AddUnique(GetArray(record, "affordances"), new StringName("ground_control"));
-                AddUnique(GetArray(record, "affordances"), new StringName("terrain_control"));
+                record.AddAffordance(new StringName("ground_control"));
+                record.AddAffordance(new StringName("terrain_control"));
             }
-            if (!HasFamily(record, "use_charge_path_aoe"))
+            if (!record.HasActionFamily("use_charge_path_aoe"))
             {
-                AddUnique(GetArray(record, "action_families"), new StringName("use_ground_skill"));
+                record.AddActionFamily(new StringName("use_ground_skill"));
             }
             return;
         }
 
-        if (targetMode == "unit")
+        if (targetMode == BattleTargetMode.Unit)
         {
             if (teamIntent == "support")
             {
                 if (hasHeal)
                 {
-                    AddUnique(GetArray(record, "affordances"), new StringName("ally_heal"));
+                    record.AddAffordance(new StringName("ally_heal"));
                 }
                 else if (hasControl || hasReposition)
                 {
-                    AddUnique(GetArray(record, "affordances"), new StringName("self_or_ally_buff"));
+                    record.AddAffordance(new StringName("self_or_ally_buff"));
                 }
             }
             else if (hasDamage)
             {
-                AddUnique(GetArray(record, "affordances"), new StringName("unit_hostile.damage"));
+                record.AddAffordance(new StringName("unit_hostile.damage"));
             }
             else if (hasControl || hasReposition)
             {
-                AddUnique(GetArray(record, "affordances"), new StringName("unit_hostile.control"));
+                record.AddAffordance(new StringName("unit_hostile.control"));
                 if (hasReposition)
                 {
-                    AddUnique(GetArray(record, "affordances"), new StringName("displacement_control"));
+                    record.AddAffordance(new StringName("displacement_control"));
                 }
             }
-            if (!HasAnyFamily(record, new GArray { "use_charge", "use_charge_path_aoe", "use_random_chain_skill", "use_multi_unit_skill" }))
+            if (
+                !record.HasAnyActionFamily(
+                    new[]
+                    {
+                        new StringName("use_charge"),
+                        new StringName("use_charge_path_aoe"),
+                        new StringName("use_random_chain_skill"),
+                        new StringName("use_multi_unit_skill"),
+                    }
+                )
+            )
             {
-                AddUnique(GetArray(record, "action_families"), new StringName("use_unit_skill"));
+                record.AddActionFamily(new StringName("use_unit_skill"));
             }
         }
     }
 
-    private static StringName ResolveTeamIntent(SkillDef skillDef, CombatSkillDef combatProfile, int skillLevel = -1)
+    private static StringName ResolveTeamIntent(
+        SkillDef skillDef,
+        CombatSkillDef combatProfile,
+        int skillLevel = -1
+    )
     {
         if (skillDef == null || combatProfile == null)
         {
@@ -243,9 +258,12 @@ public partial class BattleAiSkillAffordanceClassifier : RefCounted
         return "neutral";
     }
 
-    private static GArray CollectEffectDefs(CombatSkillDef combatProfile, int skillLevel = -1)
+    private static List<CombatEffectDef> CollectEffectDefs(
+        CombatSkillDef combatProfile,
+        int skillLevel = -1
+    )
     {
-        var results = new GArray();
+        var results = new List<CombatEffectDef>();
         if (combatProfile == null)
         {
             return results;
@@ -257,19 +275,18 @@ public partial class BattleAiSkillAffordanceClassifier : RefCounted
                 results.Add(effectDef);
             }
         }
-        foreach (CombatCastVariantDef variant in combatProfile.cast_variants)
+        foreach (CombatCastVariantDef option in combatProfile.cast_variants)
         {
-            if (variant == null)
+            if (option == null)
             {
                 continue;
             }
-            if (skillLevel >= 0 && variant.min_skill_level > skillLevel)
+            if (skillLevel >= 0 && option.min_skill_level > skillLevel)
             {
                 continue;
             }
-            foreach (Resource effectResource in variant.effect_defs)
+            foreach (CombatEffectDef effectDef in option.effect_defs)
             {
-                var effectDef = effectResource as CombatEffectDef;
                 if (effectDef != null && IsEffectUnlockedForLevel(effectDef, skillLevel))
                 {
                     results.Add(effectDef);
@@ -305,7 +322,9 @@ public partial class BattleAiSkillAffordanceClassifier : RefCounted
             return false;
         }
         StringName effectType = Normalize(effectDef.effect_type);
-        return effectType == "damage" || effectType == "chain_damage" || effectType == PathStepAoeEffectType;
+        return effectType == "damage"
+            || effectType == "chain_damage"
+            || effectType == PathStepAoeEffectType;
     }
 
     private static bool IsHealEffect(CombatEffectDef effectDef)
@@ -320,7 +339,14 @@ public partial class BattleAiSkillAffordanceClassifier : RefCounted
             return false;
         }
         StringName effectType = Normalize(effectDef.effect_type);
-        if (effectType == "status" || effectType == "apply_status" || effectType == "forced_move" || effectType == "terrain" || effectType == "height_delta" || effectType == "barrier")
+        if (
+            effectType == "status"
+            || effectType == "apply_status"
+            || effectType == "forced_move"
+            || effectType == "terrain"
+            || effectType == "height_delta"
+            || effectType == "barrier"
+        )
         {
             return true;
         }
@@ -341,15 +367,14 @@ public partial class BattleAiSkillAffordanceClassifier : RefCounted
             || effectDef.height_delta != 0;
     }
 
-    private static bool VariantHasEffect(CombatCastVariantDef castVariant, StringName effectType)
+    private static bool OptionHasEffect(CombatCastVariantDef castVariant, StringName effectType)
     {
         if (castVariant == null)
         {
             return false;
         }
-        foreach (Resource effectResource in castVariant.effect_defs)
+        foreach (CombatEffectDef effectDef in castVariant.effect_defs)
         {
-            var effectDef = effectResource as CombatEffectDef;
             if (effectDef != null && Normalize(effectDef.effect_type) == effectType)
             {
                 return true;
@@ -358,46 +383,13 @@ public partial class BattleAiSkillAffordanceClassifier : RefCounted
         return false;
     }
 
-    private static bool RequiresPositioningAction(GDictionary record)
+    private static bool RequiresPositioningAction(BattleAiSkillAffordanceRecord record)
     {
-        GArray families = GetArray(record, "action_families");
-        return families.Contains(new StringName("move_to_range")) || families.Contains(new StringName("move_to_multi_unit_skill_position"));
+        return record.HasActionFamily("move_to_range")
+            || record.HasActionFamily("move_to_multi_unit_skill_position");
     }
 
-    private static bool HasFamily(GDictionary record, StringName family)
-    {
-        return GetArray(record, "action_families").Contains(family);
-    }
-
-    private static bool HasAnyFamily(GDictionary record, GArray families)
-    {
-        foreach (Variant familyValue in families)
-        {
-            if (HasFamily(record, Normalize(familyValue)))
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static void AddUnique(GArray target, Variant value)
-    {
-        if (value.VariantType == Variant.Type.Nil || target.Contains(value))
-        {
-            return;
-        }
-        target.Add(value);
-    }
-
-    private static GArray GetArray(GDictionary record, Variant key)
-    {
-        return record.ContainsKey(key) && record[key].VariantType == Variant.Type.Array
-            ? record[key].AsGodotArray()
-            : new GArray();
-    }
-
-    private static StringName Normalize(Variant value)
+    private static StringName Normalize(StringName value)
     {
         return ProgressionDataUtils.to_string_name(value);
     }

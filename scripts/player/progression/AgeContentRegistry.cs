@@ -5,7 +5,7 @@ public partial class AgeContentRegistry : IdentityContentRegistryBase
 {
     public const string AGE_PROFILE_CONFIG_DIRECTORY = "res://data/configs/age_profiles";
 
-    private Godot.Collections.Dictionary _age_profile_defs = new();
+    private System.Collections.Generic.Dictionary<StringName, AgeProfileDef> _age_profile_defs = new();
 
     public AgeContentRegistry()
     {
@@ -26,11 +26,17 @@ public partial class AgeContentRegistry : IdentityContentRegistryBase
             _validation_errors.Add(e);
     }
 
-    public Godot.Collections.Dictionary get_age_profile_defs() => _age_profile_defs.Duplicate();
+    public Godot.Collections.Dictionary get_age_profile_defs()
+    {
+        var result = new Godot.Collections.Dictionary();
+        foreach (var kvp in _age_profile_defs)
+            result[kvp.Key] = kvp.Value;
+        return result;
+    }
 
     protected override void _register_resource(string resourcePath)
     {
-        var resource = GD.Load<Resource>(resourcePath);
+        var resource = GodotContentResourceLifetime.Keep(GD.Load<Resource>(resourcePath));
         if (resource == null)
         {
             _validation_errors.Add($"Failed to load age profile config {resourcePath}.");
@@ -58,13 +64,10 @@ public partial class AgeContentRegistry : IdentityContentRegistryBase
     private Godot.Collections.Array<string> _collect_validation_errors()
     {
         var errors = new Godot.Collections.Array<string>();
-        foreach (var profileKey in _sorted_registry_keys(_age_profile_defs))
+        foreach (var profileKey in _sorted_registry_keys(_age_profile_defs.Keys))
         {
             var profileId = new StringName(profileKey);
-            if (!_age_profile_defs.ContainsKey(profileId))
-                continue;
-            if (_age_profile_defs[profileId].AsGodotObject() is not AgeProfileDef profileDef)
-                continue;
+            var profileDef = _age_profile_defs[profileId];
             _append_age_profile_validation_errors(errors, profileId, profileDef);
         }
         return errors;
@@ -96,40 +99,58 @@ public partial class AgeContentRegistry : IdentityContentRegistryBase
         foreach (var fieldLabel in ageFields)
         {
             var value = profileDef.Get(fieldLabel);
-            _append_int_field_error(errors, ownerLabel, fieldLabel, value);
+            if (value.VariantType != Variant.Type.Int)
+                errors.Add($"{ownerLabel}.{fieldLabel} must be an int.");
             if (value.VariantType != Variant.Type.Int)
                 continue;
             var intValue = value.AsInt32();
             if (intValue < 0)
                 errors.Add($"{ownerLabel}.{fieldLabel} must be >= 0.");
             else if (previousValue >= 0 && intValue < previousValue)
-                errors.Add($"{ownerLabel}.{fieldLabel} ({intValue}) must be >= {previousField} ({previousValue}).");
+                errors.Add(
+                    $"{ownerLabel}.{fieldLabel} ({intValue}) must be >= {previousField} ({previousValue})."
+                );
             previousValue = intValue;
             previousField = fieldLabel;
         }
 
         var maxNaturalAgeValue = profileDef.Get("max_natural_age");
-        var maxNaturalAgeInt = maxNaturalAgeValue.VariantType == Variant.Type.Int ? maxNaturalAgeValue.AsInt32() : -1;
+        var maxNaturalAgeInt =
+            maxNaturalAgeValue.VariantType == Variant.Type.Int ? maxNaturalAgeValue.AsInt32() : -1;
         _append_age_stage_rule_errors(errors, ownerLabel, V(profileDef.stage_rules), "stage_rules");
 
         var selectableStageIds = new Godot.Collections.Dictionary();
-        foreach (var stageRuleVariant in V(profileDef.stage_rules))
+        foreach (var stageRuleValue in V(profileDef.stage_rules))
         {
-            if (stageRuleVariant.AsGodotObject() is AgeStageRule stageRule
+            if (
+                stageRuleValue.AsGodotObject() is AgeStageRule stageRule
                 && stageRule.stage_id != ""
-                && stageRule.selectable_in_creation)
+                && stageRule.selectable_in_creation
+            )
                 selectableStageIds[stageRule.stage_id] = true;
         }
 
-        _append_string_name_array_errors(errors, ownerLabel, V(profileDef.creation_stage_ids), "creation_stage_ids");
-        foreach (var creationStageIdVariant in V(profileDef.creation_stage_ids))
+        _append_string_name_array_errors(
+            errors,
+            ownerLabel,
+            V(profileDef.creation_stage_ids),
+            "creation_stage_ids"
+        );
+        foreach (var creationStageIdValue in V(profileDef.creation_stage_ids))
         {
-            var stageIdName = ProgressionDataUtils.to_string_name(creationStageIdVariant);
+            var stageIdName = ProgressionDataUtils.to_string_name(creationStageIdValue);
             if (stageIdName != "" && !selectableStageIds.ContainsKey(stageIdName))
-                errors.Add($"{ownerLabel}.creation_stage_ids references stage {stageIdName} that is not selectable_in_creation.");
+                errors.Add(
+                    $"{ownerLabel}.creation_stage_ids references stage {stageIdName} that is not selectable_in_creation."
+                );
         }
 
-        _append_string_name_to_int_dictionary_errors(errors, ownerLabel, profileDef.default_age_by_stage, "default_age_by_stage");
+        _append_string_name_to_int_dictionary_errors(
+            errors,
+            ownerLabel,
+            profileDef.default_age_by_stage,
+            "default_age_by_stage"
+        );
         foreach (var stageKey in profileDef.default_age_by_stage.Keys)
         {
             var defaultAge = profileDef.default_age_by_stage[stageKey];
@@ -137,9 +158,13 @@ public partial class AgeContentRegistry : IdentityContentRegistryBase
                 continue;
             var defaultAgeInt = defaultAge.AsInt32();
             if (defaultAgeInt < 0)
-                errors.Add($"{ownerLabel}.default_age_by_stage[{stageKey.AsString()}] must be >= 0.");
+                errors.Add(
+                    $"{ownerLabel}.default_age_by_stage[{stageKey.AsString()}] must be >= 0."
+                );
             else if (maxNaturalAgeInt > 0 && defaultAgeInt > maxNaturalAgeInt)
-                errors.Add($"{ownerLabel}.default_age_by_stage[{stageKey.AsString()}] ({defaultAgeInt}) exceeds max_natural_age ({maxNaturalAgeInt}).");
+                errors.Add(
+                    $"{ownerLabel}.default_age_by_stage[{stageKey.AsString()}] ({defaultAgeInt}) exceeds max_natural_age ({maxNaturalAgeInt})."
+                );
         }
     }
 
@@ -171,15 +196,50 @@ public partial class AgeContentRegistry : IdentityContentRegistryBase
             }
             _append_string_field_error(errors, stageLabel, "display_name", stageRule.display_name);
             _append_string_field_error(errors, stageLabel, "description", stageRule.description);
-            _append_attribute_modifier_array_errors(errors, stageLabel, V(stageRule.attribute_modifiers), "attribute_modifiers");
-            _append_string_name_array_errors(errors, stageLabel, V(stageRule.trait_ids), "trait_ids");
+            _append_attribute_modifier_array_errors(
+                errors,
+                stageLabel,
+                V(stageRule.attribute_modifiers),
+                "attribute_modifiers"
+            );
+            _append_string_name_array_errors(
+                errors,
+                stageLabel,
+                V(stageRule.trait_ids),
+                "trait_ids"
+            );
             if (stageRule.trait_ids.Count > 0)
-                errors.Add($"{stageLabel}.trait_ids is not yet supported by runtime passive projection; remove or implement age stage trait projection first.");
-            _append_string_array_errors(errors, stageLabel, V(stageRule.trait_summary), "trait_summary");
-            _append_bool_field_error(errors, stageLabel, "selectable_in_creation", stageRule.selectable_in_creation);
-            _append_bool_field_error(errors, stageLabel, "reachable_by_aging", stageRule.reachable_by_aging);
+                errors.Add(
+                    $"{stageLabel}.trait_ids is not yet supported by runtime passive projection; remove or implement age stage trait projection first."
+                );
+            _append_string_array_errors(
+                errors,
+                stageLabel,
+                V(stageRule.trait_summary),
+                "trait_summary"
+            );
+            _append_bool_field_error(
+                errors,
+                stageLabel,
+                "selectable_in_creation",
+                stageRule.selectable_in_creation
+            );
+            _append_bool_field_error(
+                errors,
+                stageLabel,
+                "reachable_by_aging",
+                stageRule.reachable_by_aging
+            );
         }
     }
 
-    private static Godot.Collections.Array V(Variant v) => v.AsGodotArray();
+    private static Godot.Collections.Array V<[MustBeVariant] T>(Godot.Collections.Array<T> values)
+    {
+        var result = new Godot.Collections.Array();
+        if (values == null)
+            return result;
+        foreach (T value in values)
+            result.Add(Variant.From(value));
+        return result;
+    }
 }

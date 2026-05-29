@@ -2,15 +2,15 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_session.gd")
-const GAME_RUNTIME_FACADE_SCRIPT = preload("res://scripts/systems/game_runtime/game_runtime_facade.gd")
-const GAME_RUNTIME_SNAPSHOT_BUILDER_SCRIPT = preload("res://scripts/systems/game_runtime/game_runtime_snapshot_builder.gd")
-const GAME_TEXT_SNAPSHOT_RENDERER_SCRIPT = preload("res://scripts/utils/game_text_snapshot_renderer.gd")
-const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
-const PartyState = preload("res://scripts/player/progression/party_state.gd")
-const QuestState = preload("res://scripts/player/progression/quest_state.gd")
-const UnitProfessionProgress = preload("res://scripts/player/progression/unit_profession_progress.gd")
-const UnitSkillProgress = preload("res://scripts/player/progression/unit_skill_progress.gd")
+const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/GameSession.cs")
+const GAME_RUNTIME_FACADE_SCRIPT = preload("res://scripts/systems/game_runtime/GameRuntimeFacade.cs")
+const GAME_RUNTIME_SNAPSHOT_BUILDER_SCRIPT = preload("res://scripts/systems/game_runtime/GameRuntimeSnapshotBuilder.cs")
+const GAME_TEXT_SNAPSHOT_RENDERER_SCRIPT = preload("res://scripts/utils/GameTextSnapshotRenderer.cs")
+const PartyMemberState = preload("res://scripts/player/progression/PartyMemberState.cs")
+const PartyState = preload("res://scripts/player/progression/PartyState.cs")
+const QuestState = preload("res://scripts/player/progression/QuestState.cs")
+const UnitProfessionProgress = preload("res://scripts/player/progression/UnitProfessionProgress.cs")
+const UnitSkillProgress = preload("res://scripts/player/progression/UnitSkillProgress.cs")
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
 
@@ -58,12 +58,12 @@ func _test_snapshot_builder_matches_facade_outputs() -> void:
 	var facade = GAME_RUNTIME_FACADE_SCRIPT.new()
 	facade.setup(game_session)
 	var builder = GAME_RUNTIME_SNAPSHOT_BUILDER_SCRIPT.new()
-	builder.setup(facade)
+	builder.Setup(facade)
 
 	var facade_snapshot: Dictionary = facade.build_headless_snapshot()
-	var builder_snapshot: Dictionary = builder.build_headless_snapshot()
+	var builder_snapshot: Dictionary = builder.BuildHeadlessSnapshot()
 	var facade_text := facade.build_text_snapshot()
-	var builder_text := builder.build_text_snapshot()
+	var builder_text := builder.BuildTextSnapshot()
 
 	_assert_eq(builder_snapshot, facade_snapshot, "Snapshot builder 输出应与 facade.build_headless_snapshot() 保持一致。")
 	_assert_eq(builder_text, facade_text, "Snapshot builder 文本快照应与 facade.build_text_snapshot() 保持一致。")
@@ -74,7 +74,7 @@ func _test_snapshot_builder_matches_facade_outputs() -> void:
 	_assert_true(not (builder_snapshot.get("logs", {}).get("entries", []) as Array).is_empty(), "运行时快照应包含最近日志条目。")
 	_assert_true(builder_text.contains("[LOG]"), "运行时文本快照应包含日志分段。")
 
-	builder.dispose()
+	builder.Dispose()
 	facade.dispose()
 	_cleanup_test_session(game_session)
 
@@ -137,9 +137,9 @@ func _test_snapshot_builder_exposes_party_quest_snapshot() -> void:
 	runtime.party_state = party_state
 
 	var builder = GAME_RUNTIME_SNAPSHOT_BUILDER_SCRIPT.new()
-	builder.setup(runtime)
-	var snapshot: Dictionary = builder.build_headless_snapshot()
-	var text_snapshot := builder.build_text_snapshot()
+	builder.Setup(runtime)
+	var snapshot: Dictionary = builder.BuildHeadlessSnapshot()
+	var text_snapshot := builder.BuildTextSnapshot()
 
 	var quests_snapshot: Dictionary = snapshot.get("party", {}).get("quests", {})
 	_assert_true(not bool(snapshot.get("world", {}).get("player_visible_on_map", true)), "快照应暴露世界地图人物显隐状态。")
@@ -191,7 +191,7 @@ func _test_snapshot_builder_exposes_party_quest_snapshot() -> void:
 	_assert_true(text_snapshot.contains("quest=contract_wolf_pack | stage=active"), "文本快照应渲染激活任务明细。")
 	_assert_true(text_snapshot.contains("quest=contract_settlement_warehouse | stage=claimable"), "文本快照应渲染待领奖励任务明细。")
 
-	builder.dispose()
+	builder.Dispose()
 
 
 func _test_snapshot_builder_exposes_member_progression_snapshot() -> void:
@@ -243,10 +243,10 @@ func _test_snapshot_builder_exposes_member_progression_snapshot() -> void:
 	var runtime := FakeQuestRuntime.new()
 	runtime.party_state = party_state
 	var builder = GAME_RUNTIME_SNAPSHOT_BUILDER_SCRIPT.new()
-	builder.setup(runtime)
-	var snapshot: Dictionary = builder.build_headless_snapshot()
-	var text_snapshot := builder.build_text_snapshot()
-	builder.dispose()
+	builder.Setup(runtime)
+	var snapshot: Dictionary = builder.BuildHeadlessSnapshot()
+	var text_snapshot := builder.BuildTextSnapshot()
+	builder.Dispose()
 
 	var member_snapshot := _find_member_snapshot(snapshot, "player_sword_01")
 	_assert_true(not member_snapshot.is_empty(), "member progression 回归前置：应能找到主角成员快照。")
@@ -267,11 +267,11 @@ func _test_snapshot_builder_exposes_member_progression_snapshot() -> void:
 
 func _test_snapshot_builder_rejects_legacy_quest_container_shapes() -> void:
 	var legacy_map_party := FakeLegacyQuestPartyState.new()
-	legacy_map_party.active_quests_variant = {
+	legacy_map_party.active_quests_option = {
 		"contract_key_backfill": _build_snapshot_quest_payload("contract_key_backfill"),
 	}
-	legacy_map_party.claimable_quests_variant = []
-	legacy_map_party.completed_quest_ids_variant = {
+	legacy_map_party.claimable_quests_option = []
+	legacy_map_party.completed_quest_ids_option = {
 		"contract_completed_by_map": true,
 	}
 	var legacy_map_snapshot := _build_party_quest_snapshot(legacy_map_party)
@@ -283,9 +283,9 @@ func _test_snapshot_builder_rejects_legacy_quest_container_shapes() -> void:
 	var missing_id_party := FakeLegacyQuestPartyState.new()
 	var missing_id_payload := _build_snapshot_quest_payload("contract_missing_id")
 	missing_id_payload.erase("quest_id")
-	missing_id_party.active_quests_variant = [missing_id_payload]
-	missing_id_party.claimable_quests_variant = []
-	missing_id_party.completed_quest_ids_variant = []
+	missing_id_party.active_quests_option = [missing_id_payload]
+	missing_id_party.claimable_quests_option = []
+	missing_id_party.completed_quest_ids_option = []
 	var missing_id_snapshot := _build_party_quest_snapshot(missing_id_party)
 
 	_assert_eq(missing_id_snapshot.get("active_quest_ids", []), [], "缺 quest_id 的任务条目不应再被恢复。")
@@ -522,9 +522,9 @@ func _test_snapshot_builder_cross_references_quest_items_in_text_snapshot() -> v
 	}
 
 	var builder = GAME_RUNTIME_SNAPSHOT_BUILDER_SCRIPT.new()
-	builder.setup(runtime)
-	var snapshot: Dictionary = builder.build_headless_snapshot()
-	var text_snapshot := builder.build_text_snapshot()
+	builder.Setup(runtime)
+	var snapshot: Dictionary = builder.BuildHeadlessSnapshot()
+	var text_snapshot := builder.BuildTextSnapshot()
 	var warehouse_entry_ids := _extract_window_entry_value_strings(
 		snapshot.get("warehouse", {}).get("window_data", {}).get("entries", []),
 		"item_id"
@@ -541,7 +541,7 @@ func _test_snapshot_builder_cross_references_quest_items_in_text_snapshot() -> v
 	_assert_true(text_snapshot.contains("entry=bandit_insignia | qty=3 | total=3 | stackable=true"), "文本快照应在 WAREHOUSE 分段渲染匪徒纹章。")
 	_assert_true(text_snapshot.contains("entry=moonfern_sample | qty=2 | total=2 | stackable=true"), "文本快照应在 WAREHOUSE 分段渲染月蕨样本。")
 
-	builder.dispose()
+	builder.Dispose()
 
 
 func _test_snapshot_builder_exposes_contract_board_modal_snapshot() -> void:
@@ -570,9 +570,9 @@ func _test_snapshot_builder_exposes_contract_board_modal_snapshot() -> void:
 	}
 
 	var builder = GAME_RUNTIME_SNAPSHOT_BUILDER_SCRIPT.new()
-	builder.setup(runtime)
-	var snapshot: Dictionary = builder.build_headless_snapshot()
-	var text_snapshot := builder.build_text_snapshot()
+	builder.Setup(runtime)
+	var snapshot: Dictionary = builder.BuildHeadlessSnapshot()
+	var text_snapshot := builder.BuildTextSnapshot()
 	var contract_board_snapshot: Dictionary = snapshot.get("contract_board", {})
 	var entry_ids := _extract_window_entry_value_strings(contract_board_snapshot.get("window_data", {}).get("entries", []), "quest_id")
 
@@ -584,7 +584,7 @@ func _test_snapshot_builder_exposes_contract_board_modal_snapshot() -> void:
 	_assert_true(text_snapshot.contains("首轮狩猎"), "文本快照应渲染首轮狩猎条目。")
 	_assert_true(text_snapshot.contains("训练记录"), "文本快照应渲染训练记录条目。")
 
-	builder.dispose()
+	builder.Dispose()
 
 
 func _test_snapshot_builder_exposes_forge_modal_snapshot() -> void:
@@ -603,16 +603,16 @@ func _test_snapshot_builder_exposes_forge_modal_snapshot() -> void:
 	}
 
 	var builder = GAME_RUNTIME_SNAPSHOT_BUILDER_SCRIPT.new()
-	builder.setup(runtime)
-	var snapshot: Dictionary = builder.build_headless_snapshot()
-	var text_snapshot := builder.build_text_snapshot()
+	builder.Setup(runtime)
+	var snapshot: Dictionary = builder.BuildHeadlessSnapshot()
+	var text_snapshot := builder.BuildTextSnapshot()
 
 	_assert_true(bool(snapshot.get("forge", {}).get("visible", false)), "forge modal 激活时快照应暴露 forge.visible。")
 	_assert_eq(String(snapshot.get("forge", {}).get("window_data", {}).get("title", "")), "灰烬镇 · 大师重铸", "forge 快照应保留窗口标题。")
 	_assert_true(text_snapshot.contains("[FORGE]"), "文本快照应渲染 FORGE 分段。")
 	_assert_true(text_snapshot.contains("大师重铸：铁制大剑"), "文本快照应渲染 forge 配方名称。")
 
-	builder.dispose()
+	builder.Dispose()
 
 
 func _test_snapshot_builder_exposes_generic_forge_modal_snapshot() -> void:
@@ -634,15 +634,15 @@ func _test_snapshot_builder_exposes_generic_forge_modal_snapshot() -> void:
 	}
 
 	var builder = GAME_RUNTIME_SNAPSHOT_BUILDER_SCRIPT.new()
-	builder.setup(runtime)
-	var snapshot: Dictionary = builder.build_headless_snapshot()
-	var text_snapshot := builder.build_text_snapshot()
+	builder.Setup(runtime)
+	var snapshot: Dictionary = builder.BuildHeadlessSnapshot()
+	var text_snapshot := builder.BuildTextSnapshot()
 
 	_assert_eq(String(snapshot.get("forge", {}).get("window_data", {}).get("title", "")), "灰烬镇 · 熔炉整备", "通用 forge modal 应从共享窗口上下文进入 forge 快照。")
 	_assert_true(text_snapshot.contains("刃口淬火"), "文本快照应渲染通用 forge 条目名称。")
 	_assert_true((snapshot.get("shop", {}).get("window_data", {}) as Dictionary).is_empty(), "forge panel_kind 不应继续出现在 shop 快照中。")
 
-	builder.dispose()
+	builder.Dispose()
 
 
 func _test_snapshot_builder_requires_panel_kind_for_forge_modal() -> void:
@@ -656,12 +656,12 @@ func _test_snapshot_builder_requires_panel_kind_for_forge_modal() -> void:
 	}
 
 	var builder = GAME_RUNTIME_SNAPSHOT_BUILDER_SCRIPT.new()
-	builder.setup(runtime)
-	var snapshot: Dictionary = builder.build_headless_snapshot()
+	builder.Setup(runtime)
+	var snapshot: Dictionary = builder.BuildHeadlessSnapshot()
 
 	_assert_true((snapshot.get("forge", {}).get("window_data", {}) as Dictionary).is_empty(), "只有 submission_source=forge 的旧窗口上下文不应再被识别为 forge modal。")
 
-	builder.dispose()
+	builder.Dispose()
 
 
 func _test_snapshot_builder_exposes_game_over_snapshot() -> void:
@@ -677,9 +677,9 @@ func _test_snapshot_builder_exposes_game_over_snapshot() -> void:
 	}
 
 	var builder = GAME_RUNTIME_SNAPSHOT_BUILDER_SCRIPT.new()
-	builder.setup(runtime)
-	var snapshot: Dictionary = builder.build_headless_snapshot()
-	var text_snapshot := builder.build_text_snapshot()
+	builder.Setup(runtime)
+	var snapshot: Dictionary = builder.BuildHeadlessSnapshot()
+	var text_snapshot := builder.BuildTextSnapshot()
 	var game_over_snapshot: Dictionary = snapshot.get("game_over", {})
 
 	_assert_eq(String(game_over_snapshot.get("title", "")), "Game Over", "game_over 快照应暴露标题。")
@@ -689,7 +689,7 @@ func _test_snapshot_builder_exposes_game_over_snapshot() -> void:
 	_assert_true(text_snapshot.contains("main_character_member_id=player_sword_01"), "文本快照应渲染主角成员 ID。")
 	_assert_true(text_snapshot.contains("main_character_dead=true"), "文本快照应渲染主角死亡标记。")
 
-	builder.dispose()
+	builder.Dispose()
 
 
 func _test_snapshot_builder_exposes_battle_loot_snapshot() -> void:
@@ -716,9 +716,9 @@ func _test_snapshot_builder_exposes_battle_loot_snapshot() -> void:
 	}
 
 	var builder = GAME_RUNTIME_SNAPSHOT_BUILDER_SCRIPT.new()
-	builder.setup(runtime)
-	var snapshot: Dictionary = builder.build_headless_snapshot()
-	var text_snapshot := builder.build_text_snapshot()
+	builder.Setup(runtime)
+	var snapshot: Dictionary = builder.BuildHeadlessSnapshot()
+	var text_snapshot := builder.BuildTextSnapshot()
 	var loot_snapshot: Dictionary = snapshot.get("loot", {})
 
 	_assert_eq(String(loot_snapshot.get("battle_name", "")), "荒狼巢穴", "loot 快照应保留最近一次战斗名称。")
@@ -728,22 +728,22 @@ func _test_snapshot_builder_exposes_battle_loot_snapshot() -> void:
 	_assert_true(text_snapshot.contains("loot_summary=兽皮 x2"), "文本快照应渲染 loot 摘要。")
 	_assert_true(text_snapshot.contains("overflow_summary=兽皮 x1"), "文本快照应渲染 overflow 摘要。")
 
-	builder.dispose()
+	builder.Dispose()
 
 
 func _test_snapshot_builder_omits_loot_section_when_empty() -> void:
 	var runtime := FakeQuestRuntime.new()
 
 	var builder = GAME_RUNTIME_SNAPSHOT_BUILDER_SCRIPT.new()
-	builder.setup(runtime)
-	var snapshot: Dictionary = builder.build_headless_snapshot()
-	var text_snapshot := builder.build_text_snapshot()
+	builder.Setup(runtime)
+	var snapshot: Dictionary = builder.BuildHeadlessSnapshot()
+	var text_snapshot := builder.BuildTextSnapshot()
 
 	_assert_true((snapshot.get("loot", {}) as Dictionary).is_empty(), "没有最近掉落时 headless snapshot 不应强行生成 loot 段。")
 	_assert_true(not text_snapshot.contains("[LOOT]"), "没有最近掉落时文本快照不应插入 LOOT 分段。")
 	_assert_true(text_snapshot.find("[BATTLE]") >= 0 and text_snapshot.find("[REWARD]") > text_snapshot.find("[BATTLE]"), "没有 loot 时既有 BATTLE -> REWARD 顺序应保持稳定。")
 
-	builder.dispose()
+	builder.Dispose()
 
 
 func _create_test_session():
@@ -777,20 +777,20 @@ func _build_party_quest_snapshot(party_state) -> Dictionary:
 	var runtime := FakeQuestRuntime.new()
 	runtime.party_state = party_state
 	var builder = GAME_RUNTIME_SNAPSHOT_BUILDER_SCRIPT.new()
-	builder.setup(runtime)
-	var snapshot: Dictionary = builder.build_headless_snapshot()
-	builder.dispose()
+	builder.Setup(runtime)
+	var snapshot: Dictionary = builder.BuildHeadlessSnapshot()
+	builder.Dispose()
 	return snapshot.get("party", {}).get("quests", {})
 
 
 func _find_member_snapshot(snapshot: Dictionary, member_id: String) -> Dictionary:
-	var members_variant = snapshot.get("party", {}).get("members", [])
-	if members_variant is not Array:
+	var members_option = snapshot.get("party", {}).get("members", [])
+	if members_option is not Array:
 		return {}
-	for member_variant in members_variant:
-		if member_variant is not Dictionary:
+	for member_option in members_option:
+		if member_option is not Dictionary:
 			continue
-		var member: Dictionary = member_variant
+		var member: Dictionary = member_option
 		if String(member.get("member_id", "")) == member_id:
 			return member
 	return {}
@@ -835,18 +835,18 @@ class FakeQuestPartyState:
 class FakeLegacyQuestPartyState:
 	extends FakeQuestPartyState
 
-	var active_quests_variant = null
-	var claimable_quests_variant = null
-	var completed_quest_ids_variant = null
+	var active_quests_option = null
+	var claimable_quests_option = null
+	var completed_quest_ids_option = null
 
 	func get_active_quests():
-		return active_quests_variant
+		return active_quests_option
 
 	func get_claimable_quests():
-		return claimable_quests_variant
+		return claimable_quests_option
 
 	func get_completed_quest_ids():
-		return completed_quest_ids_variant
+		return completed_quest_ids_option
 
 
 class FakeQuestRuntime:
@@ -992,13 +992,13 @@ class FakeQuestRuntime:
 		return []
 
 
-func _extract_window_entry_value_strings(entry_variants, key: String) -> Array[String]:
+func _extract_window_entry_value_strings(entry_options, key: String) -> Array[String]:
 	var result: Array[String] = []
-	if entry_variants is not Array:
+	if entry_options is not Array:
 		return result
-	for entry_variant in entry_variants:
-		if entry_variant is not Dictionary:
+	for entry_option in entry_options:
+		if entry_option is not Dictionary:
 			continue
-		var entry: Dictionary = entry_variant
+		var entry: Dictionary = entry_option
 		result.append(String(entry.get(key, "")))
 	return result

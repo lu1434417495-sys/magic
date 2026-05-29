@@ -2,11 +2,11 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
-const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
-const BattleTimelineState = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
-const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
-const CharacterProgressionDelta = preload("res://scripts/systems/progression/character_progression_delta.gd")
+const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/BattleRuntimeModule.cs")
+const BattleState = preload("res://scripts/systems/battle/core/BattleState.cs")
+const BattleTimelineState = preload("res://scripts/systems/battle/core/BattleTimelineState.cs")
+const BattleUnitState = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
+const CharacterProgressionDelta = preload("res://scripts/systems/progression/CharacterProgressionDelta.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures

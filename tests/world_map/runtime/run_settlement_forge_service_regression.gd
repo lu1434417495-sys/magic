@@ -2,16 +2,16 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const SettlementForgeService = preload("res://scripts/systems/settlement/settlement_forge_service.gd")
-const GameRuntimeSettlementCommandHandler = preload("res://scripts/systems/game_runtime/game_runtime_settlement_command_handler.gd")
-const GameSessionScript = preload("res://scripts/systems/persistence/game_session.gd")
-const PartyWarehouseService = preload("res://scripts/systems/inventory/party_warehouse_service.gd")
-const ItemContentRegistry = preload("res://scripts/player/warehouse/item_content_registry.gd")
-const RecipeContentRegistry = preload("res://scripts/player/warehouse/recipe_content_registry.gd")
-const PartyState = preload("res://scripts/player/progression/party_state.gd")
-const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
-const UnitProgress = preload("res://scripts/player/progression/unit_progress.gd")
-const UnitBaseAttributes = preload("res://scripts/player/progression/unit_base_attributes.gd")
+const SettlementForgeService = preload("res://scripts/systems/settlement/SettlementForgeService.cs")
+const GameRuntimeSettlementCommandHandler = preload("res://scripts/systems/game_runtime/GameRuntimeSettlementCommandHandler.cs")
+const GameSessionScript = preload("res://scripts/systems/persistence/GameSession.cs")
+const PartyWarehouseService = preload("res://scripts/systems/inventory/PartyWarehouseService.cs")
+const ItemContentRegistry = preload("res://scripts/player/warehouse/ItemContentRegistry.cs")
+const RecipeContentRegistry = preload("res://scripts/player/warehouse/RecipeContentRegistry.cs")
+const PartyState = preload("res://scripts/player/progression/PartyState.cs")
+const PartyMemberState = preload("res://scripts/player/progression/PartyMemberState.cs")
+const UnitProgress = preload("res://scripts/player/progression/UnitProgress.cs")
+const UnitBaseAttributes = preload("res://scripts/player/progression/UnitBaseAttributes.cs")
 
 const TEST_CONFIG_PATH := "res://data/configs/world_map/test_world_map_config.tres"
 const ASHEN_INTERSECTION_CONFIG_PATH := "res://data/configs/world_map/ashen_intersection_world_map_config.tres"
@@ -93,7 +93,8 @@ class MockRuntime:
 		return _item_defs
 
 	func get_recipe_defs() -> Dictionary:
-		var registry := RecipeContentRegistry.new(_item_defs)
+		var registry := RecipeContentRegistry.new()
+		registry.setup(_item_defs)
 		return registry.get_recipe_defs()
 
 	func get_active_settlement_id() -> String:
@@ -134,11 +135,11 @@ class MockRuntime:
 	func update_status(message: String) -> void:
 		_current_status_message = message
 
-	func enqueue_pending_character_rewards(_reward_variants: Array) -> void:
+	func enqueue_pending_character_rewards(_reward_options: Array) -> void:
 		pass
 
-	func apply_quest_progress_events_to_party(event_variants: Array, _source_domain: String = "settlement") -> Dictionary:
-		applied_quest_event_batches.append(event_variants.duplicate(true))
+	func apply_quest_progress_events_to_party(event_options: Array, _source_domain: String = "settlement") -> Dictionary:
+		applied_quest_event_batches.append(event_options.duplicate(true))
 		return {
 			"accepted_quest_ids": [],
 			"progressed_quest_ids": [],
@@ -251,7 +252,8 @@ func _test_master_reforge_service_missing_materials() -> void:
 		item_defs,
 		{},
 		warehouse_service,
-		party_state
+		party_state,
+		[]
 	)
 
 	_assert_true(not bool(result.get("success", true)), "缺少材料时重铸服务应失败。")
@@ -297,7 +299,7 @@ func _test_settlement_handler_routes_master_reforge() -> void:
 	_assert_true(bool(reforge_entry.get("is_enabled", false)), "存在可执行配方时，大师重铸入口应可用。")
 	_assert_eq(String(reforge_entry.get("cost_label", "")), "按配方材料", "大师重铸入口应显示按配方材料计价。")
 
-	var open_result := handler.command_execute_settlement_action("service:master_reforge")
+	var open_result := handler.command_execute_settlement_action("service:master_reforge", {})
 	_assert_true(bool(open_result.get("ok", false)), "service:master_reforge 首次触发应成功打开 forge modal。")
 	_assert_eq(runtime._active_modal_id, "forge", "首次点击大师重铸服务后应切换到 forge modal。")
 	_assert_true(not handler.get_forge_window_data().is_empty(), "打开 forge modal 后应能读取 forge window data。")
@@ -414,13 +416,13 @@ func _test_new_world_generation_exposes_master_reforge_service() -> void:
 	if create_error == OK:
 		var world_data: Dictionary = game_session.get_world_data()
 		var found_reforge_service := false
-		for settlement_variant in world_data.get("settlements", []):
-			if settlement_variant is not Dictionary:
+		for settlement_option in world_data.get("settlements", []):
+			if settlement_option is not Dictionary:
 				continue
-			for service_variant in (settlement_variant as Dictionary).get("available_services", []):
-				if service_variant is not Dictionary:
+			for service_option in (settlement_option as Dictionary).get("available_services", []):
+				if service_option is not Dictionary:
 					continue
-				if String((service_variant as Dictionary).get("interaction_script_id", "")) == "service_master_reforge":
+				if String((service_option as Dictionary).get("interaction_script_id", "")) == "service_master_reforge":
 					found_reforge_service = true
 					break
 			if found_reforge_service:
@@ -534,20 +536,20 @@ func _build_reforge_payload() -> Dictionary:
 
 
 func _find_settlement_record(settlements: Array, settlement_id: String) -> Dictionary:
-	for settlement_variant in settlements:
-		if settlement_variant is not Dictionary:
+	for settlement_option in settlements:
+		if settlement_option is not Dictionary:
 			continue
-		var settlement: Dictionary = settlement_variant
+		var settlement: Dictionary = settlement_option
 		if String(settlement.get("settlement_id", "")) == settlement_id:
 			return settlement
 	return {}
 
 
 func _find_settlement_covering_coord(settlements: Array, coord: Vector2i) -> Dictionary:
-	for settlement_variant in settlements:
-		if settlement_variant is not Dictionary:
+	for settlement_option in settlements:
+		if settlement_option is not Dictionary:
 			continue
-		var settlement: Dictionary = settlement_variant
+		var settlement: Dictionary = settlement_option
 		var origin: Vector2i = settlement.get("origin", Vector2i.ZERO)
 		var footprint_size: Vector2i = settlement.get("footprint_size", Vector2i.ONE)
 		var rect := Rect2i(origin, footprint_size)
@@ -600,10 +602,10 @@ func _load_item_defs() -> Dictionary:
 
 
 func _find_service_entry(services: Array, interaction_script_id: String) -> Dictionary:
-	for service_variant in services:
-		if service_variant is not Dictionary:
+	for service_option in services:
+		if service_option is not Dictionary:
 			continue
-		var service_data: Dictionary = service_variant
+		var service_data: Dictionary = service_option
 		if String(service_data.get("interaction_script_id", "")) == interaction_script_id:
 			return service_data
 	return {}
@@ -611,10 +613,10 @@ func _find_service_entry(services: Array, interaction_script_id: String) -> Dict
 
 func _collect_recipe_ids(entries: Array) -> Array[String]:
 	var recipe_ids: Array[String] = []
-	for entry_variant in entries:
-		if entry_variant is not Dictionary:
+	for entry_option in entries:
+		if entry_option is not Dictionary:
 			continue
-		var entry_data: Dictionary = entry_variant
+		var entry_data: Dictionary = entry_option
 		var recipe_id := String(entry_data.get("recipe_id", ""))
 		if recipe_id.is_empty() or recipe_ids.has(recipe_id):
 			continue

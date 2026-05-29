@@ -3,10 +3,10 @@ using Godot;
 [GlobalClass]
 public partial class BattleAttackCheckPolicyContext : RefCounted
 {
-    public GodotObject battle_state { get; set; }
+    public BattleState battle_state { get; set; }
     public BattleUnitState attacker { get; set; }
     public BattleUnitState target { get; set; }
-    public GodotObject skill_def { get; set; }
+    public SkillDef skill_def { get; set; }
     public GodotObject cast_variant { get; set; }
     public StringName roll_kind { get; set; } = "";
     public StringName check_route { get; set; } = "";

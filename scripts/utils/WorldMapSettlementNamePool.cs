@@ -4,7 +4,8 @@ using Godot.Collections;
 [GlobalClass]
 public partial class WorldMapSettlementNamePool : Resource
 {
-    [Export] public Array<string> settlement_display_names = new();
+    [Export]
+    public Array<string> settlement_display_names = new();
 
     public Array<string> BuildUniqueDisplayNames()
     {

@@ -2,9 +2,9 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const GameSession = preload("res://scripts/systems/persistence/game_session.gd")
-const ProfessionContentRegistry = preload("res://scripts/player/progression/profession_content_registry.gd")
-const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
+const GameSession = preload("res://scripts/systems/persistence/GameSession.cs")
+const ProfessionContentRegistry = preload("res://scripts/player/progression/ProfessionContentRegistry.cs")
+const ProgressionContentRegistry = preload("res://scripts/player/progression/ProgressionContentRegistry.cs")
 
 const SEED_EXPECTATIONS := {
 	&"warrior": {
@@ -86,7 +86,8 @@ func _run() -> void:
 
 func _test_seed_profession_resources_scan_and_validate() -> void:
 	var skill_defs := ProgressionContentRegistry.new().get_skill_defs()
-	var registry := ProfessionContentRegistry.new(skill_defs)
+	var registry = ProfessionContentRegistry.new()
+	registry.setup(skill_defs)
 	var profession_defs := registry.get_profession_defs()
 
 	_assert_true(registry.validate().is_empty(), "ProfessionContentRegistry 的正式职业资源当前不应报告校验错误。")
@@ -155,7 +156,8 @@ func _test_progression_registry_and_game_session_cache_scanned_professions() -> 
 
 func _test_profession_registry_reports_missing_id_duplicate_and_illegal_refs() -> void:
 	var skill_defs := ProgressionContentRegistry.new().get_skill_defs()
-	var registry := ProfessionContentRegistry.new(skill_defs)
+	var registry = ProfessionContentRegistry.new()
+	registry.setup(skill_defs)
 	registry._profession_defs.clear()
 	registry._validation_errors.clear()
 	registry._scan_directory("res://tests/progression/fixtures/profession_registry_invalid")
@@ -197,7 +199,7 @@ func _test_profession_gate_reachability_reports_structural_deadlocks() -> void:
 	var rank_cycle_b := _make_schema_profession(&"rank_cycle_b", 2)
 	rank_cycle_b.rank_requirements = [_make_rank_requirement(2, [&"rank_cycle_a", 2])]
 
-	var registry := _make_profession_registry_with_defs([
+	var registry = _make_profession_registry_with_defs([
 		rank_one_target,
 		over_max_gate,
 		self_unlock_gate,
@@ -207,7 +209,7 @@ func _test_profession_gate_reachability_reports_structural_deadlocks() -> void:
 		rank_cycle_a,
 		rank_cycle_b,
 	])
-	var validation_errors := registry._collect_validation_errors()
+	var validation_errors = registry._collect_validation_errors()
 
 	_assert_true(
 		_has_error_containing(validation_errors, "requires rank 2 for gate rank_one_target but rank_one_target max_rank is 1"),
@@ -246,7 +248,7 @@ func _test_profession_gate_reachability_allows_valid_rank_graphs() -> void:
 		_make_rank_requirement(3, [&"cross_source", 2]),
 	]
 
-	var registry := _make_profession_registry_with_defs([
+	var registry = _make_profession_registry_with_defs([
 		gate_free_base,
 		rank_self_ok,
 		cross_source,
@@ -259,8 +261,9 @@ func _test_profession_gate_reachability_allows_valid_rank_graphs() -> void:
 	)
 
 
-func _make_profession_registry_with_defs(profession_defs: Array) -> ProfessionContentRegistry:
-	var registry := ProfessionContentRegistry.new({})
+func _make_profession_registry_with_defs(profession_defs: Array):
+	var registry = ProfessionContentRegistry.new()
+	registry.setup({})
 	registry._profession_defs.clear()
 	registry._validation_errors.clear()
 	for profession_def in profession_defs:

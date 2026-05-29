@@ -1,10 +1,10 @@
 extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
-const ENEMY_AI_STATE_DEF_SCRIPT = preload("res://scripts/enemies/enemy_ai_state_def.gd")
-const ENEMY_AI_GENERATION_SLOT_DEF_SCRIPT = preload("res://scripts/enemies/enemy_ai_generation_slot_def.gd")
-const USE_UNIT_SKILL_ACTION_SCRIPT = preload("res://scripts/enemies/actions/use_unit_skill_action.gd")
-const MOVE_TO_RANGE_ACTION_SCRIPT = preload("res://scripts/enemies/actions/move_to_range_action.gd")
+const ENEMY_AI_STATE_DEF_SCRIPT = preload("res://scripts/enemies/EnemyAiStateDef.cs")
+const ENEMY_AI_GENERATION_SLOT_DEF_SCRIPT = preload("res://scripts/enemies/EnemyAiGenerationSlotDef.cs")
+const USE_UNIT_SKILL_ACTION_SCRIPT = preload("res://scripts/enemies/actions/UseUnitSkillAction.cs")
+const MOVE_TO_RANGE_ACTION_SCRIPT = preload("res://scripts/enemies/actions/MoveToRangeAction.cs")
 
 var _test := TestRunner.new()
 
@@ -74,7 +74,7 @@ func _build_state():
 	attack.skill_ids.append(&"dummy_skill")
 	attack.desired_min_distance = 1
 	attack.desired_max_distance = 4
-	attack.distance_reference = USE_UNIT_SKILL_ACTION_SCRIPT.DISTANCE_REF_TARGET_UNIT
+	attack.distance_reference = USE_UNIT_SKILL_ACTION_SCRIPT.DISTANCE_REF_TARGET_UNIT()
 	var move = MOVE_TO_RANGE_ACTION_SCRIPT.new()
 	move.action_id = &"template_move"
 	state.actions = [attack, move]
@@ -86,9 +86,9 @@ func _slot(slot_id: StringName, order: int, affordances: Array, families: Array,
 	slot.slot_id = slot_id
 	slot.order = order
 	for affordance in affordances:
-		slot.allowed_affordances.append(ProgressionDataUtils.to_string_name(affordance))
+		slot.allowed_affordances.append(_to_string_name(affordance))
 	for family in families:
-		slot.action_families.append(ProgressionDataUtils.to_string_name(family))
+		slot.action_families.append(_to_string_name(family))
 	slot.style_template_action_id = template_action_id
 	slot.target_selector = &"nearest_enemy"
 	slot.score_bucket_id = &"default_offense"
@@ -104,3 +104,9 @@ func _contains_error(errors: Array[String], expected_fragment: String) -> bool:
 		if error.find(expected_fragment) >= 0:
 			return true
 	return false
+
+
+func _to_string_name(value) -> StringName:
+	if value is StringName:
+		return value
+	return StringName(String(value))

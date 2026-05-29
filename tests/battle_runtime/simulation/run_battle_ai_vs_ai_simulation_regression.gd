@@ -2,10 +2,9 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const BATTLE_SIM_RUNNER_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_runner.gd")
-
 const AI_VS_AI_SCENARIO_PATH := "res://data/configs/battle_sim/scenarios/ai_vs_ai_duel_example.tres"
 const BASELINE_PROFILE_PATH := "res://data/configs/battle_sim/profiles/baseline.tres"
+const BattleSimRunner = preload("res://scripts/systems/battle/sim/BattleSimRunner.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -24,8 +23,8 @@ func _run() -> void:
 		_finish()
 		return
 
-	var runner = BATTLE_SIM_RUNNER_SCRIPT.new()
-	var report: Dictionary = runner.run_scenario(scenario, [baseline_profile])
+	var runner = BattleSimRunner.new()
+	var report: Dictionary = runner.RunScenario(scenario, [baseline_profile])
 	var profile_entries: Array = report.get("profile_entries", [])
 	_assert_true(profile_entries.size() == 1, "单 profile 的 AI vs AI 示例应只产出 1 个 profile entry。")
 	_assert_true((report.get("comparisons", []) as Array).is_empty(), "单 profile 的 AI vs AI 示例不应生成 comparison。")

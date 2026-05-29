@@ -1,9 +1,9 @@
 extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
+const BattleSimProfileDef = preload("res://scripts/systems/battle/sim/BattleSimProfileDef.cs")
+const BattleSimReportBuilder = preload("res://scripts/systems/battle/sim/BattleSimReportBuilder.cs")
 
-const BATTLE_SIM_REPORT_BUILDER_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_report_builder.gd")
-const BATTLE_SIM_PROFILE_DEF_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_profile_def.gd")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -27,7 +27,7 @@ func _run() -> void:
 
 
 func _test_profile_summary_exposes_skill_attempt_and_failure_totals() -> void:
-	var builder = BATTLE_SIM_REPORT_BUILDER_SCRIPT.new()
+	var builder = BattleSimReportBuilder.new()
 	var profile = _build_profile(&"baseline", "Baseline")
 	var summary: Dictionary = builder.build_profile_summary(profile, [_build_run_a(), _build_run_b()])
 	_assert_eq(int(summary.get("skill_usage_totals", {}).get("skill_alpha", -1)), 3, "skill_alpha 成功次数应汇总两场 run。")
@@ -42,7 +42,7 @@ func _test_profile_summary_exposes_skill_attempt_and_failure_totals() -> void:
 
 
 func _test_profile_comparisons_expose_attempt_and_failure_deltas() -> void:
-	var builder = BATTLE_SIM_REPORT_BUILDER_SCRIPT.new()
+	var builder = BattleSimReportBuilder.new()
 	var baseline_summary: Dictionary = builder.build_profile_summary(_build_profile(&"baseline", "Baseline"), [_build_run_a(), _build_run_b()])
 	var candidate_summary: Dictionary = builder.build_profile_summary(_build_profile(&"candidate", "Candidate"), [_build_run_candidate()])
 	var comparisons: Array[Dictionary] = builder.build_profile_comparisons([
@@ -65,7 +65,7 @@ func _test_profile_comparisons_expose_attempt_and_failure_deltas() -> void:
 
 
 func _build_profile(profile_id: StringName, display_name: String):
-	var profile = BATTLE_SIM_PROFILE_DEF_SCRIPT.new()
+	var profile = BattleSimProfileDef.new()
 	profile.profile_id = profile_id
 	profile.display_name = display_name
 	return profile

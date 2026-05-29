@@ -2,9 +2,9 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const GameSessionScript = preload("res://scripts/systems/persistence/game_session.gd")
+const GameSessionScript = preload("res://scripts/systems/persistence/GameSession.cs")
 const WorldMapScene = preload("res://scenes/main/world_map.tscn")
-const SettlementConfig = preload("res://scripts/utils/settlement_config.gd")
+const SettlementConfig = preload("res://scripts/utils/SettlementConfig.cs")
 
 const TEST_CONFIG_PATH := "res://data/configs/world_map/test_world_map_config.tres"
 
@@ -97,12 +97,12 @@ func _test_world_map_scene_exposes_default_view_palette() -> void:
 			)
 
 		var tier_to_property := {
-			SettlementConfig.SettlementTier.VILLAGE: "village_tier_color",
-			SettlementConfig.SettlementTier.TOWN: "town_tier_color",
-			SettlementConfig.SettlementTier.CITY: "city_tier_color",
-			SettlementConfig.SettlementTier.CAPITAL: "capital_tier_color",
-			SettlementConfig.SettlementTier.WORLD_STRONGHOLD: "world_stronghold_tier_color",
-			SettlementConfig.SettlementTier.METROPOLIS: "metropolis_tier_color",
+			0: "village_tier_color",
+			1: "town_tier_color",
+			2: "city_tier_color",
+			3: "capital_tier_color",
+			4: "world_stronghold_tier_color",
+			5: "metropolis_tier_color",
 		}
 		for tier in tier_to_property.keys():
 			var property_name: String = tier_to_property[tier]

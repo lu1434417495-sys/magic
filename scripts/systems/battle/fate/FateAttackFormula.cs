@@ -23,7 +23,10 @@ public partial class FateAttackFormula : RefCounted
     {
         int positiveHiddenLuck = Mathf.Max(0, hiddenLuckAtBirth);
         int positiveFaithLuck = Mathf.Max(0, faithLuckBonus);
-        return Mathf.Min(COMBAT_LUCK_SCORE_MAX, positiveHiddenLuck + (int)(positiveFaithLuck / 2.0));
+        return Mathf.Min(
+            COMBAT_LUCK_SCORE_MAX,
+            positiveHiddenLuck + (int)(positiveFaithLuck / 2.0)
+        );
     }
 
     public static int CalcCritThreshold(int hiddenLuckAtBirth, int faithLuckBonus)
@@ -31,7 +34,11 @@ public partial class FateAttackFormula : RefCounted
         return D20_SIZE - CalcCombatLuckScore(hiddenLuckAtBirth, faithLuckBonus);
     }
 
-    public static int RollDieWithDisadvantageRule(int dieSize, bool isDisadvantage, GodotObject rng = null)
+    public static int RollDieWithDisadvantageRule(
+        int dieSize,
+        bool isDisadvantage,
+        GodotObject rng = null
+    )
     {
         int normalizedDieSize = Mathf.Max(dieSize, 1);
         var resolvedRng = _ResolveRng(rng);
@@ -42,9 +49,28 @@ public partial class FateAttackFormula : RefCounted
         return Mathf.Min(firstRoll, secondRoll);
     }
 
-    public static int roll_die_with_disadvantage_rule(int dieSize, bool isDisadvantage, GodotObject rng = null)
+    public static int roll_die_with_disadvantage_rule(
+        int dieSize,
+        bool isDisadvantage,
+        GodotObject rng = null
+    )
     {
         return RollDieWithDisadvantageRule(dieSize, isDisadvantage, rng);
+    }
+
+    public static int calc_crit_gate_die_size(int effectiveLuck, bool isDisadvantage)
+    {
+        return CalcCritGateDieSize(effectiveLuck, isDisadvantage);
+    }
+
+    public static int calc_fumble_low_end(int effectiveLuck)
+    {
+        return CalcFumbleLowEnd(effectiveLuck);
+    }
+
+    public static int calc_crit_threshold(int hiddenLuckAtBirth, int faithLuckBonus)
+    {
+        return CalcCritThreshold(hiddenLuckAtBirth, faithLuckBonus);
     }
 
     private static GodotObject _ResolveRng(GodotObject rng)

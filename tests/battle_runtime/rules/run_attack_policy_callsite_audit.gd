@@ -3,45 +3,45 @@ extends SceneTree
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
 const ALLOWED_ATTACK_RESOLVER_FILES := {
-	"res://scripts/systems/battle/rules/battle_attack_check_policy_service.gd": true,
-	"res://scripts/systems/battle/rules/battle_hit_resolver.gd": true,
+	"res://scripts/systems/battle/rules/BattleAttackCheckPolicyService.cs": true,
+	"res://scripts/systems/battle/rules/BattleHitResolver.cs": true,
 }
 const REQUIRED_POLICY_CALLEE_FRAGMENTS := {
 	"unit_execute_context": {
-		"file": "res://scripts/systems/battle/runtime/battle_skill_execution_orchestrator.gd",
-		"fragment": "build_attack_context(",
+		"file": "res://scripts/systems/battle/runtime/BattleSkillExecutionOrchestrator.cs",
+		"fragment": "\"build_attack_context\"",
 	},
 	"unit_execute_check": {
-		"file": "res://scripts/systems/battle/runtime/battle_skill_execution_orchestrator.gd",
-		"fragment": "build_attack_check(",
+		"file": "res://scripts/systems/battle/runtime/BattleSkillExecutionOrchestrator.cs",
+		"fragment": "\"build_attack_check\"",
 	},
 	"unit_preview": {
-		"file": "res://scripts/systems/battle/runtime/battle_skill_execution_orchestrator.gd",
-		"fragment": "build_attack_preview(",
+		"file": "res://scripts/systems/battle/runtime/BattleSkillExecutionOrchestrator.cs",
+		"fragment": "\"build_attack_preview\"",
 	},
 	"ground_execute": {
-		"file": "res://scripts/systems/battle/runtime/battle_ground_effect_service.gd",
-		"fragment": "build_attack_check(",
+		"file": "res://scripts/systems/battle/runtime/BattleGroundEffectService.cs",
+		"fragment": "build_attack_check",
 	},
 	"repeat_execute_context": {
-		"file": "res://scripts/systems/battle/runtime/battle_repeat_attack_resolver.gd",
-		"fragment": "attack_policy.build_repeat_attack_stage_context",
+		"file": "res://scripts/systems/battle/runtime/BattleRepeatAttackResolver.cs",
+		"fragment": "build_repeat_attack_stage_context",
 	},
 	"repeat_execute_check": {
-		"file": "res://scripts/systems/battle/runtime/battle_repeat_attack_resolver.gd",
-		"fragment": "attack_policy.build_fate_aware_repeat_attack_stage_hit_check",
+		"file": "res://scripts/systems/battle/runtime/BattleRepeatAttackResolver.cs",
+		"fragment": "build_fate_aware_repeat_attack_stage_hit_check",
 	},
 	"charge_path_execute": {
-		"file": "res://scripts/systems/battle/runtime/battle_charge_resolver.gd",
-		"fragment": "build_attack_check(",
+		"file": "res://scripts/systems/battle/runtime/BattleChargeResolver.cs",
+		"fragment": "\"build_attack_check\"",
 	},
 	"hud_preview": {
-		"file": "res://scripts/systems/battle/presentation/battle_hud_adapter.gd",
-		"fragment": "_attack_check_policy_service.build_attack_preview",
+		"file": "res://scripts/systems/battle/presentation/BattleHudAdapter.cs",
+		"fragment": "_attackCheckPolicyService.build_attack_preview",
 	},
 	"ai_score_preview": {
-		"file": "res://scripts/systems/battle/ai/battle_ai_score_service.gd",
-		"fragment": "_populate_special_profile_metrics(score_input, context)",
+		"file": "res://scripts/systems/battle/ai/BattleAiScoreService.cs",
+		"fragment": "PopulateSpecialProfileMetrics(scoreInput, context)",
 	},
 }
 
@@ -92,7 +92,7 @@ func _test_required_call_sites_route_through_policy() -> void:
 
 
 func _test_repeat_policy_api_uses_typed_stage_specs() -> void:
-	var source := _read_text("res://scripts/systems/battle/rules/battle_attack_check_policy_service.gd")
+	var source := _read_text("res://scripts/systems/battle/rules/BattleAttackCheckPolicyService.cs")
 	_assert_true(
 		not source.contains("func build_skill_attack_check(") and not source.contains("func build_skill_attack_preview("),
 		"BattleAttackCheckPolicyService 公共命中 API 应收敛为 context-first 的 build_attack_check / build_attack_preview。"
@@ -108,13 +108,13 @@ func _test_repeat_policy_api_uses_typed_stage_specs() -> void:
 
 
 func _test_policy_context_public_contract() -> void:
-	var source := _read_text("res://scripts/systems/battle/core/battle_attack_check_policy_context.gd")
+	var source := _read_text("res://scripts/systems/battle/core/BattleAttackCheckPolicyContext.cs")
 	_assert_true(
-		source.contains("var target: BattleUnitState"),
-		"BattleAttackCheckPolicyContext 应暴露文档约定的 target 字段。"
+		source.contains("public BattleUnitState target"),
+		"BattleAttackCheckPolicyContext 应暴露文档约定的强类型 target 字段。"
 	)
 	_assert_true(
-		not source.contains("var target_unit: BattleUnitState"),
+		not source.contains("target_unit"),
 		"BattleAttackCheckPolicyContext 不应继续暴露 target_unit，避免新 API 又带回旧调用形状。"
 	)
 

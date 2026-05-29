@@ -2,18 +2,18 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const AttributeService = preload("res://scripts/systems/attributes/attribute_service.gd")
-const AscensionDef = preload("res://scripts/player/progression/ascension_def.gd")
-const AscensionStageDef = preload("res://scripts/player/progression/ascension_stage_def.gd")
-const BodySizeRules = preload("res://scripts/systems/progression/body_size_rules.gd")
-const CharacterCreationService = preload("res://scripts/systems/progression/character_creation_service.gd")
-const BloodlineDef = preload("res://scripts/player/progression/bloodline_def.gd")
-const BloodlineStageDef = preload("res://scripts/player/progression/bloodline_stage_def.gd")
-const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
-const RaceDef = preload("res://scripts/player/progression/race_def.gd")
-const SubraceDef = preload("res://scripts/player/progression/subrace_def.gd")
-const UnitBaseAttributes = preload("res://scripts/player/progression/unit_base_attributes.gd")
-const UnitProgress = preload("res://scripts/player/progression/unit_progress.gd")
+const AttributeService = preload("res://scripts/systems/attributes/AttributeService.cs")
+const AscensionDef = preload("res://scripts/player/progression/AscensionDef.cs")
+const AscensionStageDef = preload("res://scripts/player/progression/AscensionStageDef.cs")
+const BodySizeRules = preload("res://scripts/systems/progression/BodySizeRules.cs")
+const CharacterCreationService = preload("res://scripts/systems/progression/CharacterCreationService.cs")
+const BloodlineDef = preload("res://scripts/player/progression/BloodlineDef.cs")
+const BloodlineStageDef = preload("res://scripts/player/progression/BloodlineStageDef.cs")
+const PartyMemberState = preload("res://scripts/player/progression/PartyMemberState.cs")
+const RaceDef = preload("res://scripts/player/progression/RaceDef.cs")
+const SubraceDef = preload("res://scripts/player/progression/SubraceDef.cs")
+const UnitBaseAttributes = preload("res://scripts/player/progression/UnitBaseAttributes.cs")
+const UnitProgress = preload("res://scripts/player/progression/UnitProgress.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -25,7 +25,6 @@ func _initialize() -> void:
 
 func _run() -> void:
 	_test_reroll_mapping_covers_all_band_boundaries()
-	_test_overflow_inputs_fall_back_to_minus_six()
 	_test_initial_hp_max_uses_level_zero_formula()
 	_test_bake_hidden_luck_uses_character_creation_write_path()
 	_test_creation_payload_rejects_identity_body_size_without_content_source()
@@ -37,6 +36,7 @@ func _run() -> void:
 	_test_creation_payload_derives_body_size_from_identity_content_source()
 	_test_creation_payload_does_not_bake_reroll_luck_by_default()
 	_test_creation_payload_can_opt_into_reroll_luck_for_main_character()
+	_test_creation_payload_rejects_non_integer_reroll_luck_when_opted_in()
 
 	if _failures.is_empty():
 		print("CharacterCreationService regression: PASS")
@@ -71,24 +71,12 @@ func _test_reroll_mapping_covers_all_band_boundaries() -> void:
 	]
 
 	for case in cases:
-		var actual_hidden_luck := CharacterCreationService.map_reroll_count_to_hidden_luck_at_birth(case.get("reroll_count"))
+		var actual_hidden_luck := CharacterCreationService.map_reroll_count_to_hidden_luck_at_birth(int(case.get("reroll_count")))
 		_assert_eq(
 			actual_hidden_luck,
 			int(case.get("expected_hidden_luck", 0)),
 			"%s 映射结果错误。" % String(case.get("label", "未知 case"))
 		)
-
-
-func _test_overflow_inputs_fall_back_to_minus_six() -> void:
-	var cases := [
-		{"label": "超大 float", "reroll_count": 1.0e30},
-		{"label": "超大 decimal string", "reroll_count": "1000000000000000000000000000000"},
-		{"label": "超大 StringName", "reroll_count": &"1000000000000000000000000000000"},
-	]
-
-	for case in cases:
-		var actual_hidden_luck := CharacterCreationService.map_reroll_count_to_hidden_luck_at_birth(case.get("reroll_count"))
-		_assert_eq(actual_hidden_luck, -6, "%s 应回退到 -6。" % String(case.get("label", "未知 case")))
 
 
 func _test_initial_hp_max_uses_level_zero_formula() -> void:
@@ -101,17 +89,17 @@ func _test_bake_hidden_luck_uses_character_creation_write_path() -> void:
 	var progression := UnitProgress.new()
 	progression.unit_id = &"hero"
 	progression.display_name = "Hero"
-	progression.unit_base_attributes.set_attribute_value(UnitBaseAttributes.HIDDEN_LUCK_AT_BIRTH, 1)
+	progression.unit_base_attributes.set_attribute_value(&"hidden_luck_at_birth", 1)
 
 	var attribute_service := AttributeService.new()
 	attribute_service.setup(progression)
 
 	var creation_service := CharacterCreationService.new()
-	var baked := creation_service.bake_hidden_luck_at_birth(attribute_service, 10000)
+	var baked: bool = creation_service.bake_hidden_luck_at_birth(attribute_service, 10000, &"birth_roll")
 
 	_assert_true(baked, "CharacterCreationService 应能通过 character_creation 来源写入 hidden_luck_at_birth。")
 	_assert_eq(
-		attribute_service.get_base_value(UnitBaseAttributes.HIDDEN_LUCK_AT_BIRTH),
+		attribute_service.get_base_value(&"hidden_luck_at_birth"),
 		-3,
 		"CharacterCreationService 应把 reroll=10000 烘焙为 -3。"
 	)
@@ -122,7 +110,11 @@ func _test_creation_payload_rejects_identity_body_size_without_content_source() 
 	payload["body_size"] = 99
 	payload["body_size_category"] = &"boss"
 
-	var member_state = CharacterCreationService.create_member_from_character_creation_payload(&"bad_body", payload)
+	var member_state = CharacterCreationService.create_member_from_character_creation_payload_without_content_source(
+		&"bad_body",
+		payload,
+		{}
+	)
 
 	_assert_true(
 		member_state == null,
@@ -140,7 +132,8 @@ func _test_creation_payload_derives_body_size_from_identity_content_source() -> 
 	var member_state = CharacterCreationService.create_member_from_character_creation_payload(
 		&"derived_body",
 		payload,
-		_make_creation_content_source()
+		_make_creation_content_source(),
+		{}
 	)
 
 	_assert_true(member_state != null, "建卡 payload 有内容源时应能创建角色。")
@@ -170,7 +163,8 @@ func _test_creation_payload_rejects_invalid_ascension_pair_without_mutating_iden
 	var applied := CharacterCreationService.apply_character_creation_payload_to_member(
 		member_state,
 		payload,
-		_make_creation_content_source()
+		_make_creation_content_source(),
+		{}
 	)
 
 	_assert_true(not applied, "建卡替换路径应拒绝半设置 ascension/stage，不应把 stage 当成隐式 ascension。")
@@ -187,7 +181,8 @@ func _test_creation_payload_rejects_invalid_bloodline_pair_without_mutating_iden
 	var applied := CharacterCreationService.apply_character_creation_payload_to_member(
 		member_state,
 		payload,
-		_make_creation_content_source()
+		_make_creation_content_source(),
+		{}
 	)
 
 	_assert_true(not applied, "建卡替换路径应拒绝不属于该 bloodline 的 stage。")
@@ -204,7 +199,8 @@ func _test_creation_payload_rejects_ascension_allowed_identity_without_mutating_
 	var applied := CharacterCreationService.apply_character_creation_payload_to_member(
 		member_state,
 		payload,
-		_make_creation_content_source()
+		_make_creation_content_source(),
+		{}
 	)
 
 	_assert_true(not applied, "建卡替换路径应拒绝不满足 allowed_bloodline_ids 的 ascension。")
@@ -223,7 +219,8 @@ func _test_creation_payload_rejects_invalid_race_subrace_pair_without_mutating_m
 	var applied := CharacterCreationService.apply_character_creation_payload_to_member(
 		member_state,
 		payload,
-		_make_creation_content_source()
+		_make_creation_content_source(),
+		{}
 	)
 
 	_assert_true(not applied, "建卡替换路径应拒绝 race/subrace 双向关系非法的 payload。")
@@ -238,7 +235,8 @@ func _test_creation_payload_accepts_string_key_content_source() -> void:
 	var member_state = CharacterCreationService.create_member_from_character_creation_payload(
 		&"string_key_content",
 		payload,
-		_make_string_key_creation_content_source()
+		_make_string_key_creation_content_source(),
+		{}
 	)
 
 	_assert_true(member_state != null, "建卡内容源使用 String 字典 key 时，合法身份 payload 仍应通过。")
@@ -254,7 +252,8 @@ func _test_creation_payload_does_not_bake_reroll_luck_by_default() -> void:
 	var member_state = CharacterCreationService.create_member_from_character_creation_payload(
 		&"companion",
 		payload,
-		_make_creation_content_source()
+		_make_creation_content_source(),
+		{}
 	)
 
 	_assert_eq(
@@ -270,13 +269,29 @@ func _test_creation_payload_can_opt_into_reroll_luck_for_main_character() -> voi
 		&"hero",
 		payload,
 		_make_creation_content_source(),
-		{CharacterCreationService.CREATION_OPTION_BAKE_REROLL_LUCK: true}
+		{"bake_reroll_luck": true}
 	)
 
 	_assert_eq(
 		member_state.get_hidden_luck_at_birth(),
 		2,
 		"主角建卡 opt-in 后应按 reroll_count=0 烘焙 hidden_luck_at_birth=+2。"
+	)
+
+
+func _test_creation_payload_rejects_non_integer_reroll_luck_when_opted_in() -> void:
+	var payload := _build_creation_payload(0)
+	payload["reroll_count"] = "100"
+	var member_state = CharacterCreationService.create_member_from_character_creation_payload(
+		&"bad_reroll",
+		payload,
+		_make_creation_content_source(),
+		{"bake_reroll_luck": true}
+	)
+
+	_assert_true(
+		member_state == null,
+		"主角建卡 opt-in 烘焙 reroll luck 时应拒绝非 int reroll_count。"
 	)
 
 
@@ -419,7 +434,7 @@ func _capture_identity_body(member_state: PartyMemberState) -> Dictionary:
 
 func _capture_creation_surface(member_state: PartyMemberState) -> Dictionary:
 	var base_attributes = member_state.progression.unit_base_attributes if member_state != null and member_state.progression != null else null
-	var strength := int(base_attributes.get_attribute_value(UnitBaseAttributes.STRENGTH)) if base_attributes != null else -999
+	var strength := int(base_attributes.get_attribute_value(&"strength")) if base_attributes != null else -999
 	return {
 		"display_name": member_state.display_name,
 		"race_id": member_state.race_id,

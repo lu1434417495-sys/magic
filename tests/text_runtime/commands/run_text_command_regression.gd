@@ -4,12 +4,12 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const EquipmentRequirement = preload("res://scripts/player/equipment/equipment_requirement.gd")
-const QuestDef = preload("res://scripts/player/progression/quest_def.gd")
-const ProgressionDataUtils = preload("res://scripts/player/progression/progression_data_utils.gd")
-const SkillBookItemFactory = preload("res://scripts/player/warehouse/skill_book_item_factory.gd")
-const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/world/encounter_anchor_data.gd")
-const GAME_TEXT_COMMAND_RUNNER_SCRIPT = preload("res://scripts/systems/game_runtime/headless/game_text_command_runner.gd")
+const EquipmentRequirement = preload("res://scripts/player/equipment/EquipmentRequirement.cs")
+const QuestDef = preload("res://scripts/player/progression/QuestDef.cs")
+const ProgressionDataUtils = preload("res://scripts/player/progression/ProgressionDataUtils.cs")
+const SkillBookItemFactory = preload("res://scripts/player/warehouse/SkillBookItemFactory.cs")
+const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/world/EncounterAnchorData.cs")
+const GAME_TEXT_COMMAND_RUNNER_SCRIPT = preload("res://scripts/systems/game_runtime/headless/GameTextCommandRunner.cs")
 const BATTLE_LOOT_COMMIT_SCENARIO_PATH := "res://tests/text_runtime/scenarios/battle_loot_commit.txt"
 const BATTLE_LOOT_OVERFLOW_SCENARIO_PATH := "res://tests/text_runtime/scenarios/battle_loot_overflow.txt"
 
@@ -68,7 +68,7 @@ func _run() -> void:
 	_assert_contract_board_submit_item_applied(runner.get_session().build_snapshot(), runner.get_session().build_text_snapshot(), "contract_supply_drop", "iron_ore")
 	var duplicate_contract_result = await runner.execute_line("settlement action service:contract_board submission_source=contract_board quest_id=contract_manual_drill interaction_script_id=service_contract_board facility_name=公告板 npc_name=告示书记员 service_type=任务 provider_interaction_id=service_contract_board")
 	if not duplicate_contract_result.skipped:
-		print(duplicate_contract_result.render())
+		print(duplicate_contract_result.Render())
 	_assert_contract_board_duplicate_feedback(runner.get_session().build_snapshot())
 	await _run_command(runner, "close")
 	_assert_contract_board_closed_to_settlement(runner.get_session().build_snapshot())
@@ -134,8 +134,8 @@ func _find_nearest_encounter_coord(runner) -> Dictionary:
 	var player_coord: Vector2i = runtime.get_player_coord()
 	var nearest_encounter: ENCOUNTER_ANCHOR_DATA_SCRIPT = null
 	var nearest_distance := 2147483647
-	for encounter_variant in world_data.get("encounter_anchors", []):
-		var encounter := encounter_variant as ENCOUNTER_ANCHOR_DATA_SCRIPT
+	for encounter_option in world_data.get("encounter_anchors", []):
+		var encounter := encounter_option as ENCOUNTER_ANCHOR_DATA_SCRIPT
 		if encounter == null or encounter.is_cleared:
 			continue
 		var delta: Vector2i = encounter.world_coord - player_coord
@@ -326,7 +326,7 @@ func _run_expect_scenario_file(scenario_path: String) -> void:
 		var result = await runner.execute_line(command_text)
 		if result.skipped:
 			continue
-		print("SCENARIO %s LINE %d\n%s" % [scenario_path.get_file(), line_index + 1, result.render()])
+		print("SCENARIO %s LINE %d\n%s" % [scenario_path.get_file(), line_index + 1, result.Render()])
 		_assert_true(result.ok, "文本场景失败：%s:%d | %s | %s" % [
 			scenario_path,
 			line_index + 1,
@@ -713,22 +713,22 @@ func _assert_battle_command_log_contains_post_state(snapshot: Dictionary, event_
 func _find_log_entry(snapshot: Dictionary, event_id: String) -> Dictionary:
 	var entries: Array = snapshot.get("logs", {}).get("entries", [])
 	for index in range(entries.size() - 1, -1, -1):
-		var entry_variant = entries[index]
-		if entry_variant is not Dictionary:
+		var entry_option = entries[index]
+		if entry_option is not Dictionary:
 			continue
-		var entry: Dictionary = entry_variant
+		var entry: Dictionary = entry_option
 		if String(entry.get("event_id", "")) == event_id:
 			return entry
 	return {}
 
 
-func _find_contract_board_entry(entry_variants, quest_id: String) -> Dictionary:
-	if entry_variants is not Array:
+func _find_contract_board_entry(entry_options, quest_id: String) -> Dictionary:
+	if entry_options is not Array:
 		return {}
-	for entry_variant in entry_variants:
-		if entry_variant is not Dictionary:
+	for entry_option in entry_options:
+		if entry_option is not Dictionary:
 			continue
-		var entry: Dictionary = entry_variant
+		var entry: Dictionary = entry_option
 		if String(entry.get("quest_id", "")) == quest_id:
 			return entry.duplicate(true)
 	return {}
@@ -745,13 +745,13 @@ func _inject_submit_item_contract(game_session) -> void:
 	submit_item_quest.objective_defs = [
 		{
 			"objective_id": "deliver_ore",
-			"objective_type": QuestDef.OBJECTIVE_SUBMIT_ITEM,
+			"objective_type": QuestDef.OBJECTIVE_SUBMIT_ITEM(),
 			"target_id": "iron_ore",
 			"target_value": 2,
 		},
 	]
 	submit_item_quest.reward_entries = [
-		{"reward_type": QuestDef.REWARD_GOLD, "amount": 18},
+		{"reward_type": QuestDef.REWARD_GOLD(), "amount": 18},
 	]
 	game_session.install_test_content_def(&"quest", submit_item_quest.quest_id, submit_item_quest)
 
@@ -770,8 +770,8 @@ func _inject_extended_test_settlement_services(runner) -> void:
 	if settlement_id.is_empty():
 		return
 	var world_data: Dictionary = runtime.get_world_data()
-	var settlement_variants = world_data.get("settlements", [])
-	if settlement_variants is not Array:
+	var settlement_options = world_data.get("settlements", [])
+	if settlement_options is not Array:
 		return
 	var extra_services: Array[Dictionary] = [
 		{
@@ -808,38 +808,38 @@ func _inject_extended_test_settlement_services(runner) -> void:
 			"interaction_script_id": "service_research",
 		},
 	]
-	for index in range(settlement_variants.size()):
-		var settlement_variant = settlement_variants[index]
-		if settlement_variant is not Dictionary:
+	for index in range(settlement_options.size()):
+		var settlement_option = settlement_options[index]
+		if settlement_option is not Dictionary:
 			continue
-		var settlement_data: Dictionary = settlement_variant
+		var settlement_data: Dictionary = settlement_option
 		if String(settlement_data.get("settlement_id", "")) != settlement_id:
 			continue
-		var available_services_variant = settlement_data.get("available_services", [])
+		var available_services_option = settlement_data.get("available_services", [])
 		var available_services: Array = []
-		if available_services_variant is Array:
-			available_services = (available_services_variant as Array).duplicate(true)
+		if available_services_option is Array:
+			available_services = (available_services_option as Array).duplicate(true)
 		for extra_service in extra_services:
 			var scoped_service := extra_service.duplicate(true)
 			scoped_service["settlement_id"] = settlement_id
 			_upsert_test_settlement_service(available_services, scoped_service)
 		settlement_data["available_services"] = available_services
-		settlement_variants[index] = settlement_data
+		settlement_options[index] = settlement_data
 		break
-	world_data["settlements"] = settlement_variants
+	world_data["settlements"] = settlement_options
 
 
-func _upsert_test_settlement_service(service_variants: Array, service_data: Dictionary) -> void:
+func _upsert_test_settlement_service(service_options: Array, service_data: Dictionary) -> void:
 	var action_id := String(service_data.get("action_id", ""))
-	for index in range(service_variants.size()):
-		var existing_variant = service_variants[index]
-		if existing_variant is not Dictionary:
+	for index in range(service_options.size()):
+		var existing_option = service_options[index]
+		if existing_option is not Dictionary:
 			continue
-		if String((existing_variant as Dictionary).get("action_id", "")) != action_id:
+		if String((existing_option as Dictionary).get("action_id", "")) != action_id:
 			continue
-		service_variants[index] = service_data.duplicate(true)
+		service_options[index] = service_data.duplicate(true)
 		return
-	service_variants.append(service_data.duplicate(true))
+	service_options.append(service_data.duplicate(true))
 
 
 func _assert_equipment_requirement_error_message(runner) -> void:
@@ -895,20 +895,20 @@ func _assert_duplicate_equipment_instance_text_boundaries(runner) -> void:
 
 
 func _find_party_member(members: Array, member_id: String) -> Dictionary:
-	for member_variant in members:
-		if member_variant is not Dictionary:
+	for member_option in members:
+		if member_option is not Dictionary:
 			continue
-		var member: Dictionary = member_variant
+		var member: Dictionary = member_option
 		if String(member.get("member_id", "")) == member_id:
 			return member
 	return {}
 
 
 func _find_equipped_item(equipment_entries: Array, slot_id: String) -> Dictionary:
-	for entry_variant in equipment_entries:
-		if entry_variant is not Dictionary:
+	for entry_option in equipment_entries:
+		if entry_option is not Dictionary:
 			continue
-		var entry: Dictionary = entry_variant
+		var entry: Dictionary = entry_option
 		if String(entry.get("slot_id", "")) == slot_id:
 			return entry
 	return {}
@@ -916,10 +916,10 @@ func _find_equipped_item(equipment_entries: Array, slot_id: String) -> Dictionar
 
 func _count_warehouse_item(snapshot: Dictionary, item_id: String) -> int:
 	var entries: Array = snapshot.get("warehouse", {}).get("window_data", {}).get("entries", [])
-	for entry_variant in entries:
-		if entry_variant is not Dictionary:
+	for entry_option in entries:
+		if entry_option is not Dictionary:
 			continue
-		var entry: Dictionary = entry_variant
+		var entry: Dictionary = entry_option
 		if String(entry.get("item_id", "")) == item_id:
 			return int(entry.get("total_quantity", 0))
 	return 0
@@ -976,20 +976,20 @@ func _find_session_warehouse_instance_ids(runner, item_id: String) -> Array[Stri
 
 
 func _find_unit(units: Array, unit_id: String) -> Dictionary:
-	for unit_variant in units:
-		if unit_variant is not Dictionary:
+	for unit_option in units:
+		if unit_option is not Dictionary:
 			continue
-		var unit: Dictionary = unit_variant
+		var unit: Dictionary = unit_option
 		if String(unit.get("unit_id", "")) == unit_id:
 			return unit
 	return {}
 
 
 func _find_first_enemy(units: Array, active_faction_id: String) -> Dictionary:
-	for unit_variant in units:
-		if unit_variant is not Dictionary:
+	for unit_option in units:
+		if unit_option is not Dictionary:
 			continue
-		var unit: Dictionary = unit_variant
+		var unit: Dictionary = unit_option
 		if not bool(unit.get("is_alive", false)):
 			continue
 		if String(unit.get("faction_id", "")) == active_faction_id:
@@ -1021,7 +1021,7 @@ func _run_command(runner, command_text: String) -> void:
 	var result = await runner.execute_line(command_text)
 	if result.skipped:
 		return
-	print(result.render())
+	print(result.Render())
 	_assert_true(result.ok, "命令失败：%s | %s" % [command_text, result.message])
 
 
@@ -1029,7 +1029,7 @@ func _run_command_expect_fail(runner, command_text: String):
 	var result = await runner.execute_line(command_text)
 	if result.skipped:
 		return result
-	print(result.render())
+	print(result.Render())
 	_assert_true(not result.ok, "命令本应失败：%s" % command_text)
 	return result
 

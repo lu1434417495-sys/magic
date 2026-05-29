@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3]
 
-[ext_resource type="Script" path="res://scripts/ui/runtime_log_dock.gd" id="1_runtime_log_dock"]
+[ext_resource type="Script" path="res://scripts/ui/RuntimeLogDock.cs" id="1_runtime_log_dock"]
 
 [node name="RuntimeLogDock" type="PanelContainer"]
 anchors_preset = 15

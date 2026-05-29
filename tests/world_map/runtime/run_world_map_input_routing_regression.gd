@@ -2,9 +2,9 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const GameSessionScript = preload("res://scripts/systems/persistence/game_session.gd")
+const GameSessionScript = preload("res://scripts/systems/persistence/GameSession.cs")
 const WorldMapScene = preload("res://scenes/main/world_map.tscn")
-const EncounterAnchorData = preload("res://scripts/systems/world/encounter_anchor_data.gd")
+const EncounterAnchorData = preload("res://scripts/systems/world/EncounterAnchorData.cs")
 
 const TEST_CONFIG_PATH := "res://data/configs/world_map/test_world_map_config.tres"
 
@@ -105,7 +105,7 @@ func _test_battle_reset_key_split_and_modal_block() -> void:
 
 	var encounter_anchor = _find_encounter_anchor_by_kind(
 		_game_session.get_world_data(),
-		EncounterAnchorData.ENCOUNTER_KIND_SINGLE
+		EncounterAnchorData.ENCOUNTER_KIND_SINGLE()
 	)
 	_assert_true(encounter_anchor != null, "battle input routing 回归需要至少一个单体野怪遭遇。")
 	if encounter_anchor == null:
@@ -263,10 +263,10 @@ func _find_visible_settlement_coord(runtime) -> Vector2i:
 		return Vector2i(-1, -1)
 	var fog_system = runtime.get_fog_system()
 	var faction_id := String(runtime.get_player_faction_id())
-	for settlement_variant in runtime.get_world_data().get("settlements", []):
-		if settlement_variant is not Dictionary:
+	for settlement_option in runtime.get_world_data().get("settlements", []):
+		if settlement_option is not Dictionary:
 			continue
-		var settlement: Dictionary = settlement_variant
+		var settlement: Dictionary = settlement_option
 		var origin: Vector2i = settlement.get("origin", Vector2i.ZERO)
 		var footprint_size: Vector2i = settlement.get("footprint_size", Vector2i.ONE)
 		for offset_y in range(footprint_size.y):
@@ -278,8 +278,8 @@ func _find_visible_settlement_coord(runtime) -> Vector2i:
 
 
 func _find_encounter_anchor_by_kind(world_data: Dictionary, encounter_kind: StringName):
-	for encounter_variant in world_data.get("encounter_anchors", []):
-		var encounter_anchor = encounter_variant as EncounterAnchorData
+	for encounter_option in world_data.get("encounter_anchors", []):
+		var encounter_anchor = encounter_option as EncounterAnchorData
 		if encounter_anchor == null:
 			continue
 		if encounter_anchor.encounter_kind == encounter_kind:

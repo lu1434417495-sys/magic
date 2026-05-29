@@ -1,11 +1,11 @@
 extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
-const BATTLE_AI_SKILL_AFFORDANCE_CLASSIFIER_SCRIPT = preload("res://scripts/systems/battle/ai/battle_ai_skill_affordance_classifier.gd")
-const SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/skill_def.gd")
-const COMBAT_SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/combat_skill_def.gd")
-const COMBAT_EFFECT_DEF_SCRIPT = preload("res://scripts/player/progression/combat_effect_def.gd")
-const COMBAT_CAST_VARIANT_DEF_SCRIPT = preload("res://scripts/player/progression/combat_cast_variant_def.gd")
+const BATTLE_AI_SKILL_AFFORDANCE_CLASSIFIER_SCRIPT = preload("res://scripts/systems/battle/ai/BattleAiSkillAffordanceClassifier.cs")
+const SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/SkillDef.cs")
+const COMBAT_SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/CombatSkillDef.cs")
+const COMBAT_EFFECT_DEF_SCRIPT = preload("res://scripts/player/progression/CombatEffectDef.cs")
+const COMBAT_CAST_VARIANT_DEF_SCRIPT = preload("res://scripts/player/progression/CombatCastVariantDef.cs")
 
 var _test := TestRunner.new()
 
@@ -83,12 +83,12 @@ func _test_multi_unit_skill_emits_skill_and_positioning_families() -> void:
 
 func _test_charge_path_variant_emits_charge_path_family() -> void:
 	var skill = _build_skill(&"trample", &"unit", &"enemy", [_effect(&"damage")])
-	var variant = COMBAT_CAST_VARIANT_DEF_SCRIPT.new()
-	variant.variant_id = &"charge_line"
-	variant.min_skill_level = 1
-	variant.effect_defs.append(_effect(&"charge"))
-	variant.effect_defs.append(_effect(&"path_step_aoe"))
-	skill.combat_profile.cast_variants.append(variant)
+	var option = COMBAT_CAST_VARIANT_DEF_SCRIPT.new()
+	option.variant_id = &"charge_line"
+	option.min_skill_level = 1
+	option.effect_defs.append(_effect(&"charge"))
+	option.effect_defs.append(_effect(&"path_step_aoe"))
+	skill.combat_profile.cast_variants.append(option)
 	var record := _classify(skill)
 	_test.assert_true(record.get("affordances", []).has(&"charge_path_aoe"), "带 path_step_aoe 的冲锋变体应标为 charge_path_aoe。")
 	_test.assert_true(record.get("action_families", []).has(&"use_charge_path_aoe"), "带 path_step_aoe 的冲锋变体应生成 charge path action family。")

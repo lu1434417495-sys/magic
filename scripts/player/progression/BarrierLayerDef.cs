@@ -4,12 +4,23 @@ using Godot.Collections;
 [GlobalClass]
 public partial class BarrierLayerDef : Resource
 {
-    [Export] public StringName layer_id = "";
-    [Export] public string display_name = "";
-    [Export] public int order = 0;
-    [Export] public Array<StringName> blocked_categories = new();
-    [Export] public Array<StringName> breaker_skill_ids = new();
-    [Export] public Array<BarrierOutcomeDef> passage_outcomes = new();
+    [Export]
+    public StringName layer_id = "";
+
+    [Export]
+    public string display_name = "";
+
+    [Export]
+    public int order = 0;
+
+    [Export]
+    public Array<StringName> blocked_categories = new();
+
+    [Export]
+    public Array<StringName> breaker_skill_ids = new();
+
+    [Export]
+    public Array<BarrierOutcomeDef> passage_outcomes = new();
 
     public Dictionary ToRuntimeDict(int defaultSaveDc = 0)
     {
@@ -31,6 +42,8 @@ public partial class BarrierLayerDef : Resource
             { "passage_outcomes", outcomes },
         };
     }
+
+    public Dictionary to_runtime_dict(int defaultSaveDc = 0) => ToRuntimeDict(defaultSaveDc);
 
     private Array _ToStringArray(Array<StringName> values)
     {

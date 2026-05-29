@@ -12,7 +12,7 @@ public partial class GameTextCommandResult : RefCounted
     public string snapshot_text = "";
     public Godot.Collections.Array<Godot.Collections.Dictionary> assertions = new();
 
-    public string render()
+    public string Render()
     {
         var lines = new System.Collections.Generic.List<string>();
         if (skipped)
@@ -21,10 +21,12 @@ public partial class GameTextCommandResult : RefCounted
             lines.Add($"{(ok ? "OK" : "ERR")} {command_text}");
         if (message.Length > 0)
             lines.Add(message);
-        foreach (var assertionVariant in assertions)
+        foreach (var assertionValue in assertions)
         {
-            var assertion = assertionVariant;
-            lines.Add($"ASSERT {(string)(assertion.ContainsKey("summary") ? assertion["summary"] : "")} | actual={(string)(assertion.ContainsKey("actual") ? assertion["actual"] : "")} | expected={(string)(assertion.ContainsKey("expected") ? assertion["expected"] : "")}");
+            var assertion = assertionValue;
+            lines.Add(
+                $"ASSERT {(string)(assertion.ContainsKey("summary") ? assertion["summary"] : "")} | actual={(string)(assertion.ContainsKey("actual") ? assertion["actual"] : "")} | expected={(string)(assertion.ContainsKey("expected") ? assertion["expected"] : "")}"
+            );
         }
         if (snapshot_text.Length > 0)
         {

@@ -3,15 +3,14 @@ extends SceneTree
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 const BattleTestFixture = preload("res://tests/shared/battle_test_fixture.gd")
 
-const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
-const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
-const BattleEventBatch = preload("res://scripts/systems/battle/core/battle_event_batch.gd")
-const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
-const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
-const BattleStatusEffectState = preload("res://scripts/systems/battle/core/battle_status_effect_state.gd")
-const BattleRuntimeSkillTurnResolver = preload("res://scripts/systems/battle/runtime/battle_skill_turn_resolver.gd")
-const BattleStatusSemanticTable = preload("res://scripts/systems/battle/rules/battle_status_semantic_table.gd")
-const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
+const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/BattleRuntimeModule.cs")
+const BattleEventBatch = preload("res://scripts/systems/battle/core/BattleEventBatch.cs")
+const BattleState = preload("res://scripts/systems/battle/core/BattleState.cs")
+const BattleUnitState = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
+const BattleStatusEffectState = preload("res://scripts/systems/battle/core/BattleStatusEffectState.cs")
+const BattleRuntimeSkillTurnResolver = preload("res://scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs")
+const BattleStatusSemanticTable = preload("res://scripts/systems/battle/rules/BattleStatusSemanticTable.cs")
+const CombatEffectDef = preload("res://scripts/player/progression/CombatEffectDef.cs")
 
 var _test := TestRunner.new()
 var _battle_fixture := BattleTestFixture.new()
@@ -78,7 +77,7 @@ func _test_staggered_refreshes_without_stacking_and_expires_on_tu_progress() -> 
 	_assert_eq(target.current_ap, 1, "staggered 刷新后仍只应在回合开始扣 1 点行动点。")
 
 	var wait_command := BattleCommand.new()
-	wait_command.command_type = BattleCommand.TYPE_WAIT
+	wait_command.command_type = BattleCommand.TYPE_WAIT()
 	wait_command.unit_id = target.unit_id
 	runtime.issue_command(wait_command)
 	_assert_true(target.has_status_effect(&"staggered"), "staggered 不应在目标回合结束后被立即移除。")
@@ -156,7 +155,7 @@ func _test_burning_stacks_and_ticks_on_timeline_interval() -> void:
 	runtime.advance(0)
 	_assert_eq(target.current_hp, 20, "burning 不应在回合开始隐式结算伤害。")
 	var first_wait := BattleCommand.new()
-	first_wait.command_type = BattleCommand.TYPE_WAIT
+	first_wait.command_type = BattleCommand.TYPE_WAIT()
 	first_wait.unit_id = target.unit_id
 	runtime.issue_command(first_wait)
 	burning_entry = target.get_status_effect(&"burning")
@@ -174,7 +173,7 @@ func _test_burning_stacks_and_ticks_on_timeline_interval() -> void:
 	runtime.advance(0)
 	_assert_eq(target.current_hp, 18, "burning 不应因进入第二个行动窗口额外结算伤害。")
 	var second_wait := BattleCommand.new()
-	second_wait.command_type = BattleCommand.TYPE_WAIT
+	second_wait.command_type = BattleCommand.TYPE_WAIT()
 	second_wait.unit_id = target.unit_id
 	runtime.issue_command(second_wait)
 	_assert_true(target.has_status_effect(&"burning"), "burning 不应在第二个回合结束时被 turn end 提前清除。")
@@ -227,7 +226,7 @@ func _test_slow_increases_move_cost_and_expires_on_tu_progress() -> void:
 	_assert_true(target.has_status_effect(&"slow"), "slow 应在受影响单位回合开始后仍保持生效。")
 
 	var move_command := BattleCommand.new()
-	move_command.command_type = BattleCommand.TYPE_MOVE
+	move_command.command_type = BattleCommand.TYPE_MOVE()
 	move_command.unit_id = target.unit_id
 	move_command.target_coord = Vector2i(2, 1)
 	var preview = runtime.preview_command(move_command)
@@ -241,7 +240,7 @@ func _test_slow_increases_move_cost_and_expires_on_tu_progress() -> void:
 	_assert_eq(target.current_move_points, 0, "移动成功后应耗尽本回合移动力，即使只移动 1 格。")
 	_assert_eq(target.current_ap, 3, "slow 只应抬高移动行动点消耗，不应继续扣除 AP。")
 	var wait_command := BattleCommand.new()
-	wait_command.command_type = BattleCommand.TYPE_WAIT
+	wait_command.command_type = BattleCommand.TYPE_WAIT()
 	wait_command.unit_id = target.unit_id
 	runtime.issue_command(wait_command)
 	_assert_true(
@@ -310,7 +309,7 @@ func _test_taunted_uses_timeline_decay_without_turn_end_decay() -> void:
 	state.timeline.ready_unit_ids.append(target.unit_id)
 	runtime.advance(0)
 	var wait_command := BattleCommand.new()
-	wait_command.command_type = BattleCommand.TYPE_WAIT
+	wait_command.command_type = BattleCommand.TYPE_WAIT()
 	wait_command.unit_id = target.unit_id
 	runtime.issue_command(wait_command)
 	_assert_true(target.has_status_effect(&"taunted"), "taunted 不应在目标回合结束后被 turn end 提前移除。")
@@ -536,9 +535,6 @@ func _test_status_effect_from_dict_requires_explicit_status_id() -> void:
 	var non_string_status_id = BattleStatusEffectState.from_dict(non_string_status_id_payload)
 	_assert_true(non_string_status_id == null, "状态效果反序列化应拒绝非 String/StringName 的 status_id。")
 
-	var non_dictionary_entry = BattleStatusEffectState.from_dict("burning")
-	_assert_true(non_dictionary_entry == null, "状态效果反序列化应拒绝非 Dictionary entry。")
-
 	var string_name_status_id_payload := _build_status_effect_payload()
 	string_name_status_id_payload["status_id"] = &"slow"
 	string_name_status_id_payload["source_unit_id"] = &"source"
@@ -684,8 +680,8 @@ func _advance_timeline_tu(runtime: BattleRuntimeModule, state: BattleState, tota
 	state.active_unit_id = &""
 	state.timeline.ready_unit_ids.clear()
 	state.timeline.tu_per_tick = 5
-	for unit_variant in state.units.values():
-		var unit_state := unit_variant as BattleUnitState
+	for unit_option in state.units.values():
+		var unit_state := unit_option as BattleUnitState
 		if unit_state != null:
 			unit_state.action_threshold = 1000000
 	runtime.advance(int(total_tu / 5))

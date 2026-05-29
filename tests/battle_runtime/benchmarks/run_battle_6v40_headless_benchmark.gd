@@ -3,23 +3,23 @@ extends SceneTree
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 const BattleRuntimeTestHelpers = preload("res://tests/shared/battle_runtime_test_helpers.gd")
 
-const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_session.gd")
-const BATTLE_RUNTIME_MODULE_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
-const BATTLE_SIM_EXECUTION_LOOP_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_execution_loop.gd")
-const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_state.gd")
-const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
-const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
-const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
-const BATTLE_HUD_ADAPTER_SCRIPT = preload("res://scripts/systems/battle/presentation/battle_hud_adapter.gd")
-const ENEMY_AI_BRAIN_DEF_SCRIPT = preload("res://scripts/enemies/enemy_ai_brain_def.gd")
-const ENEMY_AI_STATE_DEF_SCRIPT = preload("res://scripts/enemies/enemy_ai_state_def.gd")
-const USE_GROUND_SKILL_ACTION_SCRIPT = preload("res://scripts/enemies/actions/use_ground_skill_action.gd")
-const WAIT_ACTION_SCRIPT = preload("res://scripts/enemies/actions/wait_action.gd")
-const SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/skill_def.gd")
-const COMBAT_SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/combat_skill_def.gd")
-const COMBAT_CAST_VARIANT_DEF_SCRIPT = preload("res://scripts/player/progression/combat_cast_variant_def.gd")
-const COMBAT_EFFECT_DEF_SCRIPT = preload("res://scripts/player/progression/combat_effect_def.gd")
-const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
+const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/GameSession.cs")
+const BATTLE_RUNTIME_MODULE_SCRIPT = preload("res://scripts/systems/battle/runtime/BattleRuntimeModule.cs")
+const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleState.cs")
+const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleTimelineState.cs")
+const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleCellState.cs")
+const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
+const BATTLE_HUD_ADAPTER_SCRIPT = preload("res://scripts/systems/battle/presentation/BattleHudAdapter.cs")
+const ENEMY_AI_BRAIN_DEF_SCRIPT = preload("res://scripts/enemies/EnemyAiBrainDef.cs")
+const ENEMY_AI_STATE_DEF_SCRIPT = preload("res://scripts/enemies/EnemyAiStateDef.cs")
+const USE_GROUND_SKILL_ACTION_SCRIPT = preload("res://scripts/enemies/actions/UseGroundSkillAction.cs")
+const WAIT_ACTION_SCRIPT = preload("res://scripts/enemies/actions/WaitAction.cs")
+const SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/SkillDef.cs")
+const COMBAT_SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/CombatSkillDef.cs")
+const COMBAT_CAST_VARIANT_DEF_SCRIPT = preload("res://scripts/player/progression/CombatCastVariantDef.cs")
+const COMBAT_EFFECT_DEF_SCRIPT = preload("res://scripts/player/progression/CombatEffectDef.cs")
+const BattleSimExecutionLoop = preload("res://scripts/systems/battle/sim/BattleSimExecutionLoop.cs")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/AttributeService.cs")
 
 const MAP_SIZE := Vector2i(20, 14)
 const DEFAULT_TARGET_TU := 200
@@ -89,7 +89,7 @@ func _run_pass(
 	var state = _build_flat_state(MAP_SIZE, scenario_id)
 	_populate_units(runtime, state, scenario_id)
 	runtime._state = state
-	var execution_loop = BATTLE_SIM_EXECUTION_LOOP_SCRIPT.new()
+	var execution_loop = BattleSimExecutionLoop.new()
 
 	var hud_adapter = BATTLE_HUD_ADAPTER_SCRIPT.new() if include_hud_snapshot else null
 	var logic_usec := 0
@@ -138,7 +138,7 @@ func _run_pass(
 		if hud_adapter != null:
 			var hud_start := Time.get_ticks_usec()
 			var selected_coord := _resolve_selected_coord(state)
-			hud_adapter.build_snapshot(state, selected_coord)
+			hud_adapter.build_snapshot(state, selected_coord, &"", "", "", [], 0, [], &"", Callable(), "", null)
 			hud_usec += Time.get_ticks_usec() - hud_start
 
 		var made_progress: bool = (
@@ -218,7 +218,7 @@ func _build_flat_state(map_size: Vector2i, scenario_id: StringName):
 		for x in range(map_size.x):
 			var cell = BATTLE_CELL_STATE_SCRIPT.new()
 			cell.coord = Vector2i(x, y)
-			cell.base_terrain = BATTLE_CELL_STATE_SCRIPT.TERRAIN_LAND
+			cell.base_terrain = BATTLE_CELL_STATE_SCRIPT.TERRAIN_LAND()
 			cell.base_height = 4
 			cell.height_offset = 0
 			cell.recalculate_runtime_values()
@@ -298,8 +298,8 @@ func _populate_ground_skill_heavy_units(runtime, state) -> void:
 		)
 		ally_unit.current_hp = 720
 		ally_unit.attribute_snapshot.set_value(&"hp_max", 720)
-		ally_unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 30)
-		ally_unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 30)
+		ally_unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 30)
+		ally_unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 30)
 		_add_unit_to_state(runtime, state, ally_unit, false)
 
 	var enemy_positions: Array[Vector2i] = []
@@ -324,7 +324,7 @@ func _populate_ground_skill_heavy_units(runtime, state) -> void:
 		enemy_unit.current_stamina = 120
 		enemy_unit.attribute_snapshot.set_value(&"hp_max", 220)
 		enemy_unit.attribute_snapshot.set_value(&"mp_max", 240)
-		enemy_unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 14)
+		enemy_unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 14)
 		enemy_unit.known_skill_level_map[HEAVY_GROUND_SKILL_ID] = 5
 		_add_unit_to_state(runtime, state, enemy_unit, true)
 
@@ -354,18 +354,18 @@ func _build_heavy_ground_skill_def():
 	skill_def.combat_profile.stamina_cost = 0
 	skill_def.combat_profile.cooldown_tu = 0
 	skill_def.combat_profile.cast_variants.append(
-		_build_heavy_ground_variant(&"single_probe", "单点试探", &"single", 1, 1, 3)
+		_build_heavy_ground_option(&"single_probe", "单点试探", &"single", 1, 1, 3)
 	)
 	skill_def.combat_profile.cast_variants.append(
-		_build_heavy_ground_variant(&"line_sweep", "双格扫线", &"line2", 2, 2, 4)
+		_build_heavy_ground_option(&"line_sweep", "双格扫线", &"line2", 2, 2, 4)
 	)
 	skill_def.combat_profile.cast_variants.append(
-		_build_heavy_ground_variant(&"square_barrage", "四格轰炸", &"square2", 4, 3, 4)
+		_build_heavy_ground_option(&"square_barrage", "四格轰炸", &"square2", 4, 3, 4)
 	)
 	return skill_def
 
 
-func _build_heavy_ground_variant(
+func _build_heavy_ground_option(
 	variant_id: StringName,
 	display_name: String,
 	footprint_pattern: StringName,
@@ -434,10 +434,10 @@ func _build_manual_benchmark_unit(unit_id: StringName, display_name: String, coo
 	unit.attribute_snapshot.set_value(&"stamina_max", 120)
 	unit.attribute_snapshot.set_value(&"aura_max", 120)
 	unit.attribute_snapshot.set_value(&"action_points", 2)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 18)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 12)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 24)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 20)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 18)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 12)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 24)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 20)
 	return unit
 
 
@@ -468,10 +468,10 @@ func _build_ai_benchmark_unit(
 	unit.attribute_snapshot.set_value(&"stamina_max", 120)
 	unit.attribute_snapshot.set_value(&"aura_max", 120)
 	unit.attribute_snapshot.set_value(&"action_points", 2)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 16)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 16)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 18)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 18)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 16)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 16)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 18)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 18)
 	unit.known_active_skill_ids = skill_ids.duplicate()
 	for skill_id in unit.known_active_skill_ids:
 		unit.known_skill_level_map[skill_id] = 1
@@ -519,8 +519,8 @@ func _assert_consistent_outcome(scenario_id: StringName, logic_only: Dictionary,
 		"ai_turns",
 		"manual_turns",
 	]
-	for field_name_variant in fields_to_compare:
-		var field_name := String(field_name_variant)
+	for field_name_option in fields_to_compare:
+		var field_name := String(field_name_option)
 		if logic_only.get(field_name) == logic_plus_hud.get(field_name):
 			continue
 		_test.fail(

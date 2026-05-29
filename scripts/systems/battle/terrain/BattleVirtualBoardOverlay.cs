@@ -24,10 +24,10 @@ public partial class BattleVirtualBoardOverlay : RefCounted
             return;
         }
 
-        Variant coordsValue = _unit_coords[normalized];
+        var coordsValue = _unit_coords[normalized];
         if (coordsValue.VariantType == Variant.Type.Array)
         {
-            foreach (Variant coordValue in coordsValue.AsGodotArray())
+            foreach (var coordValue in coordsValue.AsGodotArray())
             {
                 _coord_overrides.Remove(coordValue);
             }
@@ -75,7 +75,7 @@ public partial class BattleVirtualBoardOverlay : RefCounted
             return;
         }
 
-        foreach (Variant coordValue in coords)
+        foreach (var coordValue in coords)
         {
             if (coordValue.VariantType != Variant.Type.Vector2I)
             {
@@ -119,26 +119,29 @@ public partial class BattleVirtualBoardOverlay : RefCounted
     public GDictionary describe()
     {
         GDictionary unitPayload = new();
-        foreach (Variant unitId in _unit_coords.Keys)
+        foreach (var unitId in _unit_coords.Keys)
         {
-            Variant coordsValue = _unit_coords[unitId];
-            unitPayload[unitId.ToString()] = coordsValue.VariantType == Variant.Type.Array
-                ? coordsValue.AsGodotArray().Duplicate()
-                : new GArray();
+            var coordsValue = _unit_coords[unitId];
+            unitPayload[unitId.ToString()] =
+                coordsValue.VariantType == Variant.Type.Array
+                    ? coordsValue.AsGodotArray().Duplicate()
+                    : new GArray();
         }
 
         GArray blockPayload = new();
-        foreach (Variant coordValue in _blocked_coords.Keys)
+        foreach (var coordValue in _blocked_coords.Keys)
         {
-            blockPayload.Add(new GDictionary
-            {
-                ["coord"] = coordValue,
-                ["blocker_id"] = NormalizeStringName(_blocked_coords[coordValue]),
-            });
+            blockPayload.Add(
+                new GDictionary
+                {
+                    ["coord"] = coordValue,
+                    ["blocker_id"] = NormalizeStringName(_blocked_coords[coordValue]),
+                }
+            );
         }
 
         GArray releasedUnitIds = new();
-        foreach (Variant unitId in _released_units.Keys)
+        foreach (var unitId in _released_units.Keys)
         {
             releasedUnitIds.Add(unitId);
         }
@@ -154,17 +157,22 @@ public partial class BattleVirtualBoardOverlay : RefCounted
 
     private static void CopyDictionary(GDictionary source, GDictionary target)
     {
-        foreach (Variant key in source.Keys)
+        foreach (var key in source.Keys)
         {
-            Variant value = source[key];
-            target[key] = value.VariantType == Variant.Type.Array
-                ? value.AsGodotArray().Duplicate(true)
-                : value;
+            var value = source[key];
+            target[key] =
+                value.VariantType == Variant.Type.Array
+                    ? value.AsGodotArray().Duplicate(true)
+                    : value;
         }
     }
 
-    private static StringName NormalizeStringName(Variant value)
+    private static StringName NormalizeStringName(object rawValue)
     {
+        if (rawValue is not Variant value)
+        {
+            return new StringName(rawValue?.ToString() ?? "");
+        }
         return value.VariantType switch
         {
             Variant.Type.StringName => value.AsStringName(),
@@ -180,6 +188,6 @@ public partial class BattleVirtualBoardOverlay : RefCounted
 
     private static void Fail(string message)
     {
-        GD.PushError(message);
+        GameLog.Error(message, "battle.virtual_board.failed", "battle");
     }
 }

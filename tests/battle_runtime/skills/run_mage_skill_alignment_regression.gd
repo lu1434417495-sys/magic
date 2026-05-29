@@ -2,16 +2,15 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
-const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
-const BATTLE_COMMAND_SCRIPT = preload("res://scripts/systems/battle/core/battle_command.gd")
-const BATTLE_EDGE_FEATURE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_edge_feature_state.gd")
-const BATTLE_RUNTIME_MODULE_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
-const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_state.gd")
-const BATTLE_STATUS_EFFECT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_status_effect_state.gd")
-const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
-const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
-const PROGRESSION_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/progression_content_registry.gd")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/AttributeService.cs")
+const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleCellState.cs")
+const BATTLE_EDGE_FEATURE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleEdgeFeatureState.cs")
+const BATTLE_RUNTIME_MODULE_SCRIPT = preload("res://scripts/systems/battle/runtime/BattleRuntimeModule.cs")
+const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleState.cs")
+const BATTLE_STATUS_EFFECT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleStatusEffectState.cs")
+const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleTimelineState.cs")
+const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
+const PROGRESSION_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/ProgressionContentRegistry.cs")
 const SharedHitResolvers = preload("res://tests/shared/stub_hit_resolvers.gd")
 const BattleRuntimeTestHelpers = preload("res://tests/shared/battle_runtime_test_helpers.gd")
 
@@ -142,11 +141,11 @@ func _test_chain_lightning_bounces_to_nearby_enemy() -> void:
 	var registry := PROGRESSION_CONTENT_REGISTRY_SCRIPT.new()
 	var runtime = BATTLE_RUNTIME_MODULE_SCRIPT.new()
 	runtime.setup(null, registry.get_skill_defs(), {}, {})
-	runtime.configure_hit_resolver_for_tests(SharedHitResolvers.FixedHitResolver.new(10))
+	runtime.configure_hit_resolver_for_tests(SharedHitResolvers.build_fixed_hit_resolver(10))
 	var state = _build_state(Vector2i(6, 3))
 	var caster = _build_unit(&"chain_caster", &"player", Vector2i(0, 1), 3)
 	caster.current_mp = 200
-	caster.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 100)
+	caster.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 100)
 	caster.known_active_skill_ids.append(&"mage_chain_lightning")
 	caster.known_skill_level_map = {&"mage_chain_lightning": 3}
 	var primary = _build_unit(&"chain_primary", &"enemy", Vector2i(3, 1), 1)
@@ -159,8 +158,8 @@ func _test_chain_lightning_bounces_to_nearby_enemy() -> void:
 	state.active_unit_id = caster.unit_id
 	runtime._state = state
 
-	var command = BATTLE_COMMAND_SCRIPT.new()
-	command.command_type = BATTLE_COMMAND_SCRIPT.TYPE_SKILL
+	var command = BattleCommand.new()
+	command.command_type = BattleCommand.TYPE_SKILL()
 	command.unit_id = caster.unit_id
 	command.skill_id = &"mage_chain_lightning"
 	command.target_unit_id = primary.unit_id
@@ -192,8 +191,8 @@ func _test_blink_moves_to_ground_target() -> void:
 	state.active_unit_id = caster.unit_id
 	runtime._state = state
 
-	var command = BATTLE_COMMAND_SCRIPT.new()
-	command.command_type = BATTLE_COMMAND_SCRIPT.TYPE_SKILL
+	var command = BattleCommand.new()
+	command.command_type = BattleCommand.TYPE_SKILL()
 	command.unit_id = caster.unit_id
 	command.skill_id = &"mage_blink"
 	command.target_coord = Vector2i(3, 0)
@@ -212,7 +211,7 @@ func _test_cone_of_cold_uses_narrow_cone_shape() -> void:
 	var state = _build_state(Vector2i(13, 9))
 	var caster = _build_unit(&"cone_caster", &"player", Vector2i(5, 5), 3)
 	caster.current_mp = 200
-	caster.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 100)
+	caster.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 100)
 	caster.known_active_skill_ids.append(&"mage_cone_of_cold")
 	caster.known_skill_level_map = {&"mage_cone_of_cold": 0}
 	var close_left = _build_unit(&"cone_close_left", &"enemy", Vector2i(6, 4), 1)
@@ -227,8 +226,8 @@ func _test_cone_of_cold_uses_narrow_cone_shape() -> void:
 	state.active_unit_id = caster.unit_id
 	runtime._state = state
 
-	var command = BATTLE_COMMAND_SCRIPT.new()
-	command.command_type = BATTLE_COMMAND_SCRIPT.TYPE_SKILL
+	var command = BattleCommand.new()
+	command.command_type = BattleCommand.TYPE_SKILL()
 	command.unit_id = caster.unit_id
 	command.skill_id = &"mage_cone_of_cold"
 	command.target_coord = Vector2i(6, 5)
@@ -261,8 +260,8 @@ func _test_gust_of_wind_uses_standard_cone_and_pushes_outward() -> void:
 	state.active_unit_id = caster.unit_id
 	runtime._state = state
 
-	var command = BATTLE_COMMAND_SCRIPT.new()
-	command.command_type = BATTLE_COMMAND_SCRIPT.TYPE_SKILL
+	var command = BattleCommand.new()
+	command.command_type = BattleCommand.TYPE_SKILL()
 	command.unit_id = caster.unit_id
 	command.skill_id = &"mage_gust_of_wind"
 	command.target_coord = Vector2i(4, 4)
@@ -302,8 +301,8 @@ func _test_gust_of_wind_chain_pushes_near_targets_first() -> void:
 	state.active_unit_id = caster.unit_id
 	runtime._state = state
 
-	var command = BATTLE_COMMAND_SCRIPT.new()
-	command.command_type = BATTLE_COMMAND_SCRIPT.TYPE_SKILL
+	var command = BattleCommand.new()
+	command.command_type = BattleCommand.TYPE_SKILL()
 	command.unit_id = caster.unit_id
 	command.skill_id = &"mage_gust_of_wind"
 	command.target_coord = Vector2i(4, 4)
@@ -323,7 +322,7 @@ func _test_fire_wall_leaves_timed_terrain_effects() -> void:
 	var state = _build_state(Vector2i(6, 3))
 	var caster = _build_unit(&"fire_wall_caster", &"player", Vector2i(0, 1), 3)
 	caster.current_mp = 120
-	caster.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 100)
+	caster.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 100)
 	caster.known_active_skill_ids.append(&"mage_fire_wall")
 	caster.known_skill_level_map = {&"mage_fire_wall": 3}
 	var enemy = _build_unit(&"fire_wall_enemy", &"enemy", Vector2i(3, 1), 1)
@@ -332,8 +331,8 @@ func _test_fire_wall_leaves_timed_terrain_effects() -> void:
 	state.active_unit_id = caster.unit_id
 	runtime._state = state
 
-	var command = BATTLE_COMMAND_SCRIPT.new()
-	command.command_type = BATTLE_COMMAND_SCRIPT.TYPE_SKILL
+	var command = BattleCommand.new()
+	command.command_type = BattleCommand.TYPE_SKILL()
 	command.unit_id = caster.unit_id
 	command.skill_id = &"mage_fire_wall"
 	command.target_coord = Vector2i(2, 1)
@@ -363,8 +362,8 @@ func _test_passwall_clears_adjacent_wall_edge() -> void:
 	)
 	_assert_true(not runtime._grid_service.can_traverse(state, Vector2i(1, 1), Vector2i(2, 1)), "测试前置：墙体应阻挡通行。")
 
-	var command = BATTLE_COMMAND_SCRIPT.new()
-	command.command_type = BATTLE_COMMAND_SCRIPT.TYPE_SKILL
+	var command = BattleCommand.new()
+	command.command_type = BattleCommand.TYPE_SKILL()
 	command.unit_id = caster.unit_id
 	command.skill_id = &"mage_passwall"
 	command.skill_variant_id = &"open_passage"
@@ -397,8 +396,8 @@ func _test_dispel_magic_removes_enemy_buff_through_runtime() -> void:
 	state.active_unit_id = caster.unit_id
 	runtime._state = state
 
-	var command = BATTLE_COMMAND_SCRIPT.new()
-	command.command_type = BATTLE_COMMAND_SCRIPT.TYPE_SKILL
+	var command = BattleCommand.new()
+	command.command_type = BattleCommand.TYPE_SKILL()
 	command.unit_id = caster.unit_id
 	command.skill_id = &"mage_dispel_magic"
 	command.target_unit_id = enemy.unit_id
@@ -427,7 +426,7 @@ func _build_state(map_size: Vector2i):
 func _build_cell(coord: Vector2i):
 	var cell = BATTLE_CELL_STATE_SCRIPT.new()
 	cell.coord = coord
-	cell.base_terrain = BATTLE_CELL_STATE_SCRIPT.TERRAIN_LAND
+	cell.base_terrain = BATTLE_CELL_STATE_SCRIPT.TERRAIN_LAND()
 	cell.base_height = 4
 	cell.recalculate_runtime_values()
 	return cell
@@ -447,15 +446,15 @@ func _build_unit(unit_id: StringName, faction_id: StringName, coord: Vector2i, c
 	unit.display_name = String(unit_id)
 	unit.faction_id = faction_id
 	unit.current_ap = current_ap
-	unit.current_move_points = BATTLE_UNIT_STATE_SCRIPT.DEFAULT_MOVE_POINTS_PER_TURN
+	unit.current_move_points = BATTLE_UNIT_STATE_SCRIPT.DEFAULT_MOVE_POINTS_PER_TURN()
 	unit.current_hp = 30
 	unit.current_mp = 0
 	unit.current_stamina = 60
 	unit.is_alive = true
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 0)
 	# 法师测试场景需要 MP/AURA 解锁，否则技能 preview 在 get_locked_combat_resource_block_reason 阶段被拒。
-	unit.unlock_combat_resource(BATTLE_UNIT_STATE_SCRIPT.COMBAT_RESOURCE_MP)
-	unit.unlock_combat_resource(BATTLE_UNIT_STATE_SCRIPT.COMBAT_RESOURCE_AURA)
+	unit.unlock_combat_resource(BATTLE_UNIT_STATE_SCRIPT.COMBAT_RESOURCE_MP())
+	unit.unlock_combat_resource(BATTLE_UNIT_STATE_SCRIPT.COMBAT_RESOURCE_AURA())
 	unit.set_anchor_coord(coord)
 	return unit
 
@@ -484,8 +483,8 @@ func _sum_int_dict(values: Dictionary) -> int:
 
 func _all_mage_skill_ids(skill_defs: Dictionary) -> Array[StringName]:
 	var skill_ids: Array[StringName] = []
-	for skill_id_variant in skill_defs.keys():
-		var skill_id := skill_id_variant as StringName
+	for skill_id_option in skill_defs.keys():
+		var skill_id := skill_id_option as StringName
 		if not String(skill_id).begins_with("mage_"):
 			continue
 		var skill_def = skill_defs.get(skill_id)

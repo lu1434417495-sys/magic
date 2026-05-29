@@ -56,7 +56,10 @@ public partial class BattleDamagePreviewRangeService : RefCounted
         }
     }
 
-    public static GDictionary build_skill_damage_preview(GodotObject source_unit, GArray effect_defs)
+    public static GDictionary build_skill_damage_preview(
+        GodotObject source_unit,
+        GArray effect_defs
+    )
     {
         var damageRanges = new GArray();
         int minDamage = 0;
@@ -67,11 +70,18 @@ public partial class BattleDamagePreviewRangeService : RefCounted
             for (int effectIndex = 0; effectIndex < effect_defs.Count; effectIndex++)
             {
                 GodotObject effectDef = effect_defs[effectIndex].AsGodotObject();
-                if (effectDef == null || GdInterop.GetStringName(effectDef, "effect_type") != DamageEffectType)
+                if (
+                    effectDef == null
+                    || GdInterop.GetStringName(effectDef, "effect_type") != DamageEffectType
+                )
                 {
                     continue;
                 }
-                DamageEffectRange effectRange = BuildDamageEffectRange(source_unit, effectDef, effectIndex);
+                DamageEffectRange effectRange = BuildDamageEffectRange(
+                    source_unit,
+                    effectDef,
+                    effectIndex
+                );
                 damageRanges.Add(effectRange.ToDictionary());
                 minDamage += effectRange.MinDamage;
                 maxDamage += effectRange.MaxDamage;
@@ -105,7 +115,11 @@ public partial class BattleDamagePreviewRangeService : RefCounted
         return $"伤害 {minDamage}-{maxDamage}";
     }
 
-    private static DamageEffectRange BuildDamageEffectRange(GodotObject sourceUnit, GodotObject effectDef, int effectIndex)
+    private static DamageEffectRange BuildDamageEffectRange(
+        GodotObject sourceUnit,
+        GodotObject effectDef,
+        int effectIndex
+    )
     {
         int power = Mathf.Max(GdInterop.GetInt(effectDef, "power"), 0);
         DiceRange skillDiceRange = BuildSkillDiceRange(effectDef);
@@ -113,12 +127,8 @@ public partial class BattleDamagePreviewRangeService : RefCounted
         DiceRange weaponDiceRange = addWeaponDice
             ? BuildWeaponDiceRange(sourceUnit)
             : DiceRange.Empty;
-        int effectMinDamage = power
-            + skillDiceRange.MinDamage
-            + weaponDiceRange.MinDamage;
-        int effectMaxDamage = power
-            + skillDiceRange.MaxDamage
-            + weaponDiceRange.MaxDamage;
+        int effectMinDamage = power + skillDiceRange.MinDamage + weaponDiceRange.MinDamage;
+        int effectMaxDamage = power + skillDiceRange.MaxDamage + weaponDiceRange.MaxDamage;
 
         return new DamageEffectRange(
             effectIndex,

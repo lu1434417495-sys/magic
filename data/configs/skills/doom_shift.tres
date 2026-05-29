@@ -1,7 +1,7 @@
 [gd_resource type="Resource" script_class="SkillDef" format=3]
 
-[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="1_combat"]
-[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="2_skill"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="1_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="2_skill"]
 
 [sub_resource type="Resource" id="Resource_profile"]
 script = ExtResource("1_combat")

@@ -2,14 +2,14 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
-const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
-const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
-const BattleEventBatch = preload("res://scripts/systems/battle/core/battle_event_batch.gd")
-const BattleStatusEffectState = preload("res://scripts/systems/battle/core/battle_status_effect_state.gd")
-const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
-const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
-const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
+const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/BattleRuntimeModule.cs")
+const BattleState = preload("res://scripts/systems/battle/core/BattleState.cs")
+const BattleCellState = preload("res://scripts/systems/battle/core/BattleCellState.cs")
+const BattleEventBatch = preload("res://scripts/systems/battle/core/BattleEventBatch.cs")
+const BattleStatusEffectState = preload("res://scripts/systems/battle/core/BattleStatusEffectState.cs")
+const BattleUnitState = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/AttributeService.cs")
+const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/UnitBaseAttributes.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -141,7 +141,7 @@ func _build_state(map_size: Vector2i) -> BattleState:
 		for x in range(map_size.x):
 			var cell := BattleCellState.new()
 			cell.coord = Vector2i(x, y)
-			cell.base_terrain = BattleCellState.TERRAIN_LAND
+			cell.base_terrain = BattleCellState.TERRAIN_LAND()
 			cell.base_height = 4
 			cell.recalculate_runtime_values()
 			state.cells[cell.coord] = cell
@@ -162,9 +162,9 @@ func _build_unit(unit_id: StringName, display_name: String, faction_id: StringNa
 	unit.current_move_points = 4
 	unit.is_alive = true
 	unit.set_anchor_coord(coord)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX, 100)
-	unit.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.CONSTITUTION, 10)
-	unit.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.WILLPOWER, 10)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX_ID(), 100)
+	unit.attribute_snapshot.set_value(&"constitution", 10)
+	unit.attribute_snapshot.set_value(&"willpower", 10)
 	unit.attribute_snapshot.set_value(&"constitution_modifier", 0)
 	unit.attribute_snapshot.set_value(&"willpower_modifier", 0)
 	return unit

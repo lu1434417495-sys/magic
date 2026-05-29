@@ -1,3 +1,4 @@
+using System;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
@@ -6,11 +7,12 @@ public partial class FileIOCoordinator : RefCounted
 {
     public static int write_compressed_variant_atomically(
         string virtual_path,
-        Variant payload,
+        GDictionary payload,
         int compression_mode,
         string error_event_prefix,
         string label,
-        Callable error_sink = default)
+        Action<string, string, GDictionary> error_sink = null
+    )
     {
         string tempPath = $"{virtual_path}.tmp";
         int cleanupTempError = remove_file_if_exists(tempPath);
@@ -19,7 +21,11 @@ public partial class FileIOCoordinator : RefCounted
             return cleanupTempError;
         }
 
-        using FileAccess file = FileAccess.OpenCompressed(tempPath, FileAccess.ModeFlags.Write, (FileAccess.CompressionMode)compression_mode);
+        using FileAccess file = FileAccess.OpenCompressed(
+            tempPath,
+            FileAccess.ModeFlags.Write,
+            (FileAccess.CompressionMode)compression_mode
+        );
         if (file == null)
         {
             Error openError = FileAccess.GetOpenError();
@@ -27,11 +33,8 @@ public partial class FileIOCoordinator : RefCounted
                 error_sink,
                 $"{error_event_prefix}.open_failed",
                 $"Failed to open {label} file {tempPath}. Error: {(int)openError}",
-                new GDictionary
-                {
-                    ["path"] = tempPath,
-                    ["open_error"] = (int)openError,
-                });
+                new GDictionary { ["path"] = tempPath, ["open_error"] = (int)openError }
+            );
             return (int)openError;
         }
 
@@ -45,15 +48,18 @@ public partial class FileIOCoordinator : RefCounted
                 error_sink,
                 $"{error_event_prefix}.write_failed",
                 $"Failed to write {label} file {tempPath}. Error: {(int)writeError}",
-                new GDictionary
-                {
-                    ["path"] = tempPath,
-                    ["write_error"] = (int)writeError,
-                });
+                new GDictionary { ["path"] = tempPath, ["write_error"] = (int)writeError }
+            );
             return (int)writeError;
         }
 
-        return replace_file_atomically(tempPath, virtual_path, error_event_prefix, label, error_sink);
+        return replace_file_atomically(
+            tempPath,
+            virtual_path,
+            error_event_prefix,
+            label,
+            error_sink
+        );
     }
 
     public static int replace_file_atomically(
@@ -61,7 +67,8 @@ public partial class FileIOCoordinator : RefCounted
         string target_path,
         string error_event_prefix,
         string label,
-        Callable error_sink = default)
+        Action<string, string, GDictionary> error_sink = null
+    )
     {
         string backupPath = $"{target_path}.bak";
         int cleanupBackupError = remove_file_if_exists(backupPath);
@@ -87,7 +94,8 @@ public partial class FileIOCoordinator : RefCounted
                         ["target_path"] = target_path,
                         ["backup_path"] = backupPath,
                         ["backup_error"] = backupError,
-                    });
+                    }
+                );
                 return backupError;
             }
         }
@@ -109,7 +117,8 @@ public partial class FileIOCoordinator : RefCounted
                     ["source_path"] = source_path,
                     ["target_path"] = target_path,
                     ["replace_error"] = replaceError,
-                });
+                }
+            );
             return replaceError;
         }
 
@@ -118,7 +127,11 @@ public partial class FileIOCoordinator : RefCounted
             int removeBackupError = remove_file_if_exists(backupPath);
             if (removeBackupError != (int)Error.Ok)
             {
-                GD.PushWarning($"FileIOCoordinator: replaced {label} file but failed to remove backup {backupPath}. Error: {removeBackupError}");
+                GameLog.Warning(
+                    $"FileIOCoordinator: replaced {label} file but failed to remove backup {backupPath}. Error: {removeBackupError}",
+                    "io.backup_remove_failed",
+                    "io"
+                );
             }
         }
         return (int)Error.Ok;
@@ -129,7 +142,8 @@ public partial class FileIOCoordinator : RefCounted
         int compression_mode,
         string error_event_prefix,
         string label,
-        Callable error_sink = default)
+        Action<string, string, GDictionary> error_sink = null
+    )
     {
         string tempPath = $"{target_path}.tmp";
         remove_file_if_exists(tempPath);
@@ -142,7 +156,11 @@ public partial class FileIOCoordinator : RefCounted
                 int cleanupBackupError = remove_file_if_exists(backupPath);
                 if (cleanupBackupError != (int)Error.Ok)
                 {
-                    GD.PushWarning($"FileIOCoordinator: found valid {label} target but failed to remove stale backup {backupPath}. Error: {cleanupBackupError}");
+                    GameLog.Warning(
+                        $"FileIOCoordinator: found valid {label} target but failed to remove stale backup {backupPath}. Error: {cleanupBackupError}",
+                        "io.stale_backup_remove_failed",
+                        "io"
+                    );
                 }
             }
             return (int)Error.Ok;
@@ -159,11 +177,8 @@ public partial class FileIOCoordinator : RefCounted
                 error_sink,
                 $"{error_event_prefix}.backup_invalid",
                 $"Failed to recover {label} file {target_path} because backup {backupPath} is invalid.",
-                new GDictionary
-                {
-                    ["target_path"] = target_path,
-                    ["backup_path"] = backupPath,
-                });
+                new GDictionary { ["target_path"] = target_path, ["backup_path"] = backupPath }
+            );
             return (int)Error.InvalidData;
         }
 
@@ -179,20 +194,28 @@ public partial class FileIOCoordinator : RefCounted
                     ["target_path"] = target_path,
                     ["backup_path"] = backupPath,
                     ["restore_error"] = restoreError,
-                });
+                }
+            );
             return restoreError;
         }
         return (int)Error.Ok;
     }
 
-    public static bool is_compressed_variant_file_readable(string virtual_path, int compression_mode)
+    public static bool is_compressed_variant_file_readable(
+        string virtual_path,
+        int compression_mode
+    )
     {
         if (!FileAccess.FileExists(virtual_path))
         {
             return false;
         }
 
-        using FileAccess file = FileAccess.OpenCompressed(virtual_path, FileAccess.ModeFlags.Read, (FileAccess.CompressionMode)compression_mode);
+        using FileAccess file = FileAccess.OpenCompressed(
+            virtual_path,
+            FileAccess.ModeFlags.Read,
+            (FileAccess.CompressionMode)compression_mode
+        );
         if (file == null)
         {
             return false;
@@ -211,9 +234,11 @@ public partial class FileIOCoordinator : RefCounted
 
     public static int rename_file(string from_virtual_path, string to_virtual_path)
     {
-        return (int)DirAccess.RenameAbsolute(
-            ProjectSettings.GlobalizePath(from_virtual_path),
-            ProjectSettings.GlobalizePath(to_virtual_path));
+        return (int)
+            DirAccess.RenameAbsolute(
+                ProjectSettings.GlobalizePath(from_virtual_path),
+                ProjectSettings.GlobalizePath(to_virtual_path)
+            );
     }
 
     public static int remove_file_if_exists(string virtual_path)
@@ -225,7 +250,10 @@ public partial class FileIOCoordinator : RefCounted
         return (int)DirAccess.RemoveAbsolute(ProjectSettings.GlobalizePath(virtual_path));
     }
 
-    public static int remove_directory_recursive(string virtual_path, Callable error_sink = default)
+    public static int remove_directory_recursive(
+        string virtual_path,
+        Action<string, string, GDictionary> error_sink = null
+    )
     {
         string absolutePath = ProjectSettings.GlobalizePath(virtual_path);
         if (!DirAccess.DirExistsAbsolute(absolutePath))
@@ -241,11 +269,8 @@ public partial class FileIOCoordinator : RefCounted
                 error_sink,
                 "session.cleanup.open_directory_failed",
                 $"Failed to open directory {virtual_path} for cleanup. Error: {(int)openError}",
-                new GDictionary
-                {
-                    ["virtual_path"] = virtual_path,
-                    ["open_error"] = (int)openError,
-                });
+                new GDictionary { ["virtual_path"] = virtual_path, ["open_error"] = (int)openError }
+            );
             return (int)openError;
         }
 
@@ -256,11 +281,8 @@ public partial class FileIOCoordinator : RefCounted
                 error_sink,
                 "session.cleanup.list_directory_failed",
                 $"Failed to list directory {virtual_path} for cleanup. Error: {(int)listError}",
-                new GDictionary
-                {
-                    ["virtual_path"] = virtual_path,
-                    ["list_error"] = (int)listError,
-                });
+                new GDictionary { ["virtual_path"] = virtual_path, ["list_error"] = (int)listError }
+            );
             return (int)listError;
         }
 
@@ -288,7 +310,9 @@ public partial class FileIOCoordinator : RefCounted
                 continue;
             }
 
-            Error removeFileError = DirAccess.RemoveAbsolute(ProjectSettings.GlobalizePath(childVirtualPath));
+            Error removeFileError = DirAccess.RemoveAbsolute(
+                ProjectSettings.GlobalizePath(childVirtualPath)
+            );
             if (removeFileError != Error.Ok)
             {
                 dir.ListDirEnd();
@@ -300,11 +324,13 @@ public partial class FileIOCoordinator : RefCounted
         return (int)DirAccess.RemoveAbsolute(absolutePath);
     }
 
-    private static void PushError(Callable errorSink, string eventId, string message, GDictionary context)
+    private static void PushError(
+        Action<string, string, GDictionary> errorSink,
+        string eventId,
+        string message,
+        GDictionary context
+    )
     {
-        if (errorSink.Target != null && errorSink.Method != (StringName)"")
-        {
-            errorSink.Call(eventId, message, context);
-        }
+        errorSink?.Invoke(eventId, message, context);
     }
 }

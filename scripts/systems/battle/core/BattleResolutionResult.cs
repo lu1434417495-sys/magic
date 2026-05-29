@@ -77,19 +77,19 @@ public partial class BattleResolutionResult : RefCounted
         return pending_character_rewards.Duplicate();
     }
 
-    public void set_loot_entries(GArray loot_entry_variants)
+    public void set_loot_entries(GArray loot_entry_options)
     {
-        loot_entries = NormalizeDropEntryVariants(loot_entry_variants);
+        loot_entries = NormalizeDropEntryOptions(loot_entry_options);
     }
 
-    public void set_overflow_entries(GArray overflow_entry_variants)
+    public void set_overflow_entries(GArray overflow_entry_options)
     {
-        overflow_entries = NormalizeDropEntryVariants(overflow_entry_variants);
+        overflow_entries = NormalizeDropEntryOptions(overflow_entry_options);
     }
 
-    public void set_pending_character_rewards(GArray reward_variants)
+    public void set_pending_character_rewards(GArray reward_options)
     {
-        pending_character_rewards = NormalizeRewardVariants(reward_variants);
+        pending_character_rewards = NormalizeRewardOptions(reward_options);
     }
 
     public GDictionary to_dict()
@@ -103,23 +103,19 @@ public partial class BattleResolutionResult : RefCounted
             ["terrain_profile_id"] = terrain_profile_id.ToString(),
             ["winner_faction_id"] = winner_faction_id.ToString(),
             ["encounter_resolution"] = encounter_resolution.ToString(),
-            ["loot_entries"] = NormalizeDropEntryVariants(loot_entries),
-            ["overflow_entries"] = NormalizeDropEntryVariants(overflow_entries),
-            ["pending_character_rewards"] = RewardVariantsToDicts(pending_character_rewards),
+            ["loot_entries"] = NormalizeDropEntryOptions(loot_entries),
+            ["overflow_entries"] = NormalizeDropEntryOptions(overflow_entries),
+            ["pending_character_rewards"] = RewardOptionsToDicts(pending_character_rewards),
             ["quest_progress_events"] = DuplicateVariantArray(quest_progress_events),
             ["world_mutations"] = DuplicateVariantArray(world_mutations),
             ["party_resource_commit"] = party_resource_commit.Duplicate(true),
         };
     }
 
-    public static BattleResolutionResult from_dict(Variant data)
+    public static BattleResolutionResult from_dict(GDictionary payload)
     {
-        if (data.VariantType != Variant.Type.Dictionary)
-        {
+        if (payload == null)
             return null;
-        }
-
-        GDictionary payload = data.AsGodotDictionary();
         if (!HasValidTopLevelPayload(payload))
         {
             return null;
@@ -130,10 +126,14 @@ public partial class BattleResolutionResult : RefCounted
             battle_id = ProgressionDataUtils.to_string_name(payload["battle_id"]),
             seed = payload["seed"].AsInt32(),
             world_coord = payload["world_coord"].AsVector2I(),
-            encounter_anchor_id = ProgressionDataUtils.to_string_name(payload["encounter_anchor_id"]),
+            encounter_anchor_id = ProgressionDataUtils.to_string_name(
+                payload["encounter_anchor_id"]
+            ),
             terrain_profile_id = ProgressionDataUtils.to_string_name(payload["terrain_profile_id"]),
             winner_faction_id = ProgressionDataUtils.to_string_name(payload["winner_faction_id"]),
-            encounter_resolution = ProgressionDataUtils.to_string_name(payload["encounter_resolution"]),
+            encounter_resolution = ProgressionDataUtils.to_string_name(
+                payload["encounter_resolution"]
+            ),
         };
 
         GArray parsedLootEntries = DropEntryDictsFromPayload(payload["loot_entries"]);
@@ -146,12 +146,16 @@ public partial class BattleResolutionResult : RefCounted
         {
             return null;
         }
-        GArray parsedPendingCharacterRewards = RewardVariantsFromDicts(payload["pending_character_rewards"]);
+        GArray parsedPendingCharacterRewards = RewardOptionsFromDicts(
+            payload["pending_character_rewards"]
+        );
         if (parsedPendingCharacterRewards == null)
         {
             return null;
         }
-        GArray parsedQuestProgressEvents = DictionaryArrayFromPayload(payload["quest_progress_events"]);
+        GArray parsedQuestProgressEvents = DictionaryArrayFromPayload(
+            payload["quest_progress_events"]
+        );
         if (parsedQuestProgressEvents == null)
         {
             return null;
@@ -167,7 +171,9 @@ public partial class BattleResolutionResult : RefCounted
         result.pending_character_rewards = parsedPendingCharacterRewards;
         result.quest_progress_events = parsedQuestProgressEvents;
         result.world_mutations = parsedWorldMutations;
-        result.party_resource_commit = payload["party_resource_commit"].AsGodotDictionary().Duplicate(true);
+        result.party_resource_commit = payload["party_resource_commit"]
+            .AsGodotDictionary()
+            .Duplicate(true);
         return result;
     }
 
@@ -184,23 +190,29 @@ public partial class BattleResolutionResult : RefCounted
                 return false;
             }
         }
-        if (!payload.ContainsKey("seed") || payload["seed"].VariantType != Variant.Type.Int)
+        if (!payload.ContainsKey("seed") || !TryAsInt(payload["seed"], out _))
         {
             return false;
         }
-        if (!payload.ContainsKey("world_coord") || payload["world_coord"].VariantType != Variant.Type.Vector2I)
+        if (
+            !payload.ContainsKey("world_coord")
+            || !TryAsVector2I(payload["world_coord"], out _)
+        )
         {
             return false;
         }
         foreach (string fieldName in RequiredArrayFields)
         {
-            if (!payload.ContainsKey(fieldName) || payload[fieldName].VariantType != Variant.Type.Array)
+            if (
+                !payload.ContainsKey(fieldName)
+                || !TryRawArray(payload[fieldName], out _)
+            )
             {
                 return false;
             }
         }
         return payload.ContainsKey("party_resource_commit")
-            && payload["party_resource_commit"].VariantType == Variant.Type.Dictionary;
+            && TryRawDictionary(payload["party_resource_commit"], out _);
     }
 
     private static bool HasExactFields(GDictionary payload, string[] expectedFields)
@@ -216,13 +228,12 @@ public partial class BattleResolutionResult : RefCounted
         {
             expectedLookup[fieldName] = true;
         }
-        foreach (Variant key in payload.Keys)
+        foreach (object keyValue in payload.Keys)
         {
-            if (key.VariantType != Variant.Type.String)
+            if (!TryAsString(keyValue, out string keyText))
             {
                 return false;
             }
-            string keyText = key.AsString();
             if (!expectedLookup.ContainsKey(keyText) || seenLookup.ContainsKey(keyText))
             {
                 return false;
@@ -232,34 +243,56 @@ public partial class BattleResolutionResult : RefCounted
         return seenLookup.Count == expectedLookup.Count;
     }
 
-    private static bool IsNonEmptyString(Variant value)
+    private static bool IsNonEmptyString(object rawValue)
     {
-        return value.VariantType == Variant.Type.String && !string.IsNullOrEmpty(value.AsString().StripEdges());
+        return rawValue switch
+        {
+            Variant value
+                => value.VariantType == Variant.Type.String
+                    && !string.IsNullOrEmpty(value.AsString().StripEdges()),
+            string value => !string.IsNullOrEmpty(value.StripEdges()),
+            _ => false,
+        };
     }
 
-    private static bool IsNonEmptyStringNameValue(Variant value)
+    private static bool IsNonEmptyStringNameValue(object rawValue)
     {
-        if (value.VariantType != Variant.Type.String && value.VariantType != Variant.Type.StringName)
+        if (rawValue is string text)
+        {
+            return !string.IsNullOrEmpty(text.StripEdges());
+        }
+        if (rawValue is StringName stringName)
+        {
+            return !string.IsNullOrEmpty(stringName.ToString().StripEdges());
+        }
+        if (rawValue is not Variant value)
+        {
+            return false;
+        }
+        if (
+            value.VariantType != Variant.Type.String
+            && value.VariantType != Variant.Type.StringName
+        )
         {
             return false;
         }
         return !string.IsNullOrEmpty(value.AsString().StripEdges());
     }
 
-    private static GArray DropEntryDictsFromPayload(Variant values)
+    private static GArray DropEntryDictsFromPayload(object values)
     {
-        if (values.VariantType != Variant.Type.Array)
+        if (!TryRawArray(values, out GArray rawValues))
         {
             return null;
         }
         GArray parsedEntries = new();
-        foreach (Variant entryVariant in values.AsGodotArray())
+        foreach (object entryValue in rawValues)
         {
-            if (entryVariant.VariantType != Variant.Type.Dictionary)
+            if (!TryRawDictionary(entryValue, out GDictionary entryData))
             {
                 return null;
             }
-            GDictionary parsedEntry = DropEntryFromPayload(entryVariant.AsGodotDictionary());
+            GDictionary parsedEntry = DropEntryFromPayload(entryData);
             if (parsedEntry == null)
             {
                 return null;
@@ -289,27 +322,27 @@ public partial class BattleResolutionResult : RefCounted
                 return null;
             }
         }
-        foreach (string fieldName in new[]
-        {
-            "drop_type",
-            "drop_source_kind",
-            "drop_source_id",
-            "drop_source_label",
-            "drop_entry_id",
-            "item_id",
-        })
+        foreach (
+            string fieldName in new[]
+            {
+                "drop_type",
+                "drop_source_kind",
+                "drop_source_id",
+                "drop_source_label",
+                "drop_entry_id",
+                "item_id",
+            }
+        )
         {
             if (!IsNonEmptyStringNameValue(entryData[fieldName]))
             {
                 return null;
             }
         }
-        if (entryData["quantity"].VariantType != Variant.Type.Int)
+        if (!TryAsInt(entryData["quantity"], out int quantity))
         {
             return null;
         }
-
-        int quantity = entryData["quantity"].AsInt32();
         if (quantity <= 0)
         {
             return null;
@@ -320,17 +353,26 @@ public partial class BattleResolutionResult : RefCounted
         if (dropType == BattleLootConstants.DROP_TYPE_EQUIPMENT_INSTANCE())
         {
             allowedFieldCount += 1;
-            if (entryData.Count != allowedFieldCount || !entryData.ContainsKey("equipment_instance") || quantity != 1)
+            if (
+                entryData.Count != allowedFieldCount
+                || !entryData.ContainsKey("equipment_instance")
+                || quantity != 1
+            )
             {
                 return null;
             }
 
-            string equipmentError = EquipmentInstanceState.get_payload_validation_error(entryData["equipment_instance"], false);
+            string equipmentError = EquipmentInstanceState.get_payload_validation_error(
+                entryData["equipment_instance"].AsGodotDictionary(),
+                false
+            );
             if (!string.IsNullOrEmpty(equipmentError))
             {
                 return null;
             }
-            EquipmentInstanceState equipmentInstance = EquipmentInstanceState.from_dict(entryData["equipment_instance"]);
+            EquipmentInstanceState equipmentInstance = EquipmentInstanceState.from_dict(
+                entryData["equipment_instance"].AsGodotDictionary()
+            );
             if (equipmentInstance == null)
             {
                 return null;
@@ -358,45 +400,69 @@ public partial class BattleResolutionResult : RefCounted
         return new GDictionary
         {
             ["drop_type"] = ProgressionDataUtils.to_string_name(entryData["drop_type"]).ToString(),
-            ["drop_source_kind"] = ProgressionDataUtils.to_string_name(entryData["drop_source_kind"]).ToString(),
-            ["drop_source_id"] = ProgressionDataUtils.to_string_name(entryData["drop_source_id"]).ToString(),
+            ["drop_source_kind"] = ProgressionDataUtils
+                .to_string_name(entryData["drop_source_kind"])
+                .ToString(),
+            ["drop_source_id"] = ProgressionDataUtils
+                .to_string_name(entryData["drop_source_id"])
+                .ToString(),
             ["drop_source_label"] = entryData["drop_source_label"].AsString().StripEdges(),
-            ["drop_entry_id"] = ProgressionDataUtils.to_string_name(entryData["drop_entry_id"]).ToString(),
+            ["drop_entry_id"] = ProgressionDataUtils
+                .to_string_name(entryData["drop_entry_id"])
+                .ToString(),
             ["item_id"] = ProgressionDataUtils.to_string_name(entryData["item_id"]).ToString(),
             ["quantity"] = entryData["quantity"].AsInt32(),
         };
     }
 
-    private static GArray NormalizeDropEntryVariants(Variant lootEntryVariants)
+    private static GArray NormalizeDropEntryOptions(object lootEntryOptions)
     {
         GArray normalizedEntries = new();
-        if (lootEntryVariants.VariantType != Variant.Type.Array)
+        if (!TryRawArray(lootEntryOptions, out GArray lootEntryValues))
         {
             return normalizedEntries;
         }
 
-        foreach (Variant lootEntryVariant in lootEntryVariants.AsGodotArray())
+        foreach (object lootEntryValue in lootEntryValues)
         {
-            if (lootEntryVariant.VariantType != Variant.Type.Dictionary)
+            if (!TryRawDictionary(lootEntryValue, out GDictionary lootEntryData))
             {
                 continue;
             }
-
-            GDictionary lootEntryData = lootEntryVariant.AsGodotDictionary();
-            StringName dropType = ProgressionDataUtils.to_string_name(GetOrDefault(lootEntryData, "drop_type"));
-            StringName dropSourceKind = ProgressionDataUtils.to_string_name(GetOrDefault(lootEntryData, "drop_source_kind"));
-            StringName dropSourceId = ProgressionDataUtils.to_string_name(GetOrDefault(lootEntryData, "drop_source_id"));
-            StringName dropEntryId = ProgressionDataUtils.to_string_name(GetOrDefault(lootEntryData, "drop_entry_id"));
-            StringName itemId = ProgressionDataUtils.to_string_name(GetOrDefault(lootEntryData, "item_id"));
-            int quantity = Mathf.Max(GetOrDefault(lootEntryData, "quantity").AsInt32(), 0);
-            string dropSourceLabel = GetOrDefault(lootEntryData, "drop_source_label").AsString().StripEdges();
-            if (dropType == ""
+            StringName dropType = ProgressionDataUtils.to_string_name(
+                lootEntryData.GetValueOrDefault("drop_type")
+            );
+            StringName dropSourceKind = ProgressionDataUtils.to_string_name(
+                lootEntryData.GetValueOrDefault("drop_source_kind")
+            );
+            StringName dropSourceId = ProgressionDataUtils.to_string_name(
+                lootEntryData.GetValueOrDefault("drop_source_id")
+            );
+            StringName dropEntryId = ProgressionDataUtils.to_string_name(
+                lootEntryData.GetValueOrDefault("drop_entry_id")
+            );
+            StringName itemId = ProgressionDataUtils.to_string_name(
+                lootEntryData.GetValueOrDefault("item_id")
+            );
+            int quantity = Mathf.Max(
+                TryAsInt(lootEntryData.GetValueOrDefault("quantity"), out int rawQuantity)
+                    ? rawQuantity
+                    : 0,
+                0
+            );
+            string dropSourceLabel = lootEntryData
+                .GetValueOrDefault("drop_source_label")
+                .AsString()
+                .StripEdges();
+            if (
+                dropType == ""
                 || dropSourceKind == ""
                 || dropSourceId == ""
                 || string.IsNullOrEmpty(dropSourceLabel)
                 || dropEntryId == ""
                 || itemId == ""
-                || quantity <= 0)
+                || quantity <= 0
+            )
             {
                 continue;
             }
@@ -417,40 +483,39 @@ public partial class BattleResolutionResult : RefCounted
                 {
                     continue;
                 }
-                GDictionary equipmentInstanceData = NormalizeEquipmentInstanceData(lootEntryData["equipment_instance"]);
+                GDictionary equipmentInstanceData = NormalizeEquipmentInstanceData(
+                    lootEntryData["equipment_instance"]
+                );
                 if (equipmentInstanceData.Count == 0)
                 {
                     continue;
                 }
                 normalizedEntry["equipment_instance"] = equipmentInstanceData;
                 normalizedEntry["quantity"] = 1;
-                normalizedEntry["item_id"] = ProgressionDataUtils.to_string_name(GetOrDefault(equipmentInstanceData, "item_id", itemId)).ToString();
+                normalizedEntry["item_id"] = ProgressionDataUtils
+                    .to_string_name(equipmentInstanceData.GetValueOrDefault("item_id", itemId))
+                    .ToString();
             }
             normalizedEntries.Add(normalizedEntry);
         }
         return normalizedEntries;
     }
 
-    private static GArray NormalizeRewardVariants(Variant rewardVariants)
+    private static GArray NormalizeRewardOptions(object rewardOptions)
     {
         GArray normalizedRewards = new();
-        if (rewardVariants.VariantType == Variant.Type.Nil)
-        {
-            return normalizedRewards;
-        }
-        if (rewardVariants.VariantType != Variant.Type.Array)
+        if (!TryRawArray(rewardOptions, out GArray rewardValues))
         {
             return normalizedRewards;
         }
 
-        foreach (Variant rewardVariant in rewardVariants.AsGodotArray())
+        foreach (object rewardValue in rewardValues)
         {
-            if (rewardVariant.VariantType == Variant.Type.Nil)
+            if (IsNil(rewardValue))
             {
                 continue;
             }
-            if (rewardVariant.VariantType == Variant.Type.Object
-                && rewardVariant.AsGodotObject() is PendingCharacterReward typedReward)
+            if (TryAsObject(rewardValue, out PendingCharacterReward typedReward))
             {
                 if (!typedReward.is_empty())
                 {
@@ -458,9 +523,11 @@ public partial class BattleResolutionResult : RefCounted
                 }
                 continue;
             }
-            if (rewardVariant.VariantType == Variant.Type.Dictionary)
+            if (TryRawDictionary(rewardValue, out GDictionary rewardData))
             {
-                PendingCharacterReward normalizedReward = PendingCharacterReward.from_variant(rewardVariant);
+                PendingCharacterReward normalizedReward = PendingCharacterReward.from_dict(
+                    rewardData
+                );
                 if (normalizedReward != null && !normalizedReward.is_empty())
                 {
                     normalizedRewards.Add(normalizedReward);
@@ -470,47 +537,48 @@ public partial class BattleResolutionResult : RefCounted
         return normalizedRewards;
     }
 
-    private static GArray RewardVariantsToDicts(GArray rewardVariants)
+    private static GArray RewardOptionsToDicts(GArray rewardOptions)
     {
         GArray rewards = new();
-        foreach (Variant rewardVariant in rewardVariants)
+        foreach (object rewardValue in rewardOptions)
         {
-            if (rewardVariant.VariantType == Variant.Type.Nil)
+            if (IsNil(rewardValue))
             {
                 continue;
             }
-            if (rewardVariant.VariantType == Variant.Type.Object)
+            if (TryAsObject(rewardValue, out GodotObject rewardObject))
             {
-                GodotObject rewardObject = rewardVariant.AsGodotObject();
                 if (rewardObject != null && rewardObject.HasMethod("to_dict"))
                 {
                     rewards.Add(rewardObject.Call("to_dict"));
                     continue;
                 }
             }
-            if (rewardVariant.VariantType == Variant.Type.Dictionary)
+            if (TryRawDictionary(rewardValue, out GDictionary rewardData))
             {
-                rewards.Add(rewardVariant.AsGodotDictionary().Duplicate(true));
+                rewards.Add(rewardData.Duplicate(true));
             }
         }
         return rewards;
     }
 
-    private static GArray RewardVariantsFromDicts(Variant values)
+    private static GArray RewardOptionsFromDicts(object values)
     {
-        if (values.VariantType != Variant.Type.Array)
+        if (!TryRawArray(values, out GArray rawValues))
         {
             return null;
         }
 
         GArray rewards = new();
-        foreach (Variant rewardVariant in values.AsGodotArray())
+        foreach (object rewardValue in rawValues)
         {
-            if (rewardVariant.VariantType != Variant.Type.Dictionary)
+            if (!TryRawDictionary(rewardValue, out GDictionary rewardData))
             {
                 return null;
             }
-            PendingCharacterReward rewardFromDict = PendingCharacterReward.from_variant(rewardVariant);
+            PendingCharacterReward rewardFromDict = PendingCharacterReward.from_dict(
+                rewardData
+            );
             if (rewardFromDict == null)
             {
                 return null;
@@ -520,22 +588,22 @@ public partial class BattleResolutionResult : RefCounted
         return rewards;
     }
 
-    private static GArray DuplicateVariantArray(Variant values)
+    private static GArray DuplicateVariantArray(object values)
     {
         GArray result = new();
-        if (values.VariantType != Variant.Type.Array)
+        if (!TryRawArray(values, out GArray rawValues))
         {
             return result;
         }
-        foreach (Variant value in values.AsGodotArray())
+        foreach (var value in rawValues)
         {
-            if (value.VariantType == Variant.Type.Dictionary)
+            if (TryRawDictionary(value, out GDictionary dictionary))
             {
-                result.Add(value.AsGodotDictionary().Duplicate(true));
+                result.Add(dictionary.Duplicate(true));
             }
-            else if (value.VariantType == Variant.Type.Array)
+            else if (TryRawArray(value, out GArray array))
             {
-                result.Add(value.AsGodotArray().Duplicate(true));
+                result.Add(array.Duplicate(true));
             }
             else
             {
@@ -545,60 +613,162 @@ public partial class BattleResolutionResult : RefCounted
         return result;
     }
 
-    private static GArray DictionaryArrayFromPayload(Variant values)
+    private static GArray DictionaryArrayFromPayload(object values)
     {
-        if (values.VariantType != Variant.Type.Array)
+        if (!TryRawArray(values, out GArray rawValues))
         {
             return null;
         }
         GArray result = new();
-        foreach (Variant value in values.AsGodotArray())
+        foreach (object value in rawValues)
         {
-            if (value.VariantType != Variant.Type.Dictionary)
+            if (!TryRawDictionary(value, out GDictionary dictionary))
             {
                 return null;
             }
-            result.Add(value.AsGodotDictionary().Duplicate(true));
+            result.Add(dictionary.Duplicate(true));
         }
         return result;
     }
 
-    private static GDictionary NormalizeEquipmentInstanceData(Variant value)
+    private static GDictionary NormalizeEquipmentInstanceData(object rawValue)
     {
-        if (value.VariantType == Variant.Type.Nil)
+        if (TryRawDictionary(rawValue, out GDictionary rawDictionary))
         {
-            return new GDictionary();
-        }
-        if (value.VariantType == Variant.Type.Dictionary)
-        {
-            if (!string.IsNullOrEmpty(EquipmentInstanceState.get_payload_validation_error(value, false)))
+            if (
+                !string.IsNullOrEmpty(
+                    EquipmentInstanceState.get_payload_validation_error(rawDictionary, false)
+                )
+            )
             {
                 return new GDictionary();
             }
-            EquipmentInstanceState instance = EquipmentInstanceState.from_dict(value);
+            EquipmentInstanceState instance = EquipmentInstanceState.from_dict(rawDictionary);
             if (instance == null || instance.item_id == "")
             {
                 return new GDictionary();
             }
             return instance.to_dict();
         }
-        if (value.VariantType == Variant.Type.Object)
+        if (TryAsObject(rawValue, out GodotObject rawObject) && rawObject.HasMethod("to_dict"))
         {
-            GodotObject obj = value.AsGodotObject();
-            if (obj != null && obj.HasMethod("to_dict"))
-            {
-                Variant instanceDict = obj.Call("to_dict");
-                if (instanceDict.VariantType == Variant.Type.Dictionary)
-                {
-                    return NormalizeEquipmentInstanceData(instanceDict);
-                }
-            }
+            return NormalizeEquipmentObjectData(rawObject);
+        }
+        if (IsNil(rawValue))
+        {
+            return new GDictionary();
         }
         return new GDictionary();
     }
 
-    private static Variant GetOrDefault(GDictionary data, string key, Variant fallback = default)
+    private static GDictionary NormalizeEquipmentObjectData(GodotObject obj)
     {
-        return data.ContainsKey(key) ? data[key] : fallback;
+        object instanceDict = obj.Call("to_dict");
+        return TryRawDictionary(instanceDict, out _)
+            ? NormalizeEquipmentInstanceData(instanceDict)
+            : new GDictionary();
+    }
+
+    private static bool TryRawArray(object rawValue, out GArray values)
+    {
+        if (rawValue is Variant value && value.VariantType == Variant.Type.Array)
+        {
+            values = value.AsGodotArray();
+            return true;
+        }
+        if (rawValue is GArray array)
+        {
+            values = array;
+            return true;
+        }
+        values = new GArray();
+        return false;
+    }
+
+    private static bool TryRawDictionary(object rawValue, out GDictionary value)
+    {
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Dictionary)
+        {
+            value = variant.AsGodotDictionary();
+            return true;
+        }
+        if (rawValue is GDictionary dictionary)
+        {
+            value = dictionary;
+            return true;
+        }
+        value = new GDictionary();
+        return false;
+    }
+
+    private static bool TryAsObject<T>(object rawValue, out T value)
+        where T : GodotObject
+    {
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Object)
+        {
+            value = variant.AsGodotObject() as T;
+            return value != null;
+        }
+        if (rawValue is T typedValue)
+        {
+            value = typedValue;
+            return true;
+        }
+        value = null;
+        return false;
+    }
+
+    private static bool TryAsInt(object rawValue, out int value)
+    {
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Int)
+        {
+            value = variant.AsInt32();
+            return true;
+        }
+        if (rawValue is int intValue)
+        {
+            value = intValue;
+            return true;
+        }
+        value = 0;
+        return false;
+    }
+
+    private static bool TryAsString(object rawValue, out string value)
+    {
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.String)
+        {
+            value = variant.AsString();
+            return true;
+        }
+        if (rawValue is string stringValue)
+        {
+            value = stringValue;
+            return true;
+        }
+        value = "";
+        return false;
+    }
+
+    private static bool TryAsVector2I(object rawValue, out Vector2I value)
+    {
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Vector2I)
+        {
+            value = variant.AsVector2I();
+            return true;
+        }
+        if (rawValue is Vector2I vector)
+        {
+            value = vector;
+            return true;
+        }
+        value = Vector2I.Zero;
+        return false;
+    }
+
+    private static bool IsNil(object rawValue)
+    {
+        return rawValue == null
+            || (rawValue is Variant variant && variant.VariantType == Variant.Type.Nil);
     }
 }

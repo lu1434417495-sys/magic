@@ -1,9 +1,9 @@
 [gd_resource type="Resource" script_class="SkillDef" format=3]
 
-[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="1_passwall_variant"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="2_passwall_effect"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="3_passwall_combat"]
-[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="4_passwall_skill"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="1_passwall_option"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="2_passwall_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="3_passwall_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="4_passwall_skill"]
 
 [sub_resource type="Resource" id="Effect_edge_clear"]
 script = ExtResource("2_passwall_effect")
@@ -13,7 +13,7 @@ params = {
 }
 
 [sub_resource type="Resource" id="Variant_open_passage"]
-script = ExtResource("1_passwall_variant")
+script = ExtResource("1_passwall_option")
 variant_id = &"open_passage"
 display_name = "开辟通道"
 description = "选择两个正交相邻地格，移除它们之间的墙、门或闸门阻挡。"
@@ -44,7 +44,7 @@ level_overrides = {
 }
 mastery_trigger_mode = &"effect_applied"
 ai_tags = Array[StringName]([&"terrain", &"mobility", &"breaker"])
-cast_variants = Array[ExtResource("1_passwall_variant")]([SubResource("Variant_open_passage")])
+cast_variants = Array[ExtResource("1_passwall_option")]([SubResource("Variant_open_passage")])
 
 [resource]
 script = ExtResource("4_passwall_skill")

@@ -4,14 +4,14 @@
 
 extends SceneTree
 
-const BattleBoard2D = preload("res://scripts/ui/battle_board_2d.gd")
+const BattleBoard2D = preload("res://scripts/ui/BattleBoard2D.cs")
 const BattleBoardScene = preload("res://scenes/ui/battle_board_2d.tscn")
-const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
-const BattleGridService = preload("res://scripts/systems/battle/terrain/battle_grid_service.gd")
-const BattleBoardRenderProfile = preload("res://scripts/ui/battle_board_render_profile.gd")
-const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
-const BattleTerrainGenerator = preload("res://scripts/systems/battle/terrain/battle_terrain_generator.gd")
-const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
+const BattleCellState = preload("res://scripts/systems/battle/core/BattleCellState.cs")
+const BattleGridService = preload("res://scripts/systems/battle/terrain/BattleGridService.cs")
+const BattleBoardRenderProfile = preload("res://scripts/ui/BattleBoardRenderProfile.cs")
+const BattleState = preload("res://scripts/systems/battle/core/BattleState.cs")
+const BattleTerrainGenerator = preload("res://scripts/systems/battle/terrain/BattleTerrainGenerator.cs")
+const BattleUnitState = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
 
 const VIEWPORT_SIZE := Vector2i(1280, 720)
 const TEST_MAP_SIZE := Vector2i(19, 11)
@@ -45,7 +45,7 @@ func _run() -> void:
 
 	var selected_coord: Vector2i = layout.get("player_coord", Vector2i.ZERO)
 	board.set_viewport_size(Vector2(VIEWPORT_SIZE))
-	board.configure(state, selected_coord, [])
+	board.configure(state, selected_coord, [], [], &"single_unit", 1, 1, {})
 	var ready := await _wait_for_board_render_ready(board)
 	if not ready:
 		push_error("Battle board capture did not reach render-ready state before screenshot.")
@@ -135,11 +135,11 @@ func _build_unit(unit_id: StringName, display_name: String, faction_id: StringNa
 
 func _clone_cells(cells: Dictionary) -> Dictionary:
 	var cloned: Dictionary = {}
-	for coord_variant in cells.keys():
-		if coord_variant is not Vector2i:
+	for coord_option in cells.keys():
+		if coord_option is not Vector2i:
 			continue
-		var coord: Vector2i = coord_variant
-		var cell := cells.get(coord_variant) as BattleCellState
+		var coord: Vector2i = coord_option
+		var cell := cells.get(coord_option) as BattleCellState
 		if cell == null:
 			continue
 		cloned[coord] = BattleCellState.from_dict(cell.to_dict())

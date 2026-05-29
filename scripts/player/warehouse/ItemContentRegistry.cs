@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Godot;
+using VT = Godot.Variant.Type;
 
 [GlobalClass]
 public partial class ItemContentRegistry : RefCounted
@@ -19,11 +20,24 @@ public partial class ItemContentRegistry : RefCounted
 
     public ItemContentRegistry()
     {
+        System.GC.SuppressFinalize(this);
     }
 
     public ItemContentRegistry(bool autoRebuild)
     {
+        System.GC.SuppressFinalize(this);
     }
+
+    public new void Dispose()
+    {
+        _itemDefs.Clear();
+        _templateDefs.Clear();
+        _resolvedTemplateCache.Clear();
+        _validationErrors.Clear();
+        base.Dispose();
+    }
+
+    public void dispose() => Dispose();
 
     public void rebuild()
     {
@@ -39,7 +53,10 @@ public partial class ItemContentRegistry : RefCounted
         _hasBuilt = true;
     }
 
-    public void rebuild_from_directories(Godot.Collections.Array itemDirectories, Godot.Collections.Array templateDirectories)
+    public void rebuild_from_directories(
+        Godot.Collections.Array itemDirectories,
+        Godot.Collections.Array templateDirectories
+    )
     {
         _itemDefs.Clear();
         _templateDefs.Clear();
@@ -95,7 +112,7 @@ public partial class ItemContentRegistry : RefCounted
         if (_defaultSnapshotBuilt)
             return;
 
-        var registry = new ItemContentRegistry(false);
+        using var registry = new ItemContentRegistry(false);
         registry.rebuild_from_directories(
             new Godot.Collections.Array { ItemConfigDirectory },
             new Godot.Collections.Array { ItemTemplateDirectory }
@@ -148,7 +165,9 @@ public partial class ItemContentRegistry : RefCounted
 
     private void RegisterTemplateResource(string resourcePath)
     {
-        var resource = ResourceLoader.Load<Resource>(resourcePath);
+        var resource = GodotContentResourceLifetime.Keep(
+            ResourceLoader.Load<Resource>(resourcePath)
+        );
         if (resource == null)
         {
             _validationErrors.Add($"Failed to load item template {resourcePath}.");
@@ -179,7 +198,13 @@ public partial class ItemContentRegistry : RefCounted
         {
             if (_resolvedTemplateCache.ContainsKey(entry.Key))
                 continue;
-            var resolved = ResolveWithTemplateChain(entry.Value, _templateDefs, new List<StringName>(), _resolvedTemplateCache, _validationErrors);
+            var resolved = ResolveWithTemplateChain(
+                entry.Value,
+                _templateDefs,
+                new List<StringName>(),
+                _resolvedTemplateCache,
+                _validationErrors
+            );
             if (resolved != null)
                 _resolvedTemplateCache[entry.Key] = resolved;
         }
@@ -224,7 +249,9 @@ public partial class ItemContentRegistry : RefCounted
 
     private void RegisterItemResource(string resourcePath)
     {
-        var resource = ResourceLoader.Load<Resource>(resourcePath);
+        var resource = GodotContentResourceLifetime.Keep(
+            ResourceLoader.Load<Resource>(resourcePath)
+        );
         if (resource == null)
         {
             _validationErrors.Add($"Failed to load item config {resourcePath}.");
@@ -243,11 +270,19 @@ public partial class ItemContentRegistry : RefCounted
         }
         if (_templateDefs.ContainsKey(rawDef.item_id))
         {
-            _validationErrors.Add($"Item config {resourcePath} reuses template id {(string)rawDef.item_id}; templates and instances must use distinct ids.");
+            _validationErrors.Add(
+                $"Item config {resourcePath} reuses template id {(string)rawDef.item_id}; templates and instances must use distinct ids."
+            );
             return;
         }
 
-        var itemDef = ResolveWithTemplateChain(rawDef, _templateDefs, new List<StringName>(), _resolvedTemplateCache, _validationErrors);
+        var itemDef = ResolveWithTemplateChain(
+            rawDef,
+            _templateDefs,
+            new List<StringName>(),
+            _resolvedTemplateCache,
+            _validationErrors
+        );
         if (itemDef == null)
             return;
 
@@ -262,7 +297,9 @@ public partial class ItemContentRegistry : RefCounted
         var rawCategory = itemDef.item_category;
         if (rawCategory != "" && !ItemDef.get_valid_item_categories().Contains(rawCategory))
         {
-            _validationErrors.Add($"Item {(string)itemDef.item_id} declares unsupported item_category {(string)rawCategory}; expected one of misc / equipment / skill_book.");
+            _validationErrors.Add(
+                $"Item {(string)itemDef.item_id} declares unsupported item_category {(string)rawCategory}; expected one of misc / equipment / skill_book."
+            );
             return;
         }
         if (itemDef.is_stackable && itemDef.max_stack <= 0)
@@ -272,27 +309,43 @@ public partial class ItemContentRegistry : RefCounted
         }
         if (itemDef.base_price > 0 && itemDef.sellable && itemDef.buy_price <= 0)
         {
-            _validationErrors.Add($"Sellable item {(string)itemDef.item_id} must declare explicit buy_price.");
+            _validationErrors.Add(
+                $"Sellable item {(string)itemDef.item_id} must declare explicit buy_price."
+            );
             return;
         }
         if (itemDef.base_price > 0 && itemDef.sellable && itemDef.sell_price <= 0)
         {
-            _validationErrors.Add($"Sellable item {(string)itemDef.item_id} must declare explicit sell_price.");
+            _validationErrors.Add(
+                $"Sellable item {(string)itemDef.item_id} must declare explicit sell_price."
+            );
             return;
         }
         if (itemTags.Contains(new StringName("material")) && itemCraftingGroups.Count == 0)
         {
-            _validationErrors.Add($"Material item {(string)itemDef.item_id} must declare at least one crafting_group.");
+            _validationErrors.Add(
+                $"Material item {(string)itemDef.item_id} must declare at least one crafting_group."
+            );
             return;
         }
-        if (itemTags.Contains(new StringName("quest_item")) && itemDef.get_quest_groups().Count == 0)
+        if (
+            itemTags.Contains(new StringName("quest_item"))
+            && itemDef.get_quest_groups().Count == 0
+        )
         {
-            _validationErrors.Add($"Quest item {(string)itemDef.item_id} must declare at least one quest_group.");
+            _validationErrors.Add(
+                $"Quest item {(string)itemDef.item_id} must declare at least one quest_group."
+            );
             return;
         }
-        if (itemDef.get_item_category_normalized() == new StringName("skill_book") && itemDef.granted_skill_id == "")
+        if (
+            itemDef.get_item_category_normalized() == new StringName("skill_book")
+            && itemDef.granted_skill_id == ""
+        )
         {
-            _validationErrors.Add($"Skill book item {(string)itemDef.item_id} must declare granted_skill_id.");
+            _validationErrors.Add(
+                $"Skill book item {(string)itemDef.item_id} must declare granted_skill_id."
+            );
             return;
         }
 
@@ -300,36 +353,55 @@ public partial class ItemContentRegistry : RefCounted
         {
             if (itemDef.is_stackable || itemDef.get_effective_max_stack() != 1)
             {
-                _validationErrors.Add($"Equipment item {(string)itemDef.item_id} must be non-stackable.");
+                _validationErrors.Add(
+                    $"Equipment item {(string)itemDef.item_id} must be non-stackable."
+                );
                 return;
             }
             if (itemDef.equipment_slot_ids.Count == 0)
             {
-                _validationErrors.Add($"Equipment item {(string)itemDef.item_id} must declare at least one slot.");
+                _validationErrors.Add(
+                    $"Equipment item {(string)itemDef.item_id} must declare at least one slot."
+                );
                 return;
             }
             foreach (string rawSlotId in itemDef.equipment_slot_ids)
             {
-                if (EquipmentRules.is_valid_slot(ProgressionDataUtils.to_string_name(Variant.From(rawSlotId))))
+                if (
+                    EquipmentRules.is_valid_slot(
+                        ProgressionDataUtils.to_string_name(Variant.From(rawSlotId))
+                    )
+                )
                     continue;
-                _validationErrors.Add($"Equipment item {(string)itemDef.item_id} declares invalid slot {rawSlotId}.");
+                _validationErrors.Add(
+                    $"Equipment item {(string)itemDef.item_id} declares invalid slot {rawSlotId}."
+                );
                 return;
             }
             if (!itemDef.has_valid_equipment_type())
             {
-                _validationErrors.Add($"Equipment item {(string)itemDef.item_id} must declare equipment_type_id as weapon, armor, or accessory.");
+                _validationErrors.Add(
+                    $"Equipment item {(string)itemDef.item_id} must declare equipment_type_id as weapon, armor, or accessory."
+                );
                 return;
             }
             if (itemDef.is_weapon() && !ValidateWeaponProfile(itemDef, itemTags))
                 return;
 
-            for (int modifierIndex = 0; modifierIndex < itemDef.attribute_modifiers.Count; modifierIndex++)
+            for (
+                int modifierIndex = 0;
+                modifierIndex < itemDef.attribute_modifiers.Count;
+                modifierIndex++
+            )
             {
                 var modifier = itemDef.attribute_modifiers[modifierIndex];
-                string modifierLabel = $"Item {(string)itemDef.item_id} attribute_modifiers[{modifierIndex}]";
+                string modifierLabel =
+                    $"Item {(string)itemDef.item_id} attribute_modifiers[{modifierIndex}]";
                 if (modifier == null)
                 {
-                    _validationErrors.Add($"{modifierLabel} must be an AttributeModifier (got null).");
+                    _validationErrors.Add(
+                        $"{modifierLabel} must be an AttributeModifier (got null)."
+                    );
                     return;
                 }
                 if (modifier.attribute_id == "")
@@ -337,9 +409,11 @@ public partial class ItemContentRegistry : RefCounted
                     _validationErrors.Add($"{modifierLabel}.attribute_id must be non-empty.");
                     return;
                 }
-                if (!AttributeModifier.is_valid_mode(Variant.From(modifier.mode)))
+                if (!AttributeModifier.is_valid_mode(modifier.mode))
                 {
-                    _validationErrors.Add($"{modifierLabel}.mode uses unsupported value {(string)modifier.mode}.");
+                    _validationErrors.Add(
+                        $"{modifierLabel}.mode uses unsupported value {(string)modifier.mode}."
+                    );
                     return;
                 }
             }
@@ -348,24 +422,32 @@ public partial class ItemContentRegistry : RefCounted
             {
                 if (itemDef.equipment_slot_ids.Count != 1)
                 {
-                    _validationErrors.Add($"Equipment item {(string)itemDef.item_id} declares occupied_slot_ids but equipment_slot_ids must be exactly 1 entry slot.");
+                    _validationErrors.Add(
+                        $"Equipment item {(string)itemDef.item_id} declares occupied_slot_ids but equipment_slot_ids must be exactly 1 entry slot."
+                    );
                     return;
                 }
 
                 var seenOccupied = new HashSet<StringName>();
-                var entrySlotId = ProgressionDataUtils.to_string_name(Variant.From(itemDef.equipment_slot_ids[0]));
+                var entrySlotId = ProgressionDataUtils.to_string_name(
+                    Variant.From(itemDef.equipment_slot_ids[0])
+                );
                 bool containsEntrySlot = false;
                 foreach (string rawSlotId in itemDef.occupied_slot_ids)
                 {
                     var slotId = ProgressionDataUtils.to_string_name(Variant.From(rawSlotId));
                     if (!EquipmentRules.is_valid_slot(slotId))
                     {
-                        _validationErrors.Add($"Equipment item {(string)itemDef.item_id} declares invalid occupied_slot {rawSlotId}.");
+                        _validationErrors.Add(
+                            $"Equipment item {(string)itemDef.item_id} declares invalid occupied_slot {rawSlotId}."
+                        );
                         return;
                     }
                     if (seenOccupied.Contains(slotId))
                     {
-                        _validationErrors.Add($"Equipment item {(string)itemDef.item_id} declares duplicate occupied_slot {(string)slotId}.");
+                        _validationErrors.Add(
+                            $"Equipment item {(string)itemDef.item_id} declares duplicate occupied_slot {(string)slotId}."
+                        );
                         return;
                     }
                     seenOccupied.Add(slotId);
@@ -374,7 +456,9 @@ public partial class ItemContentRegistry : RefCounted
                 }
                 if (!containsEntrySlot)
                 {
-                    _validationErrors.Add($"Equipment item {(string)itemDef.item_id} occupied_slot_ids must include the entry_slot {(string)entrySlotId}.");
+                    _validationErrors.Add(
+                        $"Equipment item {(string)itemDef.item_id} occupied_slot_ids must include the entry_slot {(string)entrySlotId}."
+                    );
                     return;
                 }
             }
@@ -383,59 +467,88 @@ public partial class ItemContentRegistry : RefCounted
         _itemDefs[itemDef.item_id] = itemDef;
     }
 
-    private bool ValidateWeaponProfile(ItemDef itemDef, Godot.Collections.Array<StringName> itemTags)
+    private bool ValidateWeaponProfile(
+        ItemDef itemDef,
+        Godot.Collections.Array<StringName> itemTags
+    )
     {
         var resolvedProfile = GetWeaponProfile(itemDef);
         if (itemDef.weapon_profile == null)
         {
-            _validationErrors.Add($"Weapon item {(string)itemDef.item_id} must declare weapon_profile.");
+            _validationErrors.Add(
+                $"Weapon item {(string)itemDef.item_id} must declare weapon_profile."
+            );
             return false;
         }
         if (resolvedProfile == null)
         {
-            _validationErrors.Add($"Weapon item {(string)itemDef.item_id} must declare weapon_profile as WeaponProfileDef.");
+            _validationErrors.Add(
+                $"Weapon item {(string)itemDef.item_id} must declare weapon_profile as WeaponProfileDef."
+            );
             return false;
         }
         if (resolvedProfile.weapon_type_id == "")
         {
-            _validationErrors.Add($"Weapon item {(string)itemDef.item_id} weapon_profile.weapon_type_id must be non-empty.");
+            _validationErrors.Add(
+                $"Weapon item {(string)itemDef.item_id} weapon_profile.weapon_type_id must be non-empty."
+            );
             return false;
         }
         if (resolvedProfile.family == "")
         {
-            _validationErrors.Add($"Weapon item {(string)itemDef.item_id} weapon_profile.family must be non-empty.");
+            _validationErrors.Add(
+                $"Weapon item {(string)itemDef.item_id} weapon_profile.family must be non-empty."
+            );
             return false;
         }
         if (resolvedProfile.range_type == "")
         {
-            _validationErrors.Add($"Weapon item {(string)itemDef.item_id} weapon_profile.range_type must be non-empty.");
+            _validationErrors.Add(
+                $"Weapon item {(string)itemDef.item_id} weapon_profile.range_type must be non-empty."
+            );
             return false;
         }
         if (resolvedProfile.damage_tag == "")
         {
-            _validationErrors.Add($"Weapon item {(string)itemDef.item_id} weapon_profile.damage_tag must be non-empty.");
+            _validationErrors.Add(
+                $"Weapon item {(string)itemDef.item_id} weapon_profile.damage_tag must be non-empty."
+            );
             return false;
         }
         if (resolvedProfile.attack_range <= 0)
         {
-            _validationErrors.Add($"Weapon item {(string)itemDef.item_id} weapon_profile.attack_range must be >= 1 (got {resolvedProfile.attack_range}).");
+            _validationErrors.Add(
+                $"Weapon item {(string)itemDef.item_id} weapon_profile.attack_range must be >= 1 (got {resolvedProfile.attack_range})."
+            );
             return false;
         }
         if (resolvedProfile.one_handed_dice == null && resolvedProfile.two_handed_dice == null)
         {
-            _validationErrors.Add($"Weapon item {(string)itemDef.item_id} weapon_profile must declare at least one of one_handed_dice or two_handed_dice.");
+            _validationErrors.Add(
+                $"Weapon item {(string)itemDef.item_id} weapon_profile must declare at least one of one_handed_dice or two_handed_dice."
+            );
             return false;
         }
 
         var diceErrors = new Godot.Collections.Array<string>();
         if (resolvedProfile.one_handed_dice != null)
         {
-            foreach (string error in WeaponDamageDiceDef.validate_dice($"Weapon item {(string)itemDef.item_id} weapon_profile.one_handed_dice", resolvedProfile.one_handed_dice))
+            foreach (
+                string error in WeaponDamageDiceDef.validate_dice(
+                    $"Weapon item {(string)itemDef.item_id} weapon_profile.one_handed_dice",
+                    resolvedProfile.one_handed_dice
+                )
+            )
                 diceErrors.Add(error);
         }
         if (resolvedProfile.two_handed_dice != null)
         {
-            foreach (string error in WeaponDamageDiceDef.validate_dice($"Weapon item {(string)itemDef.item_id} weapon_profile.two_handed_dice", resolvedProfile.two_handed_dice))
+            foreach (
+                string error in WeaponDamageDiceDef.validate_dice(
+                    $"Weapon item {(string)itemDef.item_id} weapon_profile.two_handed_dice",
+                    resolvedProfile.two_handed_dice
+                )
+            )
                 diceErrors.Add(error);
         }
         if (diceErrors.Count > 0)
@@ -444,9 +557,14 @@ public partial class ItemContentRegistry : RefCounted
                 _validationErrors.Add(diceError);
             return false;
         }
-        if (itemTags.Contains(new StringName("melee")) && itemDef.get_weapon_physical_damage_tag() == "")
+        if (
+            itemTags.Contains(new StringName("melee"))
+            && itemDef.get_weapon_physical_damage_tag() == ""
+        )
         {
-            _validationErrors.Add($"Melee weapon item {(string)itemDef.item_id} must declare one valid weapon_profile.damage_tag.");
+            _validationErrors.Add(
+                $"Melee weapon item {(string)itemDef.item_id} must declare one valid weapon_profile.damage_tag."
+            );
             return false;
         }
         return true;
@@ -481,7 +599,9 @@ public partial class ItemContentRegistry : RefCounted
         if (visited.Contains(currentId))
         {
             string chainText = string.Join(", ", visited) + $" -> {(string)currentId}";
-            errors.Add($"Item template inheritance cycle detected at {(string)currentId} (chain: {chainText}).");
+            errors.Add(
+                $"Item template inheritance cycle detected at {(string)currentId} (chain: {chainText})."
+            );
             return null;
         }
 
@@ -491,7 +611,9 @@ public partial class ItemContentRegistry : RefCounted
         var templateId = itemDef.base_item_id;
         if (!templateDefs.ContainsKey(templateId))
         {
-            errors.Add($"Item {(string)currentId} references missing template {(string)templateId}.");
+            errors.Add(
+                $"Item {(string)currentId} references missing template {(string)templateId}."
+            );
             return null;
         }
 
@@ -503,7 +625,13 @@ public partial class ItemContentRegistry : RefCounted
         else
         {
             var nextVisited = new List<StringName>(visited) { currentId };
-            resolvedTemplate = ResolveWithTemplateChain(templateDefs[templateId], templateDefs, nextVisited, cache, errors);
+            resolvedTemplate = ResolveWithTemplateChain(
+                templateDefs[templateId],
+                templateDefs,
+                nextVisited,
+                cache,
+                errors
+            );
             if (resolvedTemplate != null)
                 cache[templateId] = resolvedTemplate;
         }
@@ -529,7 +657,9 @@ public partial class ItemContentRegistry : RefCounted
         if (ArrayHasStringName(visited, currentId))
         {
             string chainText = ArrayString(visited) + $" -> {(string)currentId}";
-            errors.Add($"Item template inheritance cycle detected at {(string)currentId} (chain: {chainText}).");
+            errors.Add(
+                $"Item template inheritance cycle detected at {(string)currentId} (chain: {chainText})."
+            );
             return null;
         }
 
@@ -539,7 +669,9 @@ public partial class ItemContentRegistry : RefCounted
         var templateId = itemDef.base_item_id;
         if (!templateDefs.ContainsKey(templateId))
         {
-            errors.Add($"Item {(string)currentId} references missing template {(string)templateId}.");
+            errors.Add(
+                $"Item {(string)currentId} references missing template {(string)templateId}."
+            );
             return null;
         }
 
@@ -552,7 +684,13 @@ public partial class ItemContentRegistry : RefCounted
         {
             var nextVisited = new Godot.Collections.Array(visited);
             nextVisited.Add(currentId);
-            resolvedTemplate = ResolveWithTemplateChain(DictItemDef(templateDefs, templateId), templateDefs, nextVisited, cache, errors);
+            resolvedTemplate = ResolveWithTemplateChain(
+                DictItemDef(templateDefs, templateId),
+                templateDefs,
+                nextVisited,
+                cache,
+                errors
+            );
             if (resolvedTemplate != null)
                 cache[templateId] = resolvedTemplate;
         }
@@ -566,32 +704,60 @@ public partial class ItemContentRegistry : RefCounted
         {
             item_id = instance.item_id,
             base_item_id = "",
-            display_name = instance.display_name != "" ? instance.display_name : template.display_name,
+            display_name =
+                instance.display_name != "" ? instance.display_name : template.display_name,
             description = instance.description != "" ? instance.description : template.description,
             icon = instance.icon != "" ? instance.icon : template.icon,
-            equipment_type_id = instance.equipment_type_id != "" ? instance.equipment_type_id : template.equipment_type_id,
-            weapon_profile = WeaponProfileDef.merge(GetWeaponProfile(template), GetWeaponProfile(instance)),
-            granted_skill_id = instance.granted_skill_id != "" ? instance.granted_skill_id : template.granted_skill_id,
-            item_category = instance.item_category != "" ? instance.item_category : template.item_category,
+            equipment_type_id =
+                instance.equipment_type_id != ""
+                    ? instance.equipment_type_id
+                    : template.equipment_type_id,
+            weapon_profile = WeaponProfileDef.merge(
+                GetWeaponProfile(template),
+                GetWeaponProfile(instance)
+            ),
+            granted_skill_id =
+                instance.granted_skill_id != ""
+                    ? instance.granted_skill_id
+                    : template.granted_skill_id,
+            item_category =
+                instance.item_category != "" ? instance.item_category : template.item_category,
             base_price = instance.base_price != 0 ? instance.base_price : template.base_price,
             buy_price = instance.buy_price != 0 ? instance.buy_price : template.buy_price,
             sell_price = instance.sell_price != 0 ? instance.sell_price : template.sell_price,
-            max_dex_bonus = instance.max_dex_bonus >= 0 ? instance.max_dex_bonus : template.max_dex_bonus,
+            max_dex_bonus =
+                instance.max_dex_bonus >= 0 ? instance.max_dex_bonus : template.max_dex_bonus,
             is_stackable = instance.is_stackable,
             max_stack = instance.max_stack,
             sellable = instance.sellable,
-            equipment_slot_ids = instance.equipment_slot_ids.Count > 0 ? DuplicateStringArray(instance.equipment_slot_ids) : DuplicateStringArray(template.equipment_slot_ids),
-            occupied_slot_ids = instance.occupied_slot_ids.Count > 0 ? DuplicateStringArray(instance.occupied_slot_ids) : DuplicateStringArray(template.occupied_slot_ids),
+            equipment_slot_ids =
+                instance.equipment_slot_ids.Count > 0
+                    ? DuplicateStringArray(instance.equipment_slot_ids)
+                    : DuplicateStringArray(template.equipment_slot_ids),
+            occupied_slot_ids =
+                instance.occupied_slot_ids.Count > 0
+                    ? DuplicateStringArray(instance.occupied_slot_ids)
+                    : DuplicateStringArray(template.occupied_slot_ids),
             equip_requirement = instance.equip_requirement ?? template.equip_requirement,
             tags = MergeStringNameArray(template.tags, instance.tags),
-            crafting_groups = MergeStringNameArray(template.crafting_groups, instance.crafting_groups),
+            crafting_groups = MergeStringNameArray(
+                template.crafting_groups,
+                instance.crafting_groups
+            ),
             quest_groups = MergeStringNameArray(template.quest_groups, instance.quest_groups),
-            attribute_modifiers = MergeAttributeModifiers(template.attribute_modifiers, instance.attribute_modifiers, instance.item_id),
+            attribute_modifiers = MergeAttributeModifiers(
+                template.attribute_modifiers,
+                instance.attribute_modifiers,
+                instance.item_id
+            ),
         };
         return merged;
     }
 
-    private static Godot.Collections.Array<StringName> MergeStringNameArray(Godot.Collections.Array<StringName> templateValues, Godot.Collections.Array<StringName> instanceValues)
+    private static Godot.Collections.Array<StringName> MergeStringNameArray(
+        Godot.Collections.Array<StringName> templateValues,
+        Godot.Collections.Array<StringName> instanceValues
+    )
     {
         var seen = new HashSet<StringName>();
         var merged = new Godot.Collections.Array<StringName>();
@@ -614,7 +780,9 @@ public partial class ItemContentRegistry : RefCounted
         return merged;
     }
 
-    private static Godot.Collections.Array<string> DuplicateStringArray(Godot.Collections.Array<string> sourceValues)
+    private static Godot.Collections.Array<string> DuplicateStringArray(
+        Godot.Collections.Array<string> sourceValues
+    )
     {
         var copied = new Godot.Collections.Array<string>();
         foreach (string value in sourceValues)

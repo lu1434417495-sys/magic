@@ -2,14 +2,14 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_formal_combat_fixture.gd")
-const ITEM_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/warehouse/item_content_registry.gd")
-const PROGRESSION_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/progression_content_registry.gd")
-const CHARACTER_CREATION_SERVICE_SCRIPT = preload("res://scripts/systems/progression/character_creation_service.gd")
-const PROGRESSION_SERVICE_SCRIPT = preload("res://scripts/systems/progression/progression_service.gd")
-const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
-const EQUIPMENT_RULES_SCRIPT = preload("res://scripts/player/equipment/equipment_rules.gd")
-const UNIT_SKILL_PROGRESS_SCRIPT = preload("res://scripts/player/progression/unit_skill_progress.gd")
+const BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT = preload("res://scripts/systems/battle/sim/BattleSimFormalCombatFixture.cs")
+const ITEM_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/warehouse/ItemContentRegistry.cs")
+const PROGRESSION_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/ProgressionContentRegistry.cs")
+const CHARACTER_CREATION_SERVICE_SCRIPT = preload("res://scripts/systems/progression/CharacterCreationService.cs")
+const PROGRESSION_SERVICE_SCRIPT = preload("res://scripts/systems/progression/ProgressionService.cs")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/AttributeService.cs")
+const EQUIPMENT_RULES_SCRIPT = preload("res://scripts/player/equipment/EquipmentRules.cs")
+const UNIT_SKILL_PROGRESS_SCRIPT = preload("res://scripts/player/progression/UnitSkillProgress.cs")
 
 const ATTRIBUTE_IDS: Array[StringName] = [
 	&"strength",
@@ -32,7 +32,7 @@ func _run() -> void:
 	_test_default_main_character_gets_reroll_luck()
 	_test_selected_main_character_gets_reroll_luck()
 	_test_selected_main_character_uses_configured_reroll_count()
-	_test_hostile_main_character_option_falls_back_to_first_ally()
+	_test_hostile_main_character_variant_falls_back_to_first_ally()
 	_test_mixed_6v12_rolls_creation_attributes_from_seed()
 	_test_mixed_6v12_profession_hp_uses_independent_rank_rolls()
 	_test_mixed_6v12_omits_explicit_action_threshold()
@@ -53,7 +53,7 @@ func _run() -> void:
 
 
 func _test_default_main_character_gets_reroll_luck() -> void:
-	var fixture = _build_fixture(BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_MIXED_2S1A)
+	var fixture = _build_fixture(BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_MIXED_2S1A_VALUE())
 	var party_state = fixture.get_party_state()
 
 	_assert_eq(party_state.main_character_member_id, &"ally_longsword_01", "默认主角应是第一个友军。")
@@ -65,9 +65,9 @@ func _test_default_main_character_gets_reroll_luck() -> void:
 
 func _test_selected_main_character_gets_reroll_luck() -> void:
 	var fixture = _build_fixture(
-		BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_MIXED_6V12,
+		BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_MIXED_6V12_VALUE(),
 		{
-			BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_OPTION_MAIN_CHARACTER_MEMBER_ID: &"elite_archer_0",
+			BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_OPTION_MAIN_CHARACTER_MEMBER_ID_VALUE(): &"elite_archer_0",
 		}
 	)
 	var party_state = fixture.get_party_state()
@@ -80,10 +80,10 @@ func _test_selected_main_character_gets_reroll_luck() -> void:
 
 func _test_selected_main_character_uses_configured_reroll_count() -> void:
 	var fixture = _build_fixture(
-		BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_MIXED_6V12,
+		BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_MIXED_6V12_VALUE(),
 		{
-			BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_OPTION_MAIN_CHARACTER_MEMBER_ID: &"elite_mage_0",
-			BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_OPTION_MAIN_CHARACTER_REROLL_COUNT: 10000,
+			BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_OPTION_MAIN_CHARACTER_MEMBER_ID_VALUE(): &"elite_mage_0",
+			BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_OPTION_MAIN_CHARACTER_REROLL_COUNT_VALUE(): 10000,
 		}
 	)
 
@@ -91,11 +91,11 @@ func _test_selected_main_character_uses_configured_reroll_count() -> void:
 	_assert_eq(_get_hidden_luck(fixture, &"elite_archer_0"), 0, "未选中弓手不应获得出生幸运。")
 
 
-func _test_hostile_main_character_option_falls_back_to_first_ally() -> void:
+func _test_hostile_main_character_variant_falls_back_to_first_ally() -> void:
 	var fixture = _build_fixture(
-		BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_MIXED_6V12,
+		BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_MIXED_6V12_VALUE(),
 		{
-			BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_OPTION_MAIN_CHARACTER_MEMBER_ID: &"hostile_archer_0",
+			BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_OPTION_MAIN_CHARACTER_MEMBER_ID_VALUE(): &"hostile_archer_0",
 		}
 	)
 	var party_state = fixture.get_party_state()
@@ -107,18 +107,18 @@ func _test_hostile_main_character_option_falls_back_to_first_ally() -> void:
 
 func _test_mixed_6v12_rolls_creation_attributes_from_seed() -> void:
 	var same_seed_options := {
-		BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_OPTION_ATTRIBUTE_ROLL_SEED: 24680,
+		BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_OPTION_ATTRIBUTE_ROLL_SEED_VALUE(): 24680,
 	}
-	var fixture_a = _build_fixture(BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_MIXED_6V12, same_seed_options)
-	var fixture_b = _build_fixture(BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_MIXED_6V12, same_seed_options)
+	var fixture_a = _build_fixture(BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_MIXED_6V12_VALUE(), same_seed_options)
+	var fixture_b = _build_fixture(BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_MIXED_6V12_VALUE(), same_seed_options)
 	var attrs_a := _build_all_member_attribute_map(fixture_a)
 	var attrs_b := _build_all_member_attribute_map(fixture_b)
 	_assert_eq(attrs_a, attrs_b, "同一 attribute_roll_seed 应稳定复现 6v12 建卡属性。")
 
 	var fixture_c = _build_fixture(
-		BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_MIXED_6V12,
+		BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_MIXED_6V12_VALUE(),
 		{
-			BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_OPTION_ATTRIBUTE_ROLL_SEED: 13579,
+			BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_OPTION_ATTRIBUTE_ROLL_SEED_VALUE(): 13579,
 		}
 	)
 	var attrs_c := _build_all_member_attribute_map(fixture_c)
@@ -130,9 +130,9 @@ func _test_mixed_6v12_rolls_creation_attributes_from_seed() -> void:
 func _test_mixed_6v12_profession_hp_uses_independent_rank_rolls() -> void:
 	var seed := 24680
 	var fixture = _build_fixture(
-		BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_MIXED_6V12,
+		BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_MIXED_6V12_VALUE(),
 		{
-			BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_OPTION_ATTRIBUTE_ROLL_SEED: seed,
+			BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_OPTION_ATTRIBUTE_ROLL_SEED_VALUE(): seed,
 		}
 	)
 	var mage = fixture.get_member_state(&"elite_mage_0")
@@ -140,10 +140,10 @@ func _test_mixed_6v12_profession_hp_uses_independent_rank_rolls() -> void:
 		_test.fail("缺少 6v12 法师。")
 		return
 	var attrs = mage.progression.unit_base_attributes
-	var constitution := int(attrs.get_attribute_value(UnitBaseAttributes.CONSTITUTION))
+	var constitution := int(attrs.get_attribute_value(&"constitution"))
 	var expected_hp := CHARACTER_CREATION_SERVICE_SCRIPT.calculate_initial_hp_max(constitution)
 	var hp_rng := RandomNumberGenerator.new()
-	hp_rng.seed = seed + BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.HP_ROLL_SEED_OFFSET
+	hp_rng.seed = seed + BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.HP_ROLL_SEED_OFFSET_VALUE()
 	for _sword_rank in range(4 * 2):
 		hp_rng.randi_range(1, 10)
 	for _archer_rank in range(2):
@@ -155,14 +155,14 @@ func _test_mixed_6v12_profession_hp_uses_independent_rank_rolls() -> void:
 	old_aggregate_hp += PROGRESSION_SERVICE_SCRIPT.calculate_profession_hit_point_gain(5, constitution) * 5
 	_assert_true(expected_hp != old_aggregate_hp, "测试 seed 应能区分逐 rank 独立掷骰与旧的单 roll 乘 rank 逻辑。")
 	_assert_eq(
-		attrs.get_attribute_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX),
+		attrs.get_attribute_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX_ID()),
 		expected_hp,
 		"6v12 法师职业生命应按每个 rank 独立掷生命骰后累加。"
 	)
 
 
 func _test_mixed_6v12_omits_explicit_action_threshold() -> void:
-	var fixture = _build_fixture(BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_MIXED_6V12)
+	var fixture = _build_fixture(BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_MIXED_6V12_VALUE())
 	var party_state = fixture.get_party_state()
 	if party_state == null:
 		_test.fail("缺少 fixture party_state。")
@@ -174,20 +174,20 @@ func _test_mixed_6v12_omits_explicit_action_threshold() -> void:
 			continue
 		var base_attributes = member_state.progression.unit_base_attributes
 		_assert_true(
-			not base_attributes.custom_stats.has(ATTRIBUTE_SERVICE_SCRIPT.ACTION_THRESHOLD),
+			not base_attributes.custom_stats.has(ATTRIBUTE_SERVICE_SCRIPT.ACTION_THRESHOLD_ID()),
 			"6v12 不应显式写入 action_threshold：%s" % String(member_id)
 		)
 		var attribute_service = ATTRIBUTE_SERVICE_SCRIPT.new()
 		attribute_service.setup(member_state.progression)
 		_assert_eq(
-			attribute_service.get_total_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_THRESHOLD),
-			ATTRIBUTE_SERVICE_SCRIPT.DEFAULT_CHARACTER_ACTION_THRESHOLD,
+			attribute_service.get_total_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_THRESHOLD_ID()),
+			ATTRIBUTE_SERVICE_SCRIPT.DEFAULT_CHARACTER_ACTION_THRESHOLD_VALUE(),
 			"6v12 应回落到角色默认 action_threshold：%s" % String(member_id)
 		)
 
 
 func _test_formal_fixture_requests_bidirectional_spawn_reachability() -> void:
-	var fixture = _build_fixture(BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_MIXED_6V12)
+	var fixture = _build_fixture(BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_MIXED_6V12_VALUE())
 	var context: Dictionary = fixture.build_runtime_context(null, {})
 	_assert_true(bool(context.get("validate_spawn_reachability", false)), "formal combat fixture 模拟应开启出生可达性验证。")
 	_assert_true(bool(context.get("validate_bidirectional_spawn_reachability", false)), "formal combat fixture 模拟应开启玩家/敌方双向可攻击验证。")
@@ -195,7 +195,7 @@ func _test_formal_fixture_requests_bidirectional_spawn_reachability() -> void:
 
 
 func _test_mixed_6v12_elite_archers_get_shooting_specialization() -> void:
-	var fixture = _build_fixture(BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_MIXED_6V12)
+	var fixture = _build_fixture(BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_MIXED_6V12_VALUE())
 	for member_id in [&"elite_archer_0"]:
 		var member_state = fixture.get_member_state(member_id)
 		var skill_progress = member_state.progression.get_skill_progress(&"archer_shooting_specialization") if member_state != null and member_state.progression != null else null
@@ -206,7 +206,7 @@ func _test_mixed_6v12_elite_archers_get_shooting_specialization() -> void:
 		if skill_progress == null:
 			continue
 		_assert_eq(skill_progress.skill_level, 0, "射击专精应以 0 级进入模拟：%s" % String(member_id))
-		_assert_eq(skill_progress.granted_source_type, UNIT_SKILL_PROGRESS_SCRIPT.GRANTED_SOURCE_PROFESSION, "射击专精来源类型应为职业：%s" % String(member_id))
+		_assert_eq(skill_progress.granted_source_type, &"profession", "射击专精来源类型应为职业：%s" % String(member_id))
 		_assert_eq(skill_progress.granted_source_id, &"archer", "射击专精来源职业应为 archer：%s" % String(member_id))
 
 	var hostile = fixture.get_member_state(&"hostile_archer_0")
@@ -215,26 +215,26 @@ func _test_mixed_6v12_elite_archers_get_shooting_specialization() -> void:
 
 
 func _test_mixed_6v12_starts_all_units_at_full_effective_hp() -> void:
-	var fixture = _build_fixture(BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_MIXED_6V12)
+	var fixture = _build_fixture(BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_MIXED_6V12_VALUE())
 	var party_state = fixture.get_party_state()
 	if party_state == null:
 		_test.fail("缺少 fixture party_state。")
 		return
-	for member_id_variant in party_state.member_states.keys():
-		var member_id := StringName(String(member_id_variant))
+	for member_id_option in party_state.member_states.keys():
+		var member_id := StringName(String(member_id_option))
 		var member_state = fixture.get_member_state(member_id)
 		if member_state == null:
 			_test.fail("缺少成员：%s" % String(member_id))
 			continue
 		var snapshot = fixture.get_member_attribute_snapshot_for_equipment_view(member_id, member_state.equipment_state)
-		var hp_max := maxi(int(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX)), 1)
+		var hp_max := maxi(int(snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX_ID())), 1)
 		_assert_eq(member_state.current_hp, hp_max, "6v12 开战前应按装备与职业被动后的有效生命上限补满：%s" % String(member_id))
 
 	var elite_sword = fixture.get_member_state(&"elite_sword_0")
 	if elite_sword != null:
 		var elite_snapshot = fixture.get_member_attribute_snapshot_for_equipment_view(&"elite_sword_0", elite_sword.equipment_state)
 		_assert_eq(
-			elite_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.CHARACTER_HP_MAX_PERCENT_BONUS),
+			elite_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.CHARACTER_HP_MAX_PERCENT_BONUS_ID()),
 			20,
 			"精英剑士有效生命上限应包含强健的 20% 人物生命加成。"
 		)
@@ -242,31 +242,31 @@ func _test_mixed_6v12_starts_all_units_at_full_effective_hp() -> void:
 		fixture.build_runtime_context(null, {})
 		_assert_eq(
 			elite_sword.current_hp,
-			maxi(int(elite_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX)), 1),
+			maxi(int(elite_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX_ID())), 1),
 			"build_runtime_context 开战前应重新把模拟单位补到有效生命上限。"
 		)
 
 
 func _test_mixed_6v12_equips_role_armor() -> void:
-	var fixture = _build_fixture(BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_MIXED_6V12)
+	var fixture = _build_fixture(BATTLE_SIM_FORMAL_COMBAT_FIXTURE_SCRIPT.ROSTER_MIXED_6V12_VALUE())
 	for index in range(4):
 		var elite_sword_member_id := StringName("elite_sword_%d" % index)
-		_assert_equipped_item(fixture, elite_sword_member_id, EQUIPMENT_RULES_SCRIPT.MAIN_HAND, &"steel_longsword", "6v12 精英剑士应装备长剑：%s" % String(elite_sword_member_id))
-		_assert_equipped_item(fixture, elite_sword_member_id, EQUIPMENT_RULES_SCRIPT.BODY, &"iron_scale_mail", "6v12 精英剑士应装备中甲：%s" % String(elite_sword_member_id))
+		_assert_equipped_item(fixture, elite_sword_member_id, "main_hand", &"steel_longsword", "6v12 精英剑士应装备长剑：%s" % String(elite_sword_member_id))
+		_assert_equipped_item(fixture, elite_sword_member_id, "body", &"iron_scale_mail", "6v12 精英剑士应装备中甲：%s" % String(elite_sword_member_id))
 	for index in range(1):
 		var elite_archer_member_id := StringName("elite_archer_%d" % index)
-		_assert_equipped_item(fixture, elite_archer_member_id, EQUIPMENT_RULES_SCRIPT.MAIN_HAND, &"ash_longbow", "6v12 精英弓手应装备长弓：%s" % String(elite_archer_member_id))
-		_assert_equipped_item(fixture, elite_archer_member_id, EQUIPMENT_RULES_SCRIPT.BODY, &"leather_jerkin", "6v12 精英弓手应装备皮甲：%s" % String(elite_archer_member_id))
-	_assert_no_equipped_item(fixture, &"elite_mage_0", EQUIPMENT_RULES_SCRIPT.MAIN_HAND, "6v12 精英法师不应装备武器。")
-	_assert_equipped_item(fixture, &"elite_mage_0", EQUIPMENT_RULES_SCRIPT.BODY, &"leather_jerkin", "6v12 精英法师应装备皮甲。")
+		_assert_equipped_item(fixture, elite_archer_member_id, "main_hand", &"ash_longbow", "6v12 精英弓手应装备长弓：%s" % String(elite_archer_member_id))
+		_assert_equipped_item(fixture, elite_archer_member_id, "body", &"leather_jerkin", "6v12 精英弓手应装备皮甲：%s" % String(elite_archer_member_id))
+	_assert_no_equipped_item(fixture, &"elite_mage_0", "main_hand", "6v12 精英法师不应装备武器。")
+	_assert_equipped_item(fixture, &"elite_mage_0", "body", &"leather_jerkin", "6v12 精英法师应装备皮甲。")
 	for index in range(8):
 		var hostile_sword_member_id := StringName("hostile_sword_%d" % index)
-		_assert_equipped_item(fixture, hostile_sword_member_id, EQUIPMENT_RULES_SCRIPT.MAIN_HAND, &"steel_longsword", "6v12 敌方剑士应装备长剑：%s" % String(hostile_sword_member_id))
-		_assert_equipped_item(fixture, hostile_sword_member_id, EQUIPMENT_RULES_SCRIPT.BODY, &"iron_scale_mail", "6v12 敌方剑士应装备中甲：%s" % String(hostile_sword_member_id))
+		_assert_equipped_item(fixture, hostile_sword_member_id, "main_hand", &"steel_longsword", "6v12 敌方剑士应装备长剑：%s" % String(hostile_sword_member_id))
+		_assert_equipped_item(fixture, hostile_sword_member_id, "body", &"iron_scale_mail", "6v12 敌方剑士应装备中甲：%s" % String(hostile_sword_member_id))
 	for index in range(4):
 		var hostile_archer_member_id := StringName("hostile_archer_%d" % index)
-		_assert_equipped_item(fixture, hostile_archer_member_id, EQUIPMENT_RULES_SCRIPT.MAIN_HAND, &"ash_longbow", "6v12 敌方弓手应装备长弓：%s" % String(hostile_archer_member_id))
-		_assert_equipped_item(fixture, hostile_archer_member_id, EQUIPMENT_RULES_SCRIPT.BODY, &"leather_jerkin", "6v12 敌方弓手应装备皮甲：%s" % String(hostile_archer_member_id))
+		_assert_equipped_item(fixture, hostile_archer_member_id, "main_hand", &"ash_longbow", "6v12 敌方弓手应装备长弓：%s" % String(hostile_archer_member_id))
+		_assert_equipped_item(fixture, hostile_archer_member_id, "body", &"leather_jerkin", "6v12 敌方弓手应装备皮甲：%s" % String(hostile_archer_member_id))
 
 
 func _build_fixture(roster_id: StringName, roster_options: Dictionary = {}):
@@ -299,8 +299,8 @@ func _build_all_member_attribute_map(fixture) -> Dictionary:
 		_test.fail("缺少 fixture party_state。")
 		return result
 	var member_ids: Array[String] = []
-	for member_id_variant in party_state.member_states.keys():
-		member_ids.append(String(member_id_variant))
+	for member_id_option in party_state.member_states.keys():
+		member_ids.append(String(member_id_option))
 	member_ids.sort()
 	for member_id_text in member_ids:
 		var member_id := StringName(member_id_text)

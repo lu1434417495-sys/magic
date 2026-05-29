@@ -4,7 +4,7 @@
 
 
 ; External scripts, scenes, and shared assets referenced by this scene.
-[ext_resource type="Script" path="res://scripts/ui/world_preset_picker_window.gd" id="1_2n8fp"]
+[ext_resource type="Script" path="res://scripts/ui/WorldPresetPickerWindow.cs" id="1_2n8fp"]
 [ext_resource type="StyleBoxFlat" path="res://scenes/ui/styles/panel_default.tres" id="2_panel_default"]
 
 ; Root node and primary scene tree.

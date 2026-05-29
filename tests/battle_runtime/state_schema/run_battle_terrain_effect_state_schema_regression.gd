@@ -1,7 +1,7 @@
 extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
-const BattleTerrainEffectState = preload("res://scripts/systems/battle/terrain/battle_terrain_effect_state.gd")
+const BattleTerrainEffectState = preload("res://scripts/systems/battle/terrain/BattleTerrainEffectState.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures

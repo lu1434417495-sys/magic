@@ -1,6 +1,6 @@
 # 当前 Godot 项目的上下文装载单元
 
-更新日期：`2026-05-16`
+更新日期：`2026-05-27`
 
 ## 使用规则
 
@@ -30,6 +30,7 @@ LoginScreen -> GameSession
 GameSession -> GameRuntimeFacade -> WorldMapRuntimeProxy -> WorldMapSystem
 GameRuntimeFacade -> BattleSessionFacade -> BattleRuntimeModule
 GameRuntimeFacade -> CharacterManagementModule -> Progression / Equipment / Attribute services
+WorldMapSystem -> BattleMapPanel -> BattleHudAdapter
 BattleMapPanel -> BattleBoard2D -> BattleBoardController
 HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRunner
 ```
@@ -40,18 +41,19 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 
 - 文件：
   - `project.godot`
+  - `magic.csproj`
   - `scenes/main/login_screen.tscn`
-  - `scripts/ui/login_screen.gd`
+  - `scripts/ui/LoginScreen.cs`
   - `scenes/ui/world_preset_picker_window.tscn`
-  - `scripts/ui/world_preset_picker_window.gd`
+  - `scripts/ui/WorldPresetPickerWindow.cs`
   - `scenes/ui/save_list_window.tscn`
-  - `scripts/ui/save_list_window.gd`
+  - `scripts/ui/SaveListWindow.cs`
   - `scenes/ui/display_settings_window.tscn`
-  - `scripts/ui/display_settings_window.gd`
+  - `scripts/ui/DisplaySettingsWindow.cs`
   - `scenes/ui/character_creation_window.tscn`
-  - `scripts/ui/character_creation_window.gd`
-  - `scripts/utils/display_settings_service.gd`
-  - `scripts/utils/world_preset_registry.gd`
+  - `scripts/ui/CharacterCreationWindow.cs`
+  - `scripts/utils/DisplaySettingsService.cs`
+  - `scripts/utils/WorldPresetRegistry.cs`
 - 负责：启动页、世界预设入口、存档列表、显示设置、建卡窗口到 `GameSession` 的入口。
 - 适合：登录流程、建卡 UI、save list、世界预设入口、显示设置。
 - 邻接单元：CU-02、CU-03、CU-14。
@@ -60,15 +62,22 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 ### CU-02 GameSession、存档、序列化、全局内容缓存
 
 - 文件：
-  - `scripts/systems/persistence/*.gd`
-  - `scripts/systems/progression/racial_skill_grant_service.gd`
-  - `scripts/utils/true_random_seed_service.gd`
+  - `scripts/systems/persistence/GameSession.cs`
+  - `scripts/systems/persistence/FileIOCoordinator.cs`
+  - `scripts/systems/persistence/GameLogService.cs`
+  - `scripts/systems/persistence/ProgressionSerialization.cs`
+  - `scripts/systems/persistence/SaveSerializer.cs`
+  - `scripts/systems/progression/RacialSkillGrantService.cs`
+  - `scripts/utils/TrueRandomSeedService.cs`
   - `scripts/player/progression/*content_registry.gd`
-  - `scripts/systems/battle/core/special_profiles/battle_special_profile_registry.gd`
-  - `scripts/systems/battle/core/special_profiles/battle_special_profile_manifest_validator.gd`
-  - `scripts/player/warehouse/item_content_registry.gd`
-  - `scripts/player/warehouse/recipe_content_registry.gd`
-  - `scripts/enemies/enemy_content_registry.gd`
+  - `scripts/player/progression/*ContentRegistry.cs`
+  - `scripts/systems/battle/core/special_profiles/BattleSpecialProfileRegistry.cs`
+  - `scripts/systems/battle/core/special_profiles/BattleSpecialProfileManifestValidator.cs`
+  - `scripts/player/warehouse/ItemContentRegistry.cs`
+  - `scripts/player/warehouse/RecipeContentRegistry.cs`
+  - `scripts/player/warehouse/skill_book_item_content_validator.gd`
+  - `scripts/enemies/EnemyContentRegistry.cs`
+  - `scripts/enemies/EnemyContentSeed.cs`
 - 负责：active save、slot meta、save payload、save index、全局内容注册表、world-level 装备实例 ID、battle save lock。
 - 适合：save payload、slot meta、active world 生命周期、序列化严格校验、内容注册表接入。
 - 邻接单元：CU-01、CU-03、CU-04、CU-10、CU-11、CU-13、CU-20、CU-21。
@@ -77,18 +86,18 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 ### CU-03 世界配置资源与预设数据
 
 - 文件：
-  - `scripts/utils/world_map_generation_config.gd`
-  - `scripts/utils/world_map_settlement_bundle.gd`
-  - `scripts/utils/world_map_settlement_name_pool.gd`
-  - `scripts/utils/world_map_wild_spawn_bundle.gd`
-  - `scripts/utils/world_map_content_validator.gd`
-  - `scripts/utils/settlement_config.gd`
-  - `scripts/utils/settlement_distribution_rule.gd`
-  - `scripts/utils/facility_config.gd`
-  - `scripts/utils/facility_slot_config.gd`
-  - `scripts/utils/facility_npc_config.gd`
-  - `scripts/utils/weighted_facility_entry.gd`
-  - `scripts/utils/wild_spawn_rule.gd`
+  - `scripts/utils/WorldMapGenerationConfig.cs`
+  - `scripts/utils/WorldMapSettlementBundle.cs`
+  - `scripts/utils/WorldMapSettlementNamePool.cs`
+  - `scripts/utils/WorldMapWildSpawnBundle.cs`
+  - `scripts/utils/WorldMapContentValidator.cs`
+  - `scripts/utils/SettlementConfig.cs`
+  - `scripts/utils/SettlementDistributionRule.cs`
+  - `scripts/utils/FacilityConfig.cs`
+  - `scripts/utils/FacilitySlotConfig.cs`
+  - `scripts/utils/FacilityNpcConfig.cs`
+  - `scripts/utils/WeightedFacilityEntry.cs`
+  - `scripts/utils/WildSpawnRule.cs`
   - `data/configs/world_map/*.tres`
   - `data/configs/world_map/shared/*.tres`
 - 负责：world preset、world generation config、settlement bundle、facility、wild spawn bundle 的静态数据。
@@ -100,11 +109,12 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 
 - 文件：
   - `docs/design/settlement.md`
-  - `scripts/systems/world/world_map_spawn_system.gd`
-  - `scripts/systems/world/encounter_anchor_data.gd`
-  - `scripts/utils/true_random_seed_service.gd`
-  - `scripts/utils/world_event_config.gd`
-  - `scripts/utils/mounted_submap_config.gd`
+  - `scripts/systems/world/WorldMapSpawnSystem.cs`
+  - `scripts/systems/world/EncounterAnchorData.cs`
+  - `scripts/systems/world/WildEncounterGrowthSystem.cs`
+  - `scripts/utils/TrueRandomSeedService.cs`
+  - `scripts/utils/WorldEventConfig.cs`
+  - `scripts/utils/MountedSubmapConfig.cs`
   - CU-03 的配置资源
 - 负责：世界生成、据点服务注入、遭遇锚点、挂载子地图事件。
 - 适合：世界生成规则、起始遭遇、据点/设施生成、mounted submap 事件。
@@ -114,8 +124,8 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 ### CU-05 世界网格与迷雾基础设施
 
 - 文件：
-  - `scripts/systems/world/world_map_grid_system.gd`
-  - `scripts/systems/world/world_map_fog_system.gd`
+  - `scripts/systems/world/WorldMapGridSystem.cs`
+  - `scripts/systems/world/WorldMapFogSystem.cs`
   - `scripts/utils/world_map_cell_data.gd`
   - `scripts/utils/vision_source_data.gd`
 - 负责：世界网格、坐标、迷雾、视野来源。
@@ -129,23 +139,39 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scenes/main/world_map.tscn`
   - `scenes/ui/runtime_log_dock.tscn`
   - `scenes/ui/submap_entry_window.tscn`
-  - `scripts/systems/game_runtime/*.gd`
-  - `scripts/systems/world/world_map_data_context.gd`
-  - `scripts/systems/world/world_time_system.gd`
+  - `scripts/systems/game_runtime/BattleSessionFacade.cs`
+  - `scripts/systems/game_runtime/GameRuntimeFacade.cs`
+  - `scripts/systems/game_runtime/GameRuntimeBattleSelection.cs`
+  - `scripts/systems/game_runtime/GameRuntimeBattleSelectionState.cs`
+  - `scripts/systems/game_runtime/GameRuntimeSettlementCommandHandler.cs`
+  - `scripts/systems/game_runtime/GameRuntimeWarehouseHandler.cs`
+  - `scripts/systems/game_runtime/GameRuntimePartyCommandHandler.cs`
+  - `scripts/systems/game_runtime/GameRuntimeRewardFlowHandler.cs`
+  - `scripts/systems/game_runtime/GameRuntimeQuestCommandHandler.cs`
+  - `scripts/systems/game_runtime/GameRuntimeSnapshotBuilder.cs`
+  - `scripts/systems/game_runtime/GameRuntimeCommandLogger.cs`
+  - `scripts/systems/game_runtime/GameRuntimeBattleWritebackService.cs`
+  - `scripts/systems/game_runtime/GameRuntimeBattleLootCommitService.cs`
+  - `scripts/systems/game_runtime/GameRuntimeCharacterInfoBuilder.cs`
+  - `scripts/systems/world/WorldMapDataContext.cs`
+  - `scripts/systems/world/WorldTimeSystem.cs`
+  - `scripts/systems/game_runtime/WorldMapRuntimeProxy.cs`
+  - `scripts/systems/game_runtime/WorldMapSystem.cs`
   - `scripts/systems/settlement/*.gd`
-  - `scripts/ui/runtime_log_dock.gd`
-  - `scripts/ui/submap_entry_window.gd`
-  - `scripts/utils/true_random_seed_service.gd`
+  - `scripts/systems/settlement/SettlementServiceResult.cs`
+  - `scripts/ui/RuntimeLogDock.cs`
+  - `scripts/ui/SubmapEntryWindow.cs`
+  - `scripts/utils/TrueRandomSeedService.cs`
   - `assets/main/basic_map/log.png`
-- 负责：world/battle 模式、modal 状态、场景到 runtime 的命令/读取桥、据点/仓库/队伍/奖励/任务命令分发、headless snapshot 组织、战后回写与持久化边界。
+- 负责：C# `GameRuntimeFacade` 持有 world/battle 模式、modal 状态、battle start context、据点/仓库/队伍/奖励/任务命令分发、headless snapshot 组织、战后回写与持久化边界；`WorldMapSystem.cs` 只作为场景适配层。
 - 适合：world/battle 切换、窗口互斥、runtime 接线、场景同步、battle loading、reward/party/warehouse/settlement 命令入口。
-- 邻接单元：CU-02、CU-04、CU-05、CU-07、CU-08、CU-09、CU-10、CU-12、CU-18、CU-21。
+- 邻接单元：CU-02、CU-04、CU-05、CU-07、CU-08、CU-09、CU-10、CU-12、CU-15、CU-18、CU-21。
 - 不带：世界生成本体、仓库规则本体、battle renderer 本体。
 
 ### CU-07 世界地图渲染叶子单元
 
 - 文件：
-  - `scripts/ui/world_map_view.gd`
+  - `scripts/ui/WorldMapView.cs`
   - `assets/main/basic_map/village_dark.png`
 - 负责：大地图绘制、世界事件图标、点击/选中表现。
 - 适合：地图视觉、cell 绘制、图标、submap 返回提示。
@@ -156,11 +182,12 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 
 - 文件：
   - `scenes/ui/settlement_window.tscn`
-  - `scripts/ui/settlement_window.gd`
+  - `scripts/ui/SettlementWindow.cs`
+  - `scripts/ui/PartyMemberOptionUtils.cs`
   - `scenes/ui/shop_window.tscn`
-  - `scripts/ui/shop_window.gd`
+  - `scripts/ui/ShopWindow.cs`
   - `scenes/ui/character_info_window.tscn`
-  - `scripts/ui/character_info_window.gd`
+  - `scripts/ui/CharacterInfoWindow.cs`
 - 负责：据点服务窗口、商店/任务板/forge shell、人物信息窗口展示。
 - 适合：据点 UI、服务反馈、人物信息 section 展示。
 - 邻接单元：CU-06、CU-12、CU-14。
@@ -170,11 +197,11 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 
 - 文件：
   - `scenes/ui/party_management_window.tscn`
-  - `scripts/ui/party_management_window.gd`
+  - `scripts/ui/PartyManagementWindow.cs`
   - `scenes/ui/promotion_choice_window.tscn`
-  - `scripts/ui/promotion_choice_window.gd`
+  - `scripts/ui/PromotionChoiceWindow.cs`
   - `scenes/ui/mastery_reward_window.tscn`
-  - `scripts/ui/mastery_reward_window.gd`
+  - `scripts/ui/MasteryRewardWindow.cs`
   - `assets/main/basic_map/log.png`
 - 负责：队伍窗口、成员选择、成就摘要、转职选择、角色奖励确认。
 - 适合：队伍编成 UI、角色奖励弹窗、转职 UI、装备摘要展示。
@@ -185,16 +212,18 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 
 - 文件：
   - `scripts/player/equipment/*.gd`
+  - `scripts/player/equipment/*.cs`
   - `scripts/player/warehouse/*.gd`
   - `scripts/systems/inventory/*.gd`
-  - `scripts/systems/persistence/game_session.gd`
-  - `scripts/systems/persistence/save_serializer.gd`
+  - `scripts/systems/inventory/*.cs`
+  - `scripts/systems/persistence/GameSession.cs`
+  - `scripts/systems/persistence/SaveSerializer.cs`
   - `scenes/ui/party_warehouse_window.tscn`
-  - `scripts/ui/party_warehouse_window.gd`
+  - `scripts/ui/PartyWarehouseWindow.cs`
   - `data/configs/items/*.tres`
   - `data/configs/items_templates/*.tres`
   - `data/configs/recipes/*.tres`
-- 负责：队伍共享背包、堆叠/容量、物品/配方定义、装备实例、装备/卸装、物品使用、装备掉落基础服务。
+- 负责：队伍共享背包、堆叠/容量、物品/配方定义、技能书跨表校验、装备实例、装备/卸装、物品使用、装备掉落基础服务。
 - 适合：堆叠规则、容量规则、物品内容、装备实例、基础装备流转、仓库窗口。
 - 邻接单元：CU-02、CU-06、CU-09、CU-11、CU-12、CU-19、CU-21。
 - 不带：battle runtime，除非是战斗内换装、装备损坏或战后回写。
@@ -202,21 +231,22 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 ### CU-11 队伍与角色成长运行时数据模型
 
 - 文件：
-  - `scripts/player/progression/party_state.gd`
-  - `scripts/player/progression/party_member_state.gd`
-  - `scripts/player/progression/unit_progress.gd`
-  - `scripts/player/progression/unit_skill_progress.gd`
-  - `scripts/player/progression/unit_profession_progress.gd`
-  - `scripts/player/progression/unit_reputation_state.gd`
-  - `scripts/player/progression/unit_base_attributes.gd`
-  - `scripts/player/progression/attribute_snapshot.gd`
+  - `scripts/player/progression/PartyState.cs`
+  - `scripts/player/progression/PartyMemberState.cs`
+  - `scripts/player/progression/UnitProgress.cs`
+  - `scripts/player/progression/UnitSkillProgress.cs`
+  - `scripts/player/progression/UnitProfessionProgress.cs`
+  - `scripts/player/progression/UnitReputationState.cs`
+  - `scripts/player/progression/UnitBaseAttributes.cs`
+  - `scripts/player/progression/AttributeSnapshot.cs`
   - `scripts/player/progression/pending_profession_choice.gd`
-  - `scripts/player/progression/achievement_progress_state.gd`
-  - `scripts/player/progression/quest_state.gd`
-  - `scripts/player/progression/faith_deity_def.gd`
-  - `scripts/player/progression/faith_rank_def.gd`
-  - `scripts/systems/progression/character_progression_delta.gd`
-  - `scripts/systems/progression/pending_character_reward*.gd`
+  - `scripts/player/progression/AchievementProgressState.cs`
+  - `scripts/player/progression/QuestState.cs`
+  - `scripts/player/progression/FaithDeityDef.cs`
+  - `scripts/player/progression/FaithRankDef.cs`
+  - `scripts/systems/progression/CharacterProgressionDelta.cs`
+  - `scripts/systems/progression/PendingCharacterReward.cs`
+  - `scripts/systems/progression/PendingCharacterRewardEntry.cs`
 - 负责：`PartyState`、成员状态、技能/职业进度、属性快照、成就/任务/信仰状态、角色奖励 payload。
 - 适合：party schema、角色状态字段、奖励队列、成长状态序列化。
 - 邻接单元：CU-02、CU-09、CU-10、CU-12、CU-13、CU-14、CU-19。
@@ -225,19 +255,19 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 ### CU-12 CharacterManagement、成就记录、奖励归并桥
 
 - 文件：
-  - `scripts/systems/progression/character_management_module.gd`
-  - `scripts/systems/progression/passive_source_context.gd`
-  - `scripts/systems/progression/bloodline_apply_service.gd`
-  - `scripts/systems/progression/ascension_apply_service.gd`
-  - `scripts/systems/progression/stage_advancement_apply_service.gd`
-  - `scripts/systems/progression/racial_skill_grant_service.gd`
-  - `scripts/systems/progression/age_stage_resolver.gd`
+  - `scripts/systems/progression/CharacterManagementModule.cs`
+  - `scripts/systems/progression/PassiveSourceContext.cs`
+  - `scripts/systems/progression/BloodlineApplyService.cs`
+  - `scripts/systems/progression/AscensionApplyService.cs`
+  - `scripts/systems/progression/StageAdvancementApplyService.cs`
+  - `scripts/systems/progression/RacialSkillGrantService.cs`
+  - `scripts/systems/progression/AgeStageResolver.cs`
   - `scripts/systems/progression/misfortune_black_omen_service.gd`
-  - `scripts/systems/progression/quest_progress_service.gd`
-  - `scripts/systems/progression/faith_service.gd`
-  - `scripts/systems/progression/level_growth_evaluation_service.gd`
-  - `scripts/systems/progression/practice_growth_service.gd`
-  - `scripts/systems/attributes/attribute_source_context.gd`
+  - `scripts/systems/progression/QuestProgressService.cs`
+  - `scripts/systems/progression/FaithService.cs`
+  - `scripts/systems/progression/LevelGrowthEvaluationService.cs`
+  - `scripts/systems/progression/PracticeGrowthService.cs`
+  - `scripts/systems/attributes/AttributeSourceContext.cs`
 - 负责：角色管理门面、奖励归并、成就/任务进度、身份应用、属性上下文、装备/技能/成长桥接。
 - 适合：奖励入账、成就记录、任务推进、身份刷新、角色信息摘要、功法学习/同轨替换、跨系统成长接线。
 - 邻接单元：CU-06、CU-08、CU-09、CU-10、CU-11、CU-13、CU-14、CU-15、CU-19。
@@ -246,13 +276,22 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 ### CU-13 progression 内容定义、条件模型、seed 内容
 
 - 文件：
+  - `scripts/player/progression/*Def.cs`
+  - `scripts/player/progression/*Requirement.cs`
+  - `scripts/player/progression/*ContentRegistry.cs`
+  - `scripts/player/progression/*ContentRules.cs`
   - `scripts/player/progression/*_def.gd`
   - `scripts/player/progression/*_requirement.gd`
   - `scripts/player/progression/*content_registry.gd`
   - `scripts/player/progression/progression_content_registry.gd`
-  - `scripts/player/progression/progression_data_utils.gd`
+  - `scripts/player/progression/ProgressionDataUtils.cs`
+  - `scripts/player/progression/BarrierContentRegistry.cs`
+  - `scripts/player/progression/identity_content_registry_base.gd`
   - `scripts/player/progression/*content_rules.gd`
+  - `scripts/player/progression/BattleExecuteContentRules.cs`
+  - `scripts/player/progression/CombatTargetTeamContentRules.cs`
   - `scripts/player/progression/*content_validator.gd`
+  - `scripts/player/progression/QuestContentValidator.cs`
   - `data/configs/skills/*.tres`
   - `data/configs/professions/*.tres`
   - `data/configs/races/*.tres`
@@ -272,22 +311,22 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 ### CU-14 progression 规则与跨系统属性服务
 
 - 文件：
-  - `scripts/systems/progression/progression_service.gd`
-  - `scripts/systems/progression/profession_rule_service.gd`
-  - `scripts/systems/progression/profession_assignment_service.gd`
-  - `scripts/systems/progression/skill_merge_service.gd`
-  - `scripts/systems/progression/skill_effective_max_level_rules.gd`
-  - `scripts/systems/progression/level_growth_evaluation_service.gd`
-  - `scripts/systems/progression/practice_growth_service.gd`
-  - `scripts/systems/progression/skill_level_description_formatter.gd`
-  - `scripts/systems/progression/attribute_growth_service.gd`
-  - `scripts/systems/progression/character_creation_service.gd`
-  - `scripts/systems/progression/character_creation_identity_option_service.gd`
-  - `scripts/systems/progression/identity_payload_validator.gd`
-  - `scripts/systems/progression/body_size_rules.gd`
-  - `scripts/systems/progression/age_stage_resolver.gd`
-  - `scripts/systems/attributes/attribute_service.gd`
-  - `scripts/systems/attributes/attribute_source_context.gd`
+  - `scripts/systems/progression/ProgressionService.cs`
+  - `scripts/systems/progression/ProfessionRuleService.cs`
+  - `scripts/systems/progression/ProfessionAssignmentService.cs`
+  - `scripts/systems/progression/SkillMergeService.cs`
+  - `scripts/systems/progression/SkillEffectiveMaxLevelRules.cs`
+  - `scripts/systems/progression/AttributeGrowthService.cs`
+  - `scripts/systems/progression/LevelGrowthEvaluationService.cs`
+  - `scripts/systems/progression/PracticeGrowthService.cs`
+  - `scripts/systems/progression/SkillLevelDescriptionFormatter.cs`
+  - `scripts/systems/progression/CharacterCreationService.cs`
+  - `scripts/systems/progression/CharacterCreationIdentityOptionService.cs`
+  - `scripts/systems/progression/IdentityPayloadValidator.cs`
+  - `scripts/systems/progression/BodySizeRules.cs`
+  - `scripts/systems/progression/AgeStageResolver.cs`
+  - `scripts/systems/attributes/AttributeService.cs`
+  - `scripts/systems/attributes/AttributeSourceContext.cs`
 - 负责：成长规则、职业规则、技能合成、属性快照、建卡、建卡身份候选、身份 payload 校验、体型、年龄阶段。
 - 适合：成长公式、属性公式、职业/技能规则、功法同轨替换规则、建卡规则、建卡身份候选、身份 payload 校验、体型派生。
 - 邻接单元：CU-01、CU-09、CU-11、CU-12、CU-13、CU-15、CU-19。
@@ -296,32 +335,44 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 ### CU-15 战斗运行时总编排
 
 - 文件：
-  - `scripts/systems/battle/runtime/*.gd`
+  - `scripts/systems/battle/runtime/BattleRuntimeModule.cs`
+  - `scripts/systems/battle/runtime/BattleChargeResolver.cs`
+  - `scripts/systems/battle/runtime/BattleMagicBacklashResolver.cs`
+  - `scripts/systems/battle/runtime/TraitTriggerHooks.cs`
   - `scripts/systems/battle/fate/*.gd`
-  - `scripts/systems/fate/low_luck_relic_rules.gd`
-  - `scripts/systems/game_runtime/battle_session_facade.gd`
-  - `scripts/systems/game_runtime/game_runtime_facade.gd`
-  - `scripts/systems/battle/core/battle_command.gd`
-  - `scripts/systems/battle/core/battle_preview.gd`
-  - `scripts/systems/battle/core/battle_event_batch.gd`
-  - `scripts/systems/battle/core/battle_resolution_result.gd`
-  - `scripts/systems/battle/core/battle_loot_constants.gd`
-  - `scripts/systems/battle/core/battle_common_skill_outcome.gd`
-  - `scripts/systems/battle/core/battle_barrier*.gd`
+  - `scripts/systems/battle/fate/FateRuntimeModule.cs`
+  - `scripts/systems/battle/fate/FortuneService.cs`
+  - `scripts/systems/fate/LowLuckRelicRules.cs`
+  - `scripts/systems/game_runtime/BattleSessionFacade.cs`
+  - `scripts/systems/game_runtime/GameRuntimeFacade.cs`
+  - `scripts/systems/battle/core/BattleCommand.cs`
+  - `scripts/systems/battle/core/BattlePreview.cs`
+  - `scripts/systems/battle/core/BattleEventBatch.cs`
+  - `scripts/systems/battle/core/BattleResolutionResult.cs`
+  - `scripts/systems/battle/core/BattleLootConstants.cs`
+  - `scripts/systems/battle/core/BattleCommonSkillOutcome.cs`
+  - `scripts/systems/battle/core/BattleBarrier*.cs`
   - `scripts/systems/battle/core/battle_special_profile*.gd`
   - `scripts/systems/battle/core/special_profiles/*.gd`
-  - `scripts/systems/battle/core/meteor_swarm/*.gd`
-  - `scripts/systems/battle/rules/battle_skill_resolution_rules.gd`
-  - `scripts/systems/battle/rules/battle_target_team_rules.gd`
-  - `scripts/systems/battle/rules/battle_save_resolver.gd`
-  - `scripts/systems/battle/rules/battle_damage_preview_range_service.gd`
-  - `scripts/systems/battle/rules/battle_range_service.gd`
-  - `scripts/systems/battle/rules/battle_report_formatter.gd`
+  - `scripts/systems/battle/core/meteor_swarm/*.cs`
+  - `scripts/systems/battle/rules/BattleSkillResolutionRules.cs`
+  - `scripts/systems/battle/rules/BattleTargetTeamRules.cs`
+  - `scripts/systems/battle/rules/BattleDamageResolver.cs`
+  - `scripts/systems/battle/rules/BattleSaveResolver.cs`
+  - `scripts/systems/battle/rules/BattleDamagePreviewRangeService.cs`
+  - `scripts/systems/battle/rules/BattleRangeService.cs`
+  - `scripts/systems/battle/rules/BattleEquipmentRequirementRules.cs`
+  - `scripts/systems/battle/rules/BattleReportFormatter.cs`
   - `scripts/systems/battle/terrain/battle_terrain_effect_system.gd`
-  - `scripts/systems/battle/ai/battle_ai_action_assembler.gd`
-  - `scripts/systems/battle/ai/battle_ai_runtime_action_plan.gd`
-  - `scripts/systems/battle/ai/battle_ai_skill_affordance_classifier.gd`
+  - `scripts/systems/battle/ai/BattleAiActionAssembler.cs`
+  - `scripts/systems/battle/ai/BattleAiContext.cs`
+  - `scripts/systems/battle/ai/BattleAiRuntimeActionPlan.cs`
+  - `scripts/systems/battle/ai/BattleAiService.cs`
+  - `scripts/systems/battle/ai/BattleAiScoreService*.cs`
+  - `scripts/systems/battle/ai/BattleAiMutationGuard.cs`
+  - `scripts/systems/battle/ai/BattleAiSkillAffordanceClassifier.cs`
   - `scripts/systems/battle/sim/*.gd`
+  - `scripts/systems/battle/sim/*.cs`
   - `data/configs/skill_special_profiles/**/*.tres`
   - `data/configs/barriers/*.tres`
 - 负责：开战、时间轴、命令 preview/issue、技能执行、战斗内换装、loot、评分、fate、battle-local 状态、simulation runner。
@@ -332,48 +383,96 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 ### CU-16 战斗状态模型、边规则、伤害、AI 规则层
 
 - 文件：
-  - `scripts/systems/battle/core/battle_state.gd`
-  - `scripts/systems/battle/core/battle_timeline_state.gd`
-  - `scripts/systems/battle/core/battle_unit_state.gd`
-  - `scripts/systems/battle/core/battle_cell_state.gd`
-  - `scripts/systems/battle/core/battle_status_effect_state.gd`
-  - `scripts/systems/battle/core/battle_barrier*.gd`
-  - `scripts/systems/battle/core/battle_edge*.gd`
-  - `scripts/systems/battle/core/battle_attack*.gd`
-  - `scripts/systems/battle/core/battle_repeat_attack_stage_spec.gd`
-  - `scripts/systems/battle/terrain/battle_terrain_rules.gd`
-  - `scripts/systems/battle/terrain/battle_terrain_topology_service.gd`
-  - `scripts/systems/battle/terrain/battle_grid_service.gd`
-  - `scripts/systems/battle/terrain/battle_edge_service.gd`
-  - `scripts/systems/battle/terrain/battle_terrain_effect_state.gd`
-  - `scripts/systems/battle/fate/battle_fate_event_bus.gd`
-  - `scripts/systems/battle/fate/battle_fate_attack_rules.gd`
-  - `scripts/systems/battle/fate/fate_attack_formula.gd`
-  - `scripts/systems/battle/rules/battle_damage_resolver.gd`
-  - `scripts/systems/battle/rules/battle_damage_preview_range_service.gd`
-  - `scripts/systems/battle/rules/battle_status_semantic_table.gd`
-  - `scripts/systems/battle/rules/battle_target_team_rules.gd`
-  - `scripts/systems/battle/rules/battle_hit_resolver.gd`
-  - `scripts/systems/battle/rules/battle_attack_check_policy_service.gd`
-  - `scripts/systems/battle/rules/battle_range_service.gd`
-  - `scripts/systems/battle/ai/*.gd`
-  - `scripts/systems/battle/runtime/trait_trigger_hooks.gd`
+  - `docs/design/ai_candidate_evaluation_pipeline.md`
+  - `docs/design/ai_readonly_candidate_pipeline_consensus_2026-05-19.md`
+  - `scripts/systems/battle/core/BattleState.cs`
+  - `scripts/systems/battle/core/BattleTimelineState.cs`
+  - `scripts/systems/battle/core/BattleUnitConstants.cs`
+  - `scripts/systems/battle/core/BattleUnitState.cs`
+  - `scripts/systems/battle/core/BattleCellState.cs`
+  - `scripts/systems/battle/core/BattleStatusEffectState.cs`
+  - `scripts/systems/battle/core/BattleBarrier*.cs`
+  - `scripts/systems/battle/core/BattleEdge*.cs`
+  - `scripts/systems/battle/core/BattleEdgeFaceState.cs`
+  - `scripts/systems/battle/core/BattleAttackRollModifierBundle.cs`
+  - `scripts/systems/battle/core/BattleAttackRollModifierSpec.cs`
+  - `scripts/systems/battle/core/BattleRepeatAttackStageSpec.cs`
+  - `scripts/systems/battle/core/BattleAttackCheckPolicyContext.cs`
+  - `scripts/systems/battle/terrain/BattleTerrainRules.cs`
+  - `scripts/systems/battle/terrain/BattleTerrainTopologyService.cs`
+  - `scripts/systems/battle/terrain/BattleGridService.cs`
+  - `scripts/systems/battle/terrain/BattleGridDistanceService.cs`
+  - `scripts/systems/battle/terrain/BattleEdgeService.cs`
+  - `scripts/systems/battle/terrain/BattleTerrainEffectState.cs`
+  - `scripts/systems/battle/fate/BattleFateEventBus.cs`
+  - `scripts/systems/battle/fate/BattleFateAttackRules.cs`
+  - `scripts/systems/battle/fate/FateAttackFormula.cs`
+  - `scripts/systems/battle/rules/BattleDamageResolver.cs`
+  - `scripts/systems/battle/rules/BattleDeathResolutionRules.cs`
+  - `scripts/systems/battle/rules/BattleEffectCategoryResolver.cs`
+  - `scripts/systems/battle/rules/BattleExecutionRules.cs`
+  - `scripts/systems/battle/rules/BattleDamagePreviewRangeService.cs`
+  - `scripts/systems/battle/rules/BattleStatusModifierRules.cs`
+  - `scripts/systems/battle/rules/BattleStatusSemanticTable.cs`
+  - `scripts/systems/battle/rules/BattleTargetTeamRules.cs`
+  - `scripts/systems/battle/rules/BattleHitResolver.cs`
+  - `scripts/systems/battle/rules/BattleAttackCheckPolicyService.cs`
+  - `scripts/systems/battle/rules/BattleRangeService.cs`
+  - `scripts/systems/battle/rules/BattleEquipmentRequirementRules.cs`
+  - `scripts/systems/battle/ai/*.cs`
+  - `scripts/systems/battle/ai/BattleAiRuntimeActionPlan.cs`
+  - `scripts/systems/battle/_interop/*.cs`
+  - `scripts/systems/battle/ai/BattleAiActionIntent.cs`
+  - `scripts/systems/battle/ai/BattleAiCandidateEvaluationService.cs`
+  - `scripts/systems/battle/ai/BattleAiContext.cs`
+  - `scripts/systems/battle/ai/BattleAiDecision.cs`
+  - `scripts/systems/battle/ai/BattleAiDecisionEngine.cs`
+  - `scripts/systems/battle/ai/BattleAiMoveToRangeCandidateEvaluator.cs`
+  - `scripts/systems/battle/ai/BattleAiMutationGuard.cs`
+  - `scripts/systems/battle/ai/BattleAiQueryService.cs`
+  - `scripts/systems/battle/ai/BattleAiService.cs`
+  - `scripts/systems/battle/ai/BattleAiScoreService*.cs`
+  - `scripts/systems/battle/ai/BattleAiScoreContextAdapter.cs`
+  - `scripts/systems/battle/ai/BattleAiTypedActionHelper.cs`
+  - `scripts/systems/battle/ai/BattleAiUnitSkillCandidateEvaluator.cs`
+  - `scripts/systems/battle/runtime/BattleRuntimeModule.cs`
+  - `scripts/systems/battle/runtime/BattleChargeResolver.cs`
+  - `scripts/systems/battle/runtime/BattleMovementService.cs`
+  - `scripts/systems/battle/runtime/BattleMovementQueryService.cs`
+  - `scripts/systems/battle/runtime/BattleRepeatAttackResolver.cs`
+  - `scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs`
+  - `scripts/systems/battle/runtime/BattleBarrierGeometryService.cs`
+  - `scripts/systems/battle/runtime/BattleSkillOutcomeCommitter.cs`
+  - `scripts/systems/battle/runtime/BattleSpecialProfileCommitAdapter.cs`
+  - `scripts/systems/battle/runtime/BattleGroundEffectService.cs`
+  - `scripts/systems/battle/runtime/BattleTargetCollectionService.cs`
+  - `scripts/systems/battle/runtime/BattleShieldService.cs`
+  - `scripts/systems/battle/runtime/BattleMetricsCollector.cs`
+  - `scripts/systems/battle/runtime/BattleRatingSystem.cs`
+  - `scripts/systems/battle/runtime/BattleContributionEvent.cs`
+  - `scripts/systems/battle/runtime/BattleContributionEventBuilder.cs`
+  - `scripts/systems/battle/runtime/BattleContributionLedger.cs`
+  - `scripts/systems/battle/terrain/BattleVirtualBoardOverlay.cs`
+  - `scripts/systems/battle/runtime/TraitTriggerHooks.cs`
   - `scripts/player/progression/combat_effect_def.gd`
-  - `scripts/enemies/actions/*.gd`
-  - `scripts/player/warehouse/weapon_profile_def.gd`
-  - `scripts/player/warehouse/weapon_damage_dice_def.gd`
-- 负责：BattleState 数据模型、terrain/edge/grid 规则、伤害/命中/豁免/状态语义、AI 评分、决策输入、AI state transition resolver、runtime action plan 与技能 affordance 分类。
-- 适合：战斗规则、伤害、命中、AI 评分、AI 状态转移、AI 行动生成、terrain effect、状态语义、武器射程规则。
+  - `scripts/enemies/actions/*.cs`
+  - `scripts/systems/battle/core/WeaponDice.cs`
+  - `scripts/systems/battle/core/WeaponProjection.cs`
+  - `scripts/player/warehouse/WeaponProfileDef.cs`
+  - `scripts/player/warehouse/WeaponDamageDiceDef.cs`
+- 负责：BattleState 数据模型、terrain/edge/grid 规则、伤害/即死/死亡链、命中/豁免/状态语义、状态数值倍率、AI 评分、只读 candidate request/query/evaluator 管线、AI fail-loud/runtime fault 策略、AI state transition resolver、decision state patch/提交边界、runtime action plan 与技能 affordance 分类。
+- 适合：战斗规则、伤害、即死判定、死亡来源优先级、命中、AI 评分、AI 状态转移、AI 行动生成、只读 AI candidate 管线、AI runtime fault/fail-loud 处理、AI 决策提交、terrain effect、状态语义、武器射程规则。
+- 关系提示：AI damage scoring 必须通过 `BattleDamageResolver.preview_damage_sequence()` 读取正式伤害、save 分支、护盾吸收与稳定击杀口径；不要回退到 `BattleDamagePreviewRangeService.cs` 的范围估算。C# 内部闭环优先通过 `BattleTypedEnums.cs` 把 Godot 边界 `StringName` 解析成 enum，再进入评分、范围、目标过滤等 typed 分支；跨 GDScript/Resource/存档的 ID 字段仍保持 `StringName`。敌方 AI brain 的 C# `states` / `transition_rules` 属性不要按 `get_states()` / `get_transition_rules()` 方法调用；GDScript 边界优先读 `get_resolved_states()` 或原始属性。AI action 的 `.gd` 文件作为 C# action wrapper 的按路径加载实现脚本使用，不再声明同名 `class_name`。AI preview / score / candidate / move-cost 回调是 C# delegate 闭环，不要恢复 `Callable` provider 桥。地面范围技能同时存在实际威胁距离与 AI 站位距离合同：`BattleRangeService.get_effective_skill_threat_range()` 对齐 `battle_grid_service.get_area_coords()` 的最远可命中格，`get_effective_skill_distance_contract_range()` 供 `UseGroundSkillAction` 等站位合同使用。死亡律令 / execute 的分支合同由 `BattleExecutionRules.build_execute_plan()` 产出，`BattleDamageResolver` 只负责按 plan 执行 save、裂魂状态、穿盾即死与死亡来源标记。战斗评分不再消费 source-only 聚合伤害；正式路径应通过逐目标 `BattleContributionEvent` 快照进入 `BattleContributionLedger`，再由 `BattleRatingSystem` 归约正向评分、友伤、治疗敌方和友方击倒字段。`BattleBarrierService` 持有 `BarrierContentRegistry` 的运行时实例并负责释放；屏障运行时路径不要绕回 `GodotObject.Get` / `.Call()` 读取 `BattleRuntimeModule`。`BattleMovementService` 的移动执行、路径和 move-cost 热路径应保持 `BattleRuntimeModule` / `BattleGridService` / delegate 强类型闭环，不要恢复 `Callable` 或 grid `.Call()`。`BattleGroundEffectService` 与 `BattleMovementService` 的屏障交互调用应直接走 `BattleLayeredBarrierService` 强类型方法，不要恢复 `Resolve*Barrier*` 的 Godot `.Call()`；地面落点验证需要 cell 信息时优先用 `BattleGridService` 的 primitive 查询，避免把大量 `BattleCellState` wrapper 带出 grid 服务。
 - 邻接单元：CU-13、CU-15、CU-17、CU-18、CU-20。
 - 不带：战斗流程 sidecar，除非规则改动需要执行链验证。
 
 ### CU-17 战斗地形 profile、敌人 roster、prop 注入
 
 - 文件：
-  - `scripts/systems/battle/terrain/battle_terrain_generator.gd`
-  - `scripts/systems/world/encounter_roster_builder.gd`
-  - `scripts/systems/world/wild_encounter_growth_system.gd`
-  - `scripts/utils/battle_board_prop_catalog.gd`
+  - `scripts/systems/battle/terrain/BattleTerrainGenerator.cs`
+  - `scripts/systems/world/EncounterRosterBuilder.cs`
+  - `scripts/systems/world/WildEncounterGrowthSystem.cs`
+  - `scripts/utils/BattleBoardPropCatalog.cs`
   - `data/configs/enemies/rosters/*.tres`
   - `assets/main/battle/terrain/canyon/*.png`
 - 负责：battle terrain 生成、roster 装配、prop catalog 注入。
@@ -385,16 +484,18 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 
 - 文件：
   - `scenes/ui/battle_map_panel.tscn`
-  - `scripts/ui/battle_map_panel.gd`
-  - `scripts/systems/battle/presentation/battle_hud_adapter.gd`
+  - `scripts/ui/BattleMapPanel.cs`
+  - `scripts/ui/BattleSkillSlotButton.cs`
+  - `scripts/ui/BattleHoverPreviewOverlay.cs`
+  - `scripts/systems/battle/presentation/BattleHudAdapter.cs`
   - `scenes/ui/battle_board_2d.tscn`
-  - `scripts/ui/battle_board_2d.gd`
-  - `scripts/ui/battle_board_render_profile.gd`
-  - `scripts/ui/battle_board_controller.gd`
+  - `scripts/ui/BattleBoard2D.cs`
+  - `scripts/ui/BattleBoardRenderProfile.cs`
+  - `scripts/ui/BattleBoardController.cs`
   - `scenes/common/battle_board_prop.tscn`
-  - `scripts/ui/battle_board_prop.gd`
+  - `scripts/ui/BattleBoardProp.cs`
   - `assets/main/battle/terrain/canyon/*.png`
-- 负责：battle HUD、棋盘绘制、TileMap/prop/unit 渲染、相机、hover/overlay 展示。
+- 负责：battle HUD、棋盘绘制、TileMap/prop/unit 渲染、相机、hover/overlay 展示；`WorldMapSystem` 向 `BattleMapPanel` 注入 typed runtime context，`BattleMapPanel` 再交给 `BattleHudAdapter`，不要恢复 Callable/provider/metadata 桥。
 - 适合：battle HUD、棋盘、TileMap、相机、目标浮标、视觉层级。
 - 邻接单元：CU-06、CU-15、CU-16、CU-17、CU-19、CU-20。
 - 不带：progression、仓库规则，除非展示字段来自这些系统。
@@ -411,6 +512,8 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `tests/runtime/**/*.gd`
   - `tests/text_runtime/**/*.gd`
   - `tests/world_map/**/*.gd`
+  - `tests/battle_runtime/benchmarks/profile_seeds*.json`
+  - `scripts/dev_tools/*.gd`
   - `tools/build_battle_sim_analysis_packet.py`
   - `tools/character_creation_reroll_simulation.gd`
   - `.codex/skills/battle-sim-analysis/SKILL.md`
@@ -418,22 +521,31 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - 常规测试优先用 `python tests/run_regression_suite.py` 或相关 `godot --headless --script tests/.../run_*.gd`。
   - 默认不要运行 `tests/battle_runtime/simulation/*`、`tests/battle_runtime/benchmarks/*`、`tests/text_runtime/tools/*`。
   - 只有用户明确要求 battle simulation、数值模拟、AI 对战模拟或平衡分析时，才运行 simulation / benchmark 入口。
-- 负责：headless 回归、schema/runtime contract、测试 fixture、截图/签名辅助、文本命令回归。
-- 适合：为任意运行时改动补测试、定位回归入口、截图验收。
+- 负责：headless 回归、schema/runtime contract、测试 fixture、截图/签名辅助、文本命令回归、AI function-level profiling helper 与 profile gate 校验。
+- 适合：为任意运行时改动补测试、定位回归入口、截图验收、AI hotspot/profile gate 工具链。
 - 邻接单元：按业务域补 CU-10、CU-12、CU-15、CU-17、CU-18、CU-21 等。
 
 ### CU-20 敌方模板、AI brain、行动定义种子内容
 
 - 文件：
   - `scripts/enemies/*.gd`
-  - `scripts/enemies/enemy_ai_generation_slot_def.gd`
-  - `scripts/enemies/enemy_ai_transition_rule_def.gd`
-  - `scripts/enemies/enemy_ai_transition_condition_def.gd`
-  - `scripts/enemies/actions/*.gd`
-  - `scripts/systems/world/encounter_roster_builder.gd`
+  - `scripts/enemies/AiActionTrace.cs`
+  - `scripts/enemies/AiCandidateSummary.cs`
+  - `scripts/enemies/AiCommandSummary.cs`
+  - `scripts/enemies/EnemyAiActionHelper.cs`
+  - `scripts/enemies/EnemyAiGenerationSlotDef.cs`
+  - `scripts/enemies/EnemyAiBrainDef.cs`
+  - `scripts/enemies/EnemyAiStateDef.cs`
+  - `scripts/enemies/EnemyAiTargetSelectorRules.cs`
+  - `scripts/enemies/EnemyAiTransitionRuleDef.cs`
+  - `scripts/enemies/EnemyAiTransitionConditionDef.cs`
+  - `scripts/enemies/EnemyContentSeed.cs`
+  - `scripts/enemies/WildEncounterRosterDef.cs`
+  - `scripts/enemies/actions/*.cs`
+  - `scripts/systems/world/EncounterRosterBuilder.cs`
   - `scripts/player/warehouse/item_def.gd`
-  - `scripts/player/warehouse/weapon_profile_def.gd`
-  - `scripts/player/warehouse/weapon_damage_dice_def.gd`
+  - `scripts/player/warehouse/WeaponProfileDef.cs`
+  - `scripts/player/warehouse/WeaponDamageDiceDef.cs`
   - `data/configs/enemies/enemy_content_seed.tres`
   - `data/configs/enemies/brains/*.tres`
   - `data/configs/enemies/templates/*.tres`
@@ -447,10 +559,10 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 ### CU-21 Headless runtime、文本命令与快照渲染
 
 - 文件：
-  - `scripts/systems/game_runtime/headless/headless_game_test_session.gd`
-  - `scripts/systems/game_runtime/headless/game_text_command_runner.gd`
+  - `scripts/systems/game_runtime/headless/HeadlessGameTestSession.cs`
+  - `scripts/systems/game_runtime/headless/GameTextCommandRunner.cs`
   - `scripts/systems/game_runtime/headless/game_text_command_result.gd`
-  - `scripts/utils/game_text_snapshot_renderer.gd`
+  - `scripts/utils/GameTextSnapshotRenderer.cs`
   - `tests/text_runtime/commands/run_*.gd`
   - `tests/text_runtime/headless/run_*.gd`
   - `tests/text_runtime/tools/run_*.gd`

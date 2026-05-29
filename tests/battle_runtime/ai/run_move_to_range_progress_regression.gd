@@ -3,19 +3,18 @@ extends SceneTree
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 const BattleRuntimeTestHelpers = preload("res://tests/shared/battle_runtime_test_helpers.gd")
 
-const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_session.gd")
-const BATTLE_RUNTIME_MODULE_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
-const BATTLE_AI_CONTEXT_SCRIPT = preload("res://scripts/systems/battle/ai/battle_ai_context.gd")
-const BATTLE_COMMAND_SCRIPT = preload("res://scripts/systems/battle/core/battle_command.gd")
-const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_state.gd")
-const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
-const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
-const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
-const ENEMY_AI_BRAIN_DEF_SCRIPT = preload("res://scripts/enemies/enemy_ai_brain_def.gd")
-const ENEMY_AI_STATE_DEF_SCRIPT = preload("res://scripts/enemies/enemy_ai_state_def.gd")
-const MOVE_TO_RANGE_ACTION_SCRIPT = preload("res://scripts/enemies/actions/move_to_range_action.gd")
-const WAIT_ACTION_SCRIPT = preload("res://scripts/enemies/actions/wait_action.gd")
-const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
+const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/GameSession.cs")
+const BATTLE_RUNTIME_MODULE_SCRIPT = preload("res://scripts/systems/battle/runtime/BattleRuntimeModule.cs")
+const BATTLE_AI_CONTEXT_SCRIPT = preload("res://scripts/systems/battle/ai/BattleAiContext.cs")
+const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleState.cs")
+const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleTimelineState.cs")
+const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleCellState.cs")
+const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
+const ENEMY_AI_BRAIN_DEF_SCRIPT = preload("res://scripts/enemies/EnemyAiBrainDef.cs")
+const ENEMY_AI_STATE_DEF_SCRIPT = preload("res://scripts/enemies/EnemyAiStateDef.cs")
+const MOVE_TO_RANGE_ACTION_SCRIPT = preload("res://scripts/enemies/actions/MoveToRangeAction.cs")
+const WAIT_ACTION_SCRIPT = preload("res://scripts/enemies/actions/WaitAction.cs")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/AttributeService.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -55,7 +54,7 @@ func _test_move_to_range_prefers_progress_over_wait_when_far_from_band() -> void
 	engage_state.actions = [move_action, wait_action]
 	brain.states = [engage_state]
 	runtime._enemy_ai_brains[brain.brain_id] = brain
-	runtime._ai_service.setup(runtime._enemy_ai_brains)
+	runtime._ai_service.setup(runtime._enemy_ai_brains, null)
 
 	var state = _build_flat_state(Vector2i(31, 3))
 	runtime._state = state
@@ -80,7 +79,7 @@ func _test_move_to_range_prefers_progress_over_wait_when_far_from_band() -> void
 	_assert_true(decision != null and decision.command != null, "远距离 move_to_range 回归应产出合法指令。")
 	_assert_eq(
 		decision.command.command_type if decision != null and decision.command != null else &"",
-		BATTLE_COMMAND_SCRIPT.TYPE_MOVE,
+		BattleCommand.TYPE_MOVE(),
 		"当单位距离目标距离带过远时，AI 不应继续待机。"
 	)
 	_assert_eq(
@@ -107,7 +106,7 @@ func _test_move_to_range_uses_path_detour_when_direct_progress_is_blocked() -> v
 	engage_state.actions = [move_action, wait_action]
 	brain.states = [engage_state]
 	runtime._enemy_ai_brains[brain.brain_id] = brain
-	runtime._ai_service.setup(runtime._enemy_ai_brains)
+	runtime._ai_service.setup(runtime._enemy_ai_brains, null)
 
 	var state = _build_flat_state(Vector2i(7, 3))
 	runtime._state = state
@@ -141,7 +140,7 @@ func _test_move_to_range_uses_path_detour_when_direct_progress_is_blocked() -> v
 	_assert_true(decision != null and decision.command != null, "绕路 move_to_range 回归应产出合法指令。")
 	_assert_eq(
 		decision.command.command_type if decision != null and decision.command != null else &"",
-		BATTLE_COMMAND_SCRIPT.TYPE_MOVE,
+		BattleCommand.TYPE_MOVE(),
 		"直接逼近被阻挡但存在绕路路径时，AI 不应待机。"
 	)
 	# (2, 0) 和 (2, 2) 都是 2 步预算内的最优绕路落点（同成本、同曼哈顿距离），
@@ -178,7 +177,7 @@ func _build_flat_state(map_size: Vector2i):
 		for x in range(map_size.x):
 			var cell = BATTLE_CELL_STATE_SCRIPT.new()
 			cell.coord = Vector2i(x, y)
-			cell.base_terrain = BATTLE_CELL_STATE_SCRIPT.TERRAIN_LAND
+			cell.base_terrain = BATTLE_CELL_STATE_SCRIPT.TERRAIN_LAND()
 			cell.base_height = 4
 			cell.height_offset = 0
 			cell.recalculate_runtime_values()
@@ -193,11 +192,8 @@ func _build_ai_context(runtime, unit_state):
 	ai_context.unit_state = unit_state
 	ai_context.grid_service = runtime._grid_service
 	ai_context.skill_defs = runtime._skill_defs
-	ai_context.preview_callback = Callable(runtime, "preview_command")
-	ai_context.skill_score_input_callback = Callable(runtime._ai_service, "build_skill_score_input")
-	ai_context.action_score_input_callback = Callable(runtime._ai_service, "build_action_score_input")
-	ai_context.move_cost_callback = Callable(runtime, "_get_move_cost_for_unit_target")
 	ai_context.allow_authored_action_fallback_for_tests = true
+	runtime._bind_ai_helper_services_for_decision(unit_state, ai_context)
 	return ai_context
 
 
@@ -226,10 +222,10 @@ func _build_ai_unit(
 	unit.attribute_snapshot.set_value(&"mp_max", 0)
 	unit.attribute_snapshot.set_value(&"stamina_max", 8)
 	unit.attribute_snapshot.set_value(&"action_points", 2)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 10)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 0)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 4)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 4)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 10)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 0)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 4)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 4)
 	return unit
 
 
@@ -250,8 +246,8 @@ func _build_manual_unit(
 	unit.set_anchor_coord(coord)
 	unit.attribute_snapshot.set_value(&"hp_max", 30)
 	unit.attribute_snapshot.set_value(&"action_points", 2)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 10)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 6)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 10)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 6)
 	return unit
 
 

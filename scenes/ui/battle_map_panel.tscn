@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://ksx1yp4hfmd1"]
 
-[ext_resource type="Script" uid="uid://dvuekldbrvvae" path="res://scripts/ui/battle_map_panel.gd" id="1_pnl12"]
-[ext_resource type="Script" path="res://scripts/ui/battle_hover_preview_overlay.gd" id="2_hover"]
+[ext_resource type="Script" path="res://scripts/ui/BattleMapPanel.cs" id="1_pnl12"]
+[ext_resource type="Script" path="res://scripts/ui/BattleHoverPreviewOverlay.cs" id="2_hover"]
 
 [node name="BattleMapPanel" type="Control" unique_id=905716978]
 layout_mode = 3
@@ -298,6 +298,23 @@ size_flags_vertical = 3
 theme_override_constants/h_separation = 8
 theme_override_constants/v_separation = 8
 columns = 6
+
+[node name="SpecialPreviewPanel" type="PanelContainer" parent="HudRoot" unique_id=2143009080]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 6
+anchor_left = 1.0
+anchor_top = 0.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -312.0
+offset_top = 96.0
+offset_right = -16.0
+offset_bottom = -132.0
+grow_horizontal = 0
+mouse_filter = 2
+visible = false
+z_index = 64
 
 [node name="HoverPreviewOverlay" type="PanelContainer" parent="HudRoot" unique_id=2143009070]
 unique_name_in_owner = true

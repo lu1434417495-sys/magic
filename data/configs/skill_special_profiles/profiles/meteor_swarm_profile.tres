@@ -1,7 +1,7 @@
 [gd_resource type="Resource" script_class="MeteorSwarmProfile" load_steps=7 format=3]
 
-[ext_resource type="Script" path="res://scripts/systems/battle/core/meteor_swarm/meteor_swarm_profile.gd" id="1_profile"]
-[ext_resource type="Script" path="res://scripts/systems/battle/core/meteor_swarm/meteor_swarm_impact_component.gd" id="2_component"]
+[ext_resource type="Script" path="res://scripts/systems/battle/core/meteor_swarm/MeteorSwarmProfile.cs" id="1_profile"]
+[ext_resource type="Script" path="res://scripts/systems/battle/core/meteor_swarm/MeteorSwarmImpactComponent.cs" id="2_component"]
 
 [sub_resource type="Resource" id="MeteorComponent_area_fire"]
 script = ExtResource("2_component")

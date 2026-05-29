@@ -2,13 +2,13 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
-const BattleDamageResolver = preload("res://scripts/systems/battle/rules/battle_damage_resolver.gd")
-const BattleFateAttackRules = preload("res://scripts/systems/battle/fate/battle_fate_attack_rules.gd")
-const BattleHitResolver = preload("res://scripts/systems/battle/rules/battle_hit_resolver.gd")
-const BattleStatusEffectState = preload("res://scripts/systems/battle/core/battle_status_effect_state.gd")
-const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
-const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/AttributeService.cs")
+const BattleDamageResolver = preload("res://scripts/systems/battle/rules/BattleDamageResolver.cs")
+const BattleFateAttackRules = preload("res://scripts/systems/battle/fate/BattleFateAttackRules.cs")
+const BattleHitResolver = preload("res://scripts/systems/battle/rules/BattleHitResolver.cs")
+const BattleStatusEffectState = preload("res://scripts/systems/battle/core/BattleStatusEffectState.cs")
+const BattleUnitState = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
+const CombatEffectDef = preload("res://scripts/player/progression/CombatEffectDef.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -62,14 +62,14 @@ func _test_lock_crit_accepts_string_name_param_key() -> void:
 func _test_lock_dodge_bonus_accepts_string_name_param_key() -> void:
 	var resolver := BattleHitResolver.new()
 	var attacker := _build_unit(&"hit_attacker")
-	attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 0)
+	attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 0)
 
 	var legacy_target := _build_unit(&"legacy_lock_dodge_bonus")
 	_set_ac_profile(legacy_target, 15, 4)
 	_set_status_params(legacy_target, &"legacy_lock_dodge_bonus", {
 		&"lock_dodge_bonus": true,
 	})
-	var legacy_check := resolver.build_skill_attack_check(attacker, legacy_target, null)
+	var legacy_check := resolver.build_skill_attack_check(attacker, legacy_target, null, 0, 0)
 	_assert_eq(
 		int(legacy_check.get("target_armor_class", -1)),
 		11,
@@ -81,7 +81,7 @@ func _test_lock_dodge_bonus_accepts_string_name_param_key() -> void:
 	_set_status_params(formal_target, &"formal_lock_dodge_bonus", {
 		"lock_dodge_bonus": true,
 	})
-	var formal_check := resolver.build_skill_attack_check(attacker, formal_target, null)
+	var formal_check := resolver.build_skill_attack_check(attacker, formal_target, null, 0, 0)
 	_assert_eq(
 		int(formal_check.get("target_armor_class", -1)),
 		11,
@@ -95,11 +95,11 @@ func _test_blind_attack_penalty_uses_status_semantic_and_param_override() -> voi
 	_set_ac_profile(target, 15, 0)
 
 	var clear_attacker := _build_unit(&"clear_blind_penalty_attacker")
-	var clear_check := resolver.build_skill_attack_check(clear_attacker, target, null)
+	var clear_check := resolver.build_skill_attack_check(clear_attacker, target, null, 0, 0)
 
 	var default_blind_attacker := _build_unit(&"default_blind_penalty_attacker")
 	_set_status_params(default_blind_attacker, &"blind", {})
-	var default_check := resolver.build_skill_attack_check(default_blind_attacker, target, null)
+	var default_check := resolver.build_skill_attack_check(default_blind_attacker, target, null, 0, 0)
 	_assert_eq(
 		int(default_check.get("situational_attack_penalty", -1)),
 		4,
@@ -115,7 +115,7 @@ func _test_blind_attack_penalty_uses_status_semantic_and_param_override() -> voi
 	_set_status_params(severe_blind_attacker, &"blind", {
 		"attack_roll_penalty": 6,
 	})
-	var severe_check := resolver.build_skill_attack_check(severe_blind_attacker, target, null)
+	var severe_check := resolver.build_skill_attack_check(severe_blind_attacker, target, null, 0, 0)
 	_assert_eq(
 		int(severe_check.get("situational_attack_penalty", -1)),
 		6,
@@ -153,7 +153,7 @@ func _test_mitigation_tier_accepts_string_name_param_key() -> void:
 	_set_status_params(legacy_target, &"legacy_half_mitigation", {
 		&"mitigation_tier": "half",
 	})
-	var legacy_result := resolver.resolve_effects(legacy_source, legacy_target, [_build_damage_effect(20)])
+	var legacy_result := resolver.resolve_effects(legacy_source, legacy_target, [_build_damage_effect(20)], {})
 	_assert_eq(
 		int(legacy_result.get("damage", -1)),
 		10,
@@ -171,7 +171,7 @@ func _test_mitigation_tier_accepts_string_name_param_key() -> void:
 	_set_status_params(formal_target, &"formal_half_mitigation", {
 		"mitigation_tier": "half",
 	})
-	var formal_result := resolver.resolve_effects(formal_source, formal_target, [_build_damage_effect(20)])
+	var formal_result := resolver.resolve_effects(formal_source, formal_target, [_build_damage_effect(20)], {})
 	_assert_eq(
 		int(formal_result.get("damage", -1)),
 		10,
@@ -193,7 +193,7 @@ func _test_outgoing_damage_multiplier_accepts_string_name_param_key() -> void:
 	_set_status_params(legacy_source, &"legacy_outgoing_multiplier", {
 		&"outgoing_damage_multiplier": 0.5,
 	})
-	var legacy_result := resolver.resolve_effects(legacy_source, legacy_target, [_build_damage_effect(20)])
+	var legacy_result := resolver.resolve_effects(legacy_source, legacy_target, [_build_damage_effect(20)], {})
 	_assert_eq(
 		int(legacy_result.get("damage", -1)),
 		10,
@@ -211,7 +211,7 @@ func _test_outgoing_damage_multiplier_accepts_string_name_param_key() -> void:
 	_set_status_params(formal_source, &"formal_outgoing_multiplier", {
 		"outgoing_damage_multiplier": 0.5,
 	})
-	var formal_result := resolver.resolve_effects(formal_source, formal_target, [_build_damage_effect(20)])
+	var formal_result := resolver.resolve_effects(formal_source, formal_target, [_build_damage_effect(20)], {})
 	_assert_eq(
 		int(formal_result.get("damage", -1)),
 		10,
@@ -235,8 +235,8 @@ func _set_status_params(unit: BattleUnitState, status_id: StringName, params: Di
 
 
 func _set_ac_profile(unit: BattleUnitState, armor_class: int, dodge_bonus: int) -> void:
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, armor_class)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.DODGE_BONUS, dodge_bonus)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), armor_class)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.DODGE_BONUS_ID(), dodge_bonus)
 
 
 func _build_damage_effect(power: int) -> CombatEffectDef:
@@ -261,20 +261,20 @@ func _build_unit(unit_id: StringName) -> BattleUnitState:
 	unit.display_name = String(unit_id)
 	unit.faction_id = &"player"
 	unit.current_ap = 2
-	unit.current_move_points = BattleUnitState.DEFAULT_MOVE_POINTS_PER_TURN
+	unit.current_move_points = BattleUnitState.DEFAULT_MOVE_POINTS_PER_TURN()
 	unit.current_hp = 100
 	unit.current_mp = 4
 	unit.current_stamina = 4
 	unit.current_aura = 0
 	unit.is_alive = true
 	unit.set_anchor_coord(Vector2i.ZERO)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX, 100)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX, 4)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX, 4)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX_ID(), 100)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX_ID(), 4)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX_ID(), 4)
 	unit.attribute_snapshot.set_value(&"action_points", 2)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 0)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 10)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.DODGE_BONUS, 0)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 0)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 10)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.DODGE_BONUS_ID(), 0)
 	return unit
 
 

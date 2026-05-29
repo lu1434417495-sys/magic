@@ -11,8 +11,11 @@ public partial class BattleEdgeFaceState : RefCounted
     private static readonly StringName _RENDER_WALL = "wall";
 
     public static StringName FEATURE_NONE() => _FEATURE_NONE;
+
     public static StringName FEATURE_WALL() => _FEATURE_WALL;
+
     public static StringName RENDER_NONE() => _RENDER_NONE;
+
     public static StringName RENDER_WALL() => _RENDER_WALL;
 
     public Vector2I origin_coord { get; set; } = Vector2I.Zero;
@@ -39,7 +42,9 @@ public partial class BattleEdgeFaceState : RefCounted
 
     public bool has_feature_face()
     {
-        return feature_kind != _FEATURE_NONE && feature_render_kind != _RENDER_NONE && feature_layers > 0;
+        return feature_kind != _FEATURE_NONE
+            && feature_render_kind != _RENDER_NONE
+            && feature_layers > 0;
     }
 
     public bool has_any_face()

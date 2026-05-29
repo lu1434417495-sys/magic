@@ -4,7 +4,7 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const GAME_TEXT_COMMAND_RUNNER_SCRIPT = preload("res://scripts/systems/game_runtime/headless/game_text_command_runner.gd")
+const GAME_TEXT_COMMAND_RUNNER_SCRIPT = preload("res://scripts/systems/game_runtime/headless/GameTextCommandRunner.cs")
 const DEFAULT_SCENARIO_PATH := "res://tests/text_runtime/scenarios/smoke_startup.txt"
 
 
@@ -35,7 +35,7 @@ func _run() -> void:
 		if result.skipped:
 			continue
 		executed_count += 1
-		print("LINE %d\n%s" % [line_index + 1, result.render()])
+		print("LINE %d\n%s" % [line_index + 1, result.Render()])
 		if not result.ok:
 			await runner.dispose()
 			push_error("Scenario failed at line %d: %s" % [line_index + 1, line])

@@ -3,18 +3,17 @@ extends SceneTree
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 const BattleRuntimeTestHelpers = preload("res://tests/shared/battle_runtime_test_helpers.gd")
 
-const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_session.gd")
-const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_state.gd")
-const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
-const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
-const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
-const BATTLE_GRID_SERVICE_SCRIPT = preload("res://scripts/systems/battle/terrain/battle_grid_service.gd")
-const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
-const BATTLE_RANGE_SERVICE_SCRIPT = preload("res://scripts/systems/battle/rules/battle_range_service.gd")
-const SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/skill_def.gd")
-const COMBAT_SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/combat_skill_def.gd")
+const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/GameSession.cs")
+const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleState.cs")
+const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleTimelineState.cs")
+const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleCellState.cs")
+const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
+const BATTLE_GRID_SERVICE_SCRIPT = preload("res://scripts/systems/battle/terrain/BattleGridService.cs")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/AttributeService.cs")
+const SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/SkillDef.cs")
+const COMBAT_SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/CombatSkillDef.cs")
 
-const SPAWN_REACHABILITY_SERVICE_PATH := "res://scripts/systems/battle/runtime/battle_spawn_reachability_service.gd"
+const SPAWN_REACHABILITY_SERVICE_PATH := "res://scripts/systems/battle/runtime/BattleSpawnReachabilityService.cs"
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -61,7 +60,7 @@ func _test_deep_water_split_marks_enemy_spawn_invalid(service_script) -> void:
 	var state = _build_flat_state(map_size)
 	for x in range(barrier_start, barrier_start + barrier_width):
 		for y in range(map_size.y):
-			_set_cell_terrain(state, Vector2i(x, y), BATTLE_CELL_STATE_SCRIPT.TERRAIN_DEEP_WATER)
+			_set_cell_terrain(state, Vector2i(x, y), BATTLE_CELL_STATE_SCRIPT.TERRAIN_DEEP_WATER())
 
 	var enemy = _build_unit(&"split_enemy", &"enemy", Vector2i(1, 2), skill_id)
 	var player = _build_unit(&"split_player", &"player", Vector2i(barrier_start + barrier_width + 1, 2), &"")
@@ -126,7 +125,7 @@ func _test_bidirectional_deep_water_split_marks_player_spawn_invalid(service_scr
 	var state = _build_flat_state(map_size)
 	for x in range(barrier_start, barrier_start + barrier_width):
 		for y in range(map_size.y):
-			_set_cell_terrain(state, Vector2i(x, y), BATTLE_CELL_STATE_SCRIPT.TERRAIN_DEEP_WATER)
+			_set_cell_terrain(state, Vector2i(x, y), BATTLE_CELL_STATE_SCRIPT.TERRAIN_DEEP_WATER())
 
 	var enemy = _build_unit(&"split_enemy", &"enemy", Vector2i(1, 2), skill_id)
 	var player = _build_unit(&"split_player", &"player", Vector2i(barrier_start + barrier_width + 1, 2), skill_id)
@@ -245,7 +244,7 @@ func _find_enemy_unit_attack_skill(skill_defs: Dictionary) -> Dictionary:
 			continue
 		if not _target_filter_can_attack_player(combat_profile.target_team_filter):
 			continue
-		if BATTLE_RANGE_SERVICE_SCRIPT.requires_current_melee_weapon(skill_def):
+		if BattleRangeService.requires_current_melee_weapon(skill_def):
 			continue
 		var skill_range := int(combat_profile.range_value)
 		if skill_range < 1:
@@ -280,7 +279,7 @@ func _build_flat_state(map_size: Vector2i):
 		for x in range(map_size.x):
 			var cell = BATTLE_CELL_STATE_SCRIPT.new()
 			cell.coord = Vector2i(x, y)
-			cell.base_terrain = BATTLE_CELL_STATE_SCRIPT.TERRAIN_LAND
+			cell.base_terrain = BATTLE_CELL_STATE_SCRIPT.TERRAIN_LAND()
 			cell.base_height = 4
 			cell.height_offset = 0
 			cell.recalculate_runtime_values()
@@ -314,7 +313,7 @@ func _build_unit(
 	unit.current_stamina = 10
 	unit.current_aura = 10
 	unit.current_ap = 2
-	unit.current_move_points = BATTLE_UNIT_STATE_SCRIPT.DEFAULT_MOVE_POINTS_PER_TURN
+	unit.current_move_points = BATTLE_UNIT_STATE_SCRIPT.DEFAULT_MOVE_POINTS_PER_TURN()
 	unit.is_alive = true
 	unit.set_anchor_coord(coord)
 	unit.attribute_snapshot.set_value(&"hp_max", 30)
@@ -322,8 +321,8 @@ func _build_unit(
 	unit.attribute_snapshot.set_value(&"stamina_max", 10)
 	unit.attribute_snapshot.set_value(&"aura_max", 10)
 	unit.attribute_snapshot.set_value(&"action_points", 2)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 6)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 10)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 6)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 10)
 	if skill_id != &"":
 		unit.known_active_skill_ids.clear()
 		unit.known_active_skill_ids.append(skill_id)
@@ -352,10 +351,10 @@ func _string_name_array_has(values, expected: StringName) -> bool:
 
 func _collect_details_for_unit(details, unit_id: StringName) -> Array[Dictionary]:
 	var matches: Array[Dictionary] = []
-	for detail_variant in details:
-		if detail_variant is not Dictionary:
+	for detail_option in details:
+		if detail_option is not Dictionary:
 			continue
-		var detail: Dictionary = detail_variant
+		var detail: Dictionary = detail_option
 		if StringName(String(detail.get("enemy_unit_id", detail.get("unit_id", &"")))) == unit_id:
 			matches.append(detail)
 	return matches

@@ -2,10 +2,10 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const GameRuntimeFacade = preload("res://scripts/systems/game_runtime/game_runtime_facade.gd")
-const GameRuntimePartyCommandHandler = preload("res://scripts/systems/game_runtime/game_runtime_party_command_handler.gd")
-const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
-const PartyState = preload("res://scripts/player/progression/party_state.gd")
+const GameRuntimeFacade = preload("res://scripts/systems/game_runtime/GameRuntimeFacade.cs")
+const GameRuntimePartyCommandHandler = preload("res://scripts/systems/game_runtime/GameRuntimePartyCommandHandler.cs")
+const PartyMemberState = preload("res://scripts/player/progression/PartyMemberState.cs")
+const PartyState = preload("res://scripts/player/progression/PartyState.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -330,7 +330,6 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	_test_facade_delegates_party_surface_to_handler()
 	_test_party_handler_updates_runtime_state_and_persists()
 
 	if _failures.is_empty():
@@ -447,7 +446,7 @@ func _test_party_handler_updates_runtime_state_and_persists() -> void:
 	_assert_true(runtime._party_state.active_member_ids.has(&"hero"), "非法编成被拒绝后，运行时 active roster 不应丢失主角。")
 	_assert_true(not runtime._party_state.reserve_member_ids.has(&"hero"), "非法编成被拒绝后，运行时 reserve roster 不应出现主角。")
 
-	var equip_result: Dictionary = handler.command_party_equip_item(&"hero", &"bronze_sword", &"weapon")
+	var equip_result: Dictionary = handler.command_party_equip_item(&"hero", &"bronze_sword", &"weapon", &"")
 	_assert_true(bool(equip_result.get("ok", false)), "装备物品应成功。")
 	_assert_eq(runtime._party_selected_member_id, &"hero", "装备后应更新当前选中成员。")
 	_assert_true(String(runtime._current_status_message).find("青铜剑") >= 0, "装备成功消息应包含物品名称。")

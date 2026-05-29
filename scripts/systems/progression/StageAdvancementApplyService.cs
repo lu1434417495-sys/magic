@@ -10,49 +10,70 @@ public partial class StageAdvancementApplyService : RefCounted
         _content_bundle = contentBundle ?? new Godot.Collections.Dictionary();
     }
 
-    public bool add_stage_advancement_modifier(GodotObject memberState, StringName modifierId)
+    public bool add_stage_advancement_modifier(PartyMemberState memberState, StringName modifierId)
     {
         if (memberState == null || modifierId == "")
             return false;
-        var modifier = _get_content_def("stage_advancement_defs", "stage_advancement", modifierId) as StageAdvancementModifier;
+        var modifier =
+            _get_content_def("stage_advancement_defs", "stage_advancement", modifierId)
+            as StageAdvancementModifier;
         if (modifier == null || modifier.modifier_id != modifierId)
             return false;
         if (!_modifier_applies_to_member(modifier, memberState))
             return false;
-        var activeIds = memberState.Get("active_stage_advancement_modifier_ids").AsGodotArray();
+        var activeIds = memberState.active_stage_advancement_modifier_ids;
         if (activeIds.Contains(modifierId))
             return false;
         activeIds.Add(modifierId);
         return true;
     }
 
-    public bool remove_stage_advancement_modifier(GodotObject memberState, StringName modifierId)
+    public bool remove_stage_advancement_modifier(PartyMemberState memberState, StringName modifierId)
     {
         if (memberState == null || modifierId == "")
             return false;
-        var activeIds = memberState.Get("active_stage_advancement_modifier_ids").AsGodotArray();
+        var activeIds = memberState.active_stage_advancement_modifier_ids;
         if (!activeIds.Contains(modifierId))
             return false;
         activeIds.Remove(modifierId);
         return true;
     }
 
-    private bool _modifier_applies_to_member(StageAdvancementModifier modifier, GodotObject memberState)
+    private bool _modifier_applies_to_member(
+        StageAdvancementModifier modifier,
+        PartyMemberState memberState
+    )
     {
         if (modifier == null || memberState == null)
             return false;
-        if (modifier.applies_to_race_ids.Count > 0 && !modifier.applies_to_race_ids.Contains(memberState.Get("race_id").AsStringName()))
+        if (
+            modifier.applies_to_race_ids.Count > 0
+            && !modifier.applies_to_race_ids.Contains(memberState.race_id)
+        )
             return false;
-        if (modifier.applies_to_subrace_ids.Count > 0 && !modifier.applies_to_subrace_ids.Contains(memberState.Get("subrace_id").AsStringName()))
+        if (
+            modifier.applies_to_subrace_ids.Count > 0
+            && !modifier.applies_to_subrace_ids.Contains(memberState.subrace_id)
+        )
             return false;
-        if (modifier.applies_to_bloodline_ids.Count > 0 && !modifier.applies_to_bloodline_ids.Contains(memberState.Get("bloodline_id").AsStringName()))
+        if (
+            modifier.applies_to_bloodline_ids.Count > 0
+            && !modifier.applies_to_bloodline_ids.Contains(memberState.bloodline_id)
+        )
             return false;
-        if (modifier.applies_to_ascension_ids.Count > 0 && !modifier.applies_to_ascension_ids.Contains(memberState.Get("ascension_id").AsStringName()))
+        if (
+            modifier.applies_to_ascension_ids.Count > 0
+            && !modifier.applies_to_ascension_ids.Contains(memberState.ascension_id)
+        )
             return false;
         return true;
     }
 
-    private GodotObject _get_content_def(string primaryBucket, string aliasBucket, StringName entryId)
+    private GodotObject _get_content_def(
+        string primaryBucket,
+        string aliasBucket,
+        StringName entryId
+    )
     {
         if (entryId == "")
             return null;
@@ -60,7 +81,10 @@ public partial class StageAdvancementApplyService : RefCounted
         return bucket.ContainsKey(entryId) ? bucket[entryId].AsGodotObject() : null;
     }
 
-    private Godot.Collections.Dictionary _get_content_bucket(string primaryBucket, string aliasBucket)
+    private Godot.Collections.Dictionary _get_content_bucket(
+        string primaryBucket,
+        string aliasBucket
+    )
     {
         if (_content_bundle.ContainsKey(primaryBucket))
         {

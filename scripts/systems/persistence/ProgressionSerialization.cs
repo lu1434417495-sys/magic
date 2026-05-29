@@ -4,9 +4,6 @@ using GDictionary = Godot.Collections.Dictionary;
 [GlobalClass]
 public partial class ProgressionSerialization : RefCounted
 {
-    private static readonly Script UnitProgressScript = GD.Load<Script>("res://scripts/player/progression/unit_progress.gd");
-    private static readonly Script PartyStateScript = GD.Load<Script>("res://scripts/player/progression/party_state.gd");
-
     public static GDictionary serialize_unit_progress(GodotObject progress)
     {
         return ToDictionary(progress);
@@ -14,7 +11,7 @@ public partial class ProgressionSerialization : RefCounted
 
     public static GodotObject deserialize_unit_progress(GDictionary data)
     {
-        return UnitProgressScript.Call("from_dict", data).AsGodotObject();
+        return UnitProgress.from_dict(data);
     }
 
     public static GDictionary serialize_unit_base_attributes(UnitBaseAttributes attributes)
@@ -37,7 +34,9 @@ public partial class ProgressionSerialization : RefCounted
         return UnitSkillProgress.from_dict(data);
     }
 
-    public static GDictionary serialize_unit_profession_progress(UnitProfessionProgress profession_progress)
+    public static GDictionary serialize_unit_profession_progress(
+        UnitProfessionProgress profession_progress
+    )
     {
         return profession_progress?.to_dict() ?? new GDictionary();
     }
@@ -82,9 +81,9 @@ public partial class ProgressionSerialization : RefCounted
         return ToDictionary(party_state);
     }
 
-    public static GodotObject deserialize_party_state(GDictionary data)
+    public static PartyState deserialize_party_state(GDictionary data)
     {
-        return PartyStateScript.Call("from_dict", data).AsGodotObject();
+        return PartyState.from_dict(data);
     }
 
     public static GDictionary serialize_pending_character_reward(PendingCharacterReward reward)
@@ -97,12 +96,16 @@ public partial class ProgressionSerialization : RefCounted
         return PendingCharacterReward.from_dict(data);
     }
 
-    public static GDictionary serialize_pending_character_reward_entry(PendingCharacterRewardEntry entry)
+    public static GDictionary serialize_pending_character_reward_entry(
+        PendingCharacterRewardEntry entry
+    )
     {
         return entry?.to_dict() ?? new GDictionary();
     }
 
-    public static PendingCharacterRewardEntry deserialize_pending_character_reward_entry(GDictionary data)
+    public static PendingCharacterRewardEntry deserialize_pending_character_reward_entry(
+        GDictionary data
+    )
     {
         return PendingCharacterRewardEntry.from_dict(data);
     }
@@ -121,7 +124,9 @@ public partial class ProgressionSerialization : RefCounted
     {
         if (value == null || !value.HasMethod("to_dict"))
             return new GDictionary();
-        Variant result = value.Call("to_dict");
-        return result.VariantType == Variant.Type.Dictionary ? result.AsGodotDictionary() : new GDictionary();
+        var result = value.Call("to_dict");
+        return result.VariantType == Variant.Type.Dictionary
+            ? result.AsGodotDictionary()
+            : new GDictionary();
     }
 }

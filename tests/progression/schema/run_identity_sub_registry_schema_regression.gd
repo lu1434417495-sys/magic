@@ -2,13 +2,13 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const AgeContentRegistry = preload("res://scripts/player/progression/age_content_registry.gd")
-const AscensionContentRegistry = preload("res://scripts/player/progression/ascension_content_registry.gd")
-const BloodlineContentRegistry = preload("res://scripts/player/progression/bloodline_content_registry.gd")
-const RaceContentRegistry = preload("res://scripts/player/progression/race_content_registry.gd")
-const RaceTraitContentRegistry = preload("res://scripts/player/progression/race_trait_content_registry.gd")
-const StageAdvancementContentRegistry = preload("res://scripts/player/progression/stage_advancement_content_registry.gd")
-const SubraceContentRegistry = preload("res://scripts/player/progression/subrace_content_registry.gd")
+const AgeContentRegistry = preload("res://scripts/player/progression/AgeContentRegistry.cs")
+const AscensionContentRegistry = preload("res://scripts/player/progression/AscensionContentRegistry.cs")
+const BloodlineContentRegistry = preload("res://scripts/player/progression/BloodlineContentRegistry.cs")
+const RaceContentRegistry = preload("res://scripts/player/progression/RaceContentRegistry.cs")
+const RaceTraitContentRegistry = preload("res://scripts/player/progression/RaceTraitContentRegistry.cs")
+const StageAdvancementContentRegistry = preload("res://scripts/player/progression/StageAdvancementContentRegistry.cs")
+const SubraceContentRegistry = preload("res://scripts/player/progression/SubraceContentRegistry.cs")
 
 const MISSING_RACE_FIXTURE_PATH := "user://identity_registry_missing_race.tres"
 
@@ -42,13 +42,13 @@ func _run() -> void:
 
 
 func _test_registry_directory_constants() -> void:
-	_assert_eq(RaceContentRegistry.RACE_CONFIG_DIRECTORY, "res://data/configs/races", "RaceContentRegistry 应暴露正式目录常量。")
-	_assert_eq(SubraceContentRegistry.SUBRACE_CONFIG_DIRECTORY, "res://data/configs/subraces", "SubraceContentRegistry 应暴露正式目录常量。")
-	_assert_eq(RaceTraitContentRegistry.RACE_TRAIT_CONFIG_DIRECTORY, "res://data/configs/race_traits", "RaceTraitContentRegistry 应暴露正式目录常量。")
-	_assert_eq(AgeContentRegistry.AGE_PROFILE_CONFIG_DIRECTORY, "res://data/configs/age_profiles", "AgeContentRegistry 应暴露正式目录常量。")
-	_assert_eq(BloodlineContentRegistry.BLOODLINE_CONFIG_DIRECTORY, "res://data/configs/bloodlines", "BloodlineContentRegistry 应暴露正式目录常量。")
-	_assert_eq(AscensionContentRegistry.ASCENSION_CONFIG_DIRECTORY, "res://data/configs/ascensions", "AscensionContentRegistry 应暴露正式目录常量。")
-	_assert_eq(StageAdvancementContentRegistry.STAGE_ADVANCEMENT_CONFIG_DIRECTORY, "res://data/configs/stage_advancements", "StageAdvancementContentRegistry 应暴露正式目录常量。")
+	_assert_eq(RaceContentRegistry.race_config_directory(), "res://data/configs/races", "RaceContentRegistry 应暴露正式目录常量。")
+	_assert_eq(SubraceContentRegistry.subrace_config_directory(), "res://data/configs/subraces", "SubraceContentRegistry 应暴露正式目录常量。")
+	_assert_eq(RaceTraitContentRegistry.race_trait_config_directory(), "res://data/configs/race_traits", "RaceTraitContentRegistry 应暴露正式目录常量。")
+	_assert_eq(AgeContentRegistry.age_profile_config_directory(), "res://data/configs/age_profiles", "AgeContentRegistry 应暴露正式目录常量。")
+	_assert_eq(BloodlineContentRegistry.bloodline_config_directory(), "res://data/configs/bloodlines", "BloodlineContentRegistry 应暴露正式目录常量。")
+	_assert_eq(AscensionContentRegistry.ascension_config_directory(), "res://data/configs/ascensions", "AscensionContentRegistry 应暴露正式目录常量。")
+	_assert_eq(StageAdvancementContentRegistry.stage_advancement_config_directory(), "res://data/configs/stage_advancements", "StageAdvancementContentRegistry 应暴露正式目录常量。")
 
 
 func _test_race_registry_phase_one_is_table_local() -> void:

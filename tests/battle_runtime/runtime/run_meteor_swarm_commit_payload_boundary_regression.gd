@@ -1,22 +1,23 @@
 extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
-const MeteorSwarmCommitResult = preload("res://scripts/systems/battle/core/meteor_swarm/meteor_swarm_commit_result.gd")
-const MeteorSwarmTargetPlan = preload("res://scripts/systems/battle/core/meteor_swarm/meteor_swarm_target_plan.gd")
+const GodotSharpCleanup = preload("res://tests/shared/GodotSharpCleanup.cs")
+const MeteorSwarmCommitResult = preload("res://scripts/systems/battle/core/meteor_swarm/MeteorSwarmCommitResult.cs")
+const MeteorSwarmTargetPlan = preload("res://scripts/systems/battle/core/meteor_swarm/MeteorSwarmTargetPlan.cs")
 
 const ALLOWED_COMMON_OUTCOME_PAYLOAD_FILES := {
-	"res://scripts/systems/battle/core/meteor_swarm/meteor_swarm_commit_result.gd": true,
-	"res://scripts/systems/battle/runtime/battle_special_profile_commit_adapter.gd": true,
+	"res://scripts/systems/battle/core/meteor_swarm/MeteorSwarmCommitResult.cs": true,
+	"res://scripts/systems/battle/runtime/BattleSpecialProfileCommitAdapter.cs": true,
 }
 const SPECIAL_RUNTIME_FILES := [
-	"res://scripts/systems/battle/runtime/battle_meteor_swarm_resolver.gd",
-	"res://scripts/systems/battle/runtime/battle_special_profile_gate.gd",
-	"res://scripts/systems/battle/runtime/battle_special_profile_commit_adapter.gd",
-	"res://scripts/systems/battle/core/meteor_swarm/meteor_swarm_profile.gd",
-	"res://scripts/systems/battle/core/meteor_swarm/meteor_swarm_target_plan.gd",
-	"res://scripts/systems/battle/core/meteor_swarm/meteor_swarm_impact_component.gd",
-	"res://scripts/systems/battle/core/meteor_swarm/meteor_swarm_target_outcome.gd",
-	"res://scripts/systems/battle/core/meteor_swarm/meteor_swarm_commit_result.gd",
+	"res://scripts/systems/battle/runtime/BattleMeteorSwarmResolver.cs",
+	"res://scripts/systems/battle/runtime/BattleSpecialProfileGate.cs",
+	"res://scripts/systems/battle/runtime/BattleSpecialProfileCommitAdapter.cs",
+	"res://scripts/systems/battle/core/meteor_swarm/MeteorSwarmProfile.cs",
+	"res://scripts/systems/battle/core/meteor_swarm/MeteorSwarmTargetPlan.cs",
+	"res://scripts/systems/battle/core/meteor_swarm/MeteorSwarmImpactComponent.cs",
+	"res://scripts/systems/battle/core/meteor_swarm/MeteorSwarmTargetOutcome.cs",
+	"res://scripts/systems/battle/core/meteor_swarm/MeteorSwarmCommitResult.cs",
 ]
 
 var _test := TestRunner.new()
@@ -33,11 +34,13 @@ func _run() -> void:
 	_test_commit_payload_is_deep_copy_boundary()
 	if _failures.is_empty():
 		print("Meteor swarm commit payload boundary regression: PASS")
+		GodotSharpCleanup.collect_pending_finalizers()
 		quit(0)
 		return
 	for failure in _failures:
 		push_error(failure)
 	print("Meteor swarm commit payload boundary regression: FAIL (%d)" % _failures.size())
+	GodotSharpCleanup.collect_pending_finalizers()
 	quit(1)
 
 

@@ -6,11 +6,11 @@ extends RefCounted
 
 static func format_top_n(func_stats: Dictionary, sort_by: String = "self_usec", top_n: int = 20, name_filter: String = "") -> String:
 	var entries: Array = []
-	for name_variant in func_stats.keys():
-		var name := String(name_variant)
+	for name_option in func_stats.keys():
+		var name := String(name_option)
 		if not name_filter.is_empty() and name.find(name_filter) == -1:
 			continue
-		var s: Dictionary = func_stats[name_variant]
+		var s: Dictionary = func_stats[name_option]
 		entries.append({
 			"name": name,
 			"ncalls": int(s.get("ncalls", 0)),
@@ -77,8 +77,8 @@ static func write_csv(path: String, func_stats: Dictionary) -> bool:
 		var sb: Dictionary = func_stats[b]
 		return int(sa.get("self_usec", 0)) > int(sb.get("self_usec", 0))
 	)
-	for name_variant in names:
-		var s: Dictionary = func_stats[name_variant]
+	for name_option in names:
+		var s: Dictionary = func_stats[name_option]
 		var ncalls := int(s.get("ncalls", 0))
 		var self_usec := int(s.get("self_usec", 0))
 		var total_usec := int(s.get("total_usec", 0))
@@ -89,7 +89,7 @@ static func write_csv(path: String, func_stats: Dictionary) -> bool:
 			self_pc = float(self_usec) / float(ncalls)
 			total_pc = float(total_usec) / float(ncalls)
 		file.store_line("%s,%d,%d,%d,%d,%.2f,%.2f" % [
-			String(name_variant), ncalls, self_usec, total_usec, max_usec, self_pc, total_pc,
+			String(name_option), ncalls, self_usec, total_usec, max_usec, self_pc, total_pc,
 		])
 	file.close()
 	return true
@@ -110,7 +110,7 @@ static func write_text_report(path: String, header: String, body: String) -> boo
 
 static func total_self_usec(func_stats: Dictionary) -> int:
 	var sum := 0
-	for s_variant in func_stats.values():
-		var s: Dictionary = s_variant
+	for s_option in func_stats.values():
+		var s: Dictionary = s_option
 		sum += int(s.get("self_usec", 0))
 	return sum

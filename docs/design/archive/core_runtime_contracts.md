@@ -60,7 +60,7 @@
 ## QuestDef / QuestState
 
 - owner:
-  - `scripts/player/progression/quest_def.gd`
+  - `scripts/player/progression/QuestDef.cs`
   - `scripts/player/progression/quest_state.gd`
   - `scripts/systems/quest_progress_service.gd`
 - current scope:

@@ -2,23 +2,22 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const AttributeService = preload("res://scripts/systems/attributes/attribute_service.gd")
-const CharacterManagementModule = preload("res://scripts/systems/progression/character_management_module.gd")
-const ItemContentRegistry = preload("res://scripts/player/warehouse/item_content_registry.gd")
-const ItemDef = preload("res://scripts/player/warehouse/item_def.gd")
-const PartyEquipmentService = preload("res://scripts/systems/inventory/party_equipment_service.gd")
-const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
-const PartyState = preload("res://scripts/player/progression/party_state.gd")
-const PartyWarehouseService = preload("res://scripts/systems/inventory/party_warehouse_service.gd")
-const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
-const UnitBaseAttributes = preload("res://scripts/player/progression/unit_base_attributes.gd")
-const UnitProgress = preload("res://scripts/player/progression/unit_progress.gd")
-const EquipmentRequirement = preload("res://scripts/player/equipment/equipment_requirement.gd")
-const EquipmentState = preload("res://scripts/player/equipment/equipment_state.gd")
-const EquipmentEntryState = preload("res://scripts/player/equipment/equipment_entry_state.gd")
-const EquipmentDurabilityRules = preload("res://scripts/player/equipment/equipment_durability_rules.gd")
-const EquipmentInstanceState = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
-const WeaponProfileDef = preload("res://scripts/player/warehouse/weapon_profile_def.gd")
+const AttributeService = preload("res://scripts/systems/attributes/AttributeService.cs")
+const CharacterManagementModule = preload("res://scripts/systems/progression/CharacterManagementModule.cs")
+const ItemContentRegistry = preload("res://scripts/player/warehouse/ItemContentRegistry.cs")
+const ItemDef = preload("res://scripts/player/warehouse/ItemDef.cs")
+const PartyEquipmentService = preload("res://scripts/systems/inventory/PartyEquipmentService.cs")
+const PartyMemberState = preload("res://scripts/player/progression/PartyMemberState.cs")
+const PartyState = preload("res://scripts/player/progression/PartyState.cs")
+const PartyWarehouseService = preload("res://scripts/systems/inventory/PartyWarehouseService.cs")
+const ProgressionContentRegistry = preload("res://scripts/player/progression/ProgressionContentRegistry.cs")
+const UnitBaseAttributes = preload("res://scripts/player/progression/UnitBaseAttributes.cs")
+const UnitProgress = preload("res://scripts/player/progression/UnitProgress.cs")
+const EquipmentRequirement = preload("res://scripts/player/equipment/EquipmentRequirement.cs")
+const EquipmentState = preload("res://scripts/player/equipment/EquipmentState.cs")
+const EquipmentEntryState = preload("res://scripts/player/equipment/EquipmentEntryState.cs")
+const EquipmentInstanceState = preload("res://scripts/player/warehouse/EquipmentInstanceState.cs")
+const WeaponProfileDef = preload("res://scripts/player/warehouse/WeaponProfileDef.cs")
 
 const BG3_WEAPON_SEED_ITEMS := {
 	&"club": &"oak_club",
@@ -177,10 +176,10 @@ func _test_item_registry_accepts_equipment_seed_data() -> void:
 
 	var one_handed_weapon_classes: Dictionary = {}
 	var covered_equipment_slots: Dictionary = {}
-	for item_def_variant in item_defs.values():
-		if item_def_variant is not ItemDef:
+	for item_def_option in item_defs.values():
+		if item_def_option is not ItemDef:
 			continue
-		var item_def: ItemDef = item_def_variant
+		var item_def: ItemDef = item_def_option
 		if item_def.is_equipment():
 			for slot_id in item_def.get_equipment_slot_ids():
 				covered_equipment_slots[slot_id] = true
@@ -234,10 +233,10 @@ func _test_all_bg3_weapon_types_are_registered_as_weapon_equipment() -> void:
 func _test_melee_weapons_declare_exactly_one_physical_damage_tag() -> void:
 	var item_defs := ItemContentRegistry.new().get_item_defs()
 	var expected_weapon_tags := {
-		&"bronze_sword": ItemDef.DAMAGE_TAG_PHYSICAL_PIERCE,
-		&"iron_greatsword": ItemDef.DAMAGE_TAG_PHYSICAL_SLASH,
-		&"militia_axe": ItemDef.DAMAGE_TAG_PHYSICAL_SLASH,
-		&"watchman_mace": ItemDef.DAMAGE_TAG_PHYSICAL_BLUNT,
+		&"bronze_sword": &"physical_pierce",
+		&"iron_greatsword": &"physical_slash",
+		&"militia_axe": &"physical_slash",
+		&"watchman_mace": &"physical_blunt",
 	}
 	var expected_weapon_profiles := {
 		&"bronze_sword": {
@@ -266,8 +265,8 @@ func _test_melee_weapons_declare_exactly_one_physical_damage_tag() -> void:
 		},
 	}
 	var covered_melee_weapon_count := 0
-	for item_def_variant in item_defs.values():
-		var item_def := item_def_variant as ItemDef
+	for item_def_option in item_defs.values():
+		var item_def := item_def_option as ItemDef
 		if item_def == null or not item_def.is_weapon() or not item_def.get_tags().has(&"melee"):
 			continue
 		covered_melee_weapon_count += 1
@@ -377,27 +376,27 @@ func _test_equipment_modifiers_change_attribute_snapshot_and_round_trip() -> voi
 	var after_snapshot = manager.get_member_attribute_snapshot(&"hero")
 
 	_assert_eq(
-		after_snapshot.get_value(AttributeService.ATTACK_BONUS) - before_snapshot.get_value(AttributeService.ATTACK_BONUS),
+		after_snapshot.get_value(AttributeService.ATTACK_BONUS_ID()) - before_snapshot.get_value(AttributeService.ATTACK_BONUS_ID()),
 		2,
 		"青铜短剑应提供攻击检定加值。"
 	)
 	_assert_eq(
-		after_snapshot.get_value(AttributeService.ARMOR_AC_BONUS) - before_snapshot.get_value(AttributeService.ARMOR_AC_BONUS),
+		after_snapshot.get_value(AttributeService.ARMOR_AC_BONUS_ID()) - before_snapshot.get_value(AttributeService.ARMOR_AC_BONUS_ID()),
 		3,
 		"皮革短甲与皮革护帽应合计提供护甲 AC 加值。"
 	)
 	_assert_eq(
-		after_snapshot.get_value(AttributeService.ARMOR_CLASS) - before_snapshot.get_value(AttributeService.ARMOR_CLASS),
+		after_snapshot.get_value(AttributeService.ARMOR_CLASS_ID()) - before_snapshot.get_value(AttributeService.ARMOR_CLASS_ID()),
 		4,
 		"皮革短甲、皮革护帽与闪避加值应合计提高 AC。"
 	)
 	_assert_eq(
-		after_snapshot.get_value(AttributeService.HP_MAX) - before_snapshot.get_value(AttributeService.HP_MAX),
+		after_snapshot.get_value(AttributeService.HP_MAX_ID()) - before_snapshot.get_value(AttributeService.HP_MAX_ID()),
 		0,
 		"皮革短甲不应提供生命上限加值。"
 	)
 	_assert_eq(
-		after_snapshot.get_value(AttributeService.DODGE_BONUS) - before_snapshot.get_value(AttributeService.DODGE_BONUS),
+		after_snapshot.get_value(AttributeService.DODGE_BONUS_ID()) - before_snapshot.get_value(AttributeService.DODGE_BONUS_ID()),
 		1,
 		"皮革护帽应提供闪避加值。"
 	)
@@ -547,13 +546,13 @@ func _test_two_handed_weapon_displaces_existing_main_and_off_hand() -> void:
 		&"main_hand",
 		&"bronze_sword",
 		occ_main,
-		EquipmentInstanceState.create(&"bronze_sword", &"eq_fixture_bronze_sword")
+		EquipmentInstanceState.create_instance(&"bronze_sword", &"eq_fixture_bronze_sword")
 	)
 	eq_state.set_equipped_entry(
 		&"off_hand",
 		&"scout_charm",
 		occ_off,
-		EquipmentInstanceState.create(&"scout_charm", &"eq_fixture_scout_charm")
+		EquipmentInstanceState.create_instance(&"scout_charm", &"eq_fixture_scout_charm")
 	)
 
 	_assert_eq(String(eq_state.get_equipped_item_id(&"main_hand")), "bronze_sword", "前置：主手应有单手剑。")
@@ -592,7 +591,7 @@ func _test_two_handed_weapon_attribute_not_double_counted() -> void:
 	var empty_snapshot = empty_manager.get_member_attribute_snapshot(&"blank")
 
 	_assert_eq(
-		snapshot.get_value(AttributeService.ATTACK_BONUS) - empty_snapshot.get_value(AttributeService.ATTACK_BONUS),
+		snapshot.get_value(AttributeService.ATTACK_BONUS_ID()) - empty_snapshot.get_value(AttributeService.ATTACK_BONUS_ID()),
 		2,
 		"双手大剑攻击检定加值应精确为 +2，不得因占两槽而翻倍。"
 	)
@@ -651,7 +650,7 @@ func _test_armor_max_dex_bonus_caps_positive_agility_ac() -> void:
 	var item_defs := ItemContentRegistry.new().get_item_defs()
 	var progression_registry := ProgressionContentRegistry.new()
 	var party_state := _build_party_with_member(&"hero", "Hero", 8)
-	party_state.get_member_state(&"hero").progression.unit_base_attributes.set_attribute_value(UnitBaseAttributes.AGILITY, 18)
+	party_state.get_member_state(&"hero").progression.unit_base_attributes.set_attribute_value(&"agility", 18)
 
 	var baseline_manager := CharacterManagementModule.new()
 	baseline_manager.setup(
@@ -662,8 +661,8 @@ func _test_armor_max_dex_bonus_caps_positive_agility_ac() -> void:
 		item_defs
 	)
 	var baseline_snapshot = baseline_manager.get_member_attribute_snapshot(&"hero")
-	_assert_eq(baseline_snapshot.get_value(AttributeService.ARMOR_CLASS), 12, "敏捷 18 且无护甲时 AC 应为 8 + 敏捷调整值 4。")
-	_assert_eq(baseline_snapshot.get_value(AttributeService.ARMOR_MAX_DEX_BONUS), -1, "无护甲时敏捷上限应为 -1。")
+	_assert_eq(baseline_snapshot.get_value(AttributeService.ARMOR_CLASS_ID()), 12, "敏捷 18 且无护甲时 AC 应为 8 + 敏捷调整值 4。")
+	_assert_eq(baseline_snapshot.get_value(AttributeService.ARMOR_MAX_DEX_BONUS_ID()), -1, "无护甲时敏捷上限应为 -1。")
 
 	var warehouse_service := PartyWarehouseService.new()
 	warehouse_service.setup(party_state, item_defs)
@@ -683,8 +682,8 @@ func _test_armor_max_dex_bonus_caps_positive_agility_ac() -> void:
 		item_defs
 	)
 	var leather_snapshot = leather_manager.get_member_attribute_snapshot(&"hero")
-	_assert_eq(leather_snapshot.get_value(AttributeService.ARMOR_MAX_DEX_BONUS), 6, "皮革短甲应提供敏捷上限 6。")
-	_assert_eq(leather_snapshot.get_value(AttributeService.ARMOR_CLASS), 14, "皮革短甲不应限制敏捷 18 的 +4 AC。")
+	_assert_eq(leather_snapshot.get_value(AttributeService.ARMOR_MAX_DEX_BONUS_ID()), 6, "皮革短甲应提供敏捷上限 6。")
+	_assert_eq(leather_snapshot.get_value(AttributeService.ARMOR_CLASS_ID()), 14, "皮革短甲不应限制敏捷 18 的 +4 AC。")
 
 	var scale_result := equipment_service.equip_item(&"hero", &"iron_scale_mail")
 	_assert_true(bool(scale_result.get("success", false)), "铁鳞甲应能替换身体槽护甲。")
@@ -697,8 +696,8 @@ func _test_armor_max_dex_bonus_caps_positive_agility_ac() -> void:
 		item_defs
 	)
 	var scale_snapshot = scale_manager.get_member_attribute_snapshot(&"hero")
-	_assert_eq(scale_snapshot.get_value(AttributeService.ARMOR_MAX_DEX_BONUS), 3, "铁鳞甲应提供敏捷上限 3。")
-	_assert_eq(scale_snapshot.get_value(AttributeService.ARMOR_CLASS), 15, "铁鳞甲应把敏捷 AC 从 +4 限制为 +3，再叠加护甲 +4。")
+	_assert_eq(scale_snapshot.get_value(AttributeService.ARMOR_MAX_DEX_BONUS_ID()), 3, "铁鳞甲应提供敏捷上限 3。")
+	_assert_eq(scale_snapshot.get_value(AttributeService.ARMOR_CLASS_ID()), 15, "铁鳞甲应把敏捷 AC 从 +4 限制为 +3，再叠加护甲 +4。")
 
 
 func _test_requirement_profession_check() -> void:
@@ -892,8 +891,8 @@ func _test_equipped_instance_fields_survive_round_trip_and_unequip() -> void:
 	var equipment_service := PartyEquipmentService.new()
 	equipment_service.setup(party_state, item_defs, warehouse_service)
 
-	var epic_instance := EquipmentInstanceState.create(&"bronze_sword", &"eq_epic_equipped_bronze_sword")
-	epic_instance.rarity = EquipmentInstanceState.RarityTier.EPIC
+	var epic_instance := EquipmentInstanceState.create_instance(&"bronze_sword", &"eq_epic_equipped_bronze_sword")
+	epic_instance.rarity = EquipmentInstanceState.RARITY_TIER_EPIC()
 	epic_instance.current_durability = 17
 	party_state.warehouse_state.equipment_instances = [epic_instance]
 
@@ -904,7 +903,7 @@ func _test_equipped_instance_fields_survive_round_trip_and_unequip() -> void:
 	_assert_equipment_instance_fields(
 		equipped_instance,
 		"eq_epic_equipped_bronze_sword",
-		EquipmentInstanceState.RarityTier.EPIC,
+		EquipmentInstanceState.RARITY_TIER_EPIC(),
 		17,
 		"装备位应持有完整装备实例字段。"
 	)
@@ -921,7 +920,7 @@ func _test_equipped_instance_fields_survive_round_trip_and_unequip() -> void:
 	_assert_equipment_instance_fields(
 		restored_equipment_state.get_equipped_instance(&"main_hand"),
 		"eq_epic_equipped_bronze_sword",
-		EquipmentInstanceState.RarityTier.EPIC,
+		EquipmentInstanceState.RARITY_TIER_EPIC(),
 		17,
 		"round-trip 后装备位应保留完整装备实例字段。"
 	)
@@ -934,7 +933,7 @@ func _test_equipped_instance_fields_survive_round_trip_and_unequip() -> void:
 		_assert_equipment_instance_fields(
 			restored_instances[0],
 			"eq_epic_equipped_bronze_sword",
-			EquipmentInstanceState.RarityTier.EPIC,
+			EquipmentInstanceState.RARITY_TIER_EPIC(),
 			17,
 			"卸装回仓后应保留完整装备实例字段。"
 		)
@@ -942,9 +941,9 @@ func _test_equipped_instance_fields_survive_round_trip_and_unequip() -> void:
 
 func _test_equipment_instance_rarity_round_trip_and_strict_schema() -> void:
 	var party_state := _build_party_with_member(&"hero", "Hero", 8)
-	var epic_instance := EquipmentInstanceState.create(&"bronze_sword", &"eq_epic_bronze_sword")
-	epic_instance.rarity = EquipmentInstanceState.RarityTier.EPIC
-	epic_instance.current_durability = EquipmentDurabilityRules.get_default_current_durability(epic_instance.rarity)
+	var epic_instance := EquipmentInstanceState.create_instance(&"bronze_sword", &"eq_epic_bronze_sword")
+	epic_instance.rarity = EquipmentInstanceState.RARITY_TIER_EPIC()
+	epic_instance.current_durability = EquipmentDurabilityRules.GetDefaultCurrentDurability(epic_instance.rarity)
 	party_state.warehouse_state.equipment_instances = [epic_instance]
 
 	var restored_party_state = PartyState.from_dict(party_state.to_dict())
@@ -960,15 +959,15 @@ func _test_equipment_instance_rarity_round_trip_and_strict_schema() -> void:
 	var restored_instance = restored_instances[0]
 	_assert_eq(
 		int(restored_instance.rarity),
-		int(EquipmentInstanceState.RarityTier.EPIC),
+		int(EquipmentInstanceState.RARITY_TIER_EPIC()),
 		"装备实例 round-trip 后应保留 rarity tier。"
 	)
 
 	var missing_rarity_error := EquipmentInstanceState.get_payload_validation_error({
 		"instance_id": "eq_missing_rarity_bronze_sword",
 		"item_id": "bronze_sword",
-		"current_durability": EquipmentDurabilityRules.get_default_current_durability(EquipmentInstanceState.RarityTier.COMMON),
-	})
+		"current_durability": EquipmentDurabilityRules.GetDefaultCurrentDurability(EquipmentInstanceState.RARITY_TIER_COMMON()),
+	}, false)
 	_assert_true(
 		missing_rarity_error.contains("missing required field 'rarity'"),
 		"缺少 rarity 的装备实例 payload 应暴露字段级存档损坏诊断。 error=%s" % missing_rarity_error
@@ -978,8 +977,8 @@ func _test_equipment_instance_rarity_round_trip_and_strict_schema() -> void:
 		"instance_id": "eq_invalid_rarity_bronze_sword",
 		"item_id": "bronze_sword",
 		"rarity": 999,
-		"current_durability": EquipmentDurabilityRules.get_default_current_durability(EquipmentInstanceState.RarityTier.COMMON),
-	})
+		"current_durability": EquipmentDurabilityRules.GetDefaultCurrentDurability(EquipmentInstanceState.RARITY_TIER_COMMON()),
+	}, false)
 	_assert_true(
 		invalid_rarity_error.contains("invalid rarity 999"),
 		"非法 rarity 的装备实例 payload 应暴露字段级存档损坏诊断。 error=%s" % invalid_rarity_error
@@ -1033,13 +1032,13 @@ func _test_duplicate_same_item_instance_id_selection() -> void:
 	var equipment_service := PartyEquipmentService.new()
 	equipment_service.setup(party_state, item_defs, warehouse_service)
 
-	var common_instance := EquipmentInstanceState.create(&"bronze_sword", &"eq_duplicate_common_sword")
-	common_instance.rarity = EquipmentInstanceState.RarityTier.COMMON
+	var common_instance := EquipmentInstanceState.create_instance(&"bronze_sword", &"eq_duplicate_common_sword")
+	common_instance.rarity = EquipmentInstanceState.RARITY_TIER_COMMON()
 	common_instance.current_durability = 11
-	var rare_instance := EquipmentInstanceState.create(&"bronze_sword", &"eq_duplicate_rare_sword")
-	rare_instance.rarity = EquipmentInstanceState.RarityTier.RARE
+	var rare_instance := EquipmentInstanceState.create_instance(&"bronze_sword", &"eq_duplicate_rare_sword")
+	rare_instance.rarity = EquipmentInstanceState.RARITY_TIER_RARE()
 	rare_instance.current_durability = 23
-	var mismatch_instance := EquipmentInstanceState.create(&"scout_charm", &"eq_duplicate_wrong_item")
+	var mismatch_instance := EquipmentInstanceState.create_instance(&"scout_charm", &"eq_duplicate_wrong_item")
 	party_state.warehouse_state.equipment_instances = [common_instance, rare_instance, mismatch_instance]
 
 	var item_only_result := equipment_service.equip_item(&"hero", &"bronze_sword")
@@ -1060,7 +1059,7 @@ func _test_duplicate_same_item_instance_id_selection() -> void:
 	_assert_equipment_instance_fields(
 		equipped_instance,
 		"eq_duplicate_rare_sword",
-		EquipmentInstanceState.RarityTier.RARE,
+		EquipmentInstanceState.RARITY_TIER_RARE(),
 		23,
 		"指定 instance_id 装备后"
 	)
@@ -1085,7 +1084,7 @@ func _test_duplicate_same_item_instance_id_selection() -> void:
 	_assert_equipment_instance_fields(
 		restored_equipped_instance,
 		"eq_duplicate_rare_sword",
-		EquipmentInstanceState.RarityTier.RARE,
+		EquipmentInstanceState.RARITY_TIER_RARE(),
 		23,
 		"指定 instance_id 装备 round-trip 后"
 	)
@@ -1097,7 +1096,7 @@ func _test_duplicate_same_item_instance_id_selection() -> void:
 	_assert_equipment_instance_fields(
 		returned_instance,
 		"eq_duplicate_rare_sword",
-		EquipmentInstanceState.RarityTier.RARE,
+		EquipmentInstanceState.RARITY_TIER_RARE(),
 		23,
 		"指定 duplicate instance_id 卸回仓库后"
 	)
@@ -1106,8 +1105,8 @@ func _test_duplicate_same_item_instance_id_selection() -> void:
 func _test_party_state_rejects_duplicate_equipment_instance_ids() -> void:
 	var warehouse_duplicate_party := _build_party_with_member(&"hero", "Hero", 8)
 	warehouse_duplicate_party.warehouse_state.equipment_instances = [
-		EquipmentInstanceState.create(&"bronze_sword", &"eq_party_duplicate"),
-		EquipmentInstanceState.create(&"scout_charm", &"eq_party_duplicate"),
+		EquipmentInstanceState.create_instance(&"bronze_sword", &"eq_party_duplicate"),
+		EquipmentInstanceState.create_instance(&"scout_charm", &"eq_party_duplicate"),
 	]
 	_assert_true(
 		PartyState.from_dict(warehouse_duplicate_party.to_dict()) == null,
@@ -1116,14 +1115,14 @@ func _test_party_state_rejects_duplicate_equipment_instance_ids() -> void:
 
 	var warehouse_and_equipped_party := _build_party_with_member(&"hero", "Hero", 8)
 	warehouse_and_equipped_party.warehouse_state.equipment_instances = [
-		EquipmentInstanceState.create(&"bronze_sword", &"eq_party_shared"),
+		EquipmentInstanceState.create_instance(&"bronze_sword", &"eq_party_shared"),
 	]
 	var hero_equipment = warehouse_and_equipped_party.get_member_state(&"hero").equipment_state
 	hero_equipment.set_equipped_entry(
 		&"main_hand",
 		&"bronze_sword",
 		Array([&"main_hand"], TYPE_STRING_NAME, &"", null),
-		EquipmentInstanceState.create(&"bronze_sword", &"eq_party_shared")
+		EquipmentInstanceState.create_instance(&"bronze_sword", &"eq_party_shared")
 	)
 	_assert_true(
 		PartyState.from_dict(warehouse_and_equipped_party.to_dict()) == null,
@@ -1136,13 +1135,13 @@ func _test_party_state_rejects_duplicate_equipment_instance_ids() -> void:
 		&"main_hand",
 		&"bronze_sword",
 		Array([&"main_hand"], TYPE_STRING_NAME, &"", null),
-		EquipmentInstanceState.create(&"bronze_sword", &"eq_party_same_member")
+		EquipmentInstanceState.create_instance(&"bronze_sword", &"eq_party_same_member")
 	)
 	same_member_equipment.set_equipped_entry(
 		&"necklace",
 		&"scout_charm",
 		Array([&"necklace"], TYPE_STRING_NAME, &"", null),
-		EquipmentInstanceState.create(&"scout_charm", &"eq_party_same_member")
+		EquipmentInstanceState.create_instance(&"scout_charm", &"eq_party_same_member")
 	)
 	_assert_true(
 		PartyState.from_dict(same_member_duplicate_party.to_dict()) == null,
@@ -1162,13 +1161,13 @@ func _test_party_state_rejects_duplicate_equipment_instance_ids() -> void:
 		&"main_hand",
 		&"bronze_sword",
 		Array([&"main_hand"], TYPE_STRING_NAME, &"", null),
-		EquipmentInstanceState.create(&"bronze_sword", &"eq_party_cross_member")
+		EquipmentInstanceState.create_instance(&"bronze_sword", &"eq_party_cross_member")
 	)
 	cross_member_duplicate_party.get_member_state(&"ally").equipment_state.set_equipped_entry(
 		&"necklace",
 		&"scout_charm",
 		Array([&"necklace"], TYPE_STRING_NAME, &"", null),
-		EquipmentInstanceState.create(&"scout_charm", &"eq_party_cross_member")
+		EquipmentInstanceState.create_instance(&"scout_charm", &"eq_party_cross_member")
 	)
 	_assert_true(
 		PartyState.from_dict(cross_member_duplicate_party.to_dict()) == null,
@@ -1186,12 +1185,12 @@ func _build_party_with_member(member_id: StringName, display_name: String, stora
 	member_state.progression.display_name = display_name
 
 	var unit_base_attributes := UnitBaseAttributes.new()
-	unit_base_attributes.set_attribute_value(UnitBaseAttributes.STRENGTH, 4)
-	unit_base_attributes.set_attribute_value(UnitBaseAttributes.AGILITY, 3)
-	unit_base_attributes.set_attribute_value(UnitBaseAttributes.CONSTITUTION, 4)
-	unit_base_attributes.set_attribute_value(UnitBaseAttributes.PERCEPTION, 3)
-	unit_base_attributes.set_attribute_value(UnitBaseAttributes.INTELLIGENCE, 2)
-	unit_base_attributes.set_attribute_value(UnitBaseAttributes.WILLPOWER, 2)
+	unit_base_attributes.set_attribute_value(&"strength", 4)
+	unit_base_attributes.set_attribute_value(&"agility", 3)
+	unit_base_attributes.set_attribute_value(&"constitution", 4)
+	unit_base_attributes.set_attribute_value(&"perception", 3)
+	unit_base_attributes.set_attribute_value(&"intelligence", 2)
+	unit_base_attributes.set_attribute_value(&"willpower", 2)
 	unit_base_attributes.custom_stats[&"storage_space"] = storage_space
 	member_state.progression.unit_base_attributes = unit_base_attributes
 	member_state.current_hp = 24
@@ -1209,13 +1208,13 @@ func _make_equipment_instance_payload(instance_id: String, item_id: String = "br
 	return {
 		"instance_id": instance_id,
 		"item_id": item_id,
-		"rarity": EquipmentInstanceState.RarityTier.COMMON,
-		"current_durability": EquipmentDurabilityRules.get_default_current_durability(EquipmentInstanceState.RarityTier.COMMON),
+		"rarity": EquipmentInstanceState.RARITY_TIER_COMMON(),
+		"current_durability": EquipmentDurabilityRules.GetDefaultCurrentDurability(EquipmentInstanceState.RARITY_TIER_COMMON()),
 	}
 
 
 func _make_equipment_entry_payload(item_id: StringName, instance_id: StringName, occupied_slot_ids: Array) -> Dictionary:
-	var instance := EquipmentInstanceState.create(item_id, instance_id)
+	var instance := EquipmentInstanceState.create_instance(item_id, instance_id)
 	return {
 		"occupied_slot_ids": occupied_slot_ids,
 		"equipment_instance": instance.to_dict(),
@@ -1261,7 +1260,7 @@ func _assert_equipment_instance_fields(
 
 
 func _assert_equipment_instance_validation_error(payload: Dictionary, expected_fragment: String, message: String) -> void:
-	var validation_error := EquipmentInstanceState.get_payload_validation_error(payload)
+	var validation_error := EquipmentInstanceState.get_payload_validation_error(payload, false)
 	_assert_true(
 		validation_error.contains(expected_fragment),
 		"%s error=%s" % [message, validation_error]

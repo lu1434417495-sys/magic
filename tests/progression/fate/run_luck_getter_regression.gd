@@ -2,8 +2,8 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
-const UnitBaseAttributes = preload("res://scripts/player/progression/unit_base_attributes.gd")
+const PartyMemberState = preload("res://scripts/player/progression/PartyMemberState.cs")
+const UnitBaseAttributes = preload("res://scripts/player/progression/UnitBaseAttributes.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -198,8 +198,8 @@ func _test_from_dict_missing_progression_resource_schema_is_rejected() -> void:
 
 func _build_attributes(hidden_luck_at_birth: int = 0, faith_luck_bonus: int = 0) -> UnitBaseAttributes:
 	var attributes := UnitBaseAttributes.new()
-	attributes.custom_stats[UnitBaseAttributes.HIDDEN_LUCK_AT_BIRTH] = hidden_luck_at_birth
-	attributes.custom_stats[UnitBaseAttributes.FAITH_LUCK_BONUS] = faith_luck_bonus
+	attributes.custom_stats[&"hidden_luck_at_birth"] = hidden_luck_at_birth
+	attributes.custom_stats[&"faith_luck_bonus"] = faith_luck_bonus
 	return attributes
 
 

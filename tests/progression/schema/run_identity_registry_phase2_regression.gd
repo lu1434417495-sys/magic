@@ -2,19 +2,19 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
-const AgeProfileDef = preload("res://scripts/player/progression/age_profile_def.gd")
-const AgeStageRule = preload("res://scripts/player/progression/age_stage_rule.gd")
-const AscensionDef = preload("res://scripts/player/progression/ascension_def.gd")
-const AscensionStageDef = preload("res://scripts/player/progression/ascension_stage_def.gd")
-const BloodlineDef = preload("res://scripts/player/progression/bloodline_def.gd")
-const BloodlineStageDef = preload("res://scripts/player/progression/bloodline_stage_def.gd")
-const RaceDef = preload("res://scripts/player/progression/race_def.gd")
-const RaceTraitDef = preload("res://scripts/player/progression/race_trait_def.gd")
-const RacialGrantedSkill = preload("res://scripts/player/progression/racial_granted_skill.gd")
-const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
-const StageAdvancementModifier = preload("res://scripts/player/progression/stage_advancement_modifier.gd")
-const SubraceDef = preload("res://scripts/player/progression/subrace_def.gd")
+const ProgressionContentRegistry = preload("res://scripts/player/progression/ProgressionContentRegistry.cs")
+const AgeProfileDef = preload("res://scripts/player/progression/AgeProfileDef.cs")
+const AgeStageRule = preload("res://scripts/player/progression/AgeStageRule.cs")
+const AscensionDef = preload("res://scripts/player/progression/AscensionDef.cs")
+const AscensionStageDef = preload("res://scripts/player/progression/AscensionStageDef.cs")
+const BloodlineDef = preload("res://scripts/player/progression/BloodlineDef.cs")
+const BloodlineStageDef = preload("res://scripts/player/progression/BloodlineStageDef.cs")
+const RaceDef = preload("res://scripts/player/progression/RaceDef.cs")
+const RaceTraitDef = preload("res://scripts/player/progression/RaceTraitDef.cs")
+const RacialGrantedSkill = preload("res://scripts/player/progression/RacialGrantedSkill.cs")
+const SkillDef = preload("res://scripts/player/progression/SkillDef.cs")
+const StageAdvancementModifier = preload("res://scripts/player/progression/StageAdvancementModifier.cs")
+const SubraceDef = preload("res://scripts/player/progression/SubraceDef.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -43,6 +43,16 @@ func _run() -> void:
 
 
 func _test_valid_learn_sources_include_identity_grants() -> void:
+	var valid_learn_sources := {
+		&"book": true,
+		&"innate": true,
+		&"player": true,
+		&"profession": true,
+		&"race": true,
+		&"subrace": true,
+		&"ascension": true,
+		&"bloodline": true,
+	}
 	for learn_source in [
 		&"player",
 		&"profession",
@@ -52,13 +62,13 @@ func _test_valid_learn_sources_include_identity_grants() -> void:
 		&"bloodline",
 	]:
 		_assert_true(
-			ProgressionContentRegistry.VALID_LEARN_SOURCES.has(learn_source),
+			valid_learn_sources.has(learn_source),
 			"VALID_LEARN_SOURCES 应包含 %s。" % String(learn_source)
 		)
 
 
 func _test_progression_registry_bundle_exposes_identity_phase2_keys() -> void:
-	var registry := ProgressionContentRegistry.new()
+	var registry = ProgressionContentRegistry.new()
 	var bundle := registry.get_bundle()
 	for key in [
 		"race",
@@ -76,7 +86,7 @@ func _test_progression_registry_bundle_exposes_identity_phase2_keys() -> void:
 
 
 func _test_valid_identity_graph_passes_phase2() -> void:
-	var registry := _make_empty_progression_registry()
+	var registry = _make_empty_progression_registry()
 	registry._skill_defs = {
 		&"player_skill": _make_skill(&"player_skill", &"player"),
 		&"race_skill": _make_skill(&"race_skill", &"race"),
@@ -115,7 +125,7 @@ func _test_valid_identity_graph_passes_phase2() -> void:
 		&"dragon_awakened": valid_ascension_stage,
 	}
 	registry._stage_advancement_defs = {
-		&"titan_shift": _make_stage_advancement(&"titan_shift", StageAdvancementModifier.TARGET_AXIS_BLOODLINE, &"titan_awakened"),
+		&"titan_shift": _make_stage_advancement(&"titan_shift", &"bloodline", &"titan_awakened"),
 	}
 
 	_assert_current_official_progression_validation_errors(
@@ -125,7 +135,7 @@ func _test_valid_identity_graph_passes_phase2() -> void:
 
 
 func _test_invalid_identity_graph_reports_phase2_errors() -> void:
-	var registry := _make_empty_progression_registry()
+	var registry = _make_empty_progression_registry()
 	registry._skill_defs = {
 		&"race_skill": _make_skill(&"race_skill", &"profession"),
 		&"subrace_skill": _make_skill(&"subrace_skill", &"subrace"),
@@ -188,7 +198,7 @@ func _test_invalid_identity_graph_reports_phase2_errors() -> void:
 		invalid_modifier.modifier_id: invalid_modifier,
 	}
 
-	var errors := registry.validate()
+	var errors: Array = registry.validate()
 	_assert_error_contains(errors, "references missing age_profile missing_age", "Race -> age_profile 引用应进入 Phase 2 校验。")
 	_assert_error_contains(errors, "subrace broken_subrace parent_race_id must be broken_race", "Race -> subrace 反向 parent_race_id 应进入 Phase 2 校验。")
 	_assert_error_contains(errors, "references missing parent_race missing_parent", "Subrace.parent_race_id 应进入 Phase 2 校验。")
@@ -217,7 +227,7 @@ func _test_invalid_identity_graph_reports_phase2_errors() -> void:
 
 
 func _test_racial_granted_skill_minimum_level_cannot_exceed_skill_max_level() -> void:
-	var registry := _make_empty_progression_registry()
+	var registry = _make_empty_progression_registry()
 	var race_skill := _make_skill(&"race_level_cap_skill", &"race")
 	race_skill.max_level = 1
 	race_skill.mastery_curve = PackedInt32Array([10])
@@ -237,7 +247,7 @@ func _test_racial_granted_skill_minimum_level_cannot_exceed_skill_max_level() ->
 	var race := registry._race_defs[&"level_cap_race"] as RaceDef
 	race.racial_granted_skills[0].minimum_skill_level = 2
 
-	var errors := registry.validate()
+	var errors: Array = registry.validate()
 	_assert_error_contains(
 		errors,
 		"Race level_cap_race racial_granted_skills[0] skill race_level_cap_skill minimum_skill_level must be <= max_level 1",
@@ -245,8 +255,8 @@ func _test_racial_granted_skill_minimum_level_cannot_exceed_skill_max_level() ->
 	)
 
 
-func _make_empty_progression_registry() -> ProgressionContentRegistry:
-	var registry := ProgressionContentRegistry.new()
+func _make_empty_progression_registry():
+	var registry = ProgressionContentRegistry.new()
 	registry._validation_errors.clear()
 	registry._skill_defs.clear()
 	registry._profession_defs.clear()
@@ -283,7 +293,7 @@ func _make_trait(trait_id: StringName) -> RaceTraitDef:
 	trait_def.display_name = String(trait_id)
 	trait_def.description = "Fixture trait."
 	trait_def.trigger_type = &"passive"
-	trait_def.effect_type = RaceTraitDef.EFFECT_DARKVISION
+	trait_def.effect_type = &"darkvision"
 	return trait_def
 
 
@@ -292,8 +302,8 @@ func _make_age_profile(profile_id: StringName, race_id: StringName, stage_ids: A
 	profile.profile_id = profile_id
 	profile.race_id = race_id
 	var rules: Array[AgeStageRule] = []
-	for stage_id_variant in stage_ids:
-		var stage_id := StringName(stage_id_variant)
+	for stage_id_option in stage_ids:
+		var stage_id := StringName(stage_id_option)
 		var rule := AgeStageRule.new()
 		rule.stage_id = stage_id
 		rule.display_name = String(stage_id)
@@ -438,7 +448,7 @@ func _make_granted_skill(skill_id: StringName) -> RacialGrantedSkill:
 	var granted_skill := RacialGrantedSkill.new()
 	granted_skill.skill_id = skill_id
 	granted_skill.minimum_skill_level = 1
-	granted_skill.charge_kind = RacialGrantedSkill.CHARGE_KIND_PER_BATTLE
+	granted_skill.charge_kind = "per_battle"
 	granted_skill.charges = 1
 	return granted_skill
 

@@ -47,15 +47,15 @@
 
 系统主入口：
 
-- 场景定义：`res://scripts/systems/battle/sim/battle_sim_scenario_def.gd`
-- 单位定义：`res://scripts/systems/battle/sim/battle_sim_unit_spec.gd`
+- 场景定义：`res://scripts/systems/battle/sim/BattleSimScenarioDef.cs`
+- 单位定义：`res://scripts/systems/battle/sim/BattleSimUnitSpec.cs`
 - 正式角色 fixture：`res://scripts/systems/battle/sim/battle_sim_formal_combat_fixture.gd`
-- profile 定义：`res://scripts/systems/battle/sim/battle_sim_profile_def.gd`
-- patch 应用：`res://scripts/systems/battle/sim/battle_sim_override_applier.gd`
-- 汇总报表：`res://scripts/systems/battle/sim/battle_sim_report_builder.gd`
+- profile 定义：`res://scripts/systems/battle/sim/BattleSimProfileDef.cs`
+- patch 应用：`res://scripts/systems/battle/sim/BattleSimOverrideApplier.cs`
+- 汇总报表：`res://scripts/systems/battle/sim/BattleSimReportBuilder.cs`
 - Trace 精简报表：`res://scripts/systems/battle/sim/battle_sim_trace_summary_builder.gd`
 - 批量执行器：`res://scripts/systems/battle/sim/battle_sim_runner.gd`
-- 基础执行循环：`res://scripts/systems/battle/sim/battle_sim_execution_loop.gd`
+- 基础执行循环：`res://scripts/systems/battle/sim/BattleSimExecutionLoop.cs`
 - CLI 入口：`res://tests/battle_runtime/simulation/run_battle_balance_simulation.gd`
 - LLM 分析包导出：`tools/build_battle_sim_analysis_packet.py`
 - Repo 内分析 skill：`.codex/skills/battle-sim-analysis`
@@ -179,7 +179,7 @@ python tools/build_battle_sim_analysis_packet.py --report <report.json> --includ
 
 - 完整报告：保留 `ai_turn_traces`，用于必要时全量复盘。
 - 精简报告：由 `BattleSimTraceSummaryBuilder` 生成，路径通常是完整报告同名 `_trace_summary.json`，用于快速判断 wait、资源阻断、候选评分和 focus 阵营回合。
-- 专项脚本如 `run_mixed_6v12_mirror_analysis.gd` 可用 `TRACE_AI=1` 打开 trace；默认会自动写出同目录 `_trace_summary.json`，也可用 `TRACE_SUMMARY_FILE` 指定路径。
+- 专项脚本如 `RunMixed6v12MirrorAnalysis.cs` 可用 `TRACE_AI=1` 打开 trace；默认会自动写出同目录 `_trace_summary.json`，也可用 `TRACE_SUMMARY_FILE` 指定路径。
 
 ## 运行时执行流程
 
@@ -293,21 +293,21 @@ python tools/build_battle_sim_analysis_packet.py --report <report.json> --includ
 - `main_character_member_id`：指定友军主角；缺省时使用第一个友军。
 - `leader_member_id`：指定友军队长；缺省时跟随主角。
 - `main_character_reroll_count`：主角出生幸运烘焙使用的 reroll 次数；缺省为 `0`。
-- `attribute_roll_seed`：正式建卡六维的 `5D3-1` 骰子 seed；`run_mixed_6v12_mirror_analysis.gd` 缺省使用本场 battle seed，所以不同 run 会拥有不同属性分布，同 seed 可复现。
+- `attribute_roll_seed`：正式建卡六维的 `5D3-1` 骰子 seed；`RunMixed6v12MirrorAnalysis.cs` 缺省使用本场 battle seed，所以不同 run 会拥有不同属性分布，同 seed 可复现。
 
-`mixed_6v12_mirror_simulation` 的 6 人方按“主角 + 5 名队友”建模，12 人方按敌方单位建模，双方六维都由 fixture 走建卡骰子生成。选中的主角会通过 `CharacterCreationService.bake_hidden_luck_at_birth()` 烘焙 `hidden_luck_at_birth`，其余友军和敌方单位保持默认 `0`。`run_mixed_2s1a_mirror_analysis.gd` 与 `run_mixed_6v12_mirror_analysis.gd` 缺省用 `TrueRandomSeedService.generate_seed()` 生成 `START_SEED`，报告会写出 `start_seed` 与 `start_seed_source`；需要复现时可显式传入 `START_SEED`。这些脚本还可通过环境变量传入同名大写参数，例如 PowerShell：
+`mixed_6v12_mirror_simulation` 的 6 人方按“主角 + 5 名队友”建模，12 人方按敌方单位建模，双方六维都由 fixture 走建卡骰子生成。选中的主角会通过 `CharacterCreationService.bake_hidden_luck_at_birth()` 烘焙 `hidden_luck_at_birth`，其余友军和敌方单位保持默认 `0`。`run_mixed_2s1a_mirror_analysis.gd` 与 `RunMixed6v12MirrorAnalysis.cs` 缺省用 `TrueRandomSeedService.generate_seed()` 生成 `START_SEED`，报告会写出 `start_seed` 与 `start_seed_source`；需要复现时可显式传入 `START_SEED`。这些脚本还可通过环境变量传入同名大写参数，例如 PowerShell：
 
 ```powershell
 $env:MAIN_CHARACTER_MEMBER_ID='elite_archer_0'
 $env:MAIN_CHARACTER_REROLL_COUNT='0'
 $env:START_SEED='12345'
 $env:COUNT='1'
-godot --headless --script tests/battle_runtime/benchmarks/run_mixed_6v12_mirror_analysis.gd
+godot --headless --script tests/battle_runtime/benchmarks/RunMixed6v12MirrorAnalysis.cs
 ```
 
-`run_mixed_6v12_mirror_analysis.gd` 还有批量运行墙钟保护：`SIM_TIMEOUT_SECONDS` 缺省为 `1800`，表示 30 分钟。超时只在两场模拟之间停止继续排新 run，不中断正在结算的一场战斗；报告中的 `run_count / completed_run_count` 表示实际完成轮数，`requested_run_count` 表示请求轮数，`timed_out` 标记是否命中超时。设置 `SIM_TIMEOUT_SECONDS=0` 可关闭这层批量超时。
+`RunMixed6v12MirrorAnalysis.cs` 还有批量运行墙钟保护：`SIM_TIMEOUT_SECONDS` 缺省为 `1800`，表示 30 分钟。超时只在两场模拟之间停止继续排新 run，不中断正在结算的一场战斗；报告中的 `run_count / completed_run_count` 表示实际完成轮数，`requested_run_count` 表示请求轮数，`timed_out` 标记是否命中超时。设置 `SIM_TIMEOUT_SECONDS=0` 可关闭这层批量超时。
 
-`run_mixed_6v12_mirror_analysis.gd` 默认会向 stdout 打印实时近似进度，即使 `OUTPUT_FILE` 指向 JSON 文件也会打印。进度包含实际请求轮数、本场 seed、迭代数 / `max_iterations` 上限百分比、`timeline_steps`、当前 TU、phase、active unit 与双方存活数；这个百分比是执行上限进度，不代表胜负剩余时间。可用 `PROGRESS=0` 关闭，或用 `PROGRESS_SECONDS=5` 调整打印间隔。
+`RunMixed6v12MirrorAnalysis.cs` 默认会向 stdout 打印批量进度，即使 `OUTPUT_FILE` 指向 JSON 文件也会打印。进度包含实际请求轮数、本场 seed、运行阶段、结算后的迭代数、`timeline_steps`、胜者与累计耗时。可用 `PROGRESS=0` 关闭。
 
 常用字段：
 

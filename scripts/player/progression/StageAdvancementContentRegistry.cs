@@ -3,7 +3,8 @@ using Godot;
 [GlobalClass]
 public partial class StageAdvancementContentRegistry : IdentityContentRegistryBase
 {
-    public const string STAGE_ADVANCEMENT_CONFIG_DIRECTORY = "res://data/configs/stage_advancements";
+    public const string STAGE_ADVANCEMENT_CONFIG_DIRECTORY =
+        "res://data/configs/stage_advancements";
 
     private static readonly StringName StageTargetAxisBloodline = "bloodline";
     private static readonly StringName StageTargetAxisDivine = "divine";
@@ -19,7 +20,7 @@ public partial class StageAdvancementContentRegistry : IdentityContentRegistryBa
         { new StringName("domain"), true },
     };
 
-    private Godot.Collections.Dictionary _stage_advancement_defs = new();
+    private System.Collections.Generic.Dictionary<StringName, StageAdvancementModifier> _stage_advancement_defs = new();
 
     public StageAdvancementContentRegistry()
     {
@@ -40,11 +41,17 @@ public partial class StageAdvancementContentRegistry : IdentityContentRegistryBa
             _validation_errors.Add(e);
     }
 
-    public Godot.Collections.Dictionary get_stage_advancement_defs() => _stage_advancement_defs.Duplicate();
+    public Godot.Collections.Dictionary get_stage_advancement_defs()
+    {
+        var result = new Godot.Collections.Dictionary();
+        foreach (var kvp in _stage_advancement_defs)
+            result[kvp.Key] = kvp.Value;
+        return result;
+    }
 
     protected override void _register_resource(string resourcePath)
     {
-        var resource = GD.Load<Resource>(resourcePath);
+        var resource = GodotContentResourceLifetime.Keep(GD.Load<Resource>(resourcePath));
         if (resource == null)
         {
             _validation_errors.Add($"Failed to load stage advancement config {resourcePath}.");
@@ -52,17 +59,23 @@ public partial class StageAdvancementContentRegistry : IdentityContentRegistryBa
         }
         if (resource is not StageAdvancementModifier modifier)
         {
-            _validation_errors.Add($"Stage advancement config {resourcePath} is not a StageAdvancementModifier.");
+            _validation_errors.Add(
+                $"Stage advancement config {resourcePath} is not a StageAdvancementModifier."
+            );
             return;
         }
         if (modifier.modifier_id == "")
         {
-            _validation_errors.Add($"Stage advancement config {resourcePath} is missing modifier_id.");
+            _validation_errors.Add(
+                $"Stage advancement config {resourcePath} is missing modifier_id."
+            );
             return;
         }
         if (_stage_advancement_defs.ContainsKey(modifier.modifier_id))
         {
-            _validation_errors.Add($"Duplicate stage advancement modifier_id registered: {modifier.modifier_id}");
+            _validation_errors.Add(
+                $"Duplicate stage advancement modifier_id registered: {modifier.modifier_id}"
+            );
             return;
         }
 
@@ -72,14 +85,10 @@ public partial class StageAdvancementContentRegistry : IdentityContentRegistryBa
     private Godot.Collections.Array<string> _collect_validation_errors()
     {
         var errors = new Godot.Collections.Array<string>();
-        foreach (var modifierKey in _sorted_registry_keys(_stage_advancement_defs))
+        foreach (var modifierKey in _sorted_registry_keys(_stage_advancement_defs.Keys))
         {
             var modifierId = new StringName(modifierKey);
-            if (!_stage_advancement_defs.ContainsKey(modifierId))
-                continue;
-            if (_stage_advancement_defs[modifierId].AsGodotObject() is not StageAdvancementModifier modifier)
-                continue;
-            _append_stage_advancement_validation_errors(errors, modifierId, modifier);
+            _append_stage_advancement_validation_errors(errors, modifierId, _stage_advancement_defs[modifierId]);
         }
         return errors;
     }
@@ -97,27 +106,75 @@ public partial class StageAdvancementContentRegistry : IdentityContentRegistryBa
         if (!ValidStageTargetAxes.ContainsKey(modifier.target_axis))
             errors.Add($"{ownerLabel} uses unsupported target_axis {modifier.target_axis}.");
         _append_int_field_error(errors, ownerLabel, "stage_offset", modifier.stage_offset);
-        _append_string_name_field_error(errors, ownerLabel, "max_stage_id", modifier.max_stage_id, true);
+        _append_string_name_field_error(
+            errors,
+            ownerLabel,
+            "max_stage_id",
+            modifier.max_stage_id,
+            true
+        );
 
         var axisValue = modifier.target_axis;
         if (axisValue == StageTargetAxisBloodline || axisValue == StageTargetAxisDivine)
         {
             if (modifier.max_stage_id == "")
-                errors.Add($"{ownerLabel}.max_stage_id must be non-empty for target_axis {axisValue}.");
+                errors.Add(
+                    $"{ownerLabel}.max_stage_id must be non-empty for target_axis {axisValue}."
+                );
         }
         else if (modifier.stage_offset <= 0)
         {
-            errors.Add($"{ownerLabel}.stage_offset must be > 0 for age-stage axis (current value yields no advancement).");
+            errors.Add(
+                $"{ownerLabel}.stage_offset must be > 0 for age-stage axis (current value yields no advancement)."
+            );
         }
 
-        _append_string_name_array_errors(errors, ownerLabel, V(modifier.applies_to_race_ids), "applies_to_race_ids");
-        _append_string_name_array_errors(errors, ownerLabel, V(modifier.applies_to_subrace_ids), "applies_to_subrace_ids");
-        _append_string_name_array_errors(errors, ownerLabel, V(modifier.applies_to_bloodline_ids), "applies_to_bloodline_ids");
-        _append_string_name_array_errors(errors, ownerLabel, V(modifier.applies_to_ascension_ids), "applies_to_ascension_ids");
-        _append_bool_field_error(errors, ownerLabel, "grants_attributes", modifier.grants_attributes);
+        _append_string_name_array_errors(
+            errors,
+            ownerLabel,
+            V(modifier.applies_to_race_ids),
+            "applies_to_race_ids"
+        );
+        _append_string_name_array_errors(
+            errors,
+            ownerLabel,
+            V(modifier.applies_to_subrace_ids),
+            "applies_to_subrace_ids"
+        );
+        _append_string_name_array_errors(
+            errors,
+            ownerLabel,
+            V(modifier.applies_to_bloodline_ids),
+            "applies_to_bloodline_ids"
+        );
+        _append_string_name_array_errors(
+            errors,
+            ownerLabel,
+            V(modifier.applies_to_ascension_ids),
+            "applies_to_ascension_ids"
+        );
+        _append_bool_field_error(
+            errors,
+            ownerLabel,
+            "grants_attributes",
+            modifier.grants_attributes
+        );
         _append_bool_field_error(errors, ownerLabel, "grants_traits", modifier.grants_traits);
-        _append_bool_field_error(errors, ownerLabel, "grants_body_size_change", modifier.grants_body_size_change);
+        _append_bool_field_error(
+            errors,
+            ownerLabel,
+            "grants_body_size_change",
+            modifier.grants_body_size_change
+        );
     }
 
-    private static Godot.Collections.Array V(Variant v) => v.AsGodotArray();
+    private static Godot.Collections.Array V<[MustBeVariant] T>(Godot.Collections.Array<T> values)
+    {
+        var result = new Godot.Collections.Array();
+        if (values == null)
+            return result;
+        foreach (T value in values)
+            result.Add(Variant.From(value));
+        return result;
+    }
 }

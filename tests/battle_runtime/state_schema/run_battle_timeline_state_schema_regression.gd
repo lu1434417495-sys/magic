@@ -2,7 +2,7 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const BattleTimelineState = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
+const BattleTimelineState = preload("res://scripts/systems/battle/core/BattleTimelineState.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -14,7 +14,6 @@ func _initialize() -> void:
 
 func _run() -> void:
 	_test_valid_to_dict_roundtrip()
-	_test_non_dictionary_returns_null()
 	_test_missing_field_returns_null()
 	_test_extra_field_returns_null()
 	_test_wrong_types_return_null()
@@ -48,11 +47,6 @@ func _test_valid_to_dict_roundtrip() -> void:
 	_assert_eq(restored.tu_per_tick, 5, "roundtrip 应保留 tu_per_tick。")
 	_assert_true(restored.frozen, "roundtrip 应保留 frozen。")
 	_assert_eq(restored.ready_unit_ids, [&"hero", &"enemy"], "roundtrip 应保留 ready_unit_ids。")
-
-
-func _test_non_dictionary_returns_null() -> void:
-	_assert_null(BattleTimelineState.from_dict([]), "非 Dictionary 入参应返回 null。")
-	_assert_null(BattleTimelineState.from_dict("bad"), "String 入参应返回 null。")
 
 
 func _test_missing_field_returns_null() -> void:

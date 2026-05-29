@@ -3,11 +3,11 @@ extends SceneTree
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
 const PARTY_MANAGEMENT_WINDOW_SCENE = preload("res://scenes/ui/party_management_window.tscn")
-const PartyState = preload("res://scripts/player/progression/party_state.gd")
-const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
-const UnitSkillProgress = preload("res://scripts/player/progression/unit_skill_progress.gd")
-const AttributeSnapshot = preload("res://scripts/player/progression/attribute_snapshot.gd")
-const EquipmentInstanceState = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
+const PartyState = preload("res://scripts/player/progression/PartyState.cs")
+const PartyMemberState = preload("res://scripts/player/progression/PartyMemberState.cs")
+const UnitSkillProgress = preload("res://scripts/player/progression/UnitSkillProgress.cs")
+const AttributeSnapshot = preload("res://scripts/player/progression/AttributeSnapshot.cs")
+const EquipmentInstanceState = preload("res://scripts/player/warehouse/EquipmentInstanceState.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -156,7 +156,7 @@ func _test_member_details_tolerate_missing_skill_and_occupied_slots() -> void:
 	hero.progression.set_skill_progress(missing_skill)
 
 	var occupied_slots: Array[StringName] = [&"main_hand", &"off_hand"]
-	var equipment_instance := EquipmentInstanceState.create(&"iron_greatsword", &"eq_party_window_001")
+	var equipment_instance := EquipmentInstanceState.create_instance(&"iron_greatsword", &"eq_party_window_001")
 	_assert_true(
 		hero.equipment_state.set_equipped_entry(&"main_hand", &"iron_greatsword", occupied_slots, equipment_instance),
 		"测试装备状态应能写入双手武器。"

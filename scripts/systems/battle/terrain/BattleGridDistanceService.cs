@@ -10,7 +10,10 @@ public partial class BattleGridDistanceService : RefCounted
         return Math.Abs(first_coord.X - second_coord.X) + Math.Abs(first_coord.Y - second_coord.Y);
     }
 
-    public static int get_distance_from_unit_to_coord(BattleUnitState unit_state, Vector2I target_coord)
+    public static int get_distance_from_unit_to_coord(
+        BattleUnitState unit_state,
+        Vector2I target_coord
+    )
     {
         if (unit_state == null)
         {
@@ -25,7 +28,10 @@ public partial class BattleGridDistanceService : RefCounted
         return bestDistance;
     }
 
-    public static int get_distance_between_units(BattleUnitState first_unit, BattleUnitState second_unit)
+    public static int get_distance_between_units(
+        BattleUnitState first_unit,
+        BattleUnitState second_unit
+    )
     {
         if (first_unit == null || second_unit == null)
         {
@@ -63,5 +69,4 @@ public partial class BattleGridDistanceService : RefCounted
         }
         return result;
     }
-
 }

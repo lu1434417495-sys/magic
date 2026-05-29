@@ -2,10 +2,10 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_session.gd")
-const GAME_RUNTIME_FACADE_SCRIPT = preload("res://scripts/systems/game_runtime/game_runtime_facade.gd")
-const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_state.gd")
-const SAVE_SERIALIZER_SCRIPT = preload("res://scripts/systems/persistence/save_serializer.gd")
+const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/GameSession.cs")
+const GAME_RUNTIME_FACADE_SCRIPT = preload("res://scripts/systems/game_runtime/GameRuntimeFacade.cs")
+const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleState.cs")
+const SAVE_SERIALIZER_SCRIPT = preload("res://scripts/systems/persistence/SaveSerializer.cs")
 
 const ASHEN_WORLD_CONFIG := "res://data/configs/world_map/ashen_intersection_world_map_config.tres"
 
@@ -366,12 +366,12 @@ func _build_mounted_submap_entry(is_generated: bool, world_data: Dictionary) -> 
 
 
 func _get_mounted_submap_entry(world_data: Dictionary, submap_id: String) -> Dictionary:
-	var mounted_submaps_variant = world_data.get("mounted_submaps", {})
-	if mounted_submaps_variant is not Dictionary:
+	var mounted_submaps_option = world_data.get("mounted_submaps", {})
+	if mounted_submaps_option is not Dictionary:
 		return {}
-	var mounted_submaps: Dictionary = mounted_submaps_variant
-	var entry_variant = mounted_submaps.get(submap_id, {})
-	return entry_variant if entry_variant is Dictionary else {}
+	var mounted_submaps: Dictionary = mounted_submaps_option
+	var entry_option = mounted_submaps.get(submap_id, {})
+	return entry_option if entry_option is Dictionary else {}
 
 
 func _is_formal_fog_state(value: Variant) -> bool:

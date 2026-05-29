@@ -20,16 +20,72 @@ public partial class GameRuntimePartyCommandHandler : RefCounted
         _runtime = runtime;
     }
 
+    public void setup(GodotObject runtime)
+    {
+        Setup(runtime);
+    }
+
     public new void Dispose()
     {
         _runtime = null;
     }
 
+    public void dispose()
+    {
+        Dispose();
+    }
+
+    public Dictionary command_open_party() => CommandOpenParty();
+
+    public Dictionary command_select_party_member(StringName memberId) =>
+        CommandSelectPartyMember(memberId);
+
+    public Dictionary command_set_party_leader(StringName memberId) =>
+        CommandSetPartyLeader(memberId);
+
+    public Dictionary command_move_member_to_active(StringName memberId) =>
+        CommandMoveMemberToActive(memberId);
+
+    public Dictionary command_move_member_to_reserve(StringName memberId) =>
+        CommandMoveMemberToReserve(memberId);
+
+    public Dictionary command_party_equip_item(
+        StringName memberId,
+        StringName itemId,
+        StringName slotId,
+        StringName instanceId
+    ) => CommandPartyEquipItem(memberId, itemId, slotId, instanceId);
+
+    public Dictionary command_party_unequip_item(StringName memberId, StringName slotId) =>
+        CommandPartyUnequipItem(memberId, slotId);
+
+    public Dictionary apply_party_roster(
+        Array<StringName> activeMemberIds,
+        Array<StringName> reserveMemberIds
+    ) => ApplyPartyRoster(activeMemberIds, reserveMemberIds);
+
+    public void open_party_management_window() => OpenPartyManagementWindow();
+
+    public void on_party_leader_change_requested(StringName memberId) =>
+        OnPartyLeaderChangeRequested(memberId);
+
+    public void on_party_roster_change_requested(
+        Array<StringName> activeMemberIds,
+        Array<StringName> reserveMemberIds
+    ) => OnPartyRosterChangeRequested(activeMemberIds, reserveMemberIds);
+
+    public void on_party_management_window_closed() => OnPartyManagementWindowClosed();
+
+    public void on_party_management_warehouse_requested() => OnPartyManagementWarehouseRequested();
+
+    public void apply_party_state_to_runtime(string successMessage) =>
+        ApplyPartyStateToRuntime(successMessage);
+
     public Dictionary CommandOpenParty()
     {
         if (!HasRuntime())
             return RuntimeUnavailableError();
-        if (GetGenerationConfig() == null)
+        if (!HasGenerationConfig())
             return CommandError("世界地图尚未初始化。");
         if (IsBattleActive())
             return CommandError("当前处于战斗中，不能打开队伍管理。");
@@ -46,12 +102,14 @@ public partial class GameRuntimePartyCommandHandler : RefCounted
         var partyState = GetPartyState();
         if (partyState == null)
             return CommandError("当前不存在队伍数据。");
-        if (partyState.Call("get_member_state", memberId).AsGodotObject() == null)
+        if (partyState.get_member_state(memberId) == null)
             return CommandError(string.Format("未找到队伍成员 {0}。", memberId));
-        var activeMemberIds = partyState.Get("active_member_ids").AsGodotArray();
-        var reserveMemberIds = partyState.Get("reserve_member_ids").AsGodotArray();
+        var activeMemberIds = partyState.active_member_ids;
+        var reserveMemberIds = partyState.reserve_member_ids;
         if (!activeMemberIds.Contains(memberId) && !reserveMemberIds.Contains(memberId))
-            return CommandError(string.Format("{0} 当前不在队伍编成中。", GetMemberDisplayName(memberId)));
+            return CommandError(
+                string.Format("{0} 当前不在队伍编成中。", GetMemberDisplayName(memberId))
+            );
         if (GetActiveModalId() == "")
             SetActiveModalId("party");
         SetPartySelectedMemberId(memberId);
@@ -66,7 +124,7 @@ public partial class GameRuntimePartyCommandHandler : RefCounted
         var partyState = GetPartyState();
         if (partyState == null)
             return CommandError("当前不存在队伍数据。");
-        var activeMemberIds = partyState.Get("active_member_ids").AsGodotArray();
+        var activeMemberIds = partyState.active_member_ids;
         if (!activeMemberIds.Contains(memberId))
             return CommandError("只有上阵成员才能成为队长。");
         OnPartyLeaderChangeRequested(memberId);
@@ -81,10 +139,12 @@ public partial class GameRuntimePartyCommandHandler : RefCounted
         var partyState = GetPartyState();
         if (partyState == null)
             return CommandError("当前不存在队伍数据。");
-        var reserveMemberIds = partyState.Get("reserve_member_ids").AsGodotArray();
+        var reserveMemberIds = partyState.reserve_member_ids;
         if (!reserveMemberIds.Contains(memberId))
-            return CommandError(string.Format("{0} 当前不在替补列表中。", GetMemberDisplayName(memberId)));
-        var activeMemberIds = partyState.Get("active_member_ids").AsGodotArray();
+            return CommandError(
+                string.Format("{0} 当前不在替补列表中。", GetMemberDisplayName(memberId))
+            );
+        var activeMemberIds = partyState.active_member_ids;
         if (activeMemberIds.Count >= 4)
             return CommandError("上阵人数已达到上限。");
         var activeIds = ProgressionDataUtils.to_string_name_array(activeMemberIds);
@@ -103,15 +163,17 @@ public partial class GameRuntimePartyCommandHandler : RefCounted
         var partyState = GetPartyState();
         if (partyState == null)
             return CommandError("当前不存在队伍数据。");
-        var activeMemberIds = partyState.Get("active_member_ids").AsGodotArray();
+        var activeMemberIds = partyState.active_member_ids;
         if (!activeMemberIds.Contains(memberId))
-            return CommandError(string.Format("{0} 当前不在上阵列表中。", GetMemberDisplayName(memberId)));
+            return CommandError(
+                string.Format("{0} 当前不在上阵列表中。", GetMemberDisplayName(memberId))
+            );
         if (memberId == GetMainCharacterMemberId(partyState))
             return CommandError("主角必须保持上阵，不能移至替补。");
         if (activeMemberIds.Count <= 1)
             return CommandError("队伍至少需要保留一名上阵成员。");
         var activeIds = ProgressionDataUtils.to_string_name_array(activeMemberIds);
-        var reserveIds = ProgressionDataUtils.to_string_name_array(partyState.Get("reserve_member_ids").AsGodotArray());
+        var reserveIds = ProgressionDataUtils.to_string_name_array(partyState.reserve_member_ids);
         activeIds.Remove(memberId);
         reserveIds.Add(memberId);
         OnPartyRosterChangeRequested(activeIds, reserveIds);
@@ -119,7 +181,12 @@ public partial class GameRuntimePartyCommandHandler : RefCounted
         return CommandOk();
     }
 
-    public Dictionary CommandPartyEquipItem(StringName memberId, StringName itemId, StringName slotId, StringName instanceId = default)
+    public Dictionary CommandPartyEquipItem(
+        StringName memberId,
+        StringName itemId,
+        StringName slotId,
+        StringName instanceId = default
+    )
     {
         if (!HasRuntime())
             return RuntimeUnavailableError();
@@ -128,21 +195,37 @@ public partial class GameRuntimePartyCommandHandler : RefCounted
         if (IsBattleActive())
             return CommandError("当前处于战斗中，不能调整装备。");
         var activeModalId = GetActiveModalId();
-        if (activeModalId == "reward" || activeModalId == "promotion" || activeModalId == "settlement" || activeModalId == "character_info")
+        if (
+            activeModalId == "reward"
+            || activeModalId == "promotion"
+            || activeModalId == "settlement"
+            || activeModalId == "character_info"
+        )
             return CommandError("当前窗口会阻止装备切换。");
 
         var result = EquipPartyItem(memberId, itemId, slotId, instanceId);
-        if (!DictionaryGet(result, "success", false).AsBool())
+        if (!DictionaryBool(result, "success", false))
             return CommandError(BuildEquipmentErrorMessage(result, true));
 
         SetPartySelectedMemberId(memberId);
-        var itemName = GetItemDisplayName(ProgressionDataUtils.to_string_name(DictionaryGet(result, "item_id", "")));
-        var slotLabel = DictionaryGet(result, "slot_label", "").AsString();
-        var successMessage = string.Format("已为 {0} 装备 {1}（{2}）。", GetMemberDisplayName(memberId), itemName, slotLabel);
-        var previousItemId = ProgressionDataUtils.to_string_name(DictionaryGet(result, "previous_item_id", ""));
+        var itemName = GetItemDisplayName(DictionaryStringName(result, "item_id"));
+        var slotLabel = DictionaryString(result, "slot_label");
+        var successMessage = string.Format(
+            "已为 {0} 装备 {1}（{2}）。",
+            GetMemberDisplayName(memberId),
+            itemName,
+            slotLabel
+        );
+        var previousItemId = DictionaryStringName(result, "previous_item_id");
         if (previousItemId != "")
         {
-            successMessage = string.Format("已为 {0} 装备 {1}（{2}），并卸下 {3}。", GetMemberDisplayName(memberId), itemName, slotLabel, GetItemDisplayName(previousItemId));
+            successMessage = string.Format(
+                "已为 {0} 装备 {1}（{2}），并卸下 {3}。",
+                GetMemberDisplayName(memberId),
+                itemName,
+                slotLabel,
+                GetItemDisplayName(previousItemId)
+            );
         }
 
         var persistError = PersistPartyState();
@@ -162,17 +245,27 @@ public partial class GameRuntimePartyCommandHandler : RefCounted
         if (IsBattleActive())
             return CommandError("当前处于战斗中，不能调整装备。");
         var activeModalId = GetActiveModalId();
-        if (activeModalId == "reward" || activeModalId == "promotion" || activeModalId == "settlement" || activeModalId == "character_info")
+        if (
+            activeModalId == "reward"
+            || activeModalId == "promotion"
+            || activeModalId == "settlement"
+            || activeModalId == "character_info"
+        )
             return CommandError("当前窗口会阻止装备切换。");
 
         var result = UnequipPartyItem(memberId, slotId);
-        if (!DictionaryGet(result, "success", false).AsBool())
+        if (!DictionaryBool(result, "success", false))
             return CommandError(BuildEquipmentErrorMessage(result, false));
 
         SetPartySelectedMemberId(memberId);
-        var itemName = GetItemDisplayName(ProgressionDataUtils.to_string_name(DictionaryGet(result, "item_id", "")));
-        var slotLabel = DictionaryGet(result, "slot_label", "").AsString();
-        var successMessage = string.Format("已从 {0} 的 {1} 卸下 {2}。", GetMemberDisplayName(memberId), slotLabel, itemName);
+        var itemName = GetItemDisplayName(DictionaryStringName(result, "item_id"));
+        var slotLabel = DictionaryString(result, "slot_label");
+        var successMessage = string.Format(
+            "已从 {0} 的 {1} 卸下 {2}。",
+            GetMemberDisplayName(memberId),
+            slotLabel,
+            itemName
+        );
         var persistError = PersistPartyState();
         if (persistError == Error.Ok)
             UpdateStatus(successMessage);
@@ -181,14 +274,21 @@ public partial class GameRuntimePartyCommandHandler : RefCounted
         return CommandOk();
     }
 
-    public Dictionary ApplyPartyRoster(Array<StringName> activeMemberIds, Array<StringName> reserveMemberIds)
+    public Dictionary ApplyPartyRoster(
+        Array<StringName> activeMemberIds,
+        Array<StringName> reserveMemberIds
+    )
     {
         if (!HasRuntime())
             return RuntimeUnavailableError();
         var partyState = GetPartyState();
         if (partyState == null)
             return CommandError("当前不存在队伍数据。");
-        var rosterError = ValidateMainCharacterRoster(activeMemberIds, reserveMemberIds, partyState);
+        var rosterError = ValidateMainCharacterRoster(
+            activeMemberIds,
+            reserveMemberIds,
+            partyState
+        );
         if (!string.IsNullOrEmpty(rosterError))
             return CommandError(rosterError);
         OnPartyRosterChangeRequested(activeMemberIds, reserveMemberIds);
@@ -206,9 +306,9 @@ public partial class GameRuntimePartyCommandHandler : RefCounted
         var selectedMemberId = GetPartySelectedMemberId();
         if (selectedMemberId == "" && partyState != null)
         {
-            var activeMemberIds = partyState.Get("active_member_ids").AsGodotArray();
+            var activeMemberIds = partyState.active_member_ids;
             if (activeMemberIds.Count > 0)
-                SetPartySelectedMemberId(activeMemberIds[0].AsStringName());
+                SetPartySelectedMemberId(activeMemberIds[0]);
         }
         UpdateStatus("已打开队伍管理窗口。");
     }
@@ -218,26 +318,32 @@ public partial class GameRuntimePartyCommandHandler : RefCounted
         var partyState = GetPartyState();
         if (!HasRuntime() || partyState == null)
             return;
-        partyState.Set("leader_member_id", memberId);
+        partyState.leader_member_id = memberId;
         ApplyPartyStateToRuntime(string.Format("队长已切换为 {0}。", memberId));
     }
 
-    public void OnPartyRosterChangeRequested(Array<StringName> activeMemberIds, Array<StringName> reserveMemberIds)
+    public void OnPartyRosterChangeRequested(
+        Array<StringName> activeMemberIds,
+        Array<StringName> reserveMemberIds
+    )
     {
         var partyState = GetPartyState();
         if (!HasRuntime() || partyState == null)
             return;
-        var rosterError = ValidateMainCharacterRoster(activeMemberIds, reserveMemberIds, partyState);
+        var rosterError = ValidateMainCharacterRoster(
+            activeMemberIds,
+            reserveMemberIds,
+            partyState
+        );
         if (!string.IsNullOrEmpty(rosterError))
         {
             UpdateStatus(rosterError);
             return;
         }
-        partyState.Set("active_member_ids", activeMemberIds.Duplicate());
-        partyState.Set("reserve_member_ids", reserveMemberIds.Duplicate());
-        var currentLeader = partyState.Get("leader_member_id").AsStringName();
-        if (!activeMemberIds.Contains(currentLeader) && activeMemberIds.Count > 0)
-            partyState.Set("leader_member_id", activeMemberIds[0]);
+        partyState.active_member_ids = activeMemberIds.Duplicate();
+        partyState.reserve_member_ids = reserveMemberIds.Duplicate();
+        if (!activeMemberIds.Contains(partyState.leader_member_id) && activeMemberIds.Count > 0)
+            partyState.leader_member_id = activeMemberIds[0];
         ApplyPartyStateToRuntime("队伍编成已更新。");
     }
 
@@ -285,19 +391,23 @@ public partial class GameRuntimePartyCommandHandler : RefCounted
         return _runtime.Call("get_item_display_name", itemId).AsString();
     }
 
-    private StringName GetMainCharacterMemberId(GodotObject partyState)
+    private StringName GetMainCharacterMemberId(PartyState partyState)
     {
-        if (partyState == null || !partyState.HasMethod("get_resolved_main_character_member_id"))
+        if (partyState == null)
             return "";
-        var memberId = partyState.Call("get_resolved_main_character_member_id").AsStringName();
+        var memberId = partyState.get_resolved_main_character_member_id();
         if (memberId == "")
             return "";
-        if (partyState.HasMethod("is_member_dead") && partyState.Call("is_member_dead", memberId).AsBool())
+        if (partyState.is_member_dead(memberId))
             return "";
         return memberId;
     }
 
-    private string ValidateMainCharacterRoster(Array<StringName> activeMemberIds, Array<StringName> reserveMemberIds, GodotObject partyState)
+    private string ValidateMainCharacterRoster(
+        Array<StringName> activeMemberIds,
+        Array<StringName> reserveMemberIds,
+        PartyState partyState
+    )
     {
         var memberId = GetMainCharacterMemberId(partyState);
         if (memberId == "")
@@ -331,10 +441,10 @@ public partial class GameRuntimePartyCommandHandler : RefCounted
 
     private string BuildEquipmentErrorMessage(Dictionary result, bool isEquipAction)
     {
-        var memberId = ProgressionDataUtils.to_string_name(DictionaryGet(result, "member_id", ""));
-        var slotLabel = DictionaryGet(result, "slot_label", "装备槽").AsString();
-        var itemId = ProgressionDataUtils.to_string_name(DictionaryGet(result, "item_id", ""));
-        var errorCode = DictionaryGet(result, "error_code", "").AsString();
+        var memberId = DictionaryStringName(result, "member_id");
+        var slotLabel = DictionaryString(result, "slot_label", "装备槽");
+        var itemId = DictionaryStringName(result, "item_id");
+        var errorCode = DictionaryString(result, "error_code");
         switch (errorCode)
         {
             case "member_not_found":
@@ -348,11 +458,20 @@ public partial class GameRuntimePartyCommandHandler : RefCounted
             case "slot_not_allowed":
                 return string.Format("{0} 不能装备到 {1}。", GetItemDisplayName(itemId), slotLabel);
             case "warehouse_missing_item":
-                return string.Format("共享仓库中没有可用于装备的 {0}。", GetItemDisplayName(itemId));
+                return string.Format(
+                    "共享仓库中没有可用于装备的 {0}。",
+                    GetItemDisplayName(itemId)
+                );
             case "warehouse_missing_instance":
-                return string.Format("共享仓库中没有指定的 {0} 装备实例。", GetItemDisplayName(itemId));
+                return string.Format(
+                    "共享仓库中没有指定的 {0} 装备实例。",
+                    GetItemDisplayName(itemId)
+                );
             case "equipment_instance_id_required":
-                return string.Format("共享仓库中有多件 {0}，请指定装备实例。", GetItemDisplayName(itemId));
+                return string.Format(
+                    "共享仓库中有多件 {0}，请指定装备实例。",
+                    GetItemDisplayName(itemId)
+                );
             case "equipment_instance_item_mismatch":
                 return string.Format("指定装备实例不属于 {0}。", GetItemDisplayName(itemId));
             case "warehouse_blocked_swap":
@@ -362,13 +481,28 @@ public partial class GameRuntimePartyCommandHandler : RefCounted
             case "slot_empty":
                 return string.Format("{0} 当前没有已装备物品。", slotLabel);
             case "warehouse_full":
-                return string.Format("共享仓库空间不足，无法卸下 {0}。", GetItemDisplayName(itemId));
+                return string.Format(
+                    "共享仓库空间不足，无法卸下 {0}。",
+                    GetItemDisplayName(itemId)
+                );
             case "missing_profession":
-                return string.Format("{0} 当前职业不满足 {1} 的装备要求。", GetMemberDisplayName(memberId), GetItemDisplayName(itemId));
+                return string.Format(
+                    "{0} 当前职业不满足 {1} 的装备要求。",
+                    GetMemberDisplayName(memberId),
+                    GetItemDisplayName(itemId)
+                );
             case "body_size_too_small":
-                return string.Format("{0} 体型过小，无法装备 {1}。", GetMemberDisplayName(memberId), GetItemDisplayName(itemId));
+                return string.Format(
+                    "{0} 体型过小，无法装备 {1}。",
+                    GetMemberDisplayName(memberId),
+                    GetItemDisplayName(itemId)
+                );
             case "body_size_too_large":
-                return string.Format("{0} 体型过大，无法装备 {1}。", GetMemberDisplayName(memberId), GetItemDisplayName(itemId));
+                return string.Format(
+                    "{0} 体型过大，无法装备 {1}。",
+                    GetMemberDisplayName(memberId),
+                    GetItemDisplayName(itemId)
+                );
             case "requirement_failed":
                 return string.Format("{0} 不满足装备要求。", GetItemDisplayName(itemId));
             default:
@@ -384,7 +518,12 @@ public partial class GameRuntimePartyCommandHandler : RefCounted
     private Dictionary CommandOk(string message = "")
     {
         if (!HasRuntime())
-            return new Dictionary { ["ok"] = true, ["message"] = message, ["battle_refresh_mode"] = "" };
+            return new Dictionary
+            {
+                ["ok"] = true,
+                ["message"] = message,
+                ["battle_refresh_mode"] = "",
+            };
         return _runtime.Call("build_command_ok", message).AsGodotDictionary();
     }
 
@@ -400,11 +539,11 @@ public partial class GameRuntimePartyCommandHandler : RefCounted
         return new Dictionary { ["ok"] = false, ["message"] = RuntimeUnavailableMessage };
     }
 
-    private GodotObject GetGenerationConfig()
+    private bool HasGenerationConfig()
     {
         if (!HasRuntime())
-            return null;
-        return _runtime.Call("get_generation_config").AsGodotObject();
+            return false;
+        return _runtime.Call("get_generation_config").VariantType != Variant.Type.Nil;
     }
 
     private bool IsBattleActive()
@@ -421,14 +560,14 @@ public partial class GameRuntimePartyCommandHandler : RefCounted
         return _runtime.Call("is_modal_window_open").AsBool();
     }
 
-    private GodotObject GetPartyState()
+    private PartyState GetPartyState()
     {
         if (!HasRuntime())
             return null;
-        return _runtime.Call("get_party_state").AsGodotObject();
+        return _runtime.Call("get_party_state").AsGodotObject() as PartyState;
     }
 
-    private void SetPartyState(GodotObject partyState)
+    private void SetPartyState(PartyState partyState)
     {
         if (HasRuntime())
             _runtime.Call("set_party_state", partyState);
@@ -460,11 +599,18 @@ public partial class GameRuntimePartyCommandHandler : RefCounted
             _runtime.Call("set_party_selected_member_id", memberId);
     }
 
-    private Dictionary EquipPartyItem(StringName memberId, StringName itemId, StringName slotId, StringName instanceId)
+    private Dictionary EquipPartyItem(
+        StringName memberId,
+        StringName itemId,
+        StringName slotId,
+        StringName instanceId
+    )
     {
         if (!HasRuntime())
             return new Dictionary();
-        return _runtime.Call("equip_party_item", memberId, itemId, slotId, instanceId).AsGodotDictionary();
+        return _runtime
+            .Call("equip_party_item", memberId, itemId, slotId, instanceId)
+            .AsGodotDictionary();
     }
 
     private Dictionary UnequipPartyItem(StringName memberId, StringName slotId)
@@ -554,16 +700,36 @@ public partial class GameRuntimePartyCommandHandler : RefCounted
             _runtime.Call("refresh_fog");
     }
 
-    private static Variant DictionaryGet(Dictionary dictionary, Variant key, Variant fallback)
+    private static bool DictionaryBool(Dictionary dictionary, string key, bool fallback)
     {
         if (dictionary == null || !dictionary.ContainsKey(key))
             return fallback;
-        return dictionary[key];
+        var value = dictionary[key];
+        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
+    }
+
+    private static string DictionaryString(Dictionary dictionary, string key, string fallback = "")
+    {
+        if (dictionary == null || !dictionary.ContainsKey(key))
+            return fallback;
+        var value = dictionary[key];
+        return value.VariantType != Variant.Type.Nil ? value.AsString() : fallback;
+    }
+
+    private static StringName DictionaryStringName(Dictionary dictionary, string key)
+    {
+        if (dictionary == null || !dictionary.ContainsKey(key))
+            return "";
+        return ProgressionDataUtils.to_string_name(dictionary[key]);
     }
 
     private static GodotObject ResolveWeakRef(WeakReference<GodotObject> weakRef)
     {
-        if (weakRef == null || !weakRef.TryGetTarget(out GodotObject target) || !GodotObject.IsInstanceValid(target))
+        if (
+            weakRef == null
+            || !weakRef.TryGetTarget(out GodotObject target)
+            || !GodotObject.IsInstanceValid(target)
+        )
             return null;
         return target;
     }

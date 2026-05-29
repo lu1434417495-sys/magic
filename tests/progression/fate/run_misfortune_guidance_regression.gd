@@ -1,20 +1,20 @@
 extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
-const BattleLootConstants = preload("res://scripts/systems/battle/core/battle_loot_constants.gd")
+const BattleLootConstants = preload("res://scripts/systems/battle/core/BattleLootConstants.cs")
 
-const BATTLE_RESOLUTION_RESULT_SCRIPT = preload("res://scripts/systems/battle/core/battle_resolution_result.gd")
-const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_state.gd")
-const BATTLE_STATUS_EFFECT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_status_effect_state.gd")
-const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
-const CharacterManagementModule = preload("res://scripts/systems/progression/character_management_module.gd")
-const FaithService = preload("res://scripts/systems/progression/faith_service.gd")
-const MisfortuneGuidanceService = preload("res://scripts/systems/battle/fate/misfortune_guidance_service.gd")
-const ItemDef = preload("res://scripts/player/warehouse/item_def.gd")
-const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
-const PartyState = preload("res://scripts/player/progression/party_state.gd")
-const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
-const UnitProfessionProgress = preload("res://scripts/player/progression/unit_profession_progress.gd")
+const BATTLE_RESOLUTION_RESULT_SCRIPT = preload("res://scripts/systems/battle/core/BattleResolutionResult.cs")
+const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleState.cs")
+const BATTLE_STATUS_EFFECT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleStatusEffectState.cs")
+const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
+const CharacterManagementModule = preload("res://scripts/systems/progression/CharacterManagementModule.cs")
+const FaithService = preload("res://scripts/systems/progression/FaithService.cs")
+const MisfortuneGuidanceService = preload("res://scripts/systems/battle/fate/MisfortuneGuidanceService.cs")
+const ItemDef = preload("res://scripts/player/warehouse/ItemDef.cs")
+const PartyMemberState = preload("res://scripts/player/progression/PartyMemberState.cs")
+const PartyState = preload("res://scripts/player/progression/PartyState.cs")
+const ProgressionContentRegistry = preload("res://scripts/player/progression/ProgressionContentRegistry.cs")
+const UnitProfessionProgress = preload("res://scripts/player/progression/UnitProfessionProgress.cs")
 const BattleResolutionResult = BATTLE_RESOLUTION_RESULT_SCRIPT
 const BattleState = BATTLE_STATE_SCRIPT
 const BattleUnitState = BATTLE_UNIT_STATE_SCRIPT
@@ -49,10 +49,10 @@ class StubMisfortuneBattleGateway:
 		var normalized_reason_id := ProgressionDataUtils.to_string_name(reason_id)
 		if normalized_member_id == &"" or normalized_reason_id == &"":
 			return false
-		var member_reasons_variant: Variant = reason_flags_by_member_id.get(normalized_member_id, {})
-		if member_reasons_variant is not Dictionary:
+		var member_reasons_option: Variant = reason_flags_by_member_id.get(normalized_member_id, {})
+		if member_reasons_option is not Dictionary:
 			return false
-		return bool((member_reasons_variant as Dictionary).get(normalized_reason_id, false))
+		return bool((member_reasons_option as Dictionary).get(normalized_reason_id, false))
 
 
 func _initialize() -> void:
@@ -87,82 +87,82 @@ func _test_misfortune_guidance_unlock_chain_feeds_rank_2_to_5() -> void:
 		_assert_true(false, "Misfortune guidance regression 前置构建失败。")
 		return
 
-	var rank_1_result := faith.execute_devotion(party_state, HERO_ID, MISFORTUNE_DEITY_ID)
+	var rank_1_result: Dictionary = faith.execute_devotion(party_state, HERO_ID, MISFORTUNE_DEITY_ID)
 	_assert_true(bool(rank_1_result.get("ok", false)), "doom_marked 写入后应允许进入 Misfortune rank 1。")
 	_apply_next_pending_reward(manager, party_state, 1)
 	_assert_eq(_get_custom_stat(party_state, DOOM_AUTHORITY_STAT_ID), 1, "rank 1 结算后应写入 doom_authority=1。")
 
-	var blocked_rank_2 := faith.execute_devotion(party_state, HERO_ID, MISFORTUNE_DEITY_ID)
+	var blocked_rank_2: Dictionary = faith.execute_devotion(party_state, HERO_ID, MISFORTUNE_DEITY_ID)
 	_assert_true(not bool(blocked_rank_2.get("ok", false)), "guidance_true 未解锁前不应进入 rank 2。")
 	_assert_eq(String(blocked_rank_2.get("missing_achievement_id", "")), "misfortune_guidance_true", "rank 2 应明确指出 guidance_true 缺失。")
 
-	var true_unlocks := guidance.handle_battle_resolution(
+	var true_unlocks: Array[StringName] = guidance.handle_battle_resolution(
 		_build_battle_state_with_defeated_enemy(&"misfortune_true", STATUS_BLACK_STAR_BRAND_ELITE, false),
 		_build_battle_resolution_result(&"misfortune_true")
 	)
-	_assert_true(true_unlocks.has(MisfortuneGuidanceService.ACHIEVEMENT_GUIDANCE_TRUE), "doom_marked 后封印 elite 应解锁 guidance_true。")
-	_assert_true(_is_achievement_unlocked(party_state, MisfortuneGuidanceService.ACHIEVEMENT_GUIDANCE_TRUE), "campaign achievement 记录应保留 guidance_true。")
+	_assert_true(true_unlocks.has(&"misfortune_guidance_true"), "doom_marked 后封印 elite 应解锁 guidance_true。")
+	_assert_true(_is_achievement_unlocked(party_state, &"misfortune_guidance_true"), "campaign achievement 记录应保留 guidance_true。")
 	_assert_true(party_state.pending_character_rewards.is_empty(), "guidance 成就本身不应排入额外 reward 队列。")
 
-	var rank_2_result := faith.execute_devotion(party_state, HERO_ID, MISFORTUNE_DEITY_ID)
+	var rank_2_result: Dictionary = faith.execute_devotion(party_state, HERO_ID, MISFORTUNE_DEITY_ID)
 	_assert_true(bool(rank_2_result.get("ok", false)), "guidance_true 达成后应允许进入 rank 2。")
 	_apply_next_pending_reward(manager, party_state, 2)
 
-	var blocked_rank_3 := faith.execute_devotion(party_state, HERO_ID, MISFORTUNE_DEITY_ID)
+	var blocked_rank_3: Dictionary = faith.execute_devotion(party_state, HERO_ID, MISFORTUNE_DEITY_ID)
 	_assert_true(not bool(blocked_rank_3.get("ok", false)), "guidance_devout 未解锁前不应进入 rank 3。")
 	_assert_eq(String(blocked_rank_3.get("missing_achievement_id", "")), "misfortune_guidance_devout", "rank 3 应明确指出 guidance_devout 缺失。")
 
 	battle_gateway.reason_flags_by_member_id = {
 		HERO_ID: {
-			MisfortuneGuidanceService.CALAMITY_REASON_CRITICAL_FAIL: true,
+			&"critical_fail": true,
 		},
 	}
-	var devout_unlocks := guidance.handle_battle_resolution(
+	var devout_unlocks: Array[StringName] = guidance.handle_battle_resolution(
 		_build_battle_state_with_defeated_enemy(&"misfortune_devout", STATUS_CROWN_BREAK_BROKEN_HAND, false),
 		_build_battle_resolution_result(&"misfortune_devout")
 	)
-	_assert_true(devout_unlocks.has(MisfortuneGuidanceService.ACHIEVEMENT_GUIDANCE_DEVOUT), "大失败后再用封印链赢下 elite 应解锁 guidance_devout。")
-	_assert_true(_is_achievement_unlocked(party_state, MisfortuneGuidanceService.ACHIEVEMENT_GUIDANCE_DEVOUT), "campaign achievement 记录应保留 guidance_devout。")
+	_assert_true(devout_unlocks.has(&"misfortune_guidance_devout"), "大失败后再用封印链赢下 elite 应解锁 guidance_devout。")
+	_assert_true(_is_achievement_unlocked(party_state, &"misfortune_guidance_devout"), "campaign achievement 记录应保留 guidance_devout。")
 
-	var rank_3_result := faith.execute_devotion(party_state, HERO_ID, MISFORTUNE_DEITY_ID)
+	var rank_3_result: Dictionary = faith.execute_devotion(party_state, HERO_ID, MISFORTUNE_DEITY_ID)
 	_assert_true(bool(rank_3_result.get("ok", false)), "guidance_devout 达成后应允许进入 rank 3。")
 	_apply_next_pending_reward(manager, party_state, 3)
 
-	var blocked_rank_4 := faith.execute_devotion(party_state, HERO_ID, MISFORTUNE_DEITY_ID)
+	var blocked_rank_4: Dictionary = faith.execute_devotion(party_state, HERO_ID, MISFORTUNE_DEITY_ID)
 	_assert_true(not bool(blocked_rank_4.get("ok", false)), "guidance_exalted 未解锁前不应进入 rank 4。")
 	_assert_eq(String(blocked_rank_4.get("missing_achievement_id", "")), "misfortune_guidance_exalted", "rank 4 应明确指出 guidance_exalted 缺失。")
 
 	battle_gateway.reason_flags_by_member_id.clear()
 	battle_gateway.calamity_by_member_id = {HERO_ID: 2}
-	var exalted_battle_unlocks := guidance.handle_battle_resolution(
+	var exalted_battle_unlocks: Array[StringName] = guidance.handle_battle_resolution(
 		_build_battle_state_without_enemies(&"misfortune_exalted"),
 		_build_battle_resolution_result(&"misfortune_exalted", {"converted_calamity_shards": 1})
 	)
 	_assert_true(exalted_battle_unlocks.is_empty(), "仅结算 calamity->shard 不应提前直接解锁 guidance_exalted。")
-	var exalted_unlocks := guidance.handle_forge_result(
+	var exalted_unlocks: Array[StringName] = guidance.handle_forge_result(
 		HERO_ID,
 		_build_forge_result(&"shadow_halberd"),
 		item_defs
 	)
-	_assert_true(exalted_unlocks.has(MisfortuneGuidanceService.ACHIEVEMENT_GUIDANCE_EXALTED), "结算碎片后用固定材料打造黑暗装备应解锁 guidance_exalted。")
-	_assert_true(_is_achievement_unlocked(party_state, MisfortuneGuidanceService.ACHIEVEMENT_GUIDANCE_EXALTED), "campaign achievement 记录应保留 guidance_exalted。")
+	_assert_true(exalted_unlocks.has(&"misfortune_guidance_exalted"), "结算碎片后用固定材料打造黑暗装备应解锁 guidance_exalted。")
+	_assert_true(_is_achievement_unlocked(party_state, &"misfortune_guidance_exalted"), "campaign achievement 记录应保留 guidance_exalted。")
 
-	var rank_4_result := faith.execute_devotion(party_state, HERO_ID, MISFORTUNE_DEITY_ID)
+	var rank_4_result: Dictionary = faith.execute_devotion(party_state, HERO_ID, MISFORTUNE_DEITY_ID)
 	_assert_true(bool(rank_4_result.get("ok", false)), "guidance_exalted 达成后应允许进入 rank 4。")
 	_apply_next_pending_reward(manager, party_state, 4)
 
-	var blocked_rank_5 := faith.execute_devotion(party_state, HERO_ID, MISFORTUNE_DEITY_ID)
+	var blocked_rank_5: Dictionary = faith.execute_devotion(party_state, HERO_ID, MISFORTUNE_DEITY_ID)
 	_assert_true(not bool(blocked_rank_5.get("ok", false)), "guidance_blessed 未解锁前不应进入 rank 5。")
 	_assert_eq(String(blocked_rank_5.get("missing_achievement_id", "")), "misfortune_guidance_blessed", "rank 5 应明确指出 guidance_blessed 缺失。")
 
-	var blessed_unlocks := guidance.handle_battle_resolution(
+	var blessed_unlocks: Array[StringName] = guidance.handle_battle_resolution(
 		_build_battle_state_with_defeated_enemy(&"misfortune_blessed", STATUS_DOOM_SENTENCE_VERDICT, true),
 		_build_battle_resolution_result(&"misfortune_blessed")
 	)
-	_assert_true(blessed_unlocks.has(MisfortuneGuidanceService.ACHIEVEMENT_GUIDANCE_BLESSED), "用 doom_sentence 终结 boss 应解锁 guidance_blessed。")
-	_assert_true(_is_achievement_unlocked(party_state, MisfortuneGuidanceService.ACHIEVEMENT_GUIDANCE_BLESSED), "campaign achievement 记录应保留 guidance_blessed。")
+	_assert_true(blessed_unlocks.has(&"misfortune_guidance_blessed"), "用 doom_sentence 终结 boss 应解锁 guidance_blessed。")
+	_assert_true(_is_achievement_unlocked(party_state, &"misfortune_guidance_blessed"), "campaign achievement 记录应保留 guidance_blessed。")
 
-	var rank_5_result := faith.execute_devotion(party_state, HERO_ID, MISFORTUNE_DEITY_ID)
+	var rank_5_result: Dictionary = faith.execute_devotion(party_state, HERO_ID, MISFORTUNE_DEITY_ID)
 	_assert_true(bool(rank_5_result.get("ok", false)), "guidance_blessed 达成后应允许进入 rank 5。")
 	_apply_next_pending_reward(manager, party_state, 5)
 	_assert_eq(_get_custom_stat(party_state, DOOM_AUTHORITY_STAT_ID), 5, "完整 guidance 链结算后 doom_authority 应到 rank 5。")
@@ -183,13 +183,13 @@ func _test_forge_result_rejects_legacy_ok_success_alias() -> void:
 		_build_battle_state_without_enemies(&"misfortune_legacy_ok_alias"),
 		_build_battle_resolution_result(&"misfortune_legacy_ok_alias", {"converted_calamity_shards": 1})
 	)
-	var legacy_result := _build_forge_result(&"shadow_halberd")
+	var legacy_result: Dictionary = _build_forge_result(&"shadow_halberd")
 	legacy_result.erase("success")
 	legacy_result["ok"] = true
-	var legacy_unlocks := guidance.handle_forge_result(HERO_ID, legacy_result, item_defs)
+	var legacy_unlocks: Array[StringName] = guidance.handle_forge_result(HERO_ID, legacy_result, item_defs)
 	_assert_true(legacy_unlocks.is_empty(), "forge result 只有 legacy ok=true 时不应解锁 guidance_exalted。")
 	_assert_true(
-		not _is_achievement_unlocked(party_state, MisfortuneGuidanceService.ACHIEVEMENT_GUIDANCE_EXALTED),
+		not _is_achievement_unlocked(party_state, &"misfortune_guidance_exalted"),
 		"forge result 缺正式 success 字段时不应写入 guidance_exalted。"
 	)
 
@@ -216,14 +216,14 @@ func _test_forge_result_rejects_string_key_only_dark_equipment_def() -> void:
 	var string_key_only_defs := {
 		String(dark_weapon.item_id): dark_weapon,
 	}
-	var unlocks := guidance.handle_forge_result(
+	var unlocks: Array[StringName] = guidance.handle_forge_result(
 		HERO_ID,
 		_build_forge_result(&"shadow_halberd"),
 		string_key_only_defs
 	)
 	_assert_true(unlocks.is_empty(), "forge result 只有 String key 的 dark equipment def 时不应解锁 guidance_exalted。")
 	_assert_true(
-		not _is_achievement_unlocked(party_state, MisfortuneGuidanceService.ACHIEVEMENT_GUIDANCE_EXALTED),
+		not _is_achievement_unlocked(party_state, &"misfortune_guidance_exalted"),
 		"forge result 缺正式 StringName key 时不应写入 guidance_exalted。"
 	)
 
@@ -265,16 +265,16 @@ func _build_item_defs() -> Dictionary:
 	var dark_weapon := ItemDef.new()
 	dark_weapon.item_id = &"shadow_halberd"
 	dark_weapon.display_name = "Shadow Halberd"
-	dark_weapon.item_category = ItemDef.ITEM_CATEGORY_EQUIPMENT
-	dark_weapon.equipment_type_id = ItemDef.EQUIPMENT_TYPE_WEAPON
+	dark_weapon.item_category = &"equipment"
+	dark_weapon.equipment_type_id = &"weapon"
 	dark_weapon.equipment_slot_ids = ["main_hand"]
 	dark_weapon.tags = [&"dark", &"misfortune"]
 	dark_weapon.crafting_groups = [&"dark", &"misfortune"]
 
 	var calamity_shard := ItemDef.new()
-	calamity_shard.item_id = BattleLootConstants.ITEM_CALAMITY_SHARD
+	calamity_shard.item_id = BattleLootConstants.ITEM_CALAMITY_SHARD()
 	calamity_shard.display_name = "灾厄碎片"
-	calamity_shard.item_category = ItemDef.ITEM_CATEGORY_MISC
+	calamity_shard.item_category = &"misc"
 	calamity_shard.is_stackable = true
 	calamity_shard.max_stack = 99
 	calamity_shard.tags = [&"material", &"misfortune"]
@@ -361,7 +361,7 @@ func _build_forge_result(output_item_id: StringName) -> Dictionary:
 		"inventory_delta": {
 			"recipe_id": "shadow_halberd_recipe",
 			"removed_entries": [{
-				"item_id": String(BattleLootConstants.ITEM_CALAMITY_SHARD),
+				"item_id": String(BattleLootConstants.ITEM_CALAMITY_SHARD()),
 				"quantity": 1,
 			}],
 			"added_entries": [{

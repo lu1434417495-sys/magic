@@ -2,27 +2,25 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 const BattleRuntimeTestHelpers = preload("res://tests/shared/battle_runtime_test_helpers.gd")
-
-const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
-const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
-const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
-const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
-const BattleStatusEffectState = preload("res://scripts/systems/battle/core/battle_status_effect_state.gd")
-const BattleTimelineState = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
-const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
-const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
-const GameRuntimeBattleSelection = preload("res://scripts/systems/game_runtime/game_runtime_battle_selection.gd")
-const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
-const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
-const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
-const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
+const BattleCellState = preload("res://scripts/systems/battle/core/BattleCellState.cs")
+const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/BattleRuntimeModule.cs")
+const BattleState = preload("res://scripts/systems/battle/core/BattleState.cs")
+const BattleStatusEffectState = preload("res://scripts/systems/battle/core/BattleStatusEffectState.cs")
+const BattleTimelineState = preload("res://scripts/systems/battle/core/BattleTimelineState.cs")
+const BattleUnitState = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
+const CombatEffectDef = preload("res://scripts/player/progression/CombatEffectDef.cs")
+const GameRuntimeBattleSelection = preload("res://scripts/systems/game_runtime/GameRuntimeBattleSelection.cs")
+const ProgressionContentRegistry = preload("res://scripts/player/progression/ProgressionContentRegistry.cs")
+const SkillDef = preload("res://scripts/player/progression/SkillDef.cs")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/AttributeService.cs")
+const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/UnitBaseAttributes.cs")
 
 const CROWN_BREAK_SKILL_ID: StringName = &"crown_break"
 const SAINT_BLADE_COMBO_SKILL_ID: StringName = &"saint_blade_combo"
 const WARRIOR_HEAVY_STRIKE_SKILL_ID: StringName = &"warrior_heavy_strike"
-const VARIANT_BROKEN_FANG: StringName = &"broken_fang"
-const VARIANT_BROKEN_HAND: StringName = &"broken_hand"
-const VARIANT_BLINDED_EYE: StringName = &"blinded_eye"
+const OPTION_BROKEN_FANG: StringName = &"broken_fang"
+const OPTION_BROKEN_HAND: StringName = &"broken_hand"
+const OPTION_BLINDED_EYE: StringName = &"blinded_eye"
 const STATUS_BLACK_STAR_BRAND_NORMAL: StringName = &"black_star_brand_normal"
 const STATUS_BLACK_STAR_BRAND_ELITE: StringName = &"black_star_brand_elite"
 const STATUS_BLACK_STAR_BRAND_ELITE_GUARD_WINDOW: StringName = &"black_star_brand_elite_guard_window"
@@ -204,7 +202,7 @@ func _test_crown_break_broken_fang_blocks_crit() -> void:
 	_apply_elite_brand(elite, caster.unit_id)
 	runtime.calamity_by_member_id[&"hero"] = 2
 
-	var command := _build_ground_skill_command(caster.unit_id, VARIANT_BROKEN_FANG, elite.coord)
+	var command := _build_ground_skill_command(caster.unit_id, OPTION_BROKEN_FANG, elite.coord)
 	var preview := runtime.preview_command(command)
 	_assert_true(preview != null and preview.allowed, "断牙分支前置：已被烙印的 elite 应允许预览折冠。")
 	runtime.issue_command(command)
@@ -231,11 +229,11 @@ func _test_crown_break_broken_hand_blocks_counterattack_and_follow_up() -> void:
 	caster.known_skill_level_map = {CROWN_BREAK_SKILL_ID: 1}
 	var elite := _build_unit(&"crown_break_hand_target", "精英敌人", &"enemy", Vector2i(2, 1), 2, &"", true)
 	elite.current_aura = 4
-	elite.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 100)
+	elite.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 100)
 	elite.known_active_skill_ids = [SAINT_BLADE_COMBO_SKILL_ID]
 	elite.known_skill_level_map = {SAINT_BLADE_COMBO_SKILL_ID: 1}
 	var ally_target := _build_unit(&"crown_break_hand_ally", "被追击者", &"player", Vector2i(3, 1), 2)
-	ally_target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, -10)
+	ally_target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), -10)
 
 	_add_unit(runtime, state, caster)
 	_add_unit(runtime, state, elite)
@@ -248,7 +246,7 @@ func _test_crown_break_broken_hand_blocks_counterattack_and_follow_up() -> void:
 	_apply_elite_brand(elite, caster.unit_id)
 	runtime.calamity_by_member_id[&"hero"] = 2
 
-	var seal_command := _build_ground_skill_command(caster.unit_id, VARIANT_BROKEN_HAND, elite.coord)
+	var seal_command := _build_ground_skill_command(caster.unit_id, OPTION_BROKEN_HAND, elite.coord)
 	runtime.issue_command(seal_command)
 	_assert_true(elite.has_status_effect(STATUS_CROWN_BREAK_BROKEN_HAND), "折手分支应写入 broken_hand 状态。")
 	_assert_true(runtime.is_unit_counterattack_locked(elite), "折手分支应封锁反击读面。")
@@ -277,8 +275,8 @@ func _test_crown_break_broken_hand_blocks_counterattack_and_follow_up() -> void:
 	_assert_eq(stage_preview_texts.size(), 1, "折手分支应把追击预览压成 1 段。")
 	state.attack_roll_nonce = 0
 
-	var aura_before := elite.current_aura
-	var hp_before := ally_target.current_hp
+	var aura_before: int = elite.current_aura
+	var hp_before: int = ally_target.current_hp
 	var batch := runtime.issue_command(follow_up_command)
 	_assert_eq(
 		elite.current_aura,
@@ -309,7 +307,7 @@ func _test_crown_break_blinded_eye_blocks_evasion() -> void:
 		WARRIOR_HEAVY_STRIKE_SKILL_ID: 1,
 	}
 	var elite := _build_unit(&"crown_break_eye_target", "精英敌人", &"enemy", Vector2i(2, 1), 2, &"", true)
-	elite.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 25)
+	elite.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 25)
 
 	_add_unit(runtime, state, caster)
 	_add_unit(runtime, state, elite)
@@ -321,7 +319,7 @@ func _test_crown_break_blinded_eye_blocks_evasion() -> void:
 	_apply_elite_brand(elite, caster.unit_id)
 	runtime.calamity_by_member_id[&"hero"] = 2
 
-	var seal_command := _build_ground_skill_command(caster.unit_id, VARIANT_BLINDED_EYE, elite.coord)
+	var seal_command := _build_ground_skill_command(caster.unit_id, OPTION_BLINDED_EYE, elite.coord)
 	runtime.issue_command(seal_command)
 	_assert_true(elite.has_status_effect(STATUS_CROWN_BREAK_BLINDED_EYE), "遮目分支应写入 blinded_eye 状态。")
 	_assert_true(not elite.has_status_effect(STATUS_CROWN_BREAK_BROKEN_FANG), "遮目分支不应混入断牙状态。")
@@ -370,7 +368,7 @@ func _test_crown_break_rejects_illegal_targets_in_selection_preview_and_issue() 
 		"selection 读面不应把未烙印 elite 暴露成折冠合法目标。 actual=%s" % [str(valid_coords)]
 	)
 
-	var illegal_command := _build_ground_skill_command(caster.unit_id, VARIANT_BROKEN_HAND, unbranded_elite.coord)
+	var illegal_command := _build_ground_skill_command(caster.unit_id, OPTION_BROKEN_HAND, unbranded_elite.coord)
 	var illegal_preview := runtime.preview_command(illegal_command)
 	_assert_true(illegal_preview != null and not illegal_preview.allowed, "未烙印的 elite 不应通过折冠 preview。")
 	_assert_true(
@@ -378,7 +376,7 @@ func _test_crown_break_rejects_illegal_targets_in_selection_preview_and_issue() 
 		"非法目标预览应明确指出需要黑星烙印。 log=%s" % [str(illegal_preview.log_lines if illegal_preview != null else [])]
 	)
 
-	var ap_before_issue := caster.current_ap
+	var ap_before_issue: int = caster.current_ap
 	var calamity_before_issue := runtime.get_member_calamity(&"hero")
 	var illegal_batch := runtime.issue_command(illegal_command)
 	_assert_eq(caster.current_ap, ap_before_issue, "非法目标被 issue 拒绝时不应扣除 AP。")
@@ -425,7 +423,7 @@ func _build_skill_test_state(battle_id: StringName, map_size: Vector2i) -> Battl
 func _build_cell(coord: Vector2i) -> BattleCellState:
 	var cell := BattleCellState.new()
 	cell.coord = coord
-	cell.base_terrain = BattleCellState.TERRAIN_LAND
+	cell.base_terrain = BattleCellState.TERRAIN_LAND()
 	cell.base_height = 4
 	cell.height_offset = 0
 	cell.recalculate_runtime_values()
@@ -454,23 +452,23 @@ func _build_unit(
 	unit.current_aura = 0
 	unit.is_alive = true
 	unit.set_anchor_coord(coord)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX, 60)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX, 4)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX, 60)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.AURA_MAX, 6)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX_ID(), 60)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX_ID(), 4)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX_ID(), 60)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.AURA_MAX_ID(), 6)
 	# Fixture 既然把 mp_max / aura_max 设非 0，就视作两条资源都已解锁；
 	# 否则技能 preview/execute 阶段 get_locked_combat_resource_block_reason 会因为 has_combat_resource_unlocked=false 直接拒绝施法。
-	unit.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_MP)
-	unit.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_AURA)
+	unit.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_MP())
+	unit.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_AURA())
 	unit.attribute_snapshot.set_value(&"action_points", maxi(current_ap, 1))
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 12)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 4)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 6)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 4)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 60)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 10)
-	unit.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.HIDDEN_LUCK_AT_BIRTH, 0)
-	unit.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.FAITH_LUCK_BONUS, 0)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 12)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 4)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 6)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 4)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 60)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 10)
+	unit.attribute_snapshot.set_value(&"hidden_luck_at_birth", 0)
+	unit.attribute_snapshot.set_value(&"faith_luck_bonus", 0)
 	unit.attribute_snapshot.set_value(FORTUNE_MARK_TARGET_STAT_ID, 1 if is_elite_or_boss else 0)
 	_apply_test_equipped_weapon(unit)
 	return unit
@@ -521,7 +519,7 @@ func _set_status(
 
 func _build_ground_skill_command(unit_id: StringName, variant_id: StringName, target_coord: Vector2i) -> BattleCommand:
 	var command := BattleCommand.new()
-	command.command_type = BattleCommand.TYPE_SKILL
+	command.command_type = BattleCommand.TYPE_SKILL()
 	command.unit_id = unit_id
 	command.skill_id = CROWN_BREAK_SKILL_ID
 	command.skill_variant_id = variant_id
@@ -532,7 +530,7 @@ func _build_ground_skill_command(unit_id: StringName, variant_id: StringName, ta
 
 func _build_unit_skill_command(unit_id: StringName, skill_id: StringName, target_unit: BattleUnitState) -> BattleCommand:
 	var command := BattleCommand.new()
-	command.command_type = BattleCommand.TYPE_SKILL
+	command.command_type = BattleCommand.TYPE_SKILL()
 	command.unit_id = unit_id
 	command.skill_id = skill_id
 	command.target_unit_id = target_unit.unit_id if target_unit != null else &""

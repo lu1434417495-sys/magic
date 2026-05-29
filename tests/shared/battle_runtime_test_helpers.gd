@@ -2,9 +2,9 @@ extends RefCounted
 
 const StubDamageResolvers = preload("res://tests/shared/stub_damage_resolvers.gd")
 const StubHitResolvers = preload("res://tests/shared/stub_hit_resolvers.gd")
-const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
-const ATTRIBUTE_SNAPSHOT_SCRIPT = preload("res://scripts/player/progression/attribute_snapshot.gd")
-const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/AttributeService.cs")
+const ATTRIBUTE_SNAPSHOT_SCRIPT = preload("res://scripts/player/progression/AttributeSnapshot.cs")
+const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/UnitBaseAttributes.cs")
 
 
 ## 给 fixture 单位补齐 6 维基础属性（默认 10，modifier=0），并按产线公式派生
@@ -23,16 +23,16 @@ static func seed_base_attributes_and_derive_ac(unit) -> void:
 static func seed_attribute_snapshot_base_attributes_and_ac(snapshot) -> void:
 	if snapshot == null:
 		return
-	for attribute_id in UNIT_BASE_ATTRIBUTES_SCRIPT.BASE_ATTRIBUTE_IDS:
+	for attribute_id in [&"strength", &"agility", &"constitution", &"perception", &"intelligence", &"willpower"]:
 		if not snapshot.has_value(attribute_id):
 			snapshot.set_value(attribute_id, 10)
-	if not snapshot.has_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS):
+	if not snapshot.has_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID()):
 		var agility_modifier := ATTRIBUTE_SNAPSHOT_SCRIPT.calculate_score_modifier(
-			int(snapshot.get_value(UNIT_BASE_ATTRIBUTES_SCRIPT.AGILITY))
+			int(snapshot.get_value(&"agility"))
 		)
 		snapshot.set_value(
-			ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS,
-			clampi(ATTRIBUTE_SERVICE_SCRIPT.BASE_ARMOR_CLASS + agility_modifier, 1, 99)
+			ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(),
+			clampi(ATTRIBUTE_SERVICE_SCRIPT.BASE_ARMOR_CLASS_VALUE() + agility_modifier, 1, 99)
 		)
 
 
@@ -53,7 +53,7 @@ static func configure_fixed_combat(runtime) -> void:
 	if runtime == null:
 		return
 	if runtime.has_method("configure_hit_resolver_for_tests"):
-		runtime.configure_hit_resolver_for_tests(StubHitResolvers.FixedHitResolver.new())
+		runtime.configure_hit_resolver_for_tests(StubHitResolvers.build_fixed_hit_resolver())
 	if runtime.has_method("configure_damage_resolver_for_tests"):
 		var damage_resolver := StubDamageResolvers.FixedSuccessOneDamageResolver.new()
 		if runtime.has_method("get_skill_defs") and damage_resolver.has_method("set_skill_defs"):

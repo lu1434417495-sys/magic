@@ -2,17 +2,15 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 const BattleRuntimeTestHelpers = preload("res://tests/shared/battle_runtime_test_helpers.gd")
-
-const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
-const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
-const BattleHudAdapter = preload("res://scripts/systems/battle/presentation/battle_hud_adapter.gd")
-const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
-const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
-const BattleTimelineState = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
-const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
-const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
-const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
-const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
+const BattleCellState = preload("res://scripts/systems/battle/core/BattleCellState.cs")
+const BattleHudAdapter = preload("res://scripts/systems/battle/presentation/BattleHudAdapter.cs")
+const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/BattleRuntimeModule.cs")
+const BattleState = preload("res://scripts/systems/battle/core/BattleState.cs")
+const BattleTimelineState = preload("res://scripts/systems/battle/core/BattleTimelineState.cs")
+const BattleUnitState = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
+const ProgressionContentRegistry = preload("res://scripts/player/progression/ProgressionContentRegistry.cs")
+const SkillDef = preload("res://scripts/player/progression/SkillDef.cs")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/AttributeService.cs")
 const SharedDamageResolvers = preload("res://tests/shared/stub_damage_resolvers.gd")
 
 const BLACK_CONTRACT_PUSH_SKILL_ID: StringName = &"black_contract_push"
@@ -75,7 +73,7 @@ func _test_force_hit_skill_runtime_preview_is_guaranteed() -> void:
 		[],
 		2
 	)
-	target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 999)
+	target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 999)
 	_add_unit_to_runtime_state(runtime, state, caster, false)
 	_add_unit_to_runtime_state(runtime, state, target, true)
 	state.phase = &"unit_acting"
@@ -124,7 +122,7 @@ func _test_single_hit_skill_hud_surfaces_runtime_preview() -> void:
 		3
 	)
 	attacker.current_stamina = 30
-	attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 80)
+	attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 80)
 	var target := _build_unit(
 		&"heavy_strike_target",
 		"高闪避木桩",
@@ -133,7 +131,7 @@ func _test_single_hit_skill_hud_surfaces_runtime_preview() -> void:
 		[],
 		2
 	)
-	target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 70)
+	target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 70)
 	_add_unit_to_runtime_state(runtime, state, attacker, false)
 	_add_unit_to_runtime_state(runtime, state, target, true)
 	state.phase = &"unit_acting"
@@ -175,7 +173,11 @@ func _test_single_hit_skill_hud_surfaces_runtime_preview() -> void:
 		"",
 		[],
 		1,
-		[]
+		[],
+		&"",
+		Callable(),
+		"",
+		null
 	)
 	_assert_eq(
 		String(snapshot.get("selected_skill_hit_preview_text", "")),
@@ -235,7 +237,7 @@ func _build_cell(coord: Vector2i) -> BattleCellState:
 	cell.coord = coord
 	cell.stack_layer = 0
 	cell.base_height = 0
-	cell.base_terrain = BattleCellState.TERRAIN_LAND
+	cell.base_terrain = BattleCellState.TERRAIN_LAND()
 	cell.recalculate_runtime_values()
 	return cell
 
@@ -264,8 +266,8 @@ func _build_unit(
 	unit.attribute_snapshot.set_value(&"mp_max", 4)
 	unit.attribute_snapshot.set_value(&"stamina_max", 30)
 	unit.attribute_snapshot.set_value(&"action_points", maxi(current_ap, 1))
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 12)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 10)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 12)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 10)
 	unit.apply_weapon_projection({
 		"weapon_profile_kind": "equipped",
 		"weapon_item_id": "hit_preview_test_blade",
@@ -294,7 +296,7 @@ func _build_skill_command(
 	variant_id: StringName = &""
 ) -> BattleCommand:
 	var command := BattleCommand.new()
-	command.command_type = BattleCommand.TYPE_SKILL
+	command.command_type = BattleCommand.TYPE_SKILL()
 	command.unit_id = unit_id
 	command.skill_id = skill_id
 	command.skill_variant_id = variant_id

@@ -43,36 +43,33 @@ public partial class BattleTimelineState : RefCounted
         };
     }
 
-    public static BattleTimelineState from_dict(Variant data)
+    public static BattleTimelineState from_dict(GDictionary payload)
     {
-        if (data.VariantType != Variant.Type.Dictionary)
-        {
+        if (payload == null)
             return null;
-        }
 
-        GDictionary payload = data.AsGodotDictionary();
         if (!HasExactSchemaFields(payload))
         {
             return null;
         }
-        if (Get(payload, "current_tu").VariantType != Variant.Type.Int || Get(payload, "current_tu").AsInt32() < 0)
+        if (!TryGetStrictInt(payload, "current_tu", out int currentTu) || currentTu < 0)
         {
             return null;
         }
-        if (Get(payload, "tu_per_tick").VariantType != Variant.Type.Int || Get(payload, "tu_per_tick").AsInt32() <= 0)
+        if (!TryGetStrictInt(payload, "tu_per_tick", out int tuPerTick) || tuPerTick <= 0)
         {
             return null;
         }
-        if (Get(payload, "frozen").VariantType != Variant.Type.Bool)
+        if (!TryGetBool(payload, "frozen", out bool isFrozen))
         {
             return null;
         }
-        if (Get(payload, "ready_unit_ids").VariantType != Variant.Type.Array)
+        if (!TryGetRawArray(payload, "ready_unit_ids", out Godot.Collections.Array readyUnitIds))
         {
             return null;
         }
 
-        Godot.Collections.Array<StringName> parsedReadyUnitIds = StringsToStringNameArray(Get(payload, "ready_unit_ids"));
+        Godot.Collections.Array<StringName> parsedReadyUnitIds = StringsToStringNameArray(readyUnitIds);
         if (parsedReadyUnitIds == null)
         {
             return null;
@@ -80,14 +77,16 @@ public partial class BattleTimelineState : RefCounted
 
         return new BattleTimelineState
         {
-            current_tu = Get(payload, "current_tu").AsInt32(),
-            tu_per_tick = Get(payload, "tu_per_tick").AsInt32(),
-            frozen = Get(payload, "frozen").AsBool(),
+            current_tu = currentTu,
+            tu_per_tick = tuPerTick,
+            frozen = isFrozen,
             ready_unit_ids = parsedReadyUnitIds,
         };
     }
 
-    private static Godot.Collections.Array<string> StringNameArrayToStrings(Godot.Collections.Array<StringName> values)
+    private static Godot.Collections.Array<string> StringNameArrayToStrings(
+        Godot.Collections.Array<StringName> values
+    )
     {
         var results = new Godot.Collections.Array<string>();
         foreach (StringName value in values ?? new Godot.Collections.Array<StringName>())
@@ -113,20 +112,17 @@ public partial class BattleTimelineState : RefCounted
         return true;
     }
 
-    private static Godot.Collections.Array<StringName> StringsToStringNameArray(Variant values)
+    private static Godot.Collections.Array<StringName> StringsToStringNameArray(
+        Godot.Collections.Array values
+    )
     {
         var results = new Godot.Collections.Array<StringName>();
-        if (values.VariantType != Variant.Type.Array)
+        foreach (var value in values)
         {
-            return null;
-        }
-        foreach (Variant value in values.AsGodotArray())
-        {
-            if (value.VariantType != Variant.Type.String && value.VariantType != Variant.Type.StringName)
+            if (!TryAsStringLike(value, out string idText))
             {
                 return null;
             }
-            string idText = value.AsString();
             if (string.IsNullOrEmpty(idText))
             {
                 return null;
@@ -136,8 +132,99 @@ public partial class BattleTimelineState : RefCounted
         return results;
     }
 
-    private static Variant Get(GDictionary payload, string key)
+    private static bool TryGetStrictInt(GDictionary data, string key, out int value)
     {
-        return payload.ContainsKey(key) ? payload[key] : default;
+        if (TryGetExactValue(data, key, out Variant rawValue)
+            && TryAsStrictInt(rawValue, out value))
+        {
+            return true;
+        }
+        value = 0;
+        return false;
     }
+
+    private static bool TryGetBool(GDictionary data, string key, out bool value)
+    {
+        if (TryGetExactValue(data, key, out Variant rawValue) && TryAsBool(rawValue, out value))
+        {
+            return true;
+        }
+        value = false;
+        return false;
+    }
+
+    private static bool TryGetRawArray(
+        GDictionary data,
+        string key,
+        out Godot.Collections.Array value
+    )
+    {
+        if (TryGetExactValue(data, key, out Variant rawValue) && TryRawArray(rawValue, out value))
+        {
+            return true;
+        }
+        value = new Godot.Collections.Array();
+        return false;
+    }
+
+    private static bool TryAsStrictInt(Variant rawValue, out int value)
+    {
+        if (rawValue.VariantType == Variant.Type.Int)
+        {
+            value = rawValue.AsInt32();
+            return true;
+        }
+        value = 0;
+        return false;
+    }
+
+    private static bool TryAsBool(Variant rawValue, out bool value)
+    {
+        if (rawValue.VariantType == Variant.Type.Bool)
+        {
+            value = rawValue.AsBool();
+            return true;
+        }
+        value = false;
+        return false;
+    }
+
+    private static bool TryAsStringLike(Variant rawValue, out string value)
+    {
+        if (rawValue.VariantType == Variant.Type.String)
+        {
+            value = rawValue.AsString();
+            return true;
+        }
+        if (rawValue.VariantType == Variant.Type.StringName)
+        {
+            value = rawValue.AsStringName().ToString();
+            return true;
+        }
+        value = "";
+        return false;
+    }
+
+    private static bool TryGetExactValue(GDictionary data, string key, out Variant value)
+    {
+        if (data != null && data.ContainsKey(key))
+        {
+            value = data[key];
+            return true;
+        }
+        value = default;
+        return false;
+    }
+
+    private static bool TryRawArray(Variant rawValue, out Godot.Collections.Array values)
+    {
+        if (rawValue.VariantType == Variant.Type.Array)
+        {
+            values = rawValue.AsGodotArray();
+            return true;
+        }
+        values = new Godot.Collections.Array();
+        return false;
+    }
+
 }

@@ -4,8 +4,8 @@
 
 
 ; External scripts, scenes, and shared assets referenced by this scene.
-[ext_resource type="Script" path="res://scripts/systems/game_runtime/world_map_system.gd" id="1_3yx4r"]
-[ext_resource type="Script" path="res://scripts/ui/world_map_view.gd" id="2_7d2f8"]
+[ext_resource type="Script" path="res://scripts/systems/game_runtime/WorldMapSystem.cs" id="1_3yx4r"]
+[ext_resource type="Script" path="res://scripts/ui/WorldMapView.cs" id="2_7d2f8"]
 [ext_resource type="PackedScene" path="res://scenes/ui/settlement_window.tscn" id="3_9o3k0"]
 [ext_resource type="PackedScene" path="res://scenes/ui/battle_map_panel.tscn" id="5_ba71e"]
 [ext_resource type="PackedScene" path="res://scenes/ui/character_info_window.tscn" id="6_l1m8n"]

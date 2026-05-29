@@ -1,17 +1,17 @@
 extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
-const BATTLE_AI_ACTION_ASSEMBLER_SCRIPT = preload("res://scripts/systems/battle/ai/battle_ai_action_assembler.gd")
-const ENEMY_AI_BRAIN_DEF_SCRIPT = preload("res://scripts/enemies/enemy_ai_brain_def.gd")
-const ENEMY_AI_STATE_DEF_SCRIPT = preload("res://scripts/enemies/enemy_ai_state_def.gd")
-const ENEMY_AI_GENERATION_SLOT_DEF_SCRIPT = preload("res://scripts/enemies/enemy_ai_generation_slot_def.gd")
-const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
-const SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/skill_def.gd")
-const COMBAT_SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/combat_skill_def.gd")
-const COMBAT_EFFECT_DEF_SCRIPT = preload("res://scripts/player/progression/combat_effect_def.gd")
-const USE_UNIT_SKILL_ACTION_SCRIPT = preload("res://scripts/enemies/actions/use_unit_skill_action.gd")
-const USE_RANDOM_CHAIN_SKILL_ACTION_SCRIPT = preload("res://scripts/enemies/actions/use_random_chain_skill_action.gd")
-const MOVE_TO_RANGE_ACTION_SCRIPT = preload("res://scripts/enemies/actions/move_to_range_action.gd")
+const BATTLE_AI_ACTION_ASSEMBLER_SCRIPT = preload("res://scripts/systems/battle/ai/BattleAiActionAssembler.cs")
+const ENEMY_AI_BRAIN_DEF_SCRIPT = preload("res://scripts/enemies/EnemyAiBrainDef.cs")
+const ENEMY_AI_STATE_DEF_SCRIPT = preload("res://scripts/enemies/EnemyAiStateDef.cs")
+const ENEMY_AI_GENERATION_SLOT_DEF_SCRIPT = preload("res://scripts/enemies/EnemyAiGenerationSlotDef.cs")
+const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
+const SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/SkillDef.cs")
+const COMBAT_SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/CombatSkillDef.cs")
+const COMBAT_EFFECT_DEF_SCRIPT = preload("res://scripts/player/progression/CombatEffectDef.cs")
+const USE_UNIT_SKILL_ACTION_SCRIPT = preload("res://scripts/enemies/actions/UseUnitSkillAction.cs")
+const USE_RANDOM_CHAIN_SKILL_ACTION_SCRIPT = preload("res://scripts/enemies/actions/UseRandomChainSkillAction.cs")
+const MOVE_TO_RANGE_ACTION_SCRIPT = preload("res://scripts/enemies/actions/MoveToRangeAction.cs")
 
 var _test := TestRunner.new()
 
@@ -22,6 +22,7 @@ func _initialize() -> void:
 
 func _run() -> void:
 	_test_assembler_returns_runtime_plan_without_mutating_state()
+	_test_assembler_enables_candidate_for_runtime_move_clones()
 	_test_generation_is_slot_family_scoped_not_global_skill_suppressed()
 	_test_generated_metadata_contains_stable_runtime_identity()
 	_test.finish(self, "Battle AI action assembler plan regression")
@@ -29,12 +30,24 @@ func _run() -> void:
 
 func _test_assembler_returns_runtime_plan_without_mutating_state() -> void:
 	var fixture := _build_fixture()
-	var original_action_count: int = fixture.state_def.get_actions().size()
+	var original_action_count: int = fixture.state_def.get("actions").size()
 	var plan = fixture.assembler.build_unit_action_plan(fixture.unit, fixture.brain, fixture.skill_defs)
 	var actions: Array = plan.get_actions(&"engage")
 	_test.assert_true(plan.has_state(&"engage"), "assembler 应为 brain state 创建 plan state。")
 	_test.assert_true(actions.size() > original_action_count, "runtime plan 应包含 authored + generated actions。")
-	_test.assert_eq(fixture.state_def.get_actions().size(), original_action_count, "assembler 不应把 generated action 写回 state resource。")
+	_test.assert_eq(fixture.state_def.get("actions").size(), original_action_count, "assembler 不应把 generated action 写回 state resource。")
+
+
+func _test_assembler_enables_candidate_for_runtime_move_clones() -> void:
+	var fixture := _build_fixture()
+	var plan = fixture.assembler.build_unit_action_plan(fixture.unit, fixture.brain, fixture.skill_defs)
+	var runtime_template_move = _find_action_by_id(plan.get_actions(&"engage"), &"template_move")
+	_test.assert_true(runtime_template_move != null, "runtime plan 应保留 authored move_to_range action。")
+	_test.assert_true(runtime_template_move != fixture.move_template, "runtime plan 应克隆 authored move_to_range，避免写回资源本体。")
+	_test.assert_true(runtime_template_move != null and runtime_template_move.uses_candidate_request(), "runtime authored move_to_range clone 应默认启用 candidate_request。")
+	_test.assert_false(fixture.move_template.uses_candidate_request(), "assembler 不得把 candidate_request 写回 authored resource。")
+	var generated_move = _find_move_action_for_skill(plan.get_actions(&"engage"), &"chain_arc")
+	_test.assert_true(generated_move != null and generated_move.uses_candidate_request(), "generated move_to_range action 应直接启用 candidate_request。")
 
 
 func _test_generation_is_slot_family_scoped_not_global_skill_suppressed() -> void:
@@ -52,7 +65,7 @@ func _test_generated_metadata_contains_stable_runtime_identity() -> void:
 		var metadata: Dictionary = plan.get_action_metadata(action)
 		if not bool(metadata.get("generated", false)):
 			continue
-		if ProgressionDataUtils.to_string_name(metadata.get("skill_id", "")) != &"bolt":
+		if _to_string_name(metadata.get("skill_id", "")) != &"bolt":
 			continue
 		_test.assert_eq(metadata.get("state_id", &""), &"engage", "generated metadata 应包含 state_id。")
 		_test.assert_eq(metadata.get("slot_id", &""), &"offense", "generated metadata 应包含 slot_id。")
@@ -94,6 +107,7 @@ func _build_fixture() -> Dictionary:
 		"brain": brain,
 		"state_def": state_def,
 		"unit": unit,
+		"move_template": move_template,
 		"skill_defs": {
 			&"bolt": _skill(&"bolt", &"unit", &"enemy", &"damage"),
 			&"chain_arc": _chain_skill(),
@@ -106,9 +120,9 @@ func _slot(slot_id: StringName, order: int, affordances: Array, families: Array,
 	slot.slot_id = slot_id
 	slot.order = order
 	for affordance in affordances:
-		slot.allowed_affordances.append(ProgressionDataUtils.to_string_name(affordance))
+		slot.allowed_affordances.append(_to_string_name(affordance))
 	for family in families:
-		slot.action_families.append(ProgressionDataUtils.to_string_name(family))
+		slot.action_families.append(_to_string_name(family))
 	slot.style_template_action_id = template_action_id
 	slot.score_bucket_id = bucket_id
 	slot.target_selector = &"nearest_enemy"
@@ -151,7 +165,24 @@ func _has_action_script_for_skill(actions: Array, script_resource, skill_id: Str
 
 
 func _has_move_action_for_skill(actions: Array, skill_id: StringName) -> bool:
+	return _find_move_action_for_skill(actions, skill_id) != null
+
+
+func _find_move_action_for_skill(actions: Array, skill_id: StringName):
 	for action in actions:
 		if action != null and action.get_script() == MOVE_TO_RANGE_ACTION_SCRIPT and action.range_skill_ids.has(skill_id):
-			return true
-	return false
+			return action
+	return null
+
+
+func _find_action_by_id(actions: Array, action_id: StringName):
+	for action in actions:
+		if action != null and _to_string_name(action.get("action_id")) == action_id:
+			return action
+	return null
+
+
+func _to_string_name(value) -> StringName:
+	if value == null:
+		return &""
+	return StringName(String(value))

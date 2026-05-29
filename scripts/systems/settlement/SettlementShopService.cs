@@ -1,64 +1,1132 @@
+using System;
+using System.Collections.Generic;
 using Godot;
+using GArray = Godot.Collections.Array;
+using GDictionary = Godot.Collections.Dictionary;
+using GDictionaryArray = Godot.Collections.Array<Godot.Collections.Dictionary>;
 
 [GlobalClass]
 public partial class SettlementShopService : RefCounted
 {
-    private static readonly Godot.Collections.Dictionary ShopStockEntryKeys = new() { { "item_id", true }, { "quantity", true }, { "unit_price", true }, { "sold_out", true } };
     private const int PriceBasisPointsDefault = 10000;
+    private static readonly HashSet<string> ShopStockEntryKeys = new()
+    {
+        "item_id",
+        "quantity",
+        "unit_price",
+        "sold_out",
+    };
 
-    private static readonly Godot.Collections.Dictionary ShopDefs = new() {
-        { "service_basic_supply", new Godot.Collections.Dictionary { { "shop_id", "village_basic_supply" }, { "title", "临时补给" }, { "refresh_interval_steps", 12 }, { "guaranteed_items", new Godot.Collections.Array { new Godot.Collections.Dictionary { { "item_id", new StringName("healing_herb") }, { "min_qty", 2 }, { "max_qty", 4 } }, new Godot.Collections.Dictionary { { "item_id", new StringName("travel_ration") }, { "min_qty", 2 }, { "max_qty", 4 } } } }, { "random_pool", new Godot.Collections.Array { new Godot.Collections.Dictionary { { "item_id", new StringName("bandage_roll") }, { "weight", 6 }, { "min_qty", 1 }, { "max_qty", 3 } }, new Godot.Collections.Dictionary { { "item_id", new StringName("torch_bundle") }, { "weight", 5 }, { "min_qty", 1 }, { "max_qty", 3 } }, new Godot.Collections.Dictionary { { "item_id", new StringName("antidote_herb") }, { "weight", 4 }, { "min_qty", 1 }, { "max_qty", 2 }, { "price_basis_points", 11000 } }, new Godot.Collections.Dictionary { { "item_id", new StringName("iron_ore") }, { "weight", 2 }, { "min_qty", 1 }, { "max_qty", 2 } } } }, { "max_random_items", 2 } } },
-        { "service_local_trade", new Godot.Collections.Dictionary { { "shop_id", "town_local_trade" }, { "title", "镇集交易" }, { "refresh_interval_steps", 10 }, { "guaranteed_items", new Godot.Collections.Array { new Godot.Collections.Dictionary { { "item_id", new StringName("healing_herb") }, { "min_qty", 3 }, { "max_qty", 6 }, { "price_basis_points", 9500 } }, new Godot.Collections.Dictionary { { "item_id", new StringName("bandage_roll") }, { "min_qty", 2 }, { "max_qty", 4 } }, new Godot.Collections.Dictionary { { "item_id", new StringName("travel_ration") }, { "min_qty", 2 }, { "max_qty", 5 }, { "price_basis_points", 9500 } }, new Godot.Collections.Dictionary { { "item_id", new StringName("beast_hide") }, { "min_qty", 2 }, { "max_qty", 4 } }, new Godot.Collections.Dictionary { { "item_id", new StringName("bronze_sword") }, { "min_qty", 1 }, { "max_qty", 1 } }, new Godot.Collections.Dictionary { { "item_id", new StringName("militia_axe") }, { "min_qty", 1 }, { "max_qty", 1 } }, new Godot.Collections.Dictionary { { "item_id", new StringName("leather_cap") }, { "min_qty", 1 }, { "max_qty", 1 } }, new Godot.Collections.Dictionary { { "item_id", new StringName("leather_jerkin") }, { "min_qty", 1 }, { "max_qty", 1 } } } }, { "random_pool", new Godot.Collections.Array { new Godot.Collections.Dictionary { { "item_id", new StringName("torch_bundle") }, { "weight", 4 }, { "min_qty", 1 }, { "max_qty", 3 } }, new Godot.Collections.Dictionary { { "item_id", new StringName("antidote_herb") }, { "weight", 4 }, { "min_qty", 1 }, { "max_qty", 3 } }, new Godot.Collections.Dictionary { { "item_id", new StringName("iron_ore") }, { "weight", 3 }, { "min_qty", 2 }, { "max_qty", 4 } }, new Godot.Collections.Dictionary { { "item_id", new StringName("scout_charm") }, { "weight", 2 }, { "min_qty", 1 }, { "max_qty", 1 }, { "price_basis_points", 11000 } }, new Godot.Collections.Dictionary { { "item_id", new StringName("iron_greatsword") }, { "weight", 1 }, { "min_qty", 1 }, { "max_qty", 1 }, { "price_basis_points", 11500 } } } }, { "max_random_items", 4 } } },
-        { "service_city_market", new Godot.Collections.Dictionary { { "shop_id", "city_market" }, { "title", "城市市场" }, { "refresh_interval_steps", 8 }, { "guaranteed_items", new Godot.Collections.Array { new Godot.Collections.Dictionary { { "item_id", new StringName("bronze_sword") }, { "min_qty", 1 }, { "max_qty", 1 }, { "price_basis_points", 9500 } }, new Godot.Collections.Dictionary { { "item_id", new StringName("militia_axe") }, { "min_qty", 1 }, { "max_qty", 1 } }, new Godot.Collections.Dictionary { { "item_id", new StringName("watchman_mace") }, { "min_qty", 1 }, { "max_qty", 1 } }, new Godot.Collections.Dictionary { { "item_id", new StringName("leather_cap") }, { "min_qty", 1 }, { "max_qty", 1 }, { "price_basis_points", 9500 } }, new Godot.Collections.Dictionary { { "item_id", new StringName("leather_jerkin") }, { "min_qty", 1 }, { "max_qty", 1 }, { "price_basis_points", 9500 } }, new Godot.Collections.Dictionary { { "item_id", new StringName("scout_charm") }, { "min_qty", 1 }, { "max_qty", 1 } }, new Godot.Collections.Dictionary { { "item_id", new StringName("iron_greatsword") }, { "min_qty", 1 }, { "max_qty", 1 } }, new Godot.Collections.Dictionary { { "item_id", new StringName("antidote_herb") }, { "min_qty", 2 }, { "max_qty", 4 }, { "price_basis_points", 9500 } }, new Godot.Collections.Dictionary { { "item_id", new StringName("hardwood_lumber") }, { "min_qty", 3 }, { "max_qty", 6 }, { "price_basis_points", 9500 } }, new Godot.Collections.Dictionary { { "item_id", new StringName("linen_cloth") }, { "min_qty", 3 }, { "max_qty", 6 }, { "price_basis_points", 9500 } } } }, { "random_pool", new Godot.Collections.Array { new Godot.Collections.Dictionary { { "item_id", new StringName("bandage_roll") }, { "weight", 5 }, { "min_qty", 2 }, { "max_qty", 4 }, { "price_basis_points", 9500 } }, new Godot.Collections.Dictionary { { "item_id", new StringName("travel_ration") }, { "weight", 4 }, { "min_qty", 2 }, { "max_qty", 5 }, { "price_basis_points", 9000 } }, new Godot.Collections.Dictionary { { "item_id", new StringName("torch_bundle") }, { "weight", 3 }, { "min_qty", 1 }, { "max_qty", 3 }, { "price_basis_points", 9500 } }, new Godot.Collections.Dictionary { { "item_id", new StringName("iron_ore") }, { "weight", 2 }, { "min_qty", 3 }, { "max_qty", 6 }, { "price_basis_points", 9500 } } } }, { "max_random_items", 4 } } },
-        { "service_military_supply", new Godot.Collections.Dictionary { { "shop_id", "capital_military_supply" }, { "title", "军需总署" }, { "refresh_interval_steps", 6 }, { "guaranteed_items", new Godot.Collections.Array { new Godot.Collections.Dictionary { { "item_id", new StringName("iron_greatsword") }, { "min_qty", 1 }, { "max_qty", 1 }, { "price_basis_points", 9500 } }, new Godot.Collections.Dictionary { { "item_id", new StringName("leather_jerkin") }, { "min_qty", 1 }, { "max_qty", 1 }, { "price_basis_points", 9000 } }, new Godot.Collections.Dictionary { { "item_id", new StringName("bandage_roll") }, { "min_qty", 3 }, { "max_qty", 5 }, { "price_basis_points", 9000 } } } }, { "random_pool", new Godot.Collections.Array { new Godot.Collections.Dictionary { { "item_id", new StringName("bronze_sword") }, { "weight", 2 }, { "min_qty", 1 }, { "max_qty", 1 }, { "price_basis_points", 9000 } }, new Godot.Collections.Dictionary { { "item_id", new StringName("scout_charm") }, { "weight", 3 }, { "min_qty", 1 }, { "max_qty", 1 }, { "price_basis_points", 9500 } }, new Godot.Collections.Dictionary { { "item_id", new StringName("antidote_herb") }, { "weight", 5 }, { "min_qty", 2 }, { "max_qty", 4 }, { "price_basis_points", 9000 } } } }, { "max_random_items", 3 } } },
-        { "service_grand_auction", new Godot.Collections.Dictionary { { "shop_id", "metropolis_grand_auction" }, { "title", "大拍卖行" }, { "refresh_interval_steps", 5 }, { "guaranteed_items", new Godot.Collections.Array { new Godot.Collections.Dictionary { { "item_id", new StringName("iron_greatsword") }, { "min_qty", 1 }, { "max_qty", 1 }, { "price_basis_points", 11000 } }, new Godot.Collections.Dictionary { { "item_id", new StringName("scout_charm") }, { "min_qty", 1 }, { "max_qty", 1 }, { "price_basis_points", 10500 } } } }, { "random_pool", new Godot.Collections.Array { new Godot.Collections.Dictionary { { "item_id", new StringName("bronze_sword") }, { "weight", 1 }, { "min_qty", 1 }, { "max_qty", 1 } }, new Godot.Collections.Dictionary { { "item_id", new StringName("leather_jerkin") }, { "weight", 1 }, { "min_qty", 1 }, { "max_qty", 1 } }, new Godot.Collections.Dictionary { { "item_id", new StringName("antidote_herb") }, { "weight", 3 }, { "min_qty", 2 }, { "max_qty", 4 } }, new Godot.Collections.Dictionary { { "item_id", new StringName("torch_bundle") }, { "weight", 2 }, { "min_qty", 2 }, { "max_qty", 4 } } } }, { "max_random_items", 4 } } },
+    private enum ShopItemId
+    {
+        HealingHerb,
+        TravelRation,
+        BandageRoll,
+        TorchBundle,
+        AntidoteHerb,
+        IronOre,
+        BeastHide,
+        BronzeSword,
+        MilitiaAxe,
+        LeatherCap,
+        LeatherJerkin,
+        ScoutCharm,
+        IronGreatsword,
+        WatchmanMace,
+        HardwoodLumber,
+        LinenCloth,
+    }
+
+    private readonly record struct ShopItemSeed(
+        ShopItemId ItemId,
+        int MinQty,
+        int MaxQty,
+        int Weight = 0,
+        int PriceBasisPoints = PriceBasisPointsDefault
+    );
+
+    private sealed record ShopDefinition(
+        string InteractionScriptId,
+        string ShopId,
+        string Title,
+        int RefreshIntervalSteps,
+        ShopItemSeed[] GuaranteedItems,
+        ShopItemSeed[] RandomPool,
+        int MaxRandomItems
+    );
+
+    private sealed record ShopStockEntry(string ItemId, ItemDef ItemDef, int Quantity, int UnitPrice);
+    private sealed record SellInventoryEntry(string ItemId, ItemDef ItemDef, int TotalQuantity, string InstanceId);
+
+    private static readonly ShopDefinition[] ShopDefs =
+    {
+        new(
+            "service_basic_supply",
+            "village_basic_supply",
+            "临时补给",
+            12,
+            new[]
+            {
+                new ShopItemSeed(ShopItemId.HealingHerb, 2, 4),
+                new ShopItemSeed(ShopItemId.TravelRation, 2, 4),
+            },
+            new[]
+            {
+                new ShopItemSeed(ShopItemId.BandageRoll, 1, 3, 6),
+                new ShopItemSeed(ShopItemId.TorchBundle, 1, 3, 5),
+                new ShopItemSeed(ShopItemId.AntidoteHerb, 1, 2, 4, 11000),
+                new ShopItemSeed(ShopItemId.IronOre, 1, 2, 2),
+            },
+            2
+        ),
+        new(
+            "service_local_trade",
+            "town_local_trade",
+            "镇集交易",
+            10,
+            new[]
+            {
+                new ShopItemSeed(ShopItemId.HealingHerb, 3, 6, PriceBasisPoints: 9500),
+                new ShopItemSeed(ShopItemId.BandageRoll, 2, 4),
+                new ShopItemSeed(ShopItemId.TravelRation, 2, 5, PriceBasisPoints: 9500),
+                new ShopItemSeed(ShopItemId.BeastHide, 2, 4),
+                new ShopItemSeed(ShopItemId.BronzeSword, 1, 1),
+                new ShopItemSeed(ShopItemId.MilitiaAxe, 1, 1),
+                new ShopItemSeed(ShopItemId.LeatherCap, 1, 1),
+                new ShopItemSeed(ShopItemId.LeatherJerkin, 1, 1),
+            },
+            new[]
+            {
+                new ShopItemSeed(ShopItemId.TorchBundle, 1, 3, 4),
+                new ShopItemSeed(ShopItemId.AntidoteHerb, 1, 3, 4),
+                new ShopItemSeed(ShopItemId.IronOre, 2, 4, 3),
+                new ShopItemSeed(ShopItemId.ScoutCharm, 1, 1, 2, 11000),
+                new ShopItemSeed(ShopItemId.IronGreatsword, 1, 1, 1, 11500),
+            },
+            4
+        ),
+        new(
+            "service_city_market",
+            "city_market",
+            "城市市场",
+            8,
+            new[]
+            {
+                new ShopItemSeed(ShopItemId.BronzeSword, 1, 1, PriceBasisPoints: 9500),
+                new ShopItemSeed(ShopItemId.MilitiaAxe, 1, 1),
+                new ShopItemSeed(ShopItemId.WatchmanMace, 1, 1),
+                new ShopItemSeed(ShopItemId.LeatherCap, 1, 1, PriceBasisPoints: 9500),
+                new ShopItemSeed(ShopItemId.LeatherJerkin, 1, 1, PriceBasisPoints: 9500),
+                new ShopItemSeed(ShopItemId.ScoutCharm, 1, 1),
+                new ShopItemSeed(ShopItemId.IronGreatsword, 1, 1),
+                new ShopItemSeed(ShopItemId.AntidoteHerb, 2, 4, PriceBasisPoints: 9500),
+                new ShopItemSeed(ShopItemId.HardwoodLumber, 3, 6, PriceBasisPoints: 9500),
+                new ShopItemSeed(ShopItemId.LinenCloth, 3, 6, PriceBasisPoints: 9500),
+            },
+            new[]
+            {
+                new ShopItemSeed(ShopItemId.BandageRoll, 2, 4, 5, 9500),
+                new ShopItemSeed(ShopItemId.TravelRation, 2, 5, 4, 9000),
+                new ShopItemSeed(ShopItemId.TorchBundle, 1, 3, 3, 9500),
+                new ShopItemSeed(ShopItemId.IronOre, 3, 6, 2, 9500),
+            },
+            4
+        ),
+        new(
+            "service_military_supply",
+            "capital_military_supply",
+            "军需总署",
+            6,
+            new[]
+            {
+                new ShopItemSeed(ShopItemId.IronGreatsword, 1, 1, PriceBasisPoints: 9500),
+                new ShopItemSeed(ShopItemId.LeatherJerkin, 1, 1, PriceBasisPoints: 9000),
+                new ShopItemSeed(ShopItemId.BandageRoll, 3, 5, PriceBasisPoints: 9000),
+            },
+            new[]
+            {
+                new ShopItemSeed(ShopItemId.BronzeSword, 1, 1, 2, 9000),
+                new ShopItemSeed(ShopItemId.ScoutCharm, 1, 1, 3, 9500),
+                new ShopItemSeed(ShopItemId.AntidoteHerb, 2, 4, 5, 9000),
+            },
+            3
+        ),
+        new(
+            "service_grand_auction",
+            "metropolis_grand_auction",
+            "大拍卖行",
+            5,
+            new[]
+            {
+                new ShopItemSeed(ShopItemId.IronGreatsword, 1, 1, PriceBasisPoints: 11000),
+                new ShopItemSeed(ShopItemId.ScoutCharm, 1, 1, PriceBasisPoints: 10500),
+            },
+            new[]
+            {
+                new ShopItemSeed(ShopItemId.BronzeSword, 1, 1, 1),
+                new ShopItemSeed(ShopItemId.LeatherJerkin, 1, 1, 1),
+                new ShopItemSeed(ShopItemId.AntidoteHerb, 2, 4, 3),
+                new ShopItemSeed(ShopItemId.TorchBundle, 2, 4, 2),
+            },
+            4
+        ),
     };
 
     private readonly RandomNumberGenerator _rng = new();
 
-    public Godot.Collections.Dictionary build_window_data(string interactionScriptId, Godot.Collections.Dictionary settlementRecord, Godot.Collections.Dictionary settlementState, Godot.Collections.Dictionary itemDefs, GodotObject warehouseService, int currentGold) { var shopDef = get_shop_def(interactionScriptId); if (shopDef.Count == 0) return new Godot.Collections.Dictionary(); var worldStep = settlementState.ContainsKey("world_step") ? settlementState["world_step"].AsInt32() : 0; var shopState = _get_or_refresh_shop_state(shopDef, settlementRecord, settlementState, itemDefs, worldStep); var buyEntries = new Godot.Collections.Array<Godot.Collections.Dictionary>(); foreach (var ev in _get_shop_current_inventory(shopState)) { var stockEntry = _parse_shop_stock_entry(ev, itemDefs); if (stockEntry.Count == 0) continue; var itemId = (StringName)stockEntry["item_id"]; var itemDef = stockEntry.ContainsKey("item_def") ? stockEntry["item_def"].AsGodotObject() as ItemDef : null; var quantity = stockEntry["quantity"].AsInt32(); var unitPrice = stockEntry["unit_price"].AsInt32(); var canBuy = quantity > 0 && currentGold >= unitPrice; buyEntries.Add(new Godot.Collections.Dictionary { { "item_id", (string)itemId }, { "display_name", itemDef != null && itemDef.display_name.Length > 0 ? itemDef.display_name : (string)itemId }, { "description", itemDef != null ? itemDef.description : "" }, { "icon", itemDef != null ? itemDef.icon : "" }, { "quantity", quantity }, { "unit_price", unitPrice }, { "stock_text", quantity <= 0 ? "售罄" : $"库存 {quantity}" }, { "can_buy", canBuy }, { "disabled_reason", canBuy ? "" : (quantity <= 0 ? "库存不足" : "金币不足") } }); } var sellEntries = new Godot.Collections.Array<Godot.Collections.Dictionary>(); if (warehouseService != null) { foreach (var entryData in warehouseService.Call("get_inventory_entries").AsGodotArray()) { var sellSource = _parse_sell_inventory_entry(entryData, itemDefs); if (sellSource.Count == 0) continue; var itemId = (StringName)sellSource["item_id"]; var itemDef = sellSource.ContainsKey("item_def") ? sellSource["item_def"].AsGodotObject() as ItemDef : null; if (itemDef == null || !itemDef.sellable) continue; var totalQuantity = sellSource["total_quantity"].AsInt32(); var unitPrice = _resolve_sell_price(itemDef); if (unitPrice <= 0) continue; sellEntries.Add(new Godot.Collections.Dictionary { { "item_id", (string)itemId }, { "instance_id", sellSource.ContainsKey("instance_id") ? sellSource["instance_id"].AsString() : "" }, { "display_name", itemDef != null && itemDef.display_name.Length > 0 ? itemDef.display_name : (string)itemId }, { "description", itemDef != null ? itemDef.description : "" }, { "icon", itemDef != null ? itemDef.icon : "" }, { "quantity", totalQuantity }, { "unit_price", unitPrice }, { "stock_text", _build_sell_stock_text(totalQuantity, sellSource.ContainsKey("instance_id") ? sellSource["instance_id"].AsString() : "") }, { "can_sell", true }, { "disabled_reason", "" } }); } } _sort_sell_entries(sellEntries); var displayName = settlementRecord.ContainsKey("display_name") ? settlementRecord["display_name"].AsString() : "据点"; var shopTitle = shopDef.ContainsKey("title") ? shopDef["title"].AsString() : "交易"; var gold = Mathf.Max(currentGold, 0); return new Godot.Collections.Dictionary { { "title", $"{displayName} · {shopTitle}" }, { "meta", $"商店：{shopTitle}  |  金币：{gold}" }, { "shop_id", shopDef.ContainsKey("shop_id") ? shopDef["shop_id"].AsString() : "" }, { "interaction_script_id", interactionScriptId }, { "settlement_id", settlementRecord.ContainsKey("settlement_id") ? settlementRecord["settlement_id"].AsString() : "" }, { "panel_kind", "shop" }, { "gold", gold }, { "buy_entries", buyEntries }, { "sell_entries", sellEntries }, { "feedback_text", settlementState.ContainsKey("shop_feedback_text") ? settlementState["shop_feedback_text"].AsString() : "" }, { "confirm_label", "确认交易" }, { "cancel_label", "返回据点" }, { "show_member_selector", true }, { "entry_title", "交易条目" }, { "summary_title", "交易概况" }, { "state_title", "交易状态" }, { "cost_title", "交易费用" }, { "details_title", "交易说明" }, { "member_title", "交易成员" }, { "empty_state_label", "状态：暂无商品" }, { "empty_cost_label", "费用：暂无商品" }, { "empty_details_text", "当前没有可交易条目。" } }; }
+    public GDictionary build_window_data(
+        string interactionScriptId,
+        GDictionary settlementRecord,
+        GDictionary settlementState,
+        GDictionary itemDefs,
+        GodotObject warehouseService,
+        int currentGold)
+    {
+        ShopDefinition shopDef = ResolveShopDef(interactionScriptId);
+        if (shopDef == null)
+        {
+            return new GDictionary();
+        }
 
-    public Godot.Collections.Dictionary buy(string interactionScriptId, Godot.Collections.Dictionary settlementRecord, Godot.Collections.Dictionary settlementState, Godot.Collections.Dictionary itemDefs, GodotObject warehouseService, GodotObject partyState, StringName itemId, int quantity, StringName instanceId = default) { var shopDef = get_shop_def(interactionScriptId); if (shopDef.Count == 0) return _build_fail("当前据点没有可交易的商店。"); if (warehouseService == null || partyState == null) return _build_fail("商店服务尚未准备完成。"); var requestedQuantity = Mathf.Max(quantity, 0); if (requestedQuantity <= 0) return _build_fail("购买数量必须大于 0。"); var worldStep = settlementState.ContainsKey("world_step") ? settlementState["world_step"].AsInt32() : 0; var shopState = _get_or_refresh_shop_state(shopDef, settlementRecord, settlementState, itemDefs, worldStep); var normalizedItemId = ProgressionDataUtils.to_string_name(itemId); var stockEntry = _find_inventory_entry(shopState, normalizedItemId, itemDefs); if (stockEntry.Count == 0) return _build_fail("当前商店没有该商品。"); var availableQuantity = stockEntry["quantity"].AsInt32(); if (availableQuantity <= 0) return _build_fail("该商品当前已售罄。"); var actualQuantity = Mathf.Min(requestedQuantity, availableQuantity); var unitPrice = stockEntry["unit_price"].AsInt32(); var totalCost = unitPrice * actualQuantity; if (partyState.HasMethod("can_afford") && !partyState.Call("can_afford", totalCost).AsBool()) return _build_fail($"金币不足，无法购买 {(string)normalizedItemId}。"); var preview = warehouseService.Call("preview_add_item", normalizedItemId, actualQuantity).AsGodotDictionary(); if (preview.ContainsKey("remaining_quantity") && preview["remaining_quantity"].AsInt32() > 0) return _build_fail("共享仓库空间不足，无法购买该商品。"); var addResult = warehouseService.Call("add_item", normalizedItemId, actualQuantity).AsGodotDictionary(); var addedQuantity = addResult.ContainsKey("added_quantity") ? addResult["added_quantity"].AsInt32() : 0; if (addedQuantity <= 0) return _build_fail("当前无法将商品放入共享仓库。"); var spendCost = unitPrice * addedQuantity; if (partyState.HasMethod("spend_gold")) partyState.Call("spend_gold", spendCost); else partyState.Set("gold", Mathf.Max(partyState.Get("gold").AsInt32() - spendCost, 0)); _consume_shop_stock(shopState, normalizedItemId, addedQuantity, itemDefs); var feedback = $"购入 {addedQuantity} 件 {(string)normalizedItemId}，花费 {spendCost} 金。"; settlementState["shop_feedback_text"] = feedback; return new Godot.Collections.Dictionary { { "success", true }, { "message", feedback }, { "gold_delta", -spendCost }, { "item_id", (string)normalizedItemId }, { "quantity", addedQuantity } }; }
+        int worldStep = GetInt(settlementState, "world_step");
+        GDictionary shopState = GetOrRefreshShopState(shopDef, settlementState, itemDefs, worldStep);
+        var buyEntries = new GDictionaryArray();
+        foreach (GDictionary inventoryEntry in GetShopCurrentInventory(shopState))
+        {
+            ShopStockEntry stockEntry = ParseShopStockEntry(inventoryEntry, itemDefs);
+            if (stockEntry == null)
+            {
+                continue;
+            }
 
-    public Godot.Collections.Dictionary sell(string interactionScriptId, Godot.Collections.Dictionary settlementRecord, Godot.Collections.Dictionary settlementState, Godot.Collections.Dictionary itemDefs, GodotObject warehouseService, GodotObject partyState, StringName itemId, int quantity, StringName instanceId = default) { var shopDef = get_shop_def(interactionScriptId); if (shopDef.Count == 0) return _build_fail("当前据点没有可交易的商店。"); if (warehouseService == null || partyState == null) return _build_fail("商店服务尚未准备完成。"); var requestedQuantity = Mathf.Max(quantity, 0); if (requestedQuantity <= 0) return _build_fail("出售数量必须大于 0。"); var normalizedItemId = ProgressionDataUtils.to_string_name(itemId); var normalizedInstanceId = ProgressionDataUtils.to_string_name(instanceId); var itemDef = itemDefs.ContainsKey(normalizedItemId) ? itemDefs[normalizedItemId].AsGodotObject() as ItemDef : null; if (itemDef == null) return _build_fail("未找到该物品的定义。"); if (!itemDef.sellable) return _build_fail($"{(itemDef.display_name.Length > 0 ? itemDef.display_name : (string)normalizedItemId)} 当前不能出售。"); var unitPrice = _resolve_sell_price(itemDef); if (unitPrice <= 0) return _build_fail($"{(itemDef.display_name.Length > 0 ? itemDef.display_name : (string)normalizedItemId)} 当前没有有效回收价格。"); var ownedQuantity = warehouseService.Call("count_item", normalizedItemId).AsInt32(); if (ownedQuantity <= 0) return _build_fail("共享仓库中没有该物品。"); var actualQuantity = Mathf.Min(requestedQuantity, ownedQuantity); Godot.Collections.Dictionary removeResult; if (itemDef.is_equipment()) { if (normalizedInstanceId == "" && ownedQuantity > 1) return _build_fail($"请选择要出售的 {(itemDef.display_name.Length > 0 ? itemDef.display_name : (string)normalizedItemId)} 装备实例。"); actualQuantity = 1; if (normalizedInstanceId != "") removeResult = warehouseService.Call("remove_equipment_instance", normalizedItemId, normalizedInstanceId).AsGodotDictionary(); else removeResult = warehouseService.Call("remove_item", normalizedItemId, 1).AsGodotDictionary(); } else { removeResult = warehouseService.Call("remove_item", normalizedItemId, actualQuantity).AsGodotDictionary(); } var removedQuantity = removeResult.ContainsKey("removed_quantity") ? removeResult["removed_quantity"].AsInt32() : 0; if (removedQuantity <= 0) return _build_fail(_build_sell_remove_failure_message(itemDef, normalizedItemId, removeResult)); var totalGain = unitPrice * removedQuantity; if (partyState.HasMethod("add_gold")) partyState.Call("add_gold", totalGain); else partyState.Set("gold", Mathf.Max(partyState.Get("gold").AsInt32() + totalGain, 0)); var feedback = $"售出 {removedQuantity} 件 {(itemDef.display_name.Length > 0 ? itemDef.display_name : (string)normalizedItemId)}，获得 {totalGain} 金。"; settlementState["shop_feedback_text"] = feedback; return new Godot.Collections.Dictionary { { "success", true }, { "message", feedback }, { "gold_delta", totalGain }, { "item_id", (string)normalizedItemId }, { "instance_id", (string)normalizedInstanceId }, { "quantity", removedQuantity } }; }
+            bool canBuy = stockEntry.Quantity > 0 && currentGold >= stockEntry.UnitPrice;
+            buyEntries.Add(new GDictionary
+            {
+                { "item_id", stockEntry.ItemId },
+                { "display_name", GetItemDisplayName(stockEntry.ItemDef, stockEntry.ItemId) },
+                { "description", stockEntry.ItemDef?.description ?? "" },
+                { "icon", stockEntry.ItemDef?.icon ?? "" },
+                { "quantity", stockEntry.Quantity },
+                { "unit_price", stockEntry.UnitPrice },
+                { "stock_text", stockEntry.Quantity <= 0 ? "售罄" : $"库存 {stockEntry.Quantity}" },
+                { "can_buy", canBuy },
+                { "disabled_reason", canBuy ? "" : stockEntry.Quantity <= 0 ? "库存不足" : "金币不足" },
+            });
+        }
 
-    public Godot.Collections.Dictionary get_shop_def(string interactionScriptId) => ShopDefs.ContainsKey(interactionScriptId) ? ShopDefs[interactionScriptId].AsGodotDictionary().Duplicate(true) : new Godot.Collections.Dictionary();
+        var sellEntries = new GDictionaryArray();
+        if (warehouseService is PartyWarehouseService warehouse)
+        {
+            foreach (GDictionary entryData in warehouse.get_inventory_entries())
+            {
+                SellInventoryEntry sellSource = ParseSellInventoryEntry(entryData, itemDefs);
+                if (sellSource == null || sellSource.ItemDef == null || !sellSource.ItemDef.sellable)
+                {
+                    continue;
+                }
 
-    private Godot.Collections.Dictionary _get_or_refresh_shop_state(Godot.Collections.Dictionary shopDef, Godot.Collections.Dictionary settlementRecord, Godot.Collections.Dictionary settlementState, Godot.Collections.Dictionary itemDefs, int currentWorldStep) { var shopStatesVariant = settlementState.ContainsKey("shop_states") ? settlementState["shop_states"] : default(Variant); var shopStates = shopStatesVariant.VariantType == Variant.Type.Dictionary ? shopStatesVariant.AsGodotDictionary() : new Godot.Collections.Dictionary(); var shopId = shopDef.ContainsKey("shop_id") ? shopDef["shop_id"].AsString() : ""; var storedStateVariant = shopStates.ContainsKey(shopId) ? shopStates[shopId] : default(Variant); var shopState = storedStateVariant.VariantType == Variant.Type.Dictionary ? storedStateVariant.AsGodotDictionary().Duplicate(true) : new Godot.Collections.Dictionary(); var refreshInterval = Mathf.Max(shopDef.ContainsKey("refresh_interval_steps") ? shopDef["refresh_interval_steps"].AsInt32() : 0, 0); var needsRefresh = shopState.Count == 0 || (refreshInterval > 0 && currentWorldStep - (shopState.ContainsKey("last_refresh_step") ? shopState["last_refresh_step"].AsInt32() : -refreshInterval) >= refreshInterval); if (needsRefresh) { shopState = _generate_shop_state(shopDef, settlementRecord, itemDefs, currentWorldStep); shopStates[shopId] = shopState.Duplicate(true); settlementState["shop_states"] = shopStates; } settlementState["shop_last_refresh_step"] = shopState.ContainsKey("last_refresh_step") ? shopState["last_refresh_step"].AsInt32() : 0; return shopState; }
+                int unitPrice = ResolveSellPrice(sellSource.ItemDef);
+                if (unitPrice <= 0)
+                {
+                    continue;
+                }
 
-    private Godot.Collections.Dictionary _generate_shop_state(Godot.Collections.Dictionary shopDef, Godot.Collections.Dictionary _settlementRecord, Godot.Collections.Dictionary itemDefs, int currentWorldStep) { var shopId = shopDef.ContainsKey("shop_id") ? shopDef["shop_id"].AsString() : ""; var seed = TrueRandomSeedService.GenerateSeed(); _rng.Seed = (ulong)seed; var inventory = new Godot.Collections.Array<Godot.Collections.Dictionary>(); foreach (var ev in shopDef.ContainsKey("guaranteed_items") ? shopDef["guaranteed_items"].AsGodotArray() : new Godot.Collections.Array()) { var built = _build_shop_entry(ev, itemDefs); if (built.Count > 0) inventory.Add(built); } var randomPool = shopDef.ContainsKey("random_pool") ? shopDef["random_pool"].AsGodotArray().Duplicate(true) : new Godot.Collections.Array(); var maxRandomItems = Mathf.Max(shopDef.ContainsKey("max_random_items") ? shopDef["max_random_items"].AsInt32() : 0, 0); for (int i = 0; i < maxRandomItems; i++) { var picked = _pick_weighted_random_entry(randomPool, _rng); if (picked.Count == 0) break; var built = _build_shop_entry(picked, itemDefs); if (built.Count > 0) _merge_shop_entry(inventory, built); } return new Godot.Collections.Dictionary { { "shop_id", shopId }, { "current_inventory", inventory }, { "seed", seed }, { "last_refresh_step", currentWorldStep } }; }
+                sellEntries.Add(new GDictionary
+                {
+                    { "item_id", sellSource.ItemId },
+                    { "instance_id", sellSource.InstanceId },
+                    { "display_name", GetItemDisplayName(sellSource.ItemDef, sellSource.ItemId) },
+                    { "description", sellSource.ItemDef.description },
+                    { "icon", sellSource.ItemDef.icon },
+                    { "quantity", sellSource.TotalQuantity },
+                    { "unit_price", unitPrice },
+                    { "stock_text", BuildSellStockText(sellSource.TotalQuantity, sellSource.InstanceId) },
+                    { "can_sell", true },
+                    { "disabled_reason", "" },
+                });
+            }
+        }
 
-    private Godot.Collections.Dictionary _build_shop_entry(Variant entryVariant, Godot.Collections.Dictionary itemDefs) { if (entryVariant.VariantType != Variant.Type.Dictionary) return new Godot.Collections.Dictionary(); var source = entryVariant.AsGodotDictionary(); var itemId = ProgressionDataUtils.to_string_name(source.ContainsKey("item_id") ? source["item_id"] : ""); var itemDef = itemDefs.ContainsKey(itemId) ? itemDefs[itemId].AsGodotObject() as ItemDef : null; if (itemId == "" || itemDef == null) return new Godot.Collections.Dictionary(); var minQty = Mathf.Max(source.ContainsKey("min_qty") ? source["min_qty"].AsInt32() : 1, 1); var maxQty = Mathf.Max(source.ContainsKey("max_qty") ? source["max_qty"].AsInt32() : minQty, minQty); var quantity = _rng.RandiRange(minQty, maxQty); var unitPrice = _resolve_buy_price(itemDef, source.ContainsKey("price_basis_points") ? source["price_basis_points"].AsInt32() : PriceBasisPointsDefault); if (unitPrice <= 0) return new Godot.Collections.Dictionary(); return new Godot.Collections.Dictionary { { "item_id", itemId }, { "quantity", quantity }, { "unit_price", unitPrice }, { "sold_out", false } }; }
+        SortSellEntries(sellEntries);
+        string displayName = GetString(settlementRecord, "display_name", "据点");
+        int gold = Mathf.Max(currentGold, 0);
+        return new GDictionary
+        {
+            { "title", $"{displayName} · {shopDef.Title}" },
+            { "meta", $"商店：{shopDef.Title}  |  金币：{gold}" },
+            { "shop_id", shopDef.ShopId },
+            { "interaction_script_id", interactionScriptId },
+            { "settlement_id", GetString(settlementRecord, "settlement_id") },
+            { "panel_kind", "shop" },
+            { "gold", gold },
+            { "buy_entries", buyEntries },
+            { "sell_entries", sellEntries },
+            { "feedback_text", GetString(settlementState, "shop_feedback_text") },
+            { "confirm_label", "确认交易" },
+            { "cancel_label", "返回据点" },
+            { "show_member_selector", true },
+            { "entry_title", "交易条目" },
+            { "summary_title", "交易概况" },
+            { "state_title", "交易状态" },
+            { "cost_title", "交易费用" },
+            { "details_title", "交易说明" },
+            { "member_title", "交易成员" },
+            { "empty_state_label", "状态：暂无商品" },
+            { "empty_cost_label", "费用：暂无商品" },
+            { "empty_details_text", "当前没有可交易条目。" },
+        };
+    }
 
-    private static void _merge_shop_entry(Godot.Collections.Array<Godot.Collections.Dictionary> inventory, Godot.Collections.Dictionary builtEntry) { var itemId = builtEntry.ContainsKey("item_id") ? builtEntry["item_id"].AsString() : ""; for (int i = 0; i < inventory.Count; i++) { var existing = inventory[i]; if (!existing.ContainsKey("item_id") || existing["item_id"].AsString() != itemId) continue; existing["quantity"] = (existing.ContainsKey("quantity") ? existing["quantity"].AsInt32() : 0) + (builtEntry.ContainsKey("quantity") ? builtEntry["quantity"].AsInt32() : 0); inventory[i] = existing; return; } inventory.Add(builtEntry); }
+    public GDictionary buy(
+        string interactionScriptId,
+        GDictionary settlementRecord,
+        GDictionary settlementState,
+        GDictionary itemDefs,
+        GodotObject warehouseService,
+        GodotObject partyState,
+        StringName itemId,
+        int quantity,
+        StringName instanceId = default)
+    {
+        ShopDefinition shopDef = ResolveShopDef(interactionScriptId);
+        if (shopDef == null)
+        {
+            return BuildFail("当前据点没有可交易的商店。");
+        }
+        if (warehouseService == null || partyState == null)
+        {
+            return BuildFail("商店服务尚未准备完成。");
+        }
+        var warehouse = (PartyWarehouseService)warehouseService;
+        var party = (PartyState)partyState;
 
-    private static Godot.Collections.Dictionary _pick_weighted_random_entry(Godot.Collections.Array pool, RandomNumberGenerator rng) { int totalWeight = 0; foreach (var ev in pool) { if (ev.VariantType != Variant.Type.Dictionary) continue; totalWeight += Mathf.Max(ev.AsGodotDictionary().ContainsKey("weight") ? ev.AsGodotDictionary()["weight"].AsInt32() : 0, 0); } if (totalWeight <= 0) return new Godot.Collections.Dictionary(); int roll = rng.RandiRange(1, totalWeight); int cursor = 0; foreach (var ev in pool) { if (ev.VariantType != Variant.Type.Dictionary) continue; var entry = ev.AsGodotDictionary(); cursor += Mathf.Max(entry.ContainsKey("weight") ? entry["weight"].AsInt32() : 0, 0); if (roll <= cursor) return entry; } return new Godot.Collections.Dictionary(); }
+        int requestedQuantity = Mathf.Max(quantity, 0);
+        if (requestedQuantity <= 0)
+        {
+            return BuildFail("购买数量必须大于 0。");
+        }
 
-    private static int _resolve_buy_price(ItemDef itemDef, int priceBasisPoints) { if (itemDef != null) { var price = itemDef.get_buy_price(priceBasisPoints); if (price > 0) return price; } return 0; }
+        int worldStep = GetInt(settlementState, "world_step");
+        GDictionary shopState = GetOrRefreshShopState(shopDef, settlementState, itemDefs, worldStep);
+        string normalizedItemId = NormalizeId(itemId);
+        ShopStockEntry stockEntry = FindInventoryEntry(shopState, normalizedItemId, itemDefs);
+        if (stockEntry == null)
+        {
+            return BuildFail("当前商店没有该商品。");
+        }
+        if (stockEntry.Quantity <= 0)
+        {
+            return BuildFail("该商品当前已售罄。");
+        }
 
-    private static int _resolve_sell_price(ItemDef itemDef) { if (itemDef != null) { var price = itemDef.get_sell_price(); if (price > 0) return price; } return 0; }
+        int actualQuantity = Mathf.Min(requestedQuantity, stockEntry.Quantity);
+        int totalCost = stockEntry.UnitPrice * actualQuantity;
+        if (!party.can_afford(totalCost))
+        {
+            return BuildFail($"金币不足，无法购买 {normalizedItemId}。");
+        }
 
-    private Godot.Collections.Dictionary _find_inventory_entry(Godot.Collections.Dictionary shopState, StringName itemId, Godot.Collections.Dictionary itemDefs) { foreach (var ev in _get_shop_current_inventory(shopState)) { var stockEntry = _parse_shop_stock_entry(ev, itemDefs); if (stockEntry.Count == 0) continue; if ((StringName)stockEntry["item_id"] == itemId) return stockEntry; } return new Godot.Collections.Dictionary(); }
+        var itemIdName = new StringName(normalizedItemId);
+        GDictionary preview = warehouse.preview_add_item(itemIdName, actualQuantity);
+        if (GetInt(preview, "remaining_quantity") > 0)
+        {
+            return BuildFail("共享仓库空间不足，无法购买该商品。");
+        }
 
-    private static void _consume_shop_stock(Godot.Collections.Dictionary shopState, StringName itemId, int quantity, Godot.Collections.Dictionary itemDefs) { var inventory = _get_shop_current_inventory(shopState); for (int i = 0; i < inventory.Count; i++) { var stockEntry = _parse_shop_stock_entry(inventory[i], itemDefs); if (stockEntry.Count == 0 || (StringName)stockEntry["item_id"] != itemId) continue; var entryData = inventory[i]; var remaining = stockEntry["quantity"].AsInt32() - Mathf.Max(quantity, 0); if (remaining <= 0) inventory.RemoveAt(i); else { entryData["quantity"] = remaining; entryData["sold_out"] = false; inventory[i] = entryData; } break; } shopState["current_inventory"] = inventory; }
+        GDictionary addResult = warehouse.add_item(itemIdName, actualQuantity);
+        int addedQuantity = GetInt(addResult, "added_quantity");
+        if (addedQuantity <= 0)
+        {
+            return BuildFail("当前无法将商品放入共享仓库。");
+        }
 
-    private static Godot.Collections.Array<Godot.Collections.Dictionary> _get_shop_current_inventory(Godot.Collections.Dictionary shopState) { if (!shopState.ContainsKey("current_inventory")) return new Godot.Collections.Array<Godot.Collections.Dictionary>(); var inv = shopState["current_inventory"]; if (inv.VariantType != Variant.Type.Array) return new Godot.Collections.Array<Godot.Collections.Dictionary>(); var result = new Godot.Collections.Array<Godot.Collections.Dictionary>(); foreach (var v in inv.AsGodotArray()) { if (v.VariantType == Variant.Type.Dictionary) result.Add(v.AsGodotDictionary()); } return result; }
+        int spendCost = stockEntry.UnitPrice * addedQuantity;
+        party.spend_gold(spendCost);
 
-    private static Godot.Collections.Dictionary _parse_shop_stock_entry(Variant entryVariant, Godot.Collections.Dictionary itemDefs) { if (entryVariant.VariantType != Variant.Type.Dictionary) return new Godot.Collections.Dictionary(); var entryData = entryVariant.AsGodotDictionary(); if (!_has_only_allowed_keys(entryData, ShopStockEntryKeys)) return new Godot.Collections.Dictionary(); if (!_has_non_empty_string(entryData, "item_id")) return new Godot.Collections.Dictionary(); if (!_has_positive_int(entryData, "quantity")) return new Godot.Collections.Dictionary(); if (!_has_positive_int(entryData, "unit_price")) return new Godot.Collections.Dictionary(); if (entryData.ContainsKey("sold_out")) { if (entryData["sold_out"].VariantType != Variant.Type.Bool) return new Godot.Collections.Dictionary(); if (entryData["sold_out"].AsBool()) return new Godot.Collections.Dictionary(); } var itemId = new StringName(entryData["item_id"].AsString().StripEdges()); var itemDef = itemDefs.ContainsKey(itemId) ? itemDefs[itemId].AsGodotObject() as ItemDef : null; if (itemDef == null) return new Godot.Collections.Dictionary(); return new Godot.Collections.Dictionary { { "item_id", itemId }, { "item_def", itemDef }, { "quantity", entryData["quantity"].AsInt32() }, { "unit_price", entryData["unit_price"].AsInt32() } }; }
+        ConsumeShopStock(shopState, normalizedItemId, addedQuantity, itemDefs);
+        string feedback = $"购入 {addedQuantity} 件 {normalizedItemId}，花费 {spendCost} 金。";
+        settlementState["shop_feedback_text"] = feedback;
+        return new GDictionary
+        {
+            { "success", true },
+            { "message", feedback },
+            { "gold_delta", -spendCost },
+            { "item_id", normalizedItemId },
+            { "quantity", addedQuantity },
+        };
+    }
 
-    private static Godot.Collections.Dictionary _parse_sell_inventory_entry(Variant entryVariant, Godot.Collections.Dictionary itemDefs) { if (entryVariant.VariantType != Variant.Type.Dictionary) return new Godot.Collections.Dictionary(); var entryData = entryVariant.AsGodotDictionary(); if (!_has_non_empty_string(entryData, "item_id")) return new Godot.Collections.Dictionary(); if (!_has_positive_int(entryData, "total_quantity")) return new Godot.Collections.Dictionary(); string instanceId = ""; if (entryData.ContainsKey("instance_id")) { if (entryData["instance_id"].VariantType != Variant.Type.String) return new Godot.Collections.Dictionary(); instanceId = entryData["instance_id"].AsString().StripEdges(); } var itemId = new StringName(entryData["item_id"].AsString().StripEdges()); var itemDef = itemDefs.ContainsKey(itemId) ? itemDefs[itemId].AsGodotObject() as ItemDef : null; if (itemDef == null) return new Godot.Collections.Dictionary(); return new Godot.Collections.Dictionary { { "item_id", itemId }, { "item_def", itemDef }, { "total_quantity", string.IsNullOrEmpty(instanceId) ? entryData["total_quantity"].AsInt32() : 1 }, { "instance_id", instanceId } }; }
+    public GDictionary sell(
+        string interactionScriptId,
+        GDictionary settlementRecord,
+        GDictionary settlementState,
+        GDictionary itemDefs,
+        GodotObject warehouseService,
+        GodotObject partyState,
+        StringName itemId,
+        int quantity,
+        StringName instanceId = default)
+    {
+        ShopDefinition shopDef = ResolveShopDef(interactionScriptId);
+        if (shopDef == null)
+        {
+            return BuildFail("当前据点没有可交易的商店。");
+        }
+        if (warehouseService == null || partyState == null)
+        {
+            return BuildFail("商店服务尚未准备完成。");
+        }
+        var warehouse = (PartyWarehouseService)warehouseService;
+        var party = (PartyState)partyState;
 
-    private static string _build_sell_stock_text(int totalQuantity, string instanceId) => !string.IsNullOrEmpty(instanceId) ? $"持有 1 · 实例 {instanceId}" : $"持有 {totalQuantity}";
+        int requestedQuantity = Mathf.Max(quantity, 0);
+        if (requestedQuantity <= 0)
+        {
+            return BuildFail("出售数量必须大于 0。");
+        }
 
-    private static string _build_sell_remove_failure_message(ItemDef itemDef, StringName itemId, Godot.Collections.Dictionary removeResult) { var itemName = itemDef != null && itemDef.display_name.Length > 0 ? itemDef.display_name : (string)itemId; var errorCode = removeResult.ContainsKey("error_code") ? removeResult["error_code"].AsString() : ""; switch (errorCode) { case "equipment_instance_id_required": return $"请选择要出售的 {itemName} 装备实例。"; case "warehouse_missing_instance": return $"共享仓库中没有指定的 {itemName} 装备实例。"; case "equipment_instance_item_mismatch": return $"指定装备实例不属于 {itemName}。"; default: return "当前无法出售该物品。"; } }
+        string normalizedItemId = NormalizeId(itemId);
+        string normalizedInstanceId = NormalizeId(instanceId);
+        ItemDef itemDef = GetItemDef(itemDefs, normalizedItemId);
+        if (itemDef == null)
+        {
+            return BuildFail("未找到该物品的定义。");
+        }
+        if (!itemDef.sellable)
+        {
+            return BuildFail($"{GetItemDisplayName(itemDef, normalizedItemId)} 当前不能出售。");
+        }
 
-    private static bool _has_only_allowed_keys(Godot.Collections.Dictionary data, Godot.Collections.Dictionary allowedKeys) { foreach (var key in data.Keys) { if (key.VariantType != Variant.Type.String) return false; if (!allowedKeys.ContainsKey(key.AsString())) return false; } return true; }
+        int unitPrice = ResolveSellPrice(itemDef);
+        if (unitPrice <= 0)
+        {
+            return BuildFail($"{GetItemDisplayName(itemDef, normalizedItemId)} 当前没有有效回收价格。");
+        }
 
-    private static bool _has_non_empty_string(Godot.Collections.Dictionary data, string fieldName) { if (!data.ContainsKey(fieldName)) return false; if (data[fieldName].VariantType != Variant.Type.String) return false; return data[fieldName].AsString().StripEdges().Length > 0; }
+        var itemIdName = new StringName(normalizedItemId);
+        var instanceIdName = new StringName(normalizedInstanceId);
+        int ownedQuantity = warehouse.count_item(itemIdName);
+        if (ownedQuantity <= 0)
+        {
+            return BuildFail("共享仓库中没有该物品。");
+        }
 
-    private static bool _has_positive_int(Godot.Collections.Dictionary data, string fieldName) { if (!data.ContainsKey(fieldName)) return false; if (data[fieldName].VariantType != Variant.Type.Int) return false; return data[fieldName].AsInt32() > 0; }
+        int actualQuantity = Mathf.Min(requestedQuantity, ownedQuantity);
+        GDictionary removeResult;
+        if (itemDef.is_equipment())
+        {
+            if (string.IsNullOrEmpty(normalizedInstanceId) && ownedQuantity > 1)
+            {
+                return BuildFail($"请选择要出售的 {GetItemDisplayName(itemDef, normalizedItemId)} 装备实例。");
+            }
 
-    private static void _sort_sell_entries(Godot.Collections.Array<Godot.Collections.Dictionary> entries) { for (int i = 0; i < entries.Count - 1; i++) { for (int j = i + 1; j < entries.Count; j++) { var a = entries[i].ContainsKey("item_id") ? entries[i]["item_id"].AsString() : ""; var b = entries[j].ContainsKey("item_id") ? entries[j]["item_id"].AsString() : ""; if (string.Compare(a, b, System.StringComparison.Ordinal) > 0) { var t = entries[i]; entries[i] = entries[j]; entries[j] = t; } } } }
+            actualQuantity = 1;
+            removeResult = !string.IsNullOrEmpty(normalizedInstanceId)
+                ? warehouse.remove_equipment_instance(itemIdName, instanceIdName)
+                : warehouse.remove_item(itemIdName, 1);
+        }
+        else
+        {
+            removeResult = warehouse.remove_item(itemIdName, actualQuantity);
+        }
 
-    private static Godot.Collections.Dictionary _build_fail(string message) => new Godot.Collections.Dictionary { { "success", false }, { "message", message } };
+        int removedQuantity = GetInt(removeResult, "removed_quantity");
+        if (removedQuantity <= 0)
+        {
+            return BuildFail(BuildSellRemoveFailureMessage(itemDef, normalizedItemId, removeResult));
+        }
+
+        int totalGain = unitPrice * removedQuantity;
+        party.add_gold(totalGain);
+
+        string feedback = $"售出 {removedQuantity} 件 {GetItemDisplayName(itemDef, normalizedItemId)}，获得 {totalGain} 金。";
+        settlementState["shop_feedback_text"] = feedback;
+        return new GDictionary
+        {
+            { "success", true },
+            { "message", feedback },
+            { "gold_delta", totalGain },
+            { "item_id", normalizedItemId },
+            { "instance_id", normalizedInstanceId },
+            { "quantity", removedQuantity },
+        };
+    }
+
+    public GDictionary get_shop_def(string interactionScriptId)
+    {
+        ShopDefinition shopDef = ResolveShopDef(interactionScriptId);
+        return shopDef != null ? ToShopDefDictionary(shopDef) : new GDictionary();
+    }
+
+    private GDictionary GetOrRefreshShopState(
+        ShopDefinition shopDef,
+        GDictionary settlementState,
+        GDictionary itemDefs,
+        int currentWorldStep)
+    {
+        GDictionary shopStates = GetDictionary(settlementState, "shop_states");
+        GDictionary shopState = TryGetValue(shopStates, shopDef.ShopId, out object storedStateValue)
+            && TryAsDictionary(storedStateValue, out GDictionary storedState)
+            ? storedState.Duplicate(true)
+            : new GDictionary();
+
+        int refreshInterval = Mathf.Max(shopDef.RefreshIntervalSteps, 0);
+        int lastRefreshStep = GetInt(shopState, "last_refresh_step", -refreshInterval);
+        bool needsRefresh = shopState.Count == 0
+            || refreshInterval > 0 && currentWorldStep - lastRefreshStep >= refreshInterval;
+        if (needsRefresh)
+        {
+            shopState = GenerateShopState(shopDef, itemDefs, currentWorldStep);
+            shopStates[shopDef.ShopId] = shopState.Duplicate(true);
+            settlementState["shop_states"] = shopStates;
+        }
+
+        settlementState["shop_last_refresh_step"] = GetInt(shopState, "last_refresh_step");
+        return shopState;
+    }
+
+    private GDictionary GenerateShopState(ShopDefinition shopDef, GDictionary itemDefs, int currentWorldStep)
+    {
+        ulong seed = (ulong)TrueRandomSeedService.GenerateSeed();
+        _rng.Seed = seed;
+        var inventory = new GDictionaryArray();
+        foreach (ShopItemSeed source in shopDef.GuaranteedItems)
+        {
+            GDictionary built = BuildShopEntry(source, itemDefs);
+            if (built.Count > 0)
+            {
+                inventory.Add(built);
+            }
+        }
+
+        var randomPool = new List<ShopItemSeed>(shopDef.RandomPool);
+        for (int i = 0; i < shopDef.MaxRandomItems; i++)
+        {
+            ShopItemSeed? picked = PickWeightedRandomEntry(randomPool, _rng);
+            if (!picked.HasValue)
+            {
+                break;
+            }
+
+            GDictionary built = BuildShopEntry(picked.Value, itemDefs);
+            if (built.Count > 0)
+            {
+                MergeShopEntry(inventory, built);
+            }
+        }
+
+        return new GDictionary
+        {
+            { "shop_id", shopDef.ShopId },
+            { "current_inventory", inventory },
+            { "seed", (long)seed },
+            { "last_refresh_step", currentWorldStep },
+        };
+    }
+
+    private GDictionary BuildShopEntry(ShopItemSeed source, GDictionary itemDefs)
+    {
+        string itemId = ToItemIdString(source.ItemId);
+        ItemDef itemDef = GetItemDef(itemDefs, itemId);
+        if (string.IsNullOrEmpty(itemId) || itemDef == null)
+        {
+            return new GDictionary();
+        }
+
+        int minQty = Mathf.Max(source.MinQty, 1);
+        int maxQty = Mathf.Max(source.MaxQty, minQty);
+        int quantity = _rng.RandiRange(minQty, maxQty);
+        int unitPrice = ResolveBuyPrice(itemDef, source.PriceBasisPoints);
+        if (unitPrice <= 0)
+        {
+            return new GDictionary();
+        }
+
+        return new GDictionary
+        {
+            { "item_id", itemId },
+            { "quantity", quantity },
+            { "unit_price", unitPrice },
+            { "sold_out", false },
+        };
+    }
+
+    private static void MergeShopEntry(GDictionaryArray inventory, GDictionary builtEntry)
+    {
+        string itemId = GetString(builtEntry, "item_id");
+        for (int i = 0; i < inventory.Count; i++)
+        {
+            GDictionary existing = inventory[i];
+            if (GetString(existing, "item_id") != itemId)
+            {
+                continue;
+            }
+
+            existing["quantity"] = GetInt(existing, "quantity") + GetInt(builtEntry, "quantity");
+            inventory[i] = existing;
+            return;
+        }
+        inventory.Add(builtEntry);
+    }
+
+    private static ShopItemSeed? PickWeightedRandomEntry(List<ShopItemSeed> pool, RandomNumberGenerator rng)
+    {
+        int totalWeight = 0;
+        foreach (ShopItemSeed entry in pool)
+        {
+            totalWeight += Mathf.Max(entry.Weight, 0);
+        }
+        if (totalWeight <= 0)
+        {
+            return null;
+        }
+
+        int roll = rng.RandiRange(1, totalWeight);
+        int cursor = 0;
+        for (int i = 0; i < pool.Count; i++)
+        {
+            ShopItemSeed entry = pool[i];
+            cursor += Mathf.Max(entry.Weight, 0);
+            if (roll > cursor)
+            {
+                continue;
+            }
+
+            pool.RemoveAt(i);
+            return entry;
+        }
+        return null;
+    }
+
+    private static int ResolveBuyPrice(ItemDef itemDef, int priceBasisPoints)
+    {
+        if (itemDef == null)
+        {
+            return 0;
+        }
+        int price = itemDef.get_buy_price(priceBasisPoints);
+        return price > 0 ? price : 0;
+    }
+
+    private static int ResolveSellPrice(ItemDef itemDef)
+    {
+        if (itemDef == null)
+        {
+            return 0;
+        }
+        int price = itemDef.get_sell_price();
+        return price > 0 ? price : 0;
+    }
+
+    private static ShopStockEntry FindInventoryEntry(GDictionary shopState, string itemId, GDictionary itemDefs)
+    {
+        foreach (GDictionary inventoryEntry in GetShopCurrentInventory(shopState))
+        {
+            ShopStockEntry stockEntry = ParseShopStockEntry(inventoryEntry, itemDefs);
+            if (stockEntry != null && stockEntry.ItemId == itemId)
+            {
+                return stockEntry;
+            }
+        }
+        return null;
+    }
+
+    private static void ConsumeShopStock(GDictionary shopState, string itemId, int quantity, GDictionary itemDefs)
+    {
+        GDictionaryArray inventory = GetShopCurrentInventory(shopState);
+        for (int i = 0; i < inventory.Count; i++)
+        {
+            ShopStockEntry stockEntry = ParseShopStockEntry(inventory[i], itemDefs);
+            if (stockEntry == null || stockEntry.ItemId != itemId)
+            {
+                continue;
+            }
+
+            GDictionary entryData = inventory[i];
+            int remaining = stockEntry.Quantity - Mathf.Max(quantity, 0);
+            if (remaining <= 0)
+            {
+                inventory.RemoveAt(i);
+            }
+            else
+            {
+                entryData["quantity"] = remaining;
+                entryData["sold_out"] = false;
+                inventory[i] = entryData;
+            }
+            break;
+        }
+        shopState["current_inventory"] = inventory;
+    }
+
+    private static GDictionaryArray GetShopCurrentInventory(GDictionary shopState)
+    {
+        if (shopState == null || !shopState.ContainsKey("current_inventory"))
+        {
+            return new GDictionaryArray();
+        }
+
+        if (!TryGetValue(shopState, "current_inventory", out object inventoryValue)
+            || !TryAsArray(inventoryValue, out GArray inventoryEntries))
+        {
+            return new GDictionaryArray();
+        }
+
+        var result = new GDictionaryArray();
+        foreach (GDictionary entry in Dictionaries(inventoryEntries))
+        {
+            result.Add(entry);
+        }
+        return result;
+    }
+
+    private static ShopStockEntry ParseShopStockEntry(GDictionary entryData, GDictionary itemDefs)
+    {
+        if (!TryGetStrictInt(entryData, "quantity", out int quantity)
+            || !TryGetStrictInt(entryData, "unit_price", out int unitPrice))
+        {
+            return null;
+        }
+        if (!HasOnlyAllowedKeys(entryData, ShopStockEntryKeys)
+            || !HasNonEmptyId(entryData, "item_id")
+            || quantity <= 0
+            || unitPrice <= 0)
+        {
+            return null;
+        }
+        if (TryGetValue(entryData, "sold_out", out object soldOutValue))
+        {
+            if (!TryAsBool(soldOutValue, out bool soldOut))
+            {
+                return null;
+            }
+            if (soldOut)
+            {
+                return null;
+            }
+        }
+
+        string itemId = NormalizeId(entryData, "item_id");
+        ItemDef itemDef = GetItemDef(itemDefs, itemId);
+        return itemDef != null
+            ? new ShopStockEntry(itemId, itemDef, quantity, unitPrice)
+            : null;
+    }
+
+    private static SellInventoryEntry ParseSellInventoryEntry(GDictionary entryData, GDictionary itemDefs)
+    {
+        if (!TryGetStrictInt(entryData, "total_quantity", out int totalQuantity)
+            || totalQuantity <= 0
+            || !HasNonEmptyId(entryData, "item_id"))
+        {
+            return null;
+        }
+
+        string instanceId = "";
+        if (TryGetValue(entryData, "instance_id", out object instanceIdValue))
+        {
+            if (!TryAsIdString(instanceIdValue, out instanceId))
+            {
+                return null;
+            }
+        }
+
+        string itemId = NormalizeId(entryData, "item_id");
+        ItemDef itemDef = GetItemDef(itemDefs, itemId);
+        return itemDef != null
+            ? new SellInventoryEntry(itemId, itemDef, string.IsNullOrEmpty(instanceId) ? totalQuantity : 1, instanceId)
+            : null;
+    }
+
+    private static string BuildSellStockText(int totalQuantity, string instanceId)
+    {
+        return !string.IsNullOrEmpty(instanceId) ? $"持有 1 · 实例 {instanceId}" : $"持有 {totalQuantity}";
+    }
+
+    private static string BuildSellRemoveFailureMessage(ItemDef itemDef, string itemId, GDictionary removeResult)
+    {
+        string itemName = GetItemDisplayName(itemDef, itemId);
+        return GetString(removeResult, "error_code") switch
+        {
+            "equipment_instance_id_required" => $"请选择要出售的 {itemName} 装备实例。",
+            "warehouse_missing_instance" => $"共享仓库中没有指定的 {itemName} 装备实例。",
+            "equipment_instance_item_mismatch" => $"指定装备实例不属于 {itemName}。",
+            _ => "当前无法出售该物品。",
+        };
+    }
+
+    private static bool HasOnlyAllowedKeys(GDictionary data, HashSet<string> allowedKeys)
+    {
+        foreach (object key in data.Keys)
+        {
+            if (!TryAsIdString(key, out string keyText))
+            {
+                return false;
+            }
+            if (!allowedKeys.Contains(keyText))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static bool HasNonEmptyId(GDictionary data, string fieldName)
+    {
+        return !string.IsNullOrEmpty(NormalizeId(data, fieldName));
+    }
+
+    private static void SortSellEntries(GDictionaryArray entries)
+    {
+        for (int i = 0; i < entries.Count - 1; i++)
+        {
+            for (int j = i + 1; j < entries.Count; j++)
+            {
+                string leftId = GetString(entries[i], "item_id");
+                string rightId = GetString(entries[j], "item_id");
+                if (string.Compare(leftId, rightId, StringComparison.Ordinal) <= 0)
+                {
+                    continue;
+                }
+                (entries[i], entries[j]) = (entries[j], entries[i]);
+            }
+        }
+    }
+
+    private static ShopDefinition ResolveShopDef(string interactionScriptId)
+    {
+        foreach (ShopDefinition shopDef in ShopDefs)
+        {
+            if (shopDef.InteractionScriptId == interactionScriptId)
+            {
+                return shopDef;
+            }
+        }
+        return null;
+    }
+
+    private static GDictionary ToShopDefDictionary(ShopDefinition shopDef)
+    {
+        return new GDictionary
+        {
+            { "shop_id", shopDef.ShopId },
+            { "title", shopDef.Title },
+            { "refresh_interval_steps", shopDef.RefreshIntervalSteps },
+            { "guaranteed_items", ToSeedArray(shopDef.GuaranteedItems, false) },
+            { "random_pool", ToSeedArray(shopDef.RandomPool, true) },
+            { "max_random_items", shopDef.MaxRandomItems },
+        };
+    }
+
+    private static GArray ToSeedArray(IEnumerable<ShopItemSeed> seeds, bool includeWeight)
+    {
+        var result = new GArray();
+        foreach (ShopItemSeed seed in seeds)
+        {
+            var data = new GDictionary
+            {
+                { "item_id", ToItemIdString(seed.ItemId) },
+                { "min_qty", seed.MinQty },
+                { "max_qty", seed.MaxQty },
+            };
+            if (includeWeight)
+            {
+                data["weight"] = seed.Weight;
+            }
+            if (seed.PriceBasisPoints != PriceBasisPointsDefault)
+            {
+                data["price_basis_points"] = seed.PriceBasisPoints;
+            }
+            result.Add(data);
+        }
+        return result;
+    }
+
+    private static ItemDef GetItemDef(GDictionary itemDefs, string itemId)
+    {
+        if (itemDefs == null || string.IsNullOrEmpty(itemId))
+        {
+            return null;
+        }
+        return TryGetValue(itemDefs, new StringName(itemId), out object itemDefValue)
+            && TryAsObject(itemDefValue, out ItemDef itemDef)
+            ? itemDef
+            : null;
+    }
+
+    private static string GetItemDisplayName(ItemDef itemDef, string itemId)
+    {
+        return itemDef != null && itemDef.display_name.Length > 0 ? itemDef.display_name : itemId;
+    }
+
+    private static string ToItemIdString(ShopItemId itemId)
+    {
+        return itemId switch
+        {
+            ShopItemId.HealingHerb => "healing_herb",
+            ShopItemId.TravelRation => "travel_ration",
+            ShopItemId.BandageRoll => "bandage_roll",
+            ShopItemId.TorchBundle => "torch_bundle",
+            ShopItemId.AntidoteHerb => "antidote_herb",
+            ShopItemId.IronOre => "iron_ore",
+            ShopItemId.BeastHide => "beast_hide",
+            ShopItemId.BronzeSword => "bronze_sword",
+            ShopItemId.MilitiaAxe => "militia_axe",
+            ShopItemId.LeatherCap => "leather_cap",
+            ShopItemId.LeatherJerkin => "leather_jerkin",
+            ShopItemId.ScoutCharm => "scout_charm",
+            ShopItemId.IronGreatsword => "iron_greatsword",
+            ShopItemId.WatchmanMace => "watchman_mace",
+            ShopItemId.HardwoodLumber => "hardwood_lumber",
+            ShopItemId.LinenCloth => "linen_cloth",
+            _ => "",
+        };
+    }
+
+    private static string NormalizeId(StringName value)
+    {
+        return value == null ? "" : value.ToString().StripEdges();
+    }
+
+    private static string NormalizeId(GDictionary data, string key)
+    {
+        return TryGetValue(data, key, out object value)
+            && TryAsIdString(value, out string id)
+            ? id
+            : "";
+    }
+
+    private static GDictionary GetDictionary(GDictionary dictionary, string key)
+    {
+        return TryGetValue(dictionary, key, out object value)
+            && TryAsDictionary(value, out GDictionary result)
+            ? result
+            : new GDictionary();
+    }
+
+    private static string GetString(GDictionary dictionary, string key, string fallback = "")
+    {
+        if (!TryGetValue(dictionary, key, out object value) || IsNil(value))
+            return fallback;
+        return value.ToString();
+    }
+
+    private static int GetInt(GDictionary dictionary, string key, int fallback = 0)
+    {
+        if (!TryGetValue(dictionary, key, out object value))
+            return fallback;
+        return TryAsInt(value, out int result) ? result : fallback;
+    }
+
+    private static IEnumerable<GDictionary> Dictionaries(GArray values)
+    {
+        if (values == null)
+        {
+            yield break;
+        }
+        foreach (object rawValue in values)
+        {
+            if (TryAsDictionary(rawValue, out GDictionary value))
+            {
+                yield return value;
+            }
+        }
+    }
+
+    private static bool TryGetStrictInt(GDictionary data, string key, out int value)
+    {
+        if (TryGetValue(data, key, out object rawValue) && TryAsStrictInt(rawValue, out value))
+        {
+            return true;
+        }
+        value = 0;
+        return false;
+    }
+
+    private static bool TryAsArray(object rawValue, out GArray value)
+    {
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Array)
+        {
+            value = variant.AsGodotArray();
+            return true;
+        }
+        if (rawValue is GArray array)
+        {
+            value = array;
+            return true;
+        }
+        value = new GArray();
+        return false;
+    }
+
+    private static bool TryAsDictionary(object rawValue, out GDictionary value)
+    {
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Dictionary)
+        {
+            value = variant.AsGodotDictionary();
+            return true;
+        }
+        if (rawValue is GDictionary dictionary)
+        {
+            value = dictionary;
+            return true;
+        }
+        value = new GDictionary();
+        return false;
+    }
+
+    private static bool TryAsObject<T>(object rawValue, out T value)
+        where T : GodotObject
+    {
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Object)
+        {
+            value = variant.AsGodotObject() as T;
+            return value != null;
+        }
+        if (rawValue is T typedValue)
+        {
+            value = typedValue;
+            return true;
+        }
+        value = null;
+        return false;
+    }
+
+    private static bool TryAsStrictInt(object rawValue, out int value)
+    {
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Int)
+        {
+            value = variant.AsInt32();
+            return true;
+        }
+        if (rawValue is int intValue)
+        {
+            value = intValue;
+            return true;
+        }
+        value = 0;
+        return false;
+    }
+
+    private static bool TryAsInt(object rawValue, out int value)
+    {
+        if (rawValue is Variant variant)
+        {
+            if (variant.VariantType == Variant.Type.Nil)
+            {
+                value = 0;
+                return false;
+            }
+            value = variant.AsInt32();
+            return true;
+        }
+        if (rawValue is int intValue)
+        {
+            value = intValue;
+            return true;
+        }
+        if (rawValue is long longValue)
+        {
+            value = (int)longValue;
+            return true;
+        }
+        value = 0;
+        return false;
+    }
+
+    private static bool TryAsBool(object rawValue, out bool value)
+    {
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Bool)
+        {
+            value = variant.AsBool();
+            return true;
+        }
+        if (rawValue is bool boolValue)
+        {
+            value = boolValue;
+            return true;
+        }
+        value = false;
+        return false;
+    }
+
+    private static bool TryAsIdString(object rawValue, out string value)
+    {
+        if (rawValue is Variant variant)
+        {
+            if (variant.VariantType == Variant.Type.String)
+            {
+                value = variant.AsString().StripEdges();
+                return true;
+            }
+            if (variant.VariantType == Variant.Type.StringName)
+            {
+                value = variant.AsStringName().ToString().StripEdges();
+                return true;
+            }
+            value = "";
+            return false;
+        }
+        if (rawValue is string stringValue)
+        {
+            value = stringValue.StripEdges();
+            return true;
+        }
+        if (rawValue is StringName stringNameValue)
+        {
+            value = stringNameValue.ToString().StripEdges();
+            return true;
+        }
+        value = "";
+        return false;
+    }
+
+    private static bool TryGetValue(GDictionary data, string key, out object value)
+    {
+        if (data != null && data.ContainsKey(key))
+        {
+            value = data[key];
+            return true;
+        }
+        var stringNameKey = new StringName(key);
+        if (data != null && data.ContainsKey(stringNameKey))
+        {
+            value = data[stringNameKey];
+            return true;
+        }
+        value = null;
+        return false;
+    }
+
+    private static bool TryGetValue(GDictionary data, StringName key, out object value)
+    {
+        if (data != null && data.ContainsKey(key))
+        {
+            value = data[key];
+            return true;
+        }
+        string stringKey = key.ToString();
+        if (data != null && data.ContainsKey(stringKey))
+        {
+            value = data[stringKey];
+            return true;
+        }
+        value = null;
+        return false;
+    }
+
+    private static bool IsNil(object rawValue)
+    {
+        return rawValue == null
+            || rawValue is Variant variant && variant.VariantType == Variant.Type.Nil;
+    }
+
+    private static GDictionary BuildFail(string message)
+    {
+        return new GDictionary
+        {
+            { "success", false },
+            { "message", message },
+        };
+    }
 }

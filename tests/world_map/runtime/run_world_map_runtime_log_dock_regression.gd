@@ -2,10 +2,10 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const GameSessionScript = preload("res://scripts/systems/persistence/game_session.gd")
+const GameSessionScript = preload("res://scripts/systems/persistence/GameSession.cs")
 const WorldMapScene = preload("res://scenes/main/world_map.tscn")
-const EncounterAnchorData = preload("res://scripts/systems/world/encounter_anchor_data.gd")
-const RuntimeLogDock = preload("res://scripts/ui/runtime_log_dock.gd")
+const EncounterAnchorData = preload("res://scripts/systems/world/EncounterAnchorData.cs")
+const RuntimeLogDock = preload("res://scripts/ui/RuntimeLogDock.cs")
 
 const TEST_CONFIG_PATH := "res://data/configs/world_map/test_world_map_config.tres"
 
@@ -46,7 +46,7 @@ func _test_runtime_log_dock_reuses_same_window_for_world_and_battle() -> void:
 	await process_frame
 	await process_frame
 
-	var runtime_log_dock := world_map.get_node("%RuntimeLogDock") as RuntimeLogDock
+	var runtime_log_dock: RuntimeLogDock = world_map.get_node("%RuntimeLogDock") as RuntimeLogDock
 	var map_viewport := world_map.get_node("MapViewport") as Control
 	_assert_true(runtime_log_dock != null, "world_map.tscn 应提供共享 RuntimeLogDock。")
 	if runtime_log_dock == null:
@@ -69,8 +69,8 @@ func _test_runtime_log_dock_reuses_same_window_for_world_and_battle() -> void:
 	)
 	if map_viewport != null:
 		var viewport_rect := map_viewport.get_global_rect()
-		var dock_rect := runtime_log_dock.get_global_rect()
-		var design_panel_size := runtime_log_dock.get_design_panel_size()
+		var dock_rect: Rect2 = runtime_log_dock.get_global_rect()
+		var design_panel_size: Vector2 = runtime_log_dock.get_design_panel_size()
 		_assert_true(
 			is_equal_approx(viewport_rect.size.x, world_map.size.x),
 			"世界态 MapViewport 应为全宽，日志窗口浮在地图之上。"
@@ -103,12 +103,12 @@ func _test_runtime_log_dock_reuses_same_window_for_world_and_battle() -> void:
 			panel_style != null and panel_style.border_width_top > 0,
 			"共享日志窗口应有可见描边。"
 		)
-		var default_font_size := runtime_log_dock.log_output.get_theme_font_size("normal_font_size")
+		var default_font_size: int = runtime_log_dock.log_output.get_theme_font_size("normal_font_size")
 		var original_root_size := root.size
 		root.size = Vector2i(960, 540)
 		world_map.size = Vector2(root.size)
 		await process_frame
-		var resized_dock_rect := runtime_log_dock.get_global_rect()
+		var resized_dock_rect: Rect2 = runtime_log_dock.get_global_rect()
 		_assert_true(
 			is_equal_approx(resized_dock_rect.size.x, dock_rect.size.x),
 			"世界态共享日志窗口宽度应在窗口缩放时保持锁定。"
@@ -134,7 +134,7 @@ func _test_runtime_log_dock_reuses_same_window_for_world_and_battle() -> void:
 
 	var encounter_anchor = _find_encounter_anchor_by_kind(
 		_game_session.get_world_data(),
-		EncounterAnchorData.ENCOUNTER_KIND_SINGLE
+		EncounterAnchorData.ENCOUNTER_KIND_SINGLE()
 	)
 	_assert_true(encounter_anchor != null, "runtime log dock 回归需要至少一个单体野怪遭遇。")
 	if encounter_anchor == null:
@@ -159,7 +159,7 @@ func _test_runtime_log_dock_reuses_same_window_for_world_and_battle() -> void:
 	)
 	if map_viewport != null:
 		var battle_viewport_rect := map_viewport.get_global_rect()
-		var battle_dock_rect := runtime_log_dock.get_global_rect()
+		var battle_dock_rect: Rect2 = runtime_log_dock.get_global_rect()
 		_assert_true(
 			battle_viewport_rect.position.x + battle_viewport_rect.size.x > battle_dock_rect.position.x,
 			"进入战斗后日志窗口应覆盖在战斗地图上，而不是继续把战斗地图挤开。"
@@ -174,8 +174,8 @@ func _test_runtime_log_dock_reuses_same_window_for_world_and_battle() -> void:
 
 
 func _find_encounter_anchor_by_kind(world_data: Dictionary, encounter_kind: StringName):
-	for encounter_variant in world_data.get("encounter_anchors", []):
-		var encounter_anchor = encounter_variant as EncounterAnchorData
+	for encounter_option in world_data.get("encounter_anchors", []):
+		var encounter_anchor = encounter_option as EncounterAnchorData
 		if encounter_anchor == null:
 			continue
 		if encounter_anchor.encounter_kind == encounter_kind:

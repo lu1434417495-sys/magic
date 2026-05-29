@@ -2,11 +2,11 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const BATTLE_RUNTIME_MODULE_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
-const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_state.gd")
-const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
-const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
-const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
+const BATTLE_RUNTIME_MODULE_SCRIPT = preload("res://scripts/systems/battle/runtime/BattleRuntimeModule.cs")
+const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleState.cs")
+const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleTimelineState.cs")
+const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleCellState.cs")
+const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -47,8 +47,8 @@ func _test_wide_map_uses_top_and_bottom_long_edges() -> void:
 		_build_unit(&"enemy_1"),
 	]
 
-	var allies_placed := runtime._place_units(ally_units, [Vector2i(6, 3), Vector2i(7, 3)], true, BATTLE_RUNTIME_MODULE_SCRIPT.SPAWN_SIDE_NEAR_LONG_EDGE)
-	var enemies_placed := runtime._place_units(enemy_units, [Vector2i(0, 0), Vector2i(1, 0)], false, BATTLE_RUNTIME_MODULE_SCRIPT.SPAWN_SIDE_FAR_LONG_EDGE)
+	var allies_placed: bool = runtime._place_units(ally_units, [Vector2i(6, 3), Vector2i(7, 3)], true, BATTLE_RUNTIME_MODULE_SCRIPT.SPAWN_SIDE_NEAR_LONG_EDGE())
+	var enemies_placed: bool = runtime._place_units(enemy_units, [Vector2i(0, 0), Vector2i(1, 0)], false, BATTLE_RUNTIME_MODULE_SCRIPT.SPAWN_SIDE_FAR_LONG_EDGE())
 
 	_assert_true(allies_placed, "宽图近长边约束应仍能放下所有友军。")
 	_assert_true(enemies_placed, "宽图远长边约束应仍能放下所有敌军。")
@@ -65,8 +65,8 @@ func _test_tall_map_uses_left_and_right_long_edges() -> void:
 
 	var ally_units := [_build_unit(&"tall_ally")]
 	var enemy_units := [_build_unit(&"tall_enemy")]
-	var allies_placed := runtime._place_units(ally_units, [Vector2i(3, 6)], true, BATTLE_RUNTIME_MODULE_SCRIPT.SPAWN_SIDE_NEAR_LONG_EDGE)
-	var enemies_placed := runtime._place_units(enemy_units, [Vector2i(0, 1)], false, BATTLE_RUNTIME_MODULE_SCRIPT.SPAWN_SIDE_FAR_LONG_EDGE)
+	var allies_placed: bool = runtime._place_units(ally_units, [Vector2i(3, 6)], true, BATTLE_RUNTIME_MODULE_SCRIPT.SPAWN_SIDE_NEAR_LONG_EDGE())
+	var enemies_placed: bool = runtime._place_units(enemy_units, [Vector2i(0, 1)], false, BATTLE_RUNTIME_MODULE_SCRIPT.SPAWN_SIDE_FAR_LONG_EDGE())
 
 	_assert_true(allies_placed, "竖图近长边约束应能放下友军。")
 	_assert_true(enemies_placed, "竖图远长边约束应能放下敌军。")
@@ -81,7 +81,7 @@ func _test_spawn_placement_does_not_clear_existing_occupants_from_stale_coords()
 
 	var first_unit = _build_unit(&"first_unit")
 	var second_unit = _build_unit(&"second_unit")
-	var placed := runtime._place_units([first_unit, second_unit], [Vector2i(0, 0), Vector2i(1, 0)], true)
+	var placed: bool = runtime._place_units([first_unit, second_unit], [Vector2i(0, 0), Vector2i(1, 0)], true, &"")
 
 	_assert_true(placed, "开战 placement 应能连续放下初始坐标相同的单位。")
 	_assert_eq(state.ally_unit_ids.size(), 2, "成功 placement 后两个单位都应进入 ally ids。")
@@ -103,7 +103,7 @@ func _test_failed_spawn_placement_rolls_back_partial_units() -> void:
 
 	var first_unit = _build_unit(&"rollback_first")
 	var second_unit = _build_unit(&"rollback_second")
-	var placed := runtime._place_units([first_unit, second_unit], [Vector2i(0, 0)], true)
+	var placed: bool = runtime._place_units([first_unit, second_unit], [Vector2i(0, 0)], true, &"")
 
 	_assert_true(not placed, "地图没有足够出生空间时 placement 应失败。")
 	_assert_eq(state.ally_unit_ids.size(), 0, "失败 placement 不应留下部分 ally ids。")
@@ -124,7 +124,7 @@ func _build_flat_state(map_size: Vector2i):
 		for x in range(map_size.x):
 			var cell = BATTLE_CELL_STATE_SCRIPT.new()
 			cell.coord = Vector2i(x, y)
-			cell.base_terrain = BATTLE_CELL_STATE_SCRIPT.TERRAIN_LAND
+			cell.base_terrain = BATTLE_CELL_STATE_SCRIPT.TERRAIN_LAND()
 			cell.base_height = 4
 			cell.height_offset = 0
 			cell.recalculate_runtime_values()
@@ -142,7 +142,7 @@ func _build_unit(unit_id: StringName):
 	unit.current_hp = 30
 	unit.current_stamina = 10
 	unit.current_ap = 2
-	unit.current_move_points = BATTLE_UNIT_STATE_SCRIPT.DEFAULT_MOVE_POINTS_PER_TURN
+	unit.current_move_points = BATTLE_UNIT_STATE_SCRIPT.DEFAULT_MOVE_POINTS_PER_TURN()
 	unit.is_alive = true
 	unit.set_anchor_coord(Vector2i.ZERO)
 	unit.attribute_snapshot.set_value(&"hp_max", 30)

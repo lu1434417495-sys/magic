@@ -2,9 +2,9 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const SETTLEMENT_SERVICE_RESULT_SCRIPT = preload("res://scripts/systems/settlement/settlement_service_result.gd")
-const PENDING_CHARACTER_REWARD_SCRIPT = preload("res://scripts/systems/progression/pending_character_reward.gd")
-const PENDING_CHARACTER_REWARD_ENTRY_SCRIPT = preload("res://scripts/systems/progression/pending_character_reward_entry.gd")
+const SETTLEMENT_SERVICE_RESULT_SCRIPT = preload("res://scripts/systems/settlement/SettlementServiceResult.cs")
+const PENDING_CHARACTER_REWARD_SCRIPT = preload("res://scripts/systems/progression/PendingCharacterReward.cs")
+const PENDING_CHARACTER_REWARD_ENTRY_SCRIPT = preload("res://scripts/systems/progression/PendingCharacterRewardEntry.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -112,7 +112,6 @@ func _test_dictionary_round_trip() -> void:
 
 
 func _test_rejects_bad_schema() -> void:
-	_assert_rejects("not a dictionary", "非 Dictionary payload 应被拒绝。")
 	_assert_rejects({}, "空 Dictionary payload 应被拒绝。")
 
 	var missing_field := _valid_dictionary()
@@ -272,7 +271,7 @@ func _dictionary_with(field_name: String, field_value: Variant) -> Dictionary:
 	return dictionary
 
 
-func _assert_rejects(payload: Variant, message: String) -> void:
+func _assert_rejects(payload: Dictionary, message: String) -> void:
 	var result := SETTLEMENT_SERVICE_RESULT_SCRIPT.new()
 	var parsed = result.from_dictionary(payload)
 	_assert_true(parsed == null, message)

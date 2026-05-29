@@ -2,11 +2,11 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_session.gd")
-const BATTLE_RUNTIME_MODULE_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
-const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/world/encounter_anchor_data.gd")
-const BATTLE_SIM_SCENARIO_DEF_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_scenario_def.gd")
-const BATTLE_SIM_UNIT_SPEC_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_unit_spec.gd")
+const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/GameSession.cs")
+const BATTLE_RUNTIME_MODULE_SCRIPT = preload("res://scripts/systems/battle/runtime/BattleRuntimeModule.cs")
+const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/world/EncounterAnchorData.cs")
+const BATTLE_SIM_SCENARIO_DEF_SCRIPT = preload("res://scripts/systems/battle/sim/BattleSimScenarioDef.cs")
+const BATTLE_SIM_UNIT_SPEC_SCRIPT = preload("res://scripts/systems/battle/sim/BattleSimUnitSpec.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -105,17 +105,17 @@ func _build_unit(unit_id: StringName, display_name: String, faction_id: StringNa
 
 func _count_non_land_cells(cells: Dictionary) -> int:
 	var count := 0
-	for cell_variant in cells.values():
-		if cell_variant == null:
+	for cell_option in cells.values():
+		if cell_option == null:
 			continue
-		if String(cell_variant.base_terrain) != "land":
+		if String(cell_option.base_terrain) != "land":
 			count += 1
 	return count
 
 
 func _has_multi_layer_column(cell_columns: Dictionary) -> bool:
-	for column_variant in cell_columns.values():
-		if column_variant is Array and (column_variant as Array).size() > 1:
+	for column_option in cell_columns.values():
+		if column_option is Array and (column_option as Array).size() > 1:
 			return true
 	return false
 

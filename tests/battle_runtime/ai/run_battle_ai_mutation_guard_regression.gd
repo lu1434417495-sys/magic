@@ -3,57 +3,17 @@ extends SceneTree
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 const BattleRuntimeTestHelpers = preload("res://tests/shared/battle_runtime_test_helpers.gd")
 
-const BATTLE_AI_CONTEXT_SCRIPT = preload("res://scripts/systems/battle/ai/battle_ai_context.gd")
-const BATTLE_AI_SERVICE_SCRIPT = preload("res://scripts/systems/battle/ai/battle_ai_service.gd")
-const BATTLE_COMMAND_SCRIPT = preload("res://scripts/systems/battle/core/battle_command.gd")
-const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_state.gd")
-const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
-const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
-const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
-const BATTLE_GRID_SERVICE_SCRIPT = preload("res://scripts/systems/battle/terrain/battle_grid_service.gd")
-const BATTLE_AI_DECISION_SCRIPT = preload("res://scripts/systems/battle/ai/battle_ai_decision.gd")
-const ENEMY_AI_BRAIN_DEF_SCRIPT = preload("res://scripts/enemies/enemy_ai_brain_def.gd")
-const ENEMY_AI_STATE_DEF_SCRIPT = preload("res://scripts/enemies/enemy_ai_state_def.gd")
-
-
-class TestMutationAction:
-	extends RefCounted
-
-	const BATTLE_AI_DECISION_SCRIPT = preload("res://scripts/systems/battle/ai/battle_ai_decision.gd")
-	const BATTLE_COMMAND_SCRIPT = preload("res://scripts/systems/battle/core/battle_command.gd")
-
-	var action_id: StringName = &"test_mutation_action"
-	var mutation_kind: StringName = &"none"
-
-	func _init(kind: StringName = &"none") -> void:
-		mutation_kind = kind
-		action_id = StringName("test_mutation_%s" % String(kind))
-
-	func decide(context):
-		match mutation_kind:
-			&"active_hp":
-				context.unit_state.current_hp = 1
-			&"other_coord":
-				var target = context.state.units.get(&"hero")
-				if target != null:
-					target.set_anchor_coord(Vector2i(4, 2))
-			&"blackboard":
-				context.unit_state.ai_blackboard["rogue_key"] = "should_not_persist"
-			&"cell_occupant":
-				context.grid_service.set_occupant(context.state, Vector2i(3, 1), context.unit_state.unit_id)
-			&"cell_height":
-				context.grid_service.set_height_offset(context.state, Vector2i(0, 0), 2)
-		var command = BATTLE_COMMAND_SCRIPT.new()
-		command.command_type = command.TYPE_WAIT
-		command.unit_id = context.unit_state.unit_id
-		var decision = BATTLE_AI_DECISION_SCRIPT.new()
-		decision.command = command
-		decision.action_id = action_id
-		decision.reason_text = "test mutation action"
-		return decision
-
-	func validate_schema() -> Array[String]:
-		return []
+const BATTLE_AI_CONTEXT_SCRIPT = preload("res://scripts/systems/battle/ai/BattleAiContext.cs")
+const BATTLE_AI_DECISION_COMMITTER_SCRIPT = preload("res://scripts/systems/battle/ai/BattleAiDecisionCommitter.cs")
+const BATTLE_AI_SERVICE_SCRIPT = preload("res://scripts/systems/battle/ai/BattleAiService.cs")
+const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleState.cs")
+const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleTimelineState.cs")
+const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleCellState.cs")
+const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
+const BATTLE_GRID_SERVICE_SCRIPT = preload("res://scripts/systems/battle/terrain/BattleGridService.cs")
+const BATTLE_AI_MUTATION_GUARD_TEST_ACTION_SCRIPT = preload("res://tests/battle_runtime/ai/BattleAiMutationGuardTestAction.cs")
+const ENEMY_AI_BRAIN_DEF_SCRIPT = preload("res://scripts/enemies/EnemyAiBrainDef.cs")
+const ENEMY_AI_STATE_DEF_SCRIPT = preload("res://scripts/enemies/EnemyAiStateDef.cs")
 
 
 var _test := TestRunner.new()
@@ -76,15 +36,16 @@ func _run() -> void:
 
 
 func _test_benign_ai_bookkeeping_is_allowed() -> void:
-	var fixture := _build_fixture(TestMutationAction.new(&"none"))
+	var fixture := _build_fixture(_make_mutation_action(&"none"))
 	var decision = fixture.service.choose_command(fixture.context)
 	_assert_no_guard_violation(fixture.context, "普通 wait 决策不应触发 mutation guard。")
 	_test.assert_true(decision != null and decision.action_id == &"test_mutation_none", "普通 action 应正常返回原 decision。")
+	BATTLE_AI_DECISION_COMMITTER_SCRIPT.new().commit(fixture.actor, decision)
 	_test.assert_eq(fixture.actor.ai_blackboard.get("last_action_id", ""), "test_mutation_none", "合法 decision bookkeeping 应保留。")
 
 
 func _test_active_unit_hp_mutation_is_blocked_and_restored() -> void:
-	var fixture := _build_fixture(TestMutationAction.new(&"active_hp"))
+	var fixture := _build_fixture(_make_mutation_action(&"active_hp"))
 	var before_hp: int = int(fixture.actor.current_hp)
 	var decision = fixture.service.choose_command(fixture.context)
 	_assert_guard_blocked(fixture.context, decision, "active unit HP mutation 应触发 guard。")
@@ -92,7 +53,7 @@ func _test_active_unit_hp_mutation_is_blocked_and_restored() -> void:
 
 
 func _test_other_unit_coord_mutation_is_blocked_and_restored() -> void:
-	var fixture := _build_fixture(TestMutationAction.new(&"other_coord"))
+	var fixture := _build_fixture(_make_mutation_action(&"other_coord"))
 	var before_coord: Vector2i = fixture.hero.coord
 	var before_occupied: Array = fixture.hero.occupied_coords.duplicate()
 	var decision = fixture.service.choose_command(fixture.context)
@@ -102,14 +63,14 @@ func _test_other_unit_coord_mutation_is_blocked_and_restored() -> void:
 
 
 func _test_illegal_blackboard_key_mutation_is_blocked_and_restored() -> void:
-	var fixture := _build_fixture(TestMutationAction.new(&"blackboard"))
+	var fixture := _build_fixture(_make_mutation_action(&"blackboard"))
 	var decision = fixture.service.choose_command(fixture.context)
 	_assert_guard_blocked(fixture.context, decision, "非法 blackboard key mutation 应触发 guard。")
 	_test.assert_false(fixture.actor.ai_blackboard.has("rogue_key"), "非法 blackboard key 应被移除。")
 
 
 func _test_cell_occupant_mutation_is_blocked_and_restored() -> void:
-	var fixture := _build_fixture(TestMutationAction.new(&"cell_occupant"))
+	var fixture := _build_fixture(_make_mutation_action(&"cell_occupant"))
 	var cell = fixture.grid_service.get_cell(fixture.state, Vector2i(3, 1))
 	var before_occupant: StringName = cell.occupant_unit_id
 	var decision = fixture.service.choose_command(fixture.context)
@@ -119,7 +80,7 @@ func _test_cell_occupant_mutation_is_blocked_and_restored() -> void:
 
 
 func _test_cell_height_mutation_is_blocked_and_restored() -> void:
-	var fixture := _build_fixture(TestMutationAction.new(&"cell_height"))
+	var fixture := _build_fixture(_make_mutation_action(&"cell_height"))
 	var cell = fixture.grid_service.get_cell(fixture.state, Vector2i(0, 0))
 	var before_height := int(cell.current_height)
 	var before_offset := int(cell.height_offset)
@@ -131,17 +92,23 @@ func _test_cell_height_mutation_is_blocked_and_restored() -> void:
 
 
 func _test_missing_brain_wait_path_is_allowed() -> void:
-	var fixture := _build_fixture(TestMutationAction.new(&"none"), false)
+	var fixture := _build_fixture(_make_mutation_action(&"none"), false)
 	var decision = fixture.service.choose_command(fixture.context)
 	_assert_no_guard_violation(fixture.context, "missing brain fallback 不应触发 mutation guard。")
 	_test.assert_true(decision != null and decision.action_id == &"wait_missing_brain", "missing brain 应正常回落到 wait。")
 
 
 func _test_missing_state_wait_path_is_allowed() -> void:
-	var fixture := _build_fixture(TestMutationAction.new(&"none"), true, false)
+	var fixture := _build_fixture(_make_mutation_action(&"none"), true, false)
 	var decision = fixture.service.choose_command(fixture.context)
 	_assert_no_guard_violation(fixture.context, "missing state fallback 不应触发 mutation guard。")
 	_test.assert_true(decision != null and decision.action_id == &"wait_missing_state", "missing state 应正常回落到 wait。")
+
+
+func _make_mutation_action(kind: StringName):
+	var action = BATTLE_AI_MUTATION_GUARD_TEST_ACTION_SCRIPT.new()
+	action.setup(kind)
+	return action
 
 
 func _build_fixture(action, include_brain := true, include_state := true) -> Dictionary:
@@ -169,7 +136,7 @@ func _build_fixture(action, include_brain := true, include_state := true) -> Dic
 		brain_map[brain.brain_id] = brain
 
 	var service = BATTLE_AI_SERVICE_SCRIPT.new()
-	service.setup(brain_map)
+	service.setup(brain_map, null)
 	var context = BATTLE_AI_CONTEXT_SCRIPT.new()
 	context.state = state
 	context.unit_state = actor
@@ -196,7 +163,7 @@ func _build_flat_state(map_size: Vector2i):
 		for x in range(map_size.x):
 			var cell = BATTLE_CELL_STATE_SCRIPT.new()
 			cell.coord = Vector2i(x, y)
-			cell.base_terrain = BATTLE_CELL_STATE_SCRIPT.TERRAIN_LAND
+			cell.base_terrain = BATTLE_CELL_STATE_SCRIPT.TERRAIN_LAND()
 			cell.base_height = 4
 			cell.height_offset = 0
 			cell.recalculate_runtime_values()
@@ -246,8 +213,8 @@ func _assert_guard_blocked(context, decision, message: String) -> void:
 	var violations := _get_guard_violations(context)
 	_test.assert_true(not violations.is_empty(), "%s violations=%s" % [message, str(violations)])
 	_test.assert_true(
-		decision != null and decision.action_id == &"wait_ai_mutation_guard",
-		"%s guard 应返回安全 wait decision。" % message
+		decision == null,
+		"%s guard 应 fail-loud 并阻断原 decision。" % message
 	)
 
 

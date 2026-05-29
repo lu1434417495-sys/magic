@@ -2,7 +2,7 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const BattleStatusEffectState = preload("res://scripts/systems/battle/core/battle_status_effect_state.gd")
+const BattleStatusEffectState = preload("res://scripts/systems/battle/core/BattleStatusEffectState.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -15,7 +15,6 @@ func _initialize() -> void:
 func _run() -> void:
 	_test_valid_roundtrip_without_duration()
 	_test_valid_roundtrip_with_duration_tick_and_skip()
-	_test_non_dictionary_returns_null()
 	_test_missing_required_field_returns_null()
 	_test_extra_legacy_field_returns_null()
 	_test_wrong_types_return_null()
@@ -86,12 +85,6 @@ func _test_valid_roundtrip_with_duration_tick_and_skip() -> void:
 	_assert_eq(restored.tick_interval_tu, 10, "roundtrip 应保留 tick_interval_tu。")
 	_assert_eq(restored.next_tick_at_tu, 15, "roundtrip 应保留 next_tick_at_tu。")
 	_assert_true(restored.skip_next_turn_end_decay, "roundtrip 应保留 skip_next_turn_end_decay。")
-
-
-func _test_non_dictionary_returns_null() -> void:
-	_assert_null(BattleStatusEffectState.from_dict([]), "非 Dictionary Array 入参应返回 null。")
-	_assert_null(BattleStatusEffectState.from_dict("burning"), "非 Dictionary String 入参应返回 null。")
-	_assert_null(BattleStatusEffectState.from_dict(null), "null 入参应返回 null。")
 
 
 func _test_missing_required_field_returns_null() -> void:

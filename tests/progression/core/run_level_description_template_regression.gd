@@ -2,11 +2,11 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const CombatCastVariantDef = preload("res://scripts/player/progression/combat_cast_variant_def.gd")
-const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
-const CombatSkillDef = preload("res://scripts/player/progression/combat_skill_def.gd")
-const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
-const SkillLevelDescriptionFormatter = preload("res://scripts/systems/progression/skill_level_description_formatter.gd")
+const CombatCastVariantDef = preload("res://scripts/player/progression/CombatCastVariantDef.cs")
+const CombatEffectDef = preload("res://scripts/player/progression/CombatEffectDef.cs")
+const CombatSkillDef = preload("res://scripts/player/progression/CombatSkillDef.cs")
+const SkillDef = preload("res://scripts/player/progression/SkillDef.cs")
+const SkillLevelDescriptionFormatter = preload("res://scripts/systems/progression/SkillLevelDescriptionFormatter.cs")
 const BATTLE_RECOVERY_SKILL_PATH := "res://data/configs/skills/warrior_battle_recovery.tres"
 
 var _test := TestRunner.new()
@@ -147,22 +147,22 @@ func _test_level_description_requires_template_config() -> void:
 	skill_def.level_description_template = "模板{val}"
 	skill_def.level_description_configs = {"0": {"val": "新"}, "1": {"val": "新"}}
 
-	_assert_eq(SkillLevelDescriptionFormatter.build_level_description(skill_def, 0), "模板新", "正式模板配置应渲染等级描述")
-	_assert_eq(SkillLevelDescriptionFormatter.build_level_description(skill_def, 1), "模板新", "正式模板配置应渲染对应等级描述")
-	_assert_eq(SkillLevelDescriptionFormatter.build_level_description(skill_def, 2), "", "缺少当前等级正式配置时应返回空")
+	_assert_eq(SkillLevelDescriptionFormatter.build_level_description(skill_def, 0, {}), "模板新", "正式模板配置应渲染等级描述")
+	_assert_eq(SkillLevelDescriptionFormatter.build_level_description(skill_def, 1, {}), "模板新", "正式模板配置应渲染对应等级描述")
+	_assert_eq(SkillLevelDescriptionFormatter.build_level_description(skill_def, 2, {}), "", "缺少当前等级正式配置时应返回空")
 
 	var missing_template := SkillDef.new()
 	missing_template.level_description_configs = {"0": {"val": "新"}}
-	_assert_eq(SkillLevelDescriptionFormatter.build_level_description(missing_template, 0), "", "缺少正式模板时应返回空")
+	_assert_eq(SkillLevelDescriptionFormatter.build_level_description(missing_template, 0, {}), "", "缺少正式模板时应返回空")
 
 	var missing_config := SkillDef.new()
 	missing_config.level_description_template = "模板{val}"
-	_assert_eq(SkillLevelDescriptionFormatter.build_level_description(missing_config, 0), "", "缺少正式等级配置时应返回空")
+	_assert_eq(SkillLevelDescriptionFormatter.build_level_description(missing_config, 0, {}), "", "缺少正式等级配置时应返回空")
 
 	var wrong_config_type := SkillDef.new()
 	wrong_config_type.level_description_template = "模板{val}"
 	wrong_config_type.level_description_configs = {"0": "旧格式描述"}
-	_assert_eq(SkillLevelDescriptionFormatter.build_level_description(wrong_config_type, 0), "", "等级配置不是字典时应返回空")
+	_assert_eq(SkillLevelDescriptionFormatter.build_level_description(wrong_config_type, 0, {}), "", "等级配置不是字典时应返回空")
 
 
 func _test_level_description_hides_zero_profile_defaults_in_optional_blocks() -> void:
@@ -183,12 +183,12 @@ func _test_level_description_hides_zero_profile_defaults_in_optional_blocks() ->
 	}
 
 	_assert_eq(
-		SkillLevelDescriptionFormatter.build_level_description(skill_def, 0),
+		SkillLevelDescriptionFormatter.build_level_description(skill_def, 0, {}),
 		"基础",
 		"formatter 不应让 profile 默认 0 撑开 optional 条件块。"
 	)
 	_assert_eq(
-		SkillLevelDescriptionFormatter.build_level_description(skill_def, 1),
+		SkillLevelDescriptionFormatter.build_level_description(skill_def, 1, {}),
 		"基础，攻击检定2，消耗1斗气",
 		"formatter 仍应显示非 0 profile override。"
 	)
@@ -234,7 +234,7 @@ func _test_level_description_derives_typed_effect_fields() -> void:
 	skill_def.combat_profile.effect_defs.append(status_effect)
 
 	_assert_eq(
-		SkillLevelDescriptionFormatter.build_level_description(skill_def, 0),
+		SkillLevelDescriptionFormatter.build_level_description(skill_def, 0, {}),
 		"造成4D6伤害（敏捷豁免成功时伤害减半），体质豁免失败时附加感电（60TU，强度1）。",
 		"等级描述 formatter 应从 typed effect fields 派生豁免、状态名、持续时间和强度。"
 	)
@@ -249,22 +249,22 @@ func _test_level_description_ignores_locked_cast_variant_effects() -> void:
 	}
 	skill_def.combat_profile = CombatSkillDef.new()
 
-	var variant := CombatCastVariantDef.new()
-	variant.variant_id = &"advanced"
-	variant.min_skill_level = 3
-	var variant_effect := CombatEffectDef.new()
-	variant_effect.effect_type = &"damage"
-	variant_effect.params = {"locked_param": "未锁"}
-	variant.effect_defs.append(variant_effect)
-	skill_def.combat_profile.cast_variants.append(variant)
+	var option := CombatCastVariantDef.new()
+	option.variant_id = &"advanced"
+	option.min_skill_level = 3
+	var option_effect := CombatEffectDef.new()
+	option_effect.effect_type = &"damage"
+	option_effect.params = {"locked_param": "未锁"}
+	option.effect_defs.append(option_effect)
+	skill_def.combat_profile.cast_variants.append(option)
 
 	_assert_eq(
-		SkillLevelDescriptionFormatter.build_level_description(skill_def, 0),
+		SkillLevelDescriptionFormatter.build_level_description(skill_def, 0, {}),
 		"基础可用",
 		"低等级描述不应合并未解锁施法形态的 effect params。"
 	)
 	_assert_eq(
-		SkillLevelDescriptionFormatter.build_level_description(skill_def, 3),
+		SkillLevelDescriptionFormatter.build_level_description(skill_def, 3, {}),
 		"基础可用，高阶未锁",
 		"达到施法形态等级后应合并该形态的 effect params。"
 	)

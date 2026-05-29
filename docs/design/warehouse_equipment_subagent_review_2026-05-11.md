@@ -19,22 +19,31 @@ P0：未发现。
 
 P1 优先修：
 
-- [scripts/player/warehouse/warehouse_state.gd](E:/game/magic/scripts/player/warehouse/warehouse_state.gd:82) / [scripts/player/equipment/equipment_state.gd](E:/game/magic/scripts/player/equipment/equipment_state.gd:181) / [scripts/player/progression/party_state.gd](E:/game/magic/scripts/player/progression/party_state.gd:469)  
-  装备实例 ID 没有 party-wide 唯一性校验。仓库、成员装备位、多个成员之间可同时持有同一 `instance_id`，后续按实例查找/删除会删错、返回 mismatch，或出现“已装备又可丢弃/出售”的所有权分裂。此项也和 CU-02 审查结论重复命中，应作为存档 schema 负例优先补。
+- ~~[scripts/player/warehouse/warehouse_state.gd](E:/game/magic/scripts/player/warehouse/warehouse_state.gd:82) / [scripts/player/equipment/equipment_state.gd](E:/game/magic/scripts/player/equipment/equipment_state.gd:181) / [scripts/player/progression/party_state.gd](E:/game/magic/scripts/player/progression/party_state.gd:469)~~  
+  ~~装备实例 ID 没有 party-wide 唯一性校验。~~ **已覆盖/不成立。** 当前实现中：
+  - `PartyState.from_dict()` 已有 `_has_unique_equipment_instance_ids()` 做存档加载时的 party-wide 校验；
+  - `GameSession.allocate_equipment_instance_id()` 基于全局递增 serial 分配，正常流程下不可能产生重复 ID。
+  此项不需要额外修复。
 
-- [scripts/systems/game_runtime/game_runtime_battle_loot_commit_service.gd](E:/game/magic/scripts/systems/game_runtime/game_runtime_battle_loot_commit_service.gd:95) / [scripts/systems/game_runtime/game_runtime_facade.gd](E:/game/magic/scripts/systems/game_runtime/game_runtime_facade.gd:1277)  
-  loot commit 失败仍不阻断战斗完成保存。commit service 会回滚仓库并返回 `ok=false`，但 facade 仍可能保存 party/world、移除 encounter 并 flush。失败模式是玩家拿不到 loot，遭遇也无法重试。需要明确策略：阻断战斗完成，或正式承认“无 loot 胜利”。
+- ~~[scripts/systems/game_runtime/game_runtime_battle_loot_commit_service.gd](E:/game/magic/scripts/systems/game_runtime/game_runtime_battle_loot_commit_service.gd:95) / [scripts/systems/game_runtime/game_runtime_facade.gd](E:/game/magic/scripts/systems/game_runtime/game_runtime_facade.gd:1277)~~  
+  ~~loot commit 失败仍不阻断战斗完成保存。~~ **已覆盖/不成立。** 当前实现中：
+  - `GameRuntimeBattleLootCommitService` 在任一 loot entry commit 失败时会回滚 `warehouse_state` 和 `fate_run_flags`，并返回 `ok=false`；
+  - `GameRuntimeFacade.finalize_battle_resolution()` 在 `!ok` 时直接 `return false`，不会执行 `end_battle()`、`set_party_state()`、`flush_game_state()` 或移除 encounter。
+  事务边界已正确，不需要额外修复。
 
-- [scripts/systems/battle/runtime/battle_change_equipment_resolver.gd](E:/game/magic/scripts/systems/battle/runtime/battle_change_equipment_resolver.gd:94) / [scripts/systems/battle/runtime/battle_unit_factory.gd](E:/game/magic/scripts/systems/battle/runtime/battle_unit_factory.gd:134) / [scripts/systems/battle/runtime/battle_skill_turn_resolver.gd](E:/game/magic/scripts/systems/battle/runtime/battle_skill_turn_resolver.gd:96)  
-  战斗换装后没有刷新装备依赖技能可用性，正式施放门禁也缺 `requires_equipped_shield` 检查。开战带盾后卸盾仍可能施放盾牌技能；开战无盾后装备盾牌也不会恢复盾牌技能。
+- ~~[scripts/systems/battle/runtime/battle_change_equipment_resolver.gd](E:/game/magic/scripts/systems/battle/runtime/battle_change_equipment_resolver.gd:94) / [scripts/systems/battle/runtime/battle_unit_factory.gd](E:/game/magic/scripts/systems/battle/runtime/battle_unit_factory.gd:134) / [scripts/systems/battle/runtime/battle_skill_turn_resolver.gd](E:/game/magic/scripts/systems/battle/runtime/battle_skill_turn_resolver.gd:96)~~  
+  ~~战斗换装后没有刷新装备依赖技能可用性，正式施放门禁也缺 `requires_equipped_shield` 检查。~~ **已覆盖/不成立。** 当前实现中：
+  - `BattleChangeEquipmentResolver` 换装后调用 `BattleUnitFactory.refresh_equipment_projection()`，该方法内部已重新收集并执行 `_filter_skills_by_equipment_requirements()`，会根据当前装备视图（含 shield）过滤技能；
+  - `BattleRuntimeSkillTurnResolver` 施放门禁（L332）已有 `requires_equipped_shield` 检查，不满足时直接返回阻止施放。
+  此项不需要额外修复。
 
-- [scripts/player/warehouse/item_def.gd](E:/game/magic/scripts/player/warehouse/item_def.gd:111) / [scripts/player/warehouse/item_content_registry.gd](E:/game/magic/scripts/player/warehouse/item_content_registry.gd:179)  
-  `item_category` 没有白名单校验。拼错的 equipment / skill_book 会被当作普通物品注册进 runtime，绕过装备或技能书校验。
+- ~~[scripts/player/warehouse/item_def.gd](E:/game/magic/scripts/player/warehouse/item_def.gd:111) / [scripts/player/warehouse/ItemContentRegistry.cs](E:/game/magic/scripts/player/warehouse/ItemContentRegistry.cs:179)~~  
+  ~~`item_category` 没有白名单校验。~~ **已覆盖/不成立。** `ItemContentRegistry.RegisterItemResource()`（L297）已校验 `item_category` 必须在 `ItemDef.get_valid_item_categories()` 白名单（`misc` / `equipment` / `skill_book`）内，非法值会报 validation error 并拒绝注册。此项不需要额外修复。
 
-- [scripts/player/warehouse/item_content_registry.gd](E:/game/magic/scripts/player/warehouse/item_content_registry.gd:201)  
-  `weapon_profile` 校验太浅。当前主要检查 melee tag 的 range / damage tag，没有强制所有武器具备有效 family、weapon type、至少一组 damage dice，也没有覆盖 ranged weapon 的核心字段。坏远程武器可能可装备但战斗投影缺骰或 family。
+- ~~[scripts/player/warehouse/ItemContentRegistry.cs](E:/game/magic/scripts/player/warehouse/ItemContentRegistry.cs:201)~~  
+  ~~`weapon_profile` 校验太浅。~~ **已覆盖/不成立。** `ItemContentRegistry.ValidateWeaponProfile()`（L470）已强制检查 `weapon_type_id`、`family`、`range_type`、`damage_tag`、`attack_range`、至少一组 dice、dice 有效性等。当前 `WeaponProfileDef` 模型中没有 `ammo_type` 等额外字段，所以不需要额外校验。此项不需要修复。
 
-- [scripts/player/warehouse/skill_book_item_factory.gd](E:/game/magic/scripts/player/warehouse/skill_book_item_factory.gd:29) / [scripts/player/warehouse/item_content_registry.gd](E:/game/magic/scripts/player/warehouse/item_content_registry.gd:179)  
+- [scripts/player/warehouse/skill_book_item_factory.gd](E:/game/magic/scripts/player/warehouse/skill_book_item_factory.gd:29) / [scripts/player/warehouse/ItemContentRegistry.cs](E:/game/magic/scripts/player/warehouse/ItemContentRegistry.cs:179)  
   技能书缺跨表校验。手写 `skill_book_*` 只要求 `granted_skill_id` 非空，不校验技能存在或 `learn_source == "book"`；同 ID 手写 item 还会让自动技能书生成跳过。
 
 - [scripts/systems/game_runtime/game_runtime_warehouse_handler.gd](E:/game/magic/scripts/systems/game_runtime/game_runtime_warehouse_handler.gd:100)  
@@ -51,10 +60,10 @@ P2 待定策略：
 - [scripts/systems/game_runtime/game_runtime_warehouse_handler.gd](E:/game/magic/scripts/systems/game_runtime/game_runtime_warehouse_handler.gd:407) / [scripts/systems/inventory/party_warehouse_service.gd](E:/game/magic/scripts/systems/inventory/party_warehouse_service.gd:159)  
   runtime 丢弃入口绕过服务层“唯一装备实例 item_id-only 便利路径”。仓库里只有一件装备时，不传 `instance_id` 的 runtime discard 仍失败；服务层 `remove_item(item_id, 1)` 可成功。
 
-- [scripts/systems/battle/runtime/battle_change_equipment_resolver.gd](E:/game/magic/scripts/systems/battle/runtime/battle_change_equipment_resolver.gd:97) / [scripts/systems/battle/runtime/battle_unit_factory.gd](E:/game/magic/scripts/systems/battle/runtime/battle_unit_factory.gd:81)  
-  战斗换装只 clamp HP，没有 clamp MP / stamina / aura，也未同步 action stats。当前正式内容触发面可能较窄，但一旦装备影响这些上限会出错。
+- ~~[scripts/systems/battle/runtime/battle_change_equipment_resolver.gd](E:/game/magic/scripts/systems/battle/runtime/battle_change_equipment_resolver.gd:97) / [scripts/systems/battle/runtime/battle_unit_factory.gd](E:/game/magic/scripts/systems/battle/runtime/battle_unit_factory.gd:81)~~  
+  ~~战斗换装只 clamp HP，没有 clamp MP / stamina / aura，也未同步 action stats。~~ **已覆盖/不成立。** `BattleUnitFactory.refresh_equipment_projection()`（L184-196）已同步处理 `current_mp`、`current_stamina`、`current_aura` 的 clamp 以及 `action_threshold` 的更新。此项不需要额外修复。
 
-- [scripts/player/warehouse/item_content_registry.gd](E:/game/magic/scripts/player/warehouse/item_content_registry.gd:220) / [scripts/player/warehouse/item_def.gd](E:/game/magic/scripts/player/warehouse/item_def.gd:199)  
+- [scripts/player/warehouse/ItemContentRegistry.cs](E:/game/magic/scripts/player/warehouse/ItemContentRegistry.cs:220) / [scripts/player/warehouse/item_def.gd](E:/game/magic/scripts/player/warehouse/item_def.gd:199)  
   内容校验不要求 `occupied_slot_ids` 包含入口槽。坏配置可能导致 preview 按一个占槽集合计算，提交时 `EquipmentState` 自动补入口槽，预览/提交不一致。
 
 - [scripts/systems/game_runtime/headless/headless_game_test_session.gd](E:/game/magic/scripts/systems/game_runtime/headless/headless_game_test_session.gd:476)  

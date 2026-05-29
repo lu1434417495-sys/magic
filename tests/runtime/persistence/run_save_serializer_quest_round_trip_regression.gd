@@ -2,19 +2,19 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_session.gd")
-const AchievementProgressState = preload("res://scripts/player/progression/achievement_progress_state.gd")
-const PendingCharacterReward = preload("res://scripts/systems/progression/pending_character_reward.gd")
-const PendingCharacterRewardEntry = preload("res://scripts/systems/progression/pending_character_reward_entry.gd")
-const PendingProfessionChoice = preload("res://scripts/player/progression/pending_profession_choice.gd")
-const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
-const PartyState = preload("res://scripts/player/progression/party_state.gd")
-const ProfessionPromotionRecord = preload("res://scripts/player/progression/profession_promotion_record.gd")
-const QuestState = preload("res://scripts/player/progression/quest_state.gd")
-const UnitBaseAttributes = preload("res://scripts/player/progression/unit_base_attributes.gd")
-const UnitProfessionProgress = preload("res://scripts/player/progression/unit_profession_progress.gd")
-const UnitProgress = preload("res://scripts/player/progression/unit_progress.gd")
-const UnitReputationState = preload("res://scripts/player/progression/unit_reputation_state.gd")
+const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/GameSession.cs")
+const AchievementProgressState = preload("res://scripts/player/progression/AchievementProgressState.cs")
+const PendingCharacterReward = preload("res://scripts/systems/progression/PendingCharacterReward.cs")
+const PendingCharacterRewardEntry = preload("res://scripts/systems/progression/PendingCharacterRewardEntry.cs")
+const PendingProfessionChoice = preload("res://scripts/player/progression/PendingProfessionChoice.cs")
+const PartyMemberState = preload("res://scripts/player/progression/PartyMemberState.cs")
+const PartyState = preload("res://scripts/player/progression/PartyState.cs")
+const ProfessionPromotionRecord = preload("res://scripts/player/progression/ProfessionPromotionRecord.cs")
+const QuestState = preload("res://scripts/player/progression/QuestState.cs")
+const UnitBaseAttributes = preload("res://scripts/player/progression/UnitBaseAttributes.cs")
+const UnitProfessionProgress = preload("res://scripts/player/progression/UnitProfessionProgress.cs")
+const UnitProgress = preload("res://scripts/player/progression/UnitProgress.cs")
+const UnitReputationState = preload("res://scripts/player/progression/UnitReputationState.cs")
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
 
@@ -640,7 +640,7 @@ func _test_runtime_dtos_reject_extra_fields() -> void:
 	)
 
 	var reward_entry := PendingCharacterRewardEntry.new()
-	reward_entry.entry_type = PendingCharacterRewardEntry.SKILL_MASTERY_ENTRY_TYPE
+	reward_entry.entry_type = &"skill_mastery"
 	reward_entry.target_id = &"schema_probe_skill"
 	reward_entry.amount = 1
 	var reward_entry_payload := reward_entry.to_dict()
@@ -1125,24 +1125,24 @@ func _assert_eq(actual, expected, message: String) -> void:
 
 
 func _extract_first_template_binding(world_data: Dictionary) -> Dictionary:
-	for settlement_variant in world_data.get("settlements", []):
-		if settlement_variant is not Dictionary:
+	for settlement_option in world_data.get("settlements", []):
+		if settlement_option is not Dictionary:
 			continue
-		var settlement: Dictionary = settlement_variant
-		var facilities_variant: Variant = settlement.get("facilities", [])
-		if facilities_variant is not Array:
+		var settlement: Dictionary = settlement_option
+		var facilities_option: Variant = settlement.get("facilities", [])
+		if facilities_option is not Array:
 			continue
-		for facility_variant in facilities_variant:
-			if facility_variant is not Dictionary:
+		for facility_option in facilities_option:
+			if facility_option is not Dictionary:
 				continue
-			var facility: Dictionary = facility_variant
-			var npcs_variant: Variant = facility.get("service_npcs", [])
-			if npcs_variant is not Array:
+			var facility: Dictionary = facility_option
+			var npcs_option: Variant = facility.get("service_npcs", [])
+			if npcs_option is not Array:
 				continue
-			for npc_variant in npcs_variant:
-				if npc_variant is not Dictionary:
+			for npc_option in npcs_option:
+				if npc_option is not Dictionary:
 					continue
-				var npc: Dictionary = npc_variant
+				var npc: Dictionary = npc_option
 				var matched_service := _find_matching_service_entry(settlement.get("available_services", []), facility, npc)
 				if matched_service.is_empty():
 					continue
@@ -1161,13 +1161,13 @@ func _extract_first_template_binding(world_data: Dictionary) -> Dictionary:
 	return {}
 
 
-func _find_matching_service_entry(service_variants, facility: Dictionary, npc: Dictionary) -> Dictionary:
-	if service_variants is not Array:
+func _find_matching_service_entry(service_options, facility: Dictionary, npc: Dictionary) -> Dictionary:
+	if service_options is not Array:
 		return {}
-	for service_variant in service_variants:
-		if service_variant is not Dictionary:
+	for service_option in service_options:
+		if service_option is not Dictionary:
 			continue
-		var service: Dictionary = service_variant
+		var service: Dictionary = service_option
 		if String(service.get("facility_id", "")) != String(facility.get("facility_id", "")):
 			continue
 		if String(service.get("npc_id", "")) != String(npc.get("npc_id", "")):

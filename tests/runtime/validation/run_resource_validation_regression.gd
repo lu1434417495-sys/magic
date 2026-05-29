@@ -2,23 +2,25 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const ProgressionDataUtils = preload("res://scripts/player/progression/progression_data_utils.gd")
-const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
-const ItemContentRegistry = preload("res://scripts/player/warehouse/item_content_registry.gd")
-const EnemyContentRegistry = preload("res://scripts/enemies/enemy_content_registry.gd")
-const QuestDef = preload("res://scripts/player/progression/quest_def.gd")
-const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
-const CombatSkillDef = preload("res://scripts/player/progression/combat_skill_def.gd")
+const ProgressionDataUtils = preload("res://scripts/player/progression/ProgressionDataUtils.cs")
+const ProgressionContentRegistry = preload("res://scripts/player/progression/ProgressionContentRegistry.cs")
+const ItemContentRegistry = preload("res://scripts/player/warehouse/ItemContentRegistry.cs")
+const EnemyContentRegistry = preload("res://scripts/enemies/EnemyContentRegistry.cs")
+const QuestDef = preload("res://scripts/player/progression/QuestDef.cs")
+const SkillDef = preload("res://scripts/player/progression/SkillDef.cs")
+const CombatSkillDef = preload("res://scripts/player/progression/CombatSkillDef.cs")
 const CONTENT_VALIDATION_RUNNER_SCRIPT = preload("res://tests/runtime/validation/content_validation_runner.gd")
-const BattleSpecialProfileManifest = preload("res://scripts/systems/battle/core/special_profiles/battle_special_profile_manifest.gd")
-const MeteorSwarmProfile = preload("res://scripts/systems/battle/core/meteor_swarm/meteor_swarm_profile.gd")
-const WorldMapGenerationConfig = preload("res://scripts/utils/world_map_generation_config.gd")
-const SettlementConfig = preload("res://scripts/utils/settlement_config.gd")
-const FacilityConfig = preload("res://scripts/utils/facility_config.gd")
-const FacilitySlotConfig = preload("res://scripts/utils/facility_slot_config.gd")
-const SettlementDistributionRule = preload("res://scripts/utils/settlement_distribution_rule.gd")
-const WeightedFacilityEntry = preload("res://scripts/utils/weighted_facility_entry.gd")
-const WildSpawnRule = preload("res://scripts/utils/wild_spawn_rule.gd")
+const BattleSpecialProfileManifest = preload("res://scripts/systems/battle/core/special_profiles/BattleSpecialProfileManifest.cs")
+const MeteorSwarmProfile = preload("res://scripts/systems/battle/core/meteor_swarm/MeteorSwarmProfile.cs")
+const WorldMapGenerationConfig = preload("res://scripts/utils/WorldMapGenerationConfig.cs")
+const SettlementConfig = preload("res://scripts/utils/SettlementConfig.cs")
+const FacilityConfig = preload("res://scripts/utils/FacilityConfig.cs")
+const FacilitySlotConfig = preload("res://scripts/utils/FacilitySlotConfig.cs")
+const SettlementDistributionRule = preload("res://scripts/utils/SettlementDistributionRule.cs")
+const WeightedFacilityEntry = preload("res://scripts/utils/WeightedFacilityEntry.cs")
+const WildSpawnRule = preload("res://scripts/utils/WildSpawnRule.cs")
+const MountedSubmapConfig = preload("res://scripts/utils/MountedSubmapConfig.cs")
+const WorldEventConfig = preload("res://scripts/utils/WorldEventConfig.cs")
 
 const OFFICIAL_SKILL_DIRECTORY := "res://data/configs/skills"
 const OFFICIAL_PROFESSION_DIRECTORY := "res://data/configs/professions"
@@ -45,12 +47,13 @@ const ENEMY_INCOMPLETE_SEED_PATH := "res://tests/fixtures/enemy_content/incomple
 const ENEMY_INCOMPLETE_BRAIN_DIRECTORY := "res://tests/fixtures/enemy_content/incomplete_seed/brains"
 const ENEMY_INCOMPLETE_TEMPLATE_DIRECTORY := "res://tests/fixtures/enemy_content/incomplete_seed/templates"
 const ENEMY_INCOMPLETE_ROSTER_DIRECTORY := "res://tests/fixtures/enemy_content/incomplete_seed/rosters"
+const ENEMY_INVALID_INITIAL_STAGE_SEED_PATH := "res://tests/fixtures/enemy_content/invalid_roster_initial_stage/enemy_content_seed.tres"
+const ENEMY_INVALID_SKILL_LEVEL_MAP_SEED_PATH := "res://tests/fixtures/enemy_content/invalid_skill_level_map/enemy_content_seed.tres"
 const BATTLE_SPECIAL_PROFILE_FIXTURE_ROOT := "user://resource_validation/battle_special_profiles"
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
 var _reports: Array[String] = []
-
 
 func _initialize() -> void:
 	call_deferred("_run")
@@ -129,6 +132,8 @@ func _run() -> void:
 		ENEMY_INCOMPLETE_BRAIN_DIRECTORY,
 		ENEMY_INCOMPLETE_ROSTER_DIRECTORY
 	)
+	var enemy_invalid_initial_stage_result: Dictionary = validation_runner.validate_enemy_seed(ENEMY_INVALID_INITIAL_STAGE_SEED_PATH)
+	var enemy_invalid_skill_level_map_result: Dictionary = validation_runner.validate_enemy_seed(ENEMY_INVALID_SKILL_LEVEL_MAP_SEED_PATH)
 	var battle_special_missing_manifest_result := validation_runner.validate_battle_special_profile_registry(
 		"battle_special_profile_missing_manifest",
 		skill_defs,
@@ -234,12 +239,12 @@ func _run() -> void:
 	_assert_domain_has_fragment(skill_result, "uses unsupported selection_order_mode chaotic", "技能 validation runner 应覆盖非法 selection_order_mode。")
 	_assert_domain_has_fragment(skill_result, "uses unsupported area_pattern blob", "技能 validation runner 应覆盖非法 area_pattern。")
 	_assert_domain_has_fragment(skill_result, "level override 1.area_pattern uses unsupported area_pattern spiral", "技能 validation runner 应覆盖非法 level override area_pattern。")
-	_assert_domain_has_fragment(skill_result, "cast variant self_variant uses unsupported target_mode self", "技能 validation runner 应拒绝 self cast variant target_mode。")
-	_assert_domain_has_fragment(skill_result, "cast variant typo_variant uses unsupported target_mode phantom", "技能 validation runner 应覆盖非法 cast variant target_mode。")
-	_assert_domain_has_fragment(skill_result, "cast variant typo_variant uses unsupported footprint_pattern hex", "技能 validation runner 应覆盖非法 footprint_pattern。")
-	_assert_domain_has_fragment(skill_result, "cast variant typo_variant min_skill_level must be >= 0", "技能 validation runner 应覆盖负数 cast variant min_skill_level。")
-	_assert_domain_has_fragment(skill_result, "cast variant overlevel_variant min_skill_level must be <= max_level 1", "技能 validation runner 应覆盖静态 max_level 越级 cast variant。")
-	_assert_domain_has_fragment(skill_result, "cast variant locked_variant min_skill_level must be <= max_level 0", "技能 validation runner 应覆盖无等级技能的正数 cast variant min_skill_level。")
+	_assert_domain_has_fragment(skill_result, "cast option self_option uses unsupported target_mode self", "技能 validation runner 应拒绝 self cast option target_mode。")
+	_assert_domain_has_fragment(skill_result, "cast option typo_option uses unsupported target_mode phantom", "技能 validation runner 应覆盖非法 cast option target_mode。")
+	_assert_domain_has_fragment(skill_result, "cast option typo_option uses unsupported footprint_pattern hex", "技能 validation runner 应覆盖非法 footprint_pattern。")
+	_assert_domain_has_fragment(skill_result, "cast option typo_option min_skill_level must be >= 0", "技能 validation runner 应覆盖负数 cast option min_skill_level。")
+	_assert_domain_has_fragment(skill_result, "cast option overlevel_option min_skill_level must be <= max_level 1", "技能 validation runner 应覆盖静态 max_level 越级 cast option。")
+	_assert_domain_has_fragment(skill_result, "cast option locked_option min_skill_level must be <= max_level 0", "技能 validation runner 应覆盖无等级技能的正数 cast option min_skill_level。")
 	_assert_domain_has_fragment(skill_result, "level_description_configs must be non-empty when level_description_template is set", "技能 validation runner 应覆盖等级描述模板缺少配置。")
 	_assert_domain_has_fragment(skill_result, "level_description_template must be non-empty when level_description_configs is set", "技能 validation runner 应覆盖等级描述配置缺少模板。")
 	_assert_domain_has_fragment(skill_result, "level_description_configs key 0 must be a non-negative integer string", "技能 validation runner 应拒绝 int 等级描述 key。")
@@ -283,11 +288,15 @@ func _run() -> void:
 	_assert_domain_is(enemy_duplicate_result, "enemy", "重复 template_id 的 enemy fixture 应稳定归入 enemy domain。")
 	_assert_domain_is(enemy_invalid_reference_result, "enemy", "非法 roster 引用的 enemy fixture 应稳定归入 enemy domain。")
 	_assert_domain_is(enemy_incomplete_seed_result, "enemy", "遗漏 seed entry 的 enemy fixture 应稳定归入 enemy domain。")
+	_assert_domain_is(enemy_invalid_initial_stage_result, "enemy", "initial_stage 不匹配的 roster fixture 应稳定归入 enemy domain。")
+	_assert_domain_is(enemy_invalid_skill_level_map_result, "enemy", "skill_level_map 非法的 template fixture 应稳定归入 enemy domain。")
 	var enemy_errors := _combine_domain_errors([
 		enemy_missing_result,
 		enemy_duplicate_result,
 		enemy_invalid_reference_result,
 		enemy_incomplete_seed_result,
+		enemy_invalid_initial_stage_result,
+		enemy_invalid_skill_level_map_result,
 	])
 	_assert_messages_have_fragment(enemy_errors, "is missing template_id", "敌方 validation runner 应覆盖缺失 template_id。")
 	_assert_messages_have_fragment(enemy_errors, "Duplicate enemy template_id registered: duplicate_enemy", "敌方 validation runner 应覆盖重复 template_id。")
@@ -296,6 +305,10 @@ func _run() -> void:
 	_assert_messages_have_fragment(enemy_errors, "is missing enemy_ai_brains entry for res://tests/fixtures/enemy_content/incomplete_seed/brains/unseeded_brain.tres", "敌方 validation runner 应覆盖 brain 目录资源未入 seed。")
 	_assert_messages_have_fragment(enemy_errors, "is missing enemy_templates entry for res://tests/fixtures/enemy_content/incomplete_seed/templates/unseeded_template.tres", "敌方 validation runner 应覆盖 template 目录资源未入 seed。")
 	_assert_messages_have_fragment(enemy_errors, "is missing wild_encounter_rosters entry for res://tests/fixtures/enemy_content/incomplete_seed/rosters/unseeded_roster.tres", "敌方 validation runner 应覆盖 roster 目录资源未入 seed。")
+	_assert_messages_have_fragment(enemy_errors, "initial_stage 3 does not match any declared stage (max declared: 0)", "敌方 validation runner 应覆盖 initial_stage 未声明对应 stage。")
+	_assert_messages_have_fragment(enemy_errors, "skill_level_map key phantom_skill does not match any declared skill_id", "敌方 validation runner 应覆盖 skill_level_map key 不在 skill_ids 中。")
+	_assert_messages_have_fragment(enemy_errors, "skill_level_map[charge] must be an int", "敌方 validation runner 应覆盖 skill_level_map value 非 int。")
+	_assert_messages_have_fragment(enemy_errors, "skill_level_map[warrior_heavy_strike] must be >= 1", "敌方 validation runner 应覆盖 skill_level_map value < 1。")
 
 	var battle_special_errors := _combine_domain_errors([
 		battle_special_missing_manifest_result,
@@ -325,6 +338,20 @@ func _run() -> void:
 	_assert_domain_has_fragment(world_result, "references missing optional facility missing_optional_facility", "世界 validation runner 应覆盖非法可选设施引用。")
 	_assert_domain_has_fragment(world_result, "references missing enemy roster template missing_enemy", "世界 validation runner 应覆盖非法野怪敌方模板引用。")
 	_assert_domain_has_fragment(world_result, "references missing encounter profile missing_roster", "世界 validation runner 应覆盖非法野怪 roster 引用。")
+	_assert_domain_has_fragment(world_result, "has empty chunk_coords", "世界 validation runner 应覆盖野怪 chunk_coords 为空。")
+	_assert_domain_has_fragment(world_result, "has chunk_coord (-1, 0) outside world chunk range", "世界 validation runner 应覆盖野怪 chunk_coord 越界。")
+	_assert_domain_has_fragment(world_result, "has negative min_distance_to_settlement", "世界 validation runner 应覆盖野怪 min_distance_to_settlement 为负。")
+	_assert_domain_has_fragment(world_result, "non-MountedSubmapConfig mounted_submaps entry", "世界 validation runner 应覆盖错误脚本的 mounted submap。")
+	_assert_domain_has_fragment(world_result, "has mounted submap missing submap_id", "世界 validation runner 应覆盖缺失 submap_id。")
+	_assert_domain_has_fragment(world_result, "has duplicate mounted submap_id duplicate_submap", "世界 validation runner 应覆盖重复 submap_id。")
+	_assert_domain_has_fragment(world_result, "is missing generation_config_path", "世界 validation runner 应覆盖缺失 generation_config_path 的子地图。")
+	_assert_domain_has_fragment(world_result, "failed to load generation_config_path", "世界 validation runner 应覆盖无法加载的 generation_config_path。")
+	_assert_domain_has_fragment(world_result, "non-WorldEventConfig world_events entry", "世界 validation runner 应覆盖错误脚本的世界事件。")
+	_assert_domain_has_fragment(world_result, "has world event missing event_id", "世界 validation runner 应覆盖缺失 event_id。")
+	_assert_domain_has_fragment(world_result, "has duplicate world event_id duplicate_event", "世界 validation runner 应覆盖重复 event_id。")
+	_assert_domain_has_fragment(world_result, "has world_coord (99, 99) outside world cell range", "世界 validation runner 应覆盖 world_coord 越界。")
+	_assert_domain_has_fragment(world_result, "with event_type enter_submap is missing target_submap_id", "世界 validation runner 应覆盖 enter_submap 事件缺失 target_submap_id。")
+	_assert_domain_has_fragment(world_result, "references missing target_submap_id never_declared_submap", "世界 validation runner 应覆盖未声明的 target_submap_id。")
 
 	_assert_true(String(quest_result.get("domain", "")) == "quest", "任务 validation runner 应稳定归入 quest domain。")
 	_assert_domain_has_fragment(quest_result, "is missing quest_id", "任务 validation runner 应覆盖缺失 quest_id。")
@@ -358,7 +385,7 @@ func _build_quest_entries_from_dict(quest_defs: Dictionary, source_prefix: Strin
 
 
 func _test_item_registry_directory_rebuild_clears_template_cache() -> void:
-	var registry := ItemContentRegistry.new(false)
+	var registry := ItemContentRegistry.new()
 	registry.rebuild_from_directories(
 		[ITEM_TEMPLATE_ISOLATED_ITEM_DIRECTORY],
 		[ITEM_TEMPLATE_ISOLATED_TEMPLATE_DIRECTORY]
@@ -461,11 +488,11 @@ func _build_bad_schema_meteor_swarm_profile() -> MeteorSwarmProfile:
 	return profile
 
 
-func _to_string_name_array(values_variant) -> Array[StringName]:
+func _to_string_name_array(values_option) -> Array[StringName]:
 	var result: Array[StringName] = []
-	if values_variant is not Array:
+	if values_option is not Array:
 		return result
-	for value in values_variant:
+	for value in values_option:
 		if value is StringName:
 			result.append(value)
 		elif value is String:
@@ -473,11 +500,11 @@ func _to_string_name_array(values_variant) -> Array[StringName]:
 	return result
 
 
-func _to_string_array(values_variant) -> Array[String]:
+func _to_string_array(values_option) -> Array[String]:
 	var result: Array[String] = []
-	if values_variant is not Array:
+	if values_option is not Array:
 		return result
-	for value in values_variant:
+	for value in values_option:
 		result.append(String(value))
 	return result
 
@@ -520,13 +547,13 @@ func _build_invalid_quest_entries() -> Array[Dictionary]:
 	missing_id_quest.objective_defs = [
 		{
 			"objective_id": "report_once",
-			"objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION,
+			"objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION(),
 			"target_id": "service:training",
 			"target_value": 1,
 		},
 	]
 	missing_id_quest.reward_entries = [
-		{"reward_type": QuestDef.REWARD_GOLD, "amount": 10},
+		{"reward_type": QuestDef.REWARD_GOLD(), "amount": 10},
 	]
 
 	var duplicate_a := QuestDef.new()
@@ -536,13 +563,13 @@ func _build_invalid_quest_entries() -> Array[Dictionary]:
 	duplicate_a.objective_defs = [
 		{
 			"objective_id": "report_once",
-			"objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION,
+			"objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION(),
 			"target_id": "service:training",
 			"target_value": 1,
 		},
 	]
 	duplicate_a.reward_entries = [
-		{"reward_type": QuestDef.REWARD_GOLD, "amount": 10},
+		{"reward_type": QuestDef.REWARD_GOLD(), "amount": 10},
 	]
 
 	var duplicate_b := QuestDef.new()
@@ -559,21 +586,21 @@ func _build_invalid_quest_entries() -> Array[Dictionary]:
 	invalid_reference_quest.objective_defs = [
 		{
 			"objective_id": "submit_missing_item",
-			"objective_type": QuestDef.OBJECTIVE_SUBMIT_ITEM,
+			"objective_type": QuestDef.OBJECTIVE_SUBMIT_ITEM(),
 			"target_id": "missing_item",
 			"target_value": 1,
 		},
 		{
 			"objective_id": "defeat_missing_enemy",
-			"objective_type": QuestDef.OBJECTIVE_DEFEAT_ENEMY,
+			"objective_type": QuestDef.OBJECTIVE_DEFEAT_ENEMY(),
 			"target_id": "missing_enemy",
 			"target_value": 1,
 		},
 	]
 	invalid_reference_quest.reward_entries = [
-		{"reward_type": QuestDef.REWARD_ITEM, "item_id": "missing_item", "quantity": 1},
+		{"reward_type": QuestDef.REWARD_ITEM(), "item_id": "missing_item", "quantity": 1},
 		{
-			"reward_type": QuestDef.REWARD_PENDING_CHARACTER_REWARD,
+			"reward_type": QuestDef.REWARD_PENDING_CHARACTER_REWARD(),
 			"member_id": "hero",
 			"entries": [
 				{
@@ -650,21 +677,118 @@ func _build_invalid_world_generation_config():
 	missing_wild_rule.encounter_profile_id = &"missing_roster"
 	missing_wild_rule.density_per_chunk = 1
 
+	var wild_empty_chunks := WildSpawnRule.new()
+	wild_empty_chunks.region_tag = "empty_chunks_patch"
+	wild_empty_chunks.enemy_roster_template_id = &"missing_enemy"
+	wild_empty_chunks.density_per_chunk = 1
+	wild_empty_chunks.chunk_coords = []
+
+	var wild_oob_chunks := WildSpawnRule.new()
+	wild_oob_chunks.region_tag = "oob_chunks_patch"
+	wild_oob_chunks.enemy_roster_template_id = &"missing_enemy"
+	wild_oob_chunks.density_per_chunk = 1
+	wild_oob_chunks.chunk_coords = [Vector2i(-1, 0), Vector2i(0, -1), Vector2i(99, 0)]
+
+	var wild_negative_distance := WildSpawnRule.new()
+	wild_negative_distance.region_tag = "negative_distance_patch"
+	wild_negative_distance.enemy_roster_template_id = &"missing_enemy"
+	wild_negative_distance.density_per_chunk = 1
+	wild_negative_distance.min_distance_to_settlement = -3
+	wild_negative_distance.chunk_coords = [Vector2i(0, 0)]
+
+	var bad_script_submap := SettlementConfig.new()  # wrong script for MountedSubmapConfig slot
+
+	var missing_id_submap := MountedSubmapConfig.new()
+	missing_id_submap.display_name = "Missing Id Submap"
+	missing_id_submap.generation_config_path = "res://nonexistent/never_loaded.tres"
+
+	var duplicate_submap_a := MountedSubmapConfig.new()
+	duplicate_submap_a.submap_id = &"duplicate_submap"
+	duplicate_submap_a.display_name = "Duplicate Submap A"
+	duplicate_submap_a.generation_config_path = "res://nonexistent/never_loaded_a.tres"
+
+	var duplicate_submap_b := MountedSubmapConfig.new()
+	duplicate_submap_b.submap_id = &"duplicate_submap"
+	duplicate_submap_b.display_name = "Duplicate Submap B"
+	duplicate_submap_b.generation_config_path = "res://nonexistent/never_loaded_b.tres"
+
+	var empty_path_submap := MountedSubmapConfig.new()
+	empty_path_submap.submap_id = &"empty_path_submap"
+	empty_path_submap.display_name = "Empty Path Submap"
+	empty_path_submap.generation_config_path = ""
+
+	var unloadable_submap := MountedSubmapConfig.new()
+	unloadable_submap.submap_id = &"unloadable_submap"
+	unloadable_submap.display_name = "Unloadable Submap"
+	unloadable_submap.generation_config_path = "res://does_not_exist/missing_world_config.tres"
+
+	var bad_script_event := SettlementConfig.new()  # wrong script for WorldEventConfig slot
+
+	var missing_id_event := WorldEventConfig.new()
+	missing_id_event.world_coord = Vector2i(0, 0)
+
+	var duplicate_event_a := WorldEventConfig.new()
+	duplicate_event_a.event_id = &"duplicate_event"
+	duplicate_event_a.event_type = &"enter_submap"
+	duplicate_event_a.target_submap_id = &"duplicate_submap"
+	duplicate_event_a.world_coord = Vector2i(0, 0)
+
+	var duplicate_event_b := WorldEventConfig.new()
+	duplicate_event_b.event_id = &"duplicate_event"
+	duplicate_event_b.event_type = &"enter_submap"
+	duplicate_event_b.target_submap_id = &"duplicate_submap"
+	duplicate_event_b.world_coord = Vector2i(1, 1)
+
+	var oob_coord_event := WorldEventConfig.new()
+	oob_coord_event.event_id = &"oob_coord_event"
+	oob_coord_event.event_type = &"enter_submap"
+	oob_coord_event.target_submap_id = &"duplicate_submap"
+	oob_coord_event.world_coord = Vector2i(99, 99)
+
+	var missing_target_event := WorldEventConfig.new()
+	missing_target_event.event_id = &"missing_target_event"
+	missing_target_event.event_type = &"enter_submap"
+	missing_target_event.target_submap_id = &""
+	missing_target_event.world_coord = Vector2i(0, 0)
+
+	var unknown_target_event := WorldEventConfig.new()
+	unknown_target_event.event_id = &"unknown_target_event"
+	unknown_target_event.event_type = &"enter_submap"
+	unknown_target_event.target_submap_id = &"never_declared_submap"
+	unknown_target_event.world_coord = Vector2i(0, 0)
+
 	var config := WorldMapGenerationConfig.new()
 	config.world_size_in_chunks = Vector2i(1, 1)
 	config.chunk_size = Vector2i(4, 4)
 	config.settlement_library = [settlement, duplicate_settlement, missing_id_settlement]
 	config.facility_library = [valid_facility, duplicate_facility, missing_id_facility]
 	config.settlement_distribution = [missing_distribution]
-	config.wild_monster_distribution = [missing_wild_rule]
+	config.wild_monster_distribution = [missing_wild_rule, wild_empty_chunks, wild_oob_chunks, wild_negative_distance]
+	config.mounted_submaps = [
+		bad_script_submap,
+		missing_id_submap,
+		duplicate_submap_a,
+		duplicate_submap_b,
+		empty_path_submap,
+		unloadable_submap,
+	]
+	config.world_events = [
+		bad_script_event,
+		missing_id_event,
+		duplicate_event_a,
+		duplicate_event_b,
+		oob_coord_event,
+		missing_target_event,
+		unknown_target_event,
+	]
 	return config
 
 
 func _combine_domain_errors(domain_results: Array[Dictionary]) -> Array[String]:
 	var errors: Array[String] = []
 	for domain_result in domain_results:
-		for error_variant in domain_result.get("errors", []):
-			errors.append(String(error_variant))
+		for error_option in domain_result.get("errors", []):
+			errors.append(String(error_option))
 	return errors
 
 
@@ -678,9 +802,9 @@ func _assert_domain_is(domain_result: Dictionary, expected_domain: String, messa
 
 func _assert_report_has_fragment(report: Dictionary, fragment: String, message: String) -> void:
 	var domain_results: Array[Dictionary] = []
-	for domain_variant in report.get("domains", []):
-		if domain_variant is Dictionary:
-			domain_results.append(domain_variant)
+	for domain_option in report.get("domains", []):
+		if domain_option is Dictionary:
+			domain_results.append(domain_option)
 	_assert_messages_have_fragment(_combine_domain_errors(domain_results), fragment, message)
 
 

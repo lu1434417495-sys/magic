@@ -2,22 +2,22 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const AgeProfileDef = preload("res://scripts/player/progression/age_profile_def.gd")
-const AgeStageRule = preload("res://scripts/player/progression/age_stage_rule.gd")
-const AscensionDef = preload("res://scripts/player/progression/ascension_def.gd")
-const AscensionStageDef = preload("res://scripts/player/progression/ascension_stage_def.gd")
-const AttributeModifier = preload("res://scripts/player/progression/attribute_modifier.gd")
-const AttributeSnapshot = preload("res://scripts/player/progression/attribute_snapshot.gd")
-const AttributeService = preload("res://scripts/systems/attributes/attribute_service.gd")
-const AttributeSourceContext = preload("res://scripts/systems/attributes/attribute_source_context.gd")
-const BloodlineDef = preload("res://scripts/player/progression/bloodline_def.gd")
-const BloodlineStageDef = preload("res://scripts/player/progression/bloodline_stage_def.gd")
-const CharacterManagementModule = preload("res://scripts/systems/progression/character_management_module.gd")
-const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
-const PartyState = preload("res://scripts/player/progression/party_state.gd")
-const RaceDef = preload("res://scripts/player/progression/race_def.gd")
-const StageAdvancementModifier = preload("res://scripts/player/progression/stage_advancement_modifier.gd")
-const SubraceDef = preload("res://scripts/player/progression/subrace_def.gd")
+const AgeProfileDef = preload("res://scripts/player/progression/AgeProfileDef.cs")
+const AgeStageRule = preload("res://scripts/player/progression/AgeStageRule.cs")
+const AscensionDef = preload("res://scripts/player/progression/AscensionDef.cs")
+const AscensionStageDef = preload("res://scripts/player/progression/AscensionStageDef.cs")
+const AttributeModifier = preload("res://scripts/player/progression/AttributeModifier.cs")
+const AttributeSnapshot = preload("res://scripts/player/progression/AttributeSnapshot.cs")
+const AttributeService = preload("res://scripts/systems/attributes/AttributeService.cs")
+const AttributeSourceContext = preload("res://scripts/systems/attributes/AttributeSourceContext.cs")
+const BloodlineDef = preload("res://scripts/player/progression/BloodlineDef.cs")
+const BloodlineStageDef = preload("res://scripts/player/progression/BloodlineStageDef.cs")
+const CharacterManagementModule = preload("res://scripts/systems/progression/CharacterManagementModule.cs")
+const PartyMemberState = preload("res://scripts/player/progression/PartyMemberState.cs")
+const PartyState = preload("res://scripts/player/progression/PartyState.cs")
+const RaceDef = preload("res://scripts/player/progression/RaceDef.cs")
+const StageAdvancementModifier = preload("res://scripts/player/progression/StageAdvancementModifier.cs")
+const SubraceDef = preload("res://scripts/player/progression/SubraceDef.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -45,26 +45,26 @@ func _run() -> void:
 
 func _test_attribute_snapshot_exposes_base_attribute_modifiers() -> void:
 	var direct_snapshot := AttributeSnapshot.new()
-	direct_snapshot.set_value(UnitBaseAttributes.STRENGTH, 8)
-	_assert_eq(direct_snapshot.get_value(AttributeSnapshot.STRENGTH_MODIFIER), -1, "直接写入 snapshot 六维时应同步调整值。")
+	direct_snapshot.set_value(&"strength", 8)
+	_assert_eq(direct_snapshot.get_value(AttributeSnapshot.STRENGTH_MODIFIER()), -1, "直接写入 snapshot 六维时应同步调整值。")
 
 	var progress := _make_progress(&"modifier")
-	progress.unit_base_attributes.set_attribute_value(UnitBaseAttributes.STRENGTH, 8)
-	progress.unit_base_attributes.set_attribute_value(UnitBaseAttributes.AGILITY, 9)
-	progress.unit_base_attributes.set_attribute_value(UnitBaseAttributes.CONSTITUTION, 10)
-	progress.unit_base_attributes.set_attribute_value(UnitBaseAttributes.PERCEPTION, 11)
-	progress.unit_base_attributes.set_attribute_value(UnitBaseAttributes.INTELLIGENCE, 12)
-	progress.unit_base_attributes.set_attribute_value(UnitBaseAttributes.WILLPOWER, 20)
+	progress.unit_base_attributes.set_attribute_value(&"strength", 8)
+	progress.unit_base_attributes.set_attribute_value(&"agility", 9)
+	progress.unit_base_attributes.set_attribute_value(&"constitution", 10)
+	progress.unit_base_attributes.set_attribute_value(&"perception", 11)
+	progress.unit_base_attributes.set_attribute_value(&"intelligence", 12)
+	progress.unit_base_attributes.set_attribute_value(&"willpower", 20)
 
 	var service = AttributeService.new()
 	service.setup(progress)
 	var snapshot = service.get_snapshot()
-	_assert_eq(snapshot.get_value(AttributeService.STRENGTH_MODIFIER), -1, "snapshot 应暴露力量调整值。")
-	_assert_eq(snapshot.get_value(AttributeService.AGILITY_MODIFIER), -1, "snapshot 应暴露敏捷调整值。")
-	_assert_eq(snapshot.get_value(AttributeService.CONSTITUTION_MODIFIER), 0, "snapshot 应暴露体质调整值。")
-	_assert_eq(snapshot.get_value(AttributeService.PERCEPTION_MODIFIER), 0, "snapshot 应暴露感知调整值。")
-	_assert_eq(snapshot.get_value(AttributeService.INTELLIGENCE_MODIFIER), 1, "snapshot 应暴露智力调整值。")
-	_assert_eq(snapshot.get_value(AttributeService.WILLPOWER_MODIFIER), 5, "snapshot 应暴露意志调整值。")
+	_assert_eq(snapshot.get_value(AttributeService.STRENGTH_MODIFIER_ID()), -1, "snapshot 应暴露力量调整值。")
+	_assert_eq(snapshot.get_value(AttributeService.AGILITY_MODIFIER_ID()), -1, "snapshot 应暴露敏捷调整值。")
+	_assert_eq(snapshot.get_value(AttributeService.CONSTITUTION_MODIFIER_ID()), 0, "snapshot 应暴露体质调整值。")
+	_assert_eq(snapshot.get_value(AttributeService.PERCEPTION_MODIFIER_ID()), 0, "snapshot 应暴露感知调整值。")
+	_assert_eq(snapshot.get_value(AttributeService.INTELLIGENCE_MODIFIER_ID()), 1, "snapshot 应暴露智力调整值。")
+	_assert_eq(snapshot.get_value(AttributeService.WILLPOWER_MODIFIER_ID()), 5, "snapshot 应暴露意志调整值。")
 	_assert_eq(int(snapshot.to_dict().get("strength_modifier", 999)), -1, "snapshot 字典应包含力量调整值。")
 
 
@@ -72,30 +72,30 @@ func _test_attribute_service_setup_context_applies_identity_modifiers() -> void:
 	var progress := _make_progress(&"direct")
 	var context := AttributeSourceContext.new()
 	context.unit_progress = progress
-	context.race_def = _make_race([_make_modifier(UnitBaseAttributes.STRENGTH, 1)])
-	context.subrace_def = _make_subrace([_make_modifier(UnitBaseAttributes.STRENGTH, 2)])
-	context.age_stage_rule = _make_age_stage_rule(&"old", [_make_modifier(UnitBaseAttributes.CONSTITUTION, 3)])
+	context.race_def = _make_race([_make_modifier(&"strength", 1)])
+	context.subrace_def = _make_subrace([_make_modifier(&"strength", 2)])
+	context.age_stage_rule = _make_age_stage_rule(&"old", [_make_modifier(&"constitution", 3)])
 	context.age_stage_source_type = &"stage_advancement"
 	context.age_stage_source_id = &"growth_boon"
-	context.bloodline_def = _make_bloodline(&"titan", [&"titan_awakened"], [_make_modifier(UnitBaseAttributes.WILLPOWER, 1)])
-	context.bloodline_stage_def = _make_bloodline_stage(&"titan_awakened", &"titan", [_make_modifier(UnitBaseAttributes.STRENGTH, 4)])
+	context.bloodline_def = _make_bloodline(&"titan", [&"titan_awakened"], [_make_modifier(&"willpower", 1)])
+	context.bloodline_stage_def = _make_bloodline_stage(&"titan_awakened", &"titan", [_make_modifier(&"strength", 4)])
 	context.ascension_def = _make_ascension(&"dragon_ascension", [&"dragon_awakened"])
 	context.ascension_stage_def = _make_ascension_stage(&"dragon_awakened", &"dragon_ascension", [
-		_make_modifier(UnitBaseAttributes.INTELLIGENCE, 5),
-		_make_modifier(UnitBaseAttributes.PERCEPTION, 6),
+		_make_modifier(&"intelligence", 5),
+		_make_modifier(&"perception", 6),
 	])
-	context.versatility_pick = UnitBaseAttributes.AGILITY
+	context.versatility_pick = &"agility"
 
 	var service = AttributeService.new()
 	service.call("setup_context", context)
 	var snapshot = service.get_snapshot()
-	_assert_eq(snapshot.get_value(UnitBaseAttributes.STRENGTH), 17, "race/subrace/bloodline stage 修正应叠加到力量。")
-	_assert_eq(snapshot.get_value(UnitBaseAttributes.AGILITY), 11, "versatility_pick 应作为独立 +1 修正进入敏捷。")
-	_assert_eq(snapshot.get_value(UnitBaseAttributes.CONSTITUTION), 13, "effective age stage 修正应进入体质。")
-	_assert_eq(snapshot.get_value(UnitBaseAttributes.PERCEPTION), 16, "ascension stage 修正应进入感知。")
-	_assert_eq(snapshot.get_value(UnitBaseAttributes.INTELLIGENCE), 15, "ascension 修正应进入智力。")
-	_assert_eq(snapshot.get_value(UnitBaseAttributes.WILLPOWER), 11, "bloodline 修正应进入意志。")
-	_assert_eq(service.get_modifier(UnitBaseAttributes.STRENGTH), 3, "get_modifier 应使用 5e 属性修正公式。")
+	_assert_eq(snapshot.get_value(&"strength"), 17, "race/subrace/bloodline stage 修正应叠加到力量。")
+	_assert_eq(snapshot.get_value(&"agility"), 11, "versatility_pick 应作为独立 +1 修正进入敏捷。")
+	_assert_eq(snapshot.get_value(&"constitution"), 13, "effective age stage 修正应进入体质。")
+	_assert_eq(snapshot.get_value(&"perception"), 16, "ascension stage 修正应进入感知。")
+	_assert_eq(snapshot.get_value(&"intelligence"), 15, "ascension 修正应进入智力。")
+	_assert_eq(snapshot.get_value(&"willpower"), 11, "bloodline 修正应进入意志。")
+	_assert_eq(service.get_modifier(&"strength"), 3, "get_modifier 应使用 5e 属性修正公式。")
 
 
 func _test_character_management_builds_attribute_source_context() -> void:
@@ -108,7 +108,7 @@ func _test_character_management_builds_attribute_source_context() -> void:
 	member.age_profile_id = &"human_age"
 	member.natural_age_stage_id = &"adult"
 	member.effective_age_stage_id = &"adult"
-	member.versatility_pick = UnitBaseAttributes.PERCEPTION
+	member.versatility_pick = &"perception"
 	member.progression = _make_progress(&"hero")
 	party_state.set_member_state(member)
 	party_state.active_member_ids = [&"hero"]
@@ -127,39 +127,39 @@ func _test_character_management_builds_attribute_source_context() -> void:
 		"CMM 应通过 bloodline service 写入血脉身份。"
 	)
 
-	var context := manager.build_attribute_source_context(&"hero")
+	var context = manager.build_attribute_source_context(&"hero")
 	_assert_true(context.age_stage_rule != null and context.age_stage_rule.stage_id == &"old", "CMM context 应解析 effective age stage rule。")
 	_assert_eq(context.age_stage_source_type, &"stage_advancement", "CMM context 应保留 effective stage 来源类型。")
 	_assert_eq(context.age_stage_source_id, &"growth_boon", "CMM context 应保留 effective stage 来源 id。")
 
 	var snapshot = manager.get_member_attribute_snapshot(&"hero")
-	_assert_eq(snapshot.get_value(UnitBaseAttributes.STRENGTH), 11, "CMM snapshot 应包含 race 属性修正。")
-	_assert_eq(snapshot.get_value(UnitBaseAttributes.AGILITY), 12, "CMM snapshot 应包含 subrace 属性修正。")
-	_assert_eq(snapshot.get_value(UnitBaseAttributes.CONSTITUTION), 14, "CMM snapshot 应包含 stage advancement 推导出的 age stage 修正。")
-	_assert_eq(snapshot.get_value(UnitBaseAttributes.PERCEPTION), 11, "CMM snapshot 应包含 versatility 修正且不改写 base。")
-	_assert_eq(snapshot.get_value(UnitBaseAttributes.WILLPOWER), 13, "CMM snapshot 应包含 bloodline 属性修正。")
-	_assert_eq(member.progression.unit_base_attributes.get_attribute_value(UnitBaseAttributes.PERCEPTION), 10, "versatility 不应持久改写基础属性。")
+	_assert_eq(snapshot.get_value(&"strength"), 11, "CMM snapshot 应包含 race 属性修正。")
+	_assert_eq(snapshot.get_value(&"agility"), 12, "CMM snapshot 应包含 subrace 属性修正。")
+	_assert_eq(snapshot.get_value(&"constitution"), 14, "CMM snapshot 应包含 stage advancement 推导出的 age stage 修正。")
+	_assert_eq(snapshot.get_value(&"perception"), 11, "CMM snapshot 应包含 versatility 修正且不改写 base。")
+	_assert_eq(snapshot.get_value(&"willpower"), 13, "CMM snapshot 应包含 bloodline 属性修正。")
+	_assert_eq(member.progression.unit_base_attributes.get_attribute_value(&"perception"), 10, "versatility 不应持久改写基础属性。")
 
 
 func _make_content_bundle() -> Dictionary:
-	var race := _make_race([_make_modifier(UnitBaseAttributes.STRENGTH, 1)])
-	var subrace := _make_subrace([_make_modifier(UnitBaseAttributes.AGILITY, 2)])
+	var race := _make_race([_make_modifier(&"strength", 1)])
+	var subrace := _make_subrace([_make_modifier(&"agility", 2)])
 	var age_profile := AgeProfileDef.new()
 	age_profile.profile_id = &"human_age"
 	age_profile.race_id = &"human"
 	var stage_rules: Array[AgeStageRule] = []
 	stage_rules.append(_make_age_stage_rule(&"adult", []))
 	stage_rules.append(_make_age_stage_rule(&"middle_age", []))
-	stage_rules.append(_make_age_stage_rule(&"old", [_make_modifier(UnitBaseAttributes.CONSTITUTION, 4)]))
+	stage_rules.append(_make_age_stage_rule(&"old", [_make_modifier(&"constitution", 4)]))
 	age_profile.stage_rules = stage_rules
 	age_profile.creation_stage_ids = [&"adult"]
 	age_profile.default_age_by_stage = {"adult": 18}
-	var bloodline := _make_bloodline(&"titan", [&"titan_awakened"], [_make_modifier(UnitBaseAttributes.WILLPOWER, 3)])
+	var bloodline := _make_bloodline(&"titan", [&"titan_awakened"], [_make_modifier(&"willpower", 3)])
 	var bloodline_stage := _make_bloodline_stage(&"titan_awakened", &"titan", [])
 	var growth_boon := StageAdvancementModifier.new()
 	growth_boon.modifier_id = &"growth_boon"
 	growth_boon.display_name = "Growth Boon"
-	growth_boon.target_axis = StageAdvancementModifier.TARGET_AXIS_FULL
+	growth_boon.target_axis = &"full"
 	growth_boon.stage_offset = 2
 	growth_boon.max_stage_id = &"old"
 	growth_boon.applies_to_race_ids = [&"human"]
@@ -179,7 +179,7 @@ func _make_progress(unit_id: StringName) -> UnitProgress:
 	var progress := UnitProgress.new()
 	progress.unit_id = unit_id
 	progress.display_name = String(unit_id).capitalize()
-	for attribute_id in UnitBaseAttributes.BASE_ATTRIBUTE_IDS:
+	for attribute_id in [&"strength", &"agility", &"constitution", &"perception", &"intelligence", &"willpower"]:
 		progress.unit_base_attributes.set_attribute_value(attribute_id, 10)
 	return progress
 
@@ -259,7 +259,7 @@ func _make_ascension_stage(stage_id: StringName, ascension_id: StringName, modif
 func _make_modifier(attribute_id: StringName, value: int) -> AttributeModifier:
 	var modifier := AttributeModifier.new()
 	modifier.attribute_id = attribute_id
-	modifier.mode = AttributeModifier.MODE_FLAT
+	modifier.mode = &"flat"
 	modifier.value = value
 	return modifier
 

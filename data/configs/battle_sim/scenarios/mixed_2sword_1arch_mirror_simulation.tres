@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="BattleSimScenarioDef" format=3]
 
-[ext_resource type="Script" path="res://scripts/systems/battle/sim/battle_sim_scenario_def.gd" id="1_scenario"]
+[ext_resource type="Script" path="res://scripts/systems/battle/sim/BattleSimScenarioDef.cs" id="1_scenario"]
 
 [resource]
 script = ExtResource("1_scenario")

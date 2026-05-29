@@ -1,13 +1,14 @@
 extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
+const GodotSharpCleanup = preload("res://tests/shared/GodotSharpCleanup.cs")
 
-const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_session.gd")
-const WORLD_MAP_GRID_SYSTEM_SCRIPT = preload("res://scripts/systems/world/world_map_grid_system.gd")
-const WORLD_MAP_SPAWN_SYSTEM_SCRIPT = preload("res://scripts/systems/world/world_map_spawn_system.gd")
-const SETTLEMENT_CONFIG_SCRIPT = preload("res://scripts/utils/settlement_config.gd")
-const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/world/encounter_anchor_data.gd")
-const WILD_SPAWN_RULE_SCRIPT = preload("res://scripts/utils/wild_spawn_rule.gd")
+const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/GameSession.cs")
+const WORLD_MAP_GRID_SYSTEM_SCRIPT = preload("res://scripts/systems/world/WorldMapGridSystem.cs")
+const WORLD_MAP_SPAWN_SYSTEM_SCRIPT = preload("res://scripts/systems/world/WorldMapSpawnSystem.cs")
+const SETTLEMENT_CONFIG_SCRIPT = preload("res://scripts/utils/SettlementConfig.cs")
+const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/world/EncounterAnchorData.cs")
+const WILD_SPAWN_RULE_SCRIPT = preload("res://scripts/utils/WildSpawnRule.cs")
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
 const SMALL_WORLD_CONFIG := "res://data/configs/world_map/small_world_map_config.tres"
@@ -46,12 +47,14 @@ func _run() -> void:
 
 	if _failures.is_empty():
 		print("World map shared content injection regression: PASS")
+		GodotSharpCleanup.collect_pending_finalizers()
 		quit(0)
 		return
 
 	for failure in _failures:
 		push_error(failure)
 	print("World map shared content injection regression: FAIL (%d)" % _failures.size())
+	GodotSharpCleanup.collect_pending_finalizers()
 	quit(1)
 
 
@@ -80,22 +83,22 @@ func _test_world_generation_injects_shared_main_world_content() -> void:
 	var world_data: Dictionary = game_session.get_world_data()
 	var found_world_stronghold := false
 	var found_master_reforge_service := false
-	for settlement_variant in world_data.get("settlements", []):
-		if settlement_variant is not Dictionary:
+	for settlement_option in world_data.get("settlements", []):
+		if settlement_option is not Dictionary:
 			continue
-		var settlement: Dictionary = settlement_variant
-		if int(settlement.get("tier", -1)) == SETTLEMENT_CONFIG_SCRIPT.SettlementTier.WORLD_STRONGHOLD:
+		var settlement: Dictionary = settlement_option
+		if int(settlement.get("tier", -1)) == 4:
 			found_world_stronghold = true
-		for service_variant in settlement.get("available_services", []):
-			if service_variant is not Dictionary:
+		for service_option in settlement.get("available_services", []):
+			if service_option is not Dictionary:
 				continue
-			if String((service_variant as Dictionary).get("interaction_script_id", "")) == "service_master_reforge":
+			if String((service_option as Dictionary).get("interaction_script_id", "")) == "service_master_reforge":
 				found_master_reforge_service = true
 
 	var found_north_wild := false
 	var found_south_mist_hollow := false
-	for encounter_variant in world_data.get("encounter_anchors", []):
-		var encounter_anchor = encounter_variant as ENCOUNTER_ANCHOR_DATA_SCRIPT
+	for encounter_option in world_data.get("encounter_anchors", []):
+		var encounter_anchor = encounter_option as ENCOUNTER_ANCHOR_DATA_SCRIPT
 		if encounter_anchor == null:
 			continue
 		if encounter_anchor.region_tag == &"north_wilds":
@@ -143,11 +146,11 @@ func _test_world_stronghold_instances_keep_stronghold_semantics() -> void:
 		return
 
 	var found_world_stronghold := false
-	for settlement_variant in game_session.get_world_data().get("settlements", []):
-		if settlement_variant is not Dictionary:
+	for settlement_option in game_session.get_world_data().get("settlements", []):
+		if settlement_option is not Dictionary:
 			continue
-		var settlement: Dictionary = settlement_variant
-		if int(settlement.get("tier", -1)) != SETTLEMENT_CONFIG_SCRIPT.SettlementTier.WORLD_STRONGHOLD:
+		var settlement: Dictionary = settlement_option
+		if int(settlement.get("tier", -1)) != 4:
 			continue
 		found_world_stronghold = true
 		var display_name := String(settlement.get("display_name", "")).strip_edges()
@@ -167,11 +170,11 @@ func _test_demo_world_generation_includes_metropolis_instances() -> void:
 		return
 
 	var found_metropolis_instance := false
-	for settlement_variant in game_session.get_world_data().get("settlements", []):
-		if settlement_variant is not Dictionary:
+	for settlement_option in game_session.get_world_data().get("settlements", []):
+		if settlement_option is not Dictionary:
 			continue
-		var settlement: Dictionary = settlement_variant
-		if int(settlement.get("tier", -1)) != SETTLEMENT_CONFIG_SCRIPT.SettlementTier.METROPOLIS:
+		var settlement: Dictionary = settlement_option
+		if int(settlement.get("tier", -1)) != 5:
 			continue
 		found_metropolis_instance = true
 		var display_name := String(settlement.get("display_name", "")).strip_edges()
@@ -230,11 +233,11 @@ func _test_procedural_wild_spawn_region_tags_ignore_rule_order() -> void:
 	var found_south_in_south := false
 	var misplaced_north := false
 	var misplaced_south := false
-	for encounter_variant in world_data.get("encounter_anchors", []):
-		var encounter_anchor = encounter_variant as ENCOUNTER_ANCHOR_DATA_SCRIPT
+	for encounter_option in world_data.get("encounter_anchors", []):
+		var encounter_anchor = encounter_option as ENCOUNTER_ANCHOR_DATA_SCRIPT
 		if encounter_anchor == null:
 			continue
-		if encounter_anchor.encounter_kind != ENCOUNTER_ANCHOR_DATA_SCRIPT.ENCOUNTER_KIND_SINGLE:
+		if encounter_anchor.encounter_kind != ENCOUNTER_ANCHOR_DATA_SCRIPT.ENCOUNTER_KIND_SINGLE():
 			continue
 		var chunk_coord := grid_system.get_chunk_coord(encounter_anchor.world_coord)
 		if encounter_anchor.region_tag == &"north_wilds":
@@ -298,11 +301,11 @@ func _test_procedural_wild_spawn_density_can_be_configured() -> void:
 	var spawn_system = WORLD_MAP_SPAWN_SYSTEM_SCRIPT.new()
 	var world_data: Dictionary = spawn_system.build_world(config, grid_system)
 	var single_encounter_count := 0
-	for encounter_variant in world_data.get("encounter_anchors", []):
-		var encounter_anchor = encounter_variant as ENCOUNTER_ANCHOR_DATA_SCRIPT
+	for encounter_option in world_data.get("encounter_anchors", []):
+		var encounter_anchor = encounter_option as ENCOUNTER_ANCHOR_DATA_SCRIPT
 		if encounter_anchor == null:
 			continue
-		if encounter_anchor.encounter_kind == ENCOUNTER_ANCHOR_DATA_SCRIPT.ENCOUNTER_KIND_SINGLE:
+		if encounter_anchor.encounter_kind == ENCOUNTER_ANCHOR_DATA_SCRIPT.ENCOUNTER_KIND_SINGLE():
 			single_encounter_count += 1
 
 	var expected_minimum := int(config.world_size_in_chunks.x * config.world_size_in_chunks.y)
@@ -334,29 +337,29 @@ func _test_small_world_generation_assigns_unique_display_names() -> void:
 	var found_city_instance := false
 	var found_capital_instance := false
 	var found_metropolis_instance := false
-	for settlement_variant in world_data.get("settlements", []):
-		if settlement_variant is not Dictionary:
+	for settlement_option in world_data.get("settlements", []):
+		if settlement_option is not Dictionary:
 			continue
-		var settlement: Dictionary = settlement_variant
+		var settlement: Dictionary = settlement_option
 		var display_name := String(settlement.get("display_name", "")).strip_edges()
 		var tier := int(settlement.get("tier", -1))
 		_assert_true(not display_name.is_empty(), "small 世界里的据点实例展示名不应为空。")
-		if tier == SETTLEMENT_CONFIG_SCRIPT.SettlementTier.WORLD_STRONGHOLD:
+		if tier == 4:
 			_assert_true(display_name.begins_with("世界据点"), "small 世界里的世界据点实例应保留 stronghold 语义名。")
 		else:
 			_assert_true(not generic_placeholder_names.has(display_name), "small 世界里的据点实例展示名应来自名称池而不是模板占位名。")
 		_assert_true(not seen_names.has(display_name), "small 世界里的据点实例展示名不应重复。")
-		if tier == SETTLEMENT_CONFIG_SCRIPT.SettlementTier.TOWN:
+		if tier == 1:
 			found_town_instance = true
 			_assert_true(display_name.ends_with("镇"), "small 世界里的 town 实例应使用城镇名称池并以镇结尾。")
-		if tier == SETTLEMENT_CONFIG_SCRIPT.SettlementTier.CITY:
+		if tier == 2:
 			found_city_instance = true
 			_assert_true(display_name.ends_with("城"), "small 世界里的 city 实例应使用城市名称池并以城结尾。")
-		if tier == SETTLEMENT_CONFIG_SCRIPT.SettlementTier.CAPITAL:
+		if tier == 3:
 			found_capital_instance = true
 			_assert_true(display_name.ends_with("王都"), "small 世界里的 capital 实例应使用主城名称池并以王都结尾。")
 			_assert_true(display_name.find("王国") > 0, "small 世界里的 capital 实例应使用 XX王国...王都 语义。")
-		if tier == SETTLEMENT_CONFIG_SCRIPT.SettlementTier.METROPOLIS:
+		if tier == 5:
 			found_metropolis_instance = true
 			_assert_true(display_name.ends_with("帝都"), "small 世界里的 metropolis 实例应使用都会名称池并以帝都结尾。")
 			_assert_true(display_name.find("帝国") > 0, "small 世界里的 metropolis 实例应使用 XX帝国...帝都 语义。")
@@ -376,11 +379,11 @@ func _test_shared_settlement_bundle_uses_generic_template_names() -> void:
 		return
 
 	var seen_template_town := false
-	for settlement_variant in settlement_bundle.settlement_library:
-		if settlement_variant == null:
+	for settlement_option in settlement_bundle.settlement_library:
+		if settlement_option == null:
 			continue
-		var settlement_id := String(settlement_variant.settlement_id)
-		var display_name := String(settlement_variant.display_name)
+		var settlement_id := String(settlement_option.settlement_id)
+		var display_name := String(settlement_option.display_name)
 		_assert_true(settlement_id.begins_with("template_"), "共享据点模板 ID 应使用 template_* 前缀。")
 		_assert_true(display_name.find("灰石镇") < 0, "共享据点模板不应继续使用具体镇名。")
 		_assert_true(display_name.find("晨星城") < 0, "共享据点模板不应继续使用具体城名。")

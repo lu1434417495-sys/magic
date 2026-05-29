@@ -2,9 +2,9 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const GAME_TEXT_COMMAND_RUNNER_SCRIPT = preload("res://scripts/systems/game_runtime/headless/game_text_command_runner.gd")
-const ITEM_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/warehouse/item_content_registry.gd")
-const QUEST_DEF_SCRIPT = preload("res://scripts/player/progression/quest_def.gd")
+const GAME_TEXT_COMMAND_RUNNER_SCRIPT = preload("res://scripts/systems/game_runtime/headless/GameTextCommandRunner.cs")
+const ITEM_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/warehouse/ItemContentRegistry.cs")
+const QUEST_DEF_SCRIPT = preload("res://scripts/player/progression/QuestDef.cs")
 
 const INVALID_ITEM_DIRECTORY := "res://tests/fixtures/resource_validation/item_registry_invalid"
 
@@ -78,13 +78,13 @@ func _assert_invalid_quest_validation_surface(runner) -> void:
 	invalid_quest.objective_defs = [
 		{
 			"objective_id": "submit_missing_item",
-			"objective_type": QUEST_DEF_SCRIPT.OBJECTIVE_SUBMIT_ITEM,
+			"objective_type": QUEST_DEF_SCRIPT.OBJECTIVE_SUBMIT_ITEM(),
 			"target_id": "missing_headless_item",
 			"target_value": 1,
 		},
 	]
 	invalid_quest.reward_entries = [
-		{"reward_type": QUEST_DEF_SCRIPT.REWARD_GOLD, "amount": 10},
+		{"reward_type": QUEST_DEF_SCRIPT.REWARD_GOLD(), "amount": 10},
 	]
 	var install_error := int(game_session.install_test_content_def(&"quest", invalid_quest.quest_id, invalid_quest))
 	_assert_eq(install_error, OK, "测试应能注入非法 quest 内容。")
@@ -169,18 +169,18 @@ func _assert_invalid_world_validation_surface(runner) -> void:
 
 func _find_log_entry(snapshot: Dictionary, event_id: String) -> Dictionary:
 	var entries: Array = snapshot.get("logs", {}).get("entries", [])
-	for entry_variant in entries:
-		if entry_variant is not Dictionary:
+	for entry_option in entries:
+		if entry_option is not Dictionary:
 			continue
-		var entry: Dictionary = entry_variant
+		var entry: Dictionary = entry_option
 		if String(entry.get("event_id", "")) == event_id:
 			return entry
 	return {}
 
 
 func _assert_error_contains(errors: Array, fragment: String, message: String) -> void:
-	for error_variant in errors:
-		if String(error_variant).contains(fragment):
+	for error_option in errors:
+		if String(error_option).contains(fragment):
 			return
 	_test.fail(message)
 
@@ -189,7 +189,7 @@ func _run_command(runner, command_text: String):
 	var result = await runner.execute_line(command_text)
 	if result.skipped:
 		return result
-	print(result.render())
+	print(result.Render())
 	_assert_true(result.ok, "命令失败：%s | %s" % [command_text, result.message])
 	return result
 

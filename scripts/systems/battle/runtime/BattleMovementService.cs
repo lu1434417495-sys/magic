@@ -8,22 +8,19 @@ using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 [GlobalClass]
 public partial class BattleMovementService : RefCounted
 {
-    private static readonly Script BattleStatusSemanticTableScript = GD.Load<Script>("res://scripts/systems/battle/rules/battle_status_semantic_table.gd");
-    private static readonly Script AiTraceRecorderScript = GD.Load<Script>("res://scripts/dev_tools/ai_trace_recorder.gd");
     private static readonly StringName TraceMovePathGridResolve = "move_path:grid_resolve";
     private static readonly StringName TraceMovePathExtractPath = "move_path:extract_path";
     private static readonly StringName TraceMovePathSemanticCost = "move_path:semantic_cost";
-    private static readonly StringName Empty = "";
 
-    private WeakReference<GodotObject> _runtimeRef;
+    private WeakReference<BattleRuntimeModule> _runtimeRef;
 
-    private GodotObject _runtime
+    private BattleRuntimeModule _runtime
     {
         get => ResolveWeakRef(_runtimeRef);
-        set => _runtimeRef = value != null ? new WeakReference<GodotObject>(value) : null;
+        set => _runtimeRef = value != null ? new WeakReference<BattleRuntimeModule>(value) : null;
     }
 
-    public void setup(GodotObject runtime)
+    public void setup(BattleRuntimeModule runtime)
     {
         _runtime = runtime;
     }
@@ -35,7 +32,7 @@ public partial class BattleMovementService : RefCounted
 
     public void _record_action_issued(BattleUnitState unit_state, StringName command_type, int ap_cost = 0)
     {
-        _runtime?.Call("_record_action_issued", unit_state, command_type, ap_cost);
+        _runtime?._record_action_issued(unit_state, command_type, ap_cost);
     }
 
     public void _append_changed_coords(BattleEventBatch batch, GArray coords)
@@ -44,17 +41,21 @@ public partial class BattleMovementService : RefCounted
         {
             return;
         }
-        foreach (Variant rawCoord in coords)
+        foreach (var rawCoord in coords)
         {
-            if (rawCoord.VariantType != Variant.Type.Vector2I)
-            {
-                continue;
-            }
-            Vector2I coord = rawCoord.AsVector2I();
-            if (!batch.changed_coords.Contains(coord))
-            {
-                batch.changed_coords.Add(coord);
-            }
+            AppendChangedCoord(batch, rawCoord.AsVector2I());
+        }
+    }
+
+    public void _append_changed_coords(BattleEventBatch batch, GVector2IArray coords)
+    {
+        if (batch == null || coords == null)
+        {
+            return;
+        }
+        foreach (Vector2I coord in coords)
+        {
+            AppendChangedCoord(batch, coord);
         }
     }
 
@@ -65,10 +66,10 @@ public partial class BattleMovementService : RefCounted
             return;
         }
         unit_state.refresh_footprint();
-        _append_changed_coords(batch, ToUntypedArray(unit_state.occupied_coords));
+        _append_changed_coords(batch, unit_state.occupied_coords);
     }
 
-    public GVector2IArray _sort_coords(Variant target_coords)
+    public GVector2IArray _sort_coords(GArray target_coords)
     {
         var coords = ExtractVector2IList(target_coords);
         coords.Sort(CompareCoordsYThenX);
@@ -77,18 +78,18 @@ public partial class BattleMovementService : RefCounted
 
     public bool _is_movement_blocked(BattleUnitState unit_state)
     {
-        return _runtime != null && _runtime.Call("_is_movement_blocked", unit_state).AsBool();
+        return _runtime != null && _runtime._is_movement_blocked(unit_state);
     }
 
     public bool _has_status(BattleUnitState unit_state, StringName status_id)
     {
-        return _runtime != null && _runtime.Call("_has_status", unit_state, status_id).AsBool();
+        return _runtime != null && _runtime._has_status(unit_state, status_id);
     }
 
     public GVector2IArray get_unit_reachable_move_coords(BattleUnitState unit_state)
     {
-        GodotObject state = State;
-        GodotObject gridService = GridService;
+        BattleState state = State;
+        BattleGridService gridService = GridService;
         if (state == null || gridService == null || unit_state == null || !unit_state.is_alive)
         {
             return new GVector2IArray();
@@ -154,17 +155,17 @@ public partial class BattleMovementService : RefCounted
 
     public int _get_move_cost_for_unit_target(BattleUnitState unit_state, Vector2I target_coord)
     {
-        GodotObject state = State;
-        GodotObject gridService = GridService;
+        BattleState state = State;
+        BattleGridService gridService = GridService;
         if (state == null || gridService == null || unit_state == null)
         {
             return 1;
         }
-        int moveCost = gridService.Call("get_unit_move_cost", state, unit_state, target_coord).AsInt32();
-        GodotObject terrainEffectSystem = TerrainEffectSystem;
+        int moveCost = gridService.get_unit_move_cost(state, unit_state, target_coord);
+        BattleTerrainEffectSystem terrainEffectSystem = TerrainEffectSystem;
         if (terrainEffectSystem != null)
         {
-            moveCost += terrainEffectSystem.Call("get_move_cost_delta_for_unit_target", unit_state, target_coord).AsInt32();
+            moveCost += terrainEffectSystem.GetMoveCostDeltaForUnitTarget(unit_state, target_coord);
         }
         moveCost += _get_status_move_cost_delta(unit_state);
         return moveCost;
@@ -172,19 +173,12 @@ public partial class BattleMovementService : RefCounted
 
     public int _get_move_cost_for_unit_id(StringName unit_id, Vector2I _from_coord, Vector2I target_coord)
     {
-        GodotObject state = State;
-        if (state == null)
+        BattleState state = State;
+        if (state == null || !state.units.ContainsKey(unit_id))
         {
             return 1;
         }
-        GDictionary units = GdInterop.GetDictionary(state, "units");
-        if (!GdInterop.TryGet(units, unit_id, out Variant unitVariant))
-        {
-            return 1;
-        }
-        BattleUnitState unitState = unitVariant.VariantType == Variant.Type.Object
-            ? unitVariant.AsGodotObject() as BattleUnitState
-            : null;
+        BattleUnitState unitState = state.units[unit_id].As<BattleUnitState>();
         return unitState == null ? 1 : _get_move_cost_for_unit_target(unitState, target_coord);
     }
 
@@ -197,11 +191,7 @@ public partial class BattleMovementService : RefCounted
         int totalCost = 0;
         for (int pathIndex = 1; pathIndex < anchor_path.Count; pathIndex++)
         {
-            Variant coordVariant = anchor_path[pathIndex];
-            if (coordVariant.VariantType == Variant.Type.Vector2I)
-            {
-                totalCost += _get_move_cost_for_unit_target(unit_state, coordVariant.AsVector2I());
-            }
+            totalCost += _get_move_cost_for_unit_target(unit_state, anchor_path[pathIndex].AsVector2I());
         }
         return totalCost;
     }
@@ -213,7 +203,7 @@ public partial class BattleMovementService : RefCounted
             return 0;
         }
         var sortedStatusIds = new List<string>();
-        foreach (Variant rawStatusId in unit_state.status_effects.Keys)
+        foreach (var rawStatusId in unit_state.status_effects.Keys)
         {
             sortedStatusIds.Add(rawStatusId.ToString());
         }
@@ -223,81 +213,80 @@ public partial class BattleMovementService : RefCounted
         foreach (string statusIdString in sortedStatusIds)
         {
             BattleStatusEffectState statusEntry = unit_state.get_status_effect(new StringName(statusIdString));
-            totalDelta += BattleStatusSemanticTableScript.Call("get_move_cost_delta", statusEntry).AsInt32();
+            totalDelta += BattleStatusSemanticTable.get_move_cost_delta(statusEntry);
         }
         return Math.Max(totalDelta, 0);
     }
 
-    public GDictionary _resolve_move_path_result(BattleUnitState active_unit, Vector2I target_coord)
+    public BattleMovePathResult _resolve_move_path_result_typed(BattleUnitState active_unit, Vector2I target_coord)
     {
-        GodotObject state = State;
-        GodotObject gridService = GridService;
+        BattleState state = State;
+        BattleGridService gridService = GridService;
         if (state == null || gridService == null || active_unit == null)
         {
-            return new GDictionary
+            return new BattleMovePathResult
             {
-                ["allowed"] = false,
-                ["cost"] = 0,
-                ["path"] = new GArray(),
-                ["message"] = "当前单位数据不可用。",
+                Allowed = false,
+                Cost = 0,
+                Path = new GVector2IArray(),
+                Message = "当前单位数据不可用。",
             };
         }
 
         int availableMovePoints = _get_available_move_points(active_unit);
         if (availableMovePoints <= 0)
         {
-            return new GDictionary
+            return new BattleMovePathResult
             {
-                ["allowed"] = false,
-                ["cost"] = 0,
-                ["path"] = new GArray(),
-                ["message"] = _is_normal_movement_locked(active_unit) ? "已行动，移动力被锁定。" : "移动力不足，无法移动。",
+                Allowed = false,
+                Cost = 0,
+                Path = new GVector2IArray(),
+                Message = _is_normal_movement_locked(active_unit) ? "已行动，移动力被锁定。" : "移动力不足，无法移动。",
             };
         }
 
-        GDictionary moveResult;
+        BattleMovePathResult moveResult;
         TraceEnter(TraceMovePathGridResolve);
         try
         {
-            moveResult = ToDictionary(gridService.Call(
-                "resolve_unit_move_path",
+            moveResult = gridService.resolve_unit_move_path_typed(
                 state,
                 active_unit,
                 active_unit.coord,
                 target_coord,
                 availableMovePoints,
-                new Callable(this, "_get_move_cost_for_unit_target")));
+                _get_move_cost_for_unit_target);
         }
         finally
         {
             TraceExit(TraceMovePathGridResolve);
         }
 
-        GArray anchorPath = new();
-        TraceEnter(TraceMovePathExtractPath);
-        try
-        {
-            foreach (Vector2I coord in ExtractVector2IList(GdInterop.GetArray(moveResult, "path")))
-            {
-                anchorPath.Add(coord);
-            }
-        }
-        finally
-        {
-            TraceExit(TraceMovePathExtractPath);
-        }
-
-        if (anchorPath.Count > 1)
+        if (moveResult.Path.Count > 1)
         {
             TraceEnter(TraceMovePathSemanticCost);
             try
             {
-                int semanticCost = _get_move_path_cost(active_unit, anchorPath);
-                moveResult["cost"] = semanticCost;
+                int semanticCost = _get_move_path_cost(active_unit, ToUntypedArray(moveResult.Path));
                 if (semanticCost > availableMovePoints)
                 {
-                    moveResult["allowed"] = false;
-                    moveResult["message"] = "移动力不足，无法移动。";
+                    moveResult = new BattleMovePathResult
+                    {
+                        Allowed = false,
+                        Cost = semanticCost,
+                        Path = moveResult.Path,
+                        Message = "移动力不足，无法移动。",
+                    };
+                }
+                else if (semanticCost != moveResult.Cost)
+                {
+                    moveResult = new BattleMovePathResult
+                    {
+                        Allowed = moveResult.Allowed,
+                        Cost = semanticCost,
+                        Path = moveResult.Path,
+                        Message = moveResult.Message,
+                    };
                 }
             }
             finally
@@ -306,6 +295,11 @@ public partial class BattleMovementService : RefCounted
             }
         }
         return moveResult;
+    }
+
+    public GDictionary _resolve_move_path_result(BattleUnitState active_unit, Vector2I target_coord)
+    {
+        return _resolve_move_path_result_typed(active_unit, target_coord).ToDictionary();
     }
 
     public int _get_available_move_points(BattleUnitState unit_state)
@@ -344,28 +338,24 @@ public partial class BattleMovementService : RefCounted
         }
 
         Vector2I targetCoord = command.target_coord;
-        GDictionary moveResult = _resolve_move_path_result(active_unit, targetCoord);
-        if (!GdInterop.GetBool(moveResult, "allowed", false))
+        BattleMovePathResult moveResult = _resolve_move_path_result_typed(active_unit, targetCoord);
+        if (!moveResult.Allowed)
         {
-            AppendLog(batch, GdInterop.GetString(moveResult, "message", "该移动不可执行。"));
+            AppendLog(batch, string.IsNullOrEmpty(moveResult.Message) ? "该移动不可执行。" : moveResult.Message);
             return;
         }
 
-        GodotObject targetCell = GetCell(targetCoord);
+        BattleCellState targetCell = GetCell(targetCoord);
         if (targetCell == null)
         {
             return;
         }
 
-        int moveCost = GdInterop.GetInt(moveResult, "cost", 0);
-        GArray anchorPath = new();
-        foreach (Vector2I coord in ExtractVector2IList(GdInterop.GetArray(moveResult, "path")))
-        {
-            anchorPath.Add(coord);
-        }
+        int moveCost = moveResult.Cost;
+        GArray anchorPath = ToUntypedArray(moveResult.Path);
 
         Vector2I previousAnchor = active_unit.coord;
-        GArray previousCoords = ToUntypedArray(active_unit.occupied_coords);
+        GVector2IArray previousCoords = CloneCoords(active_unit.occupied_coords);
         GDictionary executionResult = _move_unit_along_validated_path_result(active_unit, anchorPath, targetCoord, batch);
         if (GdInterop.GetBool(executionResult, "executed", false))
         {
@@ -382,7 +372,7 @@ public partial class BattleMovementService : RefCounted
 
             targetCell = GetCell(active_unit.coord);
             string terrainName = targetCell != null
-                ? GridService.Call("get_terrain_display_name", GdInterop.GetStringName(targetCell, "base_terrain").ToString()).AsString()
+                ? GridService.get_terrain_display_name(targetCell.base_terrain.ToString())
                 : "地格";
             AppendLog(
                 batch,
@@ -433,8 +423,8 @@ public partial class BattleMovementService : RefCounted
             return result;
         }
 
-        GodotObject state = State;
-        GodotObject gridService = GridService;
+        BattleState state = State;
+        BattleGridService gridService = GridService;
         if (state == null || gridService == null)
         {
             return result;
@@ -450,10 +440,10 @@ public partial class BattleMovementService : RefCounted
             }
 
             GDictionary barrierResult = new();
-            GodotObject layeredBarrierService = LayeredBarrierService;
+            BattleLayeredBarrierService layeredBarrierService = LayeredBarrierService;
             if (layeredBarrierService != null)
             {
-                barrierResult = ToDictionary(layeredBarrierService.Call("resolve_unit_boundary_crossing", active_unit, active_unit.coord, nextCoord, batch));
+                barrierResult = layeredBarrierService.ResolveUnitBoundaryCrossing(active_unit, active_unit.coord, nextCoord, batch);
             }
             if (GdInterop.GetBool(barrierResult, "blocked", false) || !active_unit.is_alive || active_unit.coord != path[pathIndex - 1])
             {
@@ -464,7 +454,7 @@ public partial class BattleMovementService : RefCounted
                 return result;
             }
 
-            if (!gridService.Call("move_unit", state, active_unit, nextCoord).AsBool())
+            if (!gridService.move_unit(state, active_unit, nextCoord))
             {
                 AppendLog(batch, $"{active_unit.display_name} 的移动路径第 {pathIndex} 步执行失败。");
                 return result;
@@ -482,12 +472,9 @@ public partial class BattleMovementService : RefCounted
         var coords = new List<Vector2I>();
         if (values != null)
         {
-            foreach (Variant rawCoord in values.Keys)
+            foreach (var rawCoord in values.Keys)
             {
-                if (rawCoord.VariantType == Variant.Type.Vector2I)
-                {
-                    coords.Add(rawCoord.AsVector2I());
-                }
+                coords.Add(rawCoord.AsVector2I());
             }
         }
         return ToTypedVector2IArray(coords);
@@ -506,28 +493,21 @@ public partial class BattleMovementService : RefCounted
 
     private readonly record struct ReachableFrontierEntry(Vector2I Coord, int SpentCost);
 
-    private GodotObject State => GetRuntimeObject("_state");
-    private GodotObject GridService => GetRuntimeObject("_grid_service");
-    private GodotObject TerrainEffectSystem => GetRuntimeObject("_terrain_effect_system");
-    private GodotObject LayeredBarrierService => GetRuntimeObject("_layered_barrier_service");
+    private BattleState State => _runtime?._state;
+    private BattleGridService GridService => _runtime?._grid_service;
+    private BattleTerrainEffectSystem TerrainEffectSystem => _runtime?._terrain_effect_system;
+    private BattleLayeredBarrierService LayeredBarrierService => _runtime?._layered_barrier_service;
 
-    private GodotObject GetRuntimeObject(string property)
+    private BattleCellState GetCell(Vector2I coord)
     {
-        return GdInterop.GetObject(_runtime, property);
-    }
-
-    private GodotObject GetCell(Vector2I coord)
-    {
-        GodotObject gridService = GridService;
-        GodotObject state = State;
-        return gridService == null || state == null
-            ? null
-            : gridService.Call("get_cell", state, coord).AsGodotObject();
+        BattleGridService gridService = GridService;
+        BattleState state = State;
+        return gridService == null || state == null ? null : gridService.get_cell(state, coord);
     }
 
     private static bool CanUnitStepBetweenAnchors(
-        GodotObject state,
-        GodotObject gridService,
+        BattleState state,
+        BattleGridService gridService,
         BattleUnitState unitState,
         Vector2I fromCoord,
         Vector2I toCoord)
@@ -535,21 +515,18 @@ public partial class BattleMovementService : RefCounted
         return gridService != null
             && state != null
             && unitState != null
-            && gridService.Call("can_unit_step_between_anchors", state, unitState, fromCoord, toCoord).AsBool();
+            && gridService.can_unit_step_between_anchors(state, unitState, fromCoord, toCoord);
     }
 
-    private static IEnumerable<Vector2I> GetNeighbors4(GodotObject state, GodotObject gridService, Vector2I coord)
+    private static IEnumerable<Vector2I> GetNeighbors4(BattleState state, BattleGridService gridService, Vector2I coord)
     {
         if (state == null || gridService == null)
         {
             yield break;
         }
-        foreach (Variant rawCoord in ToArray(gridService.Call("get_neighbors_4", state, coord)))
+        foreach (Vector2I rawCoord in gridService.get_neighbors_4(state, coord))
         {
-            if (rawCoord.VariantType == Variant.Type.Vector2I)
-            {
-                yield return rawCoord.AsVector2I();
-            }
+            yield return rawCoord;
         }
     }
 
@@ -562,16 +539,6 @@ public partial class BattleMovementService : RefCounted
             buckets.Add(new List<ReachableFrontierEntry>());
         }
         return buckets;
-    }
-
-    private static GDictionary ToDictionary(Variant value)
-    {
-        return value.VariantType == Variant.Type.Dictionary ? value.AsGodotDictionary() : new GDictionary();
-    }
-
-    private static GArray ToArray(Variant value)
-    {
-        return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : new GArray();
     }
 
     private static GArray ToUntypedArray(GVector2IArray source)
@@ -588,13 +555,6 @@ public partial class BattleMovementService : RefCounted
         return result;
     }
 
-    private static List<Vector2I> ExtractVector2IList(Variant value)
-    {
-        return value.VariantType == Variant.Type.Array
-            ? ExtractVector2IList(value.AsGodotArray())
-            : new List<Vector2I>();
-    }
-
     private static List<Vector2I> ExtractVector2IList(GArray values)
     {
         var coords = new List<Vector2I>();
@@ -602,12 +562,9 @@ public partial class BattleMovementService : RefCounted
         {
             return coords;
         }
-        foreach (Variant rawCoord in values)
+        foreach (var rawCoord in values)
         {
-            if (rawCoord.VariantType == Variant.Type.Vector2I)
-            {
-                coords.Add(rawCoord.AsVector2I());
-            }
+            coords.Add(rawCoord.AsVector2I());
         }
         return coords;
     }
@@ -622,10 +579,32 @@ public partial class BattleMovementService : RefCounted
         return result;
     }
 
+    private static GVector2IArray CloneCoords(GVector2IArray source)
+    {
+        var result = new GVector2IArray();
+        if (source == null)
+        {
+            return result;
+        }
+        foreach (Vector2I coord in source)
+        {
+            result.Add(coord);
+        }
+        return result;
+    }
+
     private static int CompareCoordsYThenX(Vector2I left, Vector2I right)
     {
         int yCompare = left.Y.CompareTo(right.Y);
         return yCompare != 0 ? yCompare : left.X.CompareTo(right.X);
+    }
+
+    private static void AppendChangedCoord(BattleEventBatch batch, Vector2I coord)
+    {
+        if (!batch.changed_coords.Contains(coord))
+        {
+            batch.changed_coords.Add(coord);
+        }
     }
 
     private static void AppendLog(BattleEventBatch batch, string line)
@@ -639,17 +618,17 @@ public partial class BattleMovementService : RefCounted
 
     private static void TraceEnter(StringName name)
     {
-        AiTraceRecorderScript?.Call("enter", name);
+        AiTraceRecorder.enter(name);
     }
 
     private static void TraceExit(StringName name)
     {
-        AiTraceRecorderScript?.Call("exit", name);
+        AiTraceRecorder.exit(name);
     }
 
-    private static GodotObject ResolveWeakRef(WeakReference<GodotObject> weakRef)
+    private static BattleRuntimeModule ResolveWeakRef(WeakReference<BattleRuntimeModule> weakRef)
     {
-        if (weakRef == null || !weakRef.TryGetTarget(out GodotObject target) || !GodotObject.IsInstanceValid(target))
+        if (weakRef == null || !weakRef.TryGetTarget(out BattleRuntimeModule target))
         {
             return null;
         }

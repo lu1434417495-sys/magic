@@ -6,19 +6,19 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const BattleBoard2D = preload("res://scripts/ui/battle_board_2d.gd")
+const BattleBoard2D = preload("res://scripts/ui/BattleBoard2D.cs")
 const BattleBoardScene = preload("res://scenes/ui/battle_board_2d.tscn")
-const BattleBoardPropCatalog = preload("res://scripts/utils/battle_board_prop_catalog.gd")
-const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
-const BattleEdgeFeatureState = preload("res://scripts/systems/battle/core/battle_edge_feature_state.gd")
-const BattleEdgeService = preload("res://scripts/systems/battle/terrain/battle_edge_service.gd")
-const BattleGridService = preload("res://scripts/systems/battle/terrain/battle_grid_service.gd")
-const BattleBoardRenderProfile = preload("res://scripts/ui/battle_board_render_profile.gd")
-const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
-const BattleTerrainEffectState = preload("res://scripts/systems/battle/terrain/battle_terrain_effect_state.gd")
-const BattleTerrainRules = preload("res://scripts/systems/battle/terrain/battle_terrain_rules.gd")
-const BattleTerrainGenerator = preload("res://scripts/systems/battle/terrain/battle_terrain_generator.gd")
-const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
+const BattleBoardPropCatalog = preload("res://scripts/utils/BattleBoardPropCatalog.cs")
+const BattleCellState = preload("res://scripts/systems/battle/core/BattleCellState.cs")
+const BattleEdgeFeatureState = preload("res://scripts/systems/battle/core/BattleEdgeFeatureState.cs")
+const BattleEdgeService = preload("res://scripts/systems/battle/terrain/BattleEdgeService.cs")
+const BattleGridService = preload("res://scripts/systems/battle/terrain/BattleGridService.cs")
+const BattleBoardRenderProfile = preload("res://scripts/ui/BattleBoardRenderProfile.cs")
+const BattleState = preload("res://scripts/systems/battle/core/BattleState.cs")
+const BattleTerrainEffectState = preload("res://scripts/systems/battle/terrain/BattleTerrainEffectState.cs")
+const BattleTerrainRules = preload("res://scripts/systems/battle/terrain/BattleTerrainRules.cs")
+const BattleTerrainGenerator = preload("res://scripts/systems/battle/terrain/BattleTerrainGenerator.cs")
+const BattleUnitState = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
 const EDGE_DROP_EAST_TEXTURE_PATHS: Array[String] = [
 	"res://assets/main/battle/terrain/canyon/cliff_east_01.png",
 	"res://assets/main/battle/terrain/canyon/cliff_east_02.png",
@@ -118,16 +118,16 @@ func _test_canyon_generation_is_deterministic() -> void:
 		"同 seed 的 canyon 生成结果应保持稳定。"
 	)
 	_assert_eq(
-		_count_layout_prop(first_layout, BattleBoardPropCatalog.PROP_OBJECTIVE_MARKER),
+		_count_layout_prop(first_layout, BattleBoardPropCatalog.PROP_OBJECTIVE_MARKER()),
 		1,
 		"canyon 地图应恰好生成一个 objective marker。"
 	)
 	_assert_true(
-		_count_layout_prop(first_layout, BattleBoardPropCatalog.PROP_TENT) >= 2,
+		_count_layout_prop(first_layout, BattleBoardPropCatalog.PROP_TENT()) >= 2,
 		"canyon 地图应为双方营地各生成一个 tent。"
 	)
 	_assert_true(
-		_count_layout_prop(first_layout, BattleBoardPropCatalog.PROP_TORCH) >= 2,
+		_count_layout_prop(first_layout, BattleBoardPropCatalog.PROP_TORCH()) >= 2,
 		"canyon 地图应至少生成两处 torch。"
 	)
 	_assert_canyon_height_range(first_layout)
@@ -135,20 +135,20 @@ func _test_canyon_generation_is_deterministic() -> void:
 
 func _test_canyon_generation_builds_true_stacked_columns() -> void:
 	var layout := _build_canyon_layout(TEST_SEED)
-	var columns_variant: Variant = layout.get("cell_columns", {})
-	_assert_true(columns_variant is Dictionary, "canyon 生成结果应包含真实堆叠列数据 cell_columns。")
-	if columns_variant is not Dictionary:
+	var columns_option: Variant = layout.get("cell_columns", {})
+	_assert_true(columns_option is Dictionary, "canyon 生成结果应包含真实堆叠列数据 cell_columns。")
+	if columns_option is not Dictionary:
 		return
-	var columns: Dictionary = columns_variant
+	var columns: Dictionary = columns_option
 	var found_multi_layer_column := false
-	for coord_variant in columns.keys():
-		if coord_variant is not Vector2i:
+	for coord_option in columns.keys():
+		if coord_option is not Vector2i:
 			continue
-		var coord: Vector2i = coord_variant
-		var column_variant: Variant = columns.get(coord, [])
-		if column_variant is not Array:
+		var coord: Vector2i = coord_option
+		var column_option: Variant = columns.get(coord, [])
+		if column_option is not Array:
 			continue
-		var column := column_variant as Array
+		var column := column_option as Array
 		var surface_cell := layout.get("cells", {}).get(coord) as BattleCellState
 		if surface_cell == null:
 			continue
@@ -166,7 +166,7 @@ func _test_canyon_generation_builds_true_stacked_columns() -> void:
 func _test_canyon_generation_contains_connected_water() -> void:
 	for seed in [TEST_SEED, TEST_SEED + 17, TEST_SEED + 29]:
 		var layout := _build_canyon_layout(seed)
-		var water_coords := _collect_terrain_coords(layout, BattleCellState.TERRAIN_WATER)
+		var water_coords := _collect_terrain_coords(layout, BattleCellState.TERRAIN_WATER())
 		_assert_true(
 			water_coords.size() >= 4,
 			"canyon 地图应稳定生成可见水域，不能退化回零水域：seed=%d" % seed
@@ -207,17 +207,17 @@ func _test_narrow_assault_generation_builds_breakthrough_lane() -> void:
 	_assert_true(int(gate_info.get("left_reachable_count", 0)) >= 10, "突破口左侧应保留足够 staging 区域供进攻方展开。")
 	_assert_true(int(gate_info.get("right_reachable_count", 0)) >= 10, "突破口右侧应保留足够 staging 区域供防守方站位。")
 
-	var objective_coords := _collect_layout_prop_coords(first_layout, BattleBoardPropCatalog.PROP_OBJECTIVE_MARKER)
+	var objective_coords := _collect_layout_prop_coords(first_layout, BattleBoardPropCatalog.PROP_OBJECTIVE_MARKER())
 	_assert_eq(objective_coords.size(), 1, "narrow_assault 地图应恰好生成一个突破目标点。")
 	if objective_coords.size() == 1:
 		_assert_true(absi(objective_coords[0].x - gate_x) <= 1, "突破目标点应贴近狭道中线，而不是刷到远端 staging 区。")
 
 	_assert_true(
-		_count_terrain_cells_in_x_range(first_layout, BattleCellState.TERRAIN_MUD, gate_x - 2, gate_x - 1) >= 2,
+		_count_terrain_cells_in_x_range(first_layout, BattleCellState.TERRAIN_MUD(), gate_x - 2, gate_x - 1) >= 2,
 		"突破口前方应保留泥地区，形成进攻减速带。"
 	)
 	_assert_true(
-		_count_terrain_cells_in_x_range(first_layout, BattleCellState.TERRAIN_SPIKE, gate_x + 1, gate_x + 2) >= 1,
+		_count_terrain_cells_in_x_range(first_layout, BattleCellState.TERRAIN_SPIKE(), gate_x + 1, gate_x + 2) >= 1,
 		"突破口后方应保留地刺 kill-zone，体现防守反突意图。"
 	)
 
@@ -232,8 +232,8 @@ func _test_narrow_assault_generation_builds_breakthrough_lane() -> void:
 	for coord in ally_spawns:
 		_assert_true(not enemy_spawns.has(coord), "narrow_assault 的双方部署位不应重叠：%s" % str(coord))
 
-	var tent_coords := _collect_layout_prop_coords(first_layout, BattleBoardPropCatalog.PROP_TENT)
-	var torch_coords := _collect_layout_prop_coords(first_layout, BattleBoardPropCatalog.PROP_TORCH)
+	var tent_coords := _collect_layout_prop_coords(first_layout, BattleBoardPropCatalog.PROP_TENT())
+	var torch_coords := _collect_layout_prop_coords(first_layout, BattleBoardPropCatalog.PROP_TORCH())
 	_assert_eq(tent_coords.size(), 2, "narrow_assault 地图应显式放置双方 tent。")
 	_assert_eq(torch_coords.size(), 2, "narrow_assault 地图应显式放置左右 torch。")
 	_assert_eq(_count_coords_on_or_left_of_x(tent_coords, gate_x), 1, "narrow_assault 的 tent 应在突破口左侧保留一处营地。")
@@ -299,17 +299,17 @@ func _test_holdout_push_generation_builds_defender_holdout() -> void:
 		"holdout_push 的守点出生位应至少高出推进方一层。"
 	)
 
-	var objective_coords := _collect_layout_prop_coords(first_layout, BattleBoardPropCatalog.PROP_OBJECTIVE_MARKER)
+	var objective_coords := _collect_layout_prop_coords(first_layout, BattleBoardPropCatalog.PROP_OBJECTIVE_MARKER())
 	_assert_eq(objective_coords.size(), 1, "holdout_push 地图应恰好生成一个守点目标。")
 	if objective_coords.size() == 1:
 		_assert_true(objective_coords[0].x > hold_line_x, "holdout_push 的目标点应落在防守线之后的 holdout 内部。")
 
 	_assert_true(
-		_count_terrain_cells_in_x_range(first_layout, BattleCellState.TERRAIN_MUD, hold_line_x - 2, hold_line_x - 1) >= 2,
+		_count_terrain_cells_in_x_range(first_layout, BattleCellState.TERRAIN_MUD(), hold_line_x - 2, hold_line_x - 1) >= 2,
 		"holdout_push 的推进侧在防线前应保留泥地减速带。"
 	)
 	_assert_true(
-		_count_terrain_cells_in_x_range(first_layout, BattleCellState.TERRAIN_SPIKE, hold_line_x + 1, hold_line_x + 1) >= 2,
+		_count_terrain_cells_in_x_range(first_layout, BattleCellState.TERRAIN_SPIKE(), hold_line_x + 1, hold_line_x + 1) >= 2,
 		"holdout_push 的守点正面应布置 spike barricade 区域。"
 	)
 
@@ -322,8 +322,8 @@ func _test_holdout_push_generation_builds_defender_holdout() -> void:
 	for coord in enemy_spawns:
 		_assert_true(coord.x > hold_line_x, "holdout_push 的 enemy_spawns 应全部落在守点侧。")
 
-	var tent_coords := _collect_layout_prop_coords(first_layout, BattleBoardPropCatalog.PROP_TENT)
-	var torch_coords := _collect_layout_prop_coords(first_layout, BattleBoardPropCatalog.PROP_TORCH)
+	var tent_coords := _collect_layout_prop_coords(first_layout, BattleBoardPropCatalog.PROP_TENT())
+	var torch_coords := _collect_layout_prop_coords(first_layout, BattleBoardPropCatalog.PROP_TORCH())
 	_assert_eq(tent_coords.size(), 2, "holdout_push 地图应显式放置双方 tent。")
 	_assert_eq(torch_coords.size(), 2, "holdout_push 地图应显式放置双方 torch。")
 	_assert_eq(_count_coords_on_or_left_of_x(tent_coords, hold_line_x), 1, "holdout_push 的 tent 应在推进侧保留一处集结营地。")
@@ -352,20 +352,20 @@ func _test_holdout_push_board_contracts() -> void:
 
 func _test_default_generation_respects_global_min_height() -> void:
 	var layout := _build_default_layout(TEST_SEED)
-	for cell_variant in layout.get("cells", {}).values():
-		var cell := cell_variant as BattleCellState
+	for cell_option in layout.get("cells", {}).values():
+		var cell := cell_option as BattleCellState
 		if cell == null:
 			continue
 		_assert_true(
 			int(cell.current_height) >= GLOBAL_MIN_HEIGHT,
 			"default profile 的每个地格顶层高度都应不低于 %d。" % GLOBAL_MIN_HEIGHT
 		)
-	var columns_variant: Variant = layout.get("cell_columns", {})
-	if columns_variant is Dictionary:
-		for column_variant in (columns_variant as Dictionary).values():
-			if column_variant is not Array:
+	var columns_option: Variant = layout.get("cell_columns", {})
+	if columns_option is Dictionary:
+		for column_option in (columns_option as Dictionary).values():
+			if column_option is not Array:
 				continue
-			var column := column_variant as Array
+			var column := column_option as Array
 			_assert_true(
 				column.size() >= GLOBAL_MIN_HEIGHT + 1,
 				"default profile 的每列真实堆叠 cell 数量都应不低于 %d。" % (GLOBAL_MIN_HEIGHT + 1)
@@ -458,12 +458,12 @@ func _test_render_profile_chain_and_source_specs_have_stable_fallbacks() -> void
 		)
 		_assert_eq(
 			profile.asset_dir,
-			BattleBoardRenderProfile.DEFAULT_ASSET_DIR,
+			BattleBoardRenderProfile.DEFAULT_ASSET_DIR(),
 			"[profile] 所有 terrain profile 应解析到统一的 canyon 资产目录：%s" % String(terrain_id)
 		)
 		_assert_eq(
 			profile.visual_height_step,
-			BattleBoardRenderProfile.DEFAULT_VISUAL_HEIGHT_STEP,
+			BattleBoardRenderProfile.DEFAULT_VISUAL_HEIGHT_STEP(),
 			"[profile] 所有 terrain profile 应使用统一的 20px 视觉高度步长：%s" % String(terrain_id)
 		)
 		_assert_eq(
@@ -485,7 +485,7 @@ func _test_render_profile_chain_and_source_specs_have_stable_fallbacks() -> void
 			"[profile] render profile 应显式持有相机边界 margin。"
 		)
 
-		var specs := profile.get_source_specs()
+		var specs: Array[Dictionary] = profile.get_source_specs()
 		_assert_true(not specs.is_empty(), "[source] render profile 应以 source spec 表驱动 TileSet 注册：%s" % String(terrain_id))
 		for source_spec in specs:
 			_assert_true(source_spec.has("atlas_region_size"), "[source] source spec 应包含 atlas_region_size。")
@@ -499,19 +499,19 @@ func _test_render_profile_chain_and_source_specs_have_stable_fallbacks() -> void
 
 func _test_canyon_face_source_specs_use_tall_region() -> void:
 	var profile := BattleBoardRenderProfile.for_terrain_profile_id(&"canyon")
-	_assert_eq(profile.render_profile_id, BattleBoardRenderProfile.RENDER_PROFILE_CANYON_ISO64, "canyon 应解析到统一的 canyon iso64 render profile。")
-	_assert_eq(profile.asset_dir, BattleBoardRenderProfile.DEFAULT_ASSET_DIR, "canyon render profile 应指向统一 canyon 资产目录。")
+	_assert_eq(profile.render_profile_id, BattleBoardRenderProfile.RENDER_PROFILE_CANYON_ISO64(), "canyon 应解析到统一的 canyon iso64 render profile。")
+	_assert_eq(profile.asset_dir, BattleBoardRenderProfile.DEFAULT_ASSET_DIR(), "canyon render profile 应指向统一 canyon 资产目录。")
 	for source_spec in profile.get_source_specs():
 		var files := source_spec.get("files", []) as Array
 		_assert_true(not files.is_empty(), "[source] source spec 应显式列出贴图文件：%s" % String(source_spec.get("key", &"")))
-		for file_name_variant in files:
-			var path := "%s/%s" % [profile.asset_dir, String(file_name_variant)]
+		for file_name_option in files:
+			var path := "%s/%s" % [profile.asset_dir, String(file_name_option)]
 			_assert_true(FileAccess.file_exists(path), "[source] source 贴图必须存在：%s" % path)
 	var face_keys := [
-		BattleBoardRenderProfile.SOURCE_EDGE_DROP_EAST,
-		BattleBoardRenderProfile.SOURCE_EDGE_DROP_SOUTH,
-		BattleBoardRenderProfile.SOURCE_WALL_EAST,
-		BattleBoardRenderProfile.SOURCE_WALL_SOUTH,
+		BattleBoardRenderProfile.SOURCE_EDGE_DROP_EAST(),
+		BattleBoardRenderProfile.SOURCE_EDGE_DROP_SOUTH(),
+		BattleBoardRenderProfile.SOURCE_WALL_EAST(),
+		BattleBoardRenderProfile.SOURCE_WALL_SOUTH(),
 	]
 	for source_key in face_keys:
 		var spec := _find_source_spec(profile, source_key)
@@ -521,7 +521,7 @@ func _test_canyon_face_source_specs_use_tall_region() -> void:
 		var atlas_region_size: Vector2i = spec.get("atlas_region_size", Vector2i.ZERO)
 		_assert_eq(
 			atlas_region_size,
-			BattleBoardRenderProfile.DEFAULT_FACE_REGION_SIZE,
+			BattleBoardRenderProfile.DEFAULT_FACE_REGION_SIZE(),
 			"[source] cliff/wall source 应使用 64×36 face region（20px 崖面 + 8px 上下切角）：%s" % String(source_key)
 		)
 
@@ -547,7 +547,7 @@ func _test_canyon_two_layer_visual_separation_uses_20_step() -> void:
 	var two_layer_separation := plane_anchor.y - raised_anchor.y
 	_assert_approx(
 		two_layer_separation,
-		BattleBoardRenderProfile.DEFAULT_VISUAL_HEIGHT_STEP * 2.0,
+		BattleBoardRenderProfile.DEFAULT_VISUAL_HEIGHT_STEP() * 2.0,
 		0.01,
 		"[profile] canyon 两层高地视觉分离应由 render profile 的 20px visual_height_step 驱动。"
 	)
@@ -755,11 +755,11 @@ func _test_edge_feature_authoring_roundtrips() -> void:
 	cell.set_edge_feature(Vector2i.DOWN, BattleEdgeFeatureState.make_toggle_door(true))
 	var restored := BattleCellState.from_dict(cell.to_dict())
 	_assert_true(
-		restored.edge_feature_east != null and restored.edge_feature_east.feature_kind == BattleEdgeFeatureState.FEATURE_WALL,
+		restored.edge_feature_east != null and restored.edge_feature_east.feature_kind == BattleEdgeFeatureState.FEATURE_WALL(),
 		"edge feature east 应能通过 to_dict()/from_dict() 保留 richer authoring 类型。"
 	)
 	_assert_true(
-		restored.edge_feature_south != null and restored.edge_feature_south.feature_kind == BattleEdgeFeatureState.FEATURE_DOOR,
+		restored.edge_feature_south != null and restored.edge_feature_south.feature_kind == BattleEdgeFeatureState.FEATURE_DOOR(),
 		"edge feature south 应能通过 to_dict()/from_dict() 保留 richer authoring 类型。"
 	)
 	_assert_true(
@@ -1054,15 +1054,15 @@ func _test_meteor_timed_terrain_overlays_render_from_params() -> void:
 	state.cell_columns = BattleCellState.build_columns_from_surface_cells(state.cells)
 	var board := await _instantiate_board(state)
 	var profile := board.get("_render_profile") as BattleBoardRenderProfile
-	_assert_true(not _find_source_spec(profile, BattleBoardRenderProfile.SOURCE_METEOR_CRATER).is_empty(), "render profile 应注册 crater overlay source。")
-	_assert_true(not _find_source_spec(profile, BattleBoardRenderProfile.SOURCE_METEOR_RUBBLE).is_empty(), "render profile 应注册 rubble overlay source。")
-	_assert_true(not _find_source_spec(profile, BattleBoardRenderProfile.SOURCE_METEOR_DUST).is_empty(), "render profile 应注册 dust overlay source。")
+	_assert_true(not _find_source_spec(profile, BattleBoardRenderProfile.SOURCE_METEOR_CRATER()).is_empty(), "render profile 应注册 crater overlay source。")
+	_assert_true(not _find_source_spec(profile, BattleBoardRenderProfile.SOURCE_METEOR_RUBBLE()).is_empty(), "render profile 应注册 rubble overlay source。")
+	_assert_true(not _find_source_spec(profile, BattleBoardRenderProfile.SOURCE_METEOR_DUST()).is_empty(), "render profile 应注册 dust overlay source。")
 
 	var controller = board.get("_controller")
 	var overlay_h4 := board.get_node("OverlayH4") as TileMapLayer
-	var crater_source_id := int(controller._get_source_id(BattleBoardRenderProfile.SOURCE_METEOR_CRATER, Vector2i(0, 0))) if controller != null else -99
-	var dust_source_id := int(controller._get_source_id(BattleBoardRenderProfile.SOURCE_METEOR_DUST, Vector2i(1, 0))) if controller != null else -99
-	var rubble_source_id := int(controller._get_source_id(BattleBoardRenderProfile.SOURCE_METEOR_RUBBLE, Vector2i(2, 0))) if controller != null else -99
+	var crater_source_id := int(controller._get_source_id(BattleBoardRenderProfile.SOURCE_METEOR_CRATER(), Vector2i(0, 0))) if controller != null else -99
+	var dust_source_id := int(controller._get_source_id(BattleBoardRenderProfile.SOURCE_METEOR_DUST(), Vector2i(1, 0))) if controller != null else -99
+	var rubble_source_id := int(controller._get_source_id(BattleBoardRenderProfile.SOURCE_METEOR_RUBBLE(), Vector2i(2, 0))) if controller != null else -99
 	_assert_eq(overlay_h4.get_cell_source_id(Vector2i(0, 0)) if overlay_h4 != null else -1, crater_source_id, "同格 crater/rubble/dust 应按 overlay_priority 选择 crater。")
 	_assert_eq(overlay_h4.get_cell_source_id(Vector2i(1, 0)) if overlay_h4 != null else -1, dust_source_id, "active timed dust 应绘制 dust overlay。")
 	_assert_eq(overlay_h4.get_cell_source_id(Vector2i(2, 0)) if overlay_h4 != null else -1, rubble_source_id, "battle lifetime rubble 应绘制 rubble overlay。")
@@ -1134,8 +1134,8 @@ func _test_unit_tokens_render_hp_bars_with_numeric_labels() -> void:
 		{"unit": enemy_unit, "label": "敌方"},
 	]
 
-	for case_variant in cases:
-		var case_data: Dictionary = case_variant
+	for case_option in cases:
+		var case_data: Dictionary = case_option
 		var unit_state := case_data.get("unit") as BattleUnitState
 		var label := String(case_data.get("label", "单位"))
 		if unit_state == null:
@@ -1242,7 +1242,7 @@ func _test_dynamic_depth_interleaves_with_high_cliff_faces() -> void:
 	_assert_true(high_cell != null, "高崖动态深度夹具应创建高地 cell。")
 	if high_cell == null:
 		return
-	high_cell.prop_ids.append(BattleBoardPropCatalog.PROP_TORCH)
+	high_cell.prop_ids.append(BattleBoardPropCatalog.PROP_TORCH())
 	high_cell.set_edge_feature(Vector2i.RIGHT, BattleEdgeFeatureState.make_wall())
 	high_cell.set_edge_feature(Vector2i.DOWN, BattleEdgeFeatureState.make_wall())
 	state.units = {}
@@ -1473,7 +1473,7 @@ func _build_unit(unit_id: StringName, display_name: String, faction_id: StringNa
 	return unit
 
 
-func _build_cell(coord: Vector2i, height: int, terrain: StringName = BattleCellState.TERRAIN_LAND) -> BattleCellState:
+func _build_cell(coord: Vector2i, height: int, terrain: StringName = BattleCellState.TERRAIN_LAND()) -> BattleCellState:
 	var cell := BattleCellState.new()
 	cell.coord = coord
 	cell.stack_layer = height
@@ -1593,11 +1593,11 @@ func _set_cell_height(state: BattleState, coord: Vector2i, height: int) -> void:
 
 func _clone_cells(cells: Dictionary) -> Dictionary:
 	var cloned: Dictionary = {}
-	for coord_variant in cells.keys():
-		if coord_variant is not Vector2i:
+	for coord_option in cells.keys():
+		if coord_option is not Vector2i:
 			continue
-		var coord: Vector2i = coord_variant
-		var cell := cells.get(coord_variant) as BattleCellState
+		var coord: Vector2i = coord_option
+		var cell := cells.get(coord_option) as BattleCellState
 		if cell == null:
 			continue
 		cloned[coord] = BattleCellState.from_dict(cell.to_dict())
@@ -1624,7 +1624,7 @@ func _instantiate_board(
 		if selected_unit != null:
 			selected_coord = selected_unit.coord
 	board_2d.set_viewport_size(viewport_size)
-	board_2d.configure(state, selected_coord, preview_target_coords, valid_target_coords)
+	board_2d.configure(state, selected_coord, preview_target_coords, valid_target_coords, &"single_unit", 1, 1, {})
 	await process_frame
 	return board_2d
 
@@ -1635,9 +1635,9 @@ func _capture_layout_signature(layout: Dictionary) -> Array[String]:
 	lines.append("player:%s" % [layout.get("player_coord", Vector2i.ZERO)])
 	lines.append("enemy:%s" % [layout.get("enemy_coord", Vector2i.ZERO)])
 	var coords: Array[Vector2i] = []
-	for coord_variant in layout.get("cells", {}).keys():
-		if coord_variant is Vector2i:
-			coords.append(coord_variant)
+	for coord_option in layout.get("cells", {}).keys():
+		if coord_option is Vector2i:
+			coords.append(coord_option)
 	coords.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
 		if a.y == b.y:
 			return a.x < b.x
@@ -1647,16 +1647,16 @@ func _capture_layout_signature(layout: Dictionary) -> Array[String]:
 		var cell := layout.get("cells", {}).get(coord) as BattleCellState
 		if cell == null:
 			continue
-		var column_variant: Variant = layout.get("cell_columns", {}).get(coord, [])
+		var column_option: Variant = layout.get("cell_columns", {}).get(coord, [])
 		var column_size := 0
-		if column_variant is Array:
-			column_size = (column_variant as Array).size()
+		if column_option is Array:
+			column_size = (column_option as Array).size()
 		lines.append("%d,%d|%s|%d|%s|%s|%s" % [
 			coord.x,
 			coord.y,
 			str(cell.base_terrain),
 			int(cell.current_height),
-			"%s|stack=%d" % [",".join(_stringify_prop_ids(cell.prop_ids)), column_size],
+			"%s|stack=%d" % [",".join(_stringify_prop_ids(_to_string_name_array(cell.prop_ids))), column_size],
 			String(cell.edge_feature_east.feature_kind) if cell.edge_feature_east != null else "none",
 			String(cell.edge_feature_south.feature_kind) if cell.edge_feature_south != null else "none",
 		])
@@ -1875,8 +1875,8 @@ func _compute_expected_profile_content_bounds(board: BattleBoard2D, state: Battl
 		return Rect2()
 	var has_bounds := false
 	var bounds := Rect2()
-	for cell_variant in state.cells.values():
-		var cell := cell_variant as BattleCellState
+	for cell_option in state.cells.values():
+		var cell := cell_option as BattleCellState
 		if cell == null:
 			continue
 		var anchor := input_layer.map_to_local(cell.coord)
@@ -1889,7 +1889,7 @@ func _compute_expected_profile_content_bounds(board: BattleBoard2D, state: Battl
 			bounds = bounds.merge(cell_rect)
 	if not has_bounds:
 		return Rect2()
-	var margin := profile.content_bounds_margin
+	var margin: Vector4 = profile.content_bounds_margin
 	return bounds.grow_individual(margin.x, margin.y, margin.z, margin.w)
 
 
@@ -1901,7 +1901,7 @@ func _assert_camera_edges_cover_viewport(board: BattleBoard2D, viewport_size: Ve
 	var right_edge := board.position.x + (content_bounds.position.x + content_bounds.size.x) * zoom
 	var top_edge := board.position.y + content_bounds.position.y * zoom
 	var bottom_edge := board.position.y + (content_bounds.position.y + content_bounds.size.y) * zoom
-	var margin := profile.camera_margin if profile != null else Vector2.ZERO
+	var margin: Vector2 = profile.camera_margin if profile != null else Vector2.ZERO
 	_assert_true(
 		left_edge <= margin.x + 1.0,
 		"%s 后左边缘不应露出超过 render profile margin 的空白。" % label
@@ -1947,11 +1947,11 @@ func _assert_drop_face_stacking(board: BattleBoard2D, layout: Dictionary) -> voi
 	var cells: Dictionary = layout.get("cells", {})
 	var east_layers := _get_board_layers(board, "EdgeDropEastH", 1, MAX_RENDER_HEIGHT)
 	var south_layers := _get_board_layers(board, "EdgeDropSouthH", 1, MAX_RENDER_HEIGHT)
-	for coord_variant in cells.keys():
-		if coord_variant is not Vector2i:
+	for coord_option in cells.keys():
+		if coord_option is not Vector2i:
 			continue
-		var coord: Vector2i = coord_variant
-		var cell := cells.get(coord_variant) as BattleCellState
+		var coord: Vector2i = coord_option
+		var cell := cells.get(coord_option) as BattleCellState
 		if cell == null:
 			continue
 		var expected_east := _expected_height_drop(cells, coord, Vector2i.RIGHT, int(cell.current_height))
@@ -1972,10 +1972,10 @@ func _assert_drop_face_stacking(board: BattleBoard2D, layout: Dictionary) -> voi
 
 func _assert_prop_and_unit_sorting(board: BattleBoard2D) -> void:
 	var prop_counts := {
-		BattleBoardPropCatalog.PROP_SPIKE_BARRICADE: 0,
-		BattleBoardPropCatalog.PROP_OBJECTIVE_MARKER: 0,
-		BattleBoardPropCatalog.PROP_TENT: 0,
-		BattleBoardPropCatalog.PROP_TORCH: 0,
+		BattleBoardPropCatalog.PROP_SPIKE_BARRICADE(): 0,
+		BattleBoardPropCatalog.PROP_OBJECTIVE_MARKER(): 0,
+		BattleBoardPropCatalog.PROP_TENT(): 0,
+		BattleBoardPropCatalog.PROP_TORCH(): 0,
 	}
 	var prop_layer := board.get_node("PropLayer")
 	for child in prop_layer.get_children():
@@ -1989,20 +1989,20 @@ func _assert_prop_and_unit_sorting(board: BattleBoard2D) -> void:
 			"prop 节点应使用显式 render depth 排序：%s" % child.name
 		)
 	_assert_eq(
-		int(prop_counts.get(BattleBoardPropCatalog.PROP_OBJECTIVE_MARKER, 0)),
+		int(prop_counts.get(BattleBoardPropCatalog.PROP_OBJECTIVE_MARKER(), 0)),
 		1,
 		"PropLayer 应存在一个 objective marker。"
 	)
 	_assert_true(
-		int(prop_counts.get(BattleBoardPropCatalog.PROP_TENT, 0)) >= 2,
+		int(prop_counts.get(BattleBoardPropCatalog.PROP_TENT(), 0)) >= 2,
 		"PropLayer 应存在双方 camp tent。"
 	)
 	_assert_true(
-		int(prop_counts.get(BattleBoardPropCatalog.PROP_TORCH, 0)) >= 2,
+		int(prop_counts.get(BattleBoardPropCatalog.PROP_TORCH(), 0)) >= 2,
 		"PropLayer 应存在 canyon torch。"
 	)
 	_assert_true(
-		int(prop_counts.get(BattleBoardPropCatalog.PROP_SPIKE_BARRICADE, 0)) >= 1,
+		int(prop_counts.get(BattleBoardPropCatalog.PROP_SPIKE_BARRICADE(), 0)) >= 1,
 		"PropLayer 应为 spike 地格生成障碍物 scene。"
 	)
 
@@ -2019,8 +2019,8 @@ func _assert_prop_and_unit_sorting(board: BattleBoard2D) -> void:
 
 func _count_layout_prop(layout: Dictionary, prop_id: StringName) -> int:
 	var count := 0
-	for cell_variant in layout.get("cells", {}).values():
-		var cell := cell_variant as BattleCellState
+	for cell_option in layout.get("cells", {}).values():
+		var cell := cell_option as BattleCellState
 		if cell == null:
 			continue
 		if cell.prop_ids.has(prop_id):
@@ -2030,10 +2030,10 @@ func _count_layout_prop(layout: Dictionary, prop_id: StringName) -> int:
 
 func _collect_layout_prop_coords(layout: Dictionary, prop_id: StringName) -> Array[Vector2i]:
 	var coords: Array[Vector2i] = []
-	for coord_variant in layout.get("cells", {}).keys():
-		if coord_variant is not Vector2i:
+	for coord_option in layout.get("cells", {}).keys():
+		if coord_option is not Vector2i:
 			continue
-		var coord: Vector2i = coord_variant
+		var coord: Vector2i = coord_option
 		var cell := layout.get("cells", {}).get(coord) as BattleCellState
 		if cell == null or not cell.prop_ids.has(prop_id):
 			continue
@@ -2041,13 +2041,13 @@ func _collect_layout_prop_coords(layout: Dictionary, prop_id: StringName) -> Arr
 	return coords
 
 
-func _extract_layout_coords(coords_variant: Variant) -> Array[Vector2i]:
+func _extract_layout_coords(coords_option: Variant) -> Array[Vector2i]:
 	var coords: Array[Vector2i] = []
-	if coords_variant is not Array:
+	if coords_option is not Array:
 		return coords
-	for coord_variant in coords_variant:
-		if coord_variant is Vector2i:
-			coords.append(coord_variant)
+	for coord_option in coords_option:
+		if coord_option is Vector2i:
+			coords.append(coord_option)
 	return coords
 
 
@@ -2071,15 +2071,15 @@ func _assert_layout_spawn_coords_avoid_water(layout: Dictionary, label: String) 
 			"coords": _extract_layout_coords(layout.get("enemy_spawns", [])),
 		},
 	]
-	for group_variant in groups:
-		var group: Dictionary = group_variant
+	for group_option in groups:
+		var group: Dictionary = group_option
 		var field_name := String(group.get("field", "spawn"))
 		var coords: Array[Vector2i] = []
-		var coords_variant = group.get("coords", [])
-		if coords_variant is Array:
-			for coord_variant in coords_variant:
-				if coord_variant is Vector2i:
-					coords.append(coord_variant)
+		var coords_option = group.get("coords", [])
+		if coords_option is Array:
+			for coord_option in coords_option:
+				if coord_option is Vector2i:
+					coords.append(coord_option)
 		_assert_true(not coords.is_empty(), "%s 的 %s 不应为空。" % [label, field_name])
 		for coord in coords:
 			var cell := cells.get(coord) as BattleCellState
@@ -2109,23 +2109,24 @@ func _count_coords_strictly_right_of_x(coords: Array[Vector2i], x_limit: int) ->
 
 
 func _assert_layout_uses_supported_props(layout: Dictionary) -> void:
-	for cell_variant in layout.get("cells", {}).values():
-		var cell := cell_variant as BattleCellState
+	var prop_catalog := BattleBoardPropCatalog.new()
+	for cell_option in layout.get("cells", {}).values():
+		var cell := cell_option as BattleCellState
 		if cell == null:
 			continue
 		for prop_id in cell.prop_ids:
 			_assert_true(
-				BattleBoardPropCatalog.is_supported(prop_id),
+				prop_catalog.IsSupported(prop_id),
 				"战斗布局中的显式 prop_id 必须来自正式 prop catalog：%s" % String(prop_id)
 			)
 
 
 func _count_terrain_cells_in_x_range(layout: Dictionary, terrain_id: StringName, min_x: int, max_x: int) -> int:
 	var count := 0
-	for coord_variant in layout.get("cells", {}).keys():
-		if coord_variant is not Vector2i:
+	for coord_option in layout.get("cells", {}).keys():
+		if coord_option is not Vector2i:
 			continue
-		var coord: Vector2i = coord_variant
+		var coord: Vector2i = coord_option
 		if coord.x < min_x or coord.x > max_x:
 			continue
 		var cell := layout.get("cells", {}).get(coord) as BattleCellState
@@ -2138,14 +2139,14 @@ func _count_terrain_cells_in_x_range(layout: Dictionary, terrain_id: StringName,
 
 func _collect_terrain_coords(layout: Dictionary, terrain_id: StringName) -> Array[Vector2i]:
 	var coords: Array[Vector2i] = []
-	for coord_variant in layout.get("cells", {}).keys():
-		if coord_variant is not Vector2i:
+	for coord_option in layout.get("cells", {}).keys():
+		if coord_option is not Vector2i:
 			continue
-		var coord: Vector2i = coord_variant
+		var coord: Vector2i = coord_option
 		var cell := layout.get("cells", {}).get(coord) as BattleCellState
 		if cell == null:
 			continue
-		if terrain_id == BattleCellState.TERRAIN_WATER:
+		if terrain_id == BattleCellState.TERRAIN_WATER():
 			if not BattleTerrainRules.is_water_terrain(cell.base_terrain):
 				continue
 		elif cell.base_terrain != terrain_id:
@@ -2191,9 +2192,9 @@ func _find_narrow_assault_gate_info(layout: Dictionary) -> Dictionary:
 	var map_size: Vector2i = layout.get("map_size", Vector2i.ZERO)
 	if cells.is_empty() or map_size == Vector2i.ZERO:
 		return {}
-	var cell_columns_variant: Variant = layout.get("cell_columns", {})
-	var cell_columns: Dictionary = cell_columns_variant if cell_columns_variant is Dictionary else BattleCellState.build_columns_from_surface_cells(cells)
-	var edge_faces := _edge_service.build_edge_faces_for_cells(cells, map_size, cell_columns)
+	var cell_columns_option: Variant = layout.get("cell_columns", {})
+	var cell_columns: Dictionary = cell_columns_option if cell_columns_option is Dictionary else BattleCellState.build_columns_from_surface_cells(cells)
+	var edge_faces: Dictionary = _edge_service.build_edge_faces_for_cells(cells, map_size, cell_columns)
 	var player_coord: Vector2i = layout.get("player_coord", Vector2i.ZERO)
 	var enemy_coord: Vector2i = layout.get("enemy_coord", Vector2i.ZERO)
 	var min_x := mini(player_coord.x, enemy_coord.x)
@@ -2227,9 +2228,9 @@ func _find_holdout_push_line_info(layout: Dictionary) -> Dictionary:
 	var map_size: Vector2i = layout.get("map_size", Vector2i.ZERO)
 	if cells.is_empty() or map_size == Vector2i.ZERO:
 		return {}
-	var cell_columns_variant: Variant = layout.get("cell_columns", {})
-	var cell_columns: Dictionary = cell_columns_variant if cell_columns_variant is Dictionary else BattleCellState.build_columns_from_surface_cells(cells)
-	var edge_faces := _edge_service.build_edge_faces_for_cells(cells, map_size, cell_columns)
+	var cell_columns_option: Variant = layout.get("cell_columns", {})
+	var cell_columns: Dictionary = cell_columns_option if cell_columns_option is Dictionary else BattleCellState.build_columns_from_surface_cells(cells)
+	var edge_faces: Dictionary = _edge_service.build_edge_faces_for_cells(cells, map_size, cell_columns)
 	var player_coord: Vector2i = layout.get("player_coord", Vector2i.ZERO)
 	var enemy_coord: Vector2i = layout.get("enemy_coord", Vector2i.ZERO)
 	var min_x := mini(player_coord.x, enemy_coord.x)
@@ -2339,8 +2340,8 @@ func _is_layout_edge_traversable(
 func _assert_canyon_height_range(layout: Dictionary) -> void:
 	var min_height := 999999
 	var max_height := -999999
-	for cell_variant in layout.get("cells", {}).values():
-		var cell := cell_variant as BattleCellState
+	for cell_option in layout.get("cells", {}).values():
+		var cell := cell_option as BattleCellState
 		if cell == null:
 			continue
 		min_height = mini(min_height, int(cell.current_height))
@@ -2357,8 +2358,8 @@ func _assert_canyon_height_range(layout: Dictionary) -> void:
 
 func _count_used_layers(layers: Array, coord: Vector2i) -> int:
 	var count := 0
-	for layer_variant in layers:
-		var layer := layer_variant as TileMapLayer
+	for layer_option in layers:
+		var layer := layer_option as TileMapLayer
 		if layer == null:
 			continue
 		if layer.get_cell_source_id(coord) >= 0:
@@ -2388,6 +2389,13 @@ func _build_layer_names(prefix: String, start_height: int, end_height: int) -> A
 	for height in range(start_height, end_height + 1):
 		names.append("%s%d" % [prefix, height])
 	return names
+
+
+func _to_string_name_array(values: Array) -> Array[StringName]:
+	var results: Array[StringName] = []
+	for value in values:
+		results.append(StringName(String(value)))
+	return results
 
 
 func _stringify_prop_ids(prop_ids: Array[StringName]) -> Array[String]:

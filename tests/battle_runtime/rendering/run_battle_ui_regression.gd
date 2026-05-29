@@ -3,27 +3,26 @@ extends SceneTree
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 const BattleRuntimeTestHelpers = preload("res://tests/shared/battle_runtime_test_helpers.gd")
 
-const BattleBoard2D = preload("res://scripts/ui/battle_board_2d.gd")
+const BattleBoard2D = preload("res://scripts/ui/BattleBoard2D.cs")
 const BattleBoardScene = preload("res://scenes/ui/battle_board_2d.tscn")
-const BattleHudAdapter = preload("res://scripts/systems/battle/presentation/battle_hud_adapter.gd")
-const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
-const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
-const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
-const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
-const BattleTimelineState = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
-const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
-const EquipmentInstanceState = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
-const ItemContentRegistry = preload("res://scripts/player/warehouse/item_content_registry.gd")
-const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
-const CombatSkillDef = preload("res://scripts/player/progression/combat_skill_def.gd")
-const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
-const WarehouseState = preload("res://scripts/player/warehouse/warehouse_state.gd")
-const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
-const BattleMapPanel = preload("res://scripts/ui/battle_map_panel.gd")
+const BattleHudAdapter = preload("res://scripts/systems/battle/presentation/BattleHudAdapter.cs")
+const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/BattleRuntimeModule.cs")
+const BattleState = preload("res://scripts/systems/battle/core/BattleState.cs")
+const BattleCellState = preload("res://scripts/systems/battle/core/BattleCellState.cs")
+const BattleTimelineState = preload("res://scripts/systems/battle/core/BattleTimelineState.cs")
+const BattleUnitState = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
+const EquipmentInstanceState = preload("res://scripts/player/warehouse/EquipmentInstanceState.cs")
+const ItemContentRegistry = preload("res://scripts/player/warehouse/ItemContentRegistry.cs")
+const SkillDef = preload("res://scripts/player/progression/SkillDef.cs")
+const CombatSkillDef = preload("res://scripts/player/progression/CombatSkillDef.cs")
+const ProgressionContentRegistry = preload("res://scripts/player/progression/ProgressionContentRegistry.cs")
+const WarehouseState = preload("res://scripts/player/warehouse/WarehouseState.cs")
+const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/UnitBaseAttributes.cs")
+const BattleMapPanel = preload("res://scripts/ui/BattleMapPanel.cs")
 const BattlePanelScene = preload("res://scenes/ui/battle_map_panel.tscn")
-const RuntimeLogDock = preload("res://scripts/ui/runtime_log_dock.gd")
+const RuntimeLogDock = preload("res://scripts/ui/RuntimeLogDock.cs")
 const RuntimeLogDockScene = preload("res://scenes/ui/runtime_log_dock.tscn")
-const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/AttributeService.cs")
 
 const VIEWPORT_SIZE := Vector2(1280.0, 720.0)
 const ULTRAWIDE_PANEL_SIZE := Vector2i(3857, 786)
@@ -150,7 +149,12 @@ func _test_multi_unit_hud_copy_and_selection_state() -> void:
 		"连珠箭",
 		"",
 		[Vector2i(1, 1), Vector2i(2, 1)],
-		3
+		3,
+		[],
+		&"",
+		Callable(),
+		"",
+		null
 	)
 	_assert_eq(snapshot.get("selected_skill_target_selection_mode", ""), "multi_unit", "multi_unit 技能应暴露目标选择模式。")
 	_assert_eq(int(snapshot.get("selected_skill_target_min_count", 0)), 2, "multi_unit 技能应暴露最小目标数量。")
@@ -172,7 +176,7 @@ func _test_focus_resource_rows_hide_locked_mp_and_aura() -> void:
 	unit.attribute_snapshot.set_value(&"mp_max", 9)
 	unit.attribute_snapshot.set_value(&"aura_max", 7)
 
-	var locked_snapshot = adapter.build_snapshot(state, Vector2i(0, 0))
+	var locked_snapshot = adapter.build_snapshot(state, Vector2i(0, 0), &"", "", "", [], 0, [], &"", Callable(), "", null)
 	var locked_focus := locked_snapshot.get("focus_unit", {}) as Dictionary
 	var locked_resources: Dictionary = locked_focus.get("resource_info", {})
 	var locked_hp := locked_resources.get("hp", {}) as Dictionary
@@ -184,9 +188,9 @@ func _test_focus_resource_rows_hide_locked_mp_and_aura() -> void:
 	_assert_true(not bool(locked_mp.get("visible", true)), "未解锁 MP 时 HUD 不应展示 MP 行。")
 	_assert_true(not bool(locked_aura.get("visible", true)), "未解锁斗气时 HUD 不应展示斗气行。")
 
-	unit.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_MP)
-	unit.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_AURA)
-	var unlocked_snapshot = adapter.build_snapshot(state, Vector2i(0, 0))
+	unit.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_MP())
+	unit.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_AURA())
+	var unlocked_snapshot = adapter.build_snapshot(state, Vector2i(0, 0), &"", "", "", [], 0, [], &"", Callable(), "", null)
 	var unlocked_focus := unlocked_snapshot.get("focus_unit", {}) as Dictionary
 	var unlocked_resources: Dictionary = unlocked_focus.get("resource_info", {})
 	var unlocked_mp := unlocked_resources.get("mp", {}) as Dictionary
@@ -218,17 +222,17 @@ func _test_battle_panel_uses_formal_hud_snapshot_fields() -> void:
 			&"main_hand",
 			&"bronze_sword",
 			occupied_slots,
-			EquipmentInstanceState.create(&"bronze_sword", &"ui_formal_equipped_sword_001")
+			EquipmentInstanceState.create_instance(&"bronze_sword", &"ui_formal_equipped_sword_001")
 		)),
 		"正式 HUD snapshot 字段回归前置：应能为当前单位写入 battle-local 装备入口。"
 	)
 	var backpack := WarehouseState.new()
 	backpack.equipment_instances = [
-		EquipmentInstanceState.create(&"bronze_sword", &"ui_formal_backpack_sword_001"),
+		EquipmentInstanceState.create_instance(&"bronze_sword", &"ui_formal_backpack_sword_001"),
 	]
 	state.set_party_backpack_view(backpack)
 
-	var snapshot = _build_hud_adapter().build_snapshot(state, Vector2i(0, 0))
+	var snapshot = _build_hud_adapter().build_snapshot(state, Vector2i(0, 0), &"", "", "", [], 0, [], &"", Callable(), "", null)
 	var focus := snapshot.get("focus_unit", {}) as Dictionary
 	_assert_true(focus.has("move_current") and focus.has("move_max"), "BattleHudAdapter 应提供正式 move_current/move_max 字段。")
 	var equipment_panel := snapshot.get("equipment_panel", {}) as Dictionary
@@ -244,7 +248,7 @@ func _test_battle_panel_uses_formal_hud_snapshot_fields() -> void:
 	panel.size = VIEWPORT_SIZE
 	panel._apply_snapshot(snapshot)
 	await process_frame
-	_assert_eq(panel.ap_dot_container.get_child_count(), BattleUnitState.DEFAULT_MOVE_POINTS_PER_TURN, "正式 move snapshot 应按移动点上限渲染行动点亮点。")
+	_assert_eq(panel.ap_dot_container.get_child_count(), BattleUnitState.DEFAULT_MOVE_POINTS_PER_TURN(), "正式 move snapshot 应按移动点上限渲染行动点亮点。")
 	_assert_eq(_count_filled_ap_dots(panel), 1, "正式 move snapshot 应按 move_current 渲染亮点数量，而不是 current_ap。")
 
 	var recorder := UnequipSignalRecorder.new()
@@ -285,7 +289,7 @@ func _test_battle_panel_does_not_recover_legacy_hud_snapshot_fields() -> void:
 	await process_frame
 	_assert_eq(
 		panel.ap_dot_container.get_child_count(),
-		BattleUnitState.DEFAULT_MOVE_POINTS_PER_TURN,
+		BattleUnitState.DEFAULT_MOVE_POINTS_PER_TURN(),
 		"缺 move_current/move_max 时不应从 ap_current/ap_max 恢复行动点上限。"
 	)
 	_assert_eq(_count_filled_ap_dots(panel), 0, "缺 move_current 时不应从 ap_current 恢复亮点数量。")
@@ -300,8 +304,8 @@ func _test_battle_panel_does_not_recover_legacy_hud_snapshot_fields() -> void:
 		"缺旧字段回归前置：legacy snapshot 应渲染 1 条背包装备。"
 	)
 	if panel._battle_equipment_backpack_list != null and panel._battle_equipment_backpack_list.item_count == 1:
-		var item_text := panel._battle_equipment_backpack_list.get_item_text(0)
-		var tooltip_text := panel._battle_equipment_backpack_list.get_item_tooltip(0)
+		var item_text: String = panel._battle_equipment_backpack_list.get_item_text(0)
+		var tooltip_text: String = panel._battle_equipment_backpack_list.get_item_tooltip(0)
 		_assert_true(not item_text.contains("legacy_item_id"), "缺 display_name 时背包列表不应回退显示 item_id。")
 		_assert_true(not tooltip_text.contains("legacy_item_id"), "缺 display_name 时背包 tooltip 不应回退显示 item_id。")
 	var unequip_button := _find_button_with_text(panel._battle_equipment_slot_list, "卸下")
@@ -334,29 +338,29 @@ func _test_equipment_preview_cache_reuses_stable_snapshot_results() -> void:
 
 	var backpack := WarehouseState.new()
 	backpack.equipment_instances = [
-		EquipmentInstanceState.create(&"bronze_sword", &"ui_cache_sword_001"),
-		EquipmentInstanceState.create(&"leather_cap", &"ui_cache_cap_001"),
+		EquipmentInstanceState.create_instance(&"bronze_sword", &"ui_cache_sword_001"),
+		EquipmentInstanceState.create_instance(&"leather_cap", &"ui_cache_cap_001"),
 	]
 	state.set_party_backpack_view(backpack)
 
 	var preview_callback := CountingEquipmentPreviewCallback.new()
 	var callback := Callable(preview_callback, "preview")
-	var first_snapshot = adapter.build_snapshot(state, Vector2i(0, 0), &"", "", "", [], 0, [], &"", callback)
+	var first_snapshot = adapter.build_snapshot(state, Vector2i(0, 0), &"", "", "", [], 0, [], &"", callback, "", null)
 	var first_panel := first_snapshot.get("equipment_panel", {}) as Dictionary
 	var first_entries := first_panel.get("backpack_entries", []) as Array
 	_assert_eq(first_entries.size(), 2, "装备预览缓存回归前置：HUD 应看到 2 件 battle-local 背包装备。")
 	_assert_eq(preview_callback.call_count, 2, "首次构建 HUD 时应对每件可装备实例执行一次 preview。")
 	for command in preview_callback.commands:
-		_assert_eq(command.command_type, BattleCommand.TYPE_CHANGE_EQUIPMENT, "HUD 装备 preview command 应使用换装命令类型。")
+		_assert_eq(command.command_type, BattleCommand.TYPE_CHANGE_EQUIPMENT(), "HUD 装备 preview command 应使用换装命令类型。")
 		_assert_true(command.equipment_item_id != &"", "HUD 装备 preview command 应保留稳定 item_id。")
 		_assert_true(command.equipment_instance_id != &"", "HUD 装备 preview command 应保留稳定 instance_id。")
 		_assert_true(command.equipment_instance.is_empty(), "HUD 装备 preview command 不应携带半截 equipment_instance payload。")
 
-	adapter.build_snapshot(state, Vector2i(0, 0), &"", "", "", [], 0, [], &"", callback)
+	adapter.build_snapshot(state, Vector2i(0, 0), &"", "", "", [], 0, [], &"", callback, "", null)
 	_assert_eq(preview_callback.call_count, 2, "同一装备状态连续构建 HUD 时应复用装备 preview cache。")
 
 	active_unit.current_ap = 3
-	adapter.build_snapshot(state, Vector2i(0, 0), &"", "", "", [], 0, [], &"", callback)
+	adapter.build_snapshot(state, Vector2i(0, 0), &"", "", "", [], 0, [], &"", callback, "", null)
 	_assert_eq(preview_callback.call_count, 4, "当前行动单位 AP 变化后应让装备 preview cache 失效并重算。")
 
 	game_session.queue_free()
@@ -384,23 +388,23 @@ func _test_large_equipment_preview_cache_reuses_stable_snapshot_results() -> voi
 	for index in range(64):
 		var item_id: StringName = &"bronze_sword" if index % 2 == 0 else &"leather_cap"
 		backpack.equipment_instances.append(
-			EquipmentInstanceState.create(item_id, StringName("ui_large_cache_%03d" % index))
+			EquipmentInstanceState.create_instance(item_id, StringName("ui_large_cache_%03d" % index))
 		)
 	state.set_party_backpack_view(backpack)
 
 	var preview_callback := CountingEquipmentPreviewCallback.new()
 	var callback := Callable(preview_callback, "preview")
-	var first_snapshot = adapter.build_snapshot(state, Vector2i(0, 0), &"", "", "", [], 0, [], &"", callback)
+	var first_snapshot = adapter.build_snapshot(state, Vector2i(0, 0), &"", "", "", [], 0, [], &"", callback, "", null)
 	var first_panel := first_snapshot.get("equipment_panel", {}) as Dictionary
 	var first_entries := first_panel.get("backpack_entries", []) as Array
 	_assert_eq(first_entries.size(), 64, "大背包装备预览缓存回归前置：HUD 应看到全部 battle-local 背包装备。")
 	_assert_eq(preview_callback.call_count, 64, "首次构建大背包 HUD 时应只对每件实例执行一次 preview。")
 
-	adapter.build_snapshot(state, Vector2i(1, 1), &"", "", "", [], 0, [], &"", callback)
+	adapter.build_snapshot(state, Vector2i(1, 1), &"", "", "", [], 0, [], &"", callback, "", null)
 	_assert_eq(preview_callback.call_count, 64, "稳定装备状态的悬停 / overlay 重建应复用大背包装备 preview cache。")
 
 	active_unit.current_ap = 3
-	adapter.build_snapshot(state, Vector2i(1, 1), &"", "", "", [], 0, [], &"", callback)
+	adapter.build_snapshot(state, Vector2i(1, 1), &"", "", "", [], 0, [], &"", callback, "", null)
 	_assert_eq(preview_callback.call_count, 128, "当前行动单位 AP 变化后大背包装备 preview cache 应失效并按实例重算。")
 
 	game_session.queue_free()
@@ -425,7 +429,7 @@ func _test_equipment_preview_uses_default_failure_message_for_silent_preview() -
 
 	var backpack := WarehouseState.new()
 	backpack.equipment_instances = [
-		EquipmentInstanceState.create(&"bronze_sword", &"ui_failure_sword_001"),
+		EquipmentInstanceState.create_instance(&"bronze_sword", &"ui_failure_sword_001"),
 	]
 	state.set_party_backpack_view(backpack)
 
@@ -440,7 +444,9 @@ func _test_equipment_preview_uses_default_failure_message_for_silent_preview() -
 		0,
 		[],
 		&"",
-		Callable(silent_callback, "preview")
+		Callable(silent_callback, "preview"),
+		"",
+		null
 	)
 	var silent_panel := silent_snapshot.get("equipment_panel", {}) as Dictionary
 	var silent_entries := silent_panel.get("backpack_entries", []) as Array
@@ -450,7 +456,7 @@ func _test_equipment_preview_uses_default_failure_message_for_silent_preview() -
 		_assert_true(not bool(silent_entry.get("can_equip", true)), "preview 拒绝但无日志时背包装备应禁用。")
 		_assert_eq(
 			String(silent_entry.get("disabled_reason", "")),
-			BattleHudAdapter.EQUIPMENT_PREVIEW_DEFAULT_FAILURE_MESSAGE,
+			BattleHudAdapter.EQUIPMENT_PREVIEW_DEFAULT_FAILURE_MESSAGE(),
 			"preview 拒绝且无日志时应统一使用装备预览默认失败文案。"
 		)
 
@@ -466,7 +472,9 @@ func _test_equipment_preview_uses_default_failure_message_for_silent_preview() -
 		0,
 		[],
 		&"",
-		Callable(explicit_callback, "preview")
+		Callable(explicit_callback, "preview"),
+		"",
+		null
 	)
 	var explicit_panel := explicit_snapshot.get("equipment_panel", {}) as Dictionary
 	var explicit_entries := explicit_panel.get("backpack_entries", []) as Array
@@ -506,8 +514,8 @@ func _test_repeat_attack_hud_preview_matches_runtime_resolver() -> void:
 		4
 	)
 	attacker.current_aura = 6
-	attacker.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_AURA)
-	attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 90)
+	attacker.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_AURA())
+	attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 90)
 	var defender := _build_repeat_attack_unit(
 		&"saint_blade_ui_target",
 		"训练木桩",
@@ -517,7 +525,7 @@ func _test_repeat_attack_hud_preview_matches_runtime_resolver() -> void:
 		2,
 		0
 	)
-	defender.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
+	defender.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 0)
 	_add_unit_to_runtime_state(runtime, state, attacker, false)
 	_add_unit_to_runtime_state(runtime, state, defender, true)
 	state.phase = &"unit_acting"
@@ -525,7 +533,7 @@ func _test_repeat_attack_hud_preview_matches_runtime_resolver() -> void:
 	runtime._state = state
 
 	var command := BattleCommand.new()
-	command.command_type = BattleCommand.TYPE_SKILL
+	command.command_type = BattleCommand.TYPE_SKILL()
 	command.unit_id = attacker.unit_id
 	command.skill_id = skill_def.skill_id
 	command.target_unit_id = defender.unit_id
@@ -552,7 +560,11 @@ func _test_repeat_attack_hud_preview_matches_runtime_resolver() -> void:
 		"",
 		[],
 		1,
-		[]
+		[],
+		&"",
+		Callable(),
+		"",
+		null
 	)
 	_assert_eq(
 		String(snapshot.get("selected_skill_hit_preview_text", "")),
@@ -594,7 +606,7 @@ func _test_single_hit_hud_preview_matches_runtime_resolver() -> void:
 		4
 	)
 	attacker.current_stamina = 30
-	attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 80)
+	attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 80)
 	var defender := _build_repeat_attack_unit(
 		&"heavy_strike_ui_target",
 		"高闪避木桩",
@@ -604,7 +616,7 @@ func _test_single_hit_hud_preview_matches_runtime_resolver() -> void:
 		2,
 		0
 	)
-	defender.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 70)
+	defender.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 70)
 	_add_unit_to_runtime_state(runtime, state, attacker, false)
 	_add_unit_to_runtime_state(runtime, state, defender, true)
 	state.phase = &"unit_acting"
@@ -612,7 +624,7 @@ func _test_single_hit_hud_preview_matches_runtime_resolver() -> void:
 	runtime._state = state
 
 	var command := BattleCommand.new()
-	command.command_type = BattleCommand.TYPE_SKILL
+	command.command_type = BattleCommand.TYPE_SKILL()
 	command.unit_id = attacker.unit_id
 	command.skill_id = skill_def.skill_id
 	command.target_unit_id = defender.unit_id
@@ -632,7 +644,11 @@ func _test_single_hit_hud_preview_matches_runtime_resolver() -> void:
 		"",
 		[],
 		1,
-		[]
+		[],
+		&"",
+		Callable(),
+		"",
+		null
 	)
 	_assert_eq(
 		String(snapshot.get("selected_skill_hit_preview_text", "")),
@@ -674,8 +690,8 @@ func _test_battle_panel_hover_target_surfaces_hit_preview() -> void:
 		4
 	)
 	attacker.current_aura = 6
-	attacker.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_AURA)
-	attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 80)
+	attacker.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_AURA())
+	attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 80)
 	var defender := _build_repeat_attack_unit(
 		&"hover_preview_target",
 		"悬停木桩",
@@ -685,7 +701,7 @@ func _test_battle_panel_hover_target_surfaces_hit_preview() -> void:
 		2,
 		0
 	)
-	defender.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 70)
+	defender.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 70)
 	_add_unit_to_runtime_state(runtime, state, attacker, false)
 	_add_unit_to_runtime_state(runtime, state, defender, true)
 	state.phase = &"unit_acting"
@@ -706,14 +722,15 @@ func _test_battle_panel_hover_target_surfaces_hit_preview() -> void:
 		[],
 		[defender.coord],
 		1,
-		[]
+		[],
+		&""
 	)
 	await process_frame
 	_assert_true(
 		not panel.skill_subtitle_label.text.contains("预计命中率"),
 		"技能刚选中且还未悬停目标时，不应错误展示当前行动单位的命中率。"
 	)
-	var initial_highlight_layer := panel._battle_board.get_node("TargetHighlightLayer") if panel._battle_board != null else null
+	var initial_highlight_layer: Node = panel._battle_board.get_node("TargetHighlightLayer") if panel._battle_board != null else null
 	_assert_true(
 		initial_highlight_layer != null and not _collect_node_names(initial_highlight_layer).has("HitBadge_%d_%d" % [defender.coord.x, defender.coord.y]),
 		"技能刚选中且还未悬停目标时，棋盘目标上方不应显示命中率浮标。"
@@ -728,16 +745,17 @@ func _test_battle_panel_hover_target_surfaces_hit_preview() -> void:
 		[],
 		[defender.coord],
 		1,
-		[]
+		[],
+		&""
 	)
 	await process_frame
 	_assert_true(
 		panel.skill_subtitle_label.text.contains("预计命中率") and panel.skill_subtitle_label.text.contains("需 "),
 		"选中技能后悬停到合法目标时，BattleMapPanel 应在技能副标题展示命中率预览。"
 	)
-	var highlight_layer := panel._battle_board.get_node("TargetHighlightLayer") if panel._battle_board != null else null
+	var highlight_layer: Node = panel._battle_board.get_node("TargetHighlightLayer") if panel._battle_board != null else null
 	var badge_name := "HitBadge_%d_%d" % [defender.coord.x, defender.coord.y]
-	var hit_badge := highlight_layer.get_node_or_null(badge_name) if highlight_layer != null else null
+	var hit_badge: Node = highlight_layer.get_node_or_null(badge_name) if highlight_layer != null else null
 	_assert_true(hit_badge != null, "选中技能后悬停到合法目标时，目标上方应显示命中率浮标。")
 	var hit_badge_label := _find_first_label(hit_badge)
 	_assert_true(
@@ -775,8 +793,8 @@ func _test_hover_preview_overlay_renders_on_valid_target_and_hides_on_invalid() 
 		4
 	)
 	attacker.current_aura = 6
-	attacker.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_AURA)
-	attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 80)
+	attacker.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_AURA())
+	attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 80)
 	var defender := _build_repeat_attack_unit(
 		&"hover_overlay_target",
 		"浮层木桩",
@@ -788,7 +806,7 @@ func _test_hover_preview_overlay_renders_on_valid_target_and_hides_on_invalid() 
 	)
 	defender.current_hp = 8
 	defender.attribute_snapshot.set_value(&"hp_max", 12)
-	defender.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
+	defender.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 0)
 	_add_unit_to_runtime_state(runtime, state, attacker, false)
 	_add_unit_to_runtime_state(runtime, state, defender, true)
 	state.phase = &"unit_acting"
@@ -809,7 +827,8 @@ func _test_hover_preview_overlay_renders_on_valid_target_and_hides_on_invalid() 
 		[],
 		[defender.coord],
 		1,
-		[]
+		[],
+		&""
 	)
 	await process_frame
 	await process_frame
@@ -860,7 +879,7 @@ func _test_hover_preview_overlay_renders_on_valid_target_and_hides_on_invalid() 
 
 	panel.update_hover_preview(
 		state,
-		BattleMapPanel.INVALID_HOVER_COORD,
+		BattleMapPanel.INVALID_HOVER_COORD(),
 		valid_target_coords,
 		skill_def.skill_id,
 		&""
@@ -929,7 +948,7 @@ func _test_skill_slot_surfaces_stamina_and_cooldown_blockers() -> void:
 	active_unit.current_stamina = 1
 	active_unit.attribute_snapshot.set_value(&"stamina_max", 2)
 
-	var stamina_snapshot = adapter.build_snapshot(state, Vector2i(0, 0))
+	var stamina_snapshot = adapter.build_snapshot(state, Vector2i(0, 0), &"", "", "", [], 0, [], &"", Callable(), "", null)
 	var stamina_slots: Array = stamina_snapshot.get("skill_slots", [])
 	var stamina_slot: Dictionary = stamina_slots[0] if not stamina_slots.is_empty() and stamina_slots[0] is Dictionary else {}
 	_assert_true(bool(stamina_slot.get("is_disabled", false)), "体力不足时 HUD skill slot 应保持禁用。")
@@ -939,7 +958,7 @@ func _test_skill_slot_surfaces_stamina_and_cooldown_blockers() -> void:
 	active_unit.current_stamina = 4
 	active_unit.attribute_snapshot.set_value(&"stamina_max", 4)
 	active_unit.cooldowns[skill_def.skill_id] = 10
-	var cooldown_snapshot = adapter.build_snapshot(state, Vector2i(0, 0))
+	var cooldown_snapshot = adapter.build_snapshot(state, Vector2i(0, 0), &"", "", "", [], 0, [], &"", Callable(), "", null)
 	var cooldown_slots: Array = cooldown_snapshot.get("skill_slots", [])
 	var cooldown_slot: Dictionary = cooldown_slots[0] if not cooldown_slots.is_empty() and cooldown_slots[0] is Dictionary else {}
 	_assert_true(bool(cooldown_slot.get("is_disabled", false)), "冷却未结束时 HUD skill slot 应保持禁用。")
@@ -952,8 +971,8 @@ func _test_skill_slot_surfaces_stamina_and_cooldown_blockers() -> void:
 	active_unit.current_ap = 2
 	active_unit.current_aura = 2
 	active_unit.attribute_snapshot.set_value(&"aura_max", 2)
-	active_unit.set_unlocked_combat_resource_ids(BattleUnitState.DEFAULT_UNLOCKED_COMBAT_RESOURCE_IDS)
-	var locked_aura_snapshot = adapter.build_snapshot(state, Vector2i(0, 0))
+	active_unit.set_unlocked_combat_resource_ids(BattleUnitState.DEFAULT_UNLOCKED_COMBAT_RESOURCE_IDS())
+	var locked_aura_snapshot = adapter.build_snapshot(state, Vector2i(0, 0), &"", "", "", [], 0, [], &"", Callable(), "", null)
 	var locked_aura_slots: Array = locked_aura_snapshot.get("skill_slots", [])
 	var locked_aura_slot: Dictionary = locked_aura_slots[0] if not locked_aura_slots.is_empty() and locked_aura_slots[0] is Dictionary else {}
 	_assert_true(bool(locked_aura_slot.get("is_disabled", false)), "斗气未解锁时 HUD skill slot 应保持禁用。")
@@ -974,7 +993,8 @@ func _test_multi_unit_board_highlights_confirm_state() -> void:
 		[Vector2i(3, 1)],
 		&"multi_unit",
 		2,
-		3
+		3,
+		{}
 	)
 	await process_frame
 	var highlight_layer := board.get_node("TargetHighlightLayer")
@@ -997,7 +1017,8 @@ func _test_multi_unit_board_confirm_halo_follows_active_unit() -> void:
 		[Vector2i(3, 1)],
 		&"multi_unit",
 		2,
-		3
+		3,
+		{}
 	)
 	await process_frame
 	var highlight_layer := board.get_node("TargetHighlightLayer")
@@ -1018,7 +1039,8 @@ func _test_multi_unit_board_highlights_continue_state() -> void:
 		[Vector2i(2, 1)],
 		&"multi_unit",
 		2,
-		3
+		3,
+		{}
 	)
 	await process_frame
 	var highlight_layer := board.get_node("TargetHighlightLayer")
@@ -1040,7 +1062,8 @@ func _test_movement_mode_uses_classic_srpg_style_markers() -> void:
 		[Vector2i(1, 0), Vector2i(0, 1)],
 		&"movement",
 		1,
-		1
+		1,
+		{}
 	)
 	await process_frame
 
@@ -1087,7 +1110,13 @@ func _test_fate_preview_badges_surface_high_threat_and_mercy_states() -> void:
 		high_threat_state,
 		high_threat_target.coord if high_threat_target != null else Vector2i.ZERO,
 		skill_def.skill_id,
-		skill_def.display_name
+		skill_def.display_name,
+		"",
+		[],
+		[],
+		0,
+		[],
+		&""
 	)
 	await process_frame
 
@@ -1124,7 +1153,13 @@ func _test_fate_preview_badges_surface_high_threat_and_mercy_states() -> void:
 		mercy_state,
 		mercy_target.coord if mercy_target != null else Vector2i.ZERO,
 		skill_def.skill_id,
-		skill_def.display_name
+		skill_def.display_name,
+		"",
+		[],
+		[],
+		0,
+		[],
+		&""
 	)
 	await process_frame
 
@@ -1183,9 +1218,9 @@ func _test_repeat_attack_hud_preview_uses_fate_aware_success_rate() -> void:
 		4
 	)
 	attacker.current_aura = 1
-	attacker.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_AURA)
-	attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 80)
-	attacker.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.HIDDEN_LUCK_AT_BIRTH, 2)
+	attacker.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_AURA())
+	attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 80)
+	attacker.attribute_snapshot.set_value(&"hidden_luck_at_birth", 2)
 	var defender := _build_repeat_attack_unit(
 		&"fate_hit_preview_target",
 		"高闪避木桩",
@@ -1195,7 +1230,7 @@ func _test_repeat_attack_hud_preview_uses_fate_aware_success_rate() -> void:
 		2,
 		0
 	)
-	defender.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 70)
+	defender.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 70)
 	_add_unit_to_runtime_state(runtime, state, attacker, false)
 	_add_unit_to_runtime_state(runtime, state, defender, true)
 	state.phase = &"unit_acting"
@@ -1203,7 +1238,7 @@ func _test_repeat_attack_hud_preview_uses_fate_aware_success_rate() -> void:
 	runtime._state = state
 
 	var command := BattleCommand.new()
-	command.command_type = BattleCommand.TYPE_SKILL
+	command.command_type = BattleCommand.TYPE_SKILL()
 	command.unit_id = attacker.unit_id
 	command.skill_id = skill_def.skill_id
 	command.target_unit_id = defender.unit_id
@@ -1229,7 +1264,11 @@ func _test_repeat_attack_hud_preview_uses_fate_aware_success_rate() -> void:
 		"",
 		[],
 		1,
-		[]
+		[],
+		&"",
+		Callable(),
+		"",
+		null
 	)
 	_assert_eq(
 		snapshot.get("selected_skill_hit_stage_rates", []),
@@ -1323,7 +1362,10 @@ func _test_hybrid_multi_unit_skill_uses_shared_fate_policy() -> void:
 		target_coords,
 		3,
 		target_unit_ids,
-		ARCHER_MULTISHOT_VARIANT_ID
+		ARCHER_MULTISHOT_VARIANT_ID,
+		Callable(),
+		"",
+		null
 	)
 	var fate_badges := snapshot.get("selected_skill_fate_badges", []) as Array
 	_assert_true(not fate_badges.is_empty(), "ground 变体多目标点射在 HUD 上也应复用共享 fate policy。")
@@ -1354,8 +1396,8 @@ func _test_multi_unit_hover_preview_prefers_focused_target_over_queued_target() 
 		game_session.queue_free()
 		await process_frame
 		return
-	enemy_a.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
-	enemy_b.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 90)
+	enemy_a.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 0)
+	enemy_b.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 90)
 
 	var adapter = _build_hud_adapter()
 	var expected_hover_snapshot = adapter.build_snapshot(
@@ -1367,7 +1409,10 @@ func _test_multi_unit_hover_preview_prefers_focused_target_over_queued_target() 
 		[],
 		3,
 		[],
-		ARCHER_MULTISHOT_VARIANT_ID
+		ARCHER_MULTISHOT_VARIANT_ID,
+		Callable(),
+		"",
+		null
 	)
 	var queued_first_snapshot = adapter.build_snapshot(
 		state,
@@ -1378,7 +1423,10 @@ func _test_multi_unit_hover_preview_prefers_focused_target_over_queued_target() 
 		[enemy_a.coord],
 		3,
 		[enemy_a.unit_id],
-		ARCHER_MULTISHOT_VARIANT_ID
+		ARCHER_MULTISHOT_VARIANT_ID,
+		Callable(),
+		"",
+		null
 	)
 	var hover_after_queue_snapshot = adapter.build_snapshot(
 		state,
@@ -1389,7 +1437,10 @@ func _test_multi_unit_hover_preview_prefers_focused_target_over_queued_target() 
 		[enemy_a.coord],
 		3,
 		[enemy_a.unit_id],
-		ARCHER_MULTISHOT_VARIANT_ID
+		ARCHER_MULTISHOT_VARIANT_ID,
+		Callable(),
+		"",
+		null
 	)
 	var expected_hover_text := String(expected_hover_snapshot.get("selected_skill_hit_preview_text", ""))
 	var queued_first_text := String(queued_first_snapshot.get("selected_skill_hit_preview_text", ""))
@@ -1414,19 +1465,19 @@ func _test_multi_unit_hover_preview_prefers_focused_target_over_queued_target() 
 
 func _test_battle_state_log_buffer_enforces_entry_cap() -> void:
 	var state := BattleState.new()
-	for index in range(BattleState.LOG_ENTRY_LIMIT + 25):
+	for index in range(BattleState.LOG_ENTRY_LIMIT() + 25):
 		state.append_log_entry("log_%d" % index)
-	_assert_eq(state.log_entries.size(), BattleState.LOG_ENTRY_LIMIT, "BattleState 日志缓冲应按条数上限裁剪。")
+	_assert_eq(state.log_entries.size(), BattleState.LOG_ENTRY_LIMIT(), "BattleState 日志缓冲应按条数上限裁剪。")
 	_assert_eq(String(state.log_entries[0]), "log_25", "BattleState 日志缓冲达到上限后应淘汰最旧条目。")
 	_assert_true(
-		state.get_log_text_byte_size() <= BattleState.LOG_TEXT_BYTE_LIMIT,
+		state.get_log_text_byte_size() <= BattleState.LOG_TEXT_BYTE_LIMIT(),
 		"BattleState 日志缓冲裁剪后应保持在字节预算内。"
 	)
 
 
 func _test_runtime_log_dock_syncs_battle_entries() -> void:
 	root.size = Vector2i(VIEWPORT_SIZE)
-	var log_dock := RuntimeLogDockScene.instantiate() as RuntimeLogDock
+	var log_dock: RuntimeLogDock = RuntimeLogDockScene.instantiate() as RuntimeLogDock
 	root.add_child(log_dock)
 	await process_frame
 	log_dock.size = VIEWPORT_SIZE
@@ -1476,12 +1527,12 @@ func _test_battle_panel_flushes_to_ultrawide_edges() -> void:
 	await process_frame
 	_configure_battle_panel(panel)
 	panel.size = Vector2(ULTRAWIDE_PANEL_SIZE)
-	panel.show_battle(_build_state(), Vector2i(0, 0))
+	panel.show_battle(_build_state(), Vector2i(0, 0), &"", "", "", [], [], 0, [], &"")
 	await process_frame
 
-	var map_frame_rect := panel.map_frame.get_global_rect()
-	var top_bar_rect := panel.top_bar.get_global_rect()
-	var bottom_panel_rect := panel.bottom_panel.get_global_rect()
+	var map_frame_rect: Rect2 = panel.map_frame.get_global_rect()
+	var top_bar_rect: Rect2 = panel.top_bar.get_global_rect()
+	var bottom_panel_rect: Rect2 = panel.bottom_panel.get_global_rect()
 	_assert_eq(map_frame_rect.position.x, 0.0, "BattleMapPanel 的 MapFrame 左边界应贴齐父窗口。")
 	_assert_eq(map_frame_rect.size.x, float(ULTRAWIDE_PANEL_SIZE.x), "BattleMapPanel 的 MapFrame 宽度应与父窗口一致。")
 	_assert_eq(top_bar_rect.position.x, 0.0, "BattleMapPanel 的 TopBar 左边界应贴齐父窗口。")
@@ -1503,7 +1554,7 @@ func _test_battle_panel_loading_overlay_waits_for_first_presented_frame() -> voi
 	panel.size = VIEWPORT_SIZE
 	var state := _build_state()
 	state.battle_id = &"battle_ui_loading_overlay"
-	panel.show_battle(state, Vector2i(0, 0))
+	panel.show_battle(state, Vector2i(0, 0), &"", "", "", [], [], 0, [], &"")
 	_assert_true(panel.is_loading_battle(), "loading 遮罩展示期间应保持 battle 输入锁定。")
 	_assert_true(panel.get_loading_progress() > 0.0, "新 battle 进入时应推进 loading 进度。")
 
@@ -1518,7 +1569,7 @@ func _test_battle_panel_loading_overlay_waits_for_first_presented_frame() -> voi
 	_assert_true(panel.visible, "首帧渲染完成后才应显示 battle 面板。")
 	_assert_true(not panel.is_loading_battle(), "首帧渲染完成后应解除 battle 输入锁定。")
 
-	panel.show_battle(state, Vector2i(0, 0))
+	panel.show_battle(state, Vector2i(0, 0), &"", "", "", [], [], 0, [], &"")
 	_assert_true(panel.visible, "同一 battle 的后续全量刷新不应重新隐藏 battle 面板。")
 
 	panel.queue_free()
@@ -1647,8 +1698,8 @@ func _build_fate_preview_state(
 	caster.current_stamina = 30
 	caster.attribute_snapshot.set_value(&"hp_max", 40)
 	caster.attribute_snapshot.set_value(&"stamina_max", 30)
-	caster.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.HIDDEN_LUCK_AT_BIRTH, hidden_luck_at_birth)
-	caster.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.FAITH_LUCK_BONUS, faith_luck_bonus)
+	caster.attribute_snapshot.set_value(&"hidden_luck_at_birth", hidden_luck_at_birth)
+	caster.attribute_snapshot.set_value(&"faith_luck_bonus", faith_luck_bonus)
 
 	var enemy := _build_repeat_attack_unit(
 		&"fate_enemy",
@@ -1659,7 +1710,7 @@ func _build_fate_preview_state(
 		2,
 		0
 	)
-	enemy.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 999)
+	enemy.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 999)
 
 	state.units = {
 		caster.unit_id: caster,
@@ -1705,7 +1756,7 @@ func _build_hybrid_multi_unit_fate_preview_state() -> BattleState:
 		"weapon_uses_two_hands": false,
 		"weapon_physical_damage_tag": "physical_pierce",
 	})
-	archer.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.HIDDEN_LUCK_AT_BIRTH, 2)
+	archer.attribute_snapshot.set_value(&"hidden_luck_at_birth", 2)
 	var enemy_a := _build_repeat_attack_unit(
 		&"hybrid_enemy_a",
 		"前排敌人",
@@ -1715,7 +1766,7 @@ func _build_hybrid_multi_unit_fate_preview_state() -> BattleState:
 		2,
 		0
 	)
-	enemy_a.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
+	enemy_a.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 0)
 	var enemy_b := _build_repeat_attack_unit(
 		&"hybrid_enemy_b",
 		"后排敌人",
@@ -1725,7 +1776,7 @@ func _build_hybrid_multi_unit_fate_preview_state() -> BattleState:
 		2,
 		0
 	)
-	enemy_b.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
+	enemy_b.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 0)
 
 	state.units = {
 		archer.unit_id: archer,
@@ -1743,7 +1794,7 @@ func _build_cell(coord: Vector2i) -> BattleCellState:
 	cell.coord = coord
 	cell.stack_layer = 0
 	cell.base_height = 0
-	cell.base_terrain = BattleCellState.TERRAIN_LAND
+	cell.base_terrain = BattleCellState.TERRAIN_LAND()
 	cell.recalculate_runtime_values()
 	return cell
 
@@ -1774,12 +1825,12 @@ func _build_repeat_attack_unit(
 	unit.attribute_snapshot.set_value(&"stamina_max", 30)
 	unit.attribute_snapshot.set_value(&"aura_max", 8)
 	unit.attribute_snapshot.set_value(&"action_points", maxi(current_ap, 1))
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 12)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 4)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 6)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 4)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 80)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 5)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 12)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 4)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 6)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 4)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 80)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 5)
 	unit.apply_weapon_projection({
 		"weapon_profile_kind": "equipped",
 		"weapon_item_id": "ui_test_blade",
@@ -1794,7 +1845,7 @@ func _build_repeat_attack_unit(
 	for skill_id in unit.known_active_skill_ids:
 		unit.known_skill_level_map[skill_id] = 1
 	if current_mp > 0:
-		unit.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_MP)
+		unit.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_MP())
 	return unit
 
 
@@ -1901,24 +1952,24 @@ func _count_filled_ap_dots(panel: BattleMapPanel) -> int:
 
 
 func _find_equipment_slot_entry(equipment_panel: Dictionary, slot_id: String) -> Dictionary:
-	var slots_variant: Variant = equipment_panel.get("slots", [])
-	var slots: Array = slots_variant if slots_variant is Array else []
-	for slot_variant in slots:
-		if slot_variant is not Dictionary:
+	var slots_option: Variant = equipment_panel.get("slots", [])
+	var slots: Array = slots_option if slots_option is Array else []
+	for slot_option in slots:
+		if slot_option is not Dictionary:
 			continue
-		var slot := slot_variant as Dictionary
+		var slot := slot_option as Dictionary
 		if String(slot.get("slot_id", "")) == slot_id:
 			return slot
 	return {}
 
 
 func _find_backpack_entry(equipment_panel: Dictionary, instance_id: String) -> Dictionary:
-	var entries_variant: Variant = equipment_panel.get("backpack_entries", [])
-	var entries: Array = entries_variant if entries_variant is Array else []
-	for entry_variant in entries:
-		if entry_variant is not Dictionary:
+	var entries_option: Variant = equipment_panel.get("backpack_entries", [])
+	var entries: Array = entries_option if entries_option is Array else []
+	for entry_option in entries:
+		if entry_option is not Dictionary:
 			continue
-		var entry := entry_variant as Dictionary
+		var entry := entry_option as Dictionary
 		if String(entry.get("instance_id", "")) == instance_id:
 			return entry
 	return {}

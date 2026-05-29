@@ -4,7 +4,7 @@
 
 
 ; External scripts, scenes, and shared assets referenced by this scene.
-[ext_resource type="Script" path="res://scripts/ui/mastery_reward_window.gd" id="1_l4f8f"]
+[ext_resource type="Script" path="res://scripts/ui/MasteryRewardWindow.cs" id="1_l4f8f"]
 [ext_resource type="StyleBoxFlat" path="res://scenes/ui/styles/panel_default.tres" id="2_panel_default"]
 
 ; Root node and primary scene tree.

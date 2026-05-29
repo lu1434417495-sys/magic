@@ -22,8 +22,15 @@ public partial class LowLuckEventService : RefCounted
     private static readonly StringName KnowledgeLampWithoutWitness = "low_luck_black_market_hint";
     private static readonly StringName KnowledgeBorrowedRoad = "low_luck_borrowed_road";
 
-    private static readonly string[] RestFacilityKeywords = {
-        "inn", "shrine", "gambl", "旅店", "旅舍", "神龛", "赌坊",
+    private static readonly string[] RestFacilityKeywords =
+    {
+        "inn",
+        "shrine",
+        "gambl",
+        "旅店",
+        "旅舍",
+        "神龛",
+        "赌坊",
     };
 
     private GodotObject _characterGateway = null;
@@ -31,10 +38,34 @@ public partial class LowLuckEventService : RefCounted
     private readonly GDictionary _hardshipSurvivalByBattleId = new();
     private readonly GDictionary _criticalFailByBattleId = new();
 
+    public static StringName EVENT_BROKEN_BRIDGE_SURVIVAL() => EventBrokenBridgeSurvival;
+
+    public static StringName EVENT_LAMP_WITHOUT_WITNESS() => EventLampWithoutWitness;
+
+    public static StringName EVENT_BORROWED_ROAD() => EventBorrowedRoad;
+
+    public static StringName EVENT_REVERSE_FATE_AMULET_REWARD() => EventReverseFateAmuletReward;
+
+    public static StringName EVENT_BLACK_STAR_WEDGE_REWARD() => EventBlackStarWedgeReward;
+
+    public static StringName EVENT_BLOOD_DEBT_SHAWL_REWARD() => EventBloodDebtShawlReward;
+
+    public static StringName EVENT_DEAD_ROAD_LANTERN_REWARD() => EventDeadRoadLanternReward;
+
+    public static string META_FLAG_PREFIX() => MetaFlagPrefix;
+
     public void Setup(GodotObject characterGateway, GodotObject fateEventBusObj)
     {
         _characterGateway = characterGateway;
         BindFateEventBus(fateEventBusObj);
+    }
+
+    public void setup(
+        GodotObject character_gateway = null,
+        BattleFateEventBus fate_event_bus = null
+    )
+    {
+        Setup(character_gateway, fate_event_bus);
     }
 
     public void BindFateEventBus(GodotObject fateEventBusObj)
@@ -46,6 +77,11 @@ public partial class LowLuckEventService : RefCounted
             _fateEventBus.EventDispatched += _OnFateEvent;
     }
 
+    public void bind_fate_event_bus(BattleFateEventBus fate_event_bus = null)
+    {
+        BindFateEventBus(fate_event_bus);
+    }
+
     public new void Dispose()
     {
         BindFateEventBus(null);
@@ -55,14 +91,26 @@ public partial class LowLuckEventService : RefCounted
         base.Dispose();
     }
 
-    public GDictionary HandleBattleResolution(GodotObject battleState, GodotObject battleResolutionResult)
+    public void dispose()
+    {
+        BindFateEventBus(null);
+        _characterGateway = null;
+        _hardshipSurvivalByBattleId.Clear();
+        _criticalFailByBattleId.Clear();
+    }
+
+    public GDictionary HandleBattleResolution(
+        GodotObject battleState,
+        GodotObject battleResolutionResult
+    )
     {
         var result = _NewResult();
         var battleId = _ResolveBattleId(battleState, battleResolutionResult);
         if (battleId == "")
             return result;
 
-        bool playerWon = battleResolutionResult != null
+        bool playerWon =
+            battleResolutionResult != null
             && battleResolutionResult.Get("winner_faction_id").AsStringName() == "player";
         if (playerWon)
         {
@@ -71,16 +119,27 @@ public partial class LowLuckEventService : RefCounted
             {
                 if (!_IsBattleMemberAlive(battleState, memberId))
                     continue;
-                if (!_MarkMetaFlagIfFirst(_BuildEventMetaFlagId(EventBrokenBridgeSurvival, memberId)))
+                if (
+                    !_MarkMetaFlagIfFirst(
+                        _BuildEventMetaFlagId(EventBrokenBridgeSurvival, memberId)
+                    )
+                )
                     continue;
-                _AppendUniqueStringName(result["triggered_event_ids"].AsGodotArray(), EventBrokenBridgeSurvival);
-                result["loot_entries"].AsGodotArray().Add(_BuildFixedItemLootEntry(
-                    EventBrokenBridgeSurvival,
-                    memberId,
-                    BattleLootConstants.ITEM_CALAMITY_SHARD(),
-                    1,
-                    "断桥生还"
-                ));
+                _AppendUniqueStringName(
+                    result["triggered_event_ids"].AsGodotArray(),
+                    EventBrokenBridgeSurvival
+                );
+                result["loot_entries"]
+                    .AsGodotArray()
+                    .Add(
+                        _BuildFixedItemLootEntry(
+                            EventBrokenBridgeSurvival,
+                            memberId,
+                            BattleLootConstants.ITEM_CALAMITY_SHARD(),
+                            1,
+                            "断桥生还"
+                        )
+                    );
             }
 
             var criticalFailMembers = _GetBattleMemberIds(_criticalFailByBattleId, battleId);
@@ -94,14 +153,16 @@ public partial class LowLuckEventService : RefCounted
                     memberId,
                     EventBorrowedRoad,
                     "死里借来的路",
-                    new GArray {
-                        new GDictionary {
+                    new GArray
+                    {
+                        new GDictionary
+                        {
                             ["entry_type"] = "knowledge_unlock",
                             ["target_id"] = KnowledgeBorrowedRoad.ToString(),
                             ["target_label"] = "借来的路",
                             ["amount"] = 1,
                             ["reason_text"] = "这名角色学会了如何从坏运留下的裂缝里继续前进。",
-                        }
+                        },
                     },
                     "一次大失败之后仍把整场战斗赢了下来。"
                 );
@@ -110,74 +171,127 @@ public partial class LowLuckEventService : RefCounted
                     _ClearMetaFlag(_BuildEventMetaFlagId(EventBorrowedRoad, memberId));
                     continue;
                 }
-                _AppendUniqueStringName(result["triggered_event_ids"].AsGodotArray(), EventBorrowedRoad);
+                _AppendUniqueStringName(
+                    result["triggered_event_ids"].AsGodotArray(),
+                    EventBorrowedRoad
+                );
                 result["pending_character_rewards"].AsGodotArray().Add(reward);
             }
 
             bool battleHasEliteOrBoss = _BattleHasEliteOrBossEnemy(battleState);
             if (battleHasEliteOrBoss)
             {
-                var reverseFateMemberId = _FindFirstAliveMemberIdInBattle(criticalFailMembers, battleState);
-                if (reverseFateMemberId != ""
-                    && _MarkMetaFlagIfFirst(_BuildEventMetaFlagId(EventReverseFateAmuletReward)))
+                var reverseFateMemberId = _FindFirstAliveMemberIdInBattle(
+                    criticalFailMembers,
+                    battleState
+                );
+                if (
+                    reverseFateMemberId != ""
+                    && _MarkMetaFlagIfFirst(_BuildEventMetaFlagId(EventReverseFateAmuletReward))
+                )
                 {
-                    _AppendUniqueStringName(result["triggered_event_ids"].AsGodotArray(), EventReverseFateAmuletReward);
-                    result["loot_entries"].AsGodotArray().Add(_BuildFixedItemLootEntry(
-                        EventReverseFateAmuletReward,
-                        reverseFateMemberId,
-                        LowLuckRelicRules.item_reverse_fate_amulet(),
-                        1,
-                        "逆命护符"
-                    ));
+                    _AppendUniqueStringName(
+                        result["triggered_event_ids"].AsGodotArray(),
+                        EventReverseFateAmuletReward
+                    );
+                    result["loot_entries"]
+                        .AsGodotArray()
+                        .Add(
+                            _BuildFixedItemLootEntry(
+                                EventReverseFateAmuletReward,
+                                reverseFateMemberId,
+                                LowLuckRelicRules.ITEM_REVERSE_FATE_AMULET,
+                                1,
+                                "逆命护符"
+                            )
+                        );
                 }
-                var blackStarMemberId = _FindFirstAliveMemberIdInBattle(hardshipMembers, battleState);
-                if (blackStarMemberId != ""
-                    && _MarkMetaFlagIfFirst(_BuildEventMetaFlagId(EventBlackStarWedgeReward)))
+                var blackStarMemberId = _FindFirstAliveMemberIdInBattle(
+                    hardshipMembers,
+                    battleState
+                );
+                if (
+                    blackStarMemberId != ""
+                    && _MarkMetaFlagIfFirst(_BuildEventMetaFlagId(EventBlackStarWedgeReward))
+                )
                 {
-                    _AppendUniqueStringName(result["triggered_event_ids"].AsGodotArray(), EventBlackStarWedgeReward);
-                    result["loot_entries"].AsGodotArray().Add(_BuildFixedItemLootEntry(
-                        EventBlackStarWedgeReward,
-                        blackStarMemberId,
-                        LowLuckRelicRules.item_black_star_wedge(),
-                        1,
-                        "黑星楔钉"
-                    ));
+                    _AppendUniqueStringName(
+                        result["triggered_event_ids"].AsGodotArray(),
+                        EventBlackStarWedgeReward
+                    );
+                    result["loot_entries"]
+                        .AsGodotArray()
+                        .Add(
+                            _BuildFixedItemLootEntry(
+                                EventBlackStarWedgeReward,
+                                blackStarMemberId,
+                                LowLuckRelicRules.ITEM_BLACK_STAR_WEDGE,
+                                1,
+                                "黑星楔钉"
+                            )
+                        );
                 }
             }
 
             var bloodDebtMemberId = _FindFirstBloodDebtCandidateId(battleState);
-            if (bloodDebtMemberId != ""
-                && _MarkMetaFlagIfFirst(_BuildEventMetaFlagId(EventBloodDebtShawlReward)))
+            if (
+                bloodDebtMemberId != ""
+                && _MarkMetaFlagIfFirst(_BuildEventMetaFlagId(EventBloodDebtShawlReward))
+            )
             {
-                _AppendUniqueStringName(result["triggered_event_ids"].AsGodotArray(), EventBloodDebtShawlReward);
-                result["loot_entries"].AsGodotArray().Add(_BuildFixedItemLootEntry(
-                    EventBloodDebtShawlReward,
-                    bloodDebtMemberId,
-                    LowLuckRelicRules.item_blood_debt_shawl(),
-                    1,
-                    "血债披肩"
-                ));
+                _AppendUniqueStringName(
+                    result["triggered_event_ids"].AsGodotArray(),
+                    EventBloodDebtShawlReward
+                );
+                result["loot_entries"]
+                    .AsGodotArray()
+                    .Add(
+                        _BuildFixedItemLootEntry(
+                            EventBloodDebtShawlReward,
+                            bloodDebtMemberId,
+                            LowLuckRelicRules.ITEM_BLOOD_DEBT_SHAWL,
+                            1,
+                            "血债披肩"
+                        )
+                    );
             }
 
             var lanternMemberId = _FindFirstAliveMemberIdInBattle(
                 _IntersectMemberIds(hardshipMembers, criticalFailMembers),
                 battleState
             );
-            if (lanternMemberId != ""
-                && _MarkMetaFlagIfFirst(_BuildEventMetaFlagId(EventDeadRoadLanternReward)))
+            if (
+                lanternMemberId != ""
+                && _MarkMetaFlagIfFirst(_BuildEventMetaFlagId(EventDeadRoadLanternReward))
+            )
             {
-                _AppendUniqueStringName(result["triggered_event_ids"].AsGodotArray(), EventDeadRoadLanternReward);
-                result["loot_entries"].AsGodotArray().Add(_BuildFixedItemLootEntry(
-                    EventDeadRoadLanternReward,
-                    lanternMemberId,
-                    LowLuckRelicRules.item_dead_road_lantern(),
-                    1,
-                    "亡途灯笼"
-                ));
+                _AppendUniqueStringName(
+                    result["triggered_event_ids"].AsGodotArray(),
+                    EventDeadRoadLanternReward
+                );
+                result["loot_entries"]
+                    .AsGodotArray()
+                    .Add(
+                        _BuildFixedItemLootEntry(
+                            EventDeadRoadLanternReward,
+                            lanternMemberId,
+                            LowLuckRelicRules.ITEM_DEAD_ROAD_LANTERN,
+                            1,
+                            "亡途灯笼"
+                        )
+                    );
             }
         }
         _ClearBattleTracking(battleId);
         return result;
+    }
+
+    public GDictionary handle_battle_resolution(
+        GodotObject battle_state,
+        GodotObject battle_resolution_result
+    )
+    {
+        return HandleBattleResolution(battle_state, battle_resolution_result);
     }
 
     public GDictionary HandleSettlementAction(GDictionary context)
@@ -200,14 +314,16 @@ public partial class LowLuckEventService : RefCounted
             memberId,
             EventLampWithoutWitness,
             "灯下无人",
-            new GArray {
-                new GDictionary {
+            new GArray
+            {
+                new GDictionary
+                {
                     ["entry_type"] = "knowledge_unlock",
                     ["target_id"] = KnowledgeLampWithoutWitness.ToString(),
                     ["target_label"] = "黑市知识",
                     ["amount"] = 1,
                     ["reason_text"] = "灯下空出来的位置，让这名角色先一步看懂了黑市留下的暗号。",
-                }
+                },
             },
             "神龛 / 旅舍 / 赌坊的休整没有带来安慰，却留下了固定线索。"
         );
@@ -217,9 +333,17 @@ public partial class LowLuckEventService : RefCounted
             return result;
         }
 
-        _AppendUniqueStringName(result["triggered_event_ids"].AsGodotArray(), EventLampWithoutWitness);
+        _AppendUniqueStringName(
+            result["triggered_event_ids"].AsGodotArray(),
+            EventLampWithoutWitness
+        );
         result["pending_character_rewards"].AsGodotArray().Add(reward);
         return result;
+    }
+
+    public GDictionary handle_settlement_action(GDictionary context)
+    {
+        return HandleSettlementAction(context ?? new GDictionary());
     }
 
     private void _OnFateEvent(StringName eventType, GDictionary payload)
@@ -237,13 +361,19 @@ public partial class LowLuckEventService : RefCounted
 
     private void _TrackHardshipSurvival(GDictionary payload)
     {
-        var battleId = ProgressionDataUtils.to_string_name(payload.GetValueOrDefault("battle_id", ""));
-        var memberId = ProgressionDataUtils.to_string_name(payload.GetValueOrDefault("attacker_member_id", ""));
+        var battleId = ProgressionDataUtils.to_string_name(
+            payload.GetValueOrDefault("battle_id", "")
+        );
+        var memberId = ProgressionDataUtils.to_string_name(
+            payload.GetValueOrDefault("attacker_member_id", "")
+        );
         if (battleId == "" || memberId == "")
             return;
         if (!payload.GetValueOrDefault("attacker_low_hp_hardship", false).AsBool())
             return;
-        var strongDebuffIds = ProgressionDataUtils.to_string_name_array(payload.GetValueOrDefault("attacker_strong_attack_debuff_ids", new GArray()));
+        var strongDebuffIds = ProgressionDataUtils.to_string_name_array(
+            payload.GetValueOrDefault("attacker_strong_attack_debuff_ids", new GArray())
+        );
         if (strongDebuffIds.Count == 0)
             return;
         if (!_IsLowLuckMemberPayload(memberId, payload))
@@ -253,8 +383,12 @@ public partial class LowLuckEventService : RefCounted
 
     private void _TrackCriticalFail(GDictionary payload)
     {
-        var battleId = ProgressionDataUtils.to_string_name(payload.GetValueOrDefault("battle_id", ""));
-        var memberId = ProgressionDataUtils.to_string_name(payload.GetValueOrDefault("attacker_member_id", ""));
+        var battleId = ProgressionDataUtils.to_string_name(
+            payload.GetValueOrDefault("battle_id", "")
+        );
+        var memberId = ProgressionDataUtils.to_string_name(
+            payload.GetValueOrDefault("attacker_member_id", "")
+        );
         if (battleId == "" || memberId == "")
             return;
         if (!_IsLowLuckMemberPayload(memberId, payload))
@@ -267,7 +401,10 @@ public partial class LowLuckEventService : RefCounted
         var luckSnapshot = payload.GetValueOrDefault("luck_snapshot", new GDictionary());
         if (luckSnapshot.VariantType == Variant.Type.Dictionary)
         {
-            int hiddenLuck = luckSnapshot.AsGodotDictionary().GetValueOrDefault("hidden_luck_at_birth", 0).AsInt32();
+            int hiddenLuck = luckSnapshot
+                .AsGodotDictionary()
+                .GetValueOrDefault("hidden_luck_at_birth", 0)
+                .AsInt32();
             if (hiddenLuck <= LowLuckThreshold)
                 return true;
         }
@@ -278,15 +415,25 @@ public partial class LowLuckEventService : RefCounted
     private bool _IsLampWithoutWitnessContext(GDictionary context)
     {
         var actionId = context.GetValueOrDefault("action_id", "").AsString().ToLower();
-        var interactionScriptId = context.GetValueOrDefault("interaction_script_id", "").AsString().ToLower();
+        var interactionScriptId = context
+            .GetValueOrDefault("interaction_script_id", "")
+            .AsString()
+            .ToLower();
         var facilityId = context.GetValueOrDefault("facility_id", "").AsString().ToLower();
         var facilityName = context.GetValueOrDefault("facility_name", "").AsString();
         var serviceType = context.GetValueOrDefault("service_type", "").AsString();
-        if (interactionScriptId == "service_rest_basic" || interactionScriptId == "service_rest_full")
+        if (
+            interactionScriptId == "service_rest_basic"
+            || interactionScriptId == "service_rest_full"
+        )
             return true;
         if (actionId.Contains("rest") || actionId.Contains("gambl") || actionId.Contains("shrine"))
             return true;
-        if (facilityId.Contains("inn") || facilityId.Contains("shrine") || facilityId.Contains("gambl"))
+        if (
+            facilityId.Contains("inn")
+            || facilityId.Contains("shrine")
+            || facilityId.Contains("gambl")
+        )
             return true;
         var haystack = $"{facilityName} {serviceType}".ToLower();
         foreach (var keyword in RestFacilityKeywords)
@@ -301,7 +448,7 @@ public partial class LowLuckEventService : RefCounted
         StringName memberId,
         StringName eventId,
         string sourceLabel,
-        GArray entryVariants,
+        GArray entryOptions,
         string summaryText
     )
     {
@@ -309,21 +456,30 @@ public partial class LowLuckEventService : RefCounted
             return new GDictionary();
         if (!_characterGateway.HasMethod("build_pending_character_reward"))
             return new GDictionary();
-        var reward = _characterGateway.Call("build_pending_character_reward",
-            memberId,
-            _BuildRewardId(eventId, memberId),
-            SourceTypeStoryEvent,
-            eventId,
-            sourceLabel,
-            entryVariants,
-            summaryText
-        ).AsGodotObject();
+        var reward = _characterGateway
+            .Call(
+                "build_pending_character_reward",
+                memberId,
+                _BuildRewardId(eventId, memberId),
+                SourceTypeStoryEvent,
+                eventId,
+                sourceLabel,
+                entryOptions,
+                summaryText
+            )
+            .AsGodotObject();
         if (reward == null || !reward.HasMethod("to_dict"))
             return new GDictionary();
         return reward.Call("to_dict").AsGodotDictionary();
     }
 
-    private GDictionary _BuildFixedItemLootEntry(StringName eventId, StringName memberId, StringName itemId, int quantity, string sourceLabel)
+    private GDictionary _BuildFixedItemLootEntry(
+        StringName eventId,
+        StringName memberId,
+        StringName itemId,
+        int quantity,
+        string sourceLabel
+    )
     {
         return new GDictionary
         {
@@ -339,7 +495,10 @@ public partial class LowLuckEventService : RefCounted
 
     private StringName _ResolveBattleId(GodotObject battleState, GodotObject battleResolutionResult)
     {
-        if (battleResolutionResult != null && battleResolutionResult.Get("battle_id").AsStringName() != "")
+        if (
+            battleResolutionResult != null
+            && battleResolutionResult.Get("battle_id").AsStringName() != ""
+        )
             return battleResolutionResult.Get("battle_id").AsStringName();
         return battleState != null ? battleState.Get("battle_id").AsStringName() : "";
     }
@@ -404,14 +563,27 @@ public partial class LowLuckEventService : RefCounted
         var orderedMemberIds = new List<StringName>();
         if (partyState == null)
             return orderedMemberIds;
-        _AppendUniqueMemberIds(orderedMemberIds, ProgressionDataUtils.to_string_name_array(partyState.Get("active_member_ids")));
-        _AppendUniqueMemberIds(orderedMemberIds, ProgressionDataUtils.to_string_name_array(partyState.Get("reserve_member_ids")));
-        foreach (var memberKey in ProgressionDataUtils.sorted_string_keys(partyState.Get("member_states").AsGodotDictionary()))
+        _AppendUniqueMemberIds(
+            orderedMemberIds,
+            ProgressionDataUtils.to_string_name_array(partyState.Get("active_member_ids"))
+        );
+        _AppendUniqueMemberIds(
+            orderedMemberIds,
+            ProgressionDataUtils.to_string_name_array(partyState.Get("reserve_member_ids"))
+        );
+        foreach (
+            var memberKey in ProgressionDataUtils.sorted_string_keys(
+                partyState.Get("member_states").AsGodotDictionary()
+            )
+        )
             _AppendUniqueMemberId(orderedMemberIds, new StringName(memberKey));
         return orderedMemberIds;
     }
 
-    private void _AppendUniqueMemberIds(List<StringName> target, Godot.Collections.Array<StringName> values)
+    private void _AppendUniqueMemberIds(
+        List<StringName> target,
+        Godot.Collections.Array<StringName> values
+    )
     {
         foreach (var value in values)
             _AppendUniqueMemberId(target, value);
@@ -428,9 +600,9 @@ public partial class LowLuckEventService : RefCounted
     {
         if (battleState == null || memberId == "")
             return false;
-        foreach (var unitVariant in battleState.Get("units").AsGodotDictionary().Values)
+        foreach (var unitValue in battleState.Get("units").AsGodotDictionary().Values)
         {
-            var unitState = unitVariant.AsGodotObject() as BattleUnitState;
+            var unitState = unitValue.AsGodotObject() as BattleUnitState;
             if (unitState == null)
                 continue;
             var sourceMemberId = ProgressionDataUtils.to_string_name(unitState.source_member_id);
@@ -442,7 +614,10 @@ public partial class LowLuckEventService : RefCounted
         return memberState != null && !memberState.is_dead;
     }
 
-    private StringName _FindFirstAliveMemberIdInBattle(List<StringName> memberIds, GodotObject battleState)
+    private StringName _FindFirstAliveMemberIdInBattle(
+        List<StringName> memberIds,
+        GodotObject battleState
+    )
     {
         foreach (var memberId in memberIds)
         {
@@ -477,9 +652,9 @@ public partial class LowLuckEventService : RefCounted
         }
         else
         {
-            foreach (var unitVariant in battleState.Get("units").AsGodotDictionary().Values)
+            foreach (var unitValue in battleState.Get("units").AsGodotDictionary().Values)
             {
-                var unitState = unitVariant.AsGodotObject() as BattleUnitState;
+                var unitState = unitValue.AsGodotObject() as BattleUnitState;
                 if (unitState == null || unitState.faction_id == "player")
                     continue;
                 targetUnitIds.Add(unitState.unit_id);
@@ -491,7 +666,10 @@ public partial class LowLuckEventService : RefCounted
             var unitState = units.ContainsKey(unitId) ? units[unitId].As<BattleUnitState>() : null;
             if (unitState == null || unitState.attribute_snapshot == null)
                 continue;
-            if (unitState.attribute_snapshot.Call("get_value", FortuneMarkTargetStatId).AsInt32() > 0)
+            if (
+                unitState.attribute_snapshot.get_value(FortuneMarkTargetStatId)
+                > 0
+            )
                 return true;
         }
         return false;
@@ -519,9 +697,9 @@ public partial class LowLuckEventService : RefCounted
     {
         if (battleState == null)
             return false;
-        foreach (var unitVariant in battleState.Get("units").AsGodotDictionary().Values)
+        foreach (var unitValue in battleState.Get("units").AsGodotDictionary().Values)
         {
-            var unitState = unitVariant.AsGodotObject() as BattleUnitState;
+            var unitState = unitValue.AsGodotObject() as BattleUnitState;
             if (unitState == null || unitState.faction_id != "player")
                 continue;
             var memberId = ProgressionDataUtils.to_string_name(unitState.source_member_id);
@@ -542,7 +720,11 @@ public partial class LowLuckEventService : RefCounted
 
     private PartyMemberState _GetMemberState(StringName memberId)
     {
-        if (_characterGateway == null || memberId == "" || !_characterGateway.HasMethod("get_member_state"))
+        if (
+            _characterGateway == null
+            || memberId == ""
+            || !_characterGateway.HasMethod("get_member_state")
+        )
             return null;
         return _characterGateway.Call("get_member_state", memberId).As<PartyMemberState>();
     }

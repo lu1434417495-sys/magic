@@ -1,17 +1,17 @@
 extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
-const BattleLootConstants = preload("res://scripts/systems/battle/core/battle_loot_constants.gd")
+const BattleLootConstants = preload("res://scripts/systems/battle/core/BattleLootConstants.cs")
 
-const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_session.gd")
-const GAME_RUNTIME_FACADE_SCRIPT = preload("res://scripts/systems/game_runtime/game_runtime_facade.gd")
-const BATTLE_RESOLUTION_RESULT_SCRIPT = preload("res://scripts/systems/battle/core/battle_resolution_result.gd")
-const PARTY_MEMBER_STATE_SCRIPT = preload("res://scripts/player/progression/party_member_state.gd")
-const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
-const ENEMY_TEMPLATE_DEF_SCRIPT = preload("res://scripts/enemies/enemy_template_def.gd")
-const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
-const WAREHOUSE_STATE_SCRIPT = preload("res://scripts/player/warehouse/warehouse_state.gd")
-const EQUIPMENT_INSTANCE_STATE_SCRIPT = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
+const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/GameSession.cs")
+const GAME_RUNTIME_FACADE_SCRIPT = preload("res://scripts/systems/game_runtime/GameRuntimeFacade.cs")
+const BATTLE_RESOLUTION_RESULT_SCRIPT = preload("res://scripts/systems/battle/core/BattleResolutionResult.cs")
+const PARTY_MEMBER_STATE_SCRIPT = preload("res://scripts/player/progression/PartyMemberState.cs")
+const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
+const ENEMY_TEMPLATE_DEF_SCRIPT = preload("res://scripts/enemies/EnemyTemplateDef.cs")
+const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/UnitBaseAttributes.cs")
+const WAREHOUSE_STATE_SCRIPT = preload("res://scripts/player/warehouse/WarehouseState.cs")
+const EQUIPMENT_INSTANCE_STATE_SCRIPT = preload("res://scripts/player/warehouse/EquipmentInstanceState.cs")
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
 
@@ -22,7 +22,7 @@ var _failures: Array[String] = _test.failures
 class _SpyEquipmentDropService:
 	extends RefCounted
 
-	const EquipmentInstanceState = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
+	const EquipmentInstanceState = preload("res://scripts/player/warehouse/EquipmentInstanceState.cs")
 
 	var calls: Array[Dictionary] = []
 
@@ -35,8 +35,8 @@ class _SpyEquipmentDropService:
 		})
 		var instances: Array = []
 		for _index in range(maxi(int(quantity), 0)):
-			var instance = EquipmentInstanceState.create(item_id)
-			instance.rarity = EquipmentInstanceState.RarityTier.EPIC if drop_luck >= 5 else EquipmentInstanceState.RarityTier.COMMON
+			var instance = EquipmentInstanceState.create_transient_instance(item_id)
+			instance.rarity = EquipmentInstanceState.RARITY_TIER_EPIC() if drop_luck >= 5 else EquipmentInstanceState.RARITY_TIER_COMMON()
 			instances.append(instance)
 		return instances
 
@@ -92,7 +92,7 @@ func _test_per_kill_loot_uses_killer_luck_and_commits_fixed_item() -> void:
 	var resolution_result = BATTLE_RESOLUTION_RESULT_SCRIPT.new()
 	resolution_result.winner_faction_id = &"player"
 	resolution_result.set_loot_entries(facade._battle_runtime._active_loot_entries)
-	var equipment_entries := _count_drop_type(resolution_result.loot_entries, BattleLootConstants.DROP_TYPE_EQUIPMENT_INSTANCE)
+	var equipment_entries := _count_drop_type(resolution_result.loot_entries, BattleLootConstants.DROP_TYPE_EQUIPMENT_INSTANCE())
 	var commit_result: Dictionary = facade._commit_battle_loot_to_shared_warehouse(resolution_result)
 
 	_assert_eq(drop_service.calls.size(), 1, "fixed item 掉落不应重复调用 equipment_drop_service。")
@@ -109,7 +109,7 @@ func _test_per_kill_loot_uses_killer_luck_and_commits_fixed_item() -> void:
 	if party_state.warehouse_state.equipment_instances.size() > 0:
 		var equipment_instance = party_state.warehouse_state.equipment_instances[0]
 		_assert_eq(String(equipment_instance.item_id), "bronze_sword", "equipment_instance 提交后应保留稳定 item_id。")
-		_assert_eq(int(equipment_instance.rarity), int(EQUIPMENT_INSTANCE_STATE_SCRIPT.RarityTier.COMMON), "低 luck 击杀者应保留击杀时 roll 出的低稀有度。")
+		_assert_eq(int(equipment_instance.rarity), int(EQUIPMENT_INSTANCE_STATE_SCRIPT.RARITY_TIER_COMMON()), "低 luck 击杀者应保留击杀时 roll 出的低稀有度。")
 	_assert_eq(_count_stack_quantity(party_state, &"beast_hide"), 2, "固定材料掉落应继续按堆叠物品入仓。")
 	_cleanup_test_session(game_session)
 
@@ -152,7 +152,7 @@ func _test_per_kill_random_equipment_without_player_killer_uses_neutral_luck() -
 	_assert_eq(party_state.warehouse_state.equipment_instances.size(), 1, "中立击杀路径应继续产出 1 个装备实例。")
 	if party_state.warehouse_state.equipment_instances.size() > 0:
 		var equipment_instance = party_state.warehouse_state.equipment_instances[0]
-		_assert_eq(int(equipment_instance.rarity), int(EQUIPMENT_INSTANCE_STATE_SCRIPT.RarityTier.COMMON), "neutral luck=0 时应保留 spy service 返回的默认稀有度。")
+		_assert_eq(int(equipment_instance.rarity), int(EQUIPMENT_INSTANCE_STATE_SCRIPT.RARITY_TIER_COMMON()), "neutral luck=0 时应保留 spy service 返回的默认稀有度。")
 	_cleanup_test_session(game_session)
 
 
@@ -246,8 +246,8 @@ func _ensure_capacity(party_state, storage_space: int) -> void:
 	if party_state == null:
 		return
 	var first_member_assigned := false
-	for member_variant in party_state.member_states.values():
-		var member_state = member_variant
+	for member_option in party_state.member_states.values():
+		var member_state = member_option
 		if member_state == null or member_state.progression == null or member_state.progression.unit_base_attributes == null:
 			continue
 		member_state.progression.unit_base_attributes.custom_stats[&"storage_space"] = maxi(storage_space, 0) if not first_member_assigned else 0
@@ -257,8 +257,8 @@ func _ensure_capacity(party_state, storage_space: int) -> void:
 func _set_member_luck(member_state, hidden_luck_at_birth: int, faith_luck_bonus: int) -> void:
 	if member_state == null or member_state.progression == null or member_state.progression.unit_base_attributes == null:
 		return
-	member_state.progression.unit_base_attributes.custom_stats[UNIT_BASE_ATTRIBUTES_SCRIPT.HIDDEN_LUCK_AT_BIRTH] = hidden_luck_at_birth
-	member_state.progression.unit_base_attributes.custom_stats[UNIT_BASE_ATTRIBUTES_SCRIPT.FAITH_LUCK_BONUS] = faith_luck_bonus
+	member_state.progression.unit_base_attributes.custom_stats[&"hidden_luck_at_birth"] = hidden_luck_at_birth
+	member_state.progression.unit_base_attributes.custom_stats[&"faith_luck_bonus"] = faith_luck_bonus
 
 
 func _add_party_member(party_state, member_id: StringName, display_name: String) -> PartyMemberState:
@@ -275,21 +275,18 @@ func _build_enemy_template_with_mixed_loot(template_id: StringName):
 	var template = ENEMY_TEMPLATE_DEF_SCRIPT.new()
 	template.template_id = template_id
 	template.display_name = "战利品荒狼"
-	var drop_entries: Array[Dictionary] = [
-		{
-			"drop_entry_id": "weapon_roll",
-			"drop_type": "random_equipment",
-			"item_id": "bronze_sword",
-			"quantity": 1,
-		},
-		{
-			"drop_entry_id": "hide_bundle",
-			"drop_type": "item",
-			"item_id": "beast_hide",
-			"quantity": 2,
-		},
-	]
-	template.drop_entries = drop_entries
+	var weapon_roll := DropEntryDef.new()
+	weapon_roll.drop_entry_id = &"weapon_roll"
+	weapon_roll.drop_type = &"random_equipment"
+	weapon_roll.item_id = &"bronze_sword"
+	weapon_roll.quantity = 1
+	template.drop_entries.append(weapon_roll)
+	var hide_bundle := DropEntryDef.new()
+	hide_bundle.drop_entry_id = &"hide_bundle"
+	hide_bundle.drop_type = &"item"
+	hide_bundle.item_id = &"beast_hide"
+	hide_bundle.quantity = 2
+	template.drop_entries.append(hide_bundle)
 	return template
 
 
@@ -297,15 +294,12 @@ func _build_enemy_template_with_random_equipment_only(template_id: StringName):
 	var template = ENEMY_TEMPLATE_DEF_SCRIPT.new()
 	template.template_id = template_id
 	template.display_name = "中立掉落荒狼"
-	var drop_entries: Array[Dictionary] = [
-		{
-			"drop_entry_id": "weapon_roll",
-			"drop_type": "random_equipment",
-			"item_id": "bronze_sword",
-			"quantity": 1,
-		},
-	]
-	template.drop_entries = drop_entries
+	var weapon_roll := DropEntryDef.new()
+	weapon_roll.drop_entry_id = &"weapon_roll"
+	weapon_roll.drop_type = &"random_equipment"
+	weapon_roll.item_id = &"bronze_sword"
+	weapon_roll.quantity = 1
+	template.drop_entries.append(weapon_roll)
 	return template
 
 
@@ -314,8 +308,6 @@ func _build_enemy_template_with_attack_equipment_only(template_id: StringName):
 	template.template_id = template_id
 	template.display_name = "持钉锤敌人"
 	template.attack_equipment_item_id = &"watchman_mace"
-	var drop_entries: Array[Dictionary] = []
-	template.drop_entries = drop_entries
 	return template
 
 
@@ -343,10 +335,10 @@ func _build_killer_unit(member_id: StringName, display_name: String):
 
 func _count_drop_type(loot_entries: Array, drop_type: StringName) -> int:
 	var total := 0
-	for loot_entry_variant in loot_entries:
-		if loot_entry_variant is not Dictionary:
+	for loot_entry_option in loot_entries:
+		if loot_entry_option is not Dictionary:
 			continue
-		var loot_entry := loot_entry_variant as Dictionary
+		var loot_entry := loot_entry_option as Dictionary
 		if ProgressionDataUtils.to_string_name(loot_entry.get("drop_type", "")) == drop_type:
 			total += 1
 	return total

@@ -7,10 +7,8 @@ using FileAccess = Godot.FileAccess;
 [GlobalClass]
 public partial class BattleSimRunner : RefCounted
 {
-    private static readonly string BattleRuntimeModuleScriptPath = "res://scripts/systems/battle/runtime/battle_runtime_module.gd";
     private static readonly string ReportDirectory = "user://simulation_reports";
     private const int MaxIdleLoops = 25;
-    private const int ProgressIterationInterval = 100;
 
     private BattleSimOverrideApplier _overrideApplier = new();
     private BattleSimReportBuilder _reportBuilder = new();
@@ -23,7 +21,10 @@ public partial class BattleSimRunner : RefCounted
     public string progress_log_path = "";
     private FileAccess _progressLogFile = null;
 
-    public void Setup(BattleSimContentProvider contentProvider = null, BattleSimTerrainGenerator terrainGenerator = null)
+    public void Setup(
+        BattleSimContentProvider contentProvider = null,
+        BattleSimTerrainGenerator terrainGenerator = null
+    )
     {
         _contentProvider = contentProvider ?? new BattleSimContentProvider();
         _terrainGenerator = terrainGenerator ?? new BattleSimTerrainGenerator();
@@ -39,7 +40,10 @@ public partial class BattleSimRunner : RefCounted
         progress_log_path = path;
     }
 
-    public Dictionary RunScenario(BattleSimScenarioDef scenarioDef, Godot.Collections.Array profileDefs = null)
+    public Dictionary RunScenario(
+        BattleSimScenarioDef scenarioDef,
+        Godot.Collections.Array profileDefs = null
+    )
     {
         profileDefs ??= new Godot.Collections.Array();
         var resolvedProfiles = _ResolveProfiles(profileDefs);
@@ -56,8 +60,12 @@ public partial class BattleSimRunner : RefCounted
         if (progress_logging_enabled)
         {
             _OpenProgressLog();
-            _LogProgress($"[BattleSim] progress_log={ProjectSettings.GlobalizePath(progress_log_path)}");
-            _LogProgress($"[BattleSim] start scenario={scenarioDef.scenario_id} profiles={resolvedProfiles.Count} seeds={resolvedSeeds.Count} max_iterations={scenarioDef.max_iterations}");
+            _LogProgress(
+                $"[BattleSim] progress_log={ProjectSettings.GlobalizePath(progress_log_path)}"
+            );
+            _LogProgress(
+                $"[BattleSim] start scenario={scenarioDef.scenario_id} profiles={resolvedProfiles.Count} seeds={resolvedSeeds.Count} max_iterations={scenarioDef.max_iterations}"
+            );
         }
 
         for (int profileIndex = 0; profileIndex < resolvedProfiles.Count; profileIndex++)
@@ -69,7 +77,9 @@ public partial class BattleSimRunner : RefCounted
                 var seed = (int)resolvedSeeds[seedIndex];
                 if (progress_logging_enabled)
                 {
-                    _LogProgress($"[BattleSim] run-start profile={profile.profile_id} profile_index={profileIndex + 1}/{resolvedProfiles.Count} seed={seed} seed_index={seedIndex + 1}/{resolvedSeeds.Count}");
+                    _LogProgress(
+                        $"[BattleSim] run-start profile={profile.profile_id} profile_index={profileIndex + 1}/{resolvedProfiles.Count} seed={seed} seed_index={seedIndex + 1}/{resolvedSeeds.Count}"
+                    );
                 }
 
                 var runResult = _RunSingleSimulation(scenarioDef, profile, seed);
@@ -77,24 +87,35 @@ public partial class BattleSimRunner : RefCounted
 
                 if (progress_logging_enabled)
                 {
-                    _LogProgress($"[BattleSim] run-done profile={profile.profile_id} seed={seed} ended={DictionaryGet(runResult, "battle_ended", false)} winner={DictionaryGet(runResult, "winner_faction_id", "")} final_tu={DictionaryGet(runResult, "final_tu", 0)} iterations={DictionaryGet(runResult, "iterations", 0)} timeline_steps={DictionaryGet(runResult, "timeline_steps", 0)} idle_loops={DictionaryGet(runResult, "idle_loops", 0)} ally_alive={DictionaryGet(runResult, "ally_alive", 0)} enemy_alive={DictionaryGet(runResult, "enemy_alive", 0)}");
+                    _LogProgress(
+                        $"[BattleSim] run-done profile={profile.profile_id} seed={seed} ended={runResult.GetValueOrDefault("battle_ended", false)} winner={runResult.GetValueOrDefault("winner_faction_id", "")} final_tu={runResult.GetValueOrDefault("final_tu", 0)} iterations={runResult.GetValueOrDefault("iterations", 0)} timeline_steps={runResult.GetValueOrDefault("timeline_steps", 0)} idle_loops={runResult.GetValueOrDefault("idle_loops", 0)} ally_alive={runResult.GetValueOrDefault("ally_alive", 0)} enemy_alive={runResult.GetValueOrDefault("enemy_alive", 0)}"
+                    );
                 }
             }
-            report["profile_entries"].AsGodotArray().Add(new Dictionary
-            {
-                ["profile"] = profile.to_dict(),
-                ["runs"] = runs,
-                ["summary"] = _reportBuilder.build_profile_summary(profile, runs),
-            });
+            report["profile_entries"]
+                .AsGodotArray()
+                .Add(
+                    new Dictionary
+                    {
+                        ["profile"] = profile.to_dict(),
+                        ["runs"] = runs,
+                        ["summary"] = _reportBuilder.build_profile_summary(profile, runs),
+                    }
+                );
         }
 
-        report["comparisons"] = _reportBuilder.build_profile_comparisons(DictionaryGet(report, "profile_entries", new Godot.Collections.Array()).AsGodotArray());
+        report["comparisons"] = _reportBuilder.build_profile_comparisons(
+            report.GetValueOrDefault("profile_entries", new Godot.Collections.Array()).AsGodotArray()
+        );
         report["output_files"] = _WriteReportFiles(scenarioDef, report);
 
         if (progress_logging_enabled)
         {
-            var outputFiles = DictionaryGet(report, "output_files", new Dictionary()).AsGodotDictionary();
-            _LogProgress($"[BattleSim] report-written report_json={DictionaryGet(outputFiles, "report_json", "")} traces_jsonl={DictionaryGet(outputFiles, "turn_trace_jsonl", "")}");
+            var outputFiles = report.GetValueOrDefault("output_files", new Dictionary())
+                .AsGodotDictionary();
+            _LogProgress(
+                $"[BattleSim] report-written report_json={outputFiles.GetValueOrDefault("report_json", "")} traces_jsonl={outputFiles.GetValueOrDefault("turn_trace_jsonl", "")}"
+            );
             _CloseProgressLog();
         }
 
@@ -120,46 +141,34 @@ public partial class BattleSimRunner : RefCounted
         return resolved;
     }
 
-    private Dictionary _RunSingleSimulation(BattleSimScenarioDef scenarioDef, BattleSimProfileDef profile, int seed)
+    private Dictionary _RunSingleSimulation(
+        BattleSimScenarioDef scenarioDef,
+        BattleSimProfileDef profile,
+        int seed
+    )
     {
-        var runtimeScript = GD.Load<GDScript>(BattleRuntimeModuleScriptPath);
-        GodotObject runtime = runtimeScript.New().AsGodotObject();
-        var skillDefs = _GetContentDictionary("get_skill_defs");
-        var enemyAiBrains = _GetContentDictionary("get_enemy_ai_brains");
+        var runtime = new BattleRuntimeModule();
+        var skillDefs = _contentProvider.get_skill_defs();
+        var enemyAiBrains = _contentProvider.get_enemy_ai_brains();
         var overrides = _overrideApplier.apply_profile(skillDefs, enemyAiBrains, profile);
         var useFormalTerrain = scenarioDef != null && scenarioDef.use_formal_terrain_generation;
 
-        runtime.Call("setup",
-            default(Variant),
-            DictionaryGet(overrides, "skill_defs", new Dictionary()),
-            _GetContentDictionary("get_enemy_templates"),
-            DictionaryGet(overrides, "enemy_ai_brains", new Dictionary()),
-            default(Variant),
-            default(Variant),
+        runtime.setup(
+            null,
+            GetDictionary(overrides, "skill_defs"),
+            _contentProvider.get_enemy_templates(),
+            GetDictionary(overrides, "enemy_ai_brains"),
+            null,
+            default,
             new Dictionary(),
-            useFormalTerrain ? default(Variant) : (Variant)(GodotObject)_terrainGenerator
+            useFormalTerrain ? null : _terrainGenerator
         );
-        runtime.Call("set_ai_trace_enabled", scenarioDef != null && scenarioDef.trace_enabled);
-        runtime.Call("set_ai_score_profile", DictionaryGet(overrides, "ai_score_profile", default(Variant)));
+        runtime.set_ai_trace_enabled(scenarioDef != null && scenarioDef.trace_enabled);
+        runtime.set_ai_score_profile(GetObject(overrides, "ai_score_profile") as BattleAiScoreProfile);
 
         var encounterAnchor = _BuildEncounterAnchor(scenarioDef);
-        var state = runtime.Call("start_battle", encounterAnchor, seed, scenarioDef.build_start_context()).As<BattleState>();
-
-        var loopResult = _executionLoop.Call("run", runtime, state, scenarioDef, new Dictionary
-        {
-            ["max_idle_loops"] = MaxIdleLoops,
-            ["progress_iteration_interval"] = progress_logging_enabled ? ProgressIterationInterval : 0,
-            ["progress_callback"] = Callable.From((Dictionary progressData) => _HandleRunProgress(progressData)),
-            ["progress_context"] = new Dictionary
-            {
-                ["profile_id"] = profile.profile_id.ToString(),
-                ["seed"] = seed,
-            },
-        }).AsGodotDictionary();
-
-        var iterations = (int)DictionaryGet(loopResult, "iterations", 0);
-        var idleLoops = (int)DictionaryGet(loopResult, "idle_loops", 0);
-        var timelineSteps = (int)DictionaryGet(loopResult, "timeline_steps", 0);
+        var state = runtime.start_battle(encounterAnchor, seed, scenarioDef.build_start_context());
+        var loopResult = _executionLoop.Run(runtime, state, scenarioDef, MaxIdleLoops);
 
         var runResult = new Dictionary
         {
@@ -169,45 +178,42 @@ public partial class BattleSimRunner : RefCounted
             ["battle_id"] = state != null ? state.battle_id.ToString() : "",
             ["battle_ended"] = state != null && state.phase == "battle_ended",
             ["winner_faction_id"] = state != null ? state.winner_faction_id.ToString() : "",
-            ["final_tu"] = state != null && state.timeline != null ? (int)state.timeline.Get("current_tu") : 0,
-            ["iterations"] = iterations,
-            ["idle_loops"] = idleLoops,
-            ["timeline_steps"] = timelineSteps,
-            ["ally_alive"] = _CountLivingUnits(state, state != null ? (Godot.Collections.Array)state.ally_unit_ids : new Godot.Collections.Array()),
-            ["enemy_alive"] = _CountLivingUnits(state, state != null ? (Godot.Collections.Array)state.enemy_unit_ids : new Godot.Collections.Array()),
-            ["metrics"] = runtime.Call("get_battle_metrics").AsGodotDictionary().Duplicate(true),
-            ["ai_turn_traces"] = runtime.Call("get_ai_turn_traces").AsGodotArray().Duplicate(true),
+            ["final_tu"] = state?.timeline?.current_tu ?? 0,
+            ["iterations"] = loopResult.iterations,
+            ["idle_loops"] = loopResult.idle_loops,
+            ["timeline_steps"] = loopResult.timeline_steps,
+            ["ally_alive"] = _CountLivingUnits(
+                state,
+                state != null
+                    ? (Godot.Collections.Array)state.ally_unit_ids
+                    : new Godot.Collections.Array()
+            ),
+            ["enemy_alive"] = _CountLivingUnits(
+                state,
+                state != null
+                    ? (Godot.Collections.Array)state.enemy_unit_ids
+                    : new Godot.Collections.Array()
+            ),
+            ["metrics"] = runtime.get_battle_metrics().Duplicate(true),
+            ["ai_turn_traces"] = runtime.get_ai_turn_traces().Duplicate(true),
             ["final_units"] = _BuildFinalUnitSnapshots(state),
         };
 
-        runtime.Call("dispose");
+        runtime.dispose();
         return runResult;
-    }
-
-    private void _HandleRunProgress(Dictionary progressData)
-    {
-        if (!progress_logging_enabled)
-            return;
-        var state = DictionaryGet(progressData, "state", default(Variant)).As<BattleState>();
-        if (state == null)
-            return;
-        var context = DictionaryGet(progressData, "context", new Dictionary()).AsGodotDictionary();
-        _LogProgress($"[BattleSim] progress profile={DictionaryGet(context, "profile_id", "")} seed={DictionaryGet(context, "seed", 0)} iteration={DictionaryGet(progressData, "iterations", 0)} timeline_steps={DictionaryGet(progressData, "timeline_steps", 0)} phase={state.phase} active_unit={state.active_unit_id} tu={(state.timeline != null ? state.timeline.Get("current_tu") : 0)} idle_loops={DictionaryGet(progressData, "idle_loops", 0)} {_BuildActiveUnitProgressSummary(state)} last_log=\"{_GetLastLogLine(state)}\"");
-    }
-
-    private Dictionary _GetContentDictionary(string methodName)
-    {
-        if (_contentProvider == null || !_contentProvider.HasMethod(methodName))
-            return new Dictionary();
-        var value = _contentProvider.Call(methodName);
-        return value.VariantType == Variant.Type.Dictionary ? value.AsGodotDictionary() : new Dictionary();
     }
 
     private EncounterAnchorData _BuildEncounterAnchor(BattleSimScenarioDef scenarioDef)
     {
         var encounterAnchor = new EncounterAnchorData();
-        encounterAnchor.entity_id = scenarioDef != null && scenarioDef.scenario_id != "" ? scenarioDef.scenario_id : "battle_sim";
-        encounterAnchor.display_name = scenarioDef != null && !string.IsNullOrEmpty(scenarioDef.display_name) ? scenarioDef.display_name : scenarioDef.scenario_id;
+        encounterAnchor.entity_id =
+            scenarioDef != null && scenarioDef.scenario_id != ""
+                ? scenarioDef.scenario_id
+                : "battle_sim";
+        encounterAnchor.display_name =
+            scenarioDef != null && !string.IsNullOrEmpty(scenarioDef.display_name)
+                ? scenarioDef.display_name
+                : scenarioDef.scenario_id;
         encounterAnchor.faction_id = "hostile";
         encounterAnchor.world_coord = Vector2I.Zero;
         encounterAnchor.region_tag = "simulation";
@@ -219,9 +225,9 @@ public partial class BattleSimRunner : RefCounted
         if (state == null)
             return 0;
         int count = 0;
-        foreach (var unitIdVariant in unitIds)
+        foreach (var unitIdValue in unitIds)
         {
-            var unitId = unitIdVariant.AsStringName();
+            var unitId = unitIdValue.AsStringName();
             if (!state.units.ContainsKey(unitId))
                 continue;
             var unitState = state.units[unitId].As<BattleUnitState>();
@@ -252,10 +258,15 @@ public partial class BattleSimRunner : RefCounted
 
     private Dictionary _WriteReportFiles(BattleSimScenarioDef scenarioDef, Dictionary report)
     {
-        var scenarioKey = scenarioDef != null && scenarioDef.scenario_id != "" ? scenarioDef.scenario_id.ToString() : "battle_sim";
+        var scenarioKey =
+            scenarioDef != null && scenarioDef.scenario_id != ""
+                ? scenarioDef.scenario_id.ToString()
+                : "battle_sim";
         var timestamp = (int)Time.GetUnixTimeFromSystem();
         var reportDir = $"{ReportDirectory}/{scenarioKey}";
-        var ensureDirError = DirAccess.MakeDirRecursiveAbsolute(ProjectSettings.GlobalizePath(reportDir));
+        var ensureDirError = DirAccess.MakeDirRecursiveAbsolute(
+            ProjectSettings.GlobalizePath(reportDir)
+        );
         if (ensureDirError != Error.Ok)
             return new Dictionary();
 
@@ -277,33 +288,55 @@ public partial class BattleSimRunner : RefCounted
         var reportFile = FileAccess.Open(reportPath, FileAccess.ModeFlags.Write);
         if (reportFile != null)
         {
-            reportFile.StoreString(Json.Stringify(_NormalizeVariant(report), "\t"));
+            reportFile.StoreString(
+                Json.Stringify(GdInterop.GetValueOrDefault(null, "", _NormalizeValue(report)), "\t")
+            );
             reportFile.Close();
         }
 
         var traceFile = FileAccess.Open(tracePath, FileAccess.ModeFlags.Write);
         if (traceFile != null)
         {
-            foreach (var profileEntryVariant in DictionaryGet(report, "profile_entries", new Godot.Collections.Array()).AsGodotArray())
+            foreach (
+                var profileEntryValue in report
+                    .GetValueOrDefault("profile_entries", new Godot.Collections.Array())
+                    .AsGodotArray()
+            )
             {
-                if (profileEntryVariant.VariantType != Variant.Type.Dictionary)
+                if (profileEntryValue.VariantType != Variant.Type.Dictionary)
                     continue;
-                var profileEntry = profileEntryVariant.AsGodotDictionary();
-                var profileId = DictionaryGet(DictionaryGet(profileEntry, "profile", new Dictionary()).AsGodotDictionary(), "profile_id", "").ToString();
-                foreach (var runEntryVariant in DictionaryGet(profileEntry, "runs", new Godot.Collections.Array()).AsGodotArray())
+                var profileEntry = profileEntryValue.AsGodotDictionary();
+                var profileId = profileEntry
+                    .GetValueOrDefault("profile", new Dictionary())
+                    .AsGodotDictionary()
+                    .GetValueOrDefault("profile_id", "")
+                    .ToString();
+                foreach (
+                    var runEntryValue in profileEntry
+                        .GetValueOrDefault("runs", new Godot.Collections.Array())
+                        .AsGodotArray()
+                )
                 {
-                    if (runEntryVariant.VariantType != Variant.Type.Dictionary)
+                    if (runEntryValue.VariantType != Variant.Type.Dictionary)
                         continue;
-                    var runEntry = runEntryVariant.AsGodotDictionary();
-                    foreach (var traceEntryVariant in DictionaryGet(runEntry, "ai_turn_traces", new Godot.Collections.Array()).AsGodotArray())
+                    var runEntry = runEntryValue.AsGodotDictionary();
+                    foreach (
+                        var traceEntryValue in runEntry
+                            .GetValueOrDefault("ai_turn_traces", new Godot.Collections.Array())
+                            .AsGodotArray()
+                    )
                     {
-                        if (traceEntryVariant.VariantType != Variant.Type.Dictionary)
+                        if (traceEntryValue.VariantType != Variant.Type.Dictionary)
                             continue;
-                        var flattenedTrace = traceEntryVariant.AsGodotDictionary().Duplicate(true);
+                        var flattenedTrace = traceEntryValue.AsGodotDictionary().Duplicate(true);
                         flattenedTrace["scenario_id"] = scenarioKey;
                         flattenedTrace["profile_id"] = profileId;
-                        flattenedTrace["seed"] = (int)DictionaryGet(runEntry, "seed", 0);
-                        traceFile.StoreLine(Json.Stringify(_NormalizeVariant(flattenedTrace)));
+                        flattenedTrace["seed"] = (int)runEntry.GetValueOrDefault("seed", 0);
+                        traceFile.StoreLine(
+                            Json.Stringify(
+                                GdInterop.GetValueOrDefault(null, "", _NormalizeValue(flattenedTrace))
+                            )
+                        );
                     }
                 }
             }
@@ -316,7 +349,12 @@ public partial class BattleSimRunner : RefCounted
             if (summaryFile != null)
             {
                 var traceSummary = _traceSummaryBuilder.Build(report, reportPath);
-                summaryFile.StoreString(Json.Stringify(_NormalizeVariant(traceSummary), "\t"));
+                summaryFile.StoreString(
+                    Json.Stringify(
+                        GdInterop.GetValueOrDefault(null, "", _NormalizeValue(traceSummary)),
+                        "\t"
+                    )
+                );
                 summaryFile.Close();
             }
         }
@@ -345,7 +383,7 @@ public partial class BattleSimRunner : RefCounted
 
     private void _LogProgress(string message)
     {
-        GD.Print(message);
+        GameLog.Info(message, "battlesim.runner.progress", "battlesim");
         if (_progressLogFile != null)
         {
             _progressLogFile.StoreLine(message);
@@ -353,28 +391,29 @@ public partial class BattleSimRunner : RefCounted
         }
     }
 
-    private string _BuildActiveUnitProgressSummary(BattleState state)
+    private object _NormalizeValue(object rawValue)
     {
-        if (state == null || state.active_unit_id == "")
-            return "";
-        if (!state.units.ContainsKey(state.active_unit_id))
-            return "";
-        var activeUnit = state.units[state.active_unit_id].As<BattleUnitState>();
-        if (activeUnit == null)
-            return "";
-        var aiBlackboard = activeUnit.Get("ai_blackboard").AsGodotDictionary();
-        return $"coord=({activeUnit.coord.X},{activeUnit.coord.Y}) hp={activeUnit.current_hp} ap={activeUnit.current_ap} stamina={activeUnit.current_stamina} move={activeUnit.current_move_points} last_action={DictionaryGet(aiBlackboard, "last_action_id", "")} decisions={DictionaryGet(aiBlackboard, "turn_decision_count", 0)}";
-    }
+        if (rawValue is Dictionary rawDictionary)
+        {
+            var normalized = new Dictionary();
+            foreach (var key in rawDictionary.Keys)
+                normalized[key.ToString()] = GdInterop.GetValueOrDefault(
+                    null,
+                    "",
+                    _NormalizeValue(rawDictionary[key])
+                );
+            return normalized;
+        }
+        if (rawValue is Godot.Collections.Array rawArray)
+        {
+            var normalized = new Godot.Collections.Array();
+            foreach (var entry in rawArray)
+                normalized.Add(GdInterop.GetValueOrDefault(null, "", _NormalizeValue(entry)));
+            return normalized;
+        }
+        if (rawValue is not Variant value)
+            return rawValue;
 
-    private string _GetLastLogLine(BattleState state)
-    {
-        if (state == null || state.log_entries.Count == 0)
-            return "";
-        return state.log_entries[state.log_entries.Count - 1].ToString().Replace("\n", " ");
-    }
-
-    private Variant _NormalizeVariant(Variant value)
-    {
         if (value.VariantType == Variant.Type.StringName)
             return value.AsStringName().ToString();
         if (value.VariantType == Variant.Type.Vector2I)
@@ -387,7 +426,7 @@ public partial class BattleSimRunner : RefCounted
             var arr = value.AsGodotArray();
             var normalized = new Godot.Collections.Array();
             foreach (var entry in arr)
-                normalized.Add(_NormalizeVariant(entry));
+                normalized.Add(GdInterop.GetValueOrDefault(null, "", _NormalizeValue(entry)));
             return normalized;
         }
         if (value.VariantType == Variant.Type.Dictionary)
@@ -395,22 +434,38 @@ public partial class BattleSimRunner : RefCounted
             var dict = value.AsGodotDictionary();
             var normalized = new Dictionary();
             foreach (var key in dict.Keys)
-                normalized[key.ToString()] = _NormalizeVariant(dict[key]);
+                normalized[key.ToString()] = GdInterop.GetValueOrDefault(
+                    null,
+                    "",
+                    _NormalizeValue(dict[key])
+                );
             return normalized;
         }
         if (value.VariantType == Variant.Type.Object)
         {
             var obj = value.AsGodotObject();
-            if (obj != null && obj.HasMethod("to_dict"))
-                return _NormalizeVariant(obj.Call("to_dict"));
+            if (obj is BattleSimScenarioDef scenarioDef)
+                return _NormalizeValue(scenarioDef.to_dict());
+            if (obj is BattleSimProfileDef profileDef)
+                return _NormalizeValue(profileDef.to_dict());
+            if (obj is BattleUnitState unitState)
+                return _NormalizeValue(unitState.to_dict());
+            return obj?.ToString() ?? "";
         }
         return value;
     }
 
-    private static Variant DictionaryGet(Dictionary dictionary, Variant key, Variant fallback)
+    private static Dictionary GetDictionary(Dictionary dictionary, object key)
     {
-        if (dictionary == null || !dictionary.ContainsKey(key))
-            return fallback;
-        return dictionary[key];
+        var value = dictionary.GetValueOrDefault(key, new Dictionary());
+        return value.VariantType == Variant.Type.Dictionary
+            ? value.AsGodotDictionary()
+            : new Dictionary();
+    }
+
+    private static GodotObject GetObject(Dictionary dictionary, object key)
+    {
+        var value = dictionary.GetValueOrDefault(key);
+        return value.VariantType == Variant.Type.Object ? value.AsGodotObject() : null;
     }
 }

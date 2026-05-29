@@ -2,24 +2,24 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const AgeContentRegistry = preload("res://scripts/player/progression/age_content_registry.gd")
-const AgeProfileDef = preload("res://scripts/player/progression/age_profile_def.gd")
-const AgeStageRule = preload("res://scripts/player/progression/age_stage_rule.gd")
-const AscensionContentRegistry = preload("res://scripts/player/progression/ascension_content_registry.gd")
-const AscensionDef = preload("res://scripts/player/progression/ascension_def.gd")
-const AscensionStageDef = preload("res://scripts/player/progression/ascension_stage_def.gd")
-const BloodlineContentRegistry = preload("res://scripts/player/progression/bloodline_content_registry.gd")
-const BloodlineDef = preload("res://scripts/player/progression/bloodline_def.gd")
-const BloodlineStageDef = preload("res://scripts/player/progression/bloodline_stage_def.gd")
-const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
-const RaceContentRegistry = preload("res://scripts/player/progression/race_content_registry.gd")
-const RaceDef = preload("res://scripts/player/progression/race_def.gd")
-const RaceTraitContentRegistry = preload("res://scripts/player/progression/race_trait_content_registry.gd")
-const RaceTraitDef = preload("res://scripts/player/progression/race_trait_def.gd")
-const RacialGrantedSkill = preload("res://scripts/player/progression/racial_granted_skill.gd")
-const StageAdvancementContentRegistry = preload("res://scripts/player/progression/stage_advancement_content_registry.gd")
-const StageAdvancementModifier = preload("res://scripts/player/progression/stage_advancement_modifier.gd")
-const SubraceContentRegistry = preload("res://scripts/player/progression/subrace_content_registry.gd")
+const AgeContentRegistry = preload("res://scripts/player/progression/AgeContentRegistry.cs")
+const AgeProfileDef = preload("res://scripts/player/progression/AgeProfileDef.cs")
+const AgeStageRule = preload("res://scripts/player/progression/AgeStageRule.cs")
+const AscensionContentRegistry = preload("res://scripts/player/progression/AscensionContentRegistry.cs")
+const AscensionDef = preload("res://scripts/player/progression/AscensionDef.cs")
+const AscensionStageDef = preload("res://scripts/player/progression/AscensionStageDef.cs")
+const BloodlineContentRegistry = preload("res://scripts/player/progression/BloodlineContentRegistry.cs")
+const BloodlineDef = preload("res://scripts/player/progression/BloodlineDef.cs")
+const BloodlineStageDef = preload("res://scripts/player/progression/BloodlineStageDef.cs")
+const ProgressionContentRegistry = preload("res://scripts/player/progression/ProgressionContentRegistry.cs")
+const RaceContentRegistry = preload("res://scripts/player/progression/RaceContentRegistry.cs")
+const RaceDef = preload("res://scripts/player/progression/RaceDef.cs")
+const RaceTraitContentRegistry = preload("res://scripts/player/progression/RaceTraitContentRegistry.cs")
+const RaceTraitDef = preload("res://scripts/player/progression/RaceTraitDef.cs")
+const RacialGrantedSkill = preload("res://scripts/player/progression/RacialGrantedSkill.cs")
+const StageAdvancementContentRegistry = preload("res://scripts/player/progression/StageAdvancementContentRegistry.cs")
+const StageAdvancementModifier = preload("res://scripts/player/progression/StageAdvancementModifier.cs")
+const SubraceContentRegistry = preload("res://scripts/player/progression/SubraceContentRegistry.cs")
 
 const TEMP_ROOT := "user://identity_registry_phase1"
 
@@ -57,13 +57,13 @@ func _run() -> void:
 
 
 func _test_identity_registry_directory_constants() -> void:
-	_assert_eq(RaceContentRegistry.RACE_CONFIG_DIRECTORY, "res://data/configs/races", "RaceContentRegistry 应暴露正式 races 目录常量。")
-	_assert_eq(SubraceContentRegistry.SUBRACE_CONFIG_DIRECTORY, "res://data/configs/subraces", "SubraceContentRegistry 应暴露正式 subraces 目录常量。")
-	_assert_eq(RaceTraitContentRegistry.RACE_TRAIT_CONFIG_DIRECTORY, "res://data/configs/race_traits", "RaceTraitContentRegistry 应暴露正式 race_traits 目录常量。")
-	_assert_eq(AgeContentRegistry.AGE_PROFILE_CONFIG_DIRECTORY, "res://data/configs/age_profiles", "AgeContentRegistry 应暴露正式 age_profiles 目录常量。")
-	_assert_eq(BloodlineContentRegistry.BLOODLINE_CONFIG_DIRECTORY, "res://data/configs/bloodlines", "BloodlineContentRegistry 应暴露正式 bloodlines 目录常量。")
-	_assert_eq(AscensionContentRegistry.ASCENSION_CONFIG_DIRECTORY, "res://data/configs/ascensions", "AscensionContentRegistry 应暴露正式 ascensions 目录常量。")
-	_assert_eq(StageAdvancementContentRegistry.STAGE_ADVANCEMENT_CONFIG_DIRECTORY, "res://data/configs/stage_advancements", "StageAdvancementContentRegistry 应暴露正式 stage_advancements 目录常量。")
+	_assert_eq(RaceContentRegistry.race_config_directory(), "res://data/configs/races", "RaceContentRegistry 应暴露正式 races 目录常量。")
+	_assert_eq(SubraceContentRegistry.subrace_config_directory(), "res://data/configs/subraces", "SubraceContentRegistry 应暴露正式 subraces 目录常量。")
+	_assert_eq(RaceTraitContentRegistry.race_trait_config_directory(), "res://data/configs/race_traits", "RaceTraitContentRegistry 应暴露正式 race_traits 目录常量。")
+	_assert_eq(AgeContentRegistry.age_profile_config_directory(), "res://data/configs/age_profiles", "AgeContentRegistry 应暴露正式 age_profiles 目录常量。")
+	_assert_eq(BloodlineContentRegistry.bloodline_config_directory(), "res://data/configs/bloodlines", "BloodlineContentRegistry 应暴露正式 bloodlines 目录常量。")
+	_assert_eq(AscensionContentRegistry.ascension_config_directory(), "res://data/configs/ascensions", "AscensionContentRegistry 应暴露正式 ascensions 目录常量。")
+	_assert_eq(StageAdvancementContentRegistry.stage_advancement_config_directory(), "res://data/configs/stage_advancements", "StageAdvancementContentRegistry 应暴露正式 stage_advancements 目录常量。")
 
 
 func _test_official_identity_directories_scan_without_errors() -> void:
@@ -115,7 +115,7 @@ func _test_race_registry_reports_missing_and_duplicate_ids() -> void:
 
 	var registry := RaceContentRegistry.new()
 	registry.load_from_directory(directory_path)
-	var errors := registry.validate()
+	var errors: Array = registry.validate()
 	_assert_true(_has_error_containing(errors, "is missing race_id"), "RaceContentRegistry 应报告缺失 race_id。")
 	_assert_true(_has_error_containing(errors, "Duplicate race_id registered: duplicate_race"), "RaceContentRegistry 应报告重复 race_id。")
 
@@ -123,14 +123,14 @@ func _test_race_registry_reports_missing_and_duplicate_ids() -> void:
 func _test_racial_granted_skill_limited_charges_must_be_positive() -> void:
 	var directory_path := _make_temp_directory("racial_grant_charges")
 	var race := _make_race(&"charged_race")
-	var per_battle_grant := _make_racial_granted_skill(&"per_battle_skill", RacialGrantedSkill.CHARGE_KIND_PER_BATTLE, 0)
-	var per_turn_grant := _make_racial_granted_skill(&"per_turn_skill", RacialGrantedSkill.CHARGE_KIND_PER_TURN, -1)
+	var per_battle_grant := _make_racial_granted_skill(&"per_battle_skill", "per_battle", 0)
+	var per_turn_grant := _make_racial_granted_skill(&"per_turn_skill", "per_turn", -1)
 	race.racial_granted_skills = [per_battle_grant, per_turn_grant]
 	_save_resource(race, directory_path, "charged_race")
 
 	var registry := RaceContentRegistry.new()
 	registry.load_from_directory(directory_path)
-	var errors := registry.validate()
+	var errors: Array = registry.validate()
 	_assert_true(
 		_has_error_containing(errors, "racial_granted_skills[0].charges must be > 0 for charge_kind per_battle"),
 		"per_battle racial_granted_skills 应要求正数 charges。"
@@ -145,27 +145,27 @@ func _test_racial_granted_skill_minimum_level_allows_zero_and_rejects_negative()
 	var valid_directory_path := _make_temp_directory("racial_grant_zero_level")
 	var zero_level_race := _make_race(&"zero_level_race")
 	zero_level_race.racial_granted_skills = [
-		_make_racial_granted_skill(&"zero_level_skill", RacialGrantedSkill.CHARGE_KIND_PER_BATTLE, 1),
+		_make_racial_granted_skill(&"zero_level_skill", "per_battle", 1),
 	]
 	zero_level_race.racial_granted_skills[0].minimum_skill_level = 0
 	_save_resource(zero_level_race, valid_directory_path, "zero_level_race")
 
 	var valid_registry := RaceContentRegistry.new()
 	valid_registry.load_from_directory(valid_directory_path)
-	var valid_errors := valid_registry.validate()
+	var valid_errors: Array = valid_registry.validate()
 	_assert_true(valid_errors.is_empty(), "RacialGrantedSkill.minimum_skill_level = 0 应是合法配置。errors=%s" % str(valid_errors))
 
 	var invalid_directory_path := _make_temp_directory("racial_grant_negative_level")
 	var negative_level_race := _make_race(&"negative_level_race")
 	negative_level_race.racial_granted_skills = [
-		_make_racial_granted_skill(&"negative_level_skill", RacialGrantedSkill.CHARGE_KIND_PER_BATTLE, 1),
+		_make_racial_granted_skill(&"negative_level_skill", "per_battle", 1),
 	]
 	negative_level_race.racial_granted_skills[0].minimum_skill_level = -1
 	_save_resource(negative_level_race, invalid_directory_path, "negative_level_race")
 
 	var invalid_registry := RaceContentRegistry.new()
 	invalid_registry.load_from_directory(invalid_directory_path)
-	var invalid_errors := invalid_registry.validate()
+	var invalid_errors: Array = invalid_registry.validate()
 	_assert_true(
 		_has_error_containing(invalid_errors, "racial_granted_skills[0].minimum_skill_level must be >= 0"),
 		"RacialGrantedSkill.minimum_skill_level 只应拒绝负数。"
@@ -205,7 +205,7 @@ func _test_race_trait_registry_validates_phase1_whitelists() -> void:
 
 	var registry := RaceTraitContentRegistry.new()
 	registry.load_from_directory(directory_path)
-	var errors := registry.validate()
+	var errors: Array = registry.validate()
 	_assert_true(_has_error_containing(errors, "unsupported trigger_type on_unknown_trigger"), "RaceTraitContentRegistry 应报告非法 trigger_type。")
 	_assert_true(_has_error_containing(errors, "unsupported effect_type unknown_effect"), "RaceTraitContentRegistry 应报告非法 effect_type。")
 
@@ -265,7 +265,7 @@ func _test_stage_advancement_registry_validates_target_axis_and_source_shape() -
 
 	var registry := StageAdvancementContentRegistry.new()
 	registry.load_from_directory(directory_path)
-	var errors := registry.validate()
+	var errors: Array = registry.validate()
 	_assert_true(_has_error_containing(errors, "unsupported target_axis temporary_battle"), "StageAdvancementContentRegistry 应报告非法 target_axis。")
 	_assert_true(_has_error_containing(errors, "applies_to_race_ids[0] must be a non-empty StringName"), "StageAdvancementContentRegistry 应校验长期来源数组形状。")
 

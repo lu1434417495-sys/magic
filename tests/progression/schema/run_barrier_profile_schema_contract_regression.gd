@@ -18,10 +18,10 @@ func _run() -> void:
 
 
 func _test_barrier_profile_scripts_exist() -> void:
-	_assert_resource_script("res://scripts/player/progression/barrier_profile_def.gd")
-	_assert_resource_script("res://scripts/player/progression/barrier_layer_def.gd")
-	_assert_resource_script("res://scripts/player/progression/barrier_outcome_def.gd")
-	_assert_resource_script("res://scripts/player/progression/barrier_content_registry.gd")
+	_assert_resource_script("res://scripts/player/progression/BarrierProfileDef.cs")
+	_assert_resource_script("res://scripts/player/progression/BarrierLayerDef.cs")
+	_assert_resource_script("res://scripts/player/progression/BarrierOutcomeDef.cs")
+	_assert_resource_script("res://scripts/player/progression/BarrierContentRegistry.cs")
 
 
 func _test_prismatic_sphere_profile_is_data_owned() -> void:

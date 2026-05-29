@@ -2,12 +2,12 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const BATTLE_DAMAGE_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/rules/battle_damage_resolver.gd")
-const BATTLE_STATUS_EFFECT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_status_effect_state.gd")
-const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
-const COMBAT_EFFECT_DEF_SCRIPT = preload("res://scripts/player/progression/combat_effect_def.gd")
-const TRAIT_TRIGGER_HOOKS_SCRIPT = preload("res://scripts/systems/battle/runtime/trait_trigger_hooks.gd")
-const TRAIT_TRIGGER_CONTENT_RULES_SCRIPT = preload("res://scripts/player/progression/trait_trigger_content_rules.gd")
+const BATTLE_DAMAGE_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/rules/BattleDamageResolver.cs")
+const BATTLE_STATUS_EFFECT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleStatusEffectState.cs")
+const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
+const COMBAT_EFFECT_DEF_SCRIPT = preload("res://scripts/player/progression/CombatEffectDef.cs")
+const TRAIT_TRIGGER_HOOKS_SCRIPT = preload("res://scripts/systems/battle/runtime/TraitTriggerHooks.cs")
+const TRAIT_TRIGGER_CONTENT_RULES_SCRIPT = preload("res://scripts/player/progression/TraitTriggerContentRules.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -38,7 +38,7 @@ func _run() -> void:
 func _test_halfling_luck_rerolls_natural_one_attack() -> void:
 	var resolver = BATTLE_DAMAGE_RESOLVER_SCRIPT.new()
 	var source := _build_unit(&"halfling_attacker", &"player", 20)
-	source.race_trait_ids = [TRAIT_TRIGGER_HOOKS_SCRIPT.TRAIT_HALFLING_LUCK]
+	source.race_trait_ids = [TRAIT_TRIGGER_HOOKS_SCRIPT.TRAIT_HALFLING_LUCK()]
 	var target := _build_unit(&"halfling_target", &"enemy", 20)
 	var effect := _make_damage_effect(5, false)
 	var result: Dictionary = resolver.resolve_attack_effects(
@@ -55,13 +55,13 @@ func _test_halfling_luck_rerolls_natural_one_attack() -> void:
 	_assert_true(bool(result.get("attack_success", false)), "halfling_luck reroll should turn a natural 1 into the overridden natural 20 success.")
 	_assert_eq(int(result.get("hit_roll", 0)), 20, "halfling_luck should expose the rerolled hit_roll.")
 	_assert_eq(int(source.per_turn_charges.get(&"trait_halfling_luck", -1)), 0, "halfling_luck should consume its per-turn charge.")
-	_assert_has_trait_result(result, TRAIT_TRIGGER_HOOKS_SCRIPT.TRAIT_HALFLING_LUCK, "attack result should record halfling_luck.")
+	_assert_has_trait_result(result, TRAIT_TRIGGER_HOOKS_SCRIPT.TRAIT_HALFLING_LUCK(), "attack result should record halfling_luck.")
 
 
 func _test_savage_attacks_adds_one_weapon_die_on_melee_crit() -> void:
 	var resolver = BATTLE_DAMAGE_RESOLVER_SCRIPT.new()
 	var source := _build_unit(&"savage_attacker", &"player", 20)
-	source.race_trait_ids = [TRAIT_TRIGGER_HOOKS_SCRIPT.TRAIT_SAVAGE_ATTACKS]
+	source.race_trait_ids = [TRAIT_TRIGGER_HOOKS_SCRIPT.TRAIT_SAVAGE_ATTACKS()]
 	source.set_unarmed_weapon_projection(&"physical_slash", {"dice_count": 1, "dice_sides": 6, "flat_bonus": 0}, 1)
 	var target := _build_unit(&"savage_target", &"enemy", 100)
 	var effect := _make_damage_effect(0, true)
@@ -69,21 +69,21 @@ func _test_savage_attacks_adds_one_weapon_die_on_melee_crit() -> void:
 	var event: Dictionary = _first_damage_event(result)
 	_assert_eq(int(event.get("trait_extra_weapon_damage_dice_count", 0)), 1, "savage_attacks should add exactly one extra weapon die on melee crit.")
 	_assert_eq(int(event.get("trait_extra_weapon_damage_dice_sides", 0)), 6, "savage_attacks should reuse the current melee weapon die size.")
-	_assert_has_trait_result(event, TRAIT_TRIGGER_HOOKS_SCRIPT.TRAIT_SAVAGE_ATTACKS, "damage event should record savage_attacks.")
+	_assert_has_trait_result(event, TRAIT_TRIGGER_HOOKS_SCRIPT.TRAIT_SAVAGE_ATTACKS(), "damage event should record savage_attacks.")
 
 
 func _test_relentless_endurance_precedes_death_ward() -> void:
 	var resolver = BATTLE_DAMAGE_RESOLVER_SCRIPT.new()
 	var source := _build_unit(&"fatal_source", &"enemy", 20)
 	var target := _build_unit(&"relentless_target", &"player", 8)
-	target.race_trait_ids = [TRAIT_TRIGGER_HOOKS_SCRIPT.TRAIT_RELENTLESS_ENDURANCE]
+	target.race_trait_ids = [TRAIT_TRIGGER_HOOKS_SCRIPT.TRAIT_RELENTLESS_ENDURANCE()]
 	_set_status(target, &"death_ward")
 	var effect := _make_damage_effect(99, false)
 	var result: Dictionary = resolver.resolve_effects(source, target, [effect])
 	_assert_eq(target.current_hp, 1, "relentless_endurance should clamp fatal damage to 1 HP.")
 	_assert_true(target.is_alive, "relentless_endurance should keep the target alive.")
 	_assert_true(target.has_status_effect(&"death_ward"), "relentless_endurance should trigger before death_ward consumption.")
-	_assert_has_trait_result(_first_damage_event(result), TRAIT_TRIGGER_HOOKS_SCRIPT.TRAIT_RELENTLESS_ENDURANCE, "fatal damage event should record relentless_endurance.")
+	_assert_has_trait_result(_first_damage_event(result), TRAIT_TRIGGER_HOOKS_SCRIPT.TRAIT_RELENTLESS_ENDURANCE(), "fatal damage event should record relentless_endurance.")
 
 	var second_result: Dictionary = resolver.resolve_effects(source, target, [effect])
 	_assert_eq(target.current_hp, 0, "relentless_endurance should not trigger a second time in the same battle.")
@@ -94,20 +94,21 @@ func _test_relentless_endurance_precedes_death_ward() -> void:
 func _test_turn_start_refreshes_halfling_luck() -> void:
 	var hooks = TRAIT_TRIGGER_HOOKS_SCRIPT.new()
 	var unit := _build_unit(&"turn_halfling", &"player", 20)
-	unit.race_trait_ids = [TRAIT_TRIGGER_HOOKS_SCRIPT.TRAIT_HALFLING_LUCK]
-	hooks.on_battle_start(unit)
+	unit.race_trait_ids = [TRAIT_TRIGGER_HOOKS_SCRIPT.TRAIT_HALFLING_LUCK()]
+	hooks.on_battle_start(unit, {})
 	var first_result: Dictionary = hooks.on_natural_one(unit, {"roll": 1, "die_size": 20})
 	_assert_true(bool(first_result.get("triggered", false)), "halfling_luck should trigger after battle start initialization.")
 	_assert_eq(int(unit.per_turn_charges.get(&"trait_halfling_luck", -1)), 0, "halfling_luck charge should be spent after use.")
 	unit.reset_per_turn_charges()
-	hooks.on_turn_start(unit)
+	hooks.on_turn_start(unit, {})
 	_assert_eq(int(unit.per_turn_charges.get(&"trait_halfling_luck", -1)), 1, "turn start should refresh halfling_luck.")
 
 
 func _test_trait_dispatch_content_rules_match_runtime_methods() -> void:
 	var hooks = TRAIT_TRIGGER_HOOKS_SCRIPT.new()
+	var dispatch_trigger_types: Dictionary = TRAIT_TRIGGER_CONTENT_RULES_SCRIPT.get_dispatch_trigger_types()
 	for trait_id in TRAIT_TRIGGER_CONTENT_RULES_SCRIPT.get_dispatch_trait_ids():
-		var trigger_map: Dictionary = TRAIT_TRIGGER_CONTENT_RULES_SCRIPT.DISPATCH_TRIGGER_TYPES.get(trait_id, {})
+		var trigger_map: Dictionary = dispatch_trigger_types.get(trait_id, {})
 		for trigger_type in trigger_map.keys():
 			var method_name := TRAIT_TRIGGER_CONTENT_RULES_SCRIPT.get_dispatch_method_name(trait_id, StringName(trigger_type))
 			_assert_true(not method_name.is_empty(), "content dispatch should expose a method for %s/%s." % [String(trait_id), String(trigger_type)])
@@ -160,10 +161,10 @@ func _first_damage_event(result: Dictionary) -> Dictionary:
 
 func _assert_has_trait_result(result: Dictionary, trait_id: StringName, message: String) -> void:
 	var trigger_results: Array = result.get("trait_trigger_results", [])
-	for trigger_result_variant in trigger_results:
-		if not (trigger_result_variant is Dictionary):
+	for trigger_result_option in trigger_results:
+		if not (trigger_result_option is Dictionary):
 			continue
-		var trigger_result: Dictionary = trigger_result_variant
+		var trigger_result: Dictionary = trigger_result_option
 		if StringName(trigger_result.get("trait_id", &"")) == trait_id:
 			return
 	_test.fail(message)

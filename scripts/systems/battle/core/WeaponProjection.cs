@@ -16,9 +16,7 @@ public partial class WeaponProjection : RefCounted
     public bool weapon_uses_two_hands { get; set; }
     public StringName weapon_physical_damage_tag { get; set; } = "";
 
-    public WeaponProjection()
-    {
-    }
+    public WeaponProjection() { }
 
     public WeaponProjection duplicate_state()
     {

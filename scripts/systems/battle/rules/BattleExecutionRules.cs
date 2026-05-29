@@ -69,19 +69,70 @@ public partial class BattleExecutionRules : RefCounted
 
     public static StringName BRANCH_LOW_HP_EXECUTE() => BranchLowHpExecute;
 
-    public static int resolve_threshold(GodotObject source_unit, GodotObject target_unit, GDictionary @params)
+    public static int resolve_threshold(
+        GodotObject source_unit,
+        GodotObject target_unit,
+        GDictionary @params
+    )
     {
         GDictionary normalizedParams = @params ?? new GDictionary();
-        int maxHpRatio = Mathf.Max(GdInterop.GetInt(normalizedParams, "threshold_max_hp_ratio_percent", 20), 0);
+        int baseValue = Mathf.Max(GdInterop.GetInt(normalizedParams, "threshold_base_value", 0), 0);
+        int anchor = Mathf.Max(GdInterop.GetInt(normalizedParams, "threshold_level_anchor", 17), 0);
+        int bonusPer = Mathf.Max(
+            GdInterop.GetInt(normalizedParams, "threshold_level_bonus_per_delta", 5),
+            0
+        );
+        StringName abilityId = GdInterop.GetStringName(
+            normalizedParams,
+            "threshold_ability_mod",
+            "intelligence_modifier"
+        );
+        int abilityMultiplier = Mathf.Max(
+            GdInterop.GetInt(normalizedParams, "threshold_ability_mod_multiplier", 5),
+            0
+        );
+        int maxHpRatio = Mathf.Max(
+            GdInterop.GetInt(normalizedParams, "threshold_max_hp_ratio_percent", 20),
+            0
+        );
+        int capRatio = Mathf.Max(
+            GdInterop.GetInt(normalizedParams, "threshold_cap_max_hp_ratio_percent", 50),
+            0
+        );
+
+        int skillLevel = 0;
+        StringName skillId = GdInterop.GetStringName(normalizedParams, "skill_id", "");
+        if (!GdInterop.IsEmpty(skillId) && source_unit != null)
+        {
+            GDictionary skillLevels = GdInterop.GetDictionary(source_unit, "known_skill_level_map");
+            skillLevel = GdInterop.GetInt(skillLevels, skillId, 0);
+        }
+        int levelBonus = Mathf.Max(skillLevel - anchor, 0) * bonusPer;
+
+        int abilityMod = 0;
+        if (!GdInterop.IsEmpty(abilityId) && source_unit != null)
+        {
+            abilityMod = GetAttributeValue(source_unit, abilityId);
+        }
+
         int targetMaxHp = Mathf.Max(GetAttributeValue(target_unit, HpMax), 0);
-        return Mathf.Max(targetMaxHp * maxHpRatio / 100, 0);
+        int hpFloor = Mathf.Max(targetMaxHp * maxHpRatio / 100, 0);
+        int rawThreshold =
+            Mathf.Max(baseValue, hpFloor) + levelBonus + abilityMod * abilityMultiplier;
+        int cap = Mathf.Max(targetMaxHp * capRatio / 100, 0);
+        return cap > 0 ? Mathf.Min(rawThreshold, cap) : rawThreshold;
     }
 
-    public static GDictionary build_execute_plan(GodotObject source_unit, GodotObject target_unit, GDictionary @params)
+    public static GDictionary build_execute_plan(
+        GodotObject source_unit,
+        GodotObject target_unit,
+        GDictionary @params
+    )
     {
         GDictionary normalizedParams = @params ?? new GDictionary();
         int maxHp = Mathf.Max(GetAttributeValue(target_unit, HpMax), 0);
-        int currentHp = target_unit != null ? Mathf.Max(GdInterop.GetInt(target_unit, "current_hp"), 0) : 0;
+        int currentHp =
+            target_unit != null ? Mathf.Max(GdInterop.GetInt(target_unit, "current_hp"), 0) : 0;
         int threshold = resolve_threshold(source_unit, target_unit, normalizedParams);
 
         if (target_unit != null && currentHp <= threshold)
@@ -109,7 +160,7 @@ public partial class BattleExecutionRules : RefCounted
 
     public static bool is_boss_target(GodotObject target_unit)
     {
-        if (target_unit == null || GdInterop.GetObject(target_unit, "attribute_snapshot") == null)
+        if (target_unit == null || (target_unit as BattleUnitState)?.attribute_snapshot == null)
         {
             return false;
         }
@@ -119,7 +170,7 @@ public partial class BattleExecutionRules : RefCounted
 
     public static bool is_elite_or_boss_target(GodotObject target_unit)
     {
-        if (target_unit == null || GdInterop.GetObject(target_unit, "attribute_snapshot") == null)
+        if (target_unit == null || (target_unit as BattleUnitState)?.attribute_snapshot == null)
         {
             return false;
         }
@@ -137,13 +188,26 @@ public partial class BattleExecutionRules : RefCounted
         GDictionary normalizedParams = @params ?? new GDictionary();
         if (is_boss)
         {
-            int ratio = Mathf.Max(GdInterop.GetInt(normalizedParams, "boss_non_lethal_damage_max_hp_ratio_percent", 12), 0);
-            int floorVal = Mathf.Max(GdInterop.GetInt(normalizedParams, "boss_non_lethal_damage_floor", 25), 1);
+            int ratio = Mathf.Max(
+                GdInterop.GetInt(
+                    normalizedParams,
+                    "boss_non_lethal_damage_max_hp_ratio_percent",
+                    12
+                ),
+                0
+            );
+            int floorVal = Mathf.Max(
+                GdInterop.GetInt(normalizedParams, "boss_non_lethal_damage_floor", 25),
+                1
+            );
             int targetMaxHp = Mathf.Max(GetAttributeValue(target_unit, HpMax), 0);
             return Mathf.Max(targetMaxHp * ratio / 100, floorVal);
         }
 
-        int nonLethalRatio = Mathf.Max(GdInterop.GetInt(normalizedParams, "non_lethal_damage_ratio_percent", 30), 0);
+        int nonLethalRatio = Mathf.Max(
+            GdInterop.GetInt(normalizedParams, "non_lethal_damage_ratio_percent", 30),
+            0
+        );
         int threshold = resolve_threshold(source_unit, target_unit, normalizedParams);
         return Mathf.Max(threshold * nonLethalRatio / 100, 1);
     }
@@ -165,12 +229,11 @@ public partial class BattleExecutionRules : RefCounted
 
     private static int GetAttributeValue(GodotObject unit, StringName attributeId)
     {
-        GodotObject attributeSnapshot = GdInterop.GetObject(unit, "attribute_snapshot");
+        AttributeSnapshot attributeSnapshot = (unit as BattleUnitState)?.attribute_snapshot;
         if (attributeSnapshot == null)
         {
             return 0;
         }
-        Variant value = attributeSnapshot.Call("get_value", attributeId);
-        return value.VariantType == Variant.Type.Nil ? 0 : value.AsInt32();
+        return attributeSnapshot.get_value(attributeId);
     }
 }

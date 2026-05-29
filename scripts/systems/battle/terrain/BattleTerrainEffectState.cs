@@ -89,13 +89,10 @@ public partial class BattleTerrainEffectState : RefCounted
         };
     }
 
-    public static BattleTerrainEffectState from_dict(Variant data)
+    public static BattleTerrainEffectState from_dict(GDictionary typedData)
     {
-        if (data.VariantType != Variant.Type.Dictionary)
-        {
+        if (typedData == null)
             return null;
-        }
-        GDictionary typedData = data.AsGodotDictionary();
         if (!HasExactSerializedFields(typedData))
         {
             return null;
@@ -103,25 +100,21 @@ public partial class BattleTerrainEffectState : RefCounted
 
         foreach (string fieldName in RequiredNonEmptyStringFields)
         {
-            Variant value = Get(typedData, fieldName);
-            if (!IsStringLike(value))
-            {
-                return null;
-            }
-            if (string.IsNullOrEmpty(value.AsString()))
+            if (!TryGetStringLike(typedData, fieldName, out string value)
+                || string.IsNullOrEmpty(value))
             {
                 return null;
             }
         }
         foreach (string fieldName in OptionalStringFields)
         {
-            if (!IsStringLike(Get(typedData, fieldName)))
+            if (!TryGetStringLike(typedData, fieldName, out _))
             {
                 return null;
             }
         }
 
-        StringName targetTeamFilter = ToStringName(Get(typedData, "target_team_filter"));
+        StringName targetTeamFilter = GetStringName(typedData, "target_team_filter");
         if (!CombatTargetTeamContentRules.is_valid_skill_target_team_filter(targetTeamFilter))
         {
             return null;
@@ -129,49 +122,47 @@ public partial class BattleTerrainEffectState : RefCounted
 
         foreach (string fieldName in IntegerFields)
         {
-            if (Get(typedData, fieldName).VariantType != Variant.Type.Int)
+            if (!TryGetStrictInt(typedData, fieldName, out _))
             {
                 return null;
             }
         }
         foreach (string fieldName in NonNegativeIntegerFields)
         {
-            if (Get(typedData, fieldName).AsInt32() < 0)
+            if (GetInt(typedData, fieldName) < 0)
             {
                 return null;
             }
         }
-        Variant rawParams = Get(typedData, "params");
-        if (rawParams.VariantType != Variant.Type.Dictionary)
+        if (!TryGetDictionary(typedData, "params", out GDictionary parameters))
         {
             return null;
         }
 
         return new BattleTerrainEffectState
         {
-            field_instance_id = ToStringName(Get(typedData, "field_instance_id")),
-            effect_id = ToStringName(Get(typedData, "effect_id")),
-            effect_type = ToStringName(Get(typedData, "effect_type")),
-            source_unit_id = ToStringName(Get(typedData, "source_unit_id")),
-            source_skill_id = ToStringName(Get(typedData, "source_skill_id")),
+            field_instance_id = GetStringName(typedData, "field_instance_id"),
+            effect_id = GetStringName(typedData, "effect_id"),
+            effect_type = GetStringName(typedData, "effect_type"),
+            source_unit_id = GetStringName(typedData, "source_unit_id"),
+            source_skill_id = GetStringName(typedData, "source_skill_id"),
             target_team_filter = targetTeamFilter,
-            power = Get(typedData, "power").AsInt32(),
-            damage_tag = ToStringName(Get(typedData, "damage_tag")),
-            remaining_tu = Get(typedData, "remaining_tu").AsInt32(),
-            tick_interval_tu = Get(typedData, "tick_interval_tu").AsInt32(),
-            next_tick_at_tu = Get(typedData, "next_tick_at_tu").AsInt32(),
-            stack_behavior = ToStringName(Get(typedData, "stack_behavior")),
-            @params = rawParams.AsGodotDictionary().Duplicate(true),
+            power = GetInt(typedData, "power"),
+            damage_tag = GetStringName(typedData, "damage_tag"),
+            remaining_tu = GetInt(typedData, "remaining_tu"),
+            tick_interval_tu = GetInt(typedData, "tick_interval_tu"),
+            next_tick_at_tu = GetInt(typedData, "next_tick_at_tu"),
+            stack_behavior = GetStringName(typedData, "stack_behavior"),
+            @params = parameters.Duplicate(true),
         };
     }
 
     public static Godot.Collections.Array<GDictionary> to_dict_array(GArray effect_states)
     {
         var payloads = new Godot.Collections.Array<GDictionary>();
-        foreach (Variant effectStateVariant in effect_states ?? new GArray())
+        foreach (object effectStateValue in effect_states ?? new GArray())
         {
-            var effectState = effectStateVariant.AsGodotObject() as BattleTerrainEffectState;
-            if (effectState == null)
+            if (!TryAsObject(effectStateValue, out BattleTerrainEffectState effectState))
             {
                 continue;
             }
@@ -180,10 +171,15 @@ public partial class BattleTerrainEffectState : RefCounted
         return payloads;
     }
 
-    public static Godot.Collections.Array<GDictionary> to_dict_array(Godot.Collections.Array<BattleTerrainEffectState> effect_states)
+    public static Godot.Collections.Array<GDictionary> to_dict_array(
+        Godot.Collections.Array<BattleTerrainEffectState> effect_states
+    )
     {
         var payloads = new Godot.Collections.Array<GDictionary>();
-        foreach (BattleTerrainEffectState effectState in effect_states ?? new Godot.Collections.Array<BattleTerrainEffectState>())
+        foreach (
+            BattleTerrainEffectState effectState in effect_states
+                ?? new Godot.Collections.Array<BattleTerrainEffectState>()
+        )
         {
             if (effectState != null)
             {
@@ -193,19 +189,17 @@ public partial class BattleTerrainEffectState : RefCounted
         return payloads;
     }
 
-    public static Godot.Collections.Array<BattleTerrainEffectState> from_dict_array(Variant values)
+    public static Godot.Collections.Array<BattleTerrainEffectState> from_dict_array(
+        Godot.Collections.Array<GDictionary> values
+    )
     {
-        if (values.VariantType != Variant.Type.Array)
+        if (values == null)
         {
             return null;
         }
         var effectStates = new Godot.Collections.Array<BattleTerrainEffectState>();
-        foreach (Variant value in values.AsGodotArray())
+        foreach (GDictionary value in values)
         {
-            if (value.VariantType != Variant.Type.Dictionary)
-            {
-                return null;
-            }
             BattleTerrainEffectState effectState = from_dict(value);
             if (effectState == null)
             {
@@ -216,15 +210,23 @@ public partial class BattleTerrainEffectState : RefCounted
         return effectStates;
     }
 
-    public static Godot.Collections.Array<BattleTerrainEffectState> duplicate_array(GArray effect_states)
+    public static Godot.Collections.Array<BattleTerrainEffectState> duplicate_array(
+        GArray effect_states
+    )
     {
-        Godot.Collections.Array<BattleTerrainEffectState> duplicated = from_dict_array(to_dict_array(effect_states));
+        Godot.Collections.Array<BattleTerrainEffectState> duplicated = from_dict_array(
+            to_dict_array(effect_states)
+        );
         return duplicated ?? new Godot.Collections.Array<BattleTerrainEffectState>();
     }
 
-    public static Godot.Collections.Array<BattleTerrainEffectState> duplicate_array(Godot.Collections.Array<BattleTerrainEffectState> effect_states)
+    public static Godot.Collections.Array<BattleTerrainEffectState> duplicate_array(
+        Godot.Collections.Array<BattleTerrainEffectState> effect_states
+    )
     {
-        Godot.Collections.Array<BattleTerrainEffectState> duplicated = from_dict_array(to_dict_array(effect_states));
+        Godot.Collections.Array<BattleTerrainEffectState> duplicated = from_dict_array(
+            to_dict_array(effect_states)
+        );
         return duplicated ?? new Godot.Collections.Array<BattleTerrainEffectState>();
     }
 
@@ -244,18 +246,142 @@ public partial class BattleTerrainEffectState : RefCounted
         return true;
     }
 
-    private static bool IsStringLike(Variant value)
+    private static string GetString(GDictionary payload, string key)
     {
-        return value.VariantType == Variant.Type.String || value.VariantType == Variant.Type.StringName;
+        return TryGetStringLike(payload, key, out string value) ? value : "";
     }
 
-    private static StringName ToStringName(Variant value)
+    private static StringName GetStringName(GDictionary payload, string key)
     {
-        return IsStringLike(value) ? new StringName(value.AsString()) : "";
+        return new StringName(GetString(payload, key));
     }
 
-    private static Variant Get(GDictionary payload, string key)
+    private static int GetInt(GDictionary payload, string key)
     {
-        return payload.ContainsKey(key) ? payload[key] : default;
+        return TryGetStrictInt(payload, key, out int value) ? value : 0;
+    }
+
+    private static bool TryGetStringLike(GDictionary payload, string key, out string value)
+    {
+        if (TryGetExactValue(payload, key, out object rawValue)
+            && TryAsStringLike(rawValue, out value))
+        {
+            return true;
+        }
+        value = "";
+        return false;
+    }
+
+    private static bool TryGetStrictInt(GDictionary payload, string key, out int value)
+    {
+        if (TryGetExactValue(payload, key, out object rawValue)
+            && TryAsStrictInt(rawValue, out value))
+        {
+            return true;
+        }
+        value = 0;
+        return false;
+    }
+
+    private static bool TryGetDictionary(GDictionary payload, string key, out GDictionary value)
+    {
+        if (TryGetExactValue(payload, key, out object rawValue)
+            && TryAsDictionary(rawValue, out value))
+        {
+            return true;
+        }
+        value = new GDictionary();
+        return false;
+    }
+
+    private static bool TryAsStringLike(object rawValue, out string value)
+    {
+        if (rawValue is Variant variant)
+        {
+            if (variant.VariantType == Variant.Type.String)
+            {
+                value = variant.AsString();
+                return true;
+            }
+            if (variant.VariantType == Variant.Type.StringName)
+            {
+                value = variant.AsStringName().ToString();
+                return true;
+            }
+            value = "";
+            return false;
+        }
+        if (rawValue is string stringValue)
+        {
+            value = stringValue;
+            return true;
+        }
+        if (rawValue is StringName stringNameValue)
+        {
+            value = stringNameValue.ToString();
+            return true;
+        }
+        value = "";
+        return false;
+    }
+
+    private static bool TryAsStrictInt(object rawValue, out int value)
+    {
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Int)
+        {
+            value = variant.AsInt32();
+            return true;
+        }
+        if (rawValue is int intValue)
+        {
+            value = intValue;
+            return true;
+        }
+        value = 0;
+        return false;
+    }
+
+    private static bool TryAsDictionary(object rawValue, out GDictionary value)
+    {
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Dictionary)
+        {
+            value = variant.AsGodotDictionary();
+            return true;
+        }
+        if (rawValue is GDictionary dictionary)
+        {
+            value = dictionary;
+            return true;
+        }
+        value = new GDictionary();
+        return false;
+    }
+
+    private static bool TryAsObject<T>(object rawValue, out T value)
+        where T : GodotObject
+    {
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Object)
+        {
+            value = variant.AsGodotObject() as T;
+            return value != null;
+        }
+        if (rawValue is T typedValue)
+        {
+            value = typedValue;
+            return true;
+        }
+        value = null;
+        return false;
+    }
+
+    private static bool TryGetExactValue(GDictionary payload, string key, out object value)
+    {
+        if (payload != null && payload.ContainsKey(key))
+        {
+            value = payload[key];
+            return true;
+        }
+        value = null;
+        return false;
     }
 }

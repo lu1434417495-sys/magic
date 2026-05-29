@@ -1,6 +1,6 @@
-extends "res://scripts/systems/battle/ai/battle_ai_action_assembler.gd"
+extends "res://scripts/systems/battle/ai/BattleAiActionAssembler.cs"
 
-const AiTraceRecorderScript = preload("res://scripts/dev_tools/ai_trace_recorder.gd")
+const AiTraceRecorderScript = preload("res://scripts/dev_tools/AiTraceRecorder.cs")
 
 var stats_assemble: Dictionary = _new_stats()
 

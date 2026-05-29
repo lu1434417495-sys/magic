@@ -4,7 +4,9 @@ using Godot;
 [GlobalClass]
 public partial class CharacterCreationIdentityOptionService : RefCounted
 {
-    public static Godot.Collections.Array<StringName> collect_creation_race_ids(Variant content_source)
+    public static Godot.Collections.Array<StringName> collect_creation_race_ids(
+        GodotObject content_source
+    )
     {
         var ids = new Godot.Collections.Array<StringName>();
         var raceDefs = GetContentBucket(content_source, "get_race_defs", "race_defs", "race");
@@ -16,23 +18,31 @@ public partial class CharacterCreationIdentityOptionService : RefCounted
         return ids;
     }
 
-    public static Godot.Collections.Array<StringName> collect_subrace_ids_for_race(Variant content_source, StringName race_id)
+    public static Godot.Collections.Array<StringName> collect_subrace_ids_for_race(
+        GodotObject content_source,
+        StringName race_id
+    )
     {
         var ids = new Godot.Collections.Array<StringName>();
         if (race_id == "")
             return ids;
 
         var raceDef = GetContentDef(content_source, "get_race_defs", "race_defs", "race", race_id);
-        if (raceDef.VariantType == Variant.Type.Nil)
+        if (raceDef == null)
             return ids;
 
-        var subraceDefs = GetContentBucket(content_source, "get_subrace_defs", "subrace_defs", "subrace");
+        var subraceDefs = GetContentBucket(
+            content_source,
+            "get_subrace_defs",
+            "subrace_defs",
+            "subrace"
+        );
         foreach (var subraceId in DefStringNameArray(raceDef, "subrace_ids"))
         {
             if (subraceId == "" || ids.Contains(subraceId))
                 continue;
             var subraceDef = LookupBucketEntry(subraceDefs, subraceId);
-            if (subraceDef.VariantType == Variant.Type.Nil)
+            if (subraceDef == null)
                 continue;
             if (DefStringName(subraceDef, "parent_race_id") != race_id)
                 continue;
@@ -43,7 +53,11 @@ public partial class CharacterCreationIdentityOptionService : RefCounted
         return SortStringNames(ids);
     }
 
-    public static StringName choose_race_id(Variant content_source, StringName current_id, StringName default_id)
+    public static StringName choose_race_id(
+        GodotObject content_source,
+        StringName current_id,
+        StringName default_id
+    )
     {
         var candidates = collect_creation_race_ids(content_source);
         if (current_id != "" && candidates.Contains(current_id))
@@ -53,7 +67,11 @@ public partial class CharacterCreationIdentityOptionService : RefCounted
         return candidates.Count > 0 ? candidates[0] : new StringName("");
     }
 
-    public static StringName choose_subrace_id(Variant content_source, StringName race_id, StringName current_id)
+    public static StringName choose_subrace_id(
+        GodotObject content_source,
+        StringName race_id,
+        StringName current_id
+    )
     {
         var candidates = collect_subrace_ids_for_race(content_source, race_id);
         if (current_id != "" && candidates.Contains(current_id))
@@ -66,9 +84,13 @@ public partial class CharacterCreationIdentityOptionService : RefCounted
         return candidates.Count > 0 ? candidates[0] : new StringName("");
     }
 
-    public static bool is_valid_creation_race_subrace_pair(Variant content_source, StringName race_id, StringName subrace_id)
+    public static bool is_valid_creation_race_subrace_pair(
+        GodotObject content_source,
+        StringName race_id,
+        StringName subrace_id
+    )
     {
-        if (content_source.VariantType == Variant.Type.Nil || race_id == "" || subrace_id == "")
+        if (content_source == null || race_id == "" || subrace_id == "")
             return false;
 
         var memberState = new PartyMemberState
@@ -81,10 +103,15 @@ public partial class CharacterCreationIdentityOptionService : RefCounted
             ascension_id = "",
             ascension_stage_id = "",
         };
-        return IdentityPayloadValidator.validate_member_identity(memberState, content_source).Count == 0;
+        return IdentityPayloadValidator
+                .validate_member_identity_for_content_source(memberState, content_source)
+                .Count
+            == 0;
     }
 
-    private static Godot.Collections.Array<StringName> SortedBucketIds(Godot.Collections.Dictionary bucket)
+    private static Godot.Collections.Array<StringName> SortedBucketIds(
+        Godot.Collections.Dictionary bucket
+    )
     {
         var ids = new Godot.Collections.Array<StringName>();
         foreach (var key in bucket.Keys)
@@ -96,99 +123,94 @@ public partial class CharacterCreationIdentityOptionService : RefCounted
         return SortStringNames(ids);
     }
 
-    private static Variant GetContentDef(Variant contentSource, string methodName, string primaryBucketName, string aliasBucketName, StringName defId)
+    private static GodotObject GetContentDef(
+        GodotObject contentSource,
+        string methodName,
+        string primaryBucketName,
+        string aliasBucketName,
+        StringName defId
+    )
     {
-        if (contentSource.VariantType == Variant.Type.Nil || defId == "")
-            return default;
-        var bucket = GetContentBucket(contentSource, methodName, primaryBucketName, aliasBucketName);
+        if (contentSource == null || defId == "")
+            return null;
+        var bucket = GetContentBucket(
+            contentSource,
+            methodName,
+            primaryBucketName,
+            aliasBucketName
+        );
         return LookupBucketEntry(bucket, defId);
     }
 
-    private static Godot.Collections.Dictionary GetContentBucket(Variant contentSource, string methodName, string primaryBucketName, string aliasBucketName)
+    private static Godot.Collections.Dictionary GetContentBucket(
+        GodotObject contentSource,
+        string methodName,
+        string primaryBucketName,
+        string aliasBucketName
+    )
     {
-        if (contentSource.VariantType == Variant.Type.Dictionary)
+        if (contentSource != null && contentSource.HasMethod(methodName))
         {
-            var dict = contentSource.AsGodotDictionary();
-            if (TryGetDictionaryValue(dict, primaryBucketName, out var primaryBucket) && primaryBucket.VariantType == Variant.Type.Dictionary)
-                return primaryBucket.AsGodotDictionary();
-            if (TryGetDictionaryValue(dict, aliasBucketName, out var aliasBucket) && aliasBucket.VariantType == Variant.Type.Dictionary)
-                return aliasBucket.AsGodotDictionary();
-        }
-        if (contentSource.VariantType == Variant.Type.Object)
-        {
-            var obj = contentSource.AsGodotObject();
-            if (obj != null && obj.HasMethod(methodName))
-            {
-                var methodBucket = obj.Call(methodName);
-                if (methodBucket.VariantType == Variant.Type.Dictionary)
-                    return methodBucket.AsGodotDictionary();
-            }
+            var methodBucket = contentSource.Call(methodName);
+            if (methodBucket.VariantType == Variant.Type.Dictionary)
+                return methodBucket.AsGodotDictionary();
         }
         return new Godot.Collections.Dictionary();
     }
 
-    private static Variant LookupBucketEntry(Godot.Collections.Dictionary bucket, StringName defId)
+    private static GodotObject LookupBucketEntry(Godot.Collections.Dictionary bucket, StringName defId)
     {
-        if (bucket.ContainsKey(defId))
-            return bucket[defId];
+        if (bucket == null || defId == "")
+            return null;
+        if (TryGetObject(bucket, defId, out var stringNameValue))
+            return stringNameValue;
         var textId = (string)defId;
-        if (bucket.ContainsKey(textId))
-            return bucket[textId];
-        return default;
+        if (TryGetObject(bucket, textId, out var stringValue))
+            return stringValue;
+        return null;
     }
 
-    private static StringName DefStringName(Variant def, string propertyName)
+    private static StringName DefStringName(GodotObject def, string propertyName)
     {
-        return ToStringName(ReadProperty(def, propertyName));
+        if (def == null)
+            return new StringName("");
+        var value = def.Get(propertyName);
+        return value.VariantType switch
+        {
+            Variant.Type.StringName => value.AsStringName(),
+            Variant.Type.String => new StringName(value.AsString()),
+            _ => new StringName(""),
+        };
     }
 
-    private static Godot.Collections.Array<StringName> DefStringNameArray(Variant def, string propertyName)
+    private static Godot.Collections.Array<StringName> DefStringNameArray(
+        GodotObject def,
+        string propertyName
+    )
     {
         var result = new Godot.Collections.Array<StringName>();
-        var value = ReadProperty(def, propertyName);
+        if (def == null)
+            return result;
+        var value = def.Get(propertyName);
         if (value.VariantType != Variant.Type.Array)
             return result;
         foreach (var item in value.AsGodotArray())
         {
-            var parsed = ToStringName(item);
+            var parsed = item.VariantType switch
+            {
+                Variant.Type.StringName => item.AsStringName(),
+                Variant.Type.String => new StringName(item.AsString()),
+                _ => new StringName(""),
+            };
             if (parsed != "")
                 result.Add(parsed);
         }
         return result;
     }
 
-    private static Variant ReadProperty(Variant source, string propertyName)
-    {
-        if (source.VariantType == Variant.Type.Nil)
-            return default;
-        if (source.VariantType == Variant.Type.Dictionary)
-        {
-            var dict = source.AsGodotDictionary();
-            if (TryGetDictionaryValue(dict, propertyName, out var stringValue))
-                return stringValue;
-            if (TryGetDictionaryValue(dict, new StringName(propertyName), out var stringNameValue))
-                return stringNameValue;
-            return default;
-        }
-        if (source.VariantType == Variant.Type.Object)
-        {
-            var obj = source.AsGodotObject();
-            return obj != null ? obj.Get(propertyName) : default;
-        }
-        return default;
-    }
-
-    private static StringName ToStringName(Variant value)
-    {
-        return value.VariantType switch
-        {
-            Variant.Type.StringName => value.AsStringName(),
-            Variant.Type.String => new StringName(value.AsString()),
-            _ => new StringName("")
-        };
-    }
-
-    private static Godot.Collections.Array<StringName> SortStringNames(Godot.Collections.Array<StringName> ids)
+    private static Godot.Collections.Array<StringName> SortStringNames(
+        Godot.Collections.Array<StringName> ids
+    )
     {
         var values = new List<StringName>();
         foreach (var id in ids)
@@ -201,14 +223,33 @@ public partial class CharacterCreationIdentityOptionService : RefCounted
         return result;
     }
 
-    private static bool TryGetDictionaryValue(Godot.Collections.Dictionary dict, Variant key, out Variant value)
+    private static bool TryGetObject(
+        Godot.Collections.Dictionary dict,
+        StringName key,
+        out GodotObject value
+    )
     {
         if (dict.ContainsKey(key))
         {
-            value = dict[key];
-            return true;
+            value = dict[key].AsGodotObject();
+            return value != null;
         }
-        value = default;
+        value = null;
+        return false;
+    }
+
+    private static bool TryGetObject(
+        Godot.Collections.Dictionary dict,
+        string key,
+        out GodotObject value
+    )
+    {
+        if (dict.ContainsKey(key))
+        {
+            value = dict[key].AsGodotObject();
+            return value != null;
+        }
+        value = null;
         return false;
     }
 }

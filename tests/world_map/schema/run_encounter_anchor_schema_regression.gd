@@ -2,7 +2,7 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/world/encounter_anchor_data.gd")
+const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/world/EncounterAnchorData.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -15,7 +15,7 @@ func _initialize() -> void:
 func _run() -> void:
 	_test_valid_roundtrip_preserves_current_schema()
 	_test_empty_optional_roster_and_profile_fields_are_accepted_when_present()
-	_test_non_dictionary_and_extra_fields_are_rejected()
+	_test_extra_fields_are_rejected()
 	_test_missing_required_field_is_rejected()
 	_test_wrong_field_type_is_rejected()
 	_test_empty_required_identity_fields_are_rejected()
@@ -42,7 +42,7 @@ func _test_valid_roundtrip_preserves_current_schema() -> void:
 	encounter_anchor.region_tag = &"north_wilds"
 	encounter_anchor.vision_range = 3
 	encounter_anchor.is_cleared = true
-	encounter_anchor.encounter_kind = ENCOUNTER_ANCHOR_DATA_SCRIPT.ENCOUNTER_KIND_SETTLEMENT
+	encounter_anchor.encounter_kind = ENCOUNTER_ANCHOR_DATA_SCRIPT.ENCOUNTER_KIND_SETTLEMENT()
 	encounter_anchor.encounter_profile_id = &"wolf_den"
 	encounter_anchor.growth_stage = 2
 	encounter_anchor.suppressed_until_step = 11
@@ -56,8 +56,8 @@ func _test_valid_roundtrip_preserves_current_schema() -> void:
 
 func _test_empty_optional_roster_and_profile_fields_are_accepted_when_present() -> void:
 	for encounter_kind in [
-		ENCOUNTER_ANCHOR_DATA_SCRIPT.ENCOUNTER_KIND_SINGLE,
-		ENCOUNTER_ANCHOR_DATA_SCRIPT.ENCOUNTER_KIND_SETTLEMENT,
+		ENCOUNTER_ANCHOR_DATA_SCRIPT.ENCOUNTER_KIND_SINGLE(),
+		ENCOUNTER_ANCHOR_DATA_SCRIPT.ENCOUNTER_KIND_SETTLEMENT(),
 	]:
 		var payload := _build_valid_payload()
 		payload["encounter_kind"] = encounter_kind
@@ -94,12 +94,7 @@ func _test_missing_required_field_is_rejected() -> void:
 		)
 
 
-func _test_non_dictionary_and_extra_fields_are_rejected() -> void:
-	_assert_true(
-		ENCOUNTER_ANCHOR_DATA_SCRIPT.from_dict("not_dictionary") == null,
-		"non-Dictionary payload should be rejected."
-	)
-
+func _test_extra_fields_are_rejected() -> void:
 	var payload := _build_valid_payload()
 	payload["legacy_encounter_type"] = "hostile"
 	_assert_true(

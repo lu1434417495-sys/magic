@@ -1,5 +1,4 @@
 using Godot;
-
 using GDictionary = Godot.Collections.Dictionary;
 
 [GlobalClass]
@@ -17,11 +16,13 @@ public partial class QuestContentValidator : RefCounted
         foreach (string questKey in ProgressionDataUtils.sorted_string_keys(quest_defs))
         {
             var questId = new StringName(questKey);
-            questEntries.Add(new GDictionary
-            {
-                { "source", $"quest_defs::{questId}" },
-                { "quest_def", GetDictValueById(quest_defs, questId) },
-            });
+            questEntries.Add(
+                new GDictionary
+                {
+                    { "source", $"quest_defs::{questId}" },
+                    { "quest_def", GetContentObject<QuestDef>(quest_defs, questId) },
+                }
+            );
         }
 
         return validate_entries(
@@ -66,11 +67,17 @@ public partial class QuestContentValidator : RefCounted
             errors.Add(registrationError);
 
         if (item_defs.Count == 0)
-            errors.Add($"{label} validation requires non-empty item_defs (pass allow_missing_reference_tables=true to skip).");
+            errors.Add(
+                $"{label} validation requires non-empty item_defs (pass allow_missing_reference_tables=true to skip)."
+            );
         if (skill_defs.Count == 0)
-            errors.Add($"{label} validation requires non-empty skill_defs (pass allow_missing_reference_tables=true to skip).");
+            errors.Add(
+                $"{label} validation requires non-empty skill_defs (pass allow_missing_reference_tables=true to skip)."
+            );
         if (enemy_templates.Count == 0)
-            errors.Add($"{label} validation requires non-empty enemy_templates (pass allow_missing_reference_tables=true to skip).");
+            errors.Add(
+                $"{label} validation requires non-empty enemy_templates (pass allow_missing_reference_tables=true to skip)."
+            );
 
         var seenQuestIds = new GDictionary();
         var supportedProviderIds = ResolveProviderIds(new GDictionary());
@@ -80,10 +87,8 @@ public partial class QuestContentValidator : RefCounted
             if (entry == null)
                 continue;
 
-            string sourceLabel = GetDictValue(entry, "source").VariantType == Variant.Type.Nil
-                ? label
-                : GetDictValue(entry, "source").AsString();
-            var questDef = GetDictValue(entry, "quest_def").AsGodotObject() as QuestDef;
+            string sourceLabel = DictString(entry, "source", label);
+            var questDef = GetObject<QuestDef>(entry, "quest_def");
             if (questDef == null)
             {
                 errors.Add($"Quest entry {sourceLabel} failed to cast to QuestDef.");
@@ -127,7 +132,9 @@ public partial class QuestContentValidator : RefCounted
         }
 
         if (!supportedProviderIds.ContainsKey(questDef.provider_interaction_id))
-            errors.Add($"Quest {questDef.quest_id} references missing provider_interaction_id {questDef.provider_interaction_id}.");
+            errors.Add(
+                $"Quest {questDef.quest_id} references missing provider_interaction_id {questDef.provider_interaction_id}."
+            );
     }
 
     private static void AppendObjectiveReferenceErrors(
@@ -142,19 +149,31 @@ public partial class QuestContentValidator : RefCounted
             if (objectiveData == null)
                 continue;
 
-            var objectiveId = ProgressionDataUtils.to_string_name(GetDictValue(objectiveData, "objective_id"));
-            var objectiveType = ProgressionDataUtils.to_string_name(GetDictValue(objectiveData, "objective_type"));
-            var targetId = ProgressionDataUtils.to_string_name(GetDictValue(objectiveData, "target_id"));
+            var objectiveId = DictStringName(objectiveData, "objective_id");
+            var objectiveType = DictStringName(objectiveData, "objective_type");
+            var targetId = DictStringName(objectiveData, "target_id");
 
             if (objectiveType == QuestDef.OBJECTIVE_SUBMIT_ITEM())
             {
-                if (targetId != "" && itemDefs.Count > 0 && GetDictValueById(itemDefs, targetId).VariantType == Variant.Type.Nil)
-                    errors.Add($"Quest {questDef.quest_id} submit_item objective {objectiveId} references missing item {targetId}.");
+                if (
+                    targetId != ""
+                    && itemDefs.Count > 0
+                    && !HasContentId(itemDefs, targetId)
+                )
+                    errors.Add(
+                        $"Quest {questDef.quest_id} submit_item objective {objectiveId} references missing item {targetId}."
+                    );
             }
             else if (objectiveType == QuestDef.OBJECTIVE_DEFEAT_ENEMY())
             {
-                if (targetId != "" && enemyTemplates.Count > 0 && GetDictValueById(enemyTemplates, targetId).VariantType == Variant.Type.Nil)
-                    errors.Add($"Quest {questDef.quest_id} defeat_enemy objective {objectiveId} references missing enemy {targetId}.");
+                if (
+                    targetId != ""
+                    && enemyTemplates.Count > 0
+                    && !HasContentId(enemyTemplates, targetId)
+                )
+                    errors.Add(
+                        $"Quest {questDef.quest_id} defeat_enemy objective {objectiveId} references missing enemy {targetId}."
+                    );
             }
         }
     }
@@ -171,16 +190,27 @@ public partial class QuestContentValidator : RefCounted
             if (rewardData == null)
                 continue;
 
-            var rewardType = ProgressionDataUtils.to_string_name(GetDictValue(rewardData, "reward_type"));
+            var rewardType = DictStringName(rewardData, "reward_type");
             if (rewardType == QuestDef.REWARD_ITEM())
             {
                 var rewardItemId = QuestDef.get_reward_item_id(rewardData);
-                if (rewardItemId != "" && itemDefs.Count > 0 && GetDictValueById(itemDefs, rewardItemId).VariantType == Variant.Type.Nil)
-                    errors.Add($"Quest {questDef.quest_id} reward references missing item {rewardItemId}.");
+                if (
+                    rewardItemId != ""
+                    && itemDefs.Count > 0
+                    && !HasContentId(itemDefs, rewardItemId)
+                )
+                    errors.Add(
+                        $"Quest {questDef.quest_id} reward references missing item {rewardItemId}."
+                    );
             }
             else if (rewardType == QuestDef.REWARD_PENDING_CHARACTER_REWARD())
             {
-                AppendPendingCharacterRewardReferenceErrors(errors, questDef, rewardData, skillDefs);
+                AppendPendingCharacterRewardReferenceErrors(
+                    errors,
+                    questDef,
+                    rewardData,
+                    skillDefs
+                );
             }
         }
     }
@@ -192,41 +222,57 @@ public partial class QuestContentValidator : RefCounted
         GDictionary skillDefs
     )
     {
-        var entriesVariant = GetDictValue(rewardData, "entries");
-        if (entriesVariant.VariantType != Variant.Type.Array)
+        if (!TryGetArray(rewardData, "entries", out var entries))
             return;
 
-        foreach (Variant entryVariant in entriesVariant.AsGodotArray())
+        foreach (var entryValue in entries)
         {
-            if (entryVariant.VariantType != Variant.Type.Dictionary)
+            if (entryValue.VariantType != Variant.Type.Dictionary)
                 continue;
 
-            var entryData = entryVariant.AsGodotDictionary();
-            var entryType = ProgressionDataUtils.to_string_name(GetDictValue(entryData, "entry_type"));
-            var targetId = ProgressionDataUtils.to_string_name(GetDictValue(entryData, "target_id"));
+            var entryData = entryValue.AsGodotDictionary();
+            var entryType = DictStringName(entryData, "entry_type");
+            var targetId = DictStringName(entryData, "target_id");
 
-            if (entryType == "" || !PendingCharacterRewardContentRules.is_supported_entry_type(entryType))
+            if (
+                entryType == ""
+                || !PendingCharacterRewardContentRules.is_supported_entry_type(entryType)
+            )
                 continue;
 
             if (PendingCharacterRewardContentRules.requires_skill_target(entryType))
             {
-                if (targetId != "" && skillDefs.Count > 0 && GetDictValueById(skillDefs, targetId).VariantType == Variant.Type.Nil)
-                    errors.Add($"Quest {questDef.quest_id} pending_character_reward references missing skill {targetId}.");
+                if (
+                    targetId != ""
+                    && skillDefs.Count > 0
+                    && !HasContentId(skillDefs, targetId)
+                )
+                    errors.Add(
+                        $"Quest {questDef.quest_id} pending_character_reward references missing skill {targetId}."
+                    );
             }
 
-            if (PendingCharacterRewardContentRules.is_attribute_progress_entry(entryType)
-                && targetId != ""
-                && !PendingCharacterRewardContentRules.is_valid_attribute_progress_target(targetId))
-            {
-                errors.Add($"Quest {questDef.quest_id} pending_character_reward attribute_progress references unsupported attribute {targetId}.");
-            }
-
-            if (PendingCharacterRewardContentRules.is_attribute_delta_entry(entryType)
+            if (
+                PendingCharacterRewardContentRules.is_attribute_progress_entry(entryType)
                 && targetId != ""
                 && !PendingCharacterRewardContentRules.is_valid_attribute_progress_target(targetId)
-                && targetId != "hp_max")
+            )
             {
-                errors.Add($"Quest {questDef.quest_id} pending_character_reward attribute_delta references unsupported attribute {targetId}.");
+                errors.Add(
+                    $"Quest {questDef.quest_id} pending_character_reward attribute_progress references unsupported attribute {targetId}."
+                );
+            }
+
+            if (
+                PendingCharacterRewardContentRules.is_attribute_delta_entry(entryType)
+                && targetId != ""
+                && !PendingCharacterRewardContentRules.is_valid_attribute_progress_target(targetId)
+                && targetId != "hp_max"
+            )
+            {
+                errors.Add(
+                    $"Quest {questDef.quest_id} pending_character_reward attribute_delta references unsupported attribute {targetId}."
+                );
             }
         }
     }
@@ -237,7 +283,7 @@ public partial class QuestContentValidator : RefCounted
             return QuestProviderContentRules.supported_provider_ids();
 
         var normalized = new GDictionary();
-        foreach (Variant key in providerIds.Keys)
+        foreach (var key in providerIds.Keys)
         {
             var normalizedKey = ProgressionDataUtils.to_string_name(key);
             if (normalizedKey != "")
@@ -246,22 +292,64 @@ public partial class QuestContentValidator : RefCounted
         return normalized;
     }
 
-    private static Variant GetDictValue(GDictionary source, Variant key)
+    private static T GetContentObject<T>(GDictionary source, StringName contentId)
+        where T : GodotObject
     {
-        if (source.ContainsKey(key))
-            return source[key];
-        return default;
-    }
-
-    private static Variant GetDictValueById(GDictionary source, StringName contentId)
-    {
+        if (source == null)
+            return null;
         if (source.ContainsKey(contentId))
-            return source[contentId];
+            return source[contentId].AsGodotObject() as T;
 
         string stringKey = contentId;
         if (source.ContainsKey(stringKey))
-            return source[stringKey];
+            return source[stringKey].AsGodotObject() as T;
 
-        return default;
+        return null;
+    }
+
+    private static bool HasContentId(GDictionary source, StringName contentId)
+    {
+        if (source == null)
+            return false;
+        if (source.ContainsKey(contentId))
+            return true;
+
+        string stringKey = contentId;
+        return source.ContainsKey(stringKey);
+    }
+
+    private static T GetObject<T>(GDictionary source, string key)
+        where T : GodotObject
+    {
+        if (source == null || !source.ContainsKey(key))
+            return null;
+        return source[key].AsGodotObject() as T;
+    }
+
+    private static string DictString(GDictionary source, string key, string fallback = "")
+    {
+        if (source == null || !source.ContainsKey(key))
+            return fallback;
+        var value = source[key];
+        return value.VariantType == Variant.Type.Nil ? fallback : value.AsString();
+    }
+
+    private static StringName DictStringName(GDictionary source, string key)
+    {
+        if (source == null || !source.ContainsKey(key))
+            return "";
+        return ProgressionDataUtils.to_string_name(source[key]);
+    }
+
+    private static bool TryGetArray(GDictionary source, string key, out Godot.Collections.Array value)
+    {
+        value = new Godot.Collections.Array();
+        if (source == null || !source.ContainsKey(key))
+            return false;
+        var option = source[key];
+        if (option.VariantType != Variant.Type.Array)
+            return false;
+        value = option.AsGodotArray();
+        return true;
     }
 }

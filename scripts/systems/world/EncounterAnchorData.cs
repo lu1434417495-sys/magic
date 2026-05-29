@@ -4,196 +4,230 @@ using GDictionary = Godot.Collections.Dictionary;
 [GlobalClass]
 public partial class EncounterAnchorData : RefCounted
 {
-	private static readonly StringName EncounterKindSingle = "single";
-	private static readonly StringName EncounterKindSettlement = "settlement";
+    private static readonly StringName EncounterKindSingle = "single";
+    private static readonly StringName EncounterKindSettlement = "settlement";
 
-	private static readonly string[] RequiredSerializedFields =
-	{
-		"entity_id",
-		"display_name",
-		"world_coord",
-		"faction_id",
-		"enemy_roster_template_id",
-		"region_tag",
-		"vision_range",
-		"is_cleared",
-		"encounter_kind",
-		"encounter_profile_id",
-		"growth_stage",
-		"suppressed_until_step",
-	};
+    private static readonly string[] RequiredSerializedFields =
+    {
+        "entity_id",
+        "display_name",
+        "world_coord",
+        "faction_id",
+        "enemy_roster_template_id",
+        "region_tag",
+        "vision_range",
+        "is_cleared",
+        "encounter_kind",
+        "encounter_profile_id",
+        "growth_stage",
+        "suppressed_until_step",
+    };
 
-	public StringName entity_id { get; set; } = "";
-	public string display_name { get; set; } = "";
-	public Vector2I world_coord { get; set; } = Vector2I.Zero;
-	public StringName faction_id { get; set; } = "hostile";
-	public StringName enemy_roster_template_id { get; set; } = "";
-	public StringName region_tag { get; set; } = "";
-	public int vision_range { get; set; }
-	public bool is_cleared { get; set; }
-	public StringName encounter_kind { get; set; } = EncounterKindSingle;
-	public StringName encounter_profile_id { get; set; } = "";
-	public int growth_stage { get; set; }
-	public int suppressed_until_step { get; set; }
+    public StringName entity_id { get; set; } = "";
+    public string display_name { get; set; } = "";
+    public Vector2I world_coord { get; set; } = Vector2I.Zero;
+    public StringName faction_id { get; set; } = "hostile";
+    public StringName enemy_roster_template_id { get; set; } = "";
+    public StringName region_tag { get; set; } = "";
+    public int vision_range { get; set; }
+    public bool is_cleared { get; set; }
+    public StringName encounter_kind { get; set; } = EncounterKindSingle;
+    public StringName encounter_profile_id { get; set; } = "";
+    public int growth_stage { get; set; }
+    public int suppressed_until_step { get; set; }
 
-	public static StringName ENCOUNTER_KIND_SINGLE() => EncounterKindSingle;
-	public static StringName ENCOUNTER_KIND_SETTLEMENT() => EncounterKindSettlement;
+    public static StringName ENCOUNTER_KIND_SINGLE() => EncounterKindSingle;
 
-	public static Godot.Collections.Array<string> REQUIRED_SERIALIZED_FIELDS()
-	{
-		var fields = new Godot.Collections.Array<string>();
-		foreach (string field in RequiredSerializedFields)
-		{
-			fields.Add(field);
-		}
-		return fields;
-	}
+    public static StringName ENCOUNTER_KIND_SETTLEMENT() => EncounterKindSettlement;
 
-	public GDictionary to_dict()
-	{
-		return new GDictionary
-		{
-			["entity_id"] = entity_id.ToString(),
-			["display_name"] = display_name,
-			["world_coord"] = world_coord,
-			["faction_id"] = faction_id.ToString(),
-			["enemy_roster_template_id"] = enemy_roster_template_id.ToString(),
-			["region_tag"] = region_tag.ToString(),
-			["vision_range"] = vision_range,
-			["is_cleared"] = is_cleared,
-			["encounter_kind"] = encounter_kind.ToString(),
-			["encounter_profile_id"] = encounter_profile_id.ToString(),
-			["growth_stage"] = growth_stage,
-			["suppressed_until_step"] = suppressed_until_step,
-		};
-	}
+    public static Godot.Collections.Array<string> REQUIRED_SERIALIZED_FIELDS()
+    {
+        var fields = new Godot.Collections.Array<string>();
+        foreach (string field in RequiredSerializedFields)
+        {
+            fields.Add(field);
+        }
+        return fields;
+    }
 
-	public static EncounterAnchorData from_dict(Variant data)
-	{
-		if (data.VariantType != Variant.Type.Dictionary)
-		{
-			return null;
-		}
+    public GDictionary to_dict()
+    {
+        return new GDictionary
+        {
+            ["entity_id"] = entity_id.ToString(),
+            ["display_name"] = display_name,
+            ["world_coord"] = world_coord,
+            ["faction_id"] = faction_id.ToString(),
+            ["enemy_roster_template_id"] = enemy_roster_template_id.ToString(),
+            ["region_tag"] = region_tag.ToString(),
+            ["vision_range"] = vision_range,
+            ["is_cleared"] = is_cleared,
+            ["encounter_kind"] = encounter_kind.ToString(),
+            ["encounter_profile_id"] = encounter_profile_id.ToString(),
+            ["growth_stage"] = growth_stage,
+            ["suppressed_until_step"] = suppressed_until_step,
+        };
+    }
 
-		GDictionary payload = data.AsGodotDictionary();
-		if (!HasExactSerializedFields(payload))
-		{
-			return null;
-		}
+    public static EncounterAnchorData from_dict(GDictionary payload)
+    {
+        if (payload == null)
+            return null;
+        if (!HasExactSerializedFields(payload))
+        {
+            return null;
+        }
 
-		if (
-			!TryParseStringNameField(Get(payload, "entity_id"), false, out StringName entityIdValue)
-			|| !TryParseStringNameField(Get(payload, "faction_id"), false, out StringName factionIdValue)
-			|| !TryParseStringNameField(Get(payload, "enemy_roster_template_id"), true, out StringName enemyRosterTemplateIdValue)
-			|| !TryParseStringNameField(Get(payload, "region_tag"), true, out StringName regionTagValue)
-			|| !TryParseStringNameField(Get(payload, "encounter_kind"), false, out StringName encounterKindValue)
-			|| !TryParseStringNameField(Get(payload, "encounter_profile_id"), true, out StringName encounterProfileIdValue)
-		)
-		{
-			return null;
-		}
-		if (!IsValidEncounterKind(encounterKindValue))
-		{
-			return null;
-		}
+        if (
+            !TryParseStringNameField(payload, "entity_id", false, out StringName entityIdValue)
+            || !TryParseStringNameField(
+                payload,
+                "faction_id",
+                false,
+                out StringName factionIdValue
+            )
+            || !TryParseStringNameField(
+                payload,
+                "enemy_roster_template_id",
+                true,
+                out StringName enemyRosterTemplateIdValue
+            )
+            || !TryParseStringNameField(
+                payload,
+                "region_tag",
+                true,
+                out StringName regionTagValue
+            )
+            || !TryParseStringNameField(
+                payload,
+                "encounter_kind",
+                false,
+                out StringName encounterKindValue
+            )
+            || !TryParseStringNameField(
+                payload,
+                "encounter_profile_id",
+                true,
+                out StringName encounterProfileIdValue
+            )
+        )
+        {
+            return null;
+        }
+        if (!IsValidEncounterKind(encounterKindValue))
+        {
+            return null;
+        }
 
-		Variant rawDisplayName = Get(payload, "display_name");
-		if (rawDisplayName.VariantType != Variant.Type.String)
-		{
-			return null;
-		}
-		string displayNameValue = rawDisplayName.AsString();
-		if (string.IsNullOrEmpty(displayNameValue.Trim()))
-		{
-			return null;
-		}
+        var rawDisplayName = payload["display_name"];
+        if (rawDisplayName.VariantType != Variant.Type.String)
+        {
+            return null;
+        }
+        string displayNameValue = rawDisplayName.AsString();
+        if (string.IsNullOrEmpty(displayNameValue.Trim()))
+        {
+            return null;
+        }
 
-		Variant rawWorldCoord = Get(payload, "world_coord");
-		if (rawWorldCoord.VariantType != Variant.Type.Vector2I)
-		{
-			return null;
-		}
+        var rawWorldCoord = payload["world_coord"];
+        if (rawWorldCoord.VariantType != Variant.Type.Vector2I)
+        {
+            return null;
+        }
 
-		Variant rawVisionRange = Get(payload, "vision_range");
-		if (rawVisionRange.VariantType != Variant.Type.Int || rawVisionRange.AsInt32() < 0)
-		{
-			return null;
-		}
+        var rawVisionRange = payload["vision_range"];
+        if (rawVisionRange.VariantType != Variant.Type.Int || rawVisionRange.AsInt32() < 0)
+        {
+            return null;
+        }
 
-		Variant rawIsCleared = Get(payload, "is_cleared");
-		if (rawIsCleared.VariantType != Variant.Type.Bool)
-		{
-			return null;
-		}
+        var rawIsCleared = payload["is_cleared"];
+        if (rawIsCleared.VariantType != Variant.Type.Bool)
+        {
+            return null;
+        }
 
-		Variant rawGrowthStage = Get(payload, "growth_stage");
-		if (rawGrowthStage.VariantType != Variant.Type.Int || rawGrowthStage.AsInt32() < 0)
-		{
-			return null;
-		}
+        var rawGrowthStage = payload["growth_stage"];
+        if (rawGrowthStage.VariantType != Variant.Type.Int || rawGrowthStage.AsInt32() < 0)
+        {
+            return null;
+        }
 
-		Variant rawSuppressedUntilStep = Get(payload, "suppressed_until_step");
-		if (rawSuppressedUntilStep.VariantType != Variant.Type.Int || rawSuppressedUntilStep.AsInt32() < 0)
-		{
-			return null;
-		}
+        var rawSuppressedUntilStep = payload["suppressed_until_step"];
+        if (
+            rawSuppressedUntilStep.VariantType != Variant.Type.Int
+            || rawSuppressedUntilStep.AsInt32() < 0
+        )
+        {
+            return null;
+        }
 
-		return new EncounterAnchorData
-		{
-			entity_id = entityIdValue,
-			display_name = displayNameValue,
-			world_coord = rawWorldCoord.AsVector2I(),
-			faction_id = factionIdValue,
-			enemy_roster_template_id = enemyRosterTemplateIdValue,
-			region_tag = regionTagValue,
-			vision_range = rawVisionRange.AsInt32(),
-			is_cleared = rawIsCleared.AsBool(),
-			encounter_kind = encounterKindValue,
-			encounter_profile_id = encounterProfileIdValue,
-			growth_stage = rawGrowthStage.AsInt32(),
-			suppressed_until_step = rawSuppressedUntilStep.AsInt32(),
-		};
-	}
+        return new EncounterAnchorData
+        {
+            entity_id = entityIdValue,
+            display_name = displayNameValue,
+            world_coord = rawWorldCoord.AsVector2I(),
+            faction_id = factionIdValue,
+            enemy_roster_template_id = enemyRosterTemplateIdValue,
+            region_tag = regionTagValue,
+            vision_range = rawVisionRange.AsInt32(),
+            is_cleared = rawIsCleared.AsBool(),
+            encounter_kind = encounterKindValue,
+            encounter_profile_id = encounterProfileIdValue,
+            growth_stage = rawGrowthStage.AsInt32(),
+            suppressed_until_step = rawSuppressedUntilStep.AsInt32(),
+        };
+    }
 
-	private static bool HasExactSerializedFields(GDictionary payload)
-	{
-		if (payload.Count != RequiredSerializedFields.Length)
-		{
-			return false;
-		}
-		foreach (string fieldName in RequiredSerializedFields)
-		{
-			if (!payload.ContainsKey(fieldName))
-			{
-				return false;
-			}
-		}
-		return true;
-	}
+    private static bool HasExactSerializedFields(GDictionary payload)
+    {
+        if (payload.Count != RequiredSerializedFields.Length)
+        {
+            return false;
+        }
+        foreach (string fieldName in RequiredSerializedFields)
+        {
+            if (!payload.ContainsKey(fieldName))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
 
-	private static bool TryParseStringNameField(Variant value, bool allowEmpty, out StringName parsed)
-	{
-		parsed = "";
-		if (value.VariantType != Variant.Type.String && value.VariantType != Variant.Type.StringName)
-		{
-			return false;
-		}
-		string text = value.AsString().Trim();
-		if (string.IsNullOrEmpty(text) && !allowEmpty)
-		{
-			return false;
-		}
-		parsed = new StringName(text);
-		return true;
-	}
+    private static bool TryParseStringNameField(
+        GDictionary payload,
+        string key,
+        bool allowEmpty,
+        out StringName parsed
+    )
+    {
+        parsed = "";
+        if (payload == null || !payload.ContainsKey(key))
+        {
+            return false;
+        }
+        var value = payload[key];
+        if (
+            value.VariantType != Variant.Type.String
+            && value.VariantType != Variant.Type.StringName
+        )
+        {
+            return false;
+        }
+        string text = value.AsString().Trim();
+        if (string.IsNullOrEmpty(text) && !allowEmpty)
+        {
+            return false;
+        }
+        parsed = new StringName(text);
+        return true;
+    }
 
-	private static bool IsValidEncounterKind(StringName value)
-	{
-		return value == EncounterKindSingle || value == EncounterKindSettlement;
-	}
+    private static bool IsValidEncounterKind(StringName value)
+    {
+        return value == EncounterKindSingle || value == EncounterKindSettlement;
+    }
 
-	private static Variant Get(GDictionary payload, string key)
-	{
-		return payload.ContainsKey(key) ? payload[key] : default;
-	}
 }

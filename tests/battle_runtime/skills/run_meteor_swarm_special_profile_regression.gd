@@ -1,17 +1,16 @@
 extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
-const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
-const BattleSpecialProfileRegistry = preload("res://scripts/systems/battle/core/special_profiles/battle_special_profile_registry.gd")
-const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
-const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
-const BattleEventBatch = preload("res://scripts/systems/battle/core/battle_event_batch.gd")
-const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
-const BattleTimelineState = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
-const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
-const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
+const ProgressionContentRegistry = preload("res://scripts/player/progression/ProgressionContentRegistry.cs")
+const BattleSpecialProfileRegistry = preload("res://scripts/systems/battle/core/special_profiles/BattleSpecialProfileRegistry.cs")
+const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/BattleRuntimeModule.cs")
+const BattleEventBatch = preload("res://scripts/systems/battle/core/BattleEventBatch.cs")
+const BattleState = preload("res://scripts/systems/battle/core/BattleState.cs")
+const BattleTimelineState = preload("res://scripts/systems/battle/core/BattleTimelineState.cs")
+const BattleCellState = preload("res://scripts/systems/battle/core/BattleCellState.cs")
+const BattleUnitState = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
 const SharedHitResolvers = preload("res://tests/shared/stub_hit_resolvers.gd")
-const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/AttributeService.cs")
 const BattleRuntimeTestHelpers = preload("res://tests/shared/battle_runtime_test_helpers.gd")
 
 var _test := TestRunner.new()
@@ -26,6 +25,8 @@ func _run() -> void:
 	_test_target_plan_uses_square_7x7_and_edge_clipping()
 	_test_preview_and_execute_use_typed_profile_not_legacy_area()
 	_test_meteor_attempt_metrics_start_after_runtime_validation()
+	_test_meteor_swarm_terrain_payload_surface()
+	_test_meteor_swarm_drift_changes_final_anchor_and_terrain()
 	if _failures.is_empty():
 		print("Meteor swarm special profile regression: PASS")
 		quit(0)
@@ -114,6 +115,66 @@ func _test_meteor_attempt_metrics_start_after_runtime_validation() -> void:
 	_assert_eq(int(attempt_counts.get("mage_meteor_swarm", 0)), 1, "陨星雨通过校验并完成扣费后才记录 skill attempt。")
 
 
+func _test_meteor_swarm_terrain_payload_surface() -> void:
+	var enemy_center := _build_unit(&"enemy_center", "中心敌人", &"enemy", Vector2i(4, 4), 160)
+	var enemy_outer := _build_unit(&"enemy_outer", "外圈敌人", &"enemy", Vector2i(7, 7), 160)
+	var setup := _build_runtime_fixture(Vector2i(9, 9), [enemy_center, enemy_outer])
+	var runtime: BattleRuntimeModule = setup["runtime"]
+	var caster: BattleUnitState = setup["caster"]
+	var skill_defs: Dictionary = setup["skill_defs"]
+	var skill_def = skill_defs.get(&"mage_meteor_swarm")
+	skill_def.combat_profile.area_pattern = &"diamond"
+	skill_def.combat_profile.area_value = 1
+	var command := _build_command(caster, Vector2i(4, 4))
+	var batch = runtime.issue_command(command)
+	var center_cell := runtime.get_state().cells.get(Vector2i(4, 4)) as BattleCellState
+	_assert_true(center_cell != null, "中心格应存在。")
+	var crater_count := 0
+	var dust_count := 0
+	for terrain_effect in center_cell.timed_terrain_effects:
+		var terrain_params: Dictionary = terrain_effect.params if terrain_effect.get("params") != null else {}
+		if terrain_params.is_empty():
+			continue
+		var lifetime_policy := String(terrain_params.get("lifetime_policy", ""))
+		var render_overlay := String(terrain_params.get("render_overlay_id", ""))
+		_assert_true(not lifetime_policy.is_empty(), "地形效果必须声明 lifetime_policy。")
+		_assert_true(not render_overlay.is_empty(), "地形效果必须声明 render_overlay_id。")
+		if render_overlay.begins_with("meteor_crater"):
+			crater_count += 1
+			_assert_eq(lifetime_policy, "battle", "陨坑 lifetime_policy 应为 battle。")
+		elif render_overlay == "meteor_dust_cloud":
+			dust_count += 1
+			_assert_eq(lifetime_policy, "timed", "尘土 lifetime_policy 应为 timed。")
+			var acc_spec: Dictionary = terrain_params.get("accuracy_modifier_spec", {})
+			_assert_true(not acc_spec.is_empty(), "尘土必须声明 accuracy_modifier_spec。")
+	_assert_true(crater_count >= 1, "中心格应至少有 1 个陨坑地形效果。")
+	_assert_true(dust_count >= 1, "中心格应至少有 1 个尘土地形效果。")
+
+
+func _test_meteor_swarm_drift_changes_final_anchor_and_terrain() -> void:
+	var target := _build_unit(&"drift_target", "漂移目标", &"enemy", Vector2i(4, 4), 5)
+	var setup := _build_runtime_fixture(Vector2i(11, 11), [target])
+	var runtime: BattleRuntimeModule = setup["runtime"]
+	var caster: BattleUnitState = setup["caster"]
+	var skill_defs: Dictionary = setup["skill_defs"]
+	var skill_def = skill_defs.get(&"mage_meteor_swarm")
+	var resolver = runtime._meteor_swarm_resolver
+	var nominal_anchor := Vector2i(4, 4)
+	var drifted_anchor := Vector2i(5, 5)
+	var context = resolver.build_cast_context(caster, _build_command(caster, nominal_anchor), skill_def, null, nominal_anchor, drifted_anchor)
+	var plan = resolver.build_target_plan(context)
+	_assert_true(plan.drift_applied, "漂移后 plan 应标记 drift_applied = true。")
+	_assert_eq(plan.drift_from_coord, nominal_anchor, "drift_from_coord 应等于原始 nominal anchor。")
+	_assert_eq(plan.final_anchor_coord, drifted_anchor, "final_anchor_coord 应为漂移后坐标。")
+	_assert_true(plan.nominal_plan_signature != plan.final_plan_signature, "漂移后 nominal 和 final plan signature 应不同。")
+	var result = resolver.resolve(plan)
+	_assert_true(result.target_outcomes.size() >= 1, "漂移后仍应命中目标。")
+	_assert_true(result.defeated_unit_ids.has(target.unit_id), "漂移后伤害应照常击败目标。")
+	var report_entry: Dictionary = result.report_entries[0]
+	_assert_eq(String(report_entry.get("nominal_plan_signature", "")), plan.nominal_plan_signature, "战报 nominal_plan_signature 应匹配。")
+	_assert_eq(String(report_entry.get("final_plan_signature", "")), plan.final_plan_signature, "战报 final_plan_signature 应匹配漂移后值。")
+
+
 func _build_runtime_fixture(map_size: Vector2i, extra_units: Array) -> Dictionary:
 	var progression_registry := ProgressionContentRegistry.new()
 	var skill_defs := progression_registry.get_skill_defs()
@@ -122,7 +183,7 @@ func _build_runtime_fixture(map_size: Vector2i, extra_units: Array) -> Dictionar
 	_assert_true(special_registry.validate().is_empty(), "正式 special profile registry 应可用于 runtime fixture。")
 	var runtime := BattleRuntimeModule.new()
 	runtime.setup(null, skill_defs, {}, {}, null, null, {}, null, Callable(), special_registry.get_snapshot())
-	runtime.configure_hit_resolver_for_tests(SharedHitResolvers.FixedHitResolver.new(10))
+	runtime.configure_hit_resolver_for_tests(SharedHitResolvers.build_fixed_hit_resolver(10))
 	var state := _build_state(map_size)
 	var caster := _build_unit(&"meteor_caster", "陨星术者", &"player", Vector2i(4, 0), 180)
 	caster.known_active_skill_ids.append(&"mage_meteor_swarm")
@@ -130,8 +191,8 @@ func _build_runtime_fixture(map_size: Vector2i, extra_units: Array) -> Dictionar
 	caster.current_ap = 4
 	caster.current_mp = 200
 	caster.current_aura = 3
-	caster.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_MP)
-	caster.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_AURA)
+	caster.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_MP())
+	caster.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_AURA())
 	state.units[caster.unit_id] = caster
 	state.ally_unit_ids.append(caster.unit_id)
 	for unit in extra_units:
@@ -143,8 +204,8 @@ func _build_runtime_fixture(map_size: Vector2i, extra_units: Array) -> Dictionar
 		else:
 			state.enemy_unit_ids.append(unit.unit_id)
 	state.active_unit_id = caster.unit_id
-	for unit_variant in state.units.values():
-		var unit_state := unit_variant as BattleUnitState
+	for unit_option in state.units.values():
+		var unit_state := unit_option as BattleUnitState
 		_assert_true(runtime._grid_service.place_unit(state, unit_state, unit_state.coord, true), "单位应能放入陨星雨测试棋盘：%s" % String(unit_state.unit_id))
 	runtime._state = state
 	return {
@@ -179,7 +240,7 @@ func _build_unit(unit_id: StringName, display_name: String, faction_id: StringNa
 	unit.coord = coord
 	unit.is_alive = true
 	unit.current_hp = hp
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX, hp)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX_ID(), hp)
 	BattleRuntimeTestHelpers.seed_base_attributes_and_derive_ac(unit)
 	unit.refresh_footprint()
 	return unit
@@ -187,7 +248,7 @@ func _build_unit(unit_id: StringName, display_name: String, faction_id: StringNa
 
 func _build_command(caster: BattleUnitState, anchor_coord: Vector2i) -> BattleCommand:
 	var command := BattleCommand.new()
-	command.command_type = BattleCommand.TYPE_SKILL
+	command.command_type = BattleCommand.TYPE_SKILL()
 	command.unit_id = caster.unit_id
 	command.skill_id = &"mage_meteor_swarm"
 	command.target_coord = anchor_coord
@@ -196,18 +257,18 @@ func _build_command(caster: BattleUnitState, anchor_coord: Vector2i) -> BattleCo
 
 
 func _find_target_summary(summaries: Array, target_unit_id: StringName) -> Dictionary:
-	for summary_variant in summaries:
-		if summary_variant is Dictionary and String((summary_variant as Dictionary).get("target_unit_id", "")) == String(target_unit_id):
-			return (summary_variant as Dictionary)
+	for summary_option in summaries:
+		if summary_option is Dictionary and String((summary_option as Dictionary).get("target_unit_id", "")) == String(target_unit_id):
+			return (summary_option as Dictionary)
 	return {}
 
 
 func _find_component_summary(components: Variant, component_id: String) -> Dictionary:
 	if components is not Array:
 		return {}
-	for component_variant in components:
-		if component_variant is Dictionary and String((component_variant as Dictionary).get("component_id", "")) == component_id:
-			return (component_variant as Dictionary)
+	for component_option in components:
+		if component_option is Dictionary and String((component_option as Dictionary).get("component_id", "")) == component_id:
+			return (component_option as Dictionary)
 	return {}
 
 

@@ -2,10 +2,10 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const BATTLE_SAVE_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/rules/battle_save_resolver.gd")
-const COMBAT_EFFECT_DEF_SCRIPT = preload("res://scripts/player/progression/combat_effect_def.gd")
-const SKILL_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/skill_content_registry.gd")
-const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
+const BATTLE_SAVE_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/rules/BattleSaveResolver.cs")
+const COMBAT_EFFECT_DEF_SCRIPT = preload("res://scripts/player/progression/CombatEffectDef.cs")
+const SKILL_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/SkillContentRegistry.cs")
+const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/UnitBaseAttributes.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -34,9 +34,10 @@ func _test_skill_schema_accepts_valid_save_fields() -> void:
 	var damage_effect = COMBAT_EFFECT_DEF_SCRIPT.new()
 	damage_effect.effect_type = &"damage"
 	damage_effect.power = 8
+	damage_effect.damage_tag = &"fire"
 	damage_effect.save_dc = 12
-	damage_effect.save_ability = UNIT_BASE_ATTRIBUTES_SCRIPT.CONSTITUTION
-	damage_effect.save_tag = BATTLE_SAVE_RESOLVER_SCRIPT.SAVE_TAG_DRAGON_BREATH
+	damage_effect.save_ability = &"constitution"
+	damage_effect.save_tag = BATTLE_SAVE_RESOLVER_SCRIPT.SAVE_TAG_DRAGON_BREATH()
 	damage_effect.save_partial_on_success = true
 	var damage_errors: Array[String] = []
 	registry._append_effect_validation_errors(damage_errors, &"valid_save_damage", damage_effect, "test_effect")
@@ -47,8 +48,8 @@ func _test_skill_schema_accepts_valid_save_fields() -> void:
 	status_effect.status_id = &"poisoned"
 	status_effect.save_failure_status_id = &"poisoned"
 	status_effect.save_dc = 11
-	status_effect.save_ability = UNIT_BASE_ATTRIBUTES_SCRIPT.CONSTITUTION
-	status_effect.save_tag = BATTLE_SAVE_RESOLVER_SCRIPT.SAVE_TAG_POISON
+	status_effect.save_ability = &"constitution"
+	status_effect.save_tag = BATTLE_SAVE_RESOLVER_SCRIPT.SAVE_TAG_POISON()
 	var status_errors: Array[String] = []
 	registry._append_effect_validation_errors(status_errors, &"valid_save_status", status_effect, "test_effect")
 	_assert_true(status_errors.is_empty(), "valid status save fields should pass SkillContentRegistry validation.")
@@ -59,10 +60,11 @@ func _test_skill_schema_accepts_dynamic_caster_spell_save_dc() -> void:
 	var damage_effect = COMBAT_EFFECT_DEF_SCRIPT.new()
 	damage_effect.effect_type = &"damage"
 	damage_effect.power = 8
-	damage_effect.save_dc_mode = BATTLE_SAVE_RESOLVER_SCRIPT.SAVE_DC_MODE_CASTER_SPELL
-	damage_effect.save_dc_source_ability = UNIT_BASE_ATTRIBUTES_SCRIPT.INTELLIGENCE
-	damage_effect.save_ability = UNIT_BASE_ATTRIBUTES_SCRIPT.AGILITY
-	damage_effect.save_tag = BATTLE_SAVE_RESOLVER_SCRIPT.SAVE_TAG_FIREBALL
+	damage_effect.damage_tag = &"fire"
+	damage_effect.save_dc_mode = BATTLE_SAVE_RESOLVER_SCRIPT.SAVE_DC_MODE_CASTER_SPELL()
+	damage_effect.save_dc_source_ability = &"intelligence"
+	damage_effect.save_ability = &"agility"
+	damage_effect.save_tag = BATTLE_SAVE_RESOLVER_SCRIPT.SAVE_TAG_FIREBALL()
 	damage_effect.save_partial_on_success = true
 	var errors: Array[String] = []
 	registry._append_effect_validation_errors(errors, &"valid_dynamic_spell_save_damage", damage_effect, "test_effect")
@@ -71,10 +73,11 @@ func _test_skill_schema_accepts_dynamic_caster_spell_save_dc() -> void:
 	var generic_magic_effect = COMBAT_EFFECT_DEF_SCRIPT.new()
 	generic_magic_effect.effect_type = &"damage"
 	generic_magic_effect.power = 8
-	generic_magic_effect.save_dc_mode = BATTLE_SAVE_RESOLVER_SCRIPT.SAVE_DC_MODE_CASTER_SPELL
-	generic_magic_effect.save_dc_source_ability = UNIT_BASE_ATTRIBUTES_SCRIPT.INTELLIGENCE
-	generic_magic_effect.save_ability = UNIT_BASE_ATTRIBUTES_SCRIPT.AGILITY
-	generic_magic_effect.save_tag = BATTLE_SAVE_RESOLVER_SCRIPT.SAVE_TAG_MAGIC
+	generic_magic_effect.damage_tag = &"fire"
+	generic_magic_effect.save_dc_mode = BATTLE_SAVE_RESOLVER_SCRIPT.SAVE_DC_MODE_CASTER_SPELL()
+	generic_magic_effect.save_dc_source_ability = &"intelligence"
+	generic_magic_effect.save_ability = &"agility"
+	generic_magic_effect.save_tag = BATTLE_SAVE_RESOLVER_SCRIPT.SAVE_TAG_MAGIC()
 	generic_magic_effect.save_partial_on_success = true
 	var generic_errors: Array[String] = []
 	registry._append_effect_validation_errors(generic_errors, &"valid_dynamic_generic_magic_save_damage", generic_magic_effect, "test_effect")
@@ -99,7 +102,8 @@ func _test_skill_schema_rejects_invalid_save_fields() -> void:
 	var noop_effect = COMBAT_EFFECT_DEF_SCRIPT.new()
 	noop_effect.effect_type = &"damage"
 	noop_effect.power = 4
-	noop_effect.save_tag = BATTLE_SAVE_RESOLVER_SCRIPT.SAVE_TAG_POISON
+	noop_effect.damage_tag = &"fire"
+	noop_effect.save_tag = BATTLE_SAVE_RESOLVER_SCRIPT.SAVE_TAG_POISON()
 	var noop_errors: Array[String] = []
 	registry._append_effect_validation_errors(noop_errors, &"noop_save", noop_effect, "test_effect")
 	_assert_true(_has_error_containing(noop_errors, "save_tag requires save_dc"), "save_tag without save_dc should be rejected.")
@@ -107,11 +111,12 @@ func _test_skill_schema_rejects_invalid_save_fields() -> void:
 	var bad_dynamic_effect = COMBAT_EFFECT_DEF_SCRIPT.new()
 	bad_dynamic_effect.effect_type = &"damage"
 	bad_dynamic_effect.power = 4
+	bad_dynamic_effect.damage_tag = &"fire"
 	bad_dynamic_effect.save_dc = 12
-	bad_dynamic_effect.save_dc_mode = BATTLE_SAVE_RESOLVER_SCRIPT.SAVE_DC_MODE_CASTER_SPELL
+	bad_dynamic_effect.save_dc_mode = BATTLE_SAVE_RESOLVER_SCRIPT.SAVE_DC_MODE_CASTER_SPELL()
 	bad_dynamic_effect.save_dc_source_ability = &"fortune"
-	bad_dynamic_effect.save_ability = UNIT_BASE_ATTRIBUTES_SCRIPT.AGILITY
-	bad_dynamic_effect.save_tag = BATTLE_SAVE_RESOLVER_SCRIPT.SAVE_TAG_FIREBALL
+	bad_dynamic_effect.save_ability = &"agility"
+	bad_dynamic_effect.save_tag = BATTLE_SAVE_RESOLVER_SCRIPT.SAVE_TAG_FIREBALL()
 	var bad_dynamic_errors: Array[String] = []
 	registry._append_effect_validation_errors(bad_dynamic_errors, &"bad_dynamic_save", bad_dynamic_effect, "test_effect")
 	_assert_true(_has_error_containing(bad_dynamic_errors, "static save_dc at 0"), "caster_spell save_dc_mode should reject static save_dc.")

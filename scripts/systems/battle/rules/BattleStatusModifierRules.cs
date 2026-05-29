@@ -51,9 +51,10 @@ public partial class BattleStatusModifierRules : RefCounted
         int result = DefaultMultiplierPercent;
         foreach (StatusModifierEntry entry in BuildStatusModifierEntries(unitState))
         {
-            int? multiplier = paramKey == ParamHealMultiplierPercent
-                ? entry.HealMultiplierPercent
-                : entry.ShieldGainMultiplierPercent;
+            int? multiplier =
+                paramKey == ParamHealMultiplierPercent
+                    ? entry.HealMultiplierPercent
+                    : entry.ShieldGainMultiplierPercent;
             if (!multiplier.HasValue)
             {
                 continue;
@@ -61,9 +62,13 @@ public partial class BattleStatusModifierRules : RefCounted
             int rawInt = multiplier.Value;
             if (rawInt > DefaultMultiplierPercent)
             {
-                string statusLabel = GdInterop.IsEmpty(entry.StatusId) ? "<unknown>" : entry.StatusId.ToString();
-                GD.PushWarning(
-                    $"BattleStatusModifierRules: status {statusLabel} declares {paramKey}={rawInt} (> {DefaultMultiplierPercent}); clamped — these multipliers only express debuffs."
+                string statusLabel = GdInterop.IsEmpty(entry.StatusId)
+                    ? "<unknown>"
+                    : entry.StatusId.ToString();
+                GameLog.Warning(
+                    $"BattleStatusModifierRules: status {statusLabel} declares {paramKey}={rawInt} (> {DefaultMultiplierPercent}); clamped — these multipliers only express debuffs.",
+                    "battle.status.multiplier_clamped",
+                    "battle"
                 );
             }
             result = Mathf.Min(result, Mathf.Clamp(rawInt, 0, DefaultMultiplierPercent));
@@ -75,26 +80,31 @@ public partial class BattleStatusModifierRules : RefCounted
     {
         var entries = new List<StatusModifierEntry>();
         GDictionary statusEffects = GdInterop.GetDictionary(unitState, "status_effects");
-        foreach (Variant statusVariant in statusEffects.Values)
+        foreach (var statusValue in statusEffects.Values)
         {
-            GodotObject statusEntry = statusVariant.AsGodotObject();
+            GodotObject statusEntry = statusValue.AsGodotObject();
             if (statusEntry == null)
             {
                 continue;
             }
             GDictionary parameters = GdInterop.GetDictionary(statusEntry, "params");
-            entries.Add(new StatusModifierEntry(
-                GdInterop.GetStringName(statusEntry, "status_id"),
-                GetOptionalInt(parameters, ParamHealMultiplierPercent),
-                GetOptionalInt(parameters, ParamShieldGainMultiplierPercent)
-            ));
+            entries.Add(
+                new StatusModifierEntry(
+                    GdInterop.GetStringName(statusEntry, "status_id"),
+                    GetOptionalInt(parameters, ParamHealMultiplierPercent),
+                    GetOptionalInt(parameters, ParamShieldGainMultiplierPercent)
+                )
+            );
         }
         return entries;
     }
 
     private static int? GetOptionalInt(GDictionary parameters, string key)
     {
-        if (!GdInterop.TryGet(parameters, key, out Variant value) || value.VariantType != Variant.Type.Int)
+        if (
+            !GdInterop.TryGet(parameters, key, out Variant value)
+            || value.VariantType != Variant.Type.Int
+        )
         {
             return null;
         }

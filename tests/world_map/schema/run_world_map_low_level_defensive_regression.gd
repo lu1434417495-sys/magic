@@ -2,10 +2,6 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const WORLD_MAP_GRID_SYSTEM_SCRIPT = preload("res://scripts/systems/world/world_map_grid_system.gd")
-const WORLD_MAP_OCCUPANT_STATE_SCRIPT = preload("res://scripts/systems/world/world_map_occupant_state.gd")
-const WORLD_MAP_FOG_SYSTEM_SCRIPT = preload("res://scripts/systems/world/world_map_fog_system.gd")
-const VISION_SOURCE_DATA_SCRIPT = preload("res://scripts/utils/vision_source_data.gd")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -33,11 +29,11 @@ func _run() -> void:
 
 
 func _test_empty_occupant_state_objects_are_erased() -> void:
-	var grid_system = WORLD_MAP_GRID_SYSTEM_SCRIPT.new()
+	var grid_system = WorldMapGridSystem.new()
 	grid_system.setup(Vector2i(2, 2), Vector2i(4, 4))
 
 	var coord := Vector2i(1, 1)
-	grid_system._occupied_cells[coord] = WORLD_MAP_OCCUPANT_STATE_SCRIPT.create("", "")
+	grid_system._occupied_cells[coord] = WorldMapOccupantState.create("", "")
 
 	_assert_eq(
 		grid_system.get_occupant_root(coord),
@@ -51,7 +47,7 @@ func _test_empty_occupant_state_objects_are_erased() -> void:
 
 
 func _test_grid_cell_surface_keeps_minimal_runtime_contract() -> void:
-	var grid_system = WORLD_MAP_GRID_SYSTEM_SCRIPT.new()
+	var grid_system = WorldMapGridSystem.new()
 	grid_system.setup(Vector2i(2, 2), Vector2i(4, 4))
 	grid_system.register_footprint("camp", Vector2i(5, 6), Vector2i.ONE)
 
@@ -72,11 +68,19 @@ func _test_grid_cell_surface_keeps_minimal_runtime_contract() -> void:
 
 
 func _test_visibility_rebuild_ignores_foreign_faction_sources() -> void:
-	var fog_system = WORLD_MAP_FOG_SYSTEM_SCRIPT.new()
-	fog_system.setup(Vector2i(8, 8))
+	var fog_system = WorldMapFogSystem.new()
+	fog_system.setup(Vector2i(8, 8), {})
 
-	var player_source = VISION_SOURCE_DATA_SCRIPT.new("scout", Vector2i(2, 2), 1, "player")
-	var hostile_source = VISION_SOURCE_DATA_SCRIPT.new("raider", Vector2i(5, 5), 1, "hostile")
+	var player_source = VisionSourceData.new()
+	player_source.source_id = "scout"
+	player_source.center = Vector2i(2, 2)
+	player_source.range = 1
+	player_source.faction_id = "player"
+	var hostile_source = VisionSourceData.new()
+	hostile_source.source_id = "raider"
+	hostile_source.center = Vector2i(5, 5)
+	hostile_source.range = 1
+	hostile_source.faction_id = "hostile"
 
 	fog_system.rebuild_visibility_for_faction("player", [player_source, hostile_source])
 
@@ -91,14 +95,14 @@ func _test_visibility_rebuild_ignores_foreign_faction_sources() -> void:
 
 
 func _test_fog_reveal_export_load_keeps_revealed_cells() -> void:
-	var fog_system = WORLD_MAP_FOG_SYSTEM_SCRIPT.new()
-	fog_system.setup(Vector2i(8, 8))
+	var fog_system = WorldMapFogSystem.new()
+	fog_system.setup(Vector2i(8, 8), {})
 
 	var revealed_coords := fog_system.reveal_diamond(Vector2i(3, 3), 1, "player")
 	_assert_true(revealed_coords.has(Vector2i(3, 3)), "迷雾揭示应返回中心格。")
 
 	var persisted_state := fog_system.export_persistent_state()
-	var restored_fog_system = WORLD_MAP_FOG_SYSTEM_SCRIPT.new()
+	var restored_fog_system = WorldMapFogSystem.new()
 	restored_fog_system.setup(Vector2i(8, 8), persisted_state)
 
 	_assert_true(
@@ -110,7 +114,11 @@ func _test_fog_reveal_export_load_keeps_revealed_cells() -> void:
 		"持久化恢复不应把 paid reveal 误当作当前可见。"
 	)
 
-	var distant_source = VISION_SOURCE_DATA_SCRIPT.new("scout", Vector2i(7, 7), 0, "player")
+	var distant_source = VisionSourceData.new()
+	distant_source.source_id = "scout"
+	distant_source.center = Vector2i(7, 7)
+	distant_source.range = 0
+	distant_source.faction_id = "player"
 	restored_fog_system.rebuild_visibility_for_faction("player", [distant_source])
 	_assert_true(
 		restored_fog_system.is_explored(Vector2i(3, 3), "player"),

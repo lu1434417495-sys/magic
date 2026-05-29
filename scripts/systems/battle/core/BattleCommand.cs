@@ -26,14 +26,22 @@ public partial class BattleCommand : RefCounted
     public Godot.Collections.Array<StringName> equipment_occupied_slot_ids = new();
 
     public static StringName TYPE_MOVE() => TypeMove;
+
     public static StringName TYPE_SKILL() => TypeSkill;
+
     public static StringName TYPE_WAIT() => TypeWait;
+
     public static StringName TYPE_CHANGE_EQUIPMENT() => TypeChangeEquipment;
+
     public static StringName EQUIPMENT_OPERATION_EQUIP() => EquipmentOperationEquip;
+
     public static StringName EQUIPMENT_OPERATION_UNEQUIP() => EquipmentOperationUnequip;
 
     public bool is_move() => command_type == TypeMove;
+
     public bool is_skill() => command_type == TypeSkill;
+
     public bool is_wait() => command_type == TypeWait;
+
     public bool is_change_equipment() => command_type == TypeChangeEquipment;
 }

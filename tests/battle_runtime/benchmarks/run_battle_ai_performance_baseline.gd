@@ -6,14 +6,14 @@ const AI_SERVICE_PROBE_SCRIPT = preload("res://tests/battle_runtime/benchmarks/a
 const AI_ASSEMBLER_PROBE_SCRIPT = preload("res://tests/battle_runtime/benchmarks/ai_assembler_probe.gd")
 const AiBaselineDiffScript = preload("res://tests/battle_runtime/benchmarks/ai_baseline_diff.gd")
 
-const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_session.gd")
-const BATTLE_RUNTIME_MODULE_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
-const BATTLE_SIM_EXECUTION_LOOP_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_execution_loop.gd")
-const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_state.gd")
-const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
-const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
-const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
-const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
+const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/GameSession.cs")
+const BATTLE_RUNTIME_MODULE_SCRIPT = preload("res://scripts/systems/battle/runtime/BattleRuntimeModule.cs")
+const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleState.cs")
+const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleTimelineState.cs")
+const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleCellState.cs")
+const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/AttributeService.cs")
+const BattleSimExecutionLoop = preload("res://scripts/systems/battle/sim/BattleSimExecutionLoop.cs")
 
 const ACTION_THRESHOLD := 120
 const TIMELINE_TICKS_PER_STEP := 1
@@ -200,7 +200,7 @@ func _run_pass(scenario_id: StringName, spec: Dictionary) -> Dictionary:
 	# Trigger assembler probe so build_unit_action_plan gets called.
 	runtime._build_ai_action_plans()
 
-	var execution_loop = BATTLE_SIM_EXECUTION_LOOP_SCRIPT.new()
+	var execution_loop = BattleSimExecutionLoop.new()
 	var target_tu := int(spec.get("target_tu", 100))
 	var iterations := 0
 	var ai_turns := 0
@@ -291,7 +291,7 @@ func _build_flat_state(map_size: Vector2i, scenario_id: StringName):
 		for x in range(map_size.x):
 			var cell = BATTLE_CELL_STATE_SCRIPT.new()
 			cell.coord = Vector2i(x, y)
-			cell.base_terrain = BATTLE_CELL_STATE_SCRIPT.TERRAIN_LAND
+			cell.base_terrain = BATTLE_CELL_STATE_SCRIPT.TERRAIN_LAND()
 			cell.base_height = 4
 			cell.height_offset = 0
 			cell.recalculate_runtime_values()
@@ -368,8 +368,8 @@ func _build_manual_unit(unit_id: StringName, display_name: String, coord: Vector
 	unit.attribute_snapshot.set_value(&"stamina_max", 120)
 	unit.attribute_snapshot.set_value(&"aura_max", 120)
 	unit.attribute_snapshot.set_value(&"action_points", 2)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 12)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 20)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 12)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 20)
 	return unit
 
 
@@ -394,8 +394,8 @@ func _build_ai_unit(unit_id: StringName, display_name: String, coord: Vector2i, 
 	unit.attribute_snapshot.set_value(&"stamina_max", 120)
 	unit.attribute_snapshot.set_value(&"aura_max", 120)
 	unit.attribute_snapshot.set_value(&"action_points", 2)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 16)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 18)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 16)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 18)
 	unit.known_active_skill_ids = skill_ids.duplicate()
 	for skill_id in unit.known_active_skill_ids:
 		unit.known_skill_level_map[skill_id] = 1

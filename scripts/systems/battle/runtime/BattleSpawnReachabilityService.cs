@@ -11,7 +11,7 @@ public partial class BattleSpawnReachabilityService : RefCounted
 
     public Dictionary ValidateState(
         BattleState state,
-        GodotObject gridService,
+        BattleGridService gridService,
         Dictionary skillDefs,
         Dictionary options = null
     )
@@ -28,22 +28,31 @@ public partial class BattleSpawnReachabilityService : RefCounted
         if (state == null || gridService == null)
         {
             result["valid"] = false;
-            result["details"].AsGodotArray().Add(new Dictionary { ["reason"] = "missing_state_or_grid" });
+            result["details"]
+                .AsGodotArray()
+                .Add(new Dictionary { ["reason"] = "missing_state_or_grid" });
             return result;
         }
 
-        var playerTargets = _CollectLivingUnits(state, (Godot.Collections.Array)state.ally_unit_ids);
+        var playerTargets = _CollectLivingUnits(
+            state,
+            (Godot.Collections.Array)state.ally_unit_ids
+        );
         if (playerTargets.Count == 0)
         {
             result["valid"] = false;
-            result["details"].AsGodotArray().Add(new Dictionary { ["reason"] = "no_living_player_targets" });
+            result["details"]
+                .AsGodotArray()
+                .Add(new Dictionary { ["reason"] = "no_living_player_targets" });
             return result;
         }
 
-        foreach (var enemyUnitIdVariant in state.enemy_unit_ids)
+        foreach (var enemyUnitIdValue in state.enemy_unit_ids)
         {
-            var enemyUnitId = new StringName(enemyUnitIdVariant.ToString());
-            var enemyUnit = state.units.ContainsKey(enemyUnitId) ? state.units[enemyUnitId].As<BattleUnitState>() : null;
+            var enemyUnitId = new StringName(enemyUnitIdValue.ToString());
+            var enemyUnit = state.units.ContainsKey(enemyUnitId)
+                ? state.units[enemyUnitId].As<BattleUnitState>()
+                : null;
             if (enemyUnit == null || !enemyUnit.is_alive)
                 continue;
             var enemyResult = _ValidateAttackerUnit(
@@ -55,28 +64,35 @@ public partial class BattleSpawnReachabilityService : RefCounted
                 playerTargets,
                 options
             );
-            if (DictionaryGet(enemyResult, "valid", false).AsBool())
+            if (enemyResult.GetValueOrDefault("valid", false).AsBool())
                 continue;
             result["valid"] = false;
             result["invalid_enemy_unit_ids"].AsGodotArray().Add(enemyUnit.unit_id);
             result["details"].AsGodotArray().Add(enemyResult);
         }
 
-        if (!DictionaryGet(options, "validate_player_to_enemy", false).AsBool())
+        if (!options.GetValueOrDefault("validate_player_to_enemy", false).AsBool())
             return result;
 
-        var enemyTargets = _CollectLivingUnits(state, (Godot.Collections.Array)state.enemy_unit_ids);
+        var enemyTargets = _CollectLivingUnits(
+            state,
+            (Godot.Collections.Array)state.enemy_unit_ids
+        );
         if (enemyTargets.Count == 0)
         {
             result["valid"] = false;
-            result["details"].AsGodotArray().Add(new Dictionary { ["reason"] = "no_living_enemy_targets" });
+            result["details"]
+                .AsGodotArray()
+                .Add(new Dictionary { ["reason"] = "no_living_enemy_targets" });
             return result;
         }
 
-        foreach (var playerUnitIdVariant in state.ally_unit_ids)
+        foreach (var playerUnitIdValue in state.ally_unit_ids)
         {
-            var playerUnitId = new StringName(playerUnitIdVariant.ToString());
-            var playerUnit = state.units.ContainsKey(playerUnitId) ? state.units[playerUnitId].As<BattleUnitState>() : null;
+            var playerUnitId = new StringName(playerUnitIdValue.ToString());
+            var playerUnit = state.units.ContainsKey(playerUnitId)
+                ? state.units[playerUnitId].As<BattleUnitState>()
+                : null;
             if (playerUnit == null || !playerUnit.is_alive)
                 continue;
             var playerResult = _ValidateAttackerUnit(
@@ -88,7 +104,7 @@ public partial class BattleSpawnReachabilityService : RefCounted
                 enemyTargets,
                 options
             );
-            if (DictionaryGet(playerResult, "valid", false).AsBool())
+            if (playerResult.GetValueOrDefault("valid", false).AsBool())
                 continue;
             result["valid"] = false;
             result["invalid_player_unit_ids"].AsGodotArray().Add(playerUnit.unit_id);
@@ -97,9 +113,19 @@ public partial class BattleSpawnReachabilityService : RefCounted
         return result;
     }
 
+    public Dictionary validate_state(
+        BattleState state,
+        BattleGridService grid_service,
+        Dictionary skill_defs,
+        Dictionary options = null
+    )
+    {
+        return ValidateState(state, grid_service, skill_defs, options);
+    }
+
     private Dictionary _ValidateAttackerUnit(
         BattleState state,
-        GodotObject gridService,
+        BattleGridService gridService,
         Dictionary skillDefs,
         BattleUnitState attackerUnit,
         Array attackerUnitIds,
@@ -139,8 +165,8 @@ public partial class BattleSpawnReachabilityService : RefCounted
             if (attackMatch.Count == 0)
                 continue;
             attackAnchor = anchorCoord;
-            attackTargetId = DictionaryGet(attackMatch, "target_unit_id", "").AsStringName();
-            attackSkillId = DictionaryGet(attackMatch, "skill_id", "").AsStringName();
+            attackTargetId = attackMatch.GetValueOrDefault("target_unit_id", "").AsStringName();
+            attackSkillId = attackMatch.GetValueOrDefault("skill_id", "").AsStringName();
             break;
         }
         _RestoreOccupants(state, occupantSnapshot);
@@ -174,10 +200,12 @@ public partial class BattleSpawnReachabilityService : RefCounted
         var targets = new Array();
         if (state == null)
             return targets;
-        foreach (var unitIdVariant in unitIds)
+        foreach (var unitIdValue in unitIds)
         {
-            var unitId = new StringName(unitIdVariant.ToString());
-            var unitState = state.units.ContainsKey(unitId) ? state.units[unitId].As<BattleUnitState>() : null;
+            var unitId = new StringName(unitIdValue.ToString());
+            var unitState = state.units.ContainsKey(unitId)
+                ? state.units[unitId].As<BattleUnitState>()
+                : null;
             if (unitState == null || !unitState.is_alive)
                 continue;
             targets.Add(unitState);
@@ -185,14 +213,18 @@ public partial class BattleSpawnReachabilityService : RefCounted
         return targets;
     }
 
-    private Array _CollectAttackSkillIds(BattleUnitState enemyUnit, Dictionary skillDefs, Array playerTargets)
+    private Array _CollectAttackSkillIds(
+        BattleUnitState enemyUnit,
+        Dictionary skillDefs,
+        Array playerTargets
+    )
     {
         var skillIds = new Array();
         if (enemyUnit == null)
             return skillIds;
-        foreach (var skillIdVariant in enemyUnit.known_active_skill_ids)
+        foreach (var skillIdValue in enemyUnit.known_active_skill_ids)
         {
-            var skillId = new StringName(skillIdVariant.ToString());
+            var skillId = new StringName(skillIdValue.ToString());
             if (!skillDefs.ContainsKey(skillId))
                 continue;
             var skillDef = skillDefs[skillId].AsGodotObject() as SkillDef;
@@ -207,21 +239,25 @@ public partial class BattleSpawnReachabilityService : RefCounted
         return skillIds;
     }
 
-    private bool _SkillHasAttackableTarget(BattleUnitState enemyUnit, SkillDef skillDef, Array playerTargets)
+    private bool _SkillHasAttackableTarget(
+        BattleUnitState enemyUnit,
+        SkillDef skillDef,
+        Array playerTargets
+    )
     {
         if (enemyUnit == null || skillDef == null || skillDef.combat_profile == null)
             return false;
         if (!_AttackerCanUseSkill(enemyUnit, skillDef))
             return false;
-        var targetMode = new StringName(skillDef.combat_profile.Get("target_mode").ToString());
-        if (targetMode != "unit" && targetMode != "ground")
+        var targetMode = BattleTypedNames.ToTargetMode(skillDef.combat_profile.target_mode);
+        if (targetMode != BattleTargetMode.Unit && targetMode != BattleTargetMode.Ground)
             return false;
-        foreach (Variant targetUnitVariant in playerTargets)
+        foreach (var targetUnitValue in playerTargets)
         {
-            var targetUnit = targetUnitVariant.As<BattleUnitState>();
+            var targetUnit = targetUnitValue.As<BattleUnitState>();
             if (targetUnit == null)
                 continue;
-            var targetTeamFilter = new StringName(skillDef.combat_profile.Get("target_team_filter").ToString());
+            var targetTeamFilter = skillDef.combat_profile.target_team_filter;
             if (_TargetFilterAllows(enemyUnit, targetUnit, targetTeamFilter))
                 return true;
         }
@@ -233,37 +269,34 @@ public partial class BattleSpawnReachabilityService : RefCounted
         var snapshot = new Dictionary();
         if (state == null)
             return snapshot;
-        foreach (var coordVariant in state.cells.Keys)
+        foreach (BattleState.BattleCellEntry cellEntry in state.GetCellEntriesTyped())
         {
-            if (coordVariant.VariantType != Variant.Type.Vector2I)
-                continue;
-            var coord = coordVariant.AsVector2I();
-            if (!state.cells.ContainsKey(coord))
-                continue;
-            var cell = state.cells[coord].As<BattleCellState>();
-            if (cell == null)
-                continue;
-            snapshot[coord] = cell.occupant_unit_id;
+            snapshot[cellEntry.Coord] = cellEntry.Cell.occupant_unit_id;
         }
         return snapshot;
     }
 
-    private void _ClearNonblockingAttackerOccupants(BattleState state, BattleUnitState subjectUnit, Array attackerUnitIds)
+    private void _ClearNonblockingAttackerOccupants(
+        BattleState state,
+        BattleUnitState subjectUnit,
+        Array attackerUnitIds
+    )
     {
         if (state == null || subjectUnit == null)
             return;
-        foreach (var unitIdVariant in attackerUnitIds)
+        foreach (var unitIdValue in attackerUnitIds)
         {
-            var unitId = new StringName(unitIdVariant.ToString());
+            var unitId = new StringName(unitIdValue.ToString());
             if (unitId == subjectUnit.unit_id)
                 continue;
-            var sameSideUnit = state.units.ContainsKey(unitId) ? state.units[unitId].As<BattleUnitState>() : null;
+            var sameSideUnit = state.units.ContainsKey(unitId)
+                ? state.units[unitId].As<BattleUnitState>()
+                : null;
             if (sameSideUnit == null)
                 continue;
-            sameSideUnit.Call("refresh_footprint");
-            foreach (Variant occupiedCoordVariant in sameSideUnit.occupied_coords)
+            sameSideUnit.refresh_footprint();
+            foreach (Vector2I occupiedCoord in sameSideUnit.occupied_coords)
             {
-                var occupiedCoord = occupiedCoordVariant.AsVector2I();
                 if (!state.cells.ContainsKey(occupiedCoord))
                     continue;
                 var cell = state.cells[occupiedCoord].As<BattleCellState>();
@@ -277,25 +310,35 @@ public partial class BattleSpawnReachabilityService : RefCounted
     {
         if (state == null)
             return;
-        foreach (var coordVariant in snapshot.Keys)
+        foreach (var coordValue in snapshot.Keys)
         {
-            if (coordVariant.VariantType != Variant.Type.Vector2I)
+            if (coordValue.VariantType != Variant.Type.Vector2I)
                 continue;
-            var coord = coordVariant.AsVector2I();
+            var coord = coordValue.AsVector2I();
             if (!state.cells.ContainsKey(coord))
                 continue;
             var cell = state.cells[coord].As<BattleCellState>();
             if (cell != null)
-                cell.occupant_unit_id = new StringName(DictionaryGet(snapshot, coord, "").ToString());
+                cell.occupant_unit_id = new StringName(
+                    snapshot.GetValueOrDefault(coord, "").ToString()
+                );
         }
     }
 
-    private Array _CollectReachableAnchors(BattleState state, GodotObject gridService, BattleUnitState unitState, Dictionary options)
+    private Array _CollectReachableAnchors(
+        BattleState state,
+        BattleGridService gridService,
+        BattleUnitState unitState,
+        Dictionary options
+    )
     {
         var anchors = new Array();
         if (state == null || gridService == null || unitState == null)
             return anchors;
-        var maxSearchNodes = Mathf.Max((int)DictionaryGet(options, "max_search_nodes", DefaultMaxSearchNodes), 1);
+        var maxSearchNodes = Mathf.Max(
+            (int)options.GetValueOrDefault("max_search_nodes", DefaultMaxSearchNodes),
+            1
+        );
         var origin = unitState.coord;
         var frontier = new Array { origin };
         var seen = new Dictionary { [origin] = true };
@@ -305,13 +348,12 @@ public partial class BattleSpawnReachabilityService : RefCounted
             var current = frontier[frontierIndex].AsVector2I();
             frontierIndex++;
             anchors.Add(current);
-            var neighbors = gridService.Call("get_neighbors_4", state, current).AsGodotArray();
-            foreach (Variant neighborVariant in neighbors)
+            var neighbors = gridService.get_neighbors_4(state, current);
+            foreach (Vector2I neighbor in neighbors)
             {
-                var neighbor = neighborVariant.AsVector2I();
                 if (seen.ContainsKey(neighbor))
                     continue;
-                if (!gridService.Call("can_unit_step_between_anchors", state, unitState, current, neighbor).AsBool())
+                if (!gridService.can_unit_step_between_anchors(state, unitState, current, neighbor))
                     continue;
                 seen[neighbor] = true;
                 frontier.Add(neighbor);
@@ -322,7 +364,7 @@ public partial class BattleSpawnReachabilityService : RefCounted
 
     private Dictionary _FindAttackMatchFromAnchor(
         BattleState state,
-        GodotObject gridService,
+        BattleGridService gridService,
         Dictionary skillDefs,
         BattleUnitState enemyUnit,
         Vector2I anchorCoord,
@@ -337,15 +379,24 @@ public partial class BattleSpawnReachabilityService : RefCounted
             var skillDef = skillDefs[skillId].AsGodotObject() as SkillDef;
             if (skillDef == null || skillDef.combat_profile == null)
                 continue;
-            foreach (Variant targetUnitVariant in playerTargets)
+            foreach (var targetUnitValue in playerTargets)
             {
-                var targetUnit = targetUnitVariant.As<BattleUnitState>();
+                var targetUnit = targetUnitValue.As<BattleUnitState>();
                 if (targetUnit == null)
                     continue;
-                var targetTeamFilter = new StringName(skillDef.combat_profile.Get("target_team_filter").ToString());
+                var targetTeamFilter = skillDef.combat_profile.target_team_filter;
                 if (!_TargetFilterAllows(enemyUnit, targetUnit, targetTeamFilter))
                     continue;
-                if (_CanSkillHitTargetFromAnchor(state, gridService, enemyUnit, anchorCoord, targetUnit, skillDef))
+                if (
+                    _CanSkillHitTargetFromAnchor(
+                        state,
+                        gridService,
+                        enemyUnit,
+                        anchorCoord,
+                        targetUnit,
+                        skillDef
+                    )
+                )
                 {
                     return new Dictionary
                     {
@@ -360,7 +411,7 @@ public partial class BattleSpawnReachabilityService : RefCounted
 
     private bool _CanSkillHitTargetFromAnchor(
         BattleState state,
-        GodotObject gridService,
+        BattleGridService gridService,
         BattleUnitState enemyUnit,
         Vector2I anchorCoord,
         BattleUnitState targetUnit,
@@ -371,13 +422,21 @@ public partial class BattleSpawnReachabilityService : RefCounted
             return false;
         if (!_AttackerCanUseSkill(enemyUnit, skillDef))
             return false;
-        var targetMode = new StringName(skillDef.combat_profile.Get("target_mode").ToString());
+        var targetMode = BattleTypedNames.ToTargetMode(skillDef.combat_profile.target_mode);
         switch (targetMode)
         {
-            case "unit":
-                return _DistanceFromAnchorToUnit(gridService, enemyUnit, anchorCoord, targetUnit) <= _GetEffectiveSkillRange(enemyUnit, skillDef);
-            case "ground":
-                return _CanGroundSkillHitTarget(state, gridService, enemyUnit, anchorCoord, targetUnit, skillDef);
+            case BattleTargetMode.Unit:
+                return _DistanceFromAnchorToUnit(gridService, enemyUnit, anchorCoord, targetUnit)
+                    <= _GetEffectiveSkillRange(enemyUnit, skillDef);
+            case BattleTargetMode.Ground:
+                return _CanGroundSkillHitTarget(
+                    state,
+                    gridService,
+                    enemyUnit,
+                    anchorCoord,
+                    targetUnit,
+                    skillDef
+                );
             default:
                 return false;
         }
@@ -385,27 +444,35 @@ public partial class BattleSpawnReachabilityService : RefCounted
 
     private bool _CanGroundSkillHitTarget(
         BattleState state,
-        GodotObject gridService,
+        BattleGridService gridService,
         BattleUnitState enemyUnit,
         Vector2I anchorCoord,
         BattleUnitState targetUnit,
         SkillDef skillDef
     )
     {
-        if (state == null || gridService == null || enemyUnit == null || targetUnit == null || skillDef == null || skillDef.combat_profile == null)
+        if (
+            state == null
+            || gridService == null
+            || enemyUnit == null
+            || targetUnit == null
+            || skillDef == null
+            || skillDef.combat_profile == null
+        )
             return false;
         var skillRange = _GetEffectiveSkillRange(enemyUnit, skillDef);
-        targetUnit.Call("refresh_footprint");
-        foreach (var coordVariant in state.cells.Keys)
+        targetUnit.refresh_footprint();
+        foreach (BattleState.BattleCellEntry cellEntry in state.GetCellEntriesTyped())
         {
-            if (coordVariant.VariantType != Variant.Type.Vector2I)
-                continue;
-            var targetCoord = coordVariant.AsVector2I();
-            if (_DistanceFromAnchorToCoord(gridService, enemyUnit, anchorCoord, targetCoord) > skillRange)
+            Vector2I targetCoord = cellEntry.Coord;
+            if (
+                _DistanceFromAnchorToCoord(gridService, enemyUnit, anchorCoord, targetCoord)
+                > skillRange
+            )
                 continue;
             var skillLevel = _GetUnitSkillLevel(enemyUnit, skillDef.skill_id);
             var combatProfile = skillDef.combat_profile;
-            var collected = _targetCollectionService.Call("collect_combat_profile_target_coords",
+            var collected = _targetCollectionService.collect_combat_profile_target_coords(
                 state,
                 gridService,
                 anchorCoord,
@@ -414,13 +481,15 @@ public partial class BattleSpawnReachabilityService : RefCounted
                 enemyUnit,
                 new Array(),
                 skillLevel
-            ).AsGodotDictionary();
+            );
             var effectCoords = new Array();
-            var targetCoords = collected.ContainsKey("target_coords") ? collected["target_coords"].AsGodotArray() : new Array();
-            foreach (var effectCoordVariant in targetCoords)
+            var targetCoords = collected.ContainsKey("target_coords")
+                ? collected["target_coords"].AsGodotArray()
+                : new Array();
+            foreach (var effectCoordValue in targetCoords)
             {
-                if (effectCoordVariant.VariantType == Variant.Type.Vector2I)
-                    effectCoords.Add(effectCoordVariant.AsVector2I());
+                if (effectCoordValue.VariantType == Variant.Type.Vector2I)
+                    effectCoords.Add(effectCoordValue.AsVector2I());
             }
             foreach (Vector2I occupiedCoord in targetUnit.occupied_coords)
             {
@@ -431,43 +500,60 @@ public partial class BattleSpawnReachabilityService : RefCounted
         return false;
     }
 
-    private int _DistanceFromAnchorToUnit(GodotObject gridService, BattleUnitState sourceUnit, Vector2I sourceAnchor, BattleUnitState targetUnit)
+    private int _DistanceFromAnchorToUnit(
+        BattleGridService gridService,
+        BattleUnitState sourceUnit,
+        Vector2I sourceAnchor,
+        BattleUnitState targetUnit
+    )
     {
         if (gridService == null || sourceUnit == null || targetUnit == null)
             return 999999;
-        targetUnit.Call("refresh_footprint");
+        targetUnit.refresh_footprint();
         var bestDistance = 999999;
-        var sourceCoords = gridService.Call("get_unit_target_coords", sourceUnit, sourceAnchor).AsGodotArray();
-        foreach (var sourceCoordVariant in sourceCoords)
+        var sourceCoords = gridService.get_unit_target_coords(sourceUnit, sourceAnchor);
+        foreach (Vector2I sourceCoord in sourceCoords)
         {
-            var sourceCoord = sourceCoordVariant.AsVector2I();
             foreach (Vector2I targetCoord in targetUnit.occupied_coords)
             {
-                var distance = (int)gridService.Call("get_distance", sourceCoord, targetCoord);
+                var distance = gridService.get_distance(sourceCoord, targetCoord);
                 bestDistance = Mathf.Min(bestDistance, distance);
             }
         }
         return bestDistance;
     }
 
-    private int _DistanceFromAnchorToCoord(GodotObject gridService, BattleUnitState sourceUnit, Vector2I sourceAnchor, Vector2I targetCoord)
+    private int _DistanceFromAnchorToCoord(
+        BattleGridService gridService,
+        BattleUnitState sourceUnit,
+        Vector2I sourceAnchor,
+        Vector2I targetCoord
+    )
     {
         if (gridService == null || sourceUnit == null)
             return 999999;
         var bestDistance = 999999;
-        var sourceCoords = gridService.Call("get_unit_target_coords", sourceUnit, sourceAnchor).AsGodotArray();
-        foreach (var sourceCoordVariant in sourceCoords)
+        var sourceCoords = gridService.get_unit_target_coords(sourceUnit, sourceAnchor);
+        foreach (Vector2I sourceCoord in sourceCoords)
         {
-            var sourceCoord = sourceCoordVariant.AsVector2I();
-            var distance = (int)gridService.Call("get_distance", sourceCoord, targetCoord);
+            var distance = gridService.get_distance(sourceCoord, targetCoord);
             bestDistance = Mathf.Min(bestDistance, distance);
         }
         return bestDistance;
     }
 
-    private bool _TargetFilterAllows(BattleUnitState sourceUnit, BattleUnitState targetUnit, StringName targetTeamFilter)
+    private bool _TargetFilterAllows(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        StringName targetTeamFilter
+    )
     {
-        return BattleTargetTeamRules.is_unit_valid_for_filter(sourceUnit, targetUnit, targetTeamFilter, new Dictionary());
+        return BattleTargetTeamRules.is_unit_valid_for_filter(
+            sourceUnit,
+            targetUnit,
+            targetTeamFilter,
+            default
+        );
     }
 
     private int _GetEffectiveSkillRange(BattleUnitState unitState, SkillDef skillDef)
@@ -479,10 +565,17 @@ public partial class BattleSpawnReachabilityService : RefCounted
     {
         if (unitState == null || skillDef == null || skillDef.combat_profile == null)
             return false;
-        var requiredWeaponFamilies = skillDef.combat_profile.Get("required_weapon_families").AsGodotArray();
-        if (!BattleRangeService.unit_matches_required_weapon_families(unitState, requiredWeaponFamilies))
+        if (
+            !BattleRangeService.unit_matches_required_weapon_families(
+                unitState,
+                skillDef.combat_profile.required_weapon_families
+            )
+        )
             return false;
-        if (BattleRangeService.requires_current_melee_weapon(skillDef) && !BattleRangeService.unit_has_melee_weapon(unitState))
+        if (
+            BattleRangeService.requires_current_melee_weapon(skillDef)
+            && !BattleRangeService.unit_has_melee_weapon(unitState)
+        )
             return false;
         return true;
     }
@@ -511,10 +604,4 @@ public partial class BattleSpawnReachabilityService : RefCounted
         return 0;
     }
 
-    private static Variant DictionaryGet(Dictionary dictionary, Variant key, Variant fallback)
-    {
-        if (dictionary == null || !dictionary.ContainsKey(key))
-            return fallback;
-        return dictionary[key];
-    }
 }

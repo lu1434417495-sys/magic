@@ -1,6 +1,6 @@
 extends RefCounted
 
-const CharacterProgressionDelta = preload("res://scripts/systems/progression/character_progression_delta.gd")
+const CharacterProgressionDelta = preload("res://scripts/systems/progression/CharacterProgressionDelta.cs")
 
 var grants: Array[Dictionary] = []
 var skill_used_events := 0

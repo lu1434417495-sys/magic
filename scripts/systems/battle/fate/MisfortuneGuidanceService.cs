@@ -18,12 +18,21 @@ public partial class MisfortuneGuidanceService : RefCounted
     private static readonly StringName StatusCrownBreakBrokenHand = "crown_break_broken_hand";
     private static readonly StringName StatusCrownBreakBlindedEye = "crown_break_blinded_eye";
     private static readonly StringName StatusDoomSentenceVerdict = "doom_sentence_verdict";
-    private static readonly StringName ExaltedReadyFlagPrefix = "misfortune_guidance_exalted_ready:";
+    private static readonly StringName ExaltedReadyFlagPrefix =
+        "misfortune_guidance_exalted_ready:";
     private static readonly StringName CalamityReasonCriticalFail = "critical_fail";
     private static readonly StringName CalamityReasonStrongDebuff = "strong_debuff";
 
     private GodotObject _characterGateway;
     private GodotObject _battleRuntimeGateway;
+
+    public static StringName ACHIEVEMENT_GUIDANCE_TRUE_ID() => AchievementGuidanceTrue;
+
+    public static StringName ACHIEVEMENT_GUIDANCE_DEVOUT_ID() => AchievementGuidanceDevout;
+
+    public static StringName ACHIEVEMENT_GUIDANCE_EXALTED_ID() => AchievementGuidanceExalted;
+
+    public static StringName ACHIEVEMENT_GUIDANCE_BLESSED_ID() => AchievementGuidanceBlessed;
 
     public void Setup(GodotObject characterGateway = null, GodotObject battleRuntimeGateway = null)
     {
@@ -31,9 +40,22 @@ public partial class MisfortuneGuidanceService : RefCounted
         _battleRuntimeGateway = battleRuntimeGateway;
     }
 
+    public void setup(
+        GodotObject character_gateway = null,
+        GodotObject battle_runtime_gateway = null
+    )
+    {
+        Setup(character_gateway, battle_runtime_gateway);
+    }
+
     public void BindBattleRuntimeGateway(GodotObject battleRuntimeGateway = null)
     {
         _battleRuntimeGateway = battleRuntimeGateway;
+    }
+
+    public void bind_battle_runtime_gateway(GodotObject battle_runtime_gateway = null)
+    {
+        BindBattleRuntimeGateway(battle_runtime_gateway);
     }
 
     public new void Dispose()
@@ -42,7 +64,16 @@ public partial class MisfortuneGuidanceService : RefCounted
         _battleRuntimeGateway = null;
     }
 
-    public Array<StringName> HandleBattleResolution(BattleState battleState, BattleResolutionResult battleResolutionResult)
+    public void dispose()
+    {
+        _characterGateway = null;
+        _battleRuntimeGateway = null;
+    }
+
+    public Array<StringName> HandleBattleResolution(
+        BattleState battleState,
+        BattleResolutionResult battleResolutionResult
+    )
     {
         var unlockedIds = new Array<StringName>();
         var partyState = GetPartyState();
@@ -63,32 +94,55 @@ public partial class MisfortuneGuidanceService : RefCounted
             if (sealedMemberId != "")
             {
                 var sealedMemberState = GetMemberState(sealedMemberId);
-                if (IsDoomMarked(sealedMemberState) && UnlockAchievement(sealedMemberId, AchievementGuidanceTrue))
+                if (
+                    IsDoomMarked(sealedMemberState)
+                    && UnlockAchievement(sealedMemberId, AchievementGuidanceTrue)
+                )
                     AppendUniqueStringName(unlockedIds, AchievementGuidanceTrue);
-                if (IsMisfortuneDevotee(sealedMemberState)
+                if (
+                    IsMisfortuneDevotee(sealedMemberState)
                     && MemberHadDevoutAdversity(sealedMemberId)
-                    && UnlockAchievement(sealedMemberId, AchievementGuidanceDevout))
+                    && UnlockAchievement(sealedMemberId, AchievementGuidanceDevout)
+                )
                     AppendUniqueStringName(unlockedIds, AchievementGuidanceDevout);
             }
 
-            var verdictMemberId = ResolveStatusSourceMemberId(battleState, defeatedUnit, StatusDoomSentenceVerdict);
+            var verdictMemberId = ResolveStatusSourceMemberId(
+                battleState,
+                defeatedUnit,
+                StatusDoomSentenceVerdict
+            );
             if (verdictMemberId == "" || !IsBossTarget(defeatedUnit))
                 continue;
-            if (IsMisfortuneDevotee(GetMemberState(verdictMemberId))
-                && UnlockAchievement(verdictMemberId, AchievementGuidanceBlessed))
+            if (
+                IsMisfortuneDevotee(GetMemberState(verdictMemberId))
+                && UnlockAchievement(verdictMemberId, AchievementGuidanceBlessed)
+            )
                 AppendUniqueStringName(unlockedIds, AchievementGuidanceBlessed);
         }
 
         return unlockedIds;
     }
 
-    public Array<StringName> HandleForgeResult(StringName memberId, Dictionary result, Dictionary itemDefs = null)
+    public Array<StringName> handle_battle_resolution(
+        BattleState battle_state,
+        BattleResolutionResult battle_resolution_result
+    )
+    {
+        return HandleBattleResolution(battle_state, battle_resolution_result);
+    }
+
+    public Array<StringName> HandleForgeResult(
+        StringName memberId,
+        Dictionary result,
+        Dictionary itemDefs = null
+    )
     {
         var unlockedIds = new Array<StringName>();
         var normalizedMemberId = ProgressionDataUtils.to_string_name(memberId);
         if (normalizedMemberId == "")
             return unlockedIds;
-        if (!DictionaryGet(result, "success", false).AsBool())
+        if (!result.GetValueOrDefault("success", false).AsBool())
             return unlockedIds;
         if (!HasExaltedReadyFlag(normalizedMemberId))
             return unlockedIds;
@@ -104,6 +158,15 @@ public partial class MisfortuneGuidanceService : RefCounted
             AppendUniqueStringName(unlockedIds, AchievementGuidanceExalted);
         ClearExaltedReadyFlags(new Godot.Collections.Array { normalizedMemberId });
         return unlockedIds;
+    }
+
+    public Array<StringName> handle_forge_result(
+        StringName member_id,
+        Dictionary result,
+        Dictionary item_defs = null
+    )
+    {
+        return HandleForgeResult(member_id, result, item_defs);
     }
 
     public void ClearExaltedReadyFlags(Godot.Collections.Array memberIds = null)
@@ -127,14 +190,25 @@ public partial class MisfortuneGuidanceService : RefCounted
             return;
         }
         foreach (var memberId in memberIds)
-            partyState.Call("clear_fate_run_flag", BuildExaltedReadyFlagId(memberId.AsStringName()));
+            partyState.Call(
+                "clear_fate_run_flag",
+                BuildExaltedReadyFlagId(memberId.AsStringName())
+            );
+    }
+
+    public void clear_exalted_ready_flags(Godot.Collections.Array member_ids = null)
+    {
+        ClearExaltedReadyFlags(member_ids);
     }
 
     private void MarkExaltedReadyFlags(BattleResolutionResult battleResolutionResult)
     {
         if (battleResolutionResult == null)
             return;
-        var convertedShards = DictionaryGet(battleResolutionResult.party_resource_commit, "converted_calamity_shards", 0).AsInt32();
+        var convertedShards = battleResolutionResult
+            .party_resource_commit
+            .GetValueOrDefault("converted_calamity_shards", 0)
+            .AsInt32();
         if (convertedShards <= 0)
             return;
         var partyState = GetPartyState();
@@ -146,7 +220,7 @@ public partial class MisfortuneGuidanceService : RefCounted
             var memberId = ProgressionDataUtils.to_string_name(memberKey);
             if (memberId == "")
                 continue;
-            var value = DictionaryGet(calamityByMemberId, memberKey, 0).AsInt32();
+            var value = calamityByMemberId.GetValueOrDefault(memberKey, 0).AsInt32();
             if (Mathf.Max(value, 0) <= 0)
                 continue;
             partyState.Call("set_fate_run_flag", BuildExaltedReadyFlagId(memberId), true);
@@ -170,7 +244,10 @@ public partial class MisfortuneGuidanceService : RefCounted
 
     private Dictionary GetCalamityByMemberId()
     {
-        if (_battleRuntimeGateway == null || !_battleRuntimeGateway.HasMethod("get_calamity_by_member_id"))
+        if (
+            _battleRuntimeGateway == null
+            || !_battleRuntimeGateway.HasMethod("get_calamity_by_member_id")
+        )
             return new Dictionary();
         var calamityMap = _battleRuntimeGateway.Call("get_calamity_by_member_id");
         if (calamityMap.VariantType == Variant.Type.Dictionary)
@@ -178,7 +255,10 @@ public partial class MisfortuneGuidanceService : RefCounted
         return new Dictionary();
     }
 
-    private StringName ResolveEliteSealSourceMemberId(BattleState battleState, BattleUnitState defeatedUnit)
+    private StringName ResolveEliteSealSourceMemberId(
+        BattleState battleState,
+        BattleUnitState defeatedUnit
+    )
     {
         if (battleState == null || defeatedUnit == null || !IsEliteOrBossTarget(defeatedUnit))
             return "";
@@ -198,7 +278,11 @@ public partial class MisfortuneGuidanceService : RefCounted
         return "";
     }
 
-    private StringName ResolveStatusSourceMemberId(BattleState battleState, BattleUnitState targetUnit, StringName statusId)
+    private StringName ResolveStatusSourceMemberId(
+        BattleState battleState,
+        BattleUnitState targetUnit,
+        StringName statusId
+    )
     {
         if (battleState == null || targetUnit == null || statusId == "")
             return "";
@@ -206,23 +290,32 @@ public partial class MisfortuneGuidanceService : RefCounted
         if (effectState == null || effectState.source_unit_id == "")
             return "";
         var sourceUnit = battleState.units[effectState.source_unit_id].As<BattleUnitState>();
-        return sourceUnit != null ? ProgressionDataUtils.to_string_name(sourceUnit.source_member_id) : "";
+        return sourceUnit != null
+            ? ProgressionDataUtils.to_string_name(sourceUnit.source_member_id)
+            : "";
     }
 
     private bool ForgeResultUsesFixedMaterial(Dictionary result)
     {
-        var inventoryDeltaVariant = DictionaryGet(result, "inventory_delta", new Dictionary());
-        if (inventoryDeltaVariant.VariantType != Variant.Type.Dictionary)
+        var inventoryDeltaValue = result.GetValueOrDefault("inventory_delta", new Dictionary());
+        if (inventoryDeltaValue.VariantType != Variant.Type.Dictionary)
             return false;
-        var inventoryDelta = inventoryDeltaVariant.AsGodotDictionary();
-        var removedEntries = DictionaryGet(inventoryDelta, "removed_entries", new Godot.Collections.Array()).AsGodotArray();
-        foreach (var entryVariant in removedEntries)
+        var inventoryDelta = inventoryDeltaValue.AsGodotDictionary();
+        var removedEntries = inventoryDelta
+            .GetValueOrDefault("removed_entries", new Godot.Collections.Array())
+            .AsGodotArray();
+        foreach (var entryValue in removedEntries)
         {
-            if (entryVariant.VariantType != Variant.Type.Dictionary)
+            if (entryValue.VariantType != Variant.Type.Dictionary)
                 continue;
-            var entry = entryVariant.AsGodotDictionary();
-            var itemId = ProgressionDataUtils.to_string_name(DictionaryGet(entry, "item_id", ""));
-            if (itemId == BattleLootConstants.ITEM_CALAMITY_SHARD() || itemId == BattleLootConstants.ITEM_BLACK_CROWN_CORE())
+            var entry = entryValue.AsGodotDictionary();
+            var itemId = ProgressionDataUtils.to_string_name(
+                entry.GetValueOrDefault("item_id", "")
+            );
+            if (
+                itemId == BattleLootConstants.ITEM_CALAMITY_SHARD()
+                || itemId == BattleLootConstants.ITEM_BLACK_CROWN_CORE()
+            )
                 return true;
         }
         return false;
@@ -255,25 +348,34 @@ public partial class MisfortuneGuidanceService : RefCounted
 
     private StringName ResolveForgeOutputItemId(Dictionary result)
     {
-        var serviceSideEffectsVariant = DictionaryGet(result, "service_side_effects", new Dictionary());
-        if (serviceSideEffectsVariant.VariantType == Variant.Type.Dictionary)
+        var serviceSideEffectsValue = result.GetValueOrDefault(
+            "service_side_effects",
+            new Dictionary()
+        );
+        if (serviceSideEffectsValue.VariantType == Variant.Type.Dictionary)
         {
-            var serviceSideEffects = serviceSideEffectsVariant.AsGodotDictionary();
-            var outputFromSideEffects = ProgressionDataUtils.to_string_name(DictionaryGet(serviceSideEffects, "output_item_id", ""));
+            var serviceSideEffects = serviceSideEffectsValue.AsGodotDictionary();
+            var outputFromSideEffects = ProgressionDataUtils.to_string_name(
+                serviceSideEffects.GetValueOrDefault("output_item_id", "")
+            );
             if (outputFromSideEffects != "")
                 return outputFromSideEffects;
         }
-        var inventoryDeltaVariant = DictionaryGet(result, "inventory_delta", new Dictionary());
-        if (inventoryDeltaVariant.VariantType != Variant.Type.Dictionary)
+        var inventoryDeltaValue = result.GetValueOrDefault("inventory_delta", new Dictionary());
+        if (inventoryDeltaValue.VariantType != Variant.Type.Dictionary)
             return "";
-        var inventoryDelta = inventoryDeltaVariant.AsGodotDictionary();
-        var addedEntries = DictionaryGet(inventoryDelta, "added_entries", new Godot.Collections.Array()).AsGodotArray();
-        foreach (var entryVariant in addedEntries)
+        var inventoryDelta = inventoryDeltaValue.AsGodotDictionary();
+        var addedEntries = inventoryDelta
+            .GetValueOrDefault("added_entries", new Godot.Collections.Array())
+            .AsGodotArray();
+        foreach (var entryValue in addedEntries)
         {
-            if (entryVariant.VariantType != Variant.Type.Dictionary)
+            if (entryValue.VariantType != Variant.Type.Dictionary)
                 continue;
-            var entry = entryVariant.AsGodotDictionary();
-            var itemId = ProgressionDataUtils.to_string_name(DictionaryGet(entry, "item_id", ""));
+            var entry = entryValue.AsGodotDictionary();
+            var itemId = ProgressionDataUtils.to_string_name(
+                entry.GetValueOrDefault("item_id", "")
+            );
             if (itemId != "")
                 return itemId;
         }
@@ -310,10 +412,14 @@ public partial class MisfortuneGuidanceService : RefCounted
             return false;
         if (!_characterGateway.HasMethod("unlock_achievement"))
             return false;
-        return _characterGateway.Call("unlock_achievement", memberId, achievementId, new Dictionary
-        {
-            ["summary_text"] = BuildSummaryText(achievementId),
-        }).AsBool();
+        return _characterGateway
+            .Call(
+                "unlock_achievement",
+                memberId,
+                achievementId,
+                new Dictionary { ["summary_text"] = BuildSummaryText(achievementId) }
+            )
+            .AsBool();
     }
 
     private string BuildSummaryText(StringName achievementId)
@@ -338,7 +444,11 @@ public partial class MisfortuneGuidanceService : RefCounted
 
     private PartyMemberState GetMemberState(StringName memberId)
     {
-        if (_characterGateway == null || memberId == "" || !_characterGateway.HasMethod("get_member_state"))
+        if (
+            _characterGateway == null
+            || memberId == ""
+            || !_characterGateway.HasMethod("get_member_state")
+        )
             return null;
         return _characterGateway.Call("get_member_state", memberId).As<PartyMemberState>();
     }
@@ -347,7 +457,9 @@ public partial class MisfortuneGuidanceService : RefCounted
     {
         if (memberState == null || memberState.progression == null)
             return false;
-        var unitBaseAttributes = memberState.progression.Get("unit_base_attributes").AsGodotObject();
+        var unitBaseAttributes = memberState
+            .progression.Get("unit_base_attributes")
+            .AsGodotObject();
         if (unitBaseAttributes == null)
             return false;
         return unitBaseAttributes.Call("get_attribute_value", DoomMarkedStatId).AsInt32() > 0;
@@ -357,7 +469,9 @@ public partial class MisfortuneGuidanceService : RefCounted
     {
         if (memberState == null || memberState.progression == null)
             return false;
-        var unitBaseAttributes = memberState.progression.Get("unit_base_attributes").AsGodotObject();
+        var unitBaseAttributes = memberState
+            .progression.Get("unit_base_attributes")
+            .AsGodotObject();
         if (unitBaseAttributes == null)
             return false;
         return unitBaseAttributes.Call("get_attribute_value", DoomAuthorityStatId).AsInt32() > 0;
@@ -373,22 +487,25 @@ public partial class MisfortuneGuidanceService : RefCounted
 
     private StringName BuildExaltedReadyFlagId(StringName memberId)
     {
-        return ProgressionDataUtils.to_string_name(string.Format("{0}{1}", ExaltedReadyFlagPrefix, memberId));
+        return ProgressionDataUtils.to_string_name(
+            string.Format("{0}{1}", ExaltedReadyFlagPrefix, memberId)
+        );
     }
 
     private bool IsEliteOrBossTarget(BattleUnitState unitState)
     {
         if (unitState == null || unitState.attribute_snapshot == null)
             return false;
-        return unitState.attribute_snapshot.Call("get_value", BossTargetStatId).AsInt32() > 0
-            || unitState.attribute_snapshot.Call("get_value", FortuneMarkTargetStatId).AsInt32() > 0;
+        return unitState.attribute_snapshot.get_value(BossTargetStatId) > 0
+            || unitState.attribute_snapshot.get_value(FortuneMarkTargetStatId)
+                > 0;
     }
 
     private bool IsBossTarget(BattleUnitState unitState)
     {
         if (unitState == null || unitState.attribute_snapshot == null)
             return false;
-        return unitState.attribute_snapshot.Call("get_value", BossTargetStatId).AsInt32() > 0;
+        return unitState.attribute_snapshot.get_value(BossTargetStatId) > 0;
     }
 
     private void AppendUniqueStringName(Array<StringName> values, StringName value)
@@ -397,10 +514,4 @@ public partial class MisfortuneGuidanceService : RefCounted
             values.Add(value);
     }
 
-    private static Variant DictionaryGet(Dictionary dictionary, Variant key, Variant fallback)
-    {
-        if (dictionary == null || !dictionary.ContainsKey(key))
-            return fallback;
-        return dictionary[key];
-    }
 }

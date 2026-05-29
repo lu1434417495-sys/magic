@@ -2,17 +2,16 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
-const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
-const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
-const BattleTimelineState = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
-const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
-const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
-const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
-const CombatSkillDef = preload("res://scripts/player/progression/combat_skill_def.gd")
-const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
-const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
-const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
+const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/BattleRuntimeModule.cs")
+const BattleState = preload("res://scripts/systems/battle/core/BattleState.cs")
+const BattleTimelineState = preload("res://scripts/systems/battle/core/BattleTimelineState.cs")
+const BattleCellState = preload("res://scripts/systems/battle/core/BattleCellState.cs")
+const BattleUnitState = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
+const CombatEffectDef = preload("res://scripts/player/progression/CombatEffectDef.cs")
+const CombatSkillDef = preload("res://scripts/player/progression/CombatSkillDef.cs")
+const SkillDef = preload("res://scripts/player/progression/SkillDef.cs")
+const ProgressionContentRegistry = preload("res://scripts/player/progression/ProgressionContentRegistry.cs")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/AttributeService.cs")
 const SharedDamageResolvers = preload("res://tests/shared/stub_damage_resolvers.gd")
 const SharedHitResolvers = preload("res://tests/shared/stub_hit_resolvers.gd")
 const StubBattleMasteryGateway = preload("res://tests/shared/stub_battle_mastery_gateway.gd")
@@ -51,13 +50,13 @@ func _run() -> void:
 
 
 func _test_add_weapon_dice_explicit_formula() -> void:
-	var resolver := SharedDamageResolvers.FixedRollDamageResolver.new([2, 3, 6])
+	var resolver = SharedDamageResolvers.build_fixed_roll_damage_resolver([2, 3, 6])
 	var source := _build_unit(&"weapon_formula_user")
 	_apply_weapon(source, 1, 6, 2)
 	var target := _build_unit(&"weapon_formula_target")
 	var effect := _build_damage_effect(5, true, 2, 4, 3)
 
-	var result: Dictionary = resolver.resolve_effects(source, target, [effect])
+	var result: Dictionary = resolver.resolve_effects(source, target, [effect], {})
 	var event := _first_damage_event(result)
 	_assert_eq(int(event.get("base_damage", 0)), 21, "add_weapon_dice 公式应为 weapon dice + skill dice + skill bonus + power。")
 	_assert_eq(int(event.get("weapon_damage_dice_total", 0)), 6, "武器骰应加入当前 damage event。")
@@ -68,7 +67,7 @@ func _test_add_weapon_dice_explicit_formula() -> void:
 
 
 func _test_legacy_skill_dice_aliases_are_not_used() -> void:
-	var resolver := SharedDamageResolvers.FixedRollDamageResolver.new([6, 6, 6])
+	var resolver = SharedDamageResolvers.build_fixed_roll_damage_resolver([6, 6, 6])
 	var source := _build_unit(&"legacy_dice_alias_user")
 	var target := _build_unit(&"legacy_dice_alias_target")
 	var effect := _build_damage_effect(5, false)
@@ -76,7 +75,7 @@ func _test_legacy_skill_dice_aliases_are_not_used() -> void:
 	effect.params["damage_dice_sides"] = 6
 	effect.params["damage_dice_bonus"] = 9
 
-	var result: Dictionary = resolver.resolve_effects(source, target, [effect])
+	var result: Dictionary = resolver.resolve_effects(source, target, [effect], {})
 	var event := _first_damage_event(result)
 	_assert_eq(int(event.get("base_damage", 0)), 5, "旧技能骰 alias 不应加入真实伤害。")
 	_assert_eq(int(event.get("damage_dice_count", -1)), 0, "旧 damage_dice_count alias 不应再被读取。")
@@ -85,13 +84,13 @@ func _test_legacy_skill_dice_aliases_are_not_used() -> void:
 
 
 func _test_physical_damage_does_not_add_weapon_dice_by_default() -> void:
-	var resolver := SharedDamageResolvers.FixedRollDamageResolver.new([4, 6])
+	var resolver = SharedDamageResolvers.build_fixed_roll_damage_resolver([4, 6])
 	var source := _build_unit(&"physical_default_user")
 	_apply_weapon(source, 1, 6, 2)
 	var target := _build_unit(&"physical_default_target")
 	var effect := _build_damage_effect(5, false, 1, 4, 1, &"physical_slash")
 
-	var result: Dictionary = resolver.resolve_effects(source, target, [effect])
+	var result: Dictionary = resolver.resolve_effects(source, target, [effect], {})
 	var event := _first_damage_event(result)
 	_assert_eq(int(event.get("base_damage", 0)), 10, "物理伤害默认不应自动加入武器骰。")
 	_assert_eq(int(event.get("weapon_damage_dice_count", 0)), 0, "未显式 add_weapon_dice 时不应掷武器骰。")
@@ -99,7 +98,7 @@ func _test_physical_damage_does_not_add_weapon_dice_by_default() -> void:
 
 
 func _test_critical_hit_rolls_extra_weapon_and_skill_dice_once() -> void:
-	var resolver := SharedDamageResolvers.FixedRollDamageResolver.new([2, 5, 3, 4], [20])
+	var resolver = SharedDamageResolvers.build_fixed_roll_damage_resolver([2, 5, 3, 4], [20])
 	resolver.set_hit_resolver(SharedHitResolvers.FixedCriticalHitResolver.new())
 	var source := _build_unit(&"critical_weapon_user")
 	_apply_weapon(source, 1, 6, 2)
@@ -133,14 +132,14 @@ func _test_critical_hit_rolls_extra_weapon_and_skill_dice_once() -> void:
 
 
 func _test_each_damage_effect_reads_add_weapon_dice_independently() -> void:
-	var resolver := SharedDamageResolvers.FixedRollDamageResolver.new([4, 5])
+	var resolver = SharedDamageResolvers.build_fixed_roll_damage_resolver([4, 5])
 	var source := _build_unit(&"multi_weapon_user")
 	_apply_weapon(source, 1, 6, 0)
 	var target := _build_unit(&"multi_weapon_target")
 	var first_effect := _build_damage_effect(0, true)
 	var second_effect := _build_damage_effect(0, true)
 
-	var result: Dictionary = resolver.resolve_effects(source, target, [first_effect, second_effect])
+	var result: Dictionary = resolver.resolve_effects(source, target, [first_effect, second_effect], {})
 	var events = result.get("damage_events", [])
 	_assert_eq(events.size() if events is Array else 0, 2, "多段 damage effect 应各自产生 damage event。")
 	if events is Array and events.size() >= 2:
@@ -152,7 +151,7 @@ func _test_each_damage_effect_reads_add_weapon_dice_independently() -> void:
 
 
 func _test_current_two_handed_weapon_dice_is_used() -> void:
-	var resolver := SharedDamageResolvers.FixedRollDamageResolver.new([3, 4])
+	var resolver = SharedDamageResolvers.build_fixed_roll_damage_resolver([3, 4])
 	var source := _build_unit(&"two_handed_user")
 	source.apply_weapon_projection({
 		"weapon_profile_kind": "equipped",
@@ -168,7 +167,7 @@ func _test_current_two_handed_weapon_dice_is_used() -> void:
 	var target := _build_unit(&"two_handed_target")
 	var effect := _build_damage_effect(0, true)
 
-	var result: Dictionary = resolver.resolve_effects(source, target, [effect])
+	var result: Dictionary = resolver.resolve_effects(source, target, [effect], {})
 	var event := _first_damage_event(result)
 	_assert_eq(int(event.get("weapon_damage_dice_count", 0)), 2, "双手握法应读取 two_handed_dice 的骰子数量。")
 	_assert_eq(int(event.get("weapon_damage_dice_sides", 0)), 6, "双手握法应读取 two_handed_dice 的骰面。")
@@ -176,13 +175,13 @@ func _test_current_two_handed_weapon_dice_is_used() -> void:
 
 
 func _test_versatile_current_grip_selects_active_dice() -> void:
-	var resolver := SharedDamageResolvers.FixedRollDamageResolver.new([5, 2, 4])
+	var resolver = SharedDamageResolvers.build_fixed_roll_damage_resolver([5, 2, 4])
 	var source := _build_unit(&"versatile_user")
 	var target := _build_unit(&"versatile_target")
 	var effect := _build_damage_effect(0, true)
 
 	_apply_versatile_weapon(source, false)
-	var one_handed_result: Dictionary = resolver.resolve_effects(source, target, [effect])
+	var one_handed_result: Dictionary = resolver.resolve_effects(source, target, [effect], {})
 	var one_handed_event := _first_damage_event(one_handed_result)
 	_assert_eq(String(source.weapon_current_grip), "one_handed", "versatile 单手握法应保留当前 grip。")
 	_assert_true(not source.weapon_uses_two_hands, "versatile 单手握法不应标记双手。")
@@ -191,7 +190,7 @@ func _test_versatile_current_grip_selects_active_dice() -> void:
 	_assert_eq(int(one_handed_event.get("base_damage", 0)), 5, "versatile 单手应只掷 1D8。")
 
 	_apply_versatile_weapon(source, true)
-	var two_handed_result: Dictionary = resolver.resolve_effects(source, target, [effect])
+	var two_handed_result: Dictionary = resolver.resolve_effects(source, target, [effect], {})
 	var two_handed_event := _first_damage_event(two_handed_result)
 	_assert_eq(String(source.weapon_current_grip), "two_handed", "versatile 双手握法应保留当前 grip。")
 	_assert_true(source.weapon_uses_two_hands, "versatile 双手握法应标记双手。")
@@ -201,13 +200,13 @@ func _test_versatile_current_grip_selects_active_dice() -> void:
 
 
 func _test_unarmed_and_natural_weapon_dice_feed_add_weapon_dice() -> void:
-	var resolver := SharedDamageResolvers.FixedRollDamageResolver.new([4, 6])
+	var resolver = SharedDamageResolvers.build_fixed_roll_damage_resolver([4, 6])
 	var source := _build_unit(&"innate_weapon_user")
 	var target := _build_unit(&"innate_weapon_target")
 	var effect := _build_damage_effect(0, true)
 
-	source.set_unarmed_weapon_projection()
-	var unarmed_result: Dictionary = resolver.resolve_effects(source, target, [effect])
+	source.set_unarmed_weapon_projection(&"physical_blunt", {"dice_count": 1, "dice_sides": 4, "flat_bonus": 0}, 1)
+	var unarmed_result: Dictionary = resolver.resolve_effects(source, target, [effect], {})
 	var unarmed_event := _first_damage_event(unarmed_result)
 	_assert_eq(String(source.weapon_profile_kind), "unarmed", "空手攻击应通过 unarmed profile 表达。")
 	_assert_eq(int(unarmed_event.get("weapon_damage_dice_count", 0)), 1, "空手 add_weapon_dice 应读取 1 颗武器骰。")
@@ -218,8 +217,8 @@ func _test_unarmed_and_natural_weapon_dice_feed_add_weapon_dice() -> void:
 		"dice_count": 1,
 		"dice_sides": 6,
 		"flat_bonus": 0,
-	})
-	var natural_result: Dictionary = resolver.resolve_effects(source, target, [effect])
+	}, &"")
+	var natural_result: Dictionary = resolver.resolve_effects(source, target, [effect], {})
 	var natural_event := _first_damage_event(natural_result)
 	_assert_eq(String(source.weapon_profile_kind), "natural", "天生武器应通过 natural profile 表达。")
 	_assert_eq(int(natural_event.get("weapon_damage_dice_count", 0)), 1, "天生武器 add_weapon_dice 应读取 1 颗武器骰。")
@@ -230,8 +229,8 @@ func _test_unarmed_and_natural_weapon_dice_feed_add_weapon_dice() -> void:
 func _test_requires_weapon_gate_accepts_equipped_only() -> void:
 	var skill := _build_runtime_damage_skill(&"requires_weapon_contract", 1, true, false)
 	var runtime := BattleRuntimeModule.new()
-	runtime.configure_damage_resolver_for_tests(SharedDamageResolvers.FixedRollDamageResolver.new([1], [10]))
-	runtime.configure_hit_resolver_for_tests(SharedHitResolvers.FixedHitResolver.new(10))
+	runtime.configure_damage_resolver_for_tests(SharedDamageResolvers.build_fixed_roll_damage_resolver([1], [10]))
+	runtime.configure_hit_resolver_for_tests(SharedHitResolvers.build_fixed_hit_resolver(10))
 	runtime.setup(null, {skill.skill_id: skill}, {}, {})
 
 	var fixture := _build_runtime_duel_fixture(runtime, skill.skill_id)
@@ -241,8 +240,8 @@ func _test_requires_weapon_gate_accepts_equipped_only() -> void:
 	if attacker == null or target == null or command == null:
 		return
 
-	attacker.set_unarmed_weapon_projection()
-	var target_hp_before := target.current_hp
+	attacker.set_unarmed_weapon_projection(&"physical_blunt", {"dice_count": 1, "dice_sides": 4, "flat_bonus": 0}, 1)
+	var target_hp_before: int = target.current_hp
 	var unarmed_batch := runtime.issue_command(command)
 	_assert_true(
 		not unarmed_batch.log_lines.is_empty() and String(unarmed_batch.log_lines[-1]).contains("需要装备"),
@@ -255,7 +254,7 @@ func _test_requires_weapon_gate_accepts_equipped_only() -> void:
 		"dice_count": 1,
 		"dice_sides": 6,
 		"flat_bonus": 0,
-	})
+	}, &"")
 	var natural_batch := runtime.issue_command(command)
 	_assert_true(
 		not natural_batch.log_lines.is_empty() and String(natural_batch.log_lines[-1]).contains("需要装备"),
@@ -275,8 +274,8 @@ func _test_natural_weapon_dice_do_not_trigger_skill_mastery() -> void:
 	var gateway := StubBattleMasteryGateway.new()
 	var skill := _build_runtime_damage_skill(&"natural_weapon_only_mastery_contract", 0, false, true)
 	var runtime := BattleRuntimeModule.new()
-	runtime.configure_damage_resolver_for_tests(SharedDamageResolvers.FixedRollDamageResolver.new([1], [10]))
-	runtime.configure_hit_resolver_for_tests(SharedHitResolvers.FixedHitResolver.new(10))
+	runtime.configure_damage_resolver_for_tests(SharedDamageResolvers.build_fixed_roll_damage_resolver([1], [10]))
+	runtime.configure_hit_resolver_for_tests(SharedHitResolvers.build_fixed_hit_resolver(10))
 	runtime.setup(gateway, {skill.skill_id: skill}, {}, {})
 
 	var fixture := _build_runtime_duel_fixture(runtime, skill.skill_id)
@@ -290,7 +289,7 @@ func _test_natural_weapon_dice_do_not_trigger_skill_mastery() -> void:
 		"dice_count": 1,
 		"dice_sides": 1,
 		"flat_bonus": 0,
-	})
+	}, &"")
 
 	var batch := runtime.issue_command(command)
 	_assert_true(batch.changed_unit_ids.has(attacker.unit_id), "天生武器骰技能应正常完成一次主动技能结算。")
@@ -299,14 +298,14 @@ func _test_natural_weapon_dice_do_not_trigger_skill_mastery() -> void:
 
 
 func _test_dice_event_fields_split_by_dice_group() -> void:
-	var resolver := SharedDamageResolvers.FixedRollDamageResolver.new([6, 4])
+	var resolver = SharedDamageResolvers.build_fixed_roll_damage_resolver([6, 4])
 	var source := _build_unit(&"dice_event_split_user")
 	_apply_weapon(source, 1, 6, 0)
 	var target := _build_unit(&"dice_event_split_target")
 	var weapon_only_effect := _build_damage_effect(0, true)
 	var skill_only_effect := _build_damage_effect(0, false, 1, 4)
 
-	var result: Dictionary = resolver.resolve_effects(source, target, [weapon_only_effect, skill_only_effect])
+	var result: Dictionary = resolver.resolve_effects(source, target, [weapon_only_effect, skill_only_effect], {})
 	var events = result.get("damage_events", [])
 	_assert_eq(events.size() if events is Array else 0, 2, "拆分骰子事件回归应产生两段 damage event。")
 	_assert_true(bool(result.get("damage_dice_high_total_roll", false)), "顶层 high-total 应只表达任意一段满足。")
@@ -333,12 +332,12 @@ func _test_dice_event_fields_split_by_dice_group() -> void:
 
 
 func _test_dice_event_fields_stay_false_without_dice_groups() -> void:
-	var resolver := SharedDamageResolvers.FixedRollDamageResolver.new([6])
+	var resolver = SharedDamageResolvers.build_fixed_roll_damage_resolver([6])
 	var source := _build_unit(&"no_dice_event_user")
 	var target := _build_unit(&"no_dice_event_target")
 	var effect := _build_damage_effect(5, false)
 
-	var result: Dictionary = resolver.resolve_effects(source, target, [effect])
+	var result: Dictionary = resolver.resolve_effects(source, target, [effect], {})
 	var event := _first_damage_event(result)
 	_assert_true(not bool(event.get("damage_dice_high_total_roll", true)), "无骰组时 high-total 事件必须为 false。")
 	_assert_true(not bool(event.get("skill_damage_dice_is_max", true)), "无技能骰组时技能骰事件必须为 false。")
@@ -364,8 +363,8 @@ func _test_warrior_heavy_strike_uses_weapon_plus_skill_dice_template() -> void:
 		{"min_skill_level": 5, "max_skill_level": -1, "dice_count": 2, "dice_sides": 5},
 	]
 	var damage_effects: Array[CombatEffectDef] = []
-	for effect_variant in skill_def.combat_profile.effect_defs:
-		var effect := effect_variant as CombatEffectDef
+	for effect_option in skill_def.combat_profile.effect_defs:
+		var effect := effect_option as CombatEffectDef
 		if effect == null or effect.effect_type != &"damage":
 			continue
 		damage_effects.append(effect)
@@ -441,9 +440,9 @@ func _build_runtime_duel_fixture(runtime: BattleRuntimeModule, skill_id: StringN
 	var attacker := _build_unit(&"weapon_contract_user", Vector2i(0, 0), 2)
 	attacker.known_active_skill_ids = [skill_id]
 	attacker.known_skill_level_map = {skill_id: 1}
-	attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 100)
+	attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 100)
 	var target := _build_enemy_unit(&"weapon_contract_target", Vector2i(1, 0))
-	target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 1)
+	target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 1)
 	state.units = {
 		attacker.unit_id: attacker,
 		target.unit_id: target,
@@ -456,7 +455,7 @@ func _build_runtime_duel_fixture(runtime: BattleRuntimeModule, skill_id: StringN
 	runtime._state = state
 
 	var command := BattleCommand.new()
-	command.command_type = BattleCommand.TYPE_SKILL
+	command.command_type = BattleCommand.TYPE_SKILL()
 	command.unit_id = attacker.unit_id
 	command.skill_id = skill_id
 	command.target_unit_id = target.unit_id
@@ -486,7 +485,7 @@ func _build_skill_test_state(map_size: Vector2i) -> BattleState:
 func _build_cell(coord: Vector2i) -> BattleCellState:
 	var cell := BattleCellState.new()
 	cell.coord = coord
-	cell.base_terrain = BattleCellState.TERRAIN_LAND
+	cell.base_terrain = BattleCellState.TERRAIN_LAND()
 	cell.base_height = 4
 	cell.height_offset = 0
 	cell.recalculate_runtime_values()

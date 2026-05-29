@@ -2,15 +2,15 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const GameSession = preload("res://scripts/systems/persistence/game_session.gd")
-const GameRuntimeFacade = preload("res://scripts/systems/game_runtime/game_runtime_facade.gd")
-const BattleResolutionResult = preload("res://scripts/systems/battle/core/battle_resolution_result.gd")
-const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
-const BattleTimelineState = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
-const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
-const EquipmentState = preload("res://scripts/player/equipment/equipment_state.gd")
-const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
-const ProgressionDataUtils = preload("res://scripts/player/progression/progression_data_utils.gd")
+const GameSession = preload("res://scripts/systems/persistence/GameSession.cs")
+const GameRuntimeFacade = preload("res://scripts/systems/game_runtime/GameRuntimeFacade.cs")
+const BattleResolutionResult = preload("res://scripts/systems/battle/core/BattleResolutionResult.cs")
+const BattleState = preload("res://scripts/systems/battle/core/BattleState.cs")
+const BattleTimelineState = preload("res://scripts/systems/battle/core/BattleTimelineState.cs")
+const BattleUnitState = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
+const EquipmentState = preload("res://scripts/player/equipment/EquipmentState.cs")
+const PartyMemberState = preload("res://scripts/player/progression/PartyMemberState.cs")
+const ProgressionDataUtils = preload("res://scripts/player/progression/ProgressionDataUtils.cs")
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
 

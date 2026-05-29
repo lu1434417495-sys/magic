@@ -40,7 +40,20 @@ public partial class BattleGridService : RefCounted
         return GetCell(state, coord);
     }
 
-    public Godot.Collections.Array<BattleCellState> get_column_cells(GodotObject state, Vector2I coord)
+    public bool has_cell(GodotObject state, Vector2I coord)
+    {
+        return GetCell(state, coord) != null;
+    }
+
+    public StringName get_cell_base_terrain_id(GodotObject state, Vector2I coord)
+    {
+        return GetCell(state, coord)?.base_terrain ?? "";
+    }
+
+    public Godot.Collections.Array<BattleCellState> get_column_cells(
+        GodotObject state,
+        Vector2I coord
+    )
     {
         var results = new Godot.Collections.Array<BattleCellState>();
         if (state == null)
@@ -48,14 +61,14 @@ public partial class BattleGridService : RefCounted
             return results;
         }
         _ensure_cell_columns(state);
-        Variant columnVariant = GetDictionary(state, "cell_columns").ContainsKey(coord)
+        var columnValue = GetDictionary(state, "cell_columns").ContainsKey(coord)
             ? GetDictionary(state, "cell_columns")[coord]
             : default;
-        if (columnVariant.VariantType == Variant.Type.Array)
+        if (columnValue.VariantType == Variant.Type.Array)
         {
-            foreach (Variant cellVariant in columnVariant.AsGodotArray())
+            foreach (var cellValue in columnValue.AsGodotArray())
             {
-                var layerCell = cellVariant.AsGodotObject() as BattleCellState;
+                var layerCell = cellValue.AsGodotObject() as BattleCellState;
                 if (layerCell != null)
                 {
                     results.Add(layerCell);
@@ -81,7 +94,7 @@ public partial class BattleGridService : RefCounted
         {
             return false;
         }
-        Vector2I mapSize = GdInterop.GetVector2I(state, "map_size");
+        Vector2I mapSize = GetMapSize(state);
         return coord.X >= 0 && coord.Y >= 0 && coord.X < mapSize.X && coord.Y < mapSize.Y;
     }
 
@@ -127,7 +140,9 @@ public partial class BattleGridService : RefCounted
     {
         BattleCellState fromCell = GetCell(state, from_coord);
         BattleCellState toCell = GetCell(state, to_coord);
-        return fromCell == null || toCell == null ? 999 : Math.Abs(fromCell.current_height - toCell.current_height);
+        return fromCell == null || toCell == null
+            ? 999
+            : Math.Abs(fromCell.current_height - toCell.current_height);
     }
 
     public bool is_height_passable(GodotObject state, Vector2I from_coord, Vector2I to_coord)
@@ -150,8 +165,19 @@ public partial class BattleGridService : RefCounted
         GodotObject state,
         Vector2I center_coord,
         StringName area_pattern,
+        int area_value
+    )
+    {
+        return get_area_coords(state, center_coord, area_pattern, area_value, Vector2I.Zero);
+    }
+
+    public GVector2IArray get_area_coords(
+        GodotObject state,
+        Vector2I center_coord,
+        StringName area_pattern,
         int area_value,
-        Vector2I facing_direction = default)
+        Vector2I facing_direction
+    )
     {
         var coords = new GVector2IArray();
         if (state == null || !is_inside(state, center_coord))
@@ -160,7 +186,12 @@ public partial class BattleGridService : RefCounted
         }
 
         int radius = Math.Max(area_value, 0);
-        if (IsEmpty(area_pattern) || area_pattern == "single" || area_pattern == "self" || radius <= 0)
+        if (
+            IsEmpty(area_pattern)
+            || area_pattern == "single"
+            || area_pattern == "self"
+            || radius <= 0
+        )
         {
             coords.Add(center_coord);
             return coords;
@@ -174,8 +205,11 @@ public partial class BattleGridService : RefCounted
                 for (int x = center_coord.X - radius; x <= center_coord.X + radius; x++)
                 {
                     var coord = new Vector2I(x, y);
-                    if (is_inside(state, coord)
-                        && Math.Abs(coord.X - center_coord.X) + Math.Abs(coord.Y - center_coord.Y) <= radius)
+                    if (
+                        is_inside(state, coord)
+                        && Math.Abs(coord.X - center_coord.X) + Math.Abs(coord.Y - center_coord.Y)
+                            <= radius
+                    )
                     {
                         coords.Add(coord);
                     }
@@ -189,8 +223,13 @@ public partial class BattleGridService : RefCounted
                 for (int x = center_coord.X - radius; x <= center_coord.X + radius; x++)
                 {
                     var coord = new Vector2I(x, y);
-                    if (is_inside(state, coord)
-                        && Math.Max(Math.Abs(coord.X - center_coord.X), Math.Abs(coord.Y - center_coord.Y)) <= radius)
+                    if (
+                        is_inside(state, coord)
+                        && Math.Max(
+                            Math.Abs(coord.X - center_coord.X),
+                            Math.Abs(coord.Y - center_coord.Y)
+                        ) <= radius
+                    )
                     {
                         coords.Add(coord);
                     }
@@ -206,7 +245,10 @@ public partial class BattleGridService : RefCounted
                     var coord = new Vector2I(x, y);
                     int dx = Math.Abs(coord.X - center_coord.X);
                     int dy = Math.Abs(coord.Y - center_coord.Y);
-                    if (is_inside(state, coord) && ((dx == 0 && dy <= radius) || (dy == 0 && dx <= radius)))
+                    if (
+                        is_inside(state, coord)
+                        && ((dx == 0 && dy <= radius) || (dy == 0 && dx <= radius))
+                    )
                     {
                         coords.Add(coord);
                     }
@@ -236,7 +278,12 @@ public partial class BattleGridService : RefCounted
         return _sort_unique_coords(coords);
     }
 
-    public GVector2IArray _build_line_coords(GodotObject state, Vector2I center_coord, int radius, Vector2I facing_direction)
+    public GVector2IArray _build_line_coords(
+        GodotObject state,
+        Vector2I center_coord,
+        int radius,
+        Vector2I facing_direction
+    )
     {
         var coords = new GVector2IArray();
         if (radius <= 0)
@@ -269,18 +316,35 @@ public partial class BattleGridService : RefCounted
         return _sort_unique_coords(coords);
     }
 
-    public GVector2IArray _build_cone_coords(GodotObject state, Vector2I center_coord, int radius, Vector2I facing_direction)
+    public GVector2IArray _build_cone_coords(
+        GodotObject state,
+        Vector2I center_coord,
+        int radius,
+        Vector2I facing_direction
+    )
     {
         var coords = new GVector2IArray { center_coord };
         if (radius <= 0)
         {
             return coords;
         }
-        AddConeCoords(state, coords, center_coord, radius, _resolve_area_direction(state, center_coord, facing_direction), wide: true);
+        AddConeCoords(
+            state,
+            coords,
+            center_coord,
+            radius,
+            _resolve_area_direction(state, center_coord, facing_direction),
+            wide: true
+        );
         return _sort_unique_coords(coords);
     }
 
-    public GVector2IArray _build_narrow_cone_coords(GodotObject state, Vector2I center_coord, int radius, Vector2I facing_direction)
+    public GVector2IArray _build_narrow_cone_coords(
+        GodotObject state,
+        Vector2I center_coord,
+        int radius,
+        Vector2I facing_direction
+    )
     {
         var coords = new GVector2IArray();
         if (radius <= 0)
@@ -288,11 +352,23 @@ public partial class BattleGridService : RefCounted
             coords.Add(center_coord);
             return coords;
         }
-        AddConeCoords(state, coords, center_coord, radius, _resolve_area_direction(state, center_coord, facing_direction), wide: false);
+        AddConeCoords(
+            state,
+            coords,
+            center_coord,
+            radius,
+            _resolve_area_direction(state, center_coord, facing_direction),
+            wide: false
+        );
         return _sort_unique_coords(coords);
     }
 
-    public GVector2IArray _build_front_arc_coords(GodotObject state, Vector2I center_coord, int radius, Vector2I facing_direction)
+    public GVector2IArray _build_front_arc_coords(
+        GodotObject state,
+        Vector2I center_coord,
+        int radius,
+        Vector2I facing_direction
+    )
     {
         var coords = new GVector2IArray();
         int arcRadius = Math.Max(radius, 0);
@@ -326,7 +402,11 @@ public partial class BattleGridService : RefCounted
         return _sort_unique_coords(coords);
     }
 
-    public int _get_directional_line_axis(GodotObject state, Vector2I center_coord, Vector2I facing_direction)
+    public int _get_directional_line_axis(
+        GodotObject state,
+        Vector2I center_coord,
+        Vector2I facing_direction
+    )
     {
         Vector2I normalizedDirection = _normalize_area_direction(facing_direction);
         if (normalizedDirection != Vector2I.Zero)
@@ -338,21 +418,27 @@ public partial class BattleGridService : RefCounted
 
     public int _get_stable_line_axis(GodotObject state, Vector2I center_coord)
     {
-        Vector2I mapSize = GdInterop.GetVector2I(state, "map_size");
+        Vector2I mapSize = GetMapSize(state);
         int horizontalSpan = Math.Min(center_coord.X, mapSize.X - 1 - center_coord.X);
         int verticalSpan = Math.Min(center_coord.Y, mapSize.Y - 1 - center_coord.Y);
         return horizontalSpan >= verticalSpan ? 0 : 1;
     }
 
-    public Vector2I _resolve_area_direction(GodotObject state, Vector2I center_coord, Vector2I facing_direction)
+    public Vector2I _resolve_area_direction(
+        GodotObject state,
+        Vector2I center_coord,
+        Vector2I facing_direction
+    )
     {
         Vector2I normalizedDirection = _normalize_area_direction(facing_direction);
-        return normalizedDirection != Vector2I.Zero ? normalizedDirection : _get_stable_cone_direction(state, center_coord);
+        return normalizedDirection != Vector2I.Zero
+            ? normalizedDirection
+            : _get_stable_cone_direction(state, center_coord);
     }
 
     public Vector2I _get_stable_cone_direction(GodotObject state, Vector2I center_coord)
     {
-        Vector2I mapSize = GdInterop.GetVector2I(state, "map_size");
+        Vector2I mapSize = GetMapSize(state);
         int rightSpan = Math.Max(mapSize.X - 1 - center_coord.X, 0);
         int leftSpan = Math.Max(center_coord.X, 0);
         int downSpan = Math.Max(mapSize.Y - 1 - center_coord.Y, 0);
@@ -449,12 +535,12 @@ public partial class BattleGridService : RefCounted
 
     public bool is_walkable(GodotObject state, Vector2I coord)
     {
-        return can_place_footprint(state, coord, Vector2I.One);
+        return can_place_footprint(state, coord, Vector2I.One, "", null);
     }
 
     public bool can_enter_cell(GodotObject state, Vector2I coord)
     {
-        return can_place_footprint(state, coord, Vector2I.One);
+        return can_place_footprint(state, coord, Vector2I.One, "", null);
     }
 
     public bool can_unit_enter_coord(GodotObject state, Vector2I coord, BattleUnitState unit_state)
@@ -466,8 +552,9 @@ public partial class BattleGridService : RefCounted
         GodotObject state,
         Vector2I anchor_coord,
         Vector2I footprint_size,
-        StringName ignored_unit_id = default,
-        BattleUnitState unit_state = null)
+        StringName ignored_unit_id,
+        BattleUnitState unit_state
+    )
     {
         var footprintCoords = get_footprint_coords(anchor_coord, footprint_size);
         var footprintLookup = new HashSet<Vector2I>();
@@ -517,7 +604,11 @@ public partial class BattleGridService : RefCounted
         return true;
     }
 
-    public GStringNameArray collect_blocking_unit_ids(GodotObject state, BattleUnitState unit_state, Vector2I target_coord)
+    public GStringNameArray collect_blocking_unit_ids(
+        GodotObject state,
+        BattleUnitState unit_state,
+        Vector2I target_coord
+    )
     {
         var blockingIds = new GStringNameArray();
         if (unit_state == null)
@@ -533,7 +624,11 @@ public partial class BattleGridService : RefCounted
                 continue;
             }
             StringName occupantUnitId = cell.occupant_unit_id;
-            if (IsEmpty(occupantUnitId) || occupantUnitId == unit_state.unit_id || !seenIds.Add(occupantUnitId))
+            if (
+                IsEmpty(occupantUnitId)
+                || occupantUnitId == unit_state.unit_id
+                || !seenIds.Add(occupantUnitId)
+            )
             {
                 continue;
             }
@@ -542,13 +637,26 @@ public partial class BattleGridService : RefCounted
         return blockingIds;
     }
 
-    public bool can_place_unit(GodotObject state, BattleUnitState unit_state, Vector2I target_coord, bool ignore_height = false)
+    public bool can_place_unit(
+        GodotObject state,
+        BattleUnitState unit_state,
+        Vector2I target_coord,
+        bool ignore_height = false
+    )
     {
         if (state == null || unit_state == null)
         {
             return false;
         }
-        if (!can_place_footprint(state, target_coord, unit_state.footprint_size, unit_state.unit_id, unit_state))
+        if (
+            !can_place_footprint(
+                state,
+                target_coord,
+                unit_state.footprint_size,
+                unit_state.unit_id,
+                unit_state
+            )
+        )
         {
             return false;
         }
@@ -580,7 +688,8 @@ public partial class BattleGridService : RefCounted
             {
                 return false;
             }
-            Vector2I referenceCoord = delta != Vector2I.Zero ? footprintCoord - delta : unit_state.coord;
+            Vector2I referenceCoord =
+                delta != Vector2I.Zero ? footprintCoord - delta : unit_state.coord;
             if (!currentCoords.Contains(referenceCoord))
             {
                 referenceCoord = unit_state.coord;
@@ -598,22 +707,40 @@ public partial class BattleGridService : RefCounted
         return true;
     }
 
-    public BattleEdgeFaceState get_edge_face(GodotObject state, Vector2I from_coord, Vector2I to_coord)
+    public BattleEdgeFaceState get_edge_face(
+        GodotObject state,
+        Vector2I from_coord,
+        Vector2I to_coord
+    )
     {
         return _edgeService?.get_edge_face(state, from_coord, to_coord);
     }
 
-    public bool _can_unit_step_across_edges(GodotObject state, BattleUnitState unit_state, Vector2I delta)
+    public bool _can_unit_step_across_edges(
+        GodotObject state,
+        BattleUnitState unit_state,
+        Vector2I delta
+    )
     {
         if (state == null || unit_state == null)
         {
             return false;
         }
         unit_state.refresh_footprint();
-        return _can_anchor_step_across_edges(state, unit_state.footprint_size, unit_state.coord, delta);
+        return _can_anchor_step_across_edges(
+            state,
+            unit_state.footprint_size,
+            unit_state.coord,
+            delta
+        );
     }
 
-    public bool _can_anchor_step_across_edges(GodotObject state, Vector2I footprint_size, Vector2I anchor_coord, Vector2I delta)
+    public bool _can_anchor_step_across_edges(
+        GodotObject state,
+        Vector2I footprint_size,
+        Vector2I anchor_coord,
+        Vector2I delta
+    )
     {
         if (delta == Vector2I.Right)
         {
@@ -668,10 +795,21 @@ public partial class BattleGridService : RefCounted
 
     public bool is_wall_blocked(GodotObject state, Vector2I from_coord, Vector2I to_coord)
     {
-        return _edgeService != null && _edgeService.has_feature_between(state, from_coord, to_coord, BattleEdgeFaceState.FEATURE_WALL());
+        return _edgeService != null
+            && _edgeService.has_feature_between(
+                state,
+                from_coord,
+                to_coord,
+                BattleEdgeFaceState.FEATURE_WALL()
+            );
     }
 
-    public bool can_traverse(GodotObject state, Vector2I from_coord, Vector2I to_coord, BattleUnitState unit_state = null)
+    public bool can_traverse(
+        GodotObject state,
+        Vector2I from_coord,
+        Vector2I to_coord,
+        BattleUnitState unit_state = null
+    )
     {
         if (get_distance(from_coord, to_coord) != 1)
         {
@@ -696,7 +834,8 @@ public partial class BattleGridService : RefCounted
         GodotObject state,
         BattleUnitState unit_state,
         Vector2I from_anchor,
-        Vector2I to_anchor)
+        Vector2I to_anchor
+    )
     {
         if (state == null || unit_state == null)
         {
@@ -708,7 +847,15 @@ public partial class BattleGridService : RefCounted
         {
             return false;
         }
-        if (!can_place_footprint(state, to_anchor, unit_state.footprint_size, unit_state.unit_id, unit_state))
+        if (
+            !can_place_footprint(
+                state,
+                to_anchor,
+                unit_state.footprint_size,
+                unit_state.unit_id,
+                unit_state
+            )
+        )
         {
             return false;
         }
@@ -733,7 +880,11 @@ public partial class BattleGridService : RefCounted
         return true;
     }
 
-    public int get_unit_move_cost(GodotObject state, BattleUnitState unit_state, Vector2I target_coord)
+    public int get_unit_move_cost(
+        GodotObject state,
+        BattleUnitState unit_state,
+        Vector2I target_coord
+    )
     {
         if (state == null || unit_state == null)
         {
@@ -748,7 +899,10 @@ public partial class BattleGridService : RefCounted
             {
                 continue;
             }
-            moveCost = Math.Max(moveCost, BattleTerrainRules.get_unit_move_cost(cell.base_terrain, movementTags));
+            moveCost = Math.Max(
+                moveCost,
+                BattleTerrainRules.get_unit_move_cost(cell.base_terrain, movementTags)
+            );
         }
         return moveCost;
     }
@@ -758,9 +912,17 @@ public partial class BattleGridService : RefCounted
         BattleUnitState unit_state,
         Vector2I from_coord,
         Vector2I to_coord,
-        int max_move_points)
+        int max_move_points
+    )
     {
-        return ResolveUnitMovePath(state, unit_state, from_coord, to_coord, max_move_points, default);
+        return ResolveUnitMovePath(
+            state,
+            unit_state,
+            from_coord,
+            to_coord,
+            max_move_points,
+            null
+        );
     }
 
     public GDictionary resolve_unit_move_path(
@@ -769,9 +931,36 @@ public partial class BattleGridService : RefCounted
         Vector2I from_coord,
         Vector2I to_coord,
         int max_move_points,
-        Variant move_cost_provider)
+        Func<BattleUnitState, Vector2I, int> move_cost_provider
+    )
     {
-        return ResolveUnitMovePath(state, unit_state, from_coord, to_coord, max_move_points, move_cost_provider);
+        return ResolveUnitMovePath(
+            state,
+            unit_state,
+            from_coord,
+            to_coord,
+            max_move_points,
+            move_cost_provider
+        );
+    }
+
+    public BattleMovePathResult resolve_unit_move_path_typed(
+        GodotObject state,
+        BattleUnitState unit_state,
+        Vector2I from_coord,
+        Vector2I to_coord,
+        int max_move_points,
+        Func<BattleUnitState, Vector2I, int> move_cost_provider
+    )
+    {
+        return ResolveUnitMovePathTyped(
+            state,
+            unit_state,
+            from_coord,
+            to_coord,
+            max_move_points,
+            move_cost_provider
+        );
     }
 
     private GDictionary ResolveUnitMovePath(
@@ -780,7 +969,27 @@ public partial class BattleGridService : RefCounted
         Vector2I from_coord,
         Vector2I to_coord,
         int max_move_points,
-        Variant move_cost_provider)
+        Func<BattleUnitState, Vector2I, int> move_cost_provider
+    )
+    {
+        return ResolveUnitMovePathTyped(
+            state,
+            unit_state,
+            from_coord,
+            to_coord,
+            max_move_points,
+            move_cost_provider
+        ).ToDictionary();
+    }
+
+    private BattleMovePathResult ResolveUnitMovePathTyped(
+        GodotObject state,
+        BattleUnitState unit_state,
+        Vector2I from_coord,
+        Vector2I to_coord,
+        int max_move_points,
+        Func<BattleUnitState, Vector2I, int> move_cost_provider
+    )
     {
         if (state == null)
         {
@@ -836,12 +1045,15 @@ public partial class BattleGridService : RefCounted
                     continue;
                 }
                 int stepCost = get_unit_move_cost(state, unit_state, neighborCoord);
-                if (IsCallableValid(move_cost_provider))
+                if (move_cost_provider != null)
                 {
-                    stepCost = move_cost_provider.AsCallable().Call(unit_state, neighborCoord).AsInt32();
+                    stepCost = move_cost_provider.Invoke(unit_state, neighborCoord);
                 }
                 int nextCost = currentCost + stepCost;
-                if (bestCosts.TryGetValue(neighborCoord, out int existingCost) && nextCost >= existingCost)
+                if (
+                    bestCosts.TryGetValue(neighborCoord, out int existingCost)
+                    && nextCost >= existingCost
+                )
                 {
                     continue;
                 }
@@ -854,19 +1066,34 @@ public partial class BattleGridService : RefCounted
 
         if (!foundTarget)
         {
-            if (!can_place_footprint(state, to_coord, unit_state.footprint_size, unit_state.unit_id, unit_state))
+            if (
+                !can_place_footprint(
+                    state,
+                    to_coord,
+                    unit_state.footprint_size,
+                    unit_state.unit_id,
+                    unit_state
+                )
+            )
             {
                 return MovePathResult(false, 0, new GVector2IArray(), "目标区域不可放置当前单位。");
             }
             if (get_distance(from_coord, to_coord) == 1)
             {
                 GDictionary directResult = evaluate_move(state, from_coord, to_coord, unit_state);
-                return MovePathResult(false, GdInterop.GetInt(directResult, "cost", 0), new GVector2IArray(), GdInterop.GetString(directResult, "message", "该移动不可执行。"));
+                return MovePathResult(
+                    false,
+                    GdInterop.GetInt(directResult, "cost", 0),
+                    new GVector2IArray(),
+                    GdInterop.GetString(directResult, "message", "该移动不可执行。")
+                );
             }
             return MovePathResult(false, 0, new GVector2IArray(), "目标地格当前不可到达。");
         }
 
-        int finalCost = bestCosts.TryGetValue(to_coord, out int resolvedCost) ? resolvedCost : InfiniteCost;
+        int finalCost = bestCosts.TryGetValue(to_coord, out int resolvedCost)
+            ? resolvedCost
+            : InfiniteCost;
         GVector2IArray anchorPath = ReconstructMovePath(previous, from_coord, to_coord);
         if (finalCost > sanitizedMaxMovePoints)
         {
@@ -879,9 +1106,11 @@ public partial class BattleGridService : RefCounted
         GodotObject state,
         BattleUnitState unit_state,
         Vector2I from_coord,
-        int max_path_cost)
+        int max_path_cost
+    )
     {
-        return BuildUnitMovePathTree(state, unit_state, from_coord, max_path_cost, default);
+        return BuildUnitMovePathTree(state, unit_state, from_coord, max_path_cost, null)
+            .ToDictionary();
     }
 
     public GDictionary build_unit_move_path_tree(
@@ -889,26 +1118,46 @@ public partial class BattleGridService : RefCounted
         BattleUnitState unit_state,
         Vector2I from_coord,
         int max_path_cost,
-        Variant move_cost_provider)
+        Func<BattleUnitState, Vector2I, int> move_cost_provider
+    )
     {
-        return BuildUnitMovePathTree(state, unit_state, from_coord, max_path_cost, move_cost_provider);
+        return BuildUnitMovePathTree(
+            state,
+            unit_state,
+            from_coord,
+            max_path_cost,
+            move_cost_provider
+        ).ToDictionary();
     }
 
-    private GDictionary BuildUnitMovePathTree(
+    public BattleMovePathTreeResult build_unit_move_path_tree_typed(
         GodotObject state,
         BattleUnitState unit_state,
         Vector2I from_coord,
         int max_path_cost,
-        Variant move_cost_provider)
+        Func<BattleUnitState, Vector2I, int> move_cost_provider
+    )
+    {
+        return BuildUnitMovePathTree(
+            state,
+            unit_state,
+            from_coord,
+            max_path_cost,
+            move_cost_provider
+        );
+    }
+
+    private BattleMovePathTreeResult BuildUnitMovePathTree(
+        GodotObject state,
+        BattleUnitState unit_state,
+        Vector2I from_coord,
+        int max_path_cost,
+        Func<BattleUnitState, Vector2I, int> move_cost_provider
+    )
     {
         if (state == null || unit_state == null || !is_inside(state, from_coord))
         {
-            return new GDictionary
-            {
-                ["costs"] = new GDictionary(),
-                ["previous"] = new GDictionary(),
-                ["steps"] = new GDictionary(),
-            };
+            return new BattleMovePathTreeResult();
         }
 
         int sanitizedMaxPathCost = Math.Max(max_path_cost, 0);
@@ -940,35 +1189,53 @@ public partial class BattleGridService : RefCounted
                     continue;
                 }
                 int stepCost = get_unit_move_cost(state, unit_state, neighborCoord);
-                if (IsCallableValid(move_cost_provider))
+                if (move_cost_provider != null)
                 {
-                    stepCost = move_cost_provider.AsCallable().Call(unit_state, neighborCoord).AsInt32();
+                    stepCost = move_cost_provider.Invoke(unit_state, neighborCoord);
                 }
                 int nextCost = currentCost + stepCost;
                 if (nextCost > sanitizedMaxPathCost)
                 {
                     continue;
                 }
-                if (bestCosts.TryGetValue(neighborCoord, out int existingCost) && nextCost >= existingCost)
+                if (
+                    bestCosts.TryGetValue(neighborCoord, out int existingCost)
+                    && nextCost >= existingCost
+                )
                 {
                     continue;
                 }
                 bestCosts[neighborCoord] = nextCost;
                 previous[neighborCoord] = currentCoord;
-                steps[neighborCoord] = steps.TryGetValue(currentCoord, out int currentSteps) ? currentSteps + 1 : 1;
+                steps[neighborCoord] = steps.TryGetValue(currentCoord, out int currentSteps)
+                    ? currentSteps + 1
+                    : 1;
                 HeapPush(heap, new MovePathNode(nextCost, nextCost, neighborCoord));
             }
         }
 
-        return new GDictionary
+        var result = new BattleMovePathTreeResult();
+        foreach ((Vector2I coord, int cost) in bestCosts)
         {
-            ["costs"] = ToVariantDictionary(bestCosts),
-            ["previous"] = ToVariantDictionary(previous),
-            ["steps"] = ToVariantDictionary(steps),
-        };
+            result.Costs[coord] = cost;
+        }
+        foreach ((Vector2I coord, Vector2I previousCoord) in previous)
+        {
+            result.Previous[coord] = previousCoord;
+        }
+        foreach ((Vector2I coord, int stepCount) in steps)
+        {
+            result.Steps[coord] = stepCount;
+        }
+        return result;
     }
 
-    public GDictionary evaluate_move(GodotObject state, Vector2I from_coord, Vector2I to_coord, BattleUnitState unit_state = null)
+    public GDictionary evaluate_move(
+        GodotObject state,
+        Vector2I from_coord,
+        Vector2I to_coord,
+        BattleUnitState unit_state = null
+    )
     {
         if (state == null)
         {
@@ -980,7 +1247,11 @@ public partial class BattleGridService : RefCounted
         }
         if (get_distance(from_coord, to_coord) != 1)
         {
-            return new GDictionary { ["allowed"] = false, ["message"] = "普通移动只能前往相邻地格。" };
+            return new GDictionary
+            {
+                ["allowed"] = false,
+                ["message"] = "普通移动只能前往相邻地格。",
+            };
         }
         if (is_wall_blocked(state, from_coord, to_coord))
         {
@@ -992,13 +1263,29 @@ public partial class BattleGridService : RefCounted
         {
             return new GDictionary { ["allowed"] = false, ["message"] = "当前单位数据不可用。" };
         }
-        if (!can_place_footprint(state, to_coord, moveUnit.footprint_size, moveUnit.unit_id, moveUnit))
+        if (
+            !can_place_footprint(
+                state,
+                to_coord,
+                moveUnit.footprint_size,
+                moveUnit.unit_id,
+                moveUnit
+            )
+        )
         {
-            return new GDictionary { ["allowed"] = false, ["message"] = "目标区域不可放置当前单位。" };
+            return new GDictionary
+            {
+                ["allowed"] = false,
+                ["message"] = "目标区域不可放置当前单位。",
+            };
         }
         if (!can_place_unit(state, moveUnit, to_coord))
         {
-            return new GDictionary { ["allowed"] = false, ["message"] = "目标区域高度差超过 1，无法通行。" };
+            return new GDictionary
+            {
+                ["allowed"] = false,
+                ["message"] = "目标区域高度差超过 1，无法通行。",
+            };
         }
         int moveCost = get_unit_move_cost(state, moveUnit, to_coord);
         return new GDictionary
@@ -1020,7 +1307,11 @@ public partial class BattleGridService : RefCounted
         {
             cell_state.flow_direction = Vector2I.Zero;
         }
-        cell_state.current_height = Math.Clamp(cell_state.base_height + cell_state.height_offset, MinRuntimeHeight, MaxRuntimeHeight);
+        cell_state.current_height = Math.Clamp(
+            cell_state.base_height + cell_state.height_offset,
+            MinRuntimeHeight,
+            MaxRuntimeHeight
+        );
         cell_state.stack_layer = cell_state.current_height;
         cell_state.passable = BattleTerrainRules.get_global_passable(cell_state.base_terrain);
         cell_state.move_cost = BattleTerrainRules.get_base_move_cost(cell_state.base_terrain);
@@ -1032,9 +1323,9 @@ public partial class BattleGridService : RefCounted
         {
             return;
         }
-        foreach (Variant cellVariant in cells.Values)
+        foreach (var cellValue in cells.Values)
         {
-            if (cellVariant.AsGodotObject() is BattleCellState cellState)
+            if (cellValue.AsGodotObject() is BattleCellState cellState)
             {
                 recalculate_cell(cellState);
             }
@@ -1047,7 +1338,17 @@ public partial class BattleGridService : RefCounted
         {
             return;
         }
-        state.Set("cell_columns", BattleCellState.build_columns_from_surface_cells(GetDictionary(state, "cells")));
+        GDictionary rebuiltColumns = BattleCellState.build_columns_from_surface_cells(
+            GetDictionary(state, "cells")
+        );
+        if (state is BattleState battleState)
+        {
+            battleState.cell_columns = rebuiltColumns;
+        }
+        else
+        {
+            state.Set("cell_columns", rebuiltColumns);
+        }
     }
 
     public void sync_column_from_surface_cell(GodotObject state, Vector2I coord)
@@ -1066,7 +1367,14 @@ public partial class BattleGridService : RefCounted
         {
             cellColumns[coord] = BattleCellState.build_stacked_cells_from_surface_cell(surfaceCell);
         }
-        state.Set("cell_columns", cellColumns);
+        if (state is BattleState battleState)
+        {
+            battleState.cell_columns = cellColumns;
+        }
+        else
+        {
+            state.Set("cell_columns", cellColumns);
+        }
     }
 
     public void _ensure_cell_columns(GodotObject state)
@@ -1108,14 +1416,23 @@ public partial class BattleGridService : RefCounted
         {
             return false;
         }
-        cell.height_offset = Math.Clamp(height_offset, MinRuntimeHeight - cell.base_height, MaxRuntimeHeight - cell.base_height);
+        cell.height_offset = Math.Clamp(
+            height_offset,
+            MinRuntimeHeight - cell.base_height,
+            MaxRuntimeHeight - cell.base_height
+        );
         recalculate_cell(cell);
         sync_column_from_surface_cell(state, coord);
         MarkRuntimeEdgeFacesDirty(state);
         return true;
     }
 
-    public bool set_edge_feature(GodotObject state, Vector2I coord, Vector2I direction, BattleEdgeFeatureState feature_state)
+    public bool set_edge_feature(
+        GodotObject state,
+        Vector2I coord,
+        Vector2I direction,
+        BattleEdgeFeatureState feature_state
+    )
     {
         BattleCellState cell = GetCell(state, coord);
         if (cell == null)
@@ -1133,7 +1450,11 @@ public partial class BattleGridService : RefCounted
         return set_edge_feature(state, coord, direction, BattleEdgeFeatureState.make_none());
     }
 
-    public GDictionary apply_height_delta_result(GodotObject state, Vector2I coord, int height_delta)
+    public GDictionary apply_height_delta_result(
+        GodotObject state,
+        Vector2I coord,
+        int height_delta
+    )
     {
         BattleCellState cell = GetCell(state, coord);
         if (cell == null)
@@ -1160,7 +1481,11 @@ public partial class BattleGridService : RefCounted
 
     public bool apply_height_delta(GodotObject state, Vector2I coord, int height_delta)
     {
-        return GdInterop.GetBool(apply_height_delta_result(state, coord, height_delta), "changed", false);
+        return GdInterop.GetBool(
+            apply_height_delta_result(state, coord, height_delta),
+            "changed",
+            false
+        );
     }
 
     public void set_occupant(GodotObject state, Vector2I coord, StringName unit_id)
@@ -1178,11 +1503,11 @@ public partial class BattleGridService : RefCounted
         {
             return;
         }
-        foreach (Variant coordVariant in coords)
+        foreach (var coordValue in coords)
         {
-            if (coordVariant.VariantType == Variant.Type.Vector2I)
+            if (coordValue.VariantType == Variant.Type.Vector2I)
             {
-                set_occupant(state, coordVariant.AsVector2I(), unit_id);
+                set_occupant(state, coordValue.AsVector2I(), unit_id);
             }
         }
     }
@@ -1197,7 +1522,12 @@ public partial class BattleGridService : RefCounted
         set_occupants(state, ToUntypedArray(unit_state.occupied_coords), "");
     }
 
-    public bool place_unit(GodotObject state, BattleUnitState unit_state, Vector2I target_coord, bool ignore_height = false)
+    public bool place_unit(
+        GodotObject state,
+        BattleUnitState unit_state,
+        Vector2I target_coord,
+        bool ignore_height = false
+    )
     {
         if (state == null || unit_state == null)
         {
@@ -1218,7 +1548,11 @@ public partial class BattleGridService : RefCounted
         return place_unit(state, unit_state, target_coord);
     }
 
-    public bool move_unit_force(GodotObject state, BattleUnitState unit_state, Vector2I target_coord)
+    public bool move_unit_force(
+        GodotObject state,
+        BattleUnitState unit_state,
+        Vector2I target_coord
+    )
     {
         return place_unit(state, unit_state, target_coord, true);
     }
@@ -1230,12 +1564,19 @@ public partial class BattleGridService : RefCounted
 
     public bool _can_unit_enter_cell(BattleCellState cell, BattleUnitState unit_state)
     {
-        return cell != null && unit_state != null && BattleTerrainRules.can_unit_enter_terrain(cell.base_terrain, _get_unit_movement_tags(unit_state));
+        return cell != null
+            && unit_state != null
+            && BattleTerrainRules.can_unit_enter_terrain(
+                cell.base_terrain,
+                _get_unit_movement_tags(unit_state)
+            );
     }
 
     public GArray _get_unit_movement_tags(BattleUnitState unit_state)
     {
-        return unit_state != null ? ToUntypedStringNameArray(unit_state.movement_tags) : new GArray();
+        return unit_state != null
+            ? ToUntypedStringNameArray(unit_state.movement_tags)
+            : new GArray();
     }
 
     public int _move_path_heuristic(Vector2I from_coord, Vector2I to_coord)
@@ -1254,7 +1595,7 @@ public partial class BattleGridService : RefCounted
             {
                 break;
             }
-            Variant tmp = heap[parentIndex];
+            var tmp = heap[parentIndex];
             heap[parentIndex] = heap[index];
             heap[index] = tmp;
             index = parentIndex;
@@ -1264,7 +1605,7 @@ public partial class BattleGridService : RefCounted
     public GArray _move_heap_pop(GArray heap)
     {
         GArray top = heap[0].AsGodotArray();
-        Variant last = heap[heap.Count - 1];
+        var last = heap[heap.Count - 1];
         heap.RemoveAt(heap.Count - 1);
         if (heap.Count == 0)
         {
@@ -1290,7 +1631,7 @@ public partial class BattleGridService : RefCounted
             {
                 break;
             }
-            Variant tmp = heap[index];
+            var tmp = heap[index];
             heap[index] = heap[smallest];
             heap[smallest] = tmp;
             index = smallest;
@@ -1325,7 +1666,9 @@ public partial class BattleGridService : RefCounted
             return new GDictionary();
         }
         int jumpStr = _get_jump_effective_str(unit_state);
-        double budget = GdInterop.GetInt(effect_def, "jump_base_budget") + GdInterop.GetFloat(effect_def, "jump_str_scale") * jumpStr;
+        double budget =
+            GdInterop.GetInt(effect_def, "jump_base_budget")
+            + GdInterop.GetFloat(effect_def, "jump_str_scale") * jumpStr;
         double arcRatioRaw = GdInterop.GetFloat(effect_def, "jump_arc_ratio");
         double arcRatio = Math.Clamp(arcRatioRaw, MinJumpArcRatio, 1.0);
         int rangeMultiplier = Math.Max(GdInterop.GetInt(effect_def, "jump_range_multiplier", 1), 1);
@@ -1362,7 +1705,12 @@ public partial class BattleGridService : RefCounted
         return GdInterop.GetInt(parameters, "min_arc", 0) + extraArc;
     }
 
-    public bool can_jump_arc(GodotObject state, BattleUnitState unit_state, Vector2I target_coord, GodotObject effect_def)
+    public bool can_jump_arc(
+        GodotObject state,
+        BattleUnitState unit_state,
+        Vector2I target_coord,
+        GodotObject effect_def
+    )
     {
         if (state == null || unit_state == null || effect_def == null)
         {
@@ -1431,7 +1779,12 @@ public partial class BattleGridService : RefCounted
         return true;
     }
 
-    public bool can_blink_to_coord(GodotObject state, BattleUnitState unit_state, Vector2I target_coord, GodotObject effect_def)
+    public bool can_blink_to_coord(
+        GodotObject state,
+        BattleUnitState unit_state,
+        Vector2I target_coord,
+        GodotObject effect_def
+    )
     {
         if (state == null || unit_state == null || effect_def == null)
         {
@@ -1486,7 +1839,8 @@ public partial class BattleGridService : RefCounted
         int rawStr = 0;
         if (unit_state?.attribute_snapshot != null)
         {
-            rawStr = unit_state.attribute_snapshot.Call("get_value", JumpStrengthAttribute).AsInt32();
+            rawStr = unit_state
+                .attribute_snapshot.get_value(JumpStrengthAttribute);
         }
         int modifier = _get_jump_size_str_modifier(unit_state);
         return Math.Max(0, rawStr + modifier);
@@ -1515,7 +1869,10 @@ public partial class BattleGridService : RefCounted
         {
             return -JumpSizeStrCost * 5;
         }
-        if (bodySize == BattleUnitState.BODY_SIZE_GARGANTUAN() || bodySize == BattleUnitState.BODY_SIZE_BOSS())
+        if (
+            bodySize == BattleUnitState.BODY_SIZE_GARGANTUAN()
+            || bodySize == BattleUnitState.BODY_SIZE_BOSS()
+        )
         {
             return -JumpSizeStrCost * 8;
         }
@@ -1540,7 +1897,25 @@ public partial class BattleGridService : RefCounted
 
     private static GDictionary GetDictionary(GodotObject src, string property)
     {
+        if (src is BattleState battleState)
+        {
+            return property switch
+            {
+                "cells" => battleState.cells,
+                "cell_columns" => battleState.cell_columns,
+                "units" => battleState.units,
+                "runtime_edge_faces" => battleState.runtime_edge_faces,
+                _ => new GDictionary(),
+            };
+        }
         return GdInterop.GetDictionary(src, property);
+    }
+
+    private static Vector2I GetMapSize(GodotObject state)
+    {
+        return state is BattleState battleState
+            ? battleState.map_size
+            : GdInterop.GetVector2I(state, "map_size");
     }
 
     private static BattleCellState GetCell(GodotObject state, Vector2I coord)
@@ -1556,11 +1931,11 @@ public partial class BattleGridService : RefCounted
 
     private static BattleUnitState GetUnit(GDictionary units, StringName unitId)
     {
-        if (units == null || !GdInterop.TryGet(units, unitId, out Variant unitVariant))
+        if (units == null || !GdInterop.TryGet(units, unitId, out Variant unitValue))
         {
             return null;
         }
-        return unitVariant.AsGodotObject() as BattleUnitState;
+        return unitValue.AsGodotObject() as BattleUnitState;
     }
 
     private void AddNeighborIfInside(GodotObject state, GVector2IArray neighbors, Vector2I coord)
@@ -1577,14 +1952,22 @@ public partial class BattleGridService : RefCounted
         Vector2I centerCoord,
         int radius,
         Vector2I direction,
-        bool wide)
+        bool wide
+    )
     {
         if (direction == Vector2I.Right)
         {
             for (int step = wide ? 1 : 0; step <= radius; step++)
             {
                 int halfWidth = wide ? step : (step <= Math.Min(radius, 1) ? 1 : 0);
-                AddAxisConeStep(state, coords, centerCoord.X + step, centerCoord.Y, halfWidth, horizontal: true);
+                AddAxisConeStep(
+                    state,
+                    coords,
+                    centerCoord.X + step,
+                    centerCoord.Y,
+                    halfWidth,
+                    horizontal: true
+                );
             }
         }
         else if (direction == Vector2I.Left)
@@ -1592,7 +1975,14 @@ public partial class BattleGridService : RefCounted
             for (int step = wide ? 1 : 0; step <= radius; step++)
             {
                 int halfWidth = wide ? step : (step <= Math.Min(radius, 1) ? 1 : 0);
-                AddAxisConeStep(state, coords, centerCoord.X - step, centerCoord.Y, halfWidth, horizontal: true);
+                AddAxisConeStep(
+                    state,
+                    coords,
+                    centerCoord.X - step,
+                    centerCoord.Y,
+                    halfWidth,
+                    horizontal: true
+                );
             }
         }
         else if (direction == Vector2I.Down)
@@ -1600,7 +1990,14 @@ public partial class BattleGridService : RefCounted
             for (int step = wide ? 1 : 0; step <= radius; step++)
             {
                 int halfWidth = wide ? step : (step <= Math.Min(radius, 1) ? 1 : 0);
-                AddAxisConeStep(state, coords, centerCoord.X, centerCoord.Y + step, halfWidth, horizontal: false);
+                AddAxisConeStep(
+                    state,
+                    coords,
+                    centerCoord.X,
+                    centerCoord.Y + step,
+                    halfWidth,
+                    horizontal: false
+                );
             }
         }
         else
@@ -1608,7 +2005,14 @@ public partial class BattleGridService : RefCounted
             for (int step = wide ? 1 : 0; step <= radius; step++)
             {
                 int halfWidth = wide ? step : (step <= Math.Min(radius, 1) ? 1 : 0);
-                AddAxisConeStep(state, coords, centerCoord.X, centerCoord.Y - step, halfWidth, horizontal: false);
+                AddAxisConeStep(
+                    state,
+                    coords,
+                    centerCoord.X,
+                    centerCoord.Y - step,
+                    halfWidth,
+                    horizontal: false
+                );
             }
         }
     }
@@ -1619,11 +2023,14 @@ public partial class BattleGridService : RefCounted
         int baseX,
         int baseY,
         int halfWidth,
-        bool horizontal)
+        bool horizontal
+    )
     {
         for (int offset = -halfWidth; offset <= halfWidth; offset++)
         {
-            var coord = horizontal ? new Vector2I(baseX, baseY + offset) : new Vector2I(baseX + offset, baseY);
+            var coord = horizontal
+                ? new Vector2I(baseX, baseY + offset)
+                : new Vector2I(baseX + offset, baseY);
             if (is_inside(state, coord))
             {
                 coords.Add(coord);
@@ -1633,12 +2040,14 @@ public partial class BattleGridService : RefCounted
 
     private bool EdgeBlocksOccupancyBetween(GodotObject state, Vector2I fromCoord, Vector2I toCoord)
     {
-        return _edgeService != null && _edgeService.blocks_occupancy_between(state, fromCoord, toCoord);
+        return _edgeService != null
+            && _edgeService.blocks_occupancy_between(state, fromCoord, toCoord);
     }
 
     private bool EdgeIsTraversableBetween(GodotObject state, Vector2I fromCoord, Vector2I toCoord)
     {
-        return _edgeService != null && _edgeService.is_traversable_between(state, fromCoord, toCoord);
+        return _edgeService != null
+            && _edgeService.is_traversable_between(state, fromCoord, toCoord);
     }
 
     private void MarkRuntimeEdgeFacesDirty(GodotObject state)
@@ -1701,7 +2110,11 @@ public partial class BattleGridService : RefCounted
         return top;
     }
 
-    private static GVector2IArray ReconstructMovePath(Dictionary<Vector2I, Vector2I> previous, Vector2I start, Vector2I end)
+    private static GVector2IArray ReconstructMovePath(
+        Dictionary<Vector2I, Vector2I> previous,
+        Vector2I start,
+        Vector2I end
+    )
     {
         var reversedPath = new List<Vector2I>();
         Vector2I current = end;
@@ -1719,7 +2132,11 @@ public partial class BattleGridService : RefCounted
         return ToTypedVector2IArray(reversedPath);
     }
 
-    private static GVector2IArray ReconstructMovePath(GDictionary previous, Vector2I start, Vector2I end)
+    private static GVector2IArray ReconstructMovePath(
+        GDictionary previous,
+        Vector2I start,
+        Vector2I end
+    )
     {
         var reversedPath = new List<Vector2I>();
         Vector2I current = end;
@@ -1730,26 +2147,31 @@ public partial class BattleGridService : RefCounted
             {
                 return new GVector2IArray();
             }
-            Variant previousVariant = previous[current];
-            if (previousVariant.VariantType != Variant.Type.Vector2I)
+            var previousValue = previous[current];
+            if (previousValue.VariantType != Variant.Type.Vector2I)
             {
                 return new GVector2IArray();
             }
-            current = previousVariant.AsVector2I();
+            current = previousValue.AsVector2I();
         }
         reversedPath.Add(start);
         reversedPath.Reverse();
         return ToTypedVector2IArray(reversedPath);
     }
 
-    private static GDictionary MovePathResult(bool allowed, int cost, GVector2IArray path, string message)
+    private static BattleMovePathResult MovePathResult(
+        bool allowed,
+        int cost,
+        GVector2IArray path,
+        string message
+    )
     {
-        return new GDictionary
+        return new BattleMovePathResult
         {
-            ["allowed"] = allowed,
-            ["cost"] = cost,
-            ["path"] = path ?? new GVector2IArray(),
-            ["message"] = message,
+            Allowed = allowed,
+            Cost = cost,
+            Path = path ?? new GVector2IArray(),
+            Message = message,
         };
     }
 
@@ -1816,22 +2238,13 @@ public partial class BattleGridService : RefCounted
         return value == null || string.IsNullOrEmpty(value.ToString());
     }
 
-    private static bool IsCallableValid(Variant callable)
-    {
-        if (callable.VariantType != Variant.Type.Callable)
-        {
-            return false;
-        }
-        return !string.IsNullOrEmpty(callable.AsCallable().Method.ToString());
-    }
-
     private static int GetArrayInt(GArray values, int index, int fallback = 0)
     {
         if (values == null || index < 0 || index >= values.Count)
         {
             return fallback;
         }
-        Variant value = values[index];
+        var value = values[index];
         return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
     }
 

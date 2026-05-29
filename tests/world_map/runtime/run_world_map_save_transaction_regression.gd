@@ -2,8 +2,8 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_session.gd")
-const GAME_RUNTIME_FACADE_SCRIPT = preload("res://scripts/systems/game_runtime/game_runtime_facade.gd")
+const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/GameSession.cs")
+const GAME_RUNTIME_FACADE_SCRIPT = preload("res://scripts/systems/game_runtime/GameRuntimeFacade.cs")
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
 const SAVE_FILE_COMPRESSION_MODE := FileAccess.COMPRESSION_ZSTD
@@ -92,8 +92,8 @@ func _read_active_save_payload(game_session) -> Dictionary:
 
 
 func _payload_player_coord(payload: Dictionary) -> Vector2i:
-	var world_state_variant = _dictionary_get(payload, "world_state", {})
-	var world_state: Dictionary = world_state_variant if world_state_variant is Dictionary else {}
+	var world_state_option = _dictionary_get(payload, "world_state", {})
+	var world_state: Dictionary = world_state_option if world_state_option is Dictionary else {}
 	return _dictionary_get(world_state, "player_coord", Vector2i.ZERO)
 
 

@@ -188,7 +188,7 @@ def add_strata_bands(canvas: Canvas, mask: list[Point], rng: random.Random, coun
 	canvas.clip(mask, body)
 
 
-def draw_land_top(file_name: str, variant: int) -> None:
+def draw_land_top(file_name: str, tile_index: int) -> None:
 	canvas = Canvas()
 	diamond = get_diamond()
 	top_palette = (
@@ -196,11 +196,11 @@ def draw_land_top(file_name: str, variant: int) -> None:
 		(color(255, 202, 162, 108), color(255, 143, 97, 56), color(214, 90, 60, 35)),
 		(color(255, 222, 190, 136), color(255, 160, 118, 74), color(212, 106, 74, 42)),
 	)
-	palette = top_palette[variant - 1]
+	palette = top_palette[tile_index - 1]
 	canvas.fill_gradient(diamond, palette[0], palette[1])
 	canvas.fill_polygon(points((point(32, 2), point(56, 15), point(32, 10), point(8, 15))), color(46, 255, 245, 224))
 	canvas.fill_polygon(points((point(32, 19), point(58, 16), point(32, 31), point(6, 16))), color(38, 92, 58, 32))
-	rng = new_random(7100 + variant * 37)
+	rng = new_random(7100 + tile_index * 37)
 	add_grain(canvas, diamond, rng, 26, color(120, 116, 83, 51), color(96, 236, 206, 166))
 	add_cracks(canvas, diamond, rng, 7, color(104, 96, 61, 36))
 
@@ -214,19 +214,19 @@ def draw_land_top(file_name: str, variant: int) -> None:
 	canvas.save(file_name)
 
 
-def draw_water_top(file_name: str, variant: int) -> None:
+def draw_water_top(file_name: str, tile_index: int) -> None:
 	canvas = Canvas()
 	diamond = get_diamond()
 	palette = (
 		(color(255, 110, 149, 171), color(255, 48, 88, 109), color(170, 215, 238, 247)),
 		(color(255, 96, 135, 157), color(255, 38, 72, 91), color(168, 208, 232, 242)),
 		(color(255, 120, 160, 171), color(255, 56, 92, 102), color(160, 226, 242, 247)),
-	)[variant - 1]
+	)[tile_index - 1]
 	canvas.fill_gradient(diamond, palette[0], palette[1])
 	canvas.fill_polygon(points((point(32, 3), point(57, 16), point(32, 9), point(7, 16))), color(42, 242, 250, 255))
 
 	def water_detail() -> None:
-		rng = new_random(8200 + variant * 41)
+		rng = new_random(8200 + tile_index * 41)
 		for _ in range(7):
 			x = 10 + rng.randrange(0, 36)
 			y = 7 + rng.randrange(0, 14)
@@ -243,19 +243,19 @@ def draw_water_top(file_name: str, variant: int) -> None:
 	canvas.save(file_name)
 
 
-def draw_mud_top(file_name: str, variant: int) -> None:
+def draw_mud_top(file_name: str, tile_index: int) -> None:
 	canvas = Canvas()
 	diamond = get_diamond()
 	palette = (
 		(color(255, 157, 109, 72), color(255, 76, 47, 28), color(110, 240, 212, 181)),
 		(color(255, 145, 97, 61), color(255, 67, 40, 24), color(105, 232, 200, 170)),
 		(color(255, 134, 86, 52), color(255, 57, 34, 20), color(108, 226, 192, 160)),
-	)[variant - 1]
+	)[tile_index - 1]
 	canvas.fill_gradient(diamond, palette[0], palette[1])
 	canvas.fill_polygon(points((point(32, 3), point(54, 16), point(32, 11), point(10, 16))), color(36, 255, 228, 198))
 
 	def mud_detail() -> None:
-		rng = new_random(9300 + variant * 43)
+		rng = new_random(9300 + tile_index * 43)
 		for _ in range(5):
 			x = 12 + rng.randrange(0, 30)
 			y = 9 + rng.randrange(0, 11)
@@ -273,14 +273,14 @@ def draw_mud_top(file_name: str, variant: int) -> None:
 	canvas.save(file_name)
 
 
-def draw_scrub_overlay(file_name: str, variant: int) -> None:
+def draw_scrub_overlay(file_name: str, tile_index: int) -> None:
 	canvas = Canvas()
 	diamond = get_diamond()
 	clusters = (
 		((18, 18), (30, 10), (43, 17)),
 		((14, 15), (31, 11), (46, 18)),
 		((20, 11), (34, 18), (45, 12)),
-	)[variant - 1]
+	)[tile_index - 1]
 
 	def scrub_detail() -> None:
 		for x, y in clusters:
@@ -295,10 +295,10 @@ def draw_scrub_overlay(file_name: str, variant: int) -> None:
 	canvas.save(file_name)
 
 
-def draw_rubble_overlay(file_name: str, variant: int) -> None:
+def draw_rubble_overlay(file_name: str, tile_index: int) -> None:
 	canvas = Canvas()
 	diamond = get_diamond()
-	rng = new_random(10400 + variant * 47)
+	rng = new_random(10400 + tile_index * 47)
 
 	def rubble_detail() -> None:
 		for _ in range(6):
@@ -321,7 +321,7 @@ def draw_rubble_overlay(file_name: str, variant: int) -> None:
 	canvas.save(file_name)
 
 
-def draw_cliff_south(file_name: str, variant: int) -> None:
+def draw_cliff_south(file_name: str, tile_index: int) -> None:
 	canvas = Canvas(WIDTH, FACE_HEIGHT)
 	polygon = points((point(32, 0), point(63, 16), point(63, 35), point(32, 20)))
 	palette = (
@@ -329,11 +329,11 @@ def draw_cliff_south(file_name: str, variant: int) -> None:
 		(color(255, 161, 117, 76), color(255, 66, 43, 28)),
 		(color(255, 179, 135, 91), color(255, 79, 53, 35)),
 	)
-	colors = palette[variant - 1]
+	colors = palette[tile_index - 1]
 	canvas.fill_gradient(polygon, colors[0], colors[1])
 
 	def cliff_detail() -> None:
-		rng = new_random(11500 + variant * 53)
+		rng = new_random(11500 + tile_index * 53)
 		add_strata_bands(canvas, polygon, rng, 4, color(112, 220, 192, 150), color(82, 98, 66, 46), 34, 62)
 		add_cracks(canvas, polygon, rng, 5, color(102, 67, 43, 26))
 		add_grain(canvas, polygon, rng, 16, color(42, 66, 42, 26), color(40, 246, 226, 204))
@@ -352,7 +352,7 @@ def draw_cliff_south(file_name: str, variant: int) -> None:
 	canvas.save(file_name)
 
 
-def draw_wall_east(file_name: str, variant: int) -> None:
+def draw_wall_east(file_name: str, tile_index: int) -> None:
 	canvas = Canvas(WIDTH, FACE_HEIGHT)
 	polygon = points((point(0, 16), point(32, 0), point(32, 20), point(0, 35)))
 	palette = (
@@ -360,11 +360,11 @@ def draw_wall_east(file_name: str, variant: int) -> None:
 		(color(255, 156, 148, 140), color(255, 75, 69, 64)),
 		(color(255, 174, 166, 158), color(255, 88, 82, 77)),
 	)
-	colors = palette[variant - 1]
+	colors = palette[tile_index - 1]
 	canvas.fill_gradient(polygon, colors[0], colors[1])
 
 	def wall_detail() -> None:
-		rng = new_random(13600 + variant * 41)
+		rng = new_random(13600 + tile_index * 41)
 		for course in range(4):
 			y = 31 - course * 5 + rng.randrange(-1, 2)
 			canvas.draw_line(color(124, 82, 76, 70), 1.0, 1, y, 31, y - 15)
@@ -381,7 +381,7 @@ def draw_wall_east(file_name: str, variant: int) -> None:
 	canvas.save(file_name)
 
 
-def draw_wall_south(file_name: str, variant: int) -> None:
+def draw_wall_south(file_name: str, tile_index: int) -> None:
 	canvas = Canvas(WIDTH, FACE_HEIGHT)
 	polygon = points((point(32, 0), point(63, 16), point(63, 35), point(32, 20)))
 	palette = (
@@ -389,11 +389,11 @@ def draw_wall_south(file_name: str, variant: int) -> None:
 		(color(255, 148, 140, 133), color(255, 68, 62, 58)),
 		(color(255, 166, 158, 150), color(255, 82, 76, 72)),
 	)
-	colors = palette[variant - 1]
+	colors = palette[tile_index - 1]
 	canvas.fill_gradient(polygon, colors[0], colors[1])
 
 	def wall_detail() -> None:
-		rng = new_random(14200 + variant * 47)
+		rng = new_random(14200 + tile_index * 47)
 		for course in range(4):
 			y = 6 + course * 6 + rng.randrange(-1, 2)
 			canvas.draw_line(color(118, 78, 74, 66), 1.0, 33, y, 62, y + 15)
@@ -410,7 +410,7 @@ def draw_wall_south(file_name: str, variant: int) -> None:
 	canvas.save(file_name)
 
 
-def draw_cliff_east(file_name: str, variant: int) -> None:
+def draw_cliff_east(file_name: str, tile_index: int) -> None:
 	canvas = Canvas(WIDTH, FACE_HEIGHT)
 	polygon = points((point(0, 16), point(32, 0), point(32, 20), point(0, 35)))
 	palette = (
@@ -418,11 +418,11 @@ def draw_cliff_east(file_name: str, variant: int) -> None:
 		(color(255, 169, 121, 78), color(255, 72, 46, 29)),
 		(color(255, 187, 139, 93), color(255, 87, 58, 37)),
 	)
-	colors = palette[variant - 1]
+	colors = palette[tile_index - 1]
 	canvas.fill_gradient(polygon, colors[0], colors[1])
 
 	def cliff_detail() -> None:
-		rng = new_random(12600 + variant * 59)
+		rng = new_random(12600 + tile_index * 59)
 		add_strata_bands(canvas, polygon, rng, 4, color(118, 232, 200, 154), color(86, 105, 70, 48), 2, 30)
 		add_cracks(canvas, polygon, rng, 4, color(102, 70, 46, 28))
 		add_grain(canvas, polygon, rng, 16, color(38, 70, 45, 28), color(42, 248, 230, 208))
@@ -463,16 +463,16 @@ def draw_marker_preview(file_name: str) -> None:
 
 
 def main() -> int:
-	for variant in range(1, 4):
-		draw_land_top(f"top_land_{variant:02d}.png", variant)
-		draw_water_top(f"top_water_{variant:02d}.png", variant)
-		draw_mud_top(f"top_mud_{variant:02d}.png", variant)
-		draw_scrub_overlay(f"overlay_scrub_{variant:02d}.png", variant)
-		draw_rubble_overlay(f"overlay_rubble_{variant:02d}.png", variant)
-		draw_cliff_east(f"cliff_east_{variant:02d}.png", variant)
-		draw_cliff_south(f"cliff_south_{variant:02d}.png", variant)
-		draw_wall_east(f"wall_east_{variant:02d}.png", variant)
-		draw_wall_south(f"wall_south_{variant:02d}.png", variant)
+	for tile_index in range(1, 4):
+		draw_land_top(f"top_land_{tile_index:02d}.png", tile_index)
+		draw_water_top(f"top_water_{tile_index:02d}.png", tile_index)
+		draw_mud_top(f"top_mud_{tile_index:02d}.png", tile_index)
+		draw_scrub_overlay(f"overlay_scrub_{tile_index:02d}.png", tile_index)
+		draw_rubble_overlay(f"overlay_rubble_{tile_index:02d}.png", tile_index)
+		draw_cliff_east(f"cliff_east_{tile_index:02d}.png", tile_index)
+		draw_cliff_south(f"cliff_south_{tile_index:02d}.png", tile_index)
+		draw_wall_east(f"wall_east_{tile_index:02d}.png", tile_index)
+		draw_wall_south(f"wall_south_{tile_index:02d}.png", tile_index)
 
 	draw_marker_selected("marker_selected.png")
 	draw_marker_preview("marker_preview.png")

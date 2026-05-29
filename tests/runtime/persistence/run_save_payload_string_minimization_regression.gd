@@ -2,7 +2,7 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_session.gd")
+const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/GameSession.cs")
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
 const SAVE_DIRECTORY := "user://saves"
@@ -54,7 +54,7 @@ func _test_save_payload_minimizes_identity_strings() -> void:
 		game_session.get_party_state(),
 		int(Time.get_unix_time_from_system())
 	)
-	_assert_no_string_variants(payload, "payload", "正式 save payload 不应保留 TYPE_STRING key 或 value。")
+	_assert_no_string_options(payload, "payload", "正式 save payload 不应保留 TYPE_STRING key 或 value。")
 	_assert_binary_dictionary_file(
 		"%s/%s.dat" % [SAVE_DIRECTORY, game_session.get_active_save_id()],
 		"正式 slot save 文件"
@@ -120,10 +120,10 @@ func _test_save_payload_minimizes_identity_strings() -> void:
 		_assert_array_item_type(progression.get(&"active_core_skill_ids", []), TYPE_STRING_NAME, "active_core_skill_ids 元素应保存为 StringName。")
 		_assert_dictionary_keys_type(progression.get(&"skills", {}), TYPE_STRING_NAME, "skills 的 skill_id key 应保存为 StringName。")
 		var skill_payloads: Dictionary = progression.get(&"skills", {})
-		for skill_payload_variant in skill_payloads.values():
-			if skill_payload_variant is not Dictionary:
+		for skill_payload_option in skill_payloads.values():
+			if skill_payload_option is not Dictionary:
 				continue
-			var skill_payload: Dictionary = skill_payload_variant
+			var skill_payload: Dictionary = skill_payload_option
 			_assert_type(skill_payload.get(&"granted_source_type", null), TYPE_STRING_NAME, "skill granted_source_type 应保存为 StringName。")
 			_assert_type(skill_payload.get(&"granted_source_id", null), TYPE_STRING_NAME, "skill granted_source_id 应保存为 StringName。")
 			break
@@ -172,7 +172,7 @@ func _assert_dictionary_keys_type(values: Variant, expected_type: int, message: 
 			return
 
 
-func _assert_no_string_variants(value: Variant, root_path: String, message: String) -> void:
+func _assert_no_string_options(value: Variant, root_path: String, message: String) -> void:
 	var string_paths: Array[String] = []
 	_collect_string_variant_paths(value, root_path, string_paths)
 	if string_paths.is_empty():
@@ -219,9 +219,9 @@ func _assert_binary_dictionary_file(path: String, context: String) -> void:
 	_assert_true(compressed_file != null, "%s 应能以 ZSTD 压缩格式打开。" % context)
 	if compressed_file == null:
 		return
-	var payload_variant = compressed_file.get_var(false)
+	var payload_option = compressed_file.get_var(false)
 	compressed_file.close()
-	_assert_true(payload_variant is Dictionary, "%s 应能以压缩 Godot Variant Dictionary 读回。" % context)
+	_assert_true(payload_option is Dictionary, "%s 应能以压缩 Godot Variant Dictionary 读回。" % context)
 
 
 func _looks_like_json_text(raw_bytes: PackedByteArray) -> bool:

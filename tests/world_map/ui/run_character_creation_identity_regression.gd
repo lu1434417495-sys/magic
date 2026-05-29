@@ -3,11 +3,11 @@ extends SceneTree
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
 const CHARACTER_CREATION_WINDOW_SCENE = preload("res://scenes/ui/character_creation_window.tscn")
-const AgeProfileDef = preload("res://scripts/player/progression/age_profile_def.gd")
-const AgeStageRule = preload("res://scripts/player/progression/age_stage_rule.gd")
-const BODY_SIZE_RULES_SCRIPT = preload("res://scripts/systems/progression/body_size_rules.gd")
-const RaceDef = preload("res://scripts/player/progression/race_def.gd")
-const SubraceDef = preload("res://scripts/player/progression/subrace_def.gd")
+const AgeProfileDef = preload("res://scripts/player/progression/AgeProfileDef.cs")
+const AgeStageRule = preload("res://scripts/player/progression/AgeStageRule.cs")
+const BODY_SIZE_RULES_SCRIPT = preload("res://scripts/systems/progression/BodySizeRules.cs")
+const RaceDef = preload("res://scripts/player/progression/RaceDef.cs")
+const SubraceDef = preload("res://scripts/player/progression/SubraceDef.cs")
 const BodySizeRules = BODY_SIZE_RULES_SCRIPT
 
 var _test := TestRunner.new()
@@ -66,25 +66,25 @@ func _test_official_identity_pool_is_selectable() -> void:
 	window.show_window()
 	await process_frame
 
-	_assert_eq(window.race_option_button.get_item_count(), 11, "建卡 UI 应暴露 11 个正式种族。")
-	var dragonborn_index: int = window._find_option_index_by_metadata(window.race_option_button, &"dragonborn")
+	_assert_eq(window.race_variant_button.get_item_count(), 11, "建卡 UI 应暴露 11 个正式种族。")
+	var dragonborn_index: int = window._find_variant_index_by_metadata(window.race_variant_button, &"dragonborn")
 	_assert_true(dragonborn_index >= 0, "建卡 UI 应能选择 Dragonborn。")
 	if dragonborn_index >= 0:
-		window._on_race_option_selected(dragonborn_index)
+		window._on_race_variant_selected(dragonborn_index)
 		await process_frame
-		_assert_eq(window.subrace_option_button.get_item_count(), 10, "Dragonborn 应暴露 10 个正式亚种。")
+		_assert_eq(window.subrace_variant_button.get_item_count(), 10, "Dragonborn 应暴露 10 个正式亚种。")
 		_assert_true(
-			window._find_option_index_by_metadata(window.subrace_option_button, &"red_dragonborn") >= 0,
+			window._find_variant_index_by_metadata(window.subrace_variant_button, &"red_dragonborn") >= 0,
 			"Dragonborn 亚种列表应包含 Red Dragonborn。"
 		)
 		var dragonborn_payload: Dictionary = window._build_selected_identity_payload()
 		_assert_eq(dragonborn_payload.get("subrace_id"), &"black_dragonborn", "Dragonborn 默认亚种应来自 RaceDef.default_subrace_id。")
 		_assert_eq(dragonborn_payload.get("body_size_category"), &"medium", "Dragonborn 建卡体型应从正式 race 内容派生。")
 
-	var halfling_index: int = window._find_option_index_by_metadata(window.race_option_button, &"halfling")
+	var halfling_index: int = window._find_variant_index_by_metadata(window.race_variant_button, &"halfling")
 	_assert_true(halfling_index >= 0, "建卡 UI 应能选择 Halfling。")
 	if halfling_index >= 0:
-		window._on_race_option_selected(halfling_index)
+		window._on_race_variant_selected(halfling_index)
 		await process_frame
 		var halfling_payload: Dictionary = window._build_selected_identity_payload()
 		_assert_eq(halfling_payload.get("body_size_category"), &"small", "Halfling 建卡体型应从 race category 派生为 small。")
@@ -107,22 +107,22 @@ func _test_invalid_registry_subraces_are_not_ui_candidates() -> void:
 	window.show_window()
 	await process_frame
 
-	var human_index: int = window._find_option_index_by_metadata(window.race_option_button, &"human")
+	var human_index: int = window._find_variant_index_by_metadata(window.race_variant_button, &"human")
 	_assert_true(human_index >= 0, "夹具 human race 应进入建卡 UI race 候选。")
 	if human_index >= 0:
-		window._on_race_option_selected(human_index)
+		window._on_race_variant_selected(human_index)
 		await process_frame
 		_assert_true(
-			window._find_option_index_by_metadata(window.subrace_option_button, &"common_human") >= 0,
+			window._find_variant_index_by_metadata(window.subrace_variant_button, &"common_human") >= 0,
 			"合法 common_human 应显示在 UI subrace 候选中。"
 		)
 		_assert_true(
-			window._find_option_index_by_metadata(window.subrace_option_button, &"wrong_parent") < 0,
+			window._find_variant_index_by_metadata(window.subrace_variant_button, &"wrong_parent") < 0,
 			"race 列出但 parent_race_id 不匹配的 subrace 不得显示。"
 		)
 
 	_assert_true(
-		window._find_option_index_by_metadata(window.race_option_button, &"fallback_race") < 0,
+		window._find_variant_index_by_metadata(window.race_variant_button, &"fallback_race") < 0,
 		"只有 parent-only subrace 的 race 不得作为可选 race 显示。"
 	)
 
@@ -168,7 +168,7 @@ func _test_invalid_identity_blocks_buttons_and_confirm_signal() -> void:
 	window._selected_subrace_id = &"parent_only_human"
 	window._selected_age_stage_id = &"adult"
 	window._selected_age_years = 24
-	window._refresh_identity_option_controls()
+	window._refresh_identity_variant_controls()
 
 	_assert_true(window.race_next_button.disabled, "非法身份时 race 下一步按钮应禁用。")
 	_assert_true(window.age_next_button.disabled, "非法身份时 age 下一步按钮应禁用。")
@@ -214,9 +214,9 @@ func _test_identity_payload_uses_registry_defaults_and_body_size_rules() -> void
 		"body_size int 应由 BodySizeRules 从 category 派生。"
 	)
 
-	var young_adult_index: int = window._find_option_index_by_metadata(window.age_stage_option_button, &"young_adult")
+	var young_adult_index: int = window._find_variant_index_by_metadata(window.age_stage_variant_button, &"young_adult")
 	_assert_true(young_adult_index >= 0, "建卡年龄阶段应包含正式 AgeProfile 的 young_adult。")
-	window._on_age_stage_option_selected(young_adult_index)
+	window._on_age_stage_variant_selected(young_adult_index)
 	identity_payload = window._build_selected_identity_payload()
 	_assert_eq(identity_payload.get("natural_age_stage_id"), &"young_adult", "选择 young_adult 后 payload 应同步 natural stage。")
 	_assert_eq(identity_payload.get("effective_age_stage_id"), &"young_adult", "选择 young_adult 后 payload 应同步 effective stage。")
@@ -238,11 +238,11 @@ func _test_human_versatility_preview_and_confirm_payload() -> void:
 	await process_frame
 	_set_uniform_attributes(window, 10)
 
-	var perception_index: int = window._find_option_index_by_metadata(window.versatility_option_button, UnitBaseAttributes.PERCEPTION)
+	var perception_index: int = window._find_variant_index_by_metadata(window.versatility_variant_button, &"perception")
 	_assert_true(perception_index >= 0, "Human Versatility 应允许选择感知。")
-	window._on_versatility_option_selected(perception_index)
+	window._on_versatility_variant_selected(perception_index)
 	var identity_payload: Dictionary = window._build_selected_identity_payload()
-	_assert_eq(identity_payload.get("versatility_pick"), UnitBaseAttributes.PERCEPTION, "Human Versatility 选择应进入 payload。")
+	_assert_eq(identity_payload.get("versatility_pick"), &"perception", "Human Versatility 选择应进入 payload。")
 	_assert_true(
 		String(window._build_attribute_preview_text()).contains("感知：10 -> 11"),
 		"属性预览应显示 base 值和 Human Versatility 后的最终值。"
@@ -260,7 +260,7 @@ func _test_human_versatility_preview_and_confirm_payload() -> void:
 		_assert_eq(payload.get("display_name"), "适应者", "确认 payload 应保留姓名。")
 		_assert_eq(payload.get("race_id"), &"human", "确认 payload 应包含 registry race_id。")
 		_assert_eq(payload.get("body_size"), BodySizeRules.get_body_size_for_category(&"medium"), "确认 payload 应包含 BodySizeRules 派生体型。")
-		_assert_eq(payload.get("versatility_pick"), UnitBaseAttributes.PERCEPTION, "确认 payload 应保留 Human Versatility 选择。")
+		_assert_eq(payload.get("versatility_pick"), &"perception", "确认 payload 应保留 Human Versatility 选择。")
 
 	window.queue_free()
 	await process_frame
@@ -268,12 +268,12 @@ func _test_human_versatility_preview_and_confirm_payload() -> void:
 
 func _set_uniform_attributes(window, value: int) -> void:
 	window._rolled_attributes = {
-		UnitBaseAttributes.STRENGTH: value,
-		UnitBaseAttributes.AGILITY: value,
-		UnitBaseAttributes.CONSTITUTION: value,
-		UnitBaseAttributes.PERCEPTION: value,
-		UnitBaseAttributes.INTELLIGENCE: value,
-		UnitBaseAttributes.WILLPOWER: value,
+		&"strength": value,
+		&"agility": value,
+		&"constitution": value,
+		&"perception": value,
+		&"intelligence": value,
+		&"willpower": value,
 	}
 
 

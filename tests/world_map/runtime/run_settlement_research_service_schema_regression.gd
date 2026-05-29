@@ -2,7 +2,8 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const SettlementResearchService = preload("res://scripts/systems/settlement/settlement_research_service.gd")
+const SettlementResearchService = preload("res://scripts/systems/settlement/SettlementResearchService.cs")
+const CatalogOverrideResearchService = preload("res://tests/world_map/runtime/TestSettlementResearchCatalogOverrideService.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -68,18 +69,6 @@ class FakeParty:
 		return _members.get(member_id)
 
 
-class CatalogOverrideResearchService:
-	extends SettlementResearchService
-
-	var catalog: Array = []
-
-	func _init(catalog_data: Array) -> void:
-		catalog = catalog_data.duplicate(true)
-
-	func _get_research_reward_catalog() -> Array:
-		return catalog
-
-
 func _initialize() -> void:
 	call_deferred("_run")
 
@@ -106,7 +95,7 @@ func _run() -> void:
 func _test_valid_payload_succeeds() -> void:
 	var party := FakeParty.new()
 	var service := SettlementResearchService.new()
-	var result := service.execute(_valid_settlement(), _valid_payload(), party)
+	var result := service.execute(_valid_settlement(), _valid_payload(), party, [])
 
 	_assert_true(bool(result.get("success", false)), "正式 payload 应成功执行 research 服务。")
 	_assert_eq(party.get_gold(), 50, "正式 research 成功后应扣除 200 金。")
@@ -157,7 +146,8 @@ func _test_rejects_missing_settlement_display_name() -> void:
 func _test_rejects_candidate_missing_target_label() -> void:
 	var candidate := _valid_research_candidate()
 	candidate.erase("target_label")
-	var service := CatalogOverrideResearchService.new([candidate])
+	var service := CatalogOverrideResearchService.new()
+	service.setup([candidate])
 	_assert_rejects_without_side_effect(
 		"候选缺 target_label 时应被拒绝且不扣金币。",
 		_valid_settlement(),
@@ -169,7 +159,8 @@ func _test_rejects_candidate_missing_target_label() -> void:
 func _test_rejects_candidate_missing_research_id() -> void:
 	var candidate := _valid_research_candidate()
 	candidate.erase("research_id")
-	var service := CatalogOverrideResearchService.new([candidate])
+	var service := CatalogOverrideResearchService.new()
+	service.setup([candidate])
 	_assert_rejects_without_side_effect(
 		"候选缺 research_id 时应被拒绝且不扣金币。",
 		_valid_settlement(),
@@ -186,7 +177,7 @@ func _assert_rejects_without_side_effect(
 ) -> void:
 	var party := FakeParty.new()
 	var research_service = service if service != null else SettlementResearchService.new()
-	var result: Dictionary = research_service.execute(settlement, payload, party)
+	var result: Dictionary = research_service.execute(settlement, payload, party, [])
 	_assert_true(not bool(result.get("success", true)), message)
 	_assert_eq(party.get_gold(), 250, "%s 金币不应变化。" % message)
 	var result_rewards: Array = result.get("pending_character_rewards", [])

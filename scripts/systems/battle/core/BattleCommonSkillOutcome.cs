@@ -50,16 +50,21 @@ public partial class BattleCommonSkillOutcome : RefCounted
         {
             return;
         }
-        target_results.Add(new GDictionary
-        {
-            ["target_unit_id"] = target_unit_id,
-            ["damage"] = damage,
-            ["healing"] = healing,
-            ["defeated"] = defeated,
-        });
+        target_results.Add(
+            new GDictionary
+            {
+                ["target_unit_id"] = target_unit_id,
+                ["damage"] = damage,
+                ["healing"] = healing,
+                ["defeated"] = defeated,
+            }
+        );
     }
 
-    public void add_status_effect_ids(StringName unit_id, Godot.Collections.Array<StringName> status_effect_ids)
+    public void add_status_effect_ids(
+        StringName unit_id,
+        Godot.Collections.Array<StringName> status_effect_ids
+    )
     {
         if (IsEmpty(unit_id) || status_effect_ids == null || status_effect_ids.Count == 0)
         {
@@ -67,10 +72,12 @@ public partial class BattleCommonSkillOutcome : RefCounted
         }
 
         Godot.Collections.Array<StringName> existing = new();
-        if (GdInterop.TryGet(status_effect_ids_by_unit_id, unit_id, out Variant existingValue)
-            && existingValue.VariantType == Variant.Type.Array)
+        if (
+            GdInterop.TryGet(status_effect_ids_by_unit_id, unit_id, out Variant existingValue)
+            && existingValue.VariantType == Variant.Type.Array
+        )
         {
-            foreach (Variant statusValue in existingValue.AsGodotArray())
+            foreach (var statusValue in existingValue.AsGodotArray())
             {
                 StringName statusId = GdInterop.ToStringName(statusValue, "");
                 if (!IsEmpty(statusId) && !existing.Contains(statusId))

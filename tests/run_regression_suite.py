@@ -6,6 +6,7 @@ import argparse
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 
@@ -17,6 +18,10 @@ def build_parser() -> argparse.ArgumentParser:
 	parser.add_argument("--stop-on-failure", "-StopOnFailure", action="store_true", help="Stop after the first failing test.")
 	parser.add_argument("--include-simulation", "-IncludeSimulation", action="store_true", help="Include battle simulation tests.")
 	parser.add_argument("--include-benchmarks", "-IncludeBenchmarks", action="store_true", help="Include benchmark and analysis scripts.")
+	parser.add_argument("--verbose", "-Verbose", action="store_true", help="Print test stdout/stderr in real time instead of capturing it.")
+	parser.add_argument("--offset", type=int, default=0, help="Skip the first N tests (0-based).")
+	parser.add_argument("--limit", type=int, default=0, help="Run at most N tests.")
+	parser.add_argument("--log-file", type=str, default="", help="Append output to this file instead of stdout.")
 	return parser
 
 
@@ -50,6 +55,20 @@ def should_skip_test(repo_path: str, pattern: str, include_simulation: bool, inc
 
 def main() -> int:
 	args = build_parser().parse_args()
+	if args.log_file:
+		log_path = Path(args.log_file)
+		log_file = open(log_path, "a", encoding="utf-8")
+		sys.stdout = log_file
+		# Ensure stderr also goes to the log file so errors are captured
+		sys.stderr = log_file
+		# Reconfigure stdout to use utf-8 and not buffer lines too aggressively
+		sys.stdout.reconfigure(encoding="utf-8", line_buffering=True)
+	else:
+		# Reconfigure stdout to UTF-8 on Windows to avoid GBK encoding issues
+		try:
+			sys.stdout.reconfigure(encoding="utf-8", line_buffering=True)
+		except AttributeError:
+			pass
 	script_root = Path(__file__).resolve().parent
 	repo_root = script_root.parent
 	godot_command = resolve_godot_command(args.godot)
@@ -79,18 +98,46 @@ def main() -> int:
 		print("No matching regression tests found.", file=sys.stderr)
 		return 1
 
-	failed_tests: list[tuple[str, int]] = []
+	if args.offset:
+		tests = tests[args.offset:]
+	if args.limit:
+		tests = tests[:args.limit]
+
+	failed_tests: list[tuple[str, int, str, str]] = []
 	passed_count = 0
-	for test_path in tests:
-		print(f"[RUN] {test_path}", flush=True)
-		result = subprocess.run([godot_command, "--headless", "--script", test_path], cwd=repo_root)
+	total = len(tests)
+	for i, test_path in enumerate(tests, 1):
+		print(f"\n[{i}/{total}] [RUN] {test_path}", flush=True)
+		start = time.perf_counter()
+		if args.verbose:
+			result = subprocess.run([godot_command, "--headless", "--script", test_path], cwd=repo_root)
+			stdout = ""
+			stderr = ""
+		else:
+			result = subprocess.run(
+				[godot_command, "--headless", "--script", test_path],
+				cwd=repo_root,
+				capture_output=True,
+				text=True,
+				encoding="utf-8",
+				errors="replace",
+			)
+			stdout = result.stdout
+			stderr = result.stderr
+		elapsed = time.perf_counter() - start
 		if result.returncode == 0:
 			passed_count += 1
-			print(f"[PASS] {test_path}", flush=True)
+			print(f"[{i}/{total}] [DONE] {test_path} - 成功 ({elapsed:.2f}s)", flush=True)
 			continue
 
-		failed_tests.append((test_path, result.returncode))
-		print(f"[FAIL] {test_path} exit={result.returncode}", flush=True)
+		failed_tests.append((test_path, result.returncode, stdout, stderr))
+		print(f"[{i}/{total}] [DONE] {test_path} - 失败 exit={result.returncode} ({elapsed:.2f}s)", flush=True)
+		if not args.verbose and stdout:
+			print("--- stdout ---", flush=True)
+			print(stdout, flush=True)
+		if not args.verbose and stderr:
+			print("--- stderr ---", flush=True)
+			print(stderr, flush=True)
 		if args.stop_on_failure:
 			break
 
@@ -100,7 +147,7 @@ def main() -> int:
 
 	if failed_tests:
 		print("Failed tests:")
-		for test_path, exit_code in failed_tests:
+		for test_path, exit_code, _stdout, _stderr in failed_tests:
 			print(f"- {test_path} exit={exit_code}")
 		return 1
 

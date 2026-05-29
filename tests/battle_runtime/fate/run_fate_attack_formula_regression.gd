@@ -1,6 +1,6 @@
 extends SceneTree
 
-const FateAttackFormula = preload("res://scripts/systems/battle/fate/fate_attack_formula.gd")
+const FateAttackFormula = preload("res://scripts/systems/battle/fate/FateAttackFormula.cs")
 const StubRng = preload("res://tests/shared/stub_rng.gd")
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 

@@ -2,10 +2,10 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
-const BattleHitResolver = preload("res://scripts/systems/battle/rules/battle_hit_resolver.gd")
-const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
-const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/AttributeService.cs")
+const BattleHitResolver = preload("res://scripts/systems/battle/rules/BattleHitResolver.cs")
+const BattleUnitState = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
+const SkillDef = preload("res://scripts/player/progression/SkillDef.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -116,14 +116,14 @@ func _test_locked_skill_hit_bonus_applies_to_spell_control_roll() -> void:
 
 func _make_unit_with_attack_bonuses(attack_bonus: int, base_attack_bonus: int) -> BattleUnitState:
 	var unit := BattleUnitState.new()
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, attack_bonus)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.BASE_ATTACK_BONUS, base_attack_bonus)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), attack_bonus)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.BASE_ATTACK_BONUS_ID(), base_attack_bonus)
 	return unit
 
 
 func _make_unit_with_armor_class(armor_class: int) -> BattleUnitState:
 	var unit := BattleUnitState.new()
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, armor_class)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), armor_class)
 	return unit
 
 

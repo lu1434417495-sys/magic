@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using Godot;
 using Godot.Collections;
 
@@ -8,34 +7,54 @@ using Godot.Collections;
 public partial class BattleSimTraceSummaryBuilder : RefCounted
 {
     private const string DefaultFocusFactionId = "player";
+
+    public bool has_traces(Dictionary report) => HasTraces(report);
+
+    public Dictionary build(
+        Dictionary report,
+        string sourceReportPath = "",
+        Dictionary options = null
+    ) => Build(report, sourceReportPath, options);
+
     private const int DefaultTopCandidatesPerAction = 2;
 
     public bool HasTraces(Dictionary report)
     {
         foreach (var entry in CollectRunEntries(report))
         {
-            if (entry.TryGetValue("run", out Variant runValue) && runValue.VariantType == Variant.Type.Dictionary)
+            if (
+                TryDictionaryValue(entry, "run", out Dictionary runEntry)
+                && TryArrayValue(runEntry, "ai_turn_traces", out Godot.Collections.Array traceArray)
+            )
             {
-                var runEntry = runValue.AsGodotDictionary();
-                if (runEntry.TryGetValue("ai_turn_traces", out Variant tracesValue) && tracesValue.VariantType == Variant.Type.Array)
+                foreach (object traceEntry in traceArray)
                 {
-                    var traceArray = tracesValue.AsGodotArray();
-                    foreach (var traceEntry in traceArray)
-                    {
-                        if (traceEntry.VariantType == Variant.Type.Dictionary)
-                            return true;
-                    }
+                    if (TryRawDictionary(traceEntry, out _))
+                        return true;
                 }
             }
         }
         return false;
     }
 
-    public Dictionary Build(Dictionary report, string sourceReportPath = "", Dictionary options = null)
+    public Dictionary Build(
+        Dictionary report,
+        string sourceReportPath = "",
+        Dictionary options = null
+    )
     {
         options ??= new Dictionary();
-        string focusFactionId = AsString(options.GetValueOrDefault("focus_faction_id", DefaultFocusFactionId));
-        int topCandidateLimit = Mathf.Max((int)options.GetValueOrDefault("top_candidates_per_action", DefaultTopCandidatesPerAction), 0);
+        string focusFactionId = AsString(
+            options.GetValueOrDefault("focus_faction_id", DefaultFocusFactionId)
+        );
+        int topCandidateLimit = Mathf.Max(
+            (int)
+                options.GetValueOrDefault(
+                    "top_candidates_per_action",
+                    DefaultTopCandidatesPerAction
+                ),
+            0
+        );
 
         var compactRuns = new Godot.Collections.Array();
         int traceCount = 0;
@@ -66,7 +85,10 @@ public partial class BattleSimTraceSummaryBuilder : RefCounted
             ["avg_iterations"] = (float)report.GetValueOrDefault("avg_iterations", 0.0),
             ["avg_timeline_steps"] = (float)report.GetValueOrDefault("avg_timeline_steps", 0.0),
             ["win_rate"] = report.GetValueOrDefault("win_rate", new Dictionary()),
-            ["comparisons"] = report.GetValueOrDefault("comparisons", new Array()),
+            ["comparisons"] = report.GetValueOrDefault(
+                "comparisons",
+                new Godot.Collections.Array()
+            ),
             ["profile_summaries"] = CollectProfileSummaries(report),
             ["global"] = report.GetValueOrDefault("global", new Dictionary()),
             ["player"] = report.GetValueOrDefault("player", new Dictionary()),
@@ -85,29 +107,31 @@ public partial class BattleSimTraceSummaryBuilder : RefCounted
     private List<Dictionary> CollectRunEntries(Dictionary report)
     {
         var entries = new List<Dictionary>();
-        if (report.TryGetValue("profile_entries", out Variant profileEntriesValue) && profileEntriesValue.VariantType == Variant.Type.Array)
+        if (TryArrayValue(report, "profile_entries", out Godot.Collections.Array profileEntries))
         {
-            var profileEntries = profileEntriesValue.AsGodotArray();
             if (profileEntries.Count > 0)
             {
-                foreach (var profileEntryVariant in profileEntries)
+                foreach (object profileEntryValue in profileEntries)
                 {
-                    if (profileEntryVariant.VariantType != Variant.Type.Dictionary)
+                    if (!TryRawDictionary(profileEntryValue, out Dictionary profileEntry))
                         continue;
-                    var profileEntry = profileEntryVariant.AsGodotDictionary();
-                    var profile = profileEntry.GetValueOrDefault("profile", new Dictionary()).AsGodotDictionary();
+                    var profile = profileEntry
+                        .GetValueOrDefault("profile", new Dictionary())
+                        .AsGodotDictionary();
                     string profileId = AsString(profile.GetValueOrDefault("profile_id", ""));
-                    if (profileEntry.TryGetValue("runs", out Variant runsValue) && runsValue.VariantType == Variant.Type.Array)
+                    if (TryArrayValue(profileEntry, "runs", out Godot.Collections.Array runs))
                     {
-                        foreach (var runEntryVariant in runsValue.AsGodotArray())
+                        foreach (object runEntryValue in runs)
                         {
-                            if (runEntryVariant.VariantType == Variant.Type.Dictionary)
+                            if (TryRawDictionary(runEntryValue, out Dictionary runEntry))
                             {
-                                entries.Add(new Dictionary
-                                {
-                                    ["profile_id"] = profileId,
-                                    ["run"] = runEntryVariant.AsGodotDictionary(),
-                                });
+                                entries.Add(
+                                    new Dictionary
+                                    {
+                                        ["profile_id"] = profileId,
+                                        ["run"] = runEntry,
+                                    }
+                                );
                             }
                         }
                     }
@@ -115,18 +139,19 @@ public partial class BattleSimTraceSummaryBuilder : RefCounted
                 return entries;
             }
         }
-        if (report.TryGetValue("runs", out Variant runsValue2) && runsValue2.VariantType == Variant.Type.Array)
+        if (TryArrayValue(report, "runs", out Godot.Collections.Array runsValue2))
         {
-            foreach (var runEntryVariant in runsValue2.AsGodotArray())
+            foreach (object runEntryValue in runsValue2)
             {
-                if (runEntryVariant.VariantType == Variant.Type.Dictionary)
+                if (TryRawDictionary(runEntryValue, out Dictionary runEntry))
                 {
-                    var runEntry = runEntryVariant.AsGodotDictionary();
-                    entries.Add(new Dictionary
-                    {
-                        ["profile_id"] = AsString(runEntry.GetValueOrDefault("profile_id", "")),
-                        ["run"] = runEntry,
-                    });
+                    entries.Add(
+                        new Dictionary
+                        {
+                            ["profile_id"] = AsString(runEntry.GetValueOrDefault("profile_id", "")),
+                            ["run"] = runEntry,
+                        }
+                    );
                 }
             }
         }
@@ -135,26 +160,27 @@ public partial class BattleSimTraceSummaryBuilder : RefCounted
 
     private int CountProfiles(Dictionary report)
     {
-        if (report.TryGetValue("profile_entries", out Variant profileEntriesValue) && profileEntriesValue.VariantType == Variant.Type.Array)
-            return profileEntriesValue.AsGodotArray().Count;
-        return 0;
+        return TryArrayValue(report, "profile_entries", out Godot.Collections.Array profileEntries)
+            ? profileEntries.Count
+            : 0;
     }
 
     private Godot.Collections.Array CollectProfileSummaries(Dictionary report)
     {
-        var summaries = new Array();
-        if (report.TryGetValue("profile_entries", out Variant profileEntriesValue) && profileEntriesValue.VariantType == Variant.Type.Array)
+        var summaries = new Godot.Collections.Array();
+        if (TryArrayValue(report, "profile_entries", out Godot.Collections.Array profileEntries))
         {
-            foreach (var profileEntryVariant in profileEntriesValue.AsGodotArray())
+            foreach (object profileEntryValue in profileEntries)
             {
-                if (profileEntryVariant.VariantType != Variant.Type.Dictionary)
+                if (!TryRawDictionary(profileEntryValue, out Dictionary profileEntry))
                     continue;
-                var profileEntry = profileEntryVariant.AsGodotDictionary();
-                summaries.Add(new Dictionary
-                {
-                    ["profile"] = profileEntry.GetValueOrDefault("profile", new Dictionary()),
-                    ["summary"] = profileEntry.GetValueOrDefault("summary", new Dictionary()),
-                });
+                summaries.Add(
+                    new Dictionary
+                    {
+                        ["profile"] = profileEntry.GetValueOrDefault("profile", new Dictionary()),
+                        ["summary"] = profileEntry.GetValueOrDefault("summary", new Dictionary()),
+                    }
+                );
             }
         }
         return summaries;
@@ -171,21 +197,22 @@ public partial class BattleSimTraceSummaryBuilder : RefCounted
         var commandCountsByFaction = new Dictionary();
         var blockReasonsByFaction = new Dictionary();
         var waitCountsByFaction = new Dictionary();
-        var focusTurns = new Array();
-        var focusWaitTurns = new Array();
+        var focusTurns = new Godot.Collections.Array();
+        var focusWaitTurns = new Godot.Collections.Array();
         int traceCount = 0;
 
-        if (runEntry.TryGetValue("ai_turn_traces", out Variant tracesValue) && tracesValue.VariantType == Variant.Type.Array)
+        if (TryArrayValue(runEntry, "ai_turn_traces", out Godot.Collections.Array traces))
         {
-            foreach (var traceEntryVariant in tracesValue.AsGodotArray())
+            foreach (object traceEntryValue in traces)
             {
-                if (traceEntryVariant.VariantType != Variant.Type.Dictionary)
+                if (!TryRawDictionary(traceEntryValue, out Dictionary traceEntry))
                     continue;
-                var traceEntry = traceEntryVariant.AsGodotDictionary();
                 traceCount++;
                 string factionId = AsString(traceEntry.GetValueOrDefault("faction_id", ""));
                 string actionId = AsString(traceEntry.GetValueOrDefault("action_id", ""));
-                var commandSummary = SummarizeTraceCommand(traceEntry.GetValueOrDefault("command", new Dictionary()));
+                var commandSummary = SummarizeTraceCommand(
+                    traceEntry.GetValueOrDefault("command", new Dictionary())
+                );
                 string commandType = AsString(commandSummary.GetValueOrDefault("command_type", ""));
 
                 IncrementNestedCounter(actionCountsByFaction, factionId, actionId);
@@ -194,7 +221,7 @@ public partial class BattleSimTraceSummaryBuilder : RefCounted
                     IncrementNestedCounter(waitCountsByFaction, factionId, actionId);
 
                 var actionTraces = SummarizeActionTraces(
-                    traceEntry.GetValueOrDefault("action_traces", new Array()),
+                    traceEntry.GetValueOrDefault("action_traces", new Godot.Collections.Array()),
                     factionId,
                     blockReasonsByFaction,
                     topCandidateLimit
@@ -214,9 +241,18 @@ public partial class BattleSimTraceSummaryBuilder : RefCounted
                     ["action_id"] = actionId,
                     ["reason_text"] = AsString(traceEntry.GetValueOrDefault("reason_text", "")),
                     ["command"] = commandSummary,
-                    ["score"] = SummarizeScoreInput(traceEntry.GetValueOrDefault("score_input", new Dictionary())),
-                    ["decision_target_snapshots"] = SummarizeUnitSnapshots(traceEntry.GetValueOrDefault("decision_target_snapshots", new Array())),
-                    ["execution_result"] = SummarizeExecutionResult(traceEntry.GetValueOrDefault("execution_result", new Dictionary())),
+                    ["score"] = SummarizeScoreInput(
+                        traceEntry.GetValueOrDefault("score_input", new Dictionary())
+                    ),
+                    ["decision_target_snapshots"] = SummarizeUnitSnapshots(
+                        traceEntry.GetValueOrDefault(
+                            "decision_target_snapshots",
+                            new Godot.Collections.Array()
+                        )
+                    ),
+                    ["execution_result"] = SummarizeExecutionResult(
+                        traceEntry.GetValueOrDefault("execution_result", new Dictionary())
+                    ),
                     ["action_traces"] = actionTraces,
                 };
                 focusTurns.Add(turnSummary);
@@ -225,24 +261,30 @@ public partial class BattleSimTraceSummaryBuilder : RefCounted
             }
         }
 
-        var factionsValue = runEntry.GetValueOrDefault("factions", new Dictionary());
-        if (factionsValue.VariantType != Variant.Type.Dictionary)
+        bool hasFactionsValue = TryRawDictionary(
+            runEntry.GetValueOrDefault("factions", new Dictionary()),
+            out Dictionary factionsValue
+        );
+        if (
+            !hasFactionsValue
+            && TryDictionaryValue(runEntry, "metrics", out Dictionary factionMetrics)
+            && TryDictionaryValue(factionMetrics, "factions", out Dictionary metricFactions)
+        )
         {
-            if (runEntry.TryGetValue("metrics", out Variant metricsValue) && metricsValue.VariantType == Variant.Type.Dictionary)
-            {
-                var metrics = metricsValue.AsGodotDictionary();
-                factionsValue = metrics.GetValueOrDefault("factions", new Dictionary());
-            }
+            factionsValue = metricFactions;
         }
 
-        var unitsValue = runEntry.GetValueOrDefault("units", new Dictionary());
-        if (unitsValue.VariantType != Variant.Type.Dictionary)
+        bool hasUnitsValue = TryRawDictionary(
+            runEntry.GetValueOrDefault("units", new Dictionary()),
+            out Dictionary unitsValue
+        );
+        if (
+            !hasUnitsValue
+            && TryDictionaryValue(runEntry, "metrics", out Dictionary unitMetrics)
+            && TryDictionaryValue(unitMetrics, "units", out Dictionary metricUnits)
+        )
         {
-            if (runEntry.TryGetValue("metrics", out Variant metricsValue) && metricsValue.VariantType == Variant.Type.Dictionary)
-            {
-                var metrics = metricsValue.AsGodotDictionary();
-                unitsValue = metrics.GetValueOrDefault("units", new Dictionary());
-            }
+            unitsValue = metricUnits;
         }
 
         return new Dictionary
@@ -268,64 +310,91 @@ public partial class BattleSimTraceSummaryBuilder : RefCounted
     }
 
     private Godot.Collections.Array SummarizeActionTraces(
-        Variant actionTracesValue,
+        object actionTracesValue,
         string factionId,
         Dictionary blockReasonsByFaction,
         int topCandidateLimit
     )
     {
-        var summaries = new Array();
-        if (actionTracesValue.VariantType != Variant.Type.Array)
+        var summaries = new Godot.Collections.Array();
+        if (!TryRawArray(actionTracesValue, out Godot.Collections.Array actionTraces))
             return summaries;
 
-        foreach (var actionTraceVariant in actionTracesValue.AsGodotArray())
+        foreach (object actionTraceValue in actionTraces)
         {
-            if (actionTraceVariant.VariantType != Variant.Type.Dictionary)
+            if (!TryRawDictionary(actionTraceValue, out Dictionary actionTrace))
                 continue;
-            var actionTrace = actionTraceVariant.AsGodotDictionary();
-            var blockReasons = actionTrace.GetValueOrDefault("block_reasons", new Dictionary()).AsGodotDictionary();
+            var blockReasons = actionTrace
+                .GetValueOrDefault("block_reasons", new Dictionary())
+                .AsGodotDictionary();
             foreach (var reasonKey in blockReasons.Keys)
             {
-                IncrementNestedCounter(blockReasonsByFaction, factionId, AsString(reasonKey), (int)blockReasons.GetValueOrDefault(reasonKey, 0));
+                IncrementNestedCounter(
+                    blockReasonsByFaction,
+                    factionId,
+                    AsString(reasonKey),
+                    (int)blockReasons.GetValueOrDefault(reasonKey, 0)
+                );
             }
-            summaries.Add(new Dictionary
-            {
-                ["trace_id"] = AsString(actionTrace.GetValueOrDefault("trace_id", "")),
-                ["action_id"] = AsString(actionTrace.GetValueOrDefault("action_id", "")),
-                ["chosen"] = (bool)actionTrace.GetValueOrDefault("chosen", false),
-                ["score_bucket_id"] = AsString(actionTrace.GetValueOrDefault("score_bucket_id", "")),
-                ["metadata"] = actionTrace.GetValueOrDefault("metadata", new Dictionary()),
-                ["block_reasons"] = blockReasons,
-                ["blocked_count"] = (int)actionTrace.GetValueOrDefault("blocked_count", 0),
-                ["candidate_count"] = (int)actionTrace.GetValueOrDefault("candidate_count", 0),
-                ["evaluation_count"] = (int)actionTrace.GetValueOrDefault("evaluation_count", 0),
-                ["preview_reject_count"] = (int)actionTrace.GetValueOrDefault("preview_reject_count", 0),
-                ["top_candidates"] = SummarizeTopCandidates(actionTrace.GetValueOrDefault("top_candidates", new Array()), topCandidateLimit),
-            });
+            summaries.Add(
+                new Dictionary
+                {
+                    ["trace_id"] = AsString(actionTrace.GetValueOrDefault("trace_id", "")),
+                    ["action_id"] = AsString(actionTrace.GetValueOrDefault("action_id", "")),
+                    ["chosen"] = (bool)actionTrace.GetValueOrDefault("chosen", false),
+                    ["score_bucket_id"] = AsString(
+                        actionTrace.GetValueOrDefault("score_bucket_id", "")
+                    ),
+                    ["metadata"] = actionTrace.GetValueOrDefault("metadata", new Dictionary()),
+                    ["block_reasons"] = blockReasons,
+                    ["blocked_count"] = (int)actionTrace.GetValueOrDefault("blocked_count", 0),
+                    ["candidate_count"] = (int)actionTrace.GetValueOrDefault("candidate_count", 0),
+                    ["evaluation_count"] = (int)
+                        actionTrace.GetValueOrDefault("evaluation_count", 0),
+                    ["preview_reject_count"] = (int)
+                        actionTrace.GetValueOrDefault("preview_reject_count", 0),
+                    ["top_candidates"] = SummarizeTopCandidates(
+                        actionTrace.GetValueOrDefault(
+                            "top_candidates",
+                            new Godot.Collections.Array()
+                        ),
+                        topCandidateLimit
+                    ),
+                }
+            );
         }
         return summaries;
     }
 
-    private Godot.Collections.Array SummarizeTopCandidates(Variant candidatesValue, int limit)
+    private Godot.Collections.Array SummarizeTopCandidates(object candidatesValue, int limit)
     {
-        var summaries = new Array();
-        if (candidatesValue.VariantType != Variant.Type.Array)
+        var summaries = new Godot.Collections.Array();
+        if (!TryRawArray(candidatesValue, out Godot.Collections.Array candidates))
             return summaries;
 
-        foreach (var candidateVariant in candidatesValue.AsGodotArray())
+        foreach (object candidateValue in candidates)
         {
-            if (candidateVariant.VariantType != Variant.Type.Dictionary)
+            if (!TryRawDictionary(candidateValue, out Dictionary candidate))
                 continue;
             if (summaries.Count >= limit)
                 break;
-            var candidate = candidateVariant.AsGodotDictionary();
-            var scoreSummary = SummarizeScoreInput(candidate.GetValueOrDefault("score_input", new Dictionary()));
+            var scoreSummary = SummarizeScoreInput(
+                candidate.GetValueOrDefault("score_input", new Dictionary())
+            );
             var candidateSummary = new Dictionary
             {
                 ["label"] = AsString(candidate.GetValueOrDefault("label", "")),
-                ["total_score"] = (int)candidate.GetValueOrDefault("total_score", scoreSummary.GetValueOrDefault("total_score", 0)),
-                ["predicted_distance"] = candidate.ContainsKey("predicted_distance") ? (int)candidate.GetValueOrDefault("predicted_distance", -1) : -1,
-                ["command"] = SummarizeTraceCommand(candidate.GetValueOrDefault("command", new Dictionary())),
+                ["total_score"] = (int)
+                    candidate.GetValueOrDefault(
+                        "total_score",
+                        scoreSummary.GetValueOrDefault("total_score", 0)
+                    ),
+                ["predicted_distance"] = candidate.ContainsKey("predicted_distance")
+                    ? (int)candidate.GetValueOrDefault("predicted_distance", -1)
+                    : -1,
+                ["command"] = SummarizeTraceCommand(
+                    candidate.GetValueOrDefault("command", new Dictionary())
+                ),
                 ["score"] = scoreSummary,
             };
             CopyOptionalCandidateInt(candidateSummary, candidate, "screening_bonus");
@@ -342,7 +411,11 @@ public partial class BattleSimTraceSummaryBuilder : RefCounted
             CopyOptionalCandidateBool(candidateSummary, candidate, "screening_keeps_contact");
             CopyOptionalCandidateBool(candidateSummary, candidate, "screening_can_counterattack");
             CopyOptionalCandidateBool(candidateSummary, candidate, "screening_hard_block");
-            CopyOptionalCandidateBool(candidateSummary, candidate, "screening_distance_band_capped");
+            CopyOptionalCandidateBool(
+                candidateSummary,
+                candidate,
+                "screening_distance_band_capped"
+            );
             summaries.Add(candidateSummary);
         }
         return summaries;
@@ -366,11 +439,10 @@ public partial class BattleSimTraceSummaryBuilder : RefCounted
             target[key] = (bool)source[key];
     }
 
-    private Dictionary SummarizeTraceCommand(Variant commandValue)
+    private Dictionary SummarizeTraceCommand(object commandValue)
     {
-        if (commandValue.VariantType != Variant.Type.Dictionary)
+        if (!TryRawDictionary(commandValue, out Dictionary command))
             return new Dictionary();
-        var command = commandValue.AsGodotDictionary();
         return new Dictionary
         {
             ["command_type"] = AsString(command.GetValueOrDefault("command_type", "")),
@@ -378,80 +450,98 @@ public partial class BattleSimTraceSummaryBuilder : RefCounted
             ["skill_id"] = AsString(command.GetValueOrDefault("skill_id", "")),
             ["skill_variant_id"] = AsString(command.GetValueOrDefault("skill_variant_id", "")),
             ["target_unit_id"] = AsString(command.GetValueOrDefault("target_unit_id", "")),
-            ["target_unit_ids"] = StringifyArray(command.GetValueOrDefault("target_unit_ids", new Array())),
+            ["target_unit_ids"] = StringifyArray(
+                command.GetValueOrDefault("target_unit_ids", new Godot.Collections.Array())
+            ),
             ["target_coord"] = AsString(command.GetValueOrDefault("target_coord", "")),
-            ["target_coords"] = StringifyArray(command.GetValueOrDefault("target_coords", new Array())),
+            ["target_coords"] = StringifyArray(
+                command.GetValueOrDefault("target_coords", new Godot.Collections.Array())
+            ),
         };
     }
 
-    private Dictionary SummarizeExecutionResult(Variant resultValue)
+    private Dictionary SummarizeExecutionResult(object resultValue)
     {
-        if (resultValue.VariantType != Variant.Type.Dictionary)
+        if (!TryRawDictionary(resultValue, out Dictionary result))
             return new Dictionary();
-        var result = resultValue.AsGodotDictionary();
         return new Dictionary
         {
             ["command_type"] = AsString(result.GetValueOrDefault("command_type", "")),
             ["skill_id"] = AsString(result.GetValueOrDefault("skill_id", "")),
             ["skill_variant_id"] = AsString(result.GetValueOrDefault("skill_variant_id", "")),
-            ["changed_unit_ids"] = StringifyArray(result.GetValueOrDefault("changed_unit_ids", new Array())),
-            ["tracked_unit_ids"] = StringifyArray(result.GetValueOrDefault("tracked_unit_ids", new Array())),
-            ["unit_results"] = SummarizeUnitResults(result.GetValueOrDefault("unit_results", new Array())),
-            ["log_lines"] = StringifyArray(result.GetValueOrDefault("log_lines", new Array())),
-            ["report_entries"] = result.GetValueOrDefault("report_entries", new Array()),
+            ["changed_unit_ids"] = StringifyArray(
+                result.GetValueOrDefault("changed_unit_ids", new Godot.Collections.Array())
+            ),
+            ["tracked_unit_ids"] = StringifyArray(
+                result.GetValueOrDefault("tracked_unit_ids", new Godot.Collections.Array())
+            ),
+            ["unit_results"] = SummarizeUnitResults(
+                result.GetValueOrDefault("unit_results", new Godot.Collections.Array())
+            ),
+            ["log_lines"] = StringifyArray(
+                result.GetValueOrDefault("log_lines", new Godot.Collections.Array())
+            ),
+            ["report_entries"] = result.GetValueOrDefault(
+                "report_entries",
+                new Godot.Collections.Array()
+            ),
         };
     }
 
-    private Godot.Collections.Array SummarizeUnitResults(Variant resultsValue)
+    private Godot.Collections.Array SummarizeUnitResults(object resultsValue)
     {
-        var summaries = new Array();
-        if (resultsValue.VariantType != Variant.Type.Array)
+        var summaries = new Godot.Collections.Array();
+        if (!TryRawArray(resultsValue, out Godot.Collections.Array results))
             return summaries;
 
-        foreach (var resultVariant in resultsValue.AsGodotArray())
+        foreach (object resultValue in results)
         {
-            if (resultVariant.VariantType != Variant.Type.Dictionary)
+            if (!TryRawDictionary(resultValue, out Dictionary result))
                 continue;
-            var result = resultVariant.AsGodotDictionary();
-            summaries.Add(new Dictionary
-            {
-                ["unit_id"] = AsString(result.GetValueOrDefault("unit_id", "")),
-                ["before"] = SummarizeUnitSnapshot(result.GetValueOrDefault("before", new Dictionary())),
-                ["after"] = SummarizeUnitSnapshot(result.GetValueOrDefault("after", new Dictionary())),
-                ["hp_delta"] = (int)result.GetValueOrDefault("hp_delta", 0),
-                ["hp_damage"] = (int)result.GetValueOrDefault("hp_damage", 0),
-                ["hp_healing"] = (int)result.GetValueOrDefault("hp_healing", 0),
-                ["shield_delta"] = (int)result.GetValueOrDefault("shield_delta", 0),
-                ["shield_damage"] = (int)result.GetValueOrDefault("shield_damage", 0),
-                ["shield_restored"] = (int)result.GetValueOrDefault("shield_restored", 0),
-                ["killed"] = (bool)result.GetValueOrDefault("killed", false),
-                ["revived"] = (bool)result.GetValueOrDefault("revived", false),
-                ["moved"] = (bool)result.GetValueOrDefault("moved", false),
-            });
+            summaries.Add(
+                new Dictionary
+                {
+                    ["unit_id"] = AsString(result.GetValueOrDefault("unit_id", "")),
+                    ["before"] = SummarizeUnitSnapshot(
+                        result.GetValueOrDefault("before", new Dictionary())
+                    ),
+                    ["after"] = SummarizeUnitSnapshot(
+                        result.GetValueOrDefault("after", new Dictionary())
+                    ),
+                    ["hp_delta"] = (int)result.GetValueOrDefault("hp_delta", 0),
+                    ["hp_damage"] = (int)result.GetValueOrDefault("hp_damage", 0),
+                    ["hp_healing"] = (int)result.GetValueOrDefault("hp_healing", 0),
+                    ["shield_delta"] = (int)result.GetValueOrDefault("shield_delta", 0),
+                    ["shield_damage"] = (int)result.GetValueOrDefault("shield_damage", 0),
+                    ["shield_restored"] = (int)result.GetValueOrDefault("shield_restored", 0),
+                    ["killed"] = (bool)result.GetValueOrDefault("killed", false),
+                    ["revived"] = (bool)result.GetValueOrDefault("revived", false),
+                    ["moved"] = (bool)result.GetValueOrDefault("moved", false),
+                }
+            );
         }
         return summaries;
     }
 
-    private Godot.Collections.Array SummarizeUnitSnapshots(Variant snapshotsValue)
+    private Godot.Collections.Array SummarizeUnitSnapshots(object snapshotsValue)
     {
-        var summaries = new Array();
-        if (snapshotsValue.VariantType != Variant.Type.Array)
+        var summaries = new Godot.Collections.Array();
+        if (!TryRawArray(snapshotsValue, out Godot.Collections.Array snapshots))
             return summaries;
 
-        foreach (var snapshotVariant in snapshotsValue.AsGodotArray())
+        foreach (object snapshotValue in snapshots)
         {
-            var summary = SummarizeUnitSnapshot(snapshotVariant);
+            var summary = SummarizeUnitSnapshot(snapshotValue);
             if (summary.Count > 0)
                 summaries.Add(summary);
         }
         return summaries;
     }
 
-    private Dictionary SummarizeUnitSnapshot(Variant snapshotValue)
+    private Dictionary SummarizeUnitSnapshot(object snapshotValue)
     {
-        if (snapshotValue.VariantType != Variant.Type.Dictionary)
+        if (!TryRawDictionary(snapshotValue, out Dictionary snapshot))
             return new Dictionary();
-        var snapshot = snapshotValue.AsGodotDictionary();
         return new Dictionary
         {
             ["unit_id"] = AsString(snapshot.GetValueOrDefault("unit_id", "")),
@@ -468,11 +558,10 @@ public partial class BattleSimTraceSummaryBuilder : RefCounted
         };
     }
 
-    private Dictionary SummarizeScoreInput(Variant scoreValue)
+    private Dictionary SummarizeScoreInput(object scoreValue)
     {
-        if (scoreValue.VariantType != Variant.Type.Dictionary)
+        if (!TryRawDictionary(scoreValue, out Dictionary score))
             return new Dictionary();
-        var score = scoreValue.AsGodotDictionary();
         var result = new Dictionary
         {
             ["total_score"] = (int)score.GetValueOrDefault("total_score", 0),
@@ -484,34 +573,85 @@ public partial class BattleSimTraceSummaryBuilder : RefCounted
             ["effective_target_count"] = (int)score.GetValueOrDefault("effective_target_count", 0),
             ["enemy_target_count"] = (int)score.GetValueOrDefault("enemy_target_count", 0),
             ["ally_target_count"] = (int)score.GetValueOrDefault("ally_target_count", 0),
-            ["target_unit_ids"] = StringifyArray(score.GetValueOrDefault("target_unit_ids", new Array())),
-            ["target_coords"] = StringifyArray(score.GetValueOrDefault("target_coords", new Array())),
+            ["target_unit_ids"] = StringifyArray(
+                score.GetValueOrDefault("target_unit_ids", new Godot.Collections.Array())
+            ),
+            ["target_coords"] = StringifyArray(
+                score.GetValueOrDefault("target_coords", new Godot.Collections.Array())
+            ),
             ["estimated_damage"] = (int)score.GetValueOrDefault("estimated_damage", 0),
-            ["estimated_hit_rate_percent"] = (int)score.GetValueOrDefault("estimated_hit_rate_percent", 0),
-            ["save_estimates_by_target_id"] = SummarizeSaveEstimatesByTargetId(score.GetValueOrDefault("save_estimates_by_target_id", new Dictionary())),
-            ["estimated_lethal_target_count"] = (int)score.GetValueOrDefault("estimated_lethal_target_count", 0),
-            ["estimated_lethal_threat_target_count"] = (int)score.GetValueOrDefault("estimated_lethal_threat_target_count", 0),
-            ["estimated_lethal_target_ids"] = StringifyArray(score.GetValueOrDefault("estimated_lethal_target_ids", new Array())),
-            ["estimated_lethal_threat_target_ids"] = StringifyArray(score.GetValueOrDefault("estimated_lethal_threat_target_ids", new Array())),
-            ["estimated_control_target_ids"] = StringifyArray(score.GetValueOrDefault("estimated_control_target_ids", new Array())),
-            ["estimated_control_threat_target_ids"] = StringifyArray(score.GetValueOrDefault("estimated_control_threat_target_ids", new Array())),
-            ["has_post_action_threat_projection"] = (bool)score.GetValueOrDefault("has_post_action_threat_projection", false),
-            ["projected_actor_coord"] = AsString(score.GetValueOrDefault("projected_actor_coord", "")),
-            ["pre_action_threat_unit_ids"] = StringifyArray(score.GetValueOrDefault("pre_action_threat_unit_ids", new Array())),
-            ["pre_action_threat_count"] = (int)score.GetValueOrDefault("pre_action_threat_count", 0),
-            ["pre_action_threat_expected_damage"] = (int)score.GetValueOrDefault("pre_action_threat_expected_damage", 0),
-            ["pre_action_survival_margin"] = (int)score.GetValueOrDefault("pre_action_survival_margin", 0),
-            ["pre_action_is_lethal_survival_risk"] = (bool)score.GetValueOrDefault("pre_action_is_lethal_survival_risk", false),
-            ["post_action_remaining_threat_unit_ids"] = StringifyArray(score.GetValueOrDefault("post_action_remaining_threat_unit_ids", new Array())),
-            ["post_action_remaining_threat_count"] = (int)score.GetValueOrDefault("post_action_remaining_threat_count", 0),
-            ["post_action_remaining_threat_expected_damage"] = (int)score.GetValueOrDefault("post_action_remaining_threat_expected_damage", 0),
-            ["post_action_survival_margin"] = (int)score.GetValueOrDefault("post_action_survival_margin", 0),
-            ["post_action_is_lethal_survival_risk"] = (bool)score.GetValueOrDefault("post_action_is_lethal_survival_risk", false),
+            ["estimated_hit_rate_percent"] = (int)
+                score.GetValueOrDefault("estimated_hit_rate_percent", 0),
+            ["save_estimates_by_target_id"] = SummarizeSaveEstimatesByTargetId(
+                score.GetValueOrDefault("save_estimates_by_target_id", new Dictionary())
+            ),
+            ["estimated_lethal_target_count"] = (int)
+                score.GetValueOrDefault("estimated_lethal_target_count", 0),
+            ["estimated_lethal_threat_target_count"] = (int)
+                score.GetValueOrDefault("estimated_lethal_threat_target_count", 0),
+            ["estimated_lethal_target_ids"] = StringifyArray(
+                score.GetValueOrDefault(
+                    "estimated_lethal_target_ids",
+                    new Godot.Collections.Array()
+                )
+            ),
+            ["estimated_lethal_threat_target_ids"] = StringifyArray(
+                score.GetValueOrDefault(
+                    "estimated_lethal_threat_target_ids",
+                    new Godot.Collections.Array()
+                )
+            ),
+            ["estimated_control_target_ids"] = StringifyArray(
+                score.GetValueOrDefault(
+                    "estimated_control_target_ids",
+                    new Godot.Collections.Array()
+                )
+            ),
+            ["estimated_control_threat_target_ids"] = StringifyArray(
+                score.GetValueOrDefault(
+                    "estimated_control_threat_target_ids",
+                    new Godot.Collections.Array()
+                )
+            ),
+            ["has_post_action_threat_projection"] = (bool)
+                score.GetValueOrDefault("has_post_action_threat_projection", false),
+            ["projected_actor_coord"] = AsString(
+                score.GetValueOrDefault("projected_actor_coord", "")
+            ),
+            ["pre_action_threat_unit_ids"] = StringifyArray(
+                score.GetValueOrDefault("pre_action_threat_unit_ids", new Godot.Collections.Array())
+            ),
+            ["pre_action_threat_count"] = (int)
+                score.GetValueOrDefault("pre_action_threat_count", 0),
+            ["pre_action_threat_expected_damage"] = (int)
+                score.GetValueOrDefault("pre_action_threat_expected_damage", 0),
+            ["pre_action_survival_margin"] = (int)
+                score.GetValueOrDefault("pre_action_survival_margin", 0),
+            ["pre_action_is_lethal_survival_risk"] = (bool)
+                score.GetValueOrDefault("pre_action_is_lethal_survival_risk", false),
+            ["post_action_remaining_threat_unit_ids"] = StringifyArray(
+                score.GetValueOrDefault(
+                    "post_action_remaining_threat_unit_ids",
+                    new Godot.Collections.Array()
+                )
+            ),
+            ["post_action_remaining_threat_count"] = (int)
+                score.GetValueOrDefault("post_action_remaining_threat_count", 0),
+            ["post_action_remaining_threat_expected_damage"] = (int)
+                score.GetValueOrDefault("post_action_remaining_threat_expected_damage", 0),
+            ["post_action_survival_margin"] = (int)
+                score.GetValueOrDefault("post_action_survival_margin", 0),
+            ["post_action_is_lethal_survival_risk"] = (bool)
+                score.GetValueOrDefault("post_action_is_lethal_survival_risk", false),
             ["hit_payoff_score"] = (int)score.GetValueOrDefault("hit_payoff_score", 0),
-            ["position_objective_kind"] = AsString(score.GetValueOrDefault("position_objective_kind", "")),
-            ["position_objective_score"] = (int)score.GetValueOrDefault("position_objective_score", 0),
+            ["position_objective_kind"] = AsString(
+                score.GetValueOrDefault("position_objective_kind", "")
+            ),
+            ["position_objective_score"] = (int)
+                score.GetValueOrDefault("position_objective_score", 0),
             ["resource_cost_score"] = (int)score.GetValueOrDefault("resource_cost_score", 0),
-            ["distance_to_primary_coord"] = (int)score.GetValueOrDefault("distance_to_primary_coord", -1),
+            ["distance_to_primary_coord"] = (int)
+                score.GetValueOrDefault("distance_to_primary_coord", -1),
             ["ap_cost"] = (int)score.GetValueOrDefault("ap_cost", 0),
             ["stamina_cost"] = (int)score.GetValueOrDefault("stamina_cost", 0),
             ["mp_cost"] = (int)score.GetValueOrDefault("mp_cost", 0),
@@ -521,40 +661,51 @@ public partial class BattleSimTraceSummaryBuilder : RefCounted
         return result;
     }
 
-    private Dictionary SummarizeSaveEstimatesByTargetId(Variant value)
+    private Dictionary SummarizeSaveEstimatesByTargetId(object value)
     {
         var summary = new Dictionary();
-        if (value.VariantType != Variant.Type.Dictionary)
+        if (!TryRawDictionary(value, out Dictionary estimatesByTarget))
             return summary;
-        var estimatesByTarget = value.AsGodotDictionary();
-        var targetKeys = estimatesByTarget.Keys.Cast<Variant>().ToList();
-        targetKeys.Sort((a, b) => string.Compare(a.ToString(), b.ToString(), StringComparison.Ordinal));
+        var targetKeys = new List<object>();
+        foreach (object targetKey in estimatesByTarget.Keys)
+        {
+            targetKeys.Add(targetKey);
+        }
+        targetKeys.Sort(
+            (a, b) => string.Compare(AsString(a), AsString(b), StringComparison.Ordinal)
+        );
 
         foreach (var targetKey in targetKeys)
         {
             string targetKeyStr = AsString(targetKey);
-            var estimatesValue = estimatesByTarget.GetValueOrDefault(targetKey, new Array());
-            if (estimatesValue.VariantType != Variant.Type.Array)
+            if (!TryRawArray(estimatesByTarget.GetValueOrDefault(targetKey), out var estimates))
                 continue;
-            var compactEstimates = new Array();
-            foreach (var estimateVariant in estimatesValue.AsGodotArray())
+            var compactEstimates = new Godot.Collections.Array();
+            foreach (object estimateValue in estimates)
             {
-                if (estimateVariant.VariantType != Variant.Type.Dictionary)
+                if (!TryRawDictionary(estimateValue, out Dictionary estimate))
                     continue;
-                var estimate = estimateVariant.AsGodotDictionary();
-                compactEstimates.Add(new Dictionary
-                {
-                    ["damage_before_save"] = (int)estimate.GetValueOrDefault("damage_before_save", 0),
-                    ["damage_after_save_estimate"] = (int)estimate.GetValueOrDefault("damage_after_save_estimate", 0),
-                    ["damage_on_save_success"] = (int)estimate.GetValueOrDefault("damage_on_save_success", 0),
-                    ["save_success_rate_percent"] = (int)estimate.GetValueOrDefault("save_success_rate_percent", 0),
-                    ["dc"] = (int)estimate.GetValueOrDefault("dc", 0),
-                    ["ability"] = AsString(estimate.GetValueOrDefault("ability", "")),
-                    ["save_tag"] = AsString(estimate.GetValueOrDefault("save_tag", "")),
-                    ["advantage_state"] = AsString(estimate.GetValueOrDefault("advantage_state", "")),
-                    ["immune"] = (bool)estimate.GetValueOrDefault("immune", false),
-                    ["hit_count"] = (int)estimate.GetValueOrDefault("hit_count", 1),
-                });
+                compactEstimates.Add(
+                    new Dictionary
+                    {
+                        ["damage_before_save"] = (int)
+                            estimate.GetValueOrDefault("damage_before_save", 0),
+                        ["damage_after_save_estimate"] = (int)
+                            estimate.GetValueOrDefault("damage_after_save_estimate", 0),
+                        ["damage_on_save_success"] = (int)
+                            estimate.GetValueOrDefault("damage_on_save_success", 0),
+                        ["save_success_rate_percent"] = (int)
+                            estimate.GetValueOrDefault("save_success_rate_percent", 0),
+                        ["dc"] = (int)estimate.GetValueOrDefault("dc", 0),
+                        ["ability"] = AsString(estimate.GetValueOrDefault("ability", "")),
+                        ["save_tag"] = AsString(estimate.GetValueOrDefault("save_tag", "")),
+                        ["advantage_state"] = AsString(
+                            estimate.GetValueOrDefault("advantage_state", "")
+                        ),
+                        ["immune"] = (bool)estimate.GetValueOrDefault("immune", false),
+                        ["hit_count"] = (int)estimate.GetValueOrDefault("hit_count", 1),
+                    }
+                );
             }
             if (compactEstimates.Count > 0)
                 summary[targetKeyStr] = compactEstimates;
@@ -562,7 +713,12 @@ public partial class BattleSimTraceSummaryBuilder : RefCounted
         return summary;
     }
 
-    private void IncrementNestedCounter(Dictionary counters, string outerKey, string innerKey, int amount = 1)
+    private void IncrementNestedCounter(
+        Dictionary counters,
+        string outerKey,
+        string innerKey,
+        int amount = 1
+    )
     {
         if (string.IsNullOrEmpty(outerKey) || string.IsNullOrEmpty(innerKey) || amount == 0)
             return;
@@ -571,22 +727,78 @@ public partial class BattleSimTraceSummaryBuilder : RefCounted
         counters[outerKey] = inner;
     }
 
-    private Godot.Collections.Array StringifyArray(Variant value)
+    private Godot.Collections.Array StringifyArray(object value)
     {
-        var results = new Array();
-        if (value.VariantType != Variant.Type.Array)
+        var results = new Godot.Collections.Array();
+        if (!TryRawArray(value, out Godot.Collections.Array values))
             return results;
-        foreach (var entry in value.AsGodotArray())
+        foreach (object entry in values)
         {
             results.Add(AsString(entry));
         }
         return results;
     }
 
-    private string AsString(Variant value)
+    private string AsString(object rawValue)
     {
-        if (value.VariantType == Variant.Type.Nil)
-            return "";
-        return value.ToString();
+        return rawValue switch
+        {
+            Variant value => value.VariantType == Variant.Type.Nil ? "" : value.ToString(),
+            StringName stringName => stringName.ToString(),
+            _ => rawValue?.ToString() ?? "",
+        };
     }
+
+    private static bool TryRawArray(object rawValue, out Godot.Collections.Array values)
+    {
+        if (rawValue is Variant value && value.VariantType == Variant.Type.Array)
+        {
+            values = value.AsGodotArray();
+            return true;
+        }
+        if (rawValue is Godot.Collections.Array array)
+        {
+            values = array;
+            return true;
+        }
+        values = new Godot.Collections.Array();
+        return false;
+    }
+
+    private static bool TryArrayValue(
+        Dictionary data,
+        string key,
+        out Godot.Collections.Array values
+    )
+    {
+        if (data != null && data.ContainsKey(key))
+            return TryRawArray(data[key], out values);
+        values = new Godot.Collections.Array();
+        return false;
+    }
+
+    private static bool TryRawDictionary(object rawValue, out Dictionary values)
+    {
+        if (rawValue is Variant value && value.VariantType == Variant.Type.Dictionary)
+        {
+            values = value.AsGodotDictionary();
+            return true;
+        }
+        if (rawValue is Dictionary dictionary)
+        {
+            values = dictionary;
+            return true;
+        }
+        values = new Dictionary();
+        return false;
+    }
+
+    private static bool TryDictionaryValue(Dictionary data, string key, out Dictionary values)
+    {
+        if (data != null && data.ContainsKey(key))
+            return TryRawDictionary(data[key], out values);
+        values = new Dictionary();
+        return false;
+    }
+
 }

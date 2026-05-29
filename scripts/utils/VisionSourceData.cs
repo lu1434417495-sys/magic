@@ -10,7 +10,12 @@ public partial class VisionSourceData : RefCounted
 
     public VisionSourceData() { }
 
-    public VisionSourceData(string sourceIdentifier = "", Vector2I sourceCenter = default, int sourceRange = 0, string sourceFactionId = "")
+    public VisionSourceData(
+        string sourceIdentifier = "",
+        Vector2I sourceCenter = default,
+        int sourceRange = 0,
+        string sourceFactionId = ""
+    )
     {
         source_id = sourceIdentifier;
         center = sourceCenter;

@@ -3,31 +3,29 @@ using Godot;
 [GlobalClass]
 public partial class WarehouseState : RefCounted
 {
-    private static readonly GDScript EquipmentInstanceStateScript = GD.Load<GDScript>("res://scripts/player/warehouse/equipment_instance_state.gd");
+    public Godot.Collections.Array<WarehouseStackState> stacks = new();
+    public Godot.Collections.Array<EquipmentInstanceState> equipment_instances = new();
 
-    public Godot.Collections.Array stacks = new();
-    public Godot.Collections.Array equipment_instances = new();
-
-    public Godot.Collections.Array get_non_empty_stacks()
+    public Godot.Collections.Array<WarehouseStackState> get_non_empty_stacks()
     {
-        var result = new Godot.Collections.Array();
-        foreach (var s in stacks)
+        var result = new Godot.Collections.Array<WarehouseStackState>();
+        foreach (var stack in stacks)
         {
-            var so = s.AsGodotObject();
-            if (so == null || (bool)so.Call("is_empty")) continue;
-            result.Add(s);
+            if (stack == null || stack.is_empty())
+                continue;
+            result.Add(stack);
         }
         return result;
     }
 
-    public Godot.Collections.Array get_non_empty_instances()
+    public Godot.Collections.Array<EquipmentInstanceState> get_non_empty_instances()
     {
-        var result = new Godot.Collections.Array();
-        foreach (var i in equipment_instances)
+        var result = new Godot.Collections.Array<EquipmentInstanceState>();
+        foreach (var instance in equipment_instances)
         {
-            var io = i.AsGodotObject();
-            if (io == null || (string)io.Get("instance_id").AsStringName() == "" || (string)io.Get("item_id").AsStringName() == "") continue;
-            result.Add(i);
+            if (instance == null || instance.instance_id == "" || instance.item_id == "")
+                continue;
+            result.Add(instance);
         }
         return result;
     }
@@ -35,49 +33,75 @@ public partial class WarehouseState : RefCounted
     public WarehouseState duplicate_state()
     {
         var copy = new WarehouseState();
-        foreach (var s in get_non_empty_stacks())
-            copy.stacks.Add(s.AsGodotObject().Call("duplicate_state"));
-        foreach (var i in get_non_empty_instances())
-            copy.equipment_instances.Add(EquipmentInstanceStateScript.Call("from_dict", i.AsGodotObject().Call("to_dict")));
+        foreach (var stack in get_non_empty_stacks())
+            copy.stacks.Add(stack.duplicate_state());
+        foreach (var instance in get_non_empty_instances())
+            copy.equipment_instances.Add(EquipmentInstanceState.from_dict(instance.to_dict()));
         return copy;
     }
 
     public Godot.Collections.Dictionary to_dict()
     {
-        var sd = new Godot.Collections.Array<Godot.Collections.Dictionary>();
-        foreach (var s in get_non_empty_stacks())
-            sd.Add(s.AsGodotObject().Call("to_dict").AsGodotDictionary());
-        var id = new Godot.Collections.Array<Godot.Collections.Dictionary>();
-        foreach (var i in get_non_empty_instances())
-            id.Add(i.AsGodotObject().Call("to_dict").AsGodotDictionary());
-        return new Godot.Collections.Dictionary { {"stacks", sd}, {"equipment_instances", id} };
+        var stackPayloads = new Godot.Collections.Array<Godot.Collections.Dictionary>();
+        foreach (var stack in get_non_empty_stacks())
+            stackPayloads.Add(stack.to_dict());
+
+        var instancePayloads = new Godot.Collections.Array<Godot.Collections.Dictionary>();
+        foreach (var instance in get_non_empty_instances())
+            instancePayloads.Add(instance.to_dict());
+
+        return new Godot.Collections.Dictionary
+        {
+            { "stacks", stackPayloads },
+            { "equipment_instances", instancePayloads },
+        };
     }
 
-    public static WarehouseState from_dict(Variant data)
+    public static WarehouseState from_dict(Godot.Collections.Dictionary payload)
     {
-        if (data.VariantType != Variant.Type.Dictionary) return null;
-        var payload = data.AsGodotDictionary();
-        if (payload.Count != 2) return null;
-        if (!payload.ContainsKey("stacks") || !payload.ContainsKey("equipment_instances")) return null;
+        if (payload == null)
+            return null;
+        if (payload.Count != 2)
+            return null;
+        if (!payload.ContainsKey("stacks") || !payload.ContainsKey("equipment_instances"))
+            return null;
+
+        var stacksPayload = payload["stacks"];
+        if (stacksPayload.VariantType != Variant.Type.Array)
+            return null;
+
         var state = new WarehouseState();
-        var sd = payload["stacks"];
-        if (sd.VariantType != Variant.Type.Array) return null;
-        foreach (var sv in sd.AsGodotArray())
+        foreach (var stackPayload in stacksPayload.AsGodotArray())
         {
-            var stack = WarehouseStackState.from_dict(sv);
-            if (stack == null || stack.is_empty()) return null;
+            if (stackPayload.VariantType != Variant.Type.Dictionary)
+                return null;
+            var stack = WarehouseStackState.from_dict(stackPayload.AsGodotDictionary());
+            if (stack == null || stack.is_empty())
+                return null;
             state.stacks.Add(stack);
         }
-        var idv = payload["equipment_instances"];
-        if (idv.VariantType != Variant.Type.Array) return null;
-        foreach (var iv in idv.AsGodotArray())
+
+        var instancesPayload = payload["equipment_instances"];
+        if (instancesPayload.VariantType != Variant.Type.Array)
+            return null;
+
+        foreach (var instancePayload in instancesPayload.AsGodotArray())
         {
-            var ve = EquipmentInstanceStateScript.Call("get_payload_validation_error", iv).AsString();
-            if (ve.Length > 0) return null;
-            var inst = EquipmentInstanceStateScript.Call("from_dict", iv).AsGodotObject();
-            if (inst == null || (string)inst.Get("instance_id").AsStringName() == "" || (string)inst.Get("item_id").AsStringName() == "") return null;
-            state.equipment_instances.Add(inst);
+            if (instancePayload.VariantType != Variant.Type.Dictionary)
+                return null;
+            var instanceDictionary = instancePayload.AsGodotDictionary();
+            var validationError = EquipmentInstanceState.get_payload_validation_error(
+                instanceDictionary
+            );
+            if (validationError.Length > 0)
+                return null;
+
+            var instance = EquipmentInstanceState.from_dict(instanceDictionary);
+            if (instance == null || instance.instance_id == "" || instance.item_id == "")
+                return null;
+            state.equipment_instances.Add(instance);
         }
+
         return state;
     }
 }

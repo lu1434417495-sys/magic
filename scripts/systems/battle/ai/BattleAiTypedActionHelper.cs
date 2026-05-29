@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
+using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-[GlobalClass]
-public partial class BattleAiTypedActionHelper : RefCounted
+public sealed class BattleAiTypedActionHelper
 {
     private static readonly StringName EmptyStringName = "";
     private static readonly StringName TargetFilterAny = "any";
@@ -27,104 +27,116 @@ public partial class BattleAiTypedActionHelper : RefCounted
     private const int RoleThreatDistanceWindow = 4;
     private const int RoleThreatMaxApproachDistance = 7;
     private const int RoleThreatMaxContactRange = 2;
-    private Resource _battleCommandScript;
-    private Resource _battleAiDecisionScript;
-    private readonly BattleSkillResolutionRules _skillResolutionRules = new();
 
-    public GArray ResolveKnownSkillIds(GodotObject context, GArray preferredSkillIds)
+    private sealed class SkillResourceCosts
     {
-        var results = new GArray();
-        GodotObject unitState = GetObject(context, "unit_state");
-        if (context == null || unitState == null)
+        public int Ap;
+        public int Mp;
+        public int Stamina;
+        public int Aura;
+
+        public static SkillResourceCosts FromProfile(CombatSkillDef combatProfile, int skillLevel)
         {
-            return results;
+            if (combatProfile == null)
+                return new SkillResourceCosts();
+            GDictionary costs = combatProfile.get_effective_resource_costs(skillLevel);
+            return new SkillResourceCosts
+            {
+                Ap = DictInt(costs, "ap_cost", combatProfile.ap_cost),
+                Mp = DictInt(costs, "mp_cost", combatProfile.mp_cost),
+                Stamina = DictInt(costs, "stamina_cost", combatProfile.stamina_cost),
+                Aura = DictInt(costs, "aura_cost", combatProfile.aura_cost),
+            };
         }
+    }
+
+    public List<StringName> ResolveKnownSkillIds(
+        BattleAiContext context,
+        GStringNameArray preferredSkillIds
+    )
+    {
+        var results = new List<StringName>();
+        BattleUnitState unitState = context?.unit_state;
+        if (unitState == null)
+            return results;
 
         var seen = new HashSet<StringName>();
-        GArray knownActiveSkillIds = GetArray(unitState, "known_active_skill_ids");
-        GArray sourceIds = preferredSkillIds != null && preferredSkillIds.Count > 0
-            ? preferredSkillIds
-            : knownActiveSkillIds;
-        foreach (Variant rawSkillId in sourceIds)
+        GStringNameArray sourceIds =
+            preferredSkillIds != null && preferredSkillIds.Count > 0
+                ? preferredSkillIds
+                : unitState.known_active_skill_ids;
+        foreach (StringName rawSkillId in sourceIds)
         {
-            StringName skillId = new(rawSkillId.ToString());
+            StringName skillId = ProgressionDataUtils.to_string_name(rawSkillId);
             if (IsEmpty(skillId) || seen.Contains(skillId))
-            {
                 continue;
-            }
             seen.Add(skillId);
-            if (ArrayHasStringName(knownActiveSkillIds, skillId))
-            {
+            if (unitState.known_active_skill_ids.Contains(skillId))
                 results.Add(skillId);
-            }
         }
         return results;
     }
 
-    public GodotObject GetSkillDef(GodotObject context, StringName skillId)
+    public SkillDef GetSkillDef(BattleAiContext context, StringName skillId)
     {
-        if (context == null || IsEmpty(skillId))
-        {
+        if (context == null || IsEmpty(skillId) || context.skill_defs == null)
             return null;
-        }
-        GDictionary skillDefs = GetDictionary(context, "skill_defs");
-        return skillDefs.ContainsKey(skillId) ? skillDefs[skillId].AsGodotObject() : null;
+        if (context.skill_defs.ContainsKey(skillId))
+            return context.skill_defs[skillId].AsGodotObject() as SkillDef;
+        string stringKey = skillId.ToString();
+        return context.skill_defs.ContainsKey(stringKey)
+            ? context.skill_defs[stringKey].AsGodotObject() as SkillDef
+            : null;
     }
 
-    public string GetSkillCastBlockReason(GodotObject context, GodotObject skillDef)
+    public string GetSkillCastBlockReason(BattleAiContext context, SkillDef skillDef)
     {
-        GodotObject unitState = GetObject(context, "unit_state");
-        GodotObject combatProfile = GetObject(skillDef, "combat_profile");
-        if (context == null || unitState == null || skillDef == null || combatProfile == null)
-        {
+        BattleUnitState unitState = context?.unit_state;
+        CombatSkillDef combatProfile = skillDef?.combat_profile;
+        if (unitState == null || skillDef == null || combatProfile == null)
             return "技能或目标无效。";
-        }
 
-        StringName skillId = GetStringName(skillDef, "skill_id");
-        int skillLevel = GetSkillLevel(unitState, skillId);
-        GDictionary costs = GetEffectiveResourceCosts(combatProfile, skillLevel);
-        int cooldown = GetInt(GetDictionary(unitState, "cooldowns"), skillId, 0);
+        int skillLevel = GetSkillLevel(unitState, skillDef.skill_id);
+        SkillResourceCosts costs = SkillResourceCosts.FromProfile(combatProfile, skillLevel);
+        int cooldown = DictInt(unitState.cooldowns, skillDef.skill_id);
         if (cooldown > 0)
-        {
-            return $"{GetString(skillDef, "display_name")} 仍在冷却中（{cooldown}）。";
-        }
+            return $"{skillDef.display_name} 仍在冷却中（{cooldown}）。";
 
         string lockedReason = GetLockedCombatResourceBlockReason(unitState, costs);
         if (!string.IsNullOrEmpty(lockedReason))
-        {
             return lockedReason;
-        }
-        if (GetInt(unitState, "current_ap") < GetInt(costs, "ap_cost", GetInt(combatProfile, "ap_cost")))
-        {
+        if (unitState.current_ap < costs.Ap)
             return "AP不足，无法施放该技能。";
-        }
-        if (GetInt(unitState, "current_mp") < GetInt(costs, "mp_cost", GetInt(combatProfile, "mp_cost")))
-        {
+        if (unitState.current_mp < costs.Mp)
             return "法力不足，无法施放该技能。";
-        }
-        if (GetInt(unitState, "current_stamina") < GetInt(costs, "stamina_cost", GetInt(combatProfile, "stamina_cost")))
-        {
+        if (unitState.current_stamina < costs.Stamina)
             return "体力不足，无法施放该技能。";
-        }
-        if (GetInt(unitState, "current_aura") < GetInt(costs, "aura_cost", GetInt(combatProfile, "aura_cost")))
-        {
+        if (unitState.current_aura < costs.Aura)
             return "斗气不足，无法施放该技能。";
-        }
         return "";
     }
 
-    public GArray SortTargetUnits(GodotObject context, StringName targetFilter, StringName selector)
+    public List<BattleUnitState> SortTargetUnits(
+        BattleAiContext context,
+        StringName targetFilter,
+        StringName selector
+    )
     {
         StringName effectiveFilter = targetFilter;
-        GodotObject actor = GetObject(context, "unit_state");
-        if (context != null
-            && actor != null
-            && GetBool(GetDictionary(actor, "ai_blackboard"), "madness_target_any_team")
-            && selector != SelectorSelf)
+        BattleUnitState actor = context?.unit_state;
+        if (
+            actor != null
+            && DictBool(actor.ai_blackboard, "madness_target_any_team")
+            && selector != SelectorSelf
+        )
         {
             effectiveFilter = TargetFilterAny;
         }
-        else if (selector == SelectorNearestEnemy || selector == SelectorLowestHpEnemy || selector == SelectorNearestRoleThreatEnemy)
+        else if (
+            selector == SelectorNearestEnemy
+            || selector == SelectorLowestHpEnemy
+            || selector == SelectorNearestRoleThreatEnemy
+        )
         {
             effectiveFilter = TargetFilterEnemy;
         }
@@ -137,91 +149,62 @@ public partial class BattleAiTypedActionHelper : RefCounted
             effectiveFilter = TargetFilterSelf;
         }
 
-        GArray units = CollectUnitsByFilter(context, effectiveFilter);
-        GodotObject forcedTarget = ResolveForcedTargetUnit(context, effectiveFilter);
+        List<BattleUnitState> units = CollectUnitsByFilter(context, effectiveFilter);
+        BattleUnitState forcedTarget = context?.resolve_forced_target_unit(effectiveFilter);
         if (forcedTarget != null)
-        {
-            return new GArray { forcedTarget };
-        }
+            return new List<BattleUnitState> { forcedTarget };
         if (selector == SelectorSelf)
-        {
             return units;
-        }
 
         int nearestDistance = ResolveNearestDistance(context, units);
-        var sorted = new List<GodotObject>();
-        foreach (Variant unitValue in units)
-        {
-            GodotObject unit = unitValue.AsGodotObject();
-            if (unit != null)
-            {
-                sorted.Add(unit);
-            }
-        }
-        sorted.Sort((left, right) => CompareTargets(context, left, right, selector, nearestDistance));
-
-        var result = new GArray();
-        foreach (GodotObject unit in sorted)
-        {
-            result.Add(unit);
-        }
-        return result;
+        var sorted = new List<BattleUnitState>(units);
+        sorted.Sort(
+            (left, right) => CompareTargets(context, left, right, selector, nearestDistance)
+        );
+        return sorted;
     }
 
-    public GArray GetUnitCastVariants(GodotObject context, GodotObject skillDef)
+    public List<CombatCastVariantDef> GetUnitCastVariants(BattleAiContext context, SkillDef skillDef)
     {
-        var variants = new GArray();
-        GodotObject combatProfile = GetObject(skillDef, "combat_profile");
-        if (skillDef == null || combatProfile == null)
+        var options = new List<CombatCastVariantDef>();
+        CombatSkillDef combatProfile = skillDef?.combat_profile;
+        if (combatProfile == null)
+            return options;
+        if (combatProfile.cast_variants.Count == 0)
         {
-            return variants;
-        }
-        if (GetArray(combatProfile, "cast_variants").Count == 0)
-        {
-            variants.Add(Variant.From<GodotObject>(null));
-            return variants;
+            options.Add(null);
+            return options;
         }
 
-        GodotObject actor = GetObject(context, "unit_state");
-        int skillLevel = actor != null ? GetSkillLevel(actor, GetStringName(skillDef, "skill_id")) : 0;
-        foreach (Variant variantValue in GetUnlockedCastVariants(combatProfile, skillLevel))
+        BattleUnitState actor = context?.unit_state;
+        int skillLevel = actor != null ? GetSkillLevel(actor, skillDef.skill_id) : 0;
+        foreach (CombatCastVariantDef castVariant in combatProfile.get_unlocked_cast_variants(skillLevel))
         {
-            GodotObject castVariant = variantValue.AsGodotObject();
-            if (castVariant == null)
-            {
-                continue;
-            }
-            if (GetCastVariantTargetMode(skillDef, castVariant) == TargetModeUnit)
-            {
-                variants.Add(castVariant);
-            }
+            if (castVariant != null && GetCastVariantTargetMode(skillDef, castVariant) == TargetModeUnit)
+                options.Add(castVariant);
         }
-        return variants;
+        return options;
     }
 
     public GDictionary BuildPositionMetadata(
-        GodotObject action,
-        GodotObject context,
-        GodotObject targetUnit,
-        GodotObject skillDef)
+        UseUnitSkillAction action,
+        BattleAiContext context,
+        BattleUnitState targetUnit,
+        SkillDef skillDef
+    )
     {
         GDictionary metadata = ResolveDesiredDistanceContract(action, context, skillDef);
-        StringName distanceReference = GetStringName(action, "distance_reference");
-        if (distanceReference == DistanceRefTargetUnit)
+        if (action.distance_reference == DistanceRefTargetUnit)
         {
-            metadata["position_target_unit"] = targetUnit;
+            metadata["position_target_unit_id"] = targetUnit?.unit_id ?? EmptyStringName;
         }
-        else if (distanceReference == DistanceRefEnemyFrontline)
+        else if (action.distance_reference == DistanceRefEnemyFrontline)
         {
-            GodotObject frontlineUnit = ResolveEnemyFrontlineUnit(context);
+            BattleUnitState frontlineUnit = ResolveEnemyFrontlineUnit(context);
             if (frontlineUnit != null)
-            {
-                metadata["position_target_unit"] = frontlineUnit;
-            }
+                metadata["position_target_unit_id"] = frontlineUnit.unit_id;
             else
-            {
                 metadata["position_objective_kind"] = new StringName("none");
-            }
         }
         else
         {
@@ -230,260 +213,250 @@ public partial class BattleAiTypedActionHelper : RefCounted
         return metadata;
     }
 
-    public GArray CollectUnitSkillEffectDefs(GodotObject skillDef, GodotObject castVariant, GodotObject activeUnit)
+    public List<CombatEffectDef> CollectUnitSkillEffectDefs(
+        SkillDef skillDef,
+        CombatCastVariantDef castVariant,
+        BattleUnitState activeUnit
+    )
     {
-        return _skillResolutionRules.collect_unit_skill_effect_defs(skillDef, castVariant, activeUnit);
+        var effectDefs = new List<CombatEffectDef>();
+        int skillLevel = activeUnit != null ? GetSkillLevel(activeUnit, skillDef?.skill_id ?? "") : 0;
+        if (skillDef?.combat_profile != null)
+            AddUnlockedEffectDefs(effectDefs, skillDef.combat_profile.effect_defs, skillLevel, activeUnit != null);
+        if (castVariant != null)
+            AddUnlockedEffectDefs(effectDefs, castVariant.effect_defs, skillLevel, activeUnit != null);
+        return effectDefs;
     }
 
-    public StringName GetCastVariantTargetMode(GodotObject skillDef, GodotObject castVariant)
+    public StringName GetCastVariantTargetMode(SkillDef skillDef, CombatCastVariantDef castVariant)
     {
-        return _skillResolutionRules.get_cast_variant_target_mode(skillDef, castVariant);
+        if (castVariant == null)
+            return EmptyStringName;
+        return !IsEmpty(castVariant.target_mode)
+            ? castVariant.target_mode
+            : skillDef?.combat_profile?.target_mode ?? EmptyStringName;
     }
 
-    public GodotObject BuildUnitSkillCommand(GodotObject context, StringName skillId, GodotObject targetUnit, StringName skillVariantId)
+    public BattleCommand BuildUnitSkillCommand(
+        BattleAiContext context,
+        StringName skillId,
+        BattleUnitState targetUnit,
+        StringName skillVariantId
+    )
     {
-        GodotObject actor = GetObject(context, "unit_state");
-        if (context == null || actor == null || targetUnit == null)
-        {
+        BattleUnitState actor = context?.unit_state;
+        if (actor == null || targetUnit == null)
             return null;
-        }
-        GodotObject command = NewFromScript(ref _battleCommandScript, "res://scripts/systems/battle/core/battle_command.gd");
-        if (command == null)
+        return new BattleCommand
         {
-            return null;
-        }
-        command.Set("command_type", new StringName("skill"));
-        command.Set("unit_id", GetStringName(actor, "unit_id"));
-        command.Set("skill_id", skillId);
-        command.Set("skill_variant_id", skillVariantId);
-        command.Set("target_unit_id", GetStringName(targetUnit, "unit_id"));
-        command.Set("target_coord", GetVector2I(targetUnit, "coord"));
-        return command;
+            command_type = BattleCommand.TYPE_SKILL(),
+            unit_id = actor.unit_id,
+            skill_id = skillId,
+            skill_variant_id = skillVariantId,
+            target_unit_id = targetUnit.unit_id,
+            target_coord = targetUnit.coord,
+        };
     }
 
-    public GodotObject CreateDecision(GodotObject action, GodotObject command, string reasonText)
+    public BattleAiDecision CreateDecision(
+        UseUnitSkillAction action,
+        BattleCommand command,
+        string reasonText
+    )
     {
-        GodotObject decision = NewFromScript(ref _battleAiDecisionScript, "res://scripts/systems/battle/ai/battle_ai_decision.gd");
-        if (decision == null)
+        return new BattleAiDecision
         {
-            return null;
-        }
-        decision.Set("command", command);
-        decision.Set("action_id", GetStringName(action, "action_id"));
-        decision.Set("reason_text", reasonText);
-        decision.Set("score_bucket_id", GetStringName(action, "score_bucket_id"));
+            command = command,
+            action_id = action?.action_id ?? EmptyStringName,
+            reason_text = reasonText,
+            score_bucket_id = action?.score_bucket_id ?? EmptyStringName,
+        };
+    }
+
+    public BattleAiDecision CreateScoredDecision(
+        UseUnitSkillAction action,
+        BattleCommand command,
+        BattleAiScoreInput scoreInput,
+        string reasonText
+    )
+    {
+        BattleAiDecision decision = CreateDecision(action, command, reasonText);
+        decision.skill_score_input = scoreInput;
+        decision.score_input = scoreInput;
         return decision;
     }
 
-    public GodotObject CreateScoredDecision(GodotObject action, GodotObject command, GodotObject scoreInput, string reasonText)
+    private List<BattleUnitState> CollectUnitsByFilter(BattleAiContext context, StringName targetFilter)
     {
-        GodotObject decision = CreateDecision(action, command, reasonText);
-        if (decision == null)
-        {
-            return null;
-        }
-        decision.Set("skill_score_input", scoreInput);
-        decision.Set("score_input", scoreInput);
-        return decision;
-    }
-
-    private GArray CollectUnitsByFilter(GodotObject context, StringName targetFilter)
-    {
-        var results = new GArray();
-        GodotObject state = GetObject(context, "state");
-        GodotObject actor = GetObject(context, "unit_state");
-        if (context == null || state == null || actor == null)
-        {
+        var results = new List<BattleUnitState>();
+        BattleState state = context?.state;
+        BattleUnitState actor = context?.unit_state;
+        if (state == null || actor == null)
             return results;
-        }
-        GDictionary units = GetDictionary(state, "units");
-        foreach (Variant unitId in units.Keys)
+        foreach (BattleUnitState unit in state.GetUnitsTyped())
         {
-            GodotObject unit = units[unitId].AsGodotObject();
-            if (unit == null || !GetBool(unit, "is_alive"))
-            {
+            if (unit == null || !unit.is_alive)
                 continue;
-            }
             if (!MatchesTargetFilter(context, unit, targetFilter))
-            {
                 continue;
-            }
             results.Add(unit);
         }
         return results;
     }
 
-    private bool MatchesTargetFilter(GodotObject context, GodotObject targetUnit, StringName targetFilter)
+    private static bool MatchesTargetFilter(
+        BattleAiContext context,
+        BattleUnitState targetUnit,
+        StringName targetFilter
+    )
     {
-        GodotObject actor = GetObject(context, "unit_state");
-        var options = new GDictionary
-        {
-            ["madness_target_any_team"] = GetBool(GetDictionary(actor, "ai_blackboard"), "madness_target_any_team"),
-            ["madness_target_filters"] = new GArray { TargetFilterAlly, TargetFilterEnemy, TargetFilterAny },
-        };
-        return BattleTargetTeamRules.is_unit_valid_for_filter(actor as BattleUnitState, targetUnit as BattleUnitState, targetFilter, options);
+        BattleUnitState actor = context?.unit_state;
+        if (actor == null || targetUnit == null)
+            return false;
+        return BattleTargetTeamRules.is_unit_valid_for_filter(
+            actor,
+            targetUnit,
+            targetFilter,
+            new BattleTargetTeamRules.TargetFilterOptions(
+                MadnessTargetAnyTeam: DictBool(actor.ai_blackboard, "madness_target_any_team")
+            )
+        );
     }
 
-    private GodotObject ResolveForcedTargetUnit(GodotObject context, StringName targetFilter)
-    {
-        if (context == null || !context.HasMethod("resolve_forced_target_unit"))
-        {
-            return null;
-        }
-        return context.Call("resolve_forced_target_unit", targetFilter).AsGodotObject();
-    }
-
-    private int ResolveNearestDistance(GodotObject context, GArray units)
+    private static int ResolveNearestDistance(
+        BattleAiContext context,
+        IReadOnlyList<BattleUnitState> units
+    )
     {
         int nearestDistance = 999999;
-        GodotObject actor = GetObject(context, "unit_state");
-        foreach (Variant unitValue in units)
+        BattleUnitState actor = context?.unit_state;
+        foreach (BattleUnitState unit in units ?? Array.Empty<BattleUnitState>())
         {
-            GodotObject unit = unitValue.AsGodotObject();
             if (unit == null)
-            {
                 continue;
-            }
-            nearestDistance = Math.Min(nearestDistance, DistanceBetweenUnits(context, actor, unit));
+            nearestDistance = Math.Min(nearestDistance, DistanceBetweenUnits(actor, unit));
         }
         return nearestDistance;
     }
 
-    private int CompareTargets(GodotObject context, GodotObject left, GodotObject right, StringName selector, int nearestDistance)
+    private int CompareTargets(
+        BattleAiContext context,
+        BattleUnitState left,
+        BattleUnitState right,
+        StringName selector,
+        int nearestDistance
+    )
     {
-        GodotObject actor = GetObject(context, "unit_state");
+        BattleUnitState actor = context?.unit_state;
         int leftHp = GetHpBasisPoints(left);
         int rightHp = GetHpBasisPoints(right);
-        int leftDistance = DistanceBetweenUnits(context, actor, left);
-        int rightDistance = DistanceBetweenUnits(context, actor, right);
+        int leftDistance = DistanceBetweenUnits(actor, left);
+        int rightDistance = DistanceBetweenUnits(actor, right);
 
         if (selector == SelectorNearestRoleThreatEnemy)
         {
             int leftThreat = GetRoleThreatSelectorScore(context, left, nearestDistance, leftDistance);
             int rightThreat = GetRoleThreatSelectorScore(context, right, nearestDistance, rightDistance);
             if (leftThreat != rightThreat)
-            {
                 return rightThreat.CompareTo(leftThreat);
-            }
         }
         if (selector == SelectorLowestHpEnemy || selector == SelectorLowestHpAlly)
         {
             if (leftHp != rightHp)
-            {
                 return leftHp.CompareTo(rightHp);
-            }
             return leftDistance.CompareTo(rightDistance);
         }
         if (leftDistance == rightDistance)
-        {
             return leftHp.CompareTo(rightHp);
-        }
         return leftDistance.CompareTo(rightDistance);
     }
 
-    private int GetRoleThreatSelectorScore(GodotObject context, GodotObject unit, int nearestDistance, int distance)
+    private int GetRoleThreatSelectorScore(
+        BattleAiContext context,
+        BattleUnitState unit,
+        int nearestDistance,
+        int distance
+    )
     {
         if (unit == null)
-        {
             return 0;
-        }
         int threatRange = ResolveUnitEffectiveThreatRange(context, unit);
-        bool isLocalRoleThreat = threatRange >= RoleThreatMinEffectiveRange
+        bool isLocalRoleThreat =
+            threatRange >= RoleThreatMinEffectiveRange
             && distance <= nearestDistance + RoleThreatDistanceWindow
             && distance <= RoleThreatMaxApproachDistance;
         if (isLocalRoleThreat)
-        {
             return 1000 + threatRange * 10;
-        }
         return ResolveUnitContactThreatRange(context, unit) > 0 ? 500 : 0;
     }
 
-    private int ResolveUnitContactThreatRange(GodotObject context, GodotObject threatUnit)
+    private int ResolveUnitContactThreatRange(BattleAiContext context, BattleUnitState threatUnit)
     {
         if (context == null || threatUnit == null)
-        {
             return -1;
-        }
         int bestRange = -1;
-        foreach (Variant rawSkillId in GetArray(threatUnit, "known_active_skill_ids"))
+        foreach (StringName rawSkillId in threatUnit.known_active_skill_ids)
         {
-            StringName skillId = new(rawSkillId.ToString());
+            StringName skillId = ProgressionDataUtils.to_string_name(rawSkillId);
             if (IsEmpty(skillId))
-            {
                 continue;
-            }
-            GodotObject skillDef = GetSkillDef(context, skillId);
+            SkillDef skillDef = GetSkillDef(context, skillId);
             if (!IsHostileThreatSkill(skillDef))
-            {
                 continue;
-            }
             if (!SkillHasTag(skillDef, "melee") && !SkillHasTag(skillDef, "weapon"))
-            {
                 continue;
-            }
             int effectiveRange = BattleRangeService.get_effective_skill_range(threatUnit, skillDef);
             if (effectiveRange <= 0 && SkillHasTag(skillDef, "melee"))
-            {
                 effectiveRange = 1;
-            }
             if (effectiveRange > RoleThreatMaxContactRange)
-            {
                 continue;
-            }
             bestRange = Math.Max(bestRange, effectiveRange);
         }
 
         int weaponRange = BattleRangeService.get_weapon_attack_range(threatUnit);
         if (weaponRange > 0 && weaponRange <= RoleThreatMaxContactRange)
-        {
             bestRange = Math.Max(bestRange, weaponRange);
-        }
         return bestRange;
     }
 
-    private int ResolveUnitEffectiveThreatRange(GodotObject context, GodotObject threatUnit)
+    private int ResolveUnitEffectiveThreatRange(BattleAiContext context, BattleUnitState threatUnit)
     {
         if (context == null || threatUnit == null)
-        {
             return -1;
-        }
         int bestRange = -1;
-        foreach (Variant rawSkillId in GetArray(threatUnit, "known_active_skill_ids"))
+        foreach (StringName rawSkillId in threatUnit.known_active_skill_ids)
         {
-            StringName skillId = new(rawSkillId.ToString());
+            StringName skillId = ProgressionDataUtils.to_string_name(rawSkillId);
             if (IsEmpty(skillId))
-            {
                 continue;
-            }
-            GodotObject skillDef = GetSkillDef(context, skillId);
+            SkillDef skillDef = GetSkillDef(context, skillId);
             if (!IsHostileThreatSkill(skillDef))
-            {
                 continue;
-            }
-            bestRange = Math.Max(bestRange, BattleRangeService.get_effective_skill_threat_range(threatUnit, skillDef));
+            bestRange = Math.Max(
+                bestRange,
+                BattleRangeService.get_effective_skill_threat_range(threatUnit, skillDef)
+            );
         }
         if (bestRange < 0)
-        {
             bestRange = BattleRangeService.get_weapon_attack_range(threatUnit);
-        }
         return bestRange;
     }
 
-    private GDictionary ResolveDesiredDistanceContract(GodotObject action, GodotObject context, GodotObject skillDef)
+    private static GDictionary ResolveDesiredDistanceContract(
+        UseUnitSkillAction action,
+        BattleAiContext context,
+        SkillDef skillDef
+    )
     {
-        int configuredMin = GetInt(action, "desired_min_distance");
-        int configuredMax = GetInt(action, "desired_max_distance");
+        int configuredMin = action?.desired_min_distance ?? 0;
+        int configuredMax = action?.desired_max_distance ?? 0;
         int effectiveAttackRange = ResolveEffectiveAttackRange(context, skillDef);
         int resolvedMax = configuredMax;
         if (effectiveAttackRange >= 0)
-        {
             resolvedMax = effectiveAttackRange;
-        }
         int resolvedMin = configuredMin;
         if (resolvedMax >= 0 && resolvedMin > resolvedMax)
-        {
             resolvedMin = resolvedMax;
-        }
         return new GDictionary
         {
             ["desired_min_distance"] = resolvedMin,
@@ -494,76 +467,69 @@ public partial class BattleAiTypedActionHelper : RefCounted
         };
     }
 
-    private int ResolveEffectiveAttackRange(GodotObject context, GodotObject skillDef)
+    private static int ResolveEffectiveAttackRange(BattleAiContext context, SkillDef skillDef)
     {
-        GodotObject actor = GetObject(context, "unit_state");
-        if (context == null || actor == null)
-        {
+        BattleUnitState actor = context?.unit_state;
+        if (actor == null || skillDef == null)
             return -1;
-        }
-        if (skillDef != null)
-        {
-            return BattleRangeService.get_effective_skill_threat_range(actor, skillDef);
-        }
-        return -1;
+        return BattleRangeService.get_effective_skill_threat_range(actor, skillDef);
     }
 
-    private GodotObject ResolveEnemyFrontlineUnit(GodotObject context)
+    private BattleUnitState ResolveEnemyFrontlineUnit(BattleAiContext context)
     {
-        GArray targets = SortTargetUnits(context, TargetFilterEnemy, SelectorNearestEnemy);
-        return targets.Count > 0 ? targets[0].AsGodotObject() : null;
+        List<BattleUnitState> targets = SortTargetUnits(
+            context,
+            TargetFilterEnemy,
+            SelectorNearestEnemy
+        );
+        return targets.Count > 0 ? targets[0] : null;
     }
 
-    private bool IsHostileThreatSkill(GodotObject skillDef)
+    private static bool IsHostileThreatSkill(SkillDef skillDef)
     {
-        GodotObject combatProfile = GetObject(skillDef, "combat_profile");
-        if (skillDef == null || combatProfile == null)
+        CombatSkillDef combatProfile = skillDef?.combat_profile;
+        if (combatProfile == null)
+            return false;
+        if (
+            combatProfile.target_team_filter == TargetFilterAlly
+            || combatProfile.target_team_filter == TargetFilterSelf
+        )
         {
             return false;
         }
-        StringName targetFilter = GetStringName(combatProfile, "target_team_filter");
-        if (targetFilter == TargetFilterAlly || targetFilter == TargetFilterSelf)
-        {
-            return false;
-        }
-        if (SkillHasTag(skillDef, "output")
+        if (
+            SkillHasTag(skillDef, "output")
             || SkillHasTag(skillDef, "melee")
             || SkillHasTag(skillDef, "bow")
-            || SkillHasTag(skillDef, "weapon"))
+            || SkillHasTag(skillDef, "weapon")
+        )
         {
             return true;
         }
-        if (EffectListHasHostileThreat(GetArray(combatProfile, "effect_defs")))
-        {
+        if (EffectListHasHostileThreat(combatProfile.effect_defs))
             return true;
-        }
-        foreach (Variant variantValue in GetArray(combatProfile, "cast_variants"))
+        foreach (CombatCastVariantDef castVariant in combatProfile.cast_variants)
         {
-            GodotObject castVariant = variantValue.AsGodotObject();
-            if (castVariant != null && EffectListHasHostileThreat(GetArray(castVariant, "effect_defs")))
-            {
+            if (castVariant != null && EffectListHasHostileThreat(castVariant.effect_defs))
                 return true;
-            }
         }
         return false;
     }
 
-    private static bool EffectListHasHostileThreat(GArray effectDefs)
+    private static bool EffectListHasHostileThreat(Godot.Collections.Array<CombatEffectDef> effectDefs)
     {
-        foreach (Variant effectValue in effectDefs)
+        foreach (CombatEffectDef effectDef in effectDefs)
         {
-            GodotObject effectDef = effectValue.AsGodotObject();
             if (effectDef == null)
-            {
                 continue;
-            }
-            StringName effectType = GetStringName(effectDef, "effect_type");
-            if (effectType == new StringName("damage")
-                || effectType == new StringName("chain_damage")
-                || effectType == new StringName("charge")
-                || effectType == new StringName("forced_move")
-                || effectType == new StringName("path_step_aoe")
-                || effectType == new StringName("status"))
+            if (
+                effectDef.effect_type == "damage"
+                || effectDef.effect_type == "chain_damage"
+                || effectDef.effect_type == "charge"
+                || effectDef.effect_type == "forced_move"
+                || effectDef.effect_type == "path_step_aoe"
+                || effectDef.effect_type == "status"
+            )
             {
                 return true;
             }
@@ -571,275 +537,191 @@ public partial class BattleAiTypedActionHelper : RefCounted
         return false;
     }
 
-    private static bool SkillHasTag(GodotObject skillDef, StringName expectedTag)
+    private static bool SkillHasTag(SkillDef skillDef, StringName expectedTag)
     {
-        if (skillDef == null || IsEmpty(expectedTag))
+        return skillDef != null && !IsEmpty(expectedTag) && skillDef.tags.Contains(expectedTag);
+    }
+
+    private static void AddUnlockedEffectDefs(
+        List<CombatEffectDef> target,
+        Godot.Collections.Array<CombatEffectDef> source,
+        int skillLevel,
+        bool shouldFilter
+    )
+    {
+        foreach (CombatEffectDef effectDef in source)
         {
+            if (IsEffectUnlockedForSkillLevel(effectDef, skillLevel, shouldFilter))
+                target.Add(effectDef);
+        }
+    }
+
+    private static bool IsEffectUnlockedForSkillLevel(
+        CombatEffectDef effectDef,
+        int skillLevel,
+        bool shouldFilter
+    )
+    {
+        if (effectDef == null)
             return false;
-        }
-        foreach (Variant tag in GetArray(skillDef, "tags"))
-        {
-            if (new StringName(tag.ToString()) == expectedTag)
-            {
-                return true;
-            }
-        }
-        return false;
+        if (!shouldFilter)
+            return true;
+        int minLevel = Math.Max(effectDef.min_skill_level, 0);
+        int maxLevel = effectDef.max_skill_level;
+        return skillLevel >= minLevel && (maxLevel < 0 || skillLevel <= maxLevel);
     }
 
-    private static GDictionary GetEffectiveResourceCosts(GodotObject combatProfile, int skillLevel)
+    private static int GetHpBasisPoints(BattleUnitState unit)
     {
-        if (combatProfile == null || !combatProfile.HasMethod("get_effective_resource_costs"))
-        {
-            return new GDictionary();
-        }
-        Variant costs = combatProfile.Call("get_effective_resource_costs", skillLevel);
-        return costs.VariantType == Variant.Type.Dictionary ? costs.AsGodotDictionary() : new GDictionary();
-    }
-
-    private static GArray GetUnlockedCastVariants(GodotObject combatProfile, int skillLevel)
-    {
-        if (combatProfile == null || !combatProfile.HasMethod("get_unlocked_cast_variants"))
-        {
-            return new GArray();
-        }
-        Variant variants = combatProfile.Call("get_unlocked_cast_variants", skillLevel);
-        return variants.VariantType == Variant.Type.Array ? variants.AsGodotArray() : new GArray();
-    }
-
-    private static int GetHpBasisPoints(GodotObject unit)
-    {
-        if (unit == null)
-        {
+        if (unit?.attribute_snapshot == null)
             return HpBasisPointsDenominator;
-        }
-        GodotObject snapshot = GetObject(unit, "attribute_snapshot");
-        if (snapshot == null)
-        {
-            return HpBasisPointsDenominator;
-        }
-        int hpMax = Math.Max(GetInt(GetDictionary(snapshot, "_values"), "hp_max", 0), 1);
-        int currentHp = Math.Clamp(GetInt(unit, "current_hp"), 0, hpMax);
-        return Math.Clamp((currentHp * HpBasisPointsDenominator) / hpMax, 0, HpBasisPointsDenominator);
+        int hpMax = Math.Max(unit.attribute_snapshot.get_value("hp_max"), 1);
+        int currentHp = Math.Clamp(unit.current_hp, 0, hpMax);
+        return Math.Clamp(
+            (currentHp * HpBasisPointsDenominator) / hpMax,
+            0,
+            HpBasisPointsDenominator
+        );
     }
 
-    private static int DistanceBetweenUnits(GodotObject context, GodotObject firstUnit, GodotObject secondUnit)
+    private static int DistanceBetweenUnits(BattleUnitState firstUnit, BattleUnitState secondUnit)
     {
-        return BattleGridDistanceService.get_distance_between_units(firstUnit as BattleUnitState, secondUnit as BattleUnitState);
+        return BattleGridDistanceService.get_distance_between_units(firstUnit, secondUnit);
     }
 
-    private static int GetSkillLevel(GodotObject unitState, StringName skillId)
+    private static int GetSkillLevel(BattleUnitState unitState, StringName skillId)
     {
         if (unitState == null || IsEmpty(skillId))
-        {
             return 0;
-        }
-        GDictionary knownSkillLevelMap = GetDictionary(unitState, "known_skill_level_map");
-        if (knownSkillLevelMap.ContainsKey(skillId))
-        {
-            return knownSkillLevelMap[skillId].AsInt32();
-        }
-        return ArrayHasStringName(GetArray(unitState, "known_active_skill_ids"), skillId) ? 1 : 0;
+        return unitState.known_skill_level_map.ContainsKey(skillId)
+            ? Math.Max(unitState.known_skill_level_map[skillId].AsInt32(), 0)
+            : unitState.known_active_skill_ids.Contains(skillId)
+                ? 1
+                : 0;
     }
 
-    private static string GetLockedCombatResourceBlockReason(GodotObject unitState, GDictionary costs)
+    private static string GetLockedCombatResourceBlockReason(
+        BattleUnitState unitState,
+        SkillResourceCosts costs
+    )
     {
         if (unitState == null)
-        {
             return "技能施放者无效。";
-        }
-        if (GetInt(costs, "mp_cost") > 0 && !HasCombatResourceUnlocked(unitState, "mp"))
-        {
+        if (costs == null)
+            return "";
+        if (costs.Mp > 0 && !unitState.has_combat_resource_unlocked("mp"))
             return "法力尚未解锁，无法施放该技能。";
-        }
-        if (GetInt(costs, "stamina_cost") > 0 && !HasCombatResourceUnlocked(unitState, "stamina"))
+        if (costs.Stamina > 0 && !unitState.has_combat_resource_unlocked("stamina"))
         {
             return "体力尚未解锁，无法施放该技能。";
         }
-        if (GetInt(costs, "aura_cost") > 0 && !HasCombatResourceUnlocked(unitState, "aura"))
-        {
+        if (costs.Aura > 0 && !unitState.has_combat_resource_unlocked("aura"))
             return "斗气尚未解锁，无法施放该技能。";
-        }
         return "";
     }
 
-    private static bool HasCombatResourceUnlocked(GodotObject unitState, StringName resourceId)
+    private static int DictInt(GDictionary dictionary, string key, int fallback = 0)
     {
-        return ArrayHasStringName(GetArray(unitState, "unlocked_combat_resource_ids"), resourceId);
+        if (dictionary == null)
+            return fallback;
+        return TryGetDictionaryValue(dictionary, key, out Variant rawValue)
+            && TryAsInt(rawValue, out int value)
+            ? value
+            : fallback;
     }
 
-    private static GodotObject NewFromScript(ref Resource script, string path)
+    private static int DictInt(GDictionary dictionary, StringName key, int fallback = 0)
     {
-        script ??= ResourceLoader.Load<Resource>(path);
-        return script?.Call("new").AsGodotObject();
+        if (dictionary == null)
+            return fallback;
+        return TryGetDictionaryValue(dictionary, key, out Variant rawValue)
+            && TryAsInt(rawValue, out int value)
+            ? value
+            : fallback;
     }
 
-    private static bool ArrayHasStringName(GArray values, StringName expected)
+    private static bool DictBool(GDictionary dictionary, string key, bool fallback = false)
     {
-        foreach (Variant value in values)
+        if (dictionary == null)
+            return fallback;
+        return TryGetDictionaryValue(dictionary, key, out Variant rawValue)
+            && TryAsBool(rawValue, out bool value)
+            ? value
+            : fallback;
+    }
+
+    private static bool TryGetDictionaryValue(GDictionary dictionary, string key, out Variant value)
+    {
+        if (dictionary == null || key == null)
         {
-            if (new StringName(value.ToString()) == expected)
-            {
-                return true;
-            }
+            value = default;
+            return false;
         }
+        if (dictionary.ContainsKey(key))
+        {
+            value = dictionary[key];
+            return true;
+        }
+        var stringNameKey = new StringName(key);
+        if (dictionary.ContainsKey(stringNameKey))
+        {
+            value = dictionary[stringNameKey];
+            return true;
+        }
+        value = default;
         return false;
+    }
+
+    private static bool TryGetDictionaryValue(
+        GDictionary dictionary,
+        StringName key,
+        out Variant value
+    )
+    {
+        if (dictionary == null || key == null)
+        {
+            value = default;
+            return false;
+        }
+        if (dictionary.ContainsKey(key))
+        {
+            value = dictionary[key];
+            return true;
+        }
+        string stringKey = key.ToString();
+        if (dictionary.ContainsKey(stringKey))
+        {
+            value = dictionary[stringKey];
+            return true;
+        }
+        value = default;
+        return false;
+    }
+
+    private static bool TryAsInt(Variant rawValue, out int value)
+    {
+        if (rawValue.VariantType == Variant.Type.Nil)
+        {
+            value = 0;
+            return false;
+        }
+        value = rawValue.AsInt32();
+        return true;
+    }
+
+    private static bool TryAsBool(Variant rawValue, out bool value)
+    {
+        if (rawValue.VariantType == Variant.Type.Nil)
+        {
+            value = false;
+            return false;
+        }
+        value = rawValue.AsBool();
+        return true;
     }
 
     private static bool IsEmpty(StringName value)
     {
         return value == null || string.IsNullOrEmpty(value.ToString());
-    }
-
-    private static GodotObject GetObject(GodotObject obj, string propertyName)
-    {
-        if (obj == null)
-        {
-            return null;
-        }
-        Variant value = obj.Get(propertyName);
-        return value.VariantType == Variant.Type.Nil ? null : value.AsGodotObject();
-    }
-
-    private static GDictionary GetDictionary(GodotObject obj, string propertyName)
-    {
-        if (obj == null)
-        {
-            return new GDictionary();
-        }
-        Variant value = obj.Get(propertyName);
-        return value.VariantType == Variant.Type.Dictionary ? value.AsGodotDictionary() : new GDictionary();
-    }
-
-    private static GArray GetArray(GodotObject obj, string propertyName)
-    {
-        if (obj == null)
-        {
-            return new GArray();
-        }
-        Variant value = obj.Get(propertyName);
-        return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : new GArray();
-    }
-
-    private static int GetInt(GodotObject obj, string propertyName, int fallback = 0)
-    {
-        if (obj == null)
-        {
-            return fallback;
-        }
-        Variant value = obj.Get(propertyName);
-        return value.VariantType == Variant.Type.Nil ? fallback : value.AsInt32();
-    }
-
-    private static int GetInt(GDictionary dictionary, string key, int fallback = 0)
-    {
-        if (dictionary == null || !TryGetDictionaryValue(dictionary, key, out Variant value))
-        {
-            return fallback;
-        }
-        return value.VariantType == Variant.Type.Nil ? fallback : value.AsInt32();
-    }
-
-    private static int GetInt(GDictionary dictionary, StringName key, int fallback = 0)
-    {
-        if (dictionary == null || !TryGetDictionaryValue(dictionary, key, out Variant value))
-        {
-            return fallback;
-        }
-        return value.VariantType == Variant.Type.Nil ? fallback : value.AsInt32();
-    }
-
-    private static bool GetBool(GDictionary dictionary, string key, bool fallback = false)
-    {
-        if (dictionary == null || !TryGetDictionaryValue(dictionary, key, out Variant value))
-        {
-            return fallback;
-        }
-        return value.VariantType == Variant.Type.Nil ? fallback : value.AsBool();
-    }
-
-    private static bool GetBool(GodotObject obj, string propertyName, bool fallback = false)
-    {
-        if (obj == null)
-        {
-            return fallback;
-        }
-        Variant value = obj.Get(propertyName);
-        return value.VariantType == Variant.Type.Nil ? fallback : value.AsBool();
-    }
-
-    private static StringName GetStringName(GodotObject obj, string propertyName, StringName fallback = default)
-    {
-        if (obj == null)
-        {
-            return fallback ?? EmptyStringName;
-        }
-        Variant value = obj.Get(propertyName);
-        return value.VariantType switch
-        {
-            Variant.Type.StringName => value.AsStringName(),
-            Variant.Type.String => new StringName(value.AsString()),
-            _ => fallback ?? EmptyStringName,
-        };
-    }
-
-    private static string GetString(GodotObject obj, string propertyName, string fallback = "")
-    {
-        if (obj == null)
-        {
-            return fallback;
-        }
-        Variant value = obj.Get(propertyName);
-        return value.VariantType == Variant.Type.Nil ? fallback : value.ToString();
-    }
-
-    private static Vector2I GetVector2I(GodotObject obj, string propertyName, Vector2I fallback = default)
-    {
-        if (obj == null)
-        {
-            return fallback;
-        }
-        Variant value = obj.Get(propertyName);
-        return value.VariantType == Variant.Type.Nil ? fallback : value.AsVector2I();
-    }
-
-    private static bool TryGetDictionaryValue(GDictionary dictionary, string key, out Variant value)
-    {
-        if (dictionary != null)
-        {
-            if (dictionary.ContainsKey(key))
-            {
-                value = dictionary[key];
-                return true;
-            }
-            StringName stringNameKey = new(key);
-            if (dictionary.ContainsKey(stringNameKey))
-            {
-                value = dictionary[stringNameKey];
-                return true;
-            }
-        }
-        value = default;
-        return false;
-    }
-
-    private static bool TryGetDictionaryValue(GDictionary dictionary, StringName key, out Variant value)
-    {
-        if (dictionary != null)
-        {
-            if (dictionary.ContainsKey(key))
-            {
-                value = dictionary[key];
-                return true;
-            }
-            string stringKey = key.ToString();
-            if (dictionary.ContainsKey(stringKey))
-            {
-                value = dictionary[stringKey];
-                return true;
-            }
-        }
-        value = default;
-        return false;
     }
 }

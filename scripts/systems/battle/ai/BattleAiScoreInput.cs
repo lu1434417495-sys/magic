@@ -18,7 +18,8 @@ public partial class BattleAiScoreInput : RefCounted
     public Godot.Collections.Array<StringName> target_unit_ids { get; set; } = new();
     public Godot.Collections.Array<Vector2I> target_coords { get; set; } = new();
     public int target_count { get; set; } = 0;
-    public Godot.Collections.Array<StringName> random_chain_candidate_unit_ids { get; set; } = new();
+    public Godot.Collections.Array<StringName> random_chain_candidate_unit_ids { get; set; } =
+        new();
     public int random_chain_candidate_pool_count { get; set; } = 0;
     public int random_chain_max_hits_per_target { get; set; } = 0;
     public int random_chain_max_attempt_count { get; set; } = 0;
@@ -29,6 +30,8 @@ public partial class BattleAiScoreInput : RefCounted
     public int enemy_target_count { get; set; } = 0;
     public int ally_target_count { get; set; } = 0;
     public int estimated_damage { get; set; } = 0;
+    public int estimated_post_save_damage { get; set; } = 0;
+    public int estimated_shield_absorbed { get; set; } = 0;
     public int estimated_healing { get; set; } = 0;
     public int estimated_enemy_damage { get; set; } = 0;
     public int estimated_ally_damage { get; set; } = 0;
@@ -43,9 +46,11 @@ public partial class BattleAiScoreInput : RefCounted
     public int estimated_lethal_target_count { get; set; } = 0;
     public int estimated_lethal_threat_target_count { get; set; } = 0;
     public Godot.Collections.Array<StringName> estimated_lethal_target_ids { get; set; } = new();
-    public Godot.Collections.Array<StringName> estimated_lethal_threat_target_ids { get; set; } = new();
+    public Godot.Collections.Array<StringName> estimated_lethal_threat_target_ids { get; set; } =
+        new();
     public Godot.Collections.Array<StringName> estimated_control_target_ids { get; set; } = new();
-    public Godot.Collections.Array<StringName> estimated_control_threat_target_ids { get; set; } = new();
+    public Godot.Collections.Array<StringName> estimated_control_threat_target_ids { get; set; } =
+        new();
     public int estimated_friendly_fire_target_count { get; set; } = 0;
     public int estimated_friendly_fire_damage { get; set; } = 0;
     public int estimated_friendly_control_target_count { get; set; } = 0;
@@ -55,6 +60,7 @@ public partial class BattleAiScoreInput : RefCounted
     public int estimated_chain_ally_target_count { get; set; } = 0;
     public int estimated_hit_rate_percent { get; set; } = 100;
     public GDictionary save_estimates_by_target_id { get; set; } = new();
+    public GDictionary damage_estimates_by_target_id { get; set; } = new();
     public GDictionary special_profile_preview_facts { get; set; } = new();
     public GArray target_numeric_summary { get; set; } = new();
     public GArray friendly_fire_numeric_summary { get; set; } = new();
@@ -93,7 +99,8 @@ public partial class BattleAiScoreInput : RefCounted
     public int pre_action_threat_expected_damage { get; set; } = 0;
     public int pre_action_survival_margin { get; set; } = 0;
     public bool pre_action_is_lethal_survival_risk { get; set; } = false;
-    public Godot.Collections.Array<StringName> post_action_remaining_threat_unit_ids { get; set; } = new();
+    public Godot.Collections.Array<StringName> post_action_remaining_threat_unit_ids { get; set; } =
+        new();
     public int post_action_remaining_threat_count { get; set; } = 0;
     public int post_action_remaining_threat_expected_damage { get; set; } = 0;
     public int post_action_survival_margin { get; set; } = 0;
@@ -117,6 +124,82 @@ public partial class BattleAiScoreInput : RefCounted
     public bool matches_sealed_fingerprint()
     {
         return is_sealed() && _sealed_fingerprint == FingerprintDictionary(to_dict());
+    }
+
+    public int[] to_move_to_range_ordering_facts()
+    {
+        return new[]
+        {
+            estimated_friendly_lethal_target_count,
+            estimated_friendly_fire_target_count,
+            friendly_fire_penalty_score,
+            has_post_action_threat_projection ? 1 : 0,
+            post_action_is_lethal_survival_risk ? 1 : 0,
+            estimated_lethal_threat_target_count,
+            estimated_lethal_target_count,
+            IsEmergencySurvivalScore() ? 1 : 0,
+            total_score,
+            hit_payoff_score,
+            effective_target_count,
+            resource_cost_score,
+            score_bucket_priority,
+            target_count,
+            position_objective_score,
+            post_action_remaining_threat_count,
+            post_action_remaining_threat_expected_damage,
+            post_action_survival_margin,
+            distance_to_primary_coord,
+            desired_min_distance,
+            desired_max_distance,
+        };
+    }
+
+    private bool IsEmergencySurvivalScore()
+    {
+        if (score_bucket_id != "archer_survival")
+        {
+            return false;
+        }
+        if (has_post_action_threat_projection)
+        {
+            if (pre_action_is_lethal_survival_risk && !post_action_is_lethal_survival_risk)
+            {
+                return true;
+            }
+            if (
+                pre_action_threat_expected_damage > post_action_remaining_threat_expected_damage
+                && post_action_survival_margin >= 0
+            )
+            {
+                return true;
+            }
+        }
+        if (
+            target_count > 0
+            || effective_target_count > 0
+            || enemy_target_count > 0
+            || ally_target_count > 0
+        )
+        {
+            return false;
+        }
+        if (estimated_damage != 0 || estimated_control_count != 0)
+        {
+            return false;
+        }
+        if (position_current_distance >= 0 && position_safe_distance > 0)
+        {
+            int currentGap = position_safe_distance - position_current_distance;
+            if (currentGap < 2)
+            {
+                return false;
+            }
+            if (distance_to_primary_coord >= 0)
+            {
+                return distance_to_primary_coord >= position_safe_distance;
+            }
+        }
+        return position_objective_score > 0;
     }
 
     public GDictionary to_dict()
@@ -167,6 +250,8 @@ public partial class BattleAiScoreInput : RefCounted
             ["enemy_target_count"] = enemy_target_count,
             ["ally_target_count"] = ally_target_count,
             ["estimated_damage"] = estimated_damage,
+            ["estimated_post_save_damage"] = estimated_post_save_damage,
+            ["estimated_shield_absorbed"] = estimated_shield_absorbed,
             ["estimated_healing"] = estimated_healing,
             ["estimated_enemy_damage"] = estimated_enemy_damage,
             ["estimated_ally_damage"] = estimated_ally_damage,
@@ -183,7 +268,8 @@ public partial class BattleAiScoreInput : RefCounted
             ["estimated_lethal_target_ids"] = estimated_lethal_target_ids.Duplicate(),
             ["estimated_lethal_threat_target_ids"] = estimated_lethal_threat_target_ids.Duplicate(),
             ["estimated_control_target_ids"] = estimated_control_target_ids.Duplicate(),
-            ["estimated_control_threat_target_ids"] = estimated_control_threat_target_ids.Duplicate(),
+            ["estimated_control_threat_target_ids"] =
+                estimated_control_threat_target_ids.Duplicate(),
             ["estimated_friendly_fire_target_count"] = estimated_friendly_fire_target_count,
             ["estimated_friendly_fire_damage"] = estimated_friendly_fire_damage,
             ["estimated_friendly_control_target_count"] = estimated_friendly_control_target_count,
@@ -193,6 +279,7 @@ public partial class BattleAiScoreInput : RefCounted
             ["estimated_chain_ally_target_count"] = estimated_chain_ally_target_count,
             ["estimated_hit_rate_percent"] = estimated_hit_rate_percent,
             ["save_estimates_by_target_id"] = save_estimates_by_target_id.Duplicate(true),
+            ["damage_estimates_by_target_id"] = damage_estimates_by_target_id.Duplicate(true),
             ["special_profile_preview_facts"] = special_profile_preview_facts.Duplicate(true),
             ["target_numeric_summary"] = target_numeric_summary.Duplicate(true),
             ["friendly_fire_numeric_summary"] = friendly_fire_numeric_summary.Duplicate(true),
@@ -231,9 +318,11 @@ public partial class BattleAiScoreInput : RefCounted
             ["pre_action_threat_expected_damage"] = pre_action_threat_expected_damage,
             ["pre_action_survival_margin"] = pre_action_survival_margin,
             ["pre_action_is_lethal_survival_risk"] = pre_action_is_lethal_survival_risk,
-            ["post_action_remaining_threat_unit_ids"] = post_action_remaining_threat_unit_ids.Duplicate(),
+            ["post_action_remaining_threat_unit_ids"] =
+                post_action_remaining_threat_unit_ids.Duplicate(),
             ["post_action_remaining_threat_count"] = post_action_remaining_threat_count,
-            ["post_action_remaining_threat_expected_damage"] = post_action_remaining_threat_expected_damage,
+            ["post_action_remaining_threat_expected_damage"] =
+                post_action_remaining_threat_expected_damage,
             ["post_action_survival_margin"] = post_action_survival_margin,
             ["post_action_is_lethal_survival_risk"] = post_action_is_lethal_survival_risk,
             ["total_score"] = total_score,
@@ -247,15 +336,23 @@ public partial class BattleAiScoreInput : RefCounted
         return builder.ToString();
     }
 
-    private static void AppendDictionaryFingerprint(System.Text.StringBuilder builder, GDictionary dictionary)
+    private static void AppendDictionaryFingerprint(
+        System.Text.StringBuilder builder,
+        GDictionary dictionary
+    )
     {
         builder.Append('{');
-        var entries = new System.Collections.Generic.List<(string KeyFingerprint, string ValueFingerprint)>();
-        foreach (Variant key in dictionary.Keys)
+        var entries = new System.Collections.Generic.List<(
+            string KeyFingerprint,
+            string ValueFingerprint
+        )>();
+        foreach (var key in dictionary.Keys)
         {
-            entries.Add((FingerprintKey(key), FingerprintVariant(dictionary[key])));
+            entries.Add((FingerprintKey(key), FingerprintValue(dictionary[key])));
         }
-        entries.Sort((left, right) => string.CompareOrdinal(left.KeyFingerprint, right.KeyFingerprint));
+        entries.Sort(
+            (left, right) => string.CompareOrdinal(left.KeyFingerprint, right.KeyFingerprint)
+        );
 
         bool first = true;
         foreach ((string keyFingerprint, string valueFingerprint) in entries)
@@ -272,17 +369,17 @@ public partial class BattleAiScoreInput : RefCounted
         builder.Append('}');
     }
 
-    private static string FingerprintKey(Variant key)
+    private static string FingerprintKey(object key)
     {
         var builder = new System.Text.StringBuilder();
-        AppendVariantFingerprint(builder, key);
+        AppendValueFingerprint(builder, key);
         return builder.ToString();
     }
 
-    private static string FingerprintVariant(Variant value)
+    private static string FingerprintValue(object value)
     {
         var builder = new System.Text.StringBuilder();
-        AppendVariantFingerprint(builder, value);
+        AppendValueFingerprint(builder, value);
         return builder.ToString();
     }
 
@@ -290,20 +387,40 @@ public partial class BattleAiScoreInput : RefCounted
     {
         builder.Append('[');
         bool first = true;
-        foreach (Variant value in array)
+        foreach (var value in array)
         {
             if (!first)
             {
                 builder.Append(',');
             }
             first = false;
-            AppendVariantFingerprint(builder, value);
+            AppendValueFingerprint(builder, value);
         }
         builder.Append(']');
     }
 
-    private static void AppendVariantFingerprint(System.Text.StringBuilder builder, Variant value)
+    private static void AppendValueFingerprint(System.Text.StringBuilder builder, object payload)
     {
+        if (payload is not Variant value)
+        {
+            if (payload is GDictionary dictionary)
+            {
+                builder.Append((int)Variant.Type.Dictionary);
+                builder.Append('=');
+                AppendDictionaryFingerprint(builder, dictionary);
+                return;
+            }
+            if (payload is GArray array)
+            {
+                builder.Append((int)Variant.Type.Array);
+                builder.Append('=');
+                AppendArrayFingerprint(builder, array);
+                return;
+            }
+            AppendTextFingerprint(builder, payload?.ToString() ?? "");
+            return;
+        }
+
         builder.Append((int)value.VariantType);
         builder.Append('=');
         switch (value.VariantType)
@@ -318,7 +435,11 @@ public partial class BattleAiScoreInput : RefCounted
                 builder.Append(value.AsInt64());
                 return;
             case Variant.Type.Float:
-                builder.Append(value.AsDouble().ToString("R", System.Globalization.CultureInfo.InvariantCulture));
+                builder.Append(
+                    value
+                        .AsDouble()
+                        .ToString("R", System.Globalization.CultureInfo.GetCultureInfo(""))
+                );
                 return;
             case Variant.Type.String:
                 AppendTextFingerprint(builder, value.AsString());
@@ -351,5 +472,4 @@ public partial class BattleAiScoreInput : RefCounted
         builder.Append(':');
         builder.Append(value);
     }
-
 }

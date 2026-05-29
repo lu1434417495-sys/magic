@@ -2,10 +2,10 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const BattleHitResolver = preload("res://scripts/systems/battle/rules/battle_hit_resolver.gd")
-const BattleHudAdapter = preload("res://scripts/systems/battle/presentation/battle_hud_adapter.gd")
-const BattleRepeatAttackResolver = preload("res://scripts/systems/battle/runtime/battle_repeat_attack_resolver.gd")
-const BattleAiScoreService = preload("res://scripts/systems/battle/ai/battle_ai_score_service.gd")
+const BattleHitResolver = preload("res://scripts/systems/battle/rules/BattleHitResolver.cs")
+const BattleHudAdapter = preload("res://scripts/systems/battle/presentation/BattleHudAdapter.cs")
+const BattleRepeatAttackResolver = preload("res://scripts/systems/battle/runtime/BattleRepeatAttackResolver.cs")
+const BattleAiScoreService = preload("res://scripts/systems/battle/ai/BattleAiScoreService.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -120,7 +120,7 @@ func _test_repeat_attack_result_requires_success_rate() -> void:
 		"hit_rate_percent": 87,
 		"required_roll": 4,
 	})
-	resolver.setup(legacy_runtime)
+	resolver.setup(legacy_runtime, null)
 	var legacy_result: Dictionary = resolver._resolve_repeat_attack_stage_result(null, null, null, null, 0, [])
 	_assert_eq(
 		int(legacy_result.get("success_rate_percent", -1)),
@@ -143,7 +143,7 @@ func _test_repeat_attack_result_requires_success_rate() -> void:
 		"success_rate_percent": 42,
 		"required_roll": 4,
 	})
-	resolver.setup(formal_runtime)
+	resolver.setup(formal_runtime, null)
 	var formal_result: Dictionary = resolver._resolve_repeat_attack_stage_result(null, null, null, null, 0, [])
 	_assert_eq(
 		int(formal_result.get("success_rate_percent", -1)),

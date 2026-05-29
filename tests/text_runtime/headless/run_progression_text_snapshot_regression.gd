@@ -2,7 +2,7 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const GameTextSnapshotRenderer = preload("res://scripts/utils/game_text_snapshot_renderer.gd")
+const GameTextSnapshotRenderer = preload("res://scripts/utils/GameTextSnapshotRenderer.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures

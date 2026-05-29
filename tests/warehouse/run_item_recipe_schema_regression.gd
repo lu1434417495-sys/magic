@@ -2,12 +2,12 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const GameSessionScript = preload("res://scripts/systems/persistence/game_session.gd")
-const ItemDef = preload("res://scripts/player/warehouse/item_def.gd")
-const RecipeDef = preload("res://scripts/player/warehouse/recipe_def.gd")
-const RecipeContentRegistry = preload("res://scripts/player/warehouse/recipe_content_registry.gd")
-const ItemContentRegistry = preload("res://scripts/player/warehouse/item_content_registry.gd")
-const SettlementShopService = preload("res://scripts/systems/settlement/settlement_shop_service.gd")
+const GameSessionScript = preload("res://scripts/systems/persistence/GameSession.cs")
+const ItemDef = preload("res://scripts/player/warehouse/ItemDef.cs")
+const RecipeDef = preload("res://scripts/player/warehouse/RecipeDef.cs")
+const RecipeContentRegistry = preload("res://scripts/player/warehouse/RecipeContentRegistry.cs")
+const ItemContentRegistry = preload("res://scripts/player/warehouse/ItemContentRegistry.cs")
+const SettlementShopService = preload("res://scripts/systems/settlement/SettlementShopService.cs")
 
 const BRONZE_SWORD_PATH := "res://data/configs/items/bronze_sword.tres"
 const CONSUMABLE_SEED_IDS := [
@@ -388,8 +388,9 @@ func _test_recipe_schema_defaults_and_fields() -> void:
 
 func _test_recipe_registry_and_game_session_cache() -> void:
 	var item_registry := ItemContentRegistry.new()
-	var recipe_registry := RecipeContentRegistry.new(item_registry.get_item_defs())
-	var recipe_defs := recipe_registry.get_recipe_defs()
+	var recipe_registry := RecipeContentRegistry.new()
+	recipe_registry.setup(item_registry.get_item_defs())
+	var recipe_defs: Dictionary = recipe_registry.get_recipe_defs()
 	var recipe_def = recipe_defs.get(&"master_reforge_iron_greatsword") as RecipeDef
 	_assert_true(recipe_def != null, "RecipeContentRegistry 应扫描到大师重铸配方。")
 	if recipe_def != null:
@@ -448,10 +449,10 @@ func _test_recipe_registry_and_game_session_cache() -> void:
 
 
 func _find_entry(entries: Array, item_id: String) -> Dictionary:
-	for entry_variant in entries:
-		if entry_variant is not Dictionary:
+	for entry_option in entries:
+		if entry_option is not Dictionary:
 			continue
-		var entry: Dictionary = entry_variant
+		var entry: Dictionary = entry_option
 		if String(entry.get("item_id", "")) == item_id:
 			return entry
 	return {}

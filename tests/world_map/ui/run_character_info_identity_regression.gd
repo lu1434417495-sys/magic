@@ -2,8 +2,8 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const GameRuntimeCharacterInfoBuilder = preload("res://scripts/systems/game_runtime/game_runtime_character_info_builder.gd")
-const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
+const GameRuntimeCharacterInfoBuilder = preload("res://scripts/systems/game_runtime/GameRuntimeCharacterInfoBuilder.cs")
+const BattleUnitState = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -70,7 +70,7 @@ func _run() -> void:
 func _test_battle_character_info_includes_identity_section() -> void:
 	var builder := GameRuntimeCharacterInfoBuilder.new()
 	var runtime := FakeRuntime.new()
-	builder.setup(runtime)
+	builder.Setup(runtime)
 	var unit := BattleUnitState.new()
 	unit.source_member_id = &"hero"
 	unit.coord = Vector2i(2, 3)
@@ -100,8 +100,8 @@ func _find_section(sections: Array[Dictionary], title: String) -> Dictionary:
 
 
 func _has_pair_entry(entries: Array, label: String, value: String) -> bool:
-	for entry_variant in entries:
-		var entry := entry_variant as Dictionary
+	for entry_option in entries:
+		var entry := entry_option as Dictionary
 		if entry == null:
 			continue
 		if String(entry.get("label", "")) == label and String(entry.get("value", "")) == value:
@@ -110,8 +110,8 @@ func _has_pair_entry(entries: Array, label: String, value: String) -> bool:
 
 
 func _has_text_entry(entries: Array, text: String) -> bool:
-	for entry_variant in entries:
-		var entry := entry_variant as Dictionary
+	for entry_option in entries:
+		var entry := entry_option as Dictionary
 		if entry == null:
 			continue
 		if String(entry.get("text", "")) == text:

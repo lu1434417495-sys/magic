@@ -20,20 +20,29 @@ public partial class TraitTriggerHooks : RefCounted
     private static readonly StringName TraitRelentlessEndurance = "relentless_endurance";
 
     public static StringName TRIGGER_PASSIVE() => TriggerPassive;
+
     public static StringName TRIGGER_ON_NATURAL_ONE() => TriggerOnNaturalOne;
+
     public static StringName TRIGGER_ON_CRIT() => TriggerOnCrit;
+
     public static StringName TRIGGER_ON_FATAL_DAMAGE() => TriggerOnFatalDamage;
+
     public static StringName TRIGGER_ON_BATTLE_START() => TriggerOnBattleStart;
+
     public static StringName TRIGGER_ON_TURN_START() => TriggerOnTurnStart;
+
     public static StringName TRAIT_HALFLING_LUCK() => TraitHalflingLuck;
+
     public static StringName TRAIT_SAVAGE_ATTACKS() => TraitSavageAttacks;
+
     public static StringName TRAIT_RELENTLESS_ENDURANCE() => TraitRelentlessEndurance;
 
     public static bool has_dispatch_for_trait_trigger(StringName trait_id, StringName trigger_type)
     {
         return TraitTriggerContentRules.has_dispatch_for_trait_trigger(
             ProgressionDataUtils.to_string_name(trait_id),
-            ProgressionDataUtils.to_string_name(trigger_type));
+            ProgressionDataUtils.to_string_name(trigger_type)
+        );
     }
 
     public static GStringNameArray get_dispatch_trait_ids()
@@ -46,14 +55,22 @@ public partial class TraitTriggerHooks : RefCounted
         return DispatchFirst(unit_state, TriggerOnNaturalOne, context ?? new GDictionary());
     }
 
-    public GDictionary on_crit(BattleUnitState source_unit, BattleUnitState target_unit, GDictionary context = null)
+    public GDictionary on_crit(
+        BattleUnitState source_unit,
+        BattleUnitState target_unit,
+        GDictionary context = null
+    )
     {
         GDictionary eventContext = DuplicateDictionary(context);
         eventContext["target_unit"] = target_unit;
         return DispatchFirst(source_unit, TriggerOnCrit, eventContext);
     }
 
-    public GDictionary on_fatal_damage(BattleUnitState target_unit, BattleUnitState source_unit, GDictionary context = null)
+    public GDictionary on_fatal_damage(
+        BattleUnitState target_unit,
+        BattleUnitState source_unit,
+        GDictionary context = null
+    )
     {
         GDictionary eventContext = DuplicateDictionary(context);
         eventContext["source_unit"] = source_unit;
@@ -73,7 +90,11 @@ public partial class TraitTriggerHooks : RefCounted
             SetCharge(unit_state, GetTraitChargeKey(TraitRelentlessEndurance), 1, false, true);
             changed = true;
         }
-        GDictionary dispatchResult = DispatchAll(unit_state, TriggerOnBattleStart, context ?? new GDictionary());
+        GDictionary dispatchResult = DispatchAll(
+            unit_state,
+            TriggerOnBattleStart,
+            context ?? new GDictionary()
+        );
         return new GDictionary
         {
             ["triggered"] = GdInterop.GetBool(dispatchResult, "triggered"),
@@ -91,7 +112,11 @@ public partial class TraitTriggerHooks : RefCounted
             SetCharge(unit_state, GetTraitChargeKey(TraitHalflingLuck), 1, true, true);
             changed = true;
         }
-        GDictionary dispatchResult = DispatchAll(unit_state, TriggerOnTurnStart, context ?? new GDictionary());
+        GDictionary dispatchResult = DispatchAll(
+            unit_state,
+            TriggerOnTurnStart,
+            context ?? new GDictionary()
+        );
         return new GDictionary
         {
             ["triggered"] = GdInterop.GetBool(dispatchResult, "triggered"),
@@ -101,11 +126,18 @@ public partial class TraitTriggerHooks : RefCounted
         };
     }
 
-    private GDictionary DispatchFirst(BattleUnitState unitState, StringName triggerType, GDictionary context)
+    private GDictionary DispatchFirst(
+        BattleUnitState unitState,
+        StringName triggerType,
+        GDictionary context
+    )
     {
         foreach (StringName traitId in GetUnitTraitIds(unitState))
         {
-            string methodName = TraitTriggerContentRules.get_dispatch_method_name(traitId, triggerType);
+            string methodName = TraitTriggerContentRules.get_dispatch_method_name(
+                traitId,
+                triggerType
+            );
             if (string.IsNullOrEmpty(methodName))
             {
                 continue;
@@ -122,12 +154,19 @@ public partial class TraitTriggerHooks : RefCounted
         return BuildEmptyResult(triggerType);
     }
 
-    private GDictionary DispatchAll(BattleUnitState unitState, StringName triggerType, GDictionary context)
+    private GDictionary DispatchAll(
+        BattleUnitState unitState,
+        StringName triggerType,
+        GDictionary context
+    )
     {
         var results = new GArray();
         foreach (StringName traitId in GetUnitTraitIds(unitState))
         {
-            string methodName = TraitTriggerContentRules.get_dispatch_method_name(traitId, triggerType);
+            string methodName = TraitTriggerContentRules.get_dispatch_method_name(
+                traitId,
+                triggerType
+            );
             if (string.IsNullOrEmpty(methodName))
             {
                 continue;
@@ -150,7 +189,11 @@ public partial class TraitTriggerHooks : RefCounted
         };
     }
 
-    private GDictionary DispatchHandler(string methodName, BattleUnitState unitState, GDictionary context)
+    private GDictionary DispatchHandler(
+        string methodName,
+        BattleUnitState unitState,
+        GDictionary context
+    )
     {
         return methodName switch
         {
@@ -187,7 +230,10 @@ public partial class TraitTriggerHooks : RefCounted
 
     public GDictionary _handle_savage_attacks(BattleUnitState unitState, GDictionary context)
     {
-        if (!GdInterop.GetBool(context, "critical_hit") || !GdInterop.GetBool(context, "add_weapon_dice"))
+        if (
+            !GdInterop.GetBool(context, "critical_hit")
+            || !GdInterop.GetBool(context, "add_weapon_dice")
+        )
         {
             return BuildEmptyResult(TriggerOnCrit);
         }
@@ -275,7 +321,13 @@ public partial class TraitTriggerHooks : RefCounted
         return new StringName($"trait_{traitId}");
     }
 
-    private static void SetCharge(BattleUnitState unitState, StringName chargeKey, int value, bool perTurn, bool force = false)
+    private static void SetCharge(
+        BattleUnitState unitState,
+        StringName chargeKey,
+        int value,
+        bool perTurn,
+        bool force = false
+    )
     {
         if (unitState == null || chargeKey == "")
         {
@@ -288,7 +340,12 @@ public partial class TraitTriggerHooks : RefCounted
         }
     }
 
-    private static bool ConsumeCharge(BattleUnitState unitState, StringName chargeKey, bool perTurn, int defaultValue)
+    private static bool ConsumeCharge(
+        BattleUnitState unitState,
+        StringName chargeKey,
+        bool perTurn,
+        int defaultValue
+    )
     {
         if (unitState == null || chargeKey == "")
         {
@@ -320,11 +377,7 @@ public partial class TraitTriggerHooks : RefCounted
 
     private static GDictionary BuildEmptyResult(StringName triggerType)
     {
-        return new GDictionary
-        {
-            ["triggered"] = false,
-            ["event"] = triggerType,
-        };
+        return new GDictionary { ["triggered"] = false, ["event"] = triggerType };
     }
 
     private static GDictionary DuplicateDictionary(GDictionary value)

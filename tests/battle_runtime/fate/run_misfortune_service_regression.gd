@@ -2,18 +2,16 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const BATTLE_RUNTIME_MODULE_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
-const BATTLE_COMMAND_SCRIPT = preload("res://scripts/systems/battle/core/battle_command.gd")
-const BATTLE_FATE_EVENT_BUS_SCRIPT = preload("res://scripts/systems/battle/fate/battle_fate_event_bus.gd")
-const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
-const ATTRIBUTE_SNAPSHOT_SCRIPT = preload("res://scripts/player/progression/attribute_snapshot.gd")
-const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
+const BATTLE_RUNTIME_MODULE_SCRIPT = preload("res://scripts/systems/battle/runtime/BattleRuntimeModule.cs")
+const BATTLE_FATE_EVENT_BUS_SCRIPT = preload("res://scripts/systems/battle/fate/BattleFateEventBus.cs")
+const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
+const ATTRIBUTE_SNAPSHOT_SCRIPT = preload("res://scripts/player/progression/AttributeSnapshot.cs")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/AttributeService.cs")
 const BattleRuntimeTestHelpers = preload("res://tests/shared/battle_runtime_test_helpers.gd")
-const GAME_RUNTIME_SNAPSHOT_BUILDER_SCRIPT = preload("res://scripts/systems/game_runtime/game_runtime_snapshot_builder.gd")
-const MISFORTUNE_SERVICE_SCRIPT = preload("res://scripts/systems/battle/fate/misfortune_service.gd")
+const GAME_RUNTIME_SNAPSHOT_BUILDER_SCRIPT = preload("res://scripts/systems/game_runtime/GameRuntimeSnapshotBuilder.cs")
+const MISFORTUNE_SERVICE_SCRIPT = preload("res://scripts/systems/battle/fate/MisfortuneService.cs")
 
 const BattleRuntimeModule = BATTLE_RUNTIME_MODULE_SCRIPT
-const BattleCommand = BATTLE_COMMAND_SCRIPT
 const BattleFateEventBus = BATTLE_FATE_EVENT_BUS_SCRIPT
 const BattleUnitState = BATTLE_UNIT_STATE_SCRIPT
 const AttributeSnapshot = ATTRIBUTE_SNAPSHOT_SCRIPT
@@ -246,7 +244,7 @@ func _test_runtime_tracks_all_calamity_reasons_and_snapshot() -> void:
 		_assert_true(false, "全理由 case 前置构建失败。")
 		return
 
-	_dispatch_fate_event(runtime, BattleFateEventBus.EVENT_ORDINARY_MISS, &"hero")
+	_dispatch_fate_event(runtime, &"ordinary_miss", &"hero")
 	runtime.mark_applied_statuses_for_turn_timing(hero, [&"stunned"])
 	buddy.current_hp = 0
 	buddy.is_alive = false
@@ -257,8 +255,8 @@ func _test_runtime_tracks_all_calamity_reasons_and_snapshot() -> void:
 	state.active_unit_id = hero.unit_id
 	runtime.issue_command(_build_wait_command(hero.unit_id))
 	runtime.notify_member_boss_phase_changed(&"hero", &"phase_2")
-	_dispatch_fate_event(runtime, BattleFateEventBus.EVENT_CRITICAL_FAIL, &"hero")
-	_dispatch_fate_event(runtime, BattleFateEventBus.EVENT_ORDINARY_MISS, &"hero")
+	_dispatch_fate_event(runtime, &"critical_fail", &"hero")
+	_dispatch_fate_event(runtime, &"ordinary_miss", &"hero")
 
 	_assert_eq(runtime.get_member_calamity_cap(&"hero"), 6, "rank 2/4 bonus 与极低 hidden luck 组合后 calamity cap 应为 6。")
 	_assert_eq(runtime.get_member_calamity(&"hero"), 6, "六类首次坏运事件后 calamity 应累计到 6。")
@@ -271,9 +269,9 @@ func _test_runtime_tracks_all_calamity_reasons_and_snapshot() -> void:
 	snapshot_runtime.battle_state = state
 	snapshot_runtime.battle_runtime = runtime
 	var builder := GameRuntimeSnapshotBuilder.new()
-	builder.setup(snapshot_runtime)
-	var snapshot: Dictionary = builder.build_headless_snapshot()
-	var text_snapshot := builder.build_text_snapshot()
+	builder.Setup(snapshot_runtime)
+	var snapshot: Dictionary = builder.BuildHeadlessSnapshot()
+	var text_snapshot := builder.BuildTextSnapshot()
 
 	_assert_eq(
 		int(snapshot.get("battle", {}).get("calamity_by_member_id", {}).get("hero", -1)),
@@ -282,7 +280,7 @@ func _test_runtime_tracks_all_calamity_reasons_and_snapshot() -> void:
 	)
 	_assert_true(text_snapshot.contains("calamity=hero=6"), "battle 文本快照应渲染 calamity 段。")
 
-	builder.dispose()
+	builder.Dispose()
 	runtime.dispose()
 
 
@@ -295,14 +293,14 @@ func _test_first_critical_fail_grants_reverse_fortune_and_cap_clamps() -> void:
 		_assert_true(false, "critical fail first case 前置构建失败。")
 		return
 
-	_dispatch_fate_event(runtime, BattleFateEventBus.EVENT_CRITICAL_FAIL, &"hero")
+	_dispatch_fate_event(runtime, &"critical_fail", &"hero")
 	_assert_eq(runtime.get_member_calamity_cap(&"hero"), 3, "默认角色 calamity cap 应为 3。")
 	_assert_eq(runtime.get_member_calamity(&"hero"), 1, "第一次 critical_fail 应先授予 1 点 calamity。")
 	_assert_true(hero.has_status_effect(MisfortuneService.REVERSE_FORTUNE_STATUS_ID), "第一次 calamity 事件就是大失败时应授予 reverse_fortune。")
 	var reverse_fortune = hero.get_status_effect(MisfortuneService.REVERSE_FORTUNE_STATUS_ID)
 	_assert_eq(int(reverse_fortune.duration) if reverse_fortune != null else -1, 60, "reverse_fortune 应维持 1 回合基准 duration。")
 
-	_dispatch_fate_event(runtime, BattleFateEventBus.EVENT_ORDINARY_MISS, &"hero")
+	_dispatch_fate_event(runtime, &"ordinary_miss", &"hero")
 	runtime.mark_applied_statuses_for_turn_timing(hero, [&"fear"])
 	runtime.notify_member_boss_phase_changed(&"hero", &"phase_2")
 	buddy.current_hp = 0
@@ -375,11 +373,11 @@ func _build_enemy_unit(unit_id: StringName, display_name: String) -> BattleUnitS
 
 func _build_attribute_snapshot(hp_max: int, hidden_luck_at_birth: int, calamity_capacity_bonus: int) -> AttributeSnapshot:
 	var snapshot := AttributeSnapshot.new()
-	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX, hp_max)
-	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX, 0)
-	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX, 0)
-	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.AURA_MAX, 0)
-	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_POINTS, 1)
+	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX_ID(), hp_max)
+	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX_ID(), 0)
+	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX_ID(), 0)
+	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.AURA_MAX_ID(), 0)
+	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_POINTS_ID(), 1)
 	snapshot.set_value(&"hidden_luck_at_birth", hidden_luck_at_birth)
 	snapshot.set_value(&"calamity_capacity_bonus", calamity_capacity_bonus)
 	BattleRuntimeTestHelpers.seed_attribute_snapshot_base_attributes_and_ac(snapshot)
@@ -394,7 +392,7 @@ func _get_runtime_unit(state, member_id: StringName) -> BattleUnitState:
 
 func _build_wait_command(unit_id: StringName) -> BattleCommand:
 	var command := BattleCommand.new()
-	command.command_type = BattleCommand.TYPE_WAIT
+	command.command_type = BattleCommand.TYPE_WAIT()
 	command.unit_id = unit_id
 	return command
 

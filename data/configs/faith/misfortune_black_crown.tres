@@ -1,7 +1,7 @@
 [gd_resource type="Resource" script_class="FaithDeityDef" load_steps=8 format=3]
 
-[ext_resource type="Script" path="res://scripts/player/progression/faith_deity_def.gd" id="1_deity"]
-[ext_resource type="Script" path="res://scripts/player/progression/faith_rank_def.gd" id="2_rank"]
+[ext_resource type="Script" path="res://scripts/player/progression/FaithDeityDef.cs" id="1_deity"]
+[ext_resource type="Script" path="res://scripts/player/progression/FaithRankDef.cs" id="2_rank"]
 
 [sub_resource type="Resource" id="FaithRank_misfortune_1"]
 script = ExtResource("2_rank")

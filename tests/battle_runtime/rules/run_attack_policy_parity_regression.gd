@@ -1,14 +1,14 @@
 extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
-const BattleAttackCheckPolicyService = preload("res://scripts/systems/battle/rules/battle_attack_check_policy_service.gd")
-const BattleHitResolver = preload("res://scripts/systems/battle/rules/battle_hit_resolver.gd")
-const BattleRepeatAttackResolver = preload("res://scripts/systems/battle/runtime/battle_repeat_attack_resolver.gd")
-const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
-const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
-const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
-const CombatSkillDef = preload("res://scripts/player/progression/combat_skill_def.gd")
-const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
+const BattleAttackCheckPolicyService = preload("res://scripts/systems/battle/rules/BattleAttackCheckPolicyService.cs")
+const BattleHitResolver = preload("res://scripts/systems/battle/rules/BattleHitResolver.cs")
+const BattleRepeatAttackResolver = preload("res://scripts/systems/battle/runtime/BattleRepeatAttackResolver.cs")
+const BattleState = preload("res://scripts/systems/battle/core/BattleState.cs")
+const BattleUnitState = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
+const SkillDef = preload("res://scripts/player/progression/SkillDef.cs")
+const CombatSkillDef = preload("res://scripts/player/progression/CombatSkillDef.cs")
+const CombatEffectDef = preload("res://scripts/player/progression/CombatEffectDef.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -32,14 +32,14 @@ func _run() -> void:
 	target_unit.coord = Vector2i(3, 1)
 	var skill_def := _build_parity_skill()
 	var repeat_effect := _build_repeat_effect()
-	var repeat_stage_specs := BattleRepeatAttackResolver.build_stage_specs_from_repeat_attack_effect(
+	var repeat_stage_specs = BattleRepeatAttackResolver.build_stage_specs_from_repeat_attack_effect(
 		active_unit,
 		skill_def,
 		repeat_effect,
 		-1,
 		true
 	)
-	var repeat_preview_context := policy.build_repeat_attack_stage_context(
+	var repeat_preview_context = policy.build_repeat_attack_stage_context(
 		battle_state,
 		active_unit,
 		target_unit,
@@ -48,7 +48,7 @@ func _run() -> void:
 		&"repeat_attack_preview",
 		&"hud_preview"
 	)
-	var stage_spec := BattleRepeatAttackResolver.build_stage_spec_from_repeat_attack_effect(
+	var stage_spec = BattleRepeatAttackResolver.build_stage_spec_from_repeat_attack_effect(
 		active_unit,
 		skill_def,
 		repeat_effect,
@@ -56,41 +56,47 @@ func _run() -> void:
 		0,
 		true
 	)
-	var stage_context := policy.build_repeat_attack_stage_context(
+	var stage_context = policy.build_repeat_attack_stage_context(
 		battle_state,
 		active_unit,
 		target_unit,
 		skill_def,
-		stage_spec
+		stage_spec,
+		&"repeat_attack_stage_check",
+		&"execute"
 	)
-	var attack_context := policy.build_attack_context(
+	var attack_context = policy.build_attack_context(
 		battle_state,
 		active_unit,
 		target_unit,
-		skill_def
+		skill_def,
+		&"skill_attack_check",
+		&"execute",
+		false
 	)
-	var preview_context := policy.build_attack_context(
+	var preview_context = policy.build_attack_context(
 		battle_state,
 		active_unit,
 		target_unit,
 		skill_def,
 		&"skill_attack_preview",
-		&"hud_preview"
+		&"hud_preview",
+		false
 	)
 
 	_assert_dict_eq(
-		policy.build_attack_check(attack_context),
-		hit_resolver.build_skill_attack_check(active_unit, target_unit, skill_def),
+		policy.build_attack_check(attack_context, 0, 0),
+		hit_resolver.build_skill_attack_check(active_unit, target_unit, skill_def, 0, 0),
 		"policy build_attack_check 应与 BattleHitResolver 零漂移。"
 	)
 	_assert_dict_eq(
 		policy.build_attack_preview(preview_context),
-		hit_resolver.build_skill_attack_preview(battle_state, active_unit, target_unit, skill_def),
+		hit_resolver.build_skill_attack_preview(battle_state, active_unit, target_unit, skill_def, false),
 		"policy build_attack_preview 应与 BattleHitResolver 零漂移。"
 	)
 	_assert_dict_eq(
 		policy.build_repeat_attack_preview(repeat_preview_context, repeat_stage_specs),
-		hit_resolver.build_repeat_attack_preview(battle_state, active_unit, target_unit, skill_def, repeat_effect),
+		hit_resolver.build_repeat_attack_preview(battle_state, active_unit, target_unit, skill_def, repeat_effect, -1),
 		"policy build_repeat_attack_preview 应与 BattleHitResolver 零漂移。"
 	)
 	_assert_dict_eq(

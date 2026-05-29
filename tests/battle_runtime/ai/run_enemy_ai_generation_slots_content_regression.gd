@@ -1,7 +1,7 @@
 extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
-const ENEMY_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/enemies/enemy_content_registry.gd")
+const ENEMY_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/enemies/EnemyContentRegistry.cs")
 
 const BRAIN_PATHS := [
 	"res://data/configs/enemies/brains/frontline_bulwark.tres",
@@ -33,10 +33,10 @@ func _test_formal_brains_declare_generation_slots() -> void:
 		_test.assert_true(brain != null, "%s 应能加载。" % brain_path)
 		if brain == null:
 			continue
-		for state_def in brain.get_states():
+		for state_def in brain.get_resolved_states():
 			if state_def == null:
 				continue
-			var state_errors: Array[String] = state_def.validate_schema(brain.brain_id, _collect_declared_skill_defs(state_def))
+			var state_errors: Array = state_def.validate_schema(brain.brain_id, _collect_declared_skill_defs(state_def))
 			_test.assert_true(state_errors.is_empty(), "%s state %s full schema 应合法: %s" % [
 				brain_path,
 				String(state_def.state_id),
@@ -50,9 +50,9 @@ func _test_formal_brains_declare_generation_slots() -> void:
 				_test.assert_true(slot != null, "%s state %s 不应包含空 generation slot。" % [brain_path, String(state_def.state_id)])
 				if slot == null:
 					continue
-				var errors: Array[String] = slot.validate_schema(
+				var errors: Array = slot.validate_schema(
 					"%s state %s" % [brain_path, String(state_def.state_id)],
-					state_def.get_actions()
+					state_def.get("actions")
 				)
 				_test.assert_true(errors.is_empty(), "%s state %s slot %s schema 应合法: %s" % [
 					brain_path,
@@ -66,11 +66,14 @@ func _collect_declared_skill_defs(state_def) -> Dictionary:
 	var skill_defs: Dictionary = {}
 	if state_def == null:
 		return skill_defs
-	for action in state_def.get_actions():
+	var actions = state_def.get("actions")
+	if actions is not Array:
+		return skill_defs
+	for action in actions:
 		if action == null or not action.has_method("get_declared_skill_ids"):
 			continue
 		for skill_id in action.get_declared_skill_ids():
-			skill_defs[ProgressionDataUtils.to_string_name(skill_id)] = true
+			skill_defs[_to_string_name(skill_id)] = true
 	return skill_defs
 
 
@@ -78,7 +81,7 @@ func _collect_declared_skill_defs_for_brain(brain) -> Dictionary:
 	var skill_defs: Dictionary = {}
 	if brain == null:
 		return skill_defs
-	for state_def in brain.get_states():
+	for state_def in brain.get_resolved_states():
 		if state_def == null:
 			continue
 		for skill_id in _collect_declared_skill_defs(state_def).keys():
@@ -107,3 +110,9 @@ func _test_enemy_content_registry_accepts_generation_slots() -> void:
 	var registry = ENEMY_CONTENT_REGISTRY_SCRIPT.new()
 	var errors: Array[String] = registry.validate()
 	_test.assert_true(errors.is_empty(), "EnemyContentRegistry 应接受正式 generation slots: %s" % str(errors))
+
+
+func _to_string_name(value) -> StringName:
+	if value is StringName:
+		return value
+	return StringName(String(value))

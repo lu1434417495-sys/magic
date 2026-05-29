@@ -2,8 +2,8 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
-const BATTLE_SIM_UNIT_SPEC_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_unit_spec.gd")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/AttributeService.cs")
+const BATTLE_SIM_UNIT_SPEC_SCRIPT = preload("res://scripts/systems/battle/sim/BattleSimUnitSpec.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -37,11 +37,11 @@ func _test_default_attack_bonus_and_ac_are_initialized() -> void:
 	unit_spec.current_ap = 1
 	var unit_state = unit_spec.to_battle_unit_state(&"player", &"manual")
 	_assert_true(
-		unit_state.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS) == 4,
+		unit_state.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID()) == 4,
 		"BattleSimUnitSpec 默认应初始化 +4 攻击加值，避免 simulation 中退化到仅天然 20 命中。"
 	)
 	_assert_true(
-		not unit_state.attribute_snapshot.has_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS),
+		not unit_state.attribute_snapshot.has_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID()),
 		"BattleSimUnitSpec 空单位不应再隐式初始化 AC；simulation 应提供 base_attributes。"
 	)
 
@@ -64,7 +64,7 @@ func _test_base_attributes_use_formal_attribute_service() -> void:
 	}
 	var unit_state = unit_spec.to_battle_unit_state(&"player", &"ai")
 	_assert_true(
-		unit_state.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX) == 16,
+		unit_state.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX_ID()) == 16,
 		"BattleSimUnitSpec 有 base_attributes 时应使用正式 0 级初始 HP 公式。"
 	)
 	_assert_true(
@@ -72,19 +72,19 @@ func _test_base_attributes_use_formal_attribute_service() -> void:
 		"BattleSimUnitSpec 当前 HP 应按正式 HP 上限 clamp。"
 	)
 	_assert_true(
-		unit_state.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX) == 110,
+		unit_state.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX_ID()) == 110,
 		"BattleSimUnitSpec 有 base_attributes 时应通过 AttributeService 派生体力。"
 	)
 	_assert_true(
-		unit_state.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_POINTS) == 2,
+		unit_state.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_POINTS_ID()) == 2,
 		"BattleSimUnitSpec 有 base_attributes 时应通过 AttributeService 派生 AP。"
 	)
 	_assert_true(
-		unit_state.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS) == 11,
+		unit_state.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID()) == 11,
 		"BattleSimUnitSpec 有 base_attributes 时 AC 应来自正式 AttributeService。"
 	)
 	_assert_true(
-		unit_state.action_threshold == ATTRIBUTE_SERVICE_SCRIPT.DEFAULT_CHARACTER_ACTION_THRESHOLD,
+		unit_state.action_threshold == ATTRIBUTE_SERVICE_SCRIPT.DEFAULT_CHARACTER_ACTION_THRESHOLD_VALUE(),
 		"BattleSimUnitSpec 有 base_attributes 时 action_threshold 应来自正式属性快照。"
 	)
 
@@ -101,11 +101,11 @@ func _test_attribute_overrides_can_replace_attack_bonus_without_final_ac() -> vo
 	}
 	var unit_state = unit_spec.to_battle_unit_state(&"hostile", &"ai")
 	_assert_true(
-		unit_state.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS) == 6,
+		unit_state.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID()) == 6,
 		"BattleSimUnitSpec 应允许 attribute_overrides 覆盖默认攻击加值。"
 	)
 	_assert_true(
-		not unit_state.attribute_snapshot.has_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS),
+		not unit_state.attribute_snapshot.has_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID()),
 		"BattleSimUnitSpec 不应接受无 base_attributes 的最终 armor_class 兼容路径。"
 	)
 
@@ -131,7 +131,7 @@ func _test_formal_base_attributes_use_ac_components() -> void:
 	}
 	var unit_state = unit_spec.to_battle_unit_state(&"hostile", &"ai")
 	_assert_true(
-		unit_state.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS) == 14,
+		unit_state.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID()) == 14,
 		"BattleSimUnitSpec 有 base_attributes 时应忽略最终 armor_class，改用基础 8 + AC 组件。"
 	)
 
@@ -158,7 +158,7 @@ func _test_base_attribute_overrides_use_formal_action_threshold() -> void:
 	}
 	var unit_state = unit_spec.to_battle_unit_state(&"hostile", &"ai")
 	_assert_true(
-		unit_state.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX) == 36,
+		unit_state.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX_ID()) == 36,
 		"base attribute 模拟单位的 hp_max 覆盖应通过正式属性快照生效。"
 	)
 	_assert_true(

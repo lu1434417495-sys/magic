@@ -2,7 +2,7 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const GAME_TEXT_COMMAND_RUNNER_SCRIPT = preload("res://scripts/systems/game_runtime/headless/game_text_command_runner.gd")
+const GAME_TEXT_COMMAND_RUNNER_SCRIPT = preload("res://scripts/systems/game_runtime/headless/GameTextCommandRunner.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -36,13 +36,13 @@ func _run_command(runner, command_text: String) -> void:
 	var result = await runner.execute_line(command_text)
 	if result.skipped:
 		return
-	print(result.render())
+	print(result.Render())
 	_assert_true(result.ok, "命令失败：%s | %s" % [command_text, result.message])
 
 
 func _expect_command(runner, command_text: String) -> void:
 	var result = await runner.execute_line(command_text)
-	print(result.render())
+	print(result.Render())
 	_assert_true(result.ok, "断言失败：%s | %s" % [command_text, result.message])
 
 

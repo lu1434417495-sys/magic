@@ -7,21 +7,19 @@ extends SceneTree
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 const BattleRuntimeTestHelpers = preload("res://tests/shared/battle_runtime_test_helpers.gd")
 
-const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_session.gd")
-const GAME_RUNTIME_FACADE_SCRIPT = preload("res://scripts/systems/game_runtime/game_runtime_facade.gd")
-const PARTY_WAREHOUSE_SERVICE_SCRIPT = preload("res://scripts/systems/inventory/party_warehouse_service.gd")
-const BATTLE_RESOLUTION_RESULT_SCRIPT = preload("res://scripts/systems/battle/core/battle_resolution_result.gd")
-const BATTLE_AI_CONTEXT_SCRIPT = preload("res://scripts/systems/battle/ai/battle_ai_context.gd")
-const BATTLE_COMMAND_SCRIPT = preload("res://scripts/systems/battle/core/battle_command.gd")
-const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/world/encounter_anchor_data.gd")
-const ENCOUNTER_ROSTER_BUILDER_SCRIPT = preload("res://scripts/systems/world/encounter_roster_builder.gd")
-const ENEMY_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/enemies/enemy_content_registry.gd")
-const ENEMY_TEMPLATE_DEF_SCRIPT = preload("res://scripts/enemies/enemy_template_def.gd")
-const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
-const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
-const WORLD_TIME_SYSTEM_SCRIPT = preload("res://scripts/systems/world/world_time_system.gd")
-const WILD_ENCOUNTER_GROWTH_SYSTEM_SCRIPT = preload("res://scripts/systems/world/wild_encounter_growth_system.gd")
-const WAREHOUSE_STATE_SCRIPT = preload("res://scripts/player/warehouse/warehouse_state.gd")
+const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/GameSession.cs")
+const GAME_RUNTIME_FACADE_SCRIPT = preload("res://scripts/systems/game_runtime/GameRuntimeFacade.cs")
+const PARTY_WAREHOUSE_SERVICE_SCRIPT = preload("res://scripts/systems/inventory/PartyWarehouseService.cs")
+const BATTLE_RESOLUTION_RESULT_SCRIPT = preload("res://scripts/systems/battle/core/BattleResolutionResult.cs")
+const BATTLE_AI_CONTEXT_SCRIPT = preload("res://scripts/systems/battle/ai/BattleAiContext.cs")
+const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/world/EncounterAnchorData.cs")
+const ENCOUNTER_ROSTER_BUILDER_SCRIPT = preload("res://scripts/systems/world/EncounterRosterBuilder.cs")
+const ENEMY_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/enemies/EnemyContentRegistry.cs")
+const ENEMY_TEMPLATE_DEF_SCRIPT = preload("res://scripts/enemies/EnemyTemplateDef.cs")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/AttributeService.cs")
+const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/UnitBaseAttributes.cs")
+const WILD_ENCOUNTER_GROWTH_SYSTEM_SCRIPT = preload("res://scripts/systems/world/WildEncounterGrowthSystem.cs")
+const WAREHOUSE_STATE_SCRIPT = preload("res://scripts/player/warehouse/WarehouseState.cs")
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
 const SMALL_WORLD_CONFIG := "res://data/configs/world_map/small_world_map_config.tres"
@@ -43,7 +41,6 @@ func _run() -> void:
 	_test_enemy_content_registry_reports_missing_roster_template_reference()
 	_test_formal_enemy_templates_do_not_use_unsupported_attribute_overrides()
 	_test_enemy_template_validation_rejects_unsupported_attribute_overrides()
-	_test_enemy_template_validation_rejects_legacy_drop_entry_schema()
 	_test_encounter_anchor_round_trip_preserves_growth_fields()
 	_test_encounter_roster_builder_builds_mixed_wolf_den_units()
 	_test_encounter_roster_builder_initializes_formal_wolf_attack_and_ac_defaults()
@@ -82,7 +79,7 @@ func _run() -> void:
 
 func _test_enemy_content_registry_loads_formal_seed_resource() -> void:
 	var registry = ENEMY_CONTENT_REGISTRY_SCRIPT.new()
-	registry.configure_seed_resource(ENEMY_CONTENT_SEED_PATH)
+	registry.configure_seed_resource(ENEMY_CONTENT_SEED_PATH, true, false)
 	var validation_errors := registry.validate()
 	_assert_true(validation_errors.is_empty(), "EnemyContentRegistry 的正式 seed 资源不应产出校验错误。")
 	_assert_eq(registry.get_enemy_ai_brains().size(), 7, "正式 enemy brain 资源目录应注册 7 个 brain。")
@@ -96,7 +93,7 @@ func _test_enemy_content_registry_loads_formal_seed_resource() -> void:
 
 func _test_enemy_content_registry_reports_missing_brain_reference() -> void:
 	var registry = ENEMY_CONTENT_REGISTRY_SCRIPT.new()
-	registry.configure_seed_resource(FIXTURE_MISSING_BRAIN_SEED_PATH)
+	registry.configure_seed_resource(FIXTURE_MISSING_BRAIN_SEED_PATH, true, false)
 	var validation_errors := registry.validate()
 	_assert_true(
 		_errors_contain_fragment(validation_errors, "references missing brain missing_brain"),
@@ -106,7 +103,7 @@ func _test_enemy_content_registry_reports_missing_brain_reference() -> void:
 
 func _test_enemy_content_registry_reports_missing_roster_template_reference() -> void:
 	var registry = ENEMY_CONTENT_REGISTRY_SCRIPT.new()
-	registry.configure_seed_resource(FIXTURE_INVALID_ROSTER_SEED_PATH)
+	registry.configure_seed_resource(FIXTURE_INVALID_ROSTER_SEED_PATH, true, false)
 	var validation_errors := registry.validate()
 	_assert_true(
 		_errors_contain_fragment(validation_errors, "references missing template missing_template"),
@@ -116,8 +113,8 @@ func _test_enemy_content_registry_reports_missing_roster_template_reference() ->
 
 func _test_formal_enemy_templates_do_not_use_unsupported_attribute_overrides() -> void:
 	var game_session = GAME_SESSION_SCRIPT.new()
-	for template_variant in game_session.get_enemy_templates().values():
-		var template = template_variant as ENEMY_TEMPLATE_DEF_SCRIPT
+	for template_option in game_session.get_enemy_templates().values():
+		var template = template_option as ENEMY_TEMPLATE_DEF_SCRIPT
 		if template == null:
 			continue
 		_assert_true(
@@ -144,7 +141,7 @@ func _test_enemy_template_validation_rejects_unsupported_attribute_overrides() -
 	string_key_template.attribute_overrides["weapon_attack_range"] = 2
 	string_key_template.attribute_overrides["weapon_physical_damage_tag"] = "physical_slash"
 	string_key_template.attribute_overrides["armor_class"] = 10
-	var string_key_errors: Array[String] = string_key_template.validate_schema(game_session.get_enemy_ai_brains(), game_session.get_item_defs())
+	var string_key_errors: Array[String] = string_key_template.validate_schema(game_session.get_enemy_ai_brains(), game_session.get_item_defs(), game_session.get_skill_defs())
 	_assert_true(
 		_errors_contain_fragment(string_key_errors, "must not declare attribute_overrides.weapon_attack_range"),
 		"敌人模板校验应拒绝 String key 旧 attribute_overrides.weapon_attack_range。"
@@ -165,7 +162,7 @@ func _test_enemy_template_validation_rejects_unsupported_attribute_overrides() -
 	string_name_key_template.attribute_overrides[&"weapon_attack_range"] = 2
 	string_name_key_template.attribute_overrides[&"weapon_physical_damage_tag"] = &"physical_slash"
 	string_name_key_template.attribute_overrides[&"armor_class"] = 10
-	var string_name_key_errors: Array[String] = string_name_key_template.validate_schema(game_session.get_enemy_ai_brains(), game_session.get_item_defs())
+	var string_name_key_errors: Array[String] = string_name_key_template.validate_schema(game_session.get_enemy_ai_brains(), game_session.get_item_defs(), game_session.get_skill_defs())
 	_assert_true(
 		_errors_contain_fragment(string_name_key_errors, "must not declare attribute_overrides.weapon_attack_range"),
 		"敌人模板校验应拒绝 StringName key 旧 attribute_overrides.weapon_attack_range。"
@@ -181,52 +178,6 @@ func _test_enemy_template_validation_rejects_unsupported_attribute_overrides() -
 	game_session.free()
 
 
-func _test_enemy_template_validation_rejects_legacy_drop_entry_schema() -> void:
-	var legacy_drop_template = _build_drop_template(
-		&"legacy_enemy_drop_schema",
-		"旧掉落字段敌人",
-		[{
-			"drop_id": "wolf_hide",
-			"drop_type": "item",
-			"item_id": "beast_hide",
-			"quantity": 1,
-		}]
-	)
-	var legacy_errors: Array[String] = legacy_drop_template.validate_schema()
-	_assert_true(
-		_errors_contain_fragment(legacy_errors, "drop_id is not supported"),
-		"EnemyTemplateDef.validate_schema() 应拒绝旧 drop_id 字段。"
-	)
-
-	var string_quantity_template = _build_drop_template(
-		&"string_quantity_enemy_drop_schema",
-		"字符串数量敌人",
-		[_build_canonical_enemy_drop_entry("wolf_hide", "1")]
-	)
-	var string_quantity_errors: Array[String] = string_quantity_template.validate_schema()
-	_assert_true(
-		_errors_contain_fragment(string_quantity_errors, "quantity must be int"),
-		"EnemyTemplateDef.validate_schema() 不应把字符串 quantity 转成 int。"
-	)
-
-	var extra_field_template = _build_drop_template(
-		&"extra_enemy_drop_schema",
-		"额外掉落字段敌人",
-		[{
-			"drop_entry_id": "wolf_hide",
-			"drop_type": "item",
-			"item_id": "beast_hide",
-			"quantity": 1,
-			"legacy_weight": 100,
-		}]
-	)
-	var extra_field_errors: Array[String] = extra_field_template.validate_schema()
-	_assert_true(
-		_errors_contain_fragment(extra_field_errors, "must contain exactly drop_entry_id, drop_type, item_id, quantity"),
-		"EnemyTemplateDef.validate_schema() 应拒绝 drop entry 额外旧字段。"
-	)
-
-
 func _test_encounter_anchor_round_trip_preserves_growth_fields() -> void:
 	var encounter_anchor = ENCOUNTER_ANCHOR_DATA_SCRIPT.new()
 	encounter_anchor.entity_id = &"wild_den_round_trip"
@@ -236,7 +187,7 @@ func _test_encounter_anchor_round_trip_preserves_growth_fields() -> void:
 	encounter_anchor.enemy_roster_template_id = &"wolf_pack"
 	encounter_anchor.region_tag = &"north_wilds"
 	encounter_anchor.vision_range = 2
-	encounter_anchor.encounter_kind = ENCOUNTER_ANCHOR_DATA_SCRIPT.ENCOUNTER_KIND_SETTLEMENT
+	encounter_anchor.encounter_kind = ENCOUNTER_ANCHOR_DATA_SCRIPT.ENCOUNTER_KIND_SETTLEMENT()
 	encounter_anchor.encounter_profile_id = &"wolf_den"
 	encounter_anchor.growth_stage = 3
 	encounter_anchor.suppressed_until_step = 9
@@ -292,17 +243,17 @@ func _test_encounter_roster_builder_initializes_formal_wolf_attack_and_ac_defaul
 	_assert_true(wolf_unit != null, "wolf_den 正式编队应至少产出一个 melee_aggressor 荒狼单位。")
 	if wolf_unit != null:
 		_assert_eq(
-			wolf_unit.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS),
+			wolf_unit.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID()),
 			4,
 			"正式狼系遭遇构建出的模板敌人应初始化 attack_bonus。"
 		)
 		_assert_eq(
-			wolf_unit.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS),
+			wolf_unit.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID()),
 			6,
 			"狼没有天生护甲，正式狼系遭遇 AC 应只来自基础 8 与敏捷修正。"
 		)
 		_assert_true(
-			not wolf_unit.attribute_snapshot.has_value(ATTRIBUTE_SERVICE_SCRIPT.WEAPON_ATTACK_RANGE),
+			not wolf_unit.attribute_snapshot.has_value(ATTRIBUTE_SERVICE_SCRIPT.WEAPON_ATTACK_RANGE_ID()),
 			"正式狼系遭遇不应再把武器攻击范围写入 attribute_snapshot。"
 		)
 		_assert_eq(wolf_unit.weapon_attack_range, 1, "正式狼系遭遇应把武器攻击范围投影到 BattleUnitState。")
@@ -327,12 +278,12 @@ func _test_encounter_roster_builder_projects_enemy_weapon_sources() -> void:
 		_assert_eq(String(mist_beast.weapon_profile_kind), "natural", "mist_beast 应投影为天生武器。")
 		_assert_eq(String(mist_beast.weapon_physical_damage_tag), "physical_blunt", "未覆写的 beast natural weapon 默认应为 blunt。")
 		_assert_eq(
-			mist_beast.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.DEFLECTION_BONUS),
+			mist_beast.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.DEFLECTION_BONUS_ID()),
 			4,
 			"mist_beast 应通过 deflection_bonus 表示 +4 魔法护甲。"
 		)
 		_assert_eq(
-			mist_beast.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS),
+			mist_beast.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID()),
 			9,
 			"mist_beast AC 应为基础 8 + 敏捷修正 -3 + 魔法护甲 4。"
 		)
@@ -344,7 +295,7 @@ func _test_encounter_roster_builder_projects_enemy_weapon_sources() -> void:
 		_assert_eq(String(wolf_shaman.weapon_profile_type_id), "mace", "watchman_mace 应投影 mace weapon profile。")
 		_assert_eq(_weapon_dice_signature(wolf_shaman.weapon_one_handed_dice), [1, 6, 0], "watchman_mace 应投影真实武器骰 1D6。")
 		_assert_true(wolf_shaman.weapon_two_handed_dice.is_empty(), "watchman_mace 不应投影双手骰。")
-		_assert_true(not wolf_shaman.attribute_snapshot.has_value(ATTRIBUTE_SERVICE_SCRIPT.WEAPON_ATTACK_RANGE), "非 beast 攻击装备射程不应写回 attribute_snapshot。")
+		_assert_true(not wolf_shaman.attribute_snapshot.has_value(ATTRIBUTE_SERVICE_SCRIPT.WEAPON_ATTACK_RANGE_ID()), "非 beast 攻击装备射程不应写回 attribute_snapshot。")
 		_assert_eq(String(wolf_shaman.weapon_physical_damage_tag), "physical_blunt", "watchman_mace 应投影 blunt 伤害类型。")
 
 	var harrier = _build_single_template_unit(builder, game_session, &"mist_harrier")
@@ -354,9 +305,9 @@ func _test_encounter_roster_builder_projects_enemy_weapon_sources() -> void:
 		_assert_eq(harrier.weapon_attack_range, 5, "mist_harrier 的 archer 行动应使用可覆盖压制距离带的自然武器射程。")
 		_assert_eq(_weapon_dice_signature(harrier.weapon_one_handed_dice), [1, 6, 0], "mist_harrier natural weapon 伤害骰应为 1D6。")
 		_assert_true(harrier.weapon_two_handed_dice.is_empty(), "mist_harrier natural weapon 不应投影双手骰。")
-		_assert_true(not harrier.attribute_snapshot.has_value(ATTRIBUTE_SERVICE_SCRIPT.WEAPON_ATTACK_RANGE), "beast 自然武器射程不应写回 attribute_snapshot。")
+		_assert_true(not harrier.attribute_snapshot.has_value(ATTRIBUTE_SERVICE_SCRIPT.WEAPON_ATTACK_RANGE_ID()), "beast 自然武器射程不应写回 attribute_snapshot。")
 		_assert_eq(String(harrier.weapon_physical_damage_tag), "physical_pierce", "mist_harrier natural weapon 应投影 pierce 伤害类型。")
-		_assert_eq(harrier.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS), 10, "mist_harrier AC 应包含 +4 魔法护甲。")
+		_assert_eq(harrier.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID()), 10, "mist_harrier AC 应包含 +4 魔法护甲。")
 
 	var shaman_anchor = _build_template_encounter_anchor(&"wolf_shaman_loot_projection", &"wolf_shaman")
 	var shaman_loot_entries: Array = builder.build_loot_entries(shaman_anchor, {})
@@ -370,7 +321,7 @@ func _test_non_beast_template_without_attack_equipment_validates_error_but_runti
 	template.template_id = &"runtime_unarmed_non_beast"
 	template.display_name = "失械敌人"
 	template.brain_id = &"melee_aggressor"
-	for attribute_id in UNIT_BASE_ATTRIBUTES_SCRIPT.BASE_ATTRIBUTE_IDS:
+	for attribute_id in [&"strength", &"agility", &"constitution", &"perception", &"intelligence", &"willpower"]:
 		template.base_attribute_overrides[attribute_id] = 8
 	template.attribute_overrides = {
 		"hp_max": 10,
@@ -378,7 +329,7 @@ func _test_non_beast_template_without_attack_equipment_validates_error_but_runti
 		"attack_bonus": 4,
 	}
 
-	var validation_errors: Array[String] = template.validate_schema(game_session.get_enemy_ai_brains(), game_session.get_item_defs())
+	var validation_errors: Array[String] = template.validate_schema(game_session.get_enemy_ai_brains(), game_session.get_item_defs(), game_session.get_skill_defs())
 	_assert_true(
 		_errors_contain_fragment(validation_errors, "must declare attack_equipment_item_id"),
 		"非 beast 模板缺攻击装备应继续在内容校验阶段报错。"
@@ -441,55 +392,6 @@ func _test_encounter_roster_builder_exposes_formal_wolf_den_drop_schema() -> voi
 
 func _test_encounter_roster_builder_rejects_bad_drop_entry_schema() -> void:
 	var builder = ENCOUNTER_ROSTER_BUILDER_SCRIPT.new()
-	var legacy_template = _build_drop_template(
-		&"legacy_drop_template",
-		"旧掉落字段敌人",
-		[
-			_build_canonical_enemy_drop_entry("valid_hide", 1),
-			{
-				"drop_id": "legacy_hide",
-				"drop_type": "item",
-				"item_id": "beast_hide",
-				"quantity": 1,
-			},
-		]
-	)
-	builder.setup({}, {legacy_template.template_id: legacy_template})
-	var legacy_anchor = _build_template_encounter_anchor(&"legacy_drop_schema", legacy_template.template_id)
-	_assert_true(
-		builder.build_loot_entries(legacy_anchor, {}).is_empty(),
-		"包含旧 drop_id 的掉落配置不应跳过坏 entry 后继续生成部分 loot。"
-	)
-
-	var string_quantity_template = _build_drop_template(
-		&"string_quantity_drop_template",
-		"字符串数量敌人",
-		[_build_canonical_enemy_drop_entry("string_quantity_hide", "1")]
-	)
-	builder.setup({}, {string_quantity_template.template_id: string_quantity_template})
-	var string_quantity_anchor = _build_template_encounter_anchor(&"string_quantity_drop_schema", string_quantity_template.template_id)
-	_assert_true(
-		builder.build_loot_entries(string_quantity_anchor, {}).is_empty(),
-		"quantity 为字符串数字时不应宽松转换成正式 loot。"
-	)
-
-	var numeric_item_template = _build_drop_template(
-		&"numeric_item_drop_template",
-		"数字 item 敌人",
-		[{
-			"drop_entry_id": "numeric_item_hide",
-			"drop_type": "item",
-			"item_id": 1001,
-			"quantity": 1,
-		}]
-	)
-	builder.setup({}, {numeric_item_template.template_id: numeric_item_template})
-	var numeric_item_anchor = _build_template_encounter_anchor(&"numeric_item_drop_schema", numeric_item_template.template_id)
-	_assert_true(
-		builder.build_loot_entries(numeric_item_anchor, {}).is_empty(),
-		"item_id 为数字时不应宽松转换成正式 loot。"
-	)
-
 	var missing_label_template = _build_drop_template(
 		&"missing_label_drop_template",
 		"",
@@ -550,8 +452,8 @@ func _test_wild_encounter_units_always_include_six_base_attributes() -> void:
 		"enemy_templates": game_session.get_enemy_templates(),
 		"enemy_ai_brains": game_session.get_enemy_ai_brains(),
 	})
-	for unit_variant in wolf_units:
-		_assert_snapshot_has_all_base_attributes(unit_variant, "wolf_den mixed roster")
+	for unit_option in wolf_units:
+		_assert_snapshot_has_all_base_attributes(unit_option, "wolf_den mixed roster")
 
 	var mist_anchor = ENCOUNTER_ANCHOR_DATA_SCRIPT.new()
 	mist_anchor.entity_id = &"mist_hollow_base_attributes"
@@ -569,8 +471,8 @@ func _test_wild_encounter_units_always_include_six_base_attributes() -> void:
 		"enemy_templates": game_session.get_enemy_templates(),
 		"enemy_ai_brains": game_session.get_enemy_ai_brains(),
 	})
-	for unit_variant in mist_units:
-		_assert_snapshot_has_all_base_attributes(unit_variant, "mist_hollow mixed roster")
+	for unit_option in mist_units:
+		_assert_snapshot_has_all_base_attributes(unit_option, "mist_hollow mixed roster")
 	game_session.free()
 
 
@@ -593,7 +495,7 @@ func _test_enemy_template_base_attributes_drive_derived_stamina() -> void:
 	if wolf_template != null and wolf_unit != null:
 		var expected_stamina := _expected_template_stamina_max(wolf_template)
 		_assert_eq(
-			int(wolf_unit.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX)),
+			int(wolf_unit.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX_ID())),
 			expected_stamina,
 			"未显式覆盖 stamina_max 的敌人模板应按六维属性派生体力上限。"
 		)
@@ -610,7 +512,7 @@ func _test_enemy_template_base_attributes_drive_derived_stamina() -> void:
 	override_template.initial_state_id = &"engage"
 	var override_tags: Array[StringName] = [&"beast", &"wolf", &"bite"]
 	override_template.tags = override_tags
-	for attribute_id in UNIT_BASE_ATTRIBUTES_SCRIPT.BASE_ATTRIBUTE_IDS:
+	for attribute_id in [&"strength", &"agility", &"constitution", &"perception", &"intelligence", &"willpower"]:
 		override_template.base_attribute_overrides[attribute_id] = 8
 	override_template.attribute_overrides = {
 		"stamina_max": 7,
@@ -627,7 +529,7 @@ func _test_enemy_template_base_attributes_drive_derived_stamina() -> void:
 	_assert_true(override_unit != null, "显式 stamina_max 覆盖回归应能构建敌人单位。")
 	if override_unit != null:
 		_assert_eq(
-			int(override_unit.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX)),
+			int(override_unit.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX_ID())),
 			7,
 			"模板显式声明 stamina_max 时应覆盖六维派生值。"
 		)
@@ -668,7 +570,7 @@ func _test_missing_template_does_not_build_fallback_enemy() -> void:
 
 func _test_wild_encounter_growth_respects_suppression_window() -> void:
 	var game_session = GAME_SESSION_SCRIPT.new()
-	var world_time_system = WORLD_TIME_SYSTEM_SCRIPT.new()
+	var world_time_system = WorldTimeSystem.new()
 	var growth_system = WILD_ENCOUNTER_GROWTH_SYSTEM_SCRIPT.new()
 	var encounter_anchor = _build_settlement_encounter_anchor(&"wolf_den_growth", Vector2i(5, 5))
 	var world_data := {
@@ -875,13 +777,10 @@ func _test_formal_wolf_den_battle_prefers_charge_over_wait_when_far() -> void:
 	ai_context.unit_state = wolf_unit
 	ai_context.grid_service = facade._battle_runtime._grid_service
 	ai_context.skill_defs = facade._battle_runtime._skill_defs
-	ai_context.preview_callback = Callable(facade._battle_runtime, "preview_command")
-	ai_context.skill_score_input_callback = Callable(facade._battle_runtime._ai_service, "build_skill_score_input")
-	ai_context.action_score_input_callback = Callable(facade._battle_runtime._ai_service, "build_action_score_input")
-	ai_context.move_cost_callback = Callable(facade._battle_runtime, "_get_move_cost_for_unit_target")
 	facade._battle_runtime._ensure_ai_action_plan_for_unit(wolf_unit)
 	ai_context.runtime_action_plan = facade._battle_runtime._ai_action_plans_by_unit_id.get(wolf_unit.unit_id, null)
 	ai_context.trace_enabled = true
+	facade._battle_runtime._bind_ai_helper_services_for_decision(wolf_unit, ai_context)
 	_assert_true(
 		ai_context.runtime_action_plan != null and ai_context.runtime_action_plan.has_state(wolf_unit.ai_state_id),
 		"正式狼巢 AI 接敌回归应使用 runtime-generated action plan，而不是 authored fallback。"
@@ -896,7 +795,7 @@ func _test_formal_wolf_den_battle_prefers_charge_over_wait_when_far() -> void:
 	)
 	_assert_eq(
 		String(decision.command.command_type if decision != null and decision.command != null else &""),
-		String(BATTLE_COMMAND_SCRIPT.TYPE_SKILL),
+		String(BattleCommand.TYPE_SKILL()),
 		"正式狼巢中的远距离荒狼应生成正式冲锋技能指令，而不是待机。"
 	)
 	_assert_eq(
@@ -931,7 +830,7 @@ func _test_game_runtime_facade_battle_requires_confirm_before_tu_advances() -> v
 
 	var encounter_anchor = _find_encounter_anchor_by_kind(
 		game_session.get_world_data(),
-		ENCOUNTER_ANCHOR_DATA_SCRIPT.ENCOUNTER_KIND_SINGLE
+		ENCOUNTER_ANCHOR_DATA_SCRIPT.ENCOUNTER_KIND_SINGLE()
 	)
 	_assert_true(encounter_anchor != null, "确认开战回归需要至少一个单体野怪遭遇。")
 	if encounter_anchor == null:
@@ -1028,7 +927,7 @@ func _test_game_runtime_facade_single_victory_removes_encounter() -> void:
 
 	var encounter_anchor = _find_encounter_anchor_by_kind(
 		game_session.get_world_data(),
-		ENCOUNTER_ANCHOR_DATA_SCRIPT.ENCOUNTER_KIND_SINGLE
+		ENCOUNTER_ANCHOR_DATA_SCRIPT.ENCOUNTER_KIND_SINGLE()
 	)
 	_assert_true(encounter_anchor != null, "测试世界应至少包含一个单体野怪遭遇。")
 	if encounter_anchor == null:
@@ -1061,7 +960,7 @@ func _test_game_runtime_facade_can_start_second_battle_after_first_victory() -> 
 
 	var first_anchor = _find_encounter_anchor_by_kind(
 		game_session.get_world_data(),
-		ENCOUNTER_ANCHOR_DATA_SCRIPT.ENCOUNTER_KIND_SINGLE
+		ENCOUNTER_ANCHOR_DATA_SCRIPT.ENCOUNTER_KIND_SINGLE()
 	)
 	_assert_true(first_anchor != null, "连续遭遇回归需要至少一个单体野怪遭遇作为首战。")
 	if first_anchor == null:
@@ -1098,7 +997,7 @@ func _test_game_runtime_facade_settlement_victory_downgrades_encounter() -> void
 
 	var encounter_anchor = _find_encounter_anchor_by_kind(
 		game_session.get_world_data(),
-		ENCOUNTER_ANCHOR_DATA_SCRIPT.ENCOUNTER_KIND_SETTLEMENT
+		ENCOUNTER_ANCHOR_DATA_SCRIPT.ENCOUNTER_KIND_SETTLEMENT()
 	)
 	_assert_true(encounter_anchor != null, "测试世界应至少包含一个聚落类野怪遭遇。")
 	if encounter_anchor == null:
@@ -1144,7 +1043,7 @@ func _test_game_runtime_facade_battle_overflow_feedback_surfaces_in_message_and_
 
 	var encounter_anchor = _find_encounter_anchor_by_kind(
 		game_session.get_world_data(),
-		ENCOUNTER_ANCHOR_DATA_SCRIPT.ENCOUNTER_KIND_SETTLEMENT
+		ENCOUNTER_ANCHOR_DATA_SCRIPT.ENCOUNTER_KIND_SETTLEMENT()
 	)
 	_assert_true(encounter_anchor != null, "battle overflow 反馈回归需要一个聚落类野怪遭遇。")
 	if encounter_anchor == null:
@@ -1226,7 +1125,7 @@ func _build_settlement_encounter_anchor(entity_id: StringName, coord: Vector2i):
 	encounter_anchor.enemy_roster_template_id = &"wolf_pack"
 	encounter_anchor.region_tag = &"north_wilds"
 	encounter_anchor.vision_range = 2
-	encounter_anchor.encounter_kind = ENCOUNTER_ANCHOR_DATA_SCRIPT.ENCOUNTER_KIND_SETTLEMENT
+	encounter_anchor.encounter_kind = ENCOUNTER_ANCHOR_DATA_SCRIPT.ENCOUNTER_KIND_SETTLEMENT()
 	encounter_anchor.encounter_profile_id = &"wolf_den"
 	encounter_anchor.growth_stage = 0
 	encounter_anchor.suppressed_until_step = 0
@@ -1289,8 +1188,8 @@ func _mark_active_battle_as_player_victory(facade) -> void:
 
 
 func _find_encounter_anchor_by_kind(world_data: Dictionary, encounter_kind: StringName):
-	for encounter_variant in world_data.get("encounter_anchors", []):
-		var encounter_anchor = encounter_variant as ENCOUNTER_ANCHOR_DATA_SCRIPT
+	for encounter_option in world_data.get("encounter_anchors", []):
+		var encounter_anchor = encounter_option as ENCOUNTER_ANCHOR_DATA_SCRIPT
 		if encounter_anchor == null:
 			continue
 		if encounter_anchor.encounter_kind == encounter_kind:
@@ -1299,8 +1198,8 @@ func _find_encounter_anchor_by_kind(world_data: Dictionary, encounter_kind: Stri
 
 
 func _find_encounter_anchor_by_id(world_data: Dictionary, encounter_id: StringName):
-	for encounter_variant in world_data.get("encounter_anchors", []):
-		var encounter_anchor = encounter_variant as ENCOUNTER_ANCHOR_DATA_SCRIPT
+	for encounter_option in world_data.get("encounter_anchors", []):
+		var encounter_anchor = encounter_option as ENCOUNTER_ANCHOR_DATA_SCRIPT
 		if encounter_anchor == null:
 			continue
 		if encounter_anchor.entity_id == encounter_id:
@@ -1309,8 +1208,8 @@ func _find_encounter_anchor_by_id(world_data: Dictionary, encounter_id: StringNa
 
 
 func _find_encounter_anchor_by_region_tag(world_data: Dictionary, region_tag: StringName):
-	for encounter_variant in world_data.get("encounter_anchors", []):
-		var encounter_anchor = encounter_variant as ENCOUNTER_ANCHOR_DATA_SCRIPT
+	for encounter_option in world_data.get("encounter_anchors", []):
+		var encounter_anchor = encounter_option as ENCOUNTER_ANCHOR_DATA_SCRIPT
 		if encounter_anchor == null:
 			continue
 		if encounter_anchor.region_tag == region_tag:
@@ -1319,8 +1218,8 @@ func _find_encounter_anchor_by_region_tag(world_data: Dictionary, region_tag: St
 
 
 func _find_first_other_encounter_anchor(world_data: Dictionary, excluded_encounter_id: StringName):
-	for encounter_variant in world_data.get("encounter_anchors", []):
-		var encounter_anchor = encounter_variant as ENCOUNTER_ANCHOR_DATA_SCRIPT
+	for encounter_option in world_data.get("encounter_anchors", []):
+		var encounter_anchor = encounter_option as ENCOUNTER_ANCHOR_DATA_SCRIPT
 		if encounter_anchor == null or encounter_anchor.entity_id == excluded_encounter_id:
 			continue
 		return encounter_anchor
@@ -1332,8 +1231,8 @@ func _force_party_storage_capacity(party_state, capacity: int) -> void:
 		return
 	var resolved_capacity := maxi(capacity, 0)
 	var first_member_assigned := false
-	for member_variant in party_state.member_states.values():
-		var member_state = member_variant
+	for member_option in party_state.member_states.values():
+		var member_state = member_option
 		if member_state == null or member_state.progression == null or member_state.progression.unit_base_attributes == null:
 			continue
 		member_state.progression.unit_base_attributes.custom_stats[&"storage_space"] = resolved_capacity if not first_member_assigned else 0
@@ -1346,7 +1245,7 @@ func _build_weapon_override_template(template_id: StringName, display_name: Stri
 	template.display_name = display_name
 	template.brain_id = &"melee_aggressor"
 	template.attack_equipment_item_id = &"watchman_mace"
-	for attribute_id in UNIT_BASE_ATTRIBUTES_SCRIPT.BASE_ATTRIBUTE_IDS:
+	for attribute_id in [&"strength", &"agility", &"constitution", &"perception", &"intelligence", &"willpower"]:
 		template.base_attribute_overrides[String(attribute_id)] = 8
 	template.attribute_overrides = {
 		"hp_max": 10,
@@ -1356,24 +1255,24 @@ func _build_weapon_override_template(template_id: StringName, display_name: Stri
 	return template
 
 
-func _build_drop_template(template_id: StringName, display_name: String, drop_entry_variants: Array):
+func _build_drop_template(template_id: StringName, display_name: String, drop_entry_options: Array):
 	var template = ENEMY_TEMPLATE_DEF_SCRIPT.new()
 	template.template_id = template_id
 	template.display_name = display_name
-	for drop_entry_variant in drop_entry_variants:
-		if drop_entry_variant is not Dictionary:
+	for drop_entry_option in drop_entry_options:
+		if drop_entry_option is not DropEntryDef:
 			continue
-		template.drop_entries.append((drop_entry_variant as Dictionary).duplicate(true))
+		template.drop_entries.append(drop_entry_option)
 	return template
 
 
-func _build_canonical_enemy_drop_entry(drop_entry_id: String, quantity: Variant = 1) -> Dictionary:
-	return {
-		"drop_entry_id": drop_entry_id,
-		"drop_type": "item",
-		"item_id": "beast_hide",
-		"quantity": quantity,
-	}
+func _build_canonical_enemy_drop_entry(drop_entry_id: String, quantity: int = 1) -> DropEntryDef:
+	var entry := DropEntryDef.new()
+	entry.drop_entry_id = StringName(drop_entry_id)
+	entry.drop_type = &"item"
+	entry.item_id = &"beast_hide"
+	entry.quantity = quantity
+	return entry
 
 
 func _build_formal_beast_hide_loot_entry(quantity: int) -> Dictionary:
@@ -1388,14 +1287,14 @@ func _build_formal_beast_hide_loot_entry(quantity: int) -> Dictionary:
 	}
 
 
-func _find_recent_log_entry(entries_variant, event_id: String) -> Dictionary:
-	if entries_variant is not Array:
+func _find_recent_log_entry(entries_option, event_id: String) -> Dictionary:
+	if entries_option is not Array:
 		return {}
-	for index in range(entries_variant.size() - 1, -1, -1):
-		var entry_variant = entries_variant[index]
-		if entry_variant is not Dictionary:
+	for index in range(entries_option.size() - 1, -1, -1):
+		var entry_option = entries_option[index]
+		if entry_option is not Dictionary:
 			continue
-		var entry: Dictionary = entry_variant
+		var entry: Dictionary = entry_option
 		if String(entry.get("event_id", "")) == event_id:
 			return entry
 	return {}
@@ -1403,8 +1302,8 @@ func _find_recent_log_entry(entries_variant, event_id: String) -> Dictionary:
 
 func _count_encounter_anchors(world_data: Dictionary) -> int:
 	var count := 0
-	for encounter_variant in world_data.get("encounter_anchors", []):
-		var encounter_anchor = encounter_variant as ENCOUNTER_ANCHOR_DATA_SCRIPT
+	for encounter_option in world_data.get("encounter_anchors", []):
+		var encounter_anchor = encounter_option as ENCOUNTER_ANCHOR_DATA_SCRIPT
 		if encounter_anchor != null:
 			count += 1
 	return count
@@ -1412,8 +1311,8 @@ func _count_encounter_anchors(world_data: Dictionary) -> int:
 
 func _count_units_with_name_prefix(units: Array, prefix: String) -> int:
 	var count := 0
-	for unit_variant in units:
-		var display_name := String(unit_variant.display_name if unit_variant != null else "")
+	for unit_option in units:
+		var display_name := String(unit_option.display_name if unit_option != null else "")
 		if display_name.begins_with(prefix):
 			count += 1
 	return count
@@ -1421,8 +1320,8 @@ func _count_units_with_name_prefix(units: Array, prefix: String) -> int:
 
 func _count_units_with_exact_name(units: Array, expected_name: String) -> int:
 	var count := 0
-	for unit_variant in units:
-		var display_name := String(unit_variant.display_name if unit_variant != null else "")
+	for unit_option in units:
+		var display_name := String(unit_option.display_name if unit_option != null else "")
 		if display_name == expected_name:
 			count += 1
 	return count
@@ -1430,30 +1329,30 @@ func _count_units_with_exact_name(units: Array, expected_name: String) -> int:
 
 func _count_units_with_brain(units: Array, brain_id: StringName) -> int:
 	var count := 0
-	for unit_variant in units:
-		if unit_variant == null:
+	for unit_option in units:
+		if unit_option == null:
 			continue
-		if unit_variant.ai_brain_id == brain_id:
+		if unit_option.ai_brain_id == brain_id:
 			count += 1
 	return count
 
 
 func _unit_has_skill(units: Array, display_name: String, skill_id: StringName) -> bool:
-	for unit_variant in units:
-		if unit_variant == null:
+	for unit_option in units:
+		if unit_option == null:
 			continue
-		if String(unit_variant.display_name) != display_name:
+		if String(unit_option.display_name) != display_name:
 			continue
-		return unit_variant.known_active_skill_ids.has(skill_id)
+		return unit_option.known_active_skill_ids.has(skill_id)
 	return false
 
 
 func _find_first_unit_with_brain(units: Array, brain_id: StringName):
-	for unit_variant in units:
-		if unit_variant == null:
+	for unit_option in units:
+		if unit_option == null:
 			continue
-		if unit_variant.ai_brain_id == brain_id:
-			return unit_variant
+		if unit_option.ai_brain_id == brain_id:
+			return unit_option
 	return null
 
 
@@ -1461,7 +1360,7 @@ func _assert_snapshot_has_all_base_attributes(unit_state, scope: String) -> void
 	if unit_state == null:
 		_test.fail("%s 应产出有效单位。" % scope)
 		return
-	for attribute_id in UNIT_BASE_ATTRIBUTES_SCRIPT.BASE_ATTRIBUTE_IDS:
+	for attribute_id in [&"strength", &"agility", &"constitution", &"perception", &"intelligence", &"willpower"]:
 		var value := int(unit_state.attribute_snapshot.get_value(attribute_id))
 		if value <= 0:
 			_test.fail("%s 缺失基础六维 %s。" % [scope, String(attribute_id)])
@@ -1482,8 +1381,8 @@ func _find_first_enemy_unit_with_brain(battle_state, brain_id: StringName):
 func _reduce_state_to_duel(grid_service, battle_state, enemy_unit, player_unit) -> void:
 	if grid_service == null or battle_state == null or enemy_unit == null or player_unit == null:
 		return
-	for unit_variant in battle_state.units.values():
-		var unit_state = unit_variant
+	for unit_option in battle_state.units.values():
+		var unit_state = unit_option
 		if unit_state == null:
 			continue
 		grid_service.clear_unit_occupancy(battle_state, unit_state)
@@ -1506,10 +1405,10 @@ func _find_far_gap_duel_coords(
 	if grid_service == null or battle_state == null or enemy_unit == null or player_unit == null:
 		return {}
 	var candidate_coords: Array[Vector2i] = []
-	for coord_variant in battle_state.cells.keys():
-		if coord_variant is not Vector2i:
+	for coord_option in battle_state.cells.keys():
+		if coord_option is not Vector2i:
 			continue
-		var coord: Vector2i = coord_variant
+		var coord: Vector2i = coord_option
 		if not grid_service.can_place_unit(battle_state, enemy_unit, coord, true):
 			continue
 		if not grid_service.can_place_unit(battle_state, player_unit, coord, true):
@@ -1529,6 +1428,8 @@ func _find_far_gap_duel_coords(
 				continue
 			if not _has_progress_step_toward_target(grid_service, battle_state, enemy_unit, enemy_coord, player_coord, distance):
 				continue
+			if not _has_charge_lane_toward_target(grid_service, battle_state, enemy_unit, enemy_coord, player_coord, 4):
+				continue
 			if distance <= best_distance:
 				continue
 			best_distance = distance
@@ -1537,6 +1438,39 @@ func _find_far_gap_duel_coords(
 				"player_coord": player_coord,
 			}
 	return best_pair
+
+
+func _has_charge_lane_toward_target(
+	grid_service,
+	battle_state,
+	enemy_unit,
+	enemy_coord: Vector2i,
+	player_coord: Vector2i,
+	minimum_charge_distance: int
+) -> bool:
+	if grid_service == null or battle_state == null or enemy_unit == null:
+		return false
+	var directions: Array[Vector2i] = []
+	if player_coord.x > enemy_coord.x:
+		directions.append(Vector2i.RIGHT)
+	elif player_coord.x < enemy_coord.x:
+		directions.append(Vector2i.LEFT)
+	if player_coord.y > enemy_coord.y:
+		directions.append(Vector2i.DOWN)
+	elif player_coord.y < enemy_coord.y:
+		directions.append(Vector2i.UP)
+	for direction in directions:
+		var current_coord := enemy_coord
+		var reachable_distance := 0
+		for _step in range(minimum_charge_distance):
+			var next_coord := current_coord + direction
+			if not grid_service.can_unit_step_between_anchors(battle_state, enemy_unit, current_coord, next_coord):
+				break
+			current_coord = next_coord
+			reachable_distance += 1
+		if reachable_distance >= minimum_charge_distance and grid_service.get_distance(current_coord, player_coord) < grid_service.get_distance(enemy_coord, player_coord):
+			return true
+	return false
 
 
 func _has_progress_step_toward_target(
@@ -1569,11 +1503,11 @@ func _has_unsupported_attribute_override_key(data: Dictionary, key: StringName) 
 func _expected_template_stamina_max(template) -> int:
 	if template == null:
 		return 0
-	var attributes: Dictionary = template.get_base_attribute_overrides()
+	var attributes: Dictionary = template.get_base_attribute_overrides_resolved()
 	return 24 \
-		+ 5 * int(attributes.get(UNIT_BASE_ATTRIBUTES_SCRIPT.CONSTITUTION, 0)) \
-		+ int(attributes.get(UNIT_BASE_ATTRIBUTES_SCRIPT.STRENGTH, 0)) \
-		+ int(attributes.get(UNIT_BASE_ATTRIBUTES_SCRIPT.AGILITY, 0))
+		+ 5 * int(attributes.get(&"constitution", 0)) \
+		+ int(attributes.get(&"strength", 0)) \
+		+ int(attributes.get(&"agility", 0))
 
 
 func _assert_true(condition: bool, message: String) -> void:

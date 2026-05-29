@@ -109,13 +109,15 @@ internal static class BattleTypedNames
     public static readonly StringName AreaPatternNarrowCone = "narrow_cone";
     public static readonly StringName AreaPatternFrontArc = "front_arc";
     public static readonly StringName EffectApplyStatus = "apply_status";
-    public static readonly StringName EffectBodySizeCategoryOverride = "body_size_category_override";
+    public static readonly StringName EffectBodySizeCategoryOverride =
+        "body_size_category_override";
     public static readonly StringName EffectChainDamage = "chain_damage";
     public static readonly StringName EffectCharge = "charge";
     public static readonly StringName EffectDamage = "damage";
     public static readonly StringName EffectDispelMagic = "dispel_magic";
     public static readonly StringName EffectEdgeClear = "edge_clear";
-    public static readonly StringName EffectEquipmentDurabilityDamage = "equipment_durability_damage";
+    public static readonly StringName EffectEquipmentDurabilityDamage =
+        "equipment_durability_damage";
     public static readonly StringName EffectExecute = "execute";
     public static readonly StringName EffectForcedMove = "forced_move";
     public static readonly StringName EffectHeal = "heal";
@@ -149,9 +151,12 @@ internal static class BattleTypedNames
 
     public static BattleAiActionKind ToAiActionKind(StringName value)
     {
-        if (value == ActionKindMove) return BattleAiActionKind.Move;
-        if (value == ActionKindSkill) return BattleAiActionKind.Skill;
-        if (value == ActionKindUnitSkill) return BattleAiActionKind.UnitSkill;
+        if (value == ActionKindMove)
+            return BattleAiActionKind.Move;
+        if (value == ActionKindSkill)
+            return BattleAiActionKind.Skill;
+        if (value == ActionKindUnitSkill)
+            return BattleAiActionKind.UnitSkill;
         return BattleAiActionKind.Unknown;
     }
 
@@ -168,38 +173,32 @@ internal static class BattleTypedNames
 
     public static BattleAreaPattern ToAreaPattern(StringName value)
     {
-        if (value == AreaPatternSingle) return BattleAreaPattern.Single;
-        if (value == AreaPatternSelf) return BattleAreaPattern.Self;
-        if (value == AreaPatternDiamond) return BattleAreaPattern.Diamond;
-        if (value == AreaPatternSquare) return BattleAreaPattern.Square;
-        if (value == AreaPatternRadius) return BattleAreaPattern.Radius;
-        if (value == AreaPatternCross) return BattleAreaPattern.Cross;
-        if (value == AreaPatternLine) return BattleAreaPattern.Line;
-        if (value == AreaPatternCone) return BattleAreaPattern.Cone;
-        if (value == AreaPatternNarrowCone) return BattleAreaPattern.NarrowCone;
-        if (value == AreaPatternFrontArc) return BattleAreaPattern.FrontArc;
+        if (value == AreaPatternSingle)
+            return BattleAreaPattern.Single;
+        if (value == AreaPatternSelf)
+            return BattleAreaPattern.Self;
+        if (value == AreaPatternDiamond)
+            return BattleAreaPattern.Diamond;
+        if (value == AreaPatternSquare)
+            return BattleAreaPattern.Square;
+        if (value == AreaPatternRadius)
+            return BattleAreaPattern.Radius;
+        if (value == AreaPatternCross)
+            return BattleAreaPattern.Cross;
+        if (value == AreaPatternLine)
+            return BattleAreaPattern.Line;
+        if (value == AreaPatternCone)
+            return BattleAreaPattern.Cone;
+        if (value == AreaPatternNarrowCone)
+            return BattleAreaPattern.NarrowCone;
+        if (value == AreaPatternFrontArc)
+            return BattleAreaPattern.FrontArc;
         return GdInterop.IsEmpty(value) ? BattleAreaPattern.Unknown : BattleAreaPattern.Other;
     }
 
     public static int GetAreaPatternDistanceContractBonus(BattleAreaPattern pattern, int areaValue)
     {
-        int radius = System.Math.Max(areaValue, 0);
-        if (radius <= 0)
-        {
-            return 0;
-        }
-        return pattern switch
-        {
-            BattleAreaPattern.Diamond => radius,
-            BattleAreaPattern.Square => radius,
-            BattleAreaPattern.Radius => radius,
-            BattleAreaPattern.Cross => radius,
-            BattleAreaPattern.Line => radius,
-            BattleAreaPattern.FrontArc => radius,
-            BattleAreaPattern.NarrowCone => radius,
-            BattleAreaPattern.Cone => radius,
-            _ => 0,
-        };
+        return GetAreaPatternThreatReachBonus(pattern, areaValue);
     }
 
     public static int GetAreaPatternThreatReachBonus(BattleAreaPattern pattern, int areaValue)
@@ -225,47 +224,78 @@ internal static class BattleTypedNames
 
     public static BattleEffectKind ToEffectKind(StringName value)
     {
-        if (value == EffectDamage) return BattleEffectKind.Damage;
-        if (value == EffectChainDamage) return BattleEffectKind.ChainDamage;
-        if (value == EffectCharge) return BattleEffectKind.Charge;
-        if (value == EffectForcedMove) return BattleEffectKind.ForcedMove;
-        if (value == EffectPathStepAoe) return BattleEffectKind.PathStepAoe;
-        if (value == EffectRepeatAttackUntilFail) return BattleEffectKind.RepeatAttackUntilFail;
-        if (value == EffectEquipmentDurabilityDamage) return BattleEffectKind.EquipmentDurabilityDamage;
-        if (value == EffectDispelMagic) return BattleEffectKind.DispelMagic;
-        if (value == EffectHeal) return BattleEffectKind.Heal;
-        if (value == EffectStaminaRestore) return BattleEffectKind.StaminaRestore;
-        if (value == EffectShield) return BattleEffectKind.Shield;
-        if (value == EffectLayeredBarrier) return BattleEffectKind.LayeredBarrier;
-        if (value == EffectOnKillGainResources) return BattleEffectKind.OnKillGainResources;
-        if (value == EffectStatus) return BattleEffectKind.Status;
-        if (value == EffectApplyStatus) return BattleEffectKind.ApplyStatus;
-        if (value == EffectBodySizeCategoryOverride) return BattleEffectKind.BodySizeCategoryOverride;
-        if (value == EffectExecute) return BattleEffectKind.Execute;
-        if (value == EffectTerrain) return BattleEffectKind.Terrain;
-        if (value == EffectTerrainReplace) return BattleEffectKind.TerrainReplace;
-        if (value == EffectTerrainReplaceTo) return BattleEffectKind.TerrainReplaceTo;
-        if (value == EffectHeight) return BattleEffectKind.Height;
-        if (value == EffectHeightDelta) return BattleEffectKind.HeightDelta;
-        if (value == EffectTerrainEffect) return BattleEffectKind.TerrainEffect;
-        if (value == EffectEdgeClear) return BattleEffectKind.EdgeClear;
+        if (value == EffectDamage)
+            return BattleEffectKind.Damage;
+        if (value == EffectChainDamage)
+            return BattleEffectKind.ChainDamage;
+        if (value == EffectCharge)
+            return BattleEffectKind.Charge;
+        if (value == EffectForcedMove)
+            return BattleEffectKind.ForcedMove;
+        if (value == EffectPathStepAoe)
+            return BattleEffectKind.PathStepAoe;
+        if (value == EffectRepeatAttackUntilFail)
+            return BattleEffectKind.RepeatAttackUntilFail;
+        if (value == EffectEquipmentDurabilityDamage)
+            return BattleEffectKind.EquipmentDurabilityDamage;
+        if (value == EffectDispelMagic)
+            return BattleEffectKind.DispelMagic;
+        if (value == EffectHeal)
+            return BattleEffectKind.Heal;
+        if (value == EffectStaminaRestore)
+            return BattleEffectKind.StaminaRestore;
+        if (value == EffectShield)
+            return BattleEffectKind.Shield;
+        if (value == EffectLayeredBarrier)
+            return BattleEffectKind.LayeredBarrier;
+        if (value == EffectOnKillGainResources)
+            return BattleEffectKind.OnKillGainResources;
+        if (value == EffectStatus)
+            return BattleEffectKind.Status;
+        if (value == EffectApplyStatus)
+            return BattleEffectKind.ApplyStatus;
+        if (value == EffectBodySizeCategoryOverride)
+            return BattleEffectKind.BodySizeCategoryOverride;
+        if (value == EffectExecute)
+            return BattleEffectKind.Execute;
+        if (value == EffectTerrain)
+            return BattleEffectKind.Terrain;
+        if (value == EffectTerrainReplace)
+            return BattleEffectKind.TerrainReplace;
+        if (value == EffectTerrainReplaceTo)
+            return BattleEffectKind.TerrainReplaceTo;
+        if (value == EffectHeight)
+            return BattleEffectKind.Height;
+        if (value == EffectHeightDelta)
+            return BattleEffectKind.HeightDelta;
+        if (value == EffectTerrainEffect)
+            return BattleEffectKind.TerrainEffect;
+        if (value == EffectEdgeClear)
+            return BattleEffectKind.EdgeClear;
         return BattleEffectKind.Unknown;
     }
 
     public static BattleForcedMoveMode ToForcedMoveMode(StringName value)
     {
-        if (value == ForcedMoveJump) return BattleForcedMoveMode.Jump;
-        if (value == ForcedMoveBlink) return BattleForcedMoveMode.Blink;
+        if (value == ForcedMoveJump)
+            return BattleForcedMoveMode.Jump;
+        if (value == ForcedMoveBlink)
+            return BattleForcedMoveMode.Blink;
         return BattleForcedMoveMode.Unknown;
     }
 
     public static BattlePositionObjectiveKind ToPositionObjectiveKind(StringName value)
     {
-        if (value == PositionNone) return BattlePositionObjectiveKind.None;
-        if (value == PositionCastDistance) return BattlePositionObjectiveKind.CastDistance;
-        if (value == PositionDistanceBand) return BattlePositionObjectiveKind.DistanceBand;
-        if (value == PositionDistanceBandProgress) return BattlePositionObjectiveKind.DistanceBandProgress;
-        if (value == PositionDistanceFloor) return BattlePositionObjectiveKind.DistanceFloor;
+        if (value == PositionNone)
+            return BattlePositionObjectiveKind.None;
+        if (value == PositionCastDistance)
+            return BattlePositionObjectiveKind.CastDistance;
+        if (value == PositionDistanceBand)
+            return BattlePositionObjectiveKind.DistanceBand;
+        if (value == PositionDistanceBandProgress)
+            return BattlePositionObjectiveKind.DistanceBandProgress;
+        if (value == PositionDistanceFloor)
+            return BattlePositionObjectiveKind.DistanceFloor;
         return BattlePositionObjectiveKind.Unknown;
     }
 
@@ -284,10 +314,14 @@ internal static class BattleTypedNames
 
     public static BattleTargetFilter ToTargetFilter(StringName value)
     {
-        if (value == TargetFilterAny) return BattleTargetFilter.Any;
-        if (value == TargetFilterSelf) return BattleTargetFilter.Self;
-        if (value == TargetFilterAlly) return BattleTargetFilter.Ally;
-        if (value == TargetFilterEnemy) return BattleTargetFilter.Enemy;
+        if (value == TargetFilterAny)
+            return BattleTargetFilter.Any;
+        if (value == TargetFilterSelf)
+            return BattleTargetFilter.Self;
+        if (value == TargetFilterAlly)
+            return BattleTargetFilter.Ally;
+        if (value == TargetFilterEnemy)
+            return BattleTargetFilter.Enemy;
         return BattleTargetFilter.Unknown;
     }
 
@@ -305,8 +339,10 @@ internal static class BattleTypedNames
 
     public static BattleTargetMode ToTargetMode(StringName value)
     {
-        if (value == TargetModeUnit) return BattleTargetMode.Unit;
-        if (value == TargetModeGround) return BattleTargetMode.Ground;
+        if (value == TargetModeUnit)
+            return BattleTargetMode.Unit;
+        if (value == TargetModeGround)
+            return BattleTargetMode.Ground;
         return BattleTargetMode.Unknown;
     }
 
@@ -322,46 +358,50 @@ internal static class BattleTypedNames
 
     public static BattleTargetSelectionMode ToTargetSelectionMode(StringName value)
     {
-        if (value == TargetSelectionRandomChain) return BattleTargetSelectionMode.RandomChain;
+        if (value == TargetSelectionRandomChain)
+            return BattleTargetSelectionMode.RandomChain;
         return BattleTargetSelectionMode.Unknown;
     }
 
     public static bool IsAiOffensiveEffect(BattleEffectKind kind)
     {
-        return kind is BattleEffectKind.Damage
-            or BattleEffectKind.ChainDamage
-            or BattleEffectKind.Charge
-            or BattleEffectKind.ForcedMove
-            or BattleEffectKind.PathStepAoe
-            or BattleEffectKind.Status;
+        return kind
+            is BattleEffectKind.Damage
+                or BattleEffectKind.ChainDamage
+                or BattleEffectKind.Charge
+                or BattleEffectKind.ForcedMove
+                or BattleEffectKind.PathStepAoe
+                or BattleEffectKind.Status;
     }
 
     public static bool IsGroundPayloadEffect(BattleEffectKind kind)
     {
-        return kind is BattleEffectKind.Terrain
-            or BattleEffectKind.TerrainReplace
-            or BattleEffectKind.TerrainReplaceTo
-            or BattleEffectKind.Height
-            or BattleEffectKind.HeightDelta
-            or BattleEffectKind.TerrainEffect
-            or BattleEffectKind.EdgeClear;
+        return kind
+            is BattleEffectKind.Terrain
+                or BattleEffectKind.TerrainReplace
+                or BattleEffectKind.TerrainReplaceTo
+                or BattleEffectKind.Height
+                or BattleEffectKind.HeightDelta
+                or BattleEffectKind.TerrainEffect
+                or BattleEffectKind.EdgeClear;
     }
 
     public static bool IsUnitPayloadEffect(BattleEffectKind kind)
     {
-        return kind is BattleEffectKind.Damage
-            or BattleEffectKind.ChainDamage
-            or BattleEffectKind.EquipmentDurabilityDamage
-            or BattleEffectKind.DispelMagic
-            or BattleEffectKind.Heal
-            or BattleEffectKind.StaminaRestore
-            or BattleEffectKind.Shield
-            or BattleEffectKind.LayeredBarrier
-            or BattleEffectKind.OnKillGainResources
-            or BattleEffectKind.Status
-            or BattleEffectKind.ApplyStatus
-            or BattleEffectKind.BodySizeCategoryOverride
-            or BattleEffectKind.ForcedMove
-            or BattleEffectKind.Execute;
+        return kind
+            is BattleEffectKind.Damage
+                or BattleEffectKind.ChainDamage
+                or BattleEffectKind.EquipmentDurabilityDamage
+                or BattleEffectKind.DispelMagic
+                or BattleEffectKind.Heal
+                or BattleEffectKind.StaminaRestore
+                or BattleEffectKind.Shield
+                or BattleEffectKind.LayeredBarrier
+                or BattleEffectKind.OnKillGainResources
+                or BattleEffectKind.Status
+                or BattleEffectKind.ApplyStatus
+                or BattleEffectKind.BodySizeCategoryOverride
+                or BattleEffectKind.ForcedMove
+                or BattleEffectKind.Execute;
     }
 }

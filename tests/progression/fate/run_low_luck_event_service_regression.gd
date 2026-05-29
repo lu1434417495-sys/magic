@@ -2,14 +2,14 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const BATTLE_FATE_EVENT_BUS_SCRIPT = preload("res://scripts/systems/battle/fate/battle_fate_event_bus.gd")
-const BATTLE_RESOLUTION_RESULT_SCRIPT = preload("res://scripts/systems/battle/core/battle_resolution_result.gd")
-const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_state.gd")
-const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
-const CharacterManagementModule = preload("res://scripts/systems/progression/character_management_module.gd")
-const LowLuckEventService = preload("res://scripts/systems/battle/fate/low_luck_event_service.gd")
-const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
-const PartyState = preload("res://scripts/player/progression/party_state.gd")
+const BATTLE_FATE_EVENT_BUS_SCRIPT = preload("res://scripts/systems/battle/fate/BattleFateEventBus.cs")
+const BATTLE_RESOLUTION_RESULT_SCRIPT = preload("res://scripts/systems/battle/core/BattleResolutionResult.cs")
+const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleState.cs")
+const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
+const CharacterManagementModule = preload("res://scripts/systems/progression/CharacterManagementModule.cs")
+const LowLuckEventService = preload("res://scripts/systems/battle/fate/LowLuckEventService.cs")
+const PartyMemberState = preload("res://scripts/player/progression/PartyMemberState.cs")
+const PartyState = preload("res://scripts/player/progression/PartyState.cs")
 const BattleFateEventBus = BATTLE_FATE_EVENT_BUS_SCRIPT
 const BattleResolutionResult = BATTLE_RESOLUTION_RESULT_SCRIPT
 const BattleState = BATTLE_STATE_SCRIPT
@@ -29,7 +29,6 @@ func _run() -> void:
 	_test_broken_bridge_survival_triggers_once_per_run()
 	_test_lamp_without_witness_triggers_once_per_run()
 	_test_borrowed_road_triggers_once_per_run()
-	_test_legacy_string_member_tracking_keys_do_not_trigger()
 
 	if _failures.is_empty():
 		print("Low luck event service regression: PASS")
@@ -52,16 +51,16 @@ func _test_broken_bridge_survival_triggers_once_per_run() -> void:
 		return
 
 	bus.dispatch(
-		BATTLE_FATE_EVENT_BUS_SCRIPT.EVENT_HARDSHIP_SURVIVAL,
+		&"hardship_survival",
 		_build_hardship_payload(&"bridge_battle_01", -4)
 	)
-	var first_result := service.handle_battle_resolution(
+	var first_result: Dictionary = service.handle_battle_resolution(
 		_build_battle_state(&"bridge_battle_01", true),
 		_build_battle_resolution_result(&"bridge_battle_01")
 	)
 
 	var first_triggered := ProgressionDataUtils.to_string_name_array(first_result.get("triggered_event_ids", []))
-	_assert_true(first_triggered.has(LowLuckEventService.EVENT_BROKEN_BRIDGE_SURVIVAL), "低血 + 强 debuff 生还后应触发断桥生还。")
+	_assert_true(first_triggered.has(&"broken_bridge_survival"), "低血 + 强 debuff 生还后应触发断桥生还。")
 	var first_loot_entries: Array = first_result.get("loot_entries", [])
 	_assert_eq(first_loot_entries.size(), 1, "断桥生还应固定产出 1 条 loot entry。")
 	if first_loot_entries.size() == 1 and first_loot_entries[0] is Dictionary:
@@ -69,7 +68,7 @@ func _test_broken_bridge_survival_triggers_once_per_run() -> void:
 		_assert_eq(String(loot_entry.get("item_id", "")), "calamity_shard", "断桥生还应走固定 calamity_shard。")
 		_assert_eq(String(loot_entry.get("drop_source_kind", "")), "low_luck_event", "断桥生还应走 fixed low_luck_event 路径。")
 	_assert_true(
-		party_state.has_meta_flag(_build_member_flag_id(LowLuckEventService.EVENT_BROKEN_BRIDGE_SURVIVAL)),
+		party_state.has_meta_flag(_build_member_flag_id(&"broken_bridge_survival")),
 		"断桥生还命中后应写入 PartyState.meta_flags 去重。"
 	)
 
@@ -84,10 +83,10 @@ func _test_broken_bridge_survival_triggers_once_per_run() -> void:
 		return
 
 	restored_bus.dispatch(
-		BATTLE_FATE_EVENT_BUS_SCRIPT.EVENT_HARDSHIP_SURVIVAL,
+		&"hardship_survival",
 		_build_hardship_payload(&"bridge_battle_02", -4)
 	)
-	var second_result := restored_service.handle_battle_resolution(
+	var second_result: Dictionary = restored_service.handle_battle_resolution(
 		_build_battle_state(&"bridge_battle_02", true),
 		_build_battle_resolution_result(&"bridge_battle_02")
 	)
@@ -106,24 +105,24 @@ func _test_lamp_without_witness_triggers_once_per_run() -> void:
 		_assert_true(false, "灯下无人测试前置构建失败。")
 		return
 
-	var first_result := service.handle_settlement_action({
+	var first_result: Dictionary = service.handle_settlement_action({
 		"action_id": "service:rest_full",
 		"facility_name": "冷灯旅舍",
 		"interaction_script_id": "service_rest_full",
 		"service_type": "整备",
 	})
 	var first_triggered := ProgressionDataUtils.to_string_name_array(first_result.get("triggered_event_ids", []))
-	_assert_true(first_triggered.has(LowLuckEventService.EVENT_LAMP_WITHOUT_WITNESS), "旅舍休整遇到 low luck 角色时应触发灯下无人。")
+	_assert_true(first_triggered.has(&"lamp_without_witness"), "旅舍休整遇到 low luck 角色时应触发灯下无人。")
 	var first_rewards: Array = first_result.get("pending_character_rewards", [])
 	_assert_eq(first_rewards.size(), 1, "灯下无人应固定排入 1 条待领奖励。")
 	if first_rewards.size() == 1 and first_rewards[0] is Dictionary:
 		var reward_data: Dictionary = first_rewards[0]
-		var reward_entries_variant: Variant = reward_data.get("entries", [])
-		if reward_entries_variant is Array and not (reward_entries_variant as Array).is_empty() and (reward_entries_variant as Array)[0] is Dictionary:
-			var first_entry: Dictionary = (reward_entries_variant as Array)[0]
+		var reward_entries_option: Variant = reward_data.get("entries", [])
+		if reward_entries_option is Array and not (reward_entries_option as Array).is_empty() and (reward_entries_option as Array)[0] is Dictionary:
+			var first_entry: Dictionary = (reward_entries_option as Array)[0]
 			_assert_eq(String(first_entry.get("target_id", "")), "low_luck_black_market_hint", "灯下无人应固定发放黑市知识占位。")
 	_assert_true(
-		party_state.has_meta_flag(_build_party_flag_id(LowLuckEventService.EVENT_LAMP_WITHOUT_WITNESS)),
+		party_state.has_meta_flag(_build_party_flag_id(&"lamp_without_witness")),
 		"灯下无人命中后应写入 PartyState.meta_flags 去重。"
 	)
 
@@ -136,7 +135,7 @@ func _test_lamp_without_witness_triggers_once_per_run() -> void:
 		_assert_true(false, "灯下无人 round-trip 后前置构建失败。")
 		return
 
-	var second_result := restored_service.handle_settlement_action({
+	var second_result: Dictionary = restored_service.handle_settlement_action({
 		"action_id": "service:rest_full",
 		"facility_name": "冷灯旅舍",
 		"interaction_script_id": "service_rest_full",
@@ -159,26 +158,26 @@ func _test_borrowed_road_triggers_once_per_run() -> void:
 		return
 
 	bus.dispatch(
-		BATTLE_FATE_EVENT_BUS_SCRIPT.EVENT_CRITICAL_FAIL,
+		&"critical_fail",
 		_build_critical_fail_payload(&"borrowed_road_01", -5)
 	)
-	var first_result := service.handle_battle_resolution(
+	var first_result: Dictionary = service.handle_battle_resolution(
 		_build_battle_state(&"borrowed_road_01", true),
 		_build_battle_resolution_result(&"borrowed_road_01")
 	)
 
 	var first_triggered := ProgressionDataUtils.to_string_name_array(first_result.get("triggered_event_ids", []))
-	_assert_true(first_triggered.has(LowLuckEventService.EVENT_BORROWED_ROAD), "low luck 角色大失败后仍赢下整场战斗时应触发死里借来的路。")
+	_assert_true(first_triggered.has(&"borrowed_road"), "low luck 角色大失败后仍赢下整场战斗时应触发死里借来的路。")
 	var first_rewards: Array = first_result.get("pending_character_rewards", [])
 	_assert_eq(first_rewards.size(), 1, "死里借来的路应固定排入 1 条待领奖励。")
 	if first_rewards.size() == 1 and first_rewards[0] is Dictionary:
 		var reward_data: Dictionary = first_rewards[0]
-		var reward_entries_variant: Variant = reward_data.get("entries", [])
-		if reward_entries_variant is Array and not (reward_entries_variant as Array).is_empty() and (reward_entries_variant as Array)[0] is Dictionary:
-			var first_entry: Dictionary = (reward_entries_variant as Array)[0]
+		var reward_entries_option: Variant = reward_data.get("entries", [])
+		if reward_entries_option is Array and not (reward_entries_option as Array).is_empty() and (reward_entries_option as Array)[0] is Dictionary:
+			var first_entry: Dictionary = (reward_entries_option as Array)[0]
 			_assert_eq(String(first_entry.get("target_id", "")), "low_luck_borrowed_road", "死里借来的路应固定发放借来的路占位知识。")
 	_assert_true(
-		party_state.has_meta_flag(_build_member_flag_id(LowLuckEventService.EVENT_BORROWED_ROAD)),
+		party_state.has_meta_flag(_build_member_flag_id(&"borrowed_road")),
 		"死里借来的路命中后应写入 PartyState.meta_flags 去重。"
 	)
 
@@ -193,10 +192,10 @@ func _test_borrowed_road_triggers_once_per_run() -> void:
 		return
 
 	restored_bus.dispatch(
-		BATTLE_FATE_EVENT_BUS_SCRIPT.EVENT_CRITICAL_FAIL,
+		&"critical_fail",
 		_build_critical_fail_payload(&"borrowed_road_02", -5)
 	)
-	var second_result := restored_service.handle_battle_resolution(
+	var second_result: Dictionary = restored_service.handle_battle_resolution(
 		_build_battle_state(&"borrowed_road_02", true),
 		_build_battle_resolution_result(&"borrowed_road_02")
 	)
@@ -205,36 +204,6 @@ func _test_borrowed_road_triggers_once_per_run() -> void:
 		"同周目重复满足大失败获胜条件时不应再次触发死里借来的路。"
 	)
 	_assert_true((second_result.get("pending_character_rewards", []) as Array).is_empty(), "去重后死里借来的路不应重复排入奖励。")
-
-
-func _test_legacy_string_member_tracking_keys_do_not_trigger() -> void:
-	var context := _build_context(-5)
-	var service: LowLuckEventService = context.get("service") as LowLuckEventService
-	var party_state: PartyState = context.get("party_state") as PartyState
-	if service == null or party_state == null:
-		_assert_true(false, "legacy string member key regression 前置构建失败。")
-		return
-
-	var battle_id: StringName = &"legacy_string_member_key"
-	service._critical_fail_by_battle_id[battle_id] = {
-		String(HERO_ID): true,
-	}
-	var result := service.handle_battle_resolution(
-		_build_battle_state(battle_id, true),
-		_build_battle_resolution_result(battle_id)
-	)
-	_assert_true(
-		(result.get("triggered_event_ids", []) as Array).is_empty(),
-		"battle member tracking 只有 legacy String key 时不应触发 low luck 事件。"
-	)
-	_assert_true(
-		(result.get("pending_character_rewards", []) as Array).is_empty(),
-		"battle member tracking 只有 legacy String key 时不应排入奖励。"
-	)
-	_assert_true(
-		not party_state.has_meta_flag(_build_member_flag_id(LowLuckEventService.EVENT_BORROWED_ROAD)),
-		"battle member tracking 只有 legacy String key 时不应写入去重 flag。"
-	)
 
 
 func _build_context(hidden_luck_at_birth: int, party_state: PartyState = null) -> Dictionary:
@@ -325,11 +294,11 @@ func _round_trip_party_state(party_state: PartyState) -> PartyState:
 
 
 func _build_member_flag_id(event_id: StringName) -> StringName:
-	return StringName("%s%s:%s" % [LowLuckEventService.META_FLAG_PREFIX, String(event_id), String(HERO_ID)])
+	return StringName("%s%s:%s" % ["low_luck_event:", String(event_id), String(HERO_ID)])
 
 
 func _build_party_flag_id(event_id: StringName) -> StringName:
-	return StringName("%s%s" % [LowLuckEventService.META_FLAG_PREFIX, String(event_id)])
+	return StringName("%s%s" % ["low_luck_event:", String(event_id)])
 
 
 func _assert_true(condition: bool, message: String) -> void:

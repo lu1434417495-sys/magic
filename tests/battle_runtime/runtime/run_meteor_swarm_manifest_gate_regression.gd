@@ -1,15 +1,14 @@
 extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
-const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
-const BattleSpecialProfileRegistry = preload("res://scripts/systems/battle/core/special_profiles/battle_special_profile_registry.gd")
-const BattleSpecialProfileManifest = preload("res://scripts/systems/battle/core/special_profiles/battle_special_profile_manifest.gd")
-const BattleSpecialProfileManifestValidator = preload("res://scripts/systems/battle/core/special_profiles/battle_special_profile_manifest_validator.gd")
-const BattleSpecialProfileGate = preload("res://scripts/systems/battle/runtime/battle_special_profile_gate.gd")
-const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
-const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
-const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
-const MeteorSwarmProfile = preload("res://scripts/systems/battle/core/meteor_swarm/meteor_swarm_profile.gd")
+const ProgressionContentRegistry = preload("res://scripts/player/progression/ProgressionContentRegistry.cs")
+const BattleSpecialProfileRegistry = preload("res://scripts/systems/battle/core/special_profiles/BattleSpecialProfileRegistry.cs")
+const BattleSpecialProfileManifest = preload("res://scripts/systems/battle/core/special_profiles/BattleSpecialProfileManifest.cs")
+const BattleSpecialProfileManifestValidator = preload("res://scripts/systems/battle/core/special_profiles/BattleSpecialProfileManifestValidator.cs")
+const BattleSpecialProfileGate = preload("res://scripts/systems/battle/runtime/BattleSpecialProfileGate.cs")
+const BattleState = preload("res://scripts/systems/battle/core/BattleState.cs")
+const BattleUnitState = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
+const MeteorSwarmProfile = preload("res://scripts/systems/battle/core/meteor_swarm/MeteorSwarmProfile.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -101,7 +100,7 @@ func _test_manifest_validator_rejects_non_default_required_tests(skill_defs: Dic
 		"docs/discussions/meteor_swarm_impact_analysis.md",
 	]
 	var validator := BattleSpecialProfileManifestValidator.new()
-	var errors := validator.validate_manifest(manifest, skill_defs)
+	var errors := validator.validate_manifest(manifest, skill_defs, "")
 	_assert_true(
 		errors.any(func(error): return String(error).contains("default regression suite member")),
 		"manifest validator 应拒绝 simulation/docs 等非默认回归入口：%s" % str(errors)

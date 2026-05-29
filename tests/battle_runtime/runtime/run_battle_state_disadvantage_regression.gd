@@ -2,10 +2,10 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
-const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
-const BattleStatusEffectState = preload("res://scripts/systems/battle/core/battle_status_effect_state.gd")
-const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/AttributeService.cs")
+const BattleState = preload("res://scripts/systems/battle/core/BattleState.cs")
+const BattleStatusEffectState = preload("res://scripts/systems/battle/core/BattleStatusEffectState.cs")
+const BattleUnitState = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -117,7 +117,7 @@ func _test_attack_disadvantage_does_not_trigger_on_bad_tactical_choice() -> void
 	var state := BattleState.new()
 	var attacker := _build_unit(&"bad_choice_attacker", &"player", Vector2i(1, 1))
 	var defender := _build_unit(&"bad_choice_defender", &"enemy", Vector2i(3, 1))
-	defender.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 100)
+	defender.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 100)
 	_set_status(defender, &"dodge_bonus_up", 15)
 
 	_add_units(state, [attacker, defender])
@@ -173,7 +173,7 @@ func _build_unit(
 	unit.current_aura = 2
 	unit.is_alive = true
 	unit.set_anchor_coord(coord)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX, max_hp)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX_ID(), max_hp)
 	return unit
 
 

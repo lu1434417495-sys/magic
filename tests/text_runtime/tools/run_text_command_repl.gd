@@ -4,7 +4,7 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const GAME_TEXT_COMMAND_RUNNER_SCRIPT = preload("res://scripts/systems/game_runtime/headless/game_text_command_runner.gd")
+const GAME_TEXT_COMMAND_RUNNER_SCRIPT = preload("res://scripts/systems/game_runtime/headless/GameTextCommandRunner.cs")
 
 
 func _initialize() -> void:
@@ -31,4 +31,4 @@ func _run() -> void:
 		var result = await runner.execute_line(command_text)
 		if result.skipped:
 			continue
-		print(result.render())
+		print(result.Render())

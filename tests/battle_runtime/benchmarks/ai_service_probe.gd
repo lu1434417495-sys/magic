@@ -1,6 +1,6 @@
-extends "res://scripts/systems/battle/ai/battle_ai_service.gd"
+extends "res://scripts/systems/battle/ai/BattleAiService.cs"
 
-const AiTraceRecorderScript = preload("res://scripts/dev_tools/ai_trace_recorder.gd")
+const AiTraceRecorderScript = preload("res://scripts/dev_tools/AiTraceRecorder.cs")
 
 var stats_choose: Dictionary = _new_stats()
 var stats_skill_input: Dictionary = _new_stats()

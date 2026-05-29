@@ -11,9 +11,12 @@ public partial class BattleAiDecision : RefCounted
     public string reason_text { get; set; } = "";
     public StringName score_bucket_id { get; set; } = "";
     public StringName action_trace_id { get; set; } = "";
-    public GodotObject skill_score_input { get; set; }
-    public GodotObject score_input { get; set; }
+    public BattleAiScoreInput skill_score_input { get; set; }
+    public BattleAiScoreInput score_input { get; set; }
     public GDictionary transition { get; set; } = new();
     public GDictionary trace_counters { get; set; } = new();
     public GDictionary state_patch { get; set; } = new();
+
+    internal BattleAiStateResolver.TransitionResult TypedTransition { get; set; }
+    internal BattleAiDecisionCommitter.DecisionStatePatch TypedStatePatch { get; set; }
 }

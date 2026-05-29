@@ -21,7 +21,8 @@ public partial class BattleMagicBacklashResolver : RefCounted
         int skill_level,
         int spent_mp,
         GDictionary control_metadata,
-        BattleEventBatch batch = null)
+        BattleEventBatch batch = null
+    )
     {
         GDictionary result = new()
         {
@@ -34,12 +35,20 @@ public partial class BattleMagicBacklashResolver : RefCounted
         };
 
         CombatSkillDef combatProfile = GetCombatProfile(skill_def);
-        if (source_unit == null || combatProfile == null || control_metadata == null || control_metadata.Count == 0)
+        if (
+            source_unit == null
+            || combatProfile == null
+            || control_metadata == null
+            || control_metadata.Count == 0
+        )
             return result;
 
         if (GdInterop.GetBool(control_metadata, "reverse_fate_downgraded"))
         {
-            AppendLog(batch, $"{UnitLabel(source_unit)} 的逆命护符压住了失控征兆，法术仍按原轨迹释放。");
+            AppendLog(
+                batch,
+                $"{UnitLabel(source_unit)} 的逆命护符压住了失控征兆，法术仍按原轨迹释放。"
+            );
             return result;
         }
 
@@ -48,7 +57,10 @@ public partial class BattleMagicBacklashResolver : RefCounted
             int refund = ApplySpellCriticalBonus(source_unit, skill_def, spent_mp);
             result["mp_refund"] = refund;
             if (refund > 0)
-                AppendLog(batch, $"{UnitLabel(source_unit)} 的魔力回路大成功，返还 {refund} 点法力。");
+                AppendLog(
+                    batch,
+                    $"{UnitLabel(source_unit)} 的魔力回路大成功，返还 {refund} 点法力。"
+                );
             return result;
         }
 
@@ -66,7 +78,8 @@ public partial class BattleMagicBacklashResolver : RefCounted
             result["extra_mp_drained"] = drained;
             AppendLog(
                 batch,
-                $"{UnitLabel(source_unit)} 压制了魔力大失败，本场 {SkillLabel(skill_def)} 保护次数 {protectionUsed + 1}/{protectionLimit}，额外吞噬 {drained} 点法力。");
+                $"{UnitLabel(source_unit)} 压制了魔力大失败，本场 {SkillLabel(skill_def)} 保护次数 {protectionUsed + 1}/{protectionLimit}，额外吞噬 {drained} 点法力。"
+            );
             return result;
         }
 
@@ -79,8 +92,9 @@ public partial class BattleMagicBacklashResolver : RefCounted
         SkillDef skill_def,
         Godot.Collections.Array<Vector2I> target_coords,
         BattleState state,
-        GodotObject grid_service,
-        GDictionary control_context)
+        BattleGridService grid_service,
+        GDictionary control_context
+    )
     {
         Godot.Collections.Array<Vector2I> safeTargetCoords = DuplicateCoords(target_coords);
         GDictionary result = new()
@@ -116,7 +130,12 @@ public partial class BattleMagicBacklashResolver : RefCounted
             return result;
         }
 
-        List<Vector2I> candidates = CollectGroundAnchorDriftCandidates(state, grid_service, originalCoord, radius);
+        List<Vector2I> candidates = CollectGroundAnchorDriftCandidates(
+            state,
+            grid_service,
+            originalCoord,
+            radius
+        );
         if (candidates.Count == 0)
         {
             result["resolved_target_coord"] = originalCoord;
@@ -136,25 +155,45 @@ public partial class BattleMagicBacklashResolver : RefCounted
         BattleUnitState source_unit,
         SkillDef skill_def,
         GDictionary drift_context,
-        BattleEventBatch batch)
+        BattleEventBatch batch
+    )
     {
         if (batch == null || !GdInterop.GetBool(drift_context, "backlash_triggered"))
             return;
 
-        Vector2I originalCoord = GdInterop.GetVector2I(drift_context, "original_target_coord", new Vector2I(-1, -1));
-        Vector2I resolvedCoord = GdInterop.GetVector2I(drift_context, "resolved_target_coord", originalCoord);
-        if (GdInterop.GetBool(drift_context, "backlash_offset_fallback") || originalCoord == resolvedCoord)
+        Vector2I originalCoord = GdInterop.GetVector2I(
+            drift_context,
+            "original_target_coord",
+            new Vector2I(-1, -1)
+        );
+        Vector2I resolvedCoord = GdInterop.GetVector2I(
+            drift_context,
+            "resolved_target_coord",
+            originalCoord
+        );
+        if (
+            GdInterop.GetBool(drift_context, "backlash_offset_fallback")
+            || originalCoord == resolvedCoord
+        )
         {
-            AppendLog(batch, $"{UnitLabel(source_unit)} 的 {SkillLabel(skill_def)} 未找到可偏移落点，失控魔力仍在原地爆发。");
+            AppendLog(
+                batch,
+                $"{UnitLabel(source_unit)} 的 {SkillLabel(skill_def)} 未找到可偏移落点，失控魔力仍在原地爆发。"
+            );
             return;
         }
 
         AppendLog(
             batch,
-            $"{UnitLabel(source_unit)} 的 {SkillLabel(skill_def)} 从 ({originalCoord.X}, {originalCoord.Y}) 偏移到 ({resolvedCoord.X}, {resolvedCoord.Y})。");
+            $"{UnitLabel(source_unit)} 的 {SkillLabel(skill_def)} 从 ({originalCoord.X}, {originalCoord.Y}) 偏移到 ({resolvedCoord.X}, {resolvedCoord.Y})。"
+        );
     }
 
-    private static int ApplySpellCriticalBonus(BattleUnitState sourceUnit, SkillDef skillDef, int spentMp)
+    private static int ApplySpellCriticalBonus(
+        BattleUnitState sourceUnit,
+        SkillDef skillDef,
+        int spentMp
+    )
     {
         CombatSkillDef combatProfile = GetCombatProfile(skillDef);
         if (sourceUnit == null || combatProfile == null)
@@ -178,7 +217,11 @@ public partial class BattleMagicBacklashResolver : RefCounted
         return refund;
     }
 
-    private static int ApplyFumbleProtectionMpDrain(BattleUnitState sourceUnit, SkillDef skillDef, int spentMp)
+    private static int ApplyFumbleProtectionMpDrain(
+        BattleUnitState sourceUnit,
+        SkillDef skillDef,
+        int spentMp
+    )
     {
         CombatSkillDef combatProfile = GetCombatProfile(skillDef);
         if (sourceUnit == null || combatProfile == null)
@@ -197,9 +240,10 @@ public partial class BattleMagicBacklashResolver : RefCounted
 
     private static List<Vector2I> CollectGroundAnchorDriftCandidates(
         BattleState state,
-        GodotObject gridService,
+        BattleGridService gridService,
         Vector2I originalCoord,
-        int radius)
+        int radius
+    )
     {
         List<Vector2I> candidates = new();
         for (int y = originalCoord.Y - radius; y <= originalCoord.Y + radius; y++)
@@ -209,19 +253,26 @@ public partial class BattleMagicBacklashResolver : RefCounted
                 Vector2I candidate = new(x, y);
                 if (candidate == originalCoord)
                     continue;
-                if (Mathf.Max(Mathf.Abs(candidate.X - originalCoord.X), Mathf.Abs(candidate.Y - originalCoord.Y)) > radius)
+                if (
+                    Mathf.Max(
+                        Mathf.Abs(candidate.X - originalCoord.X),
+                        Mathf.Abs(candidate.Y - originalCoord.Y)
+                    ) > radius
+                )
                     continue;
-                if (!gridService.Call("is_inside", state, candidate).AsBool())
+                if (!gridService.is_inside(state, candidate))
                     continue;
                 candidates.Add(candidate);
             }
         }
 
-        candidates.Sort((a, b) =>
-        {
-            int yCompare = a.Y.CompareTo(b.Y);
-            return yCompare != 0 ? yCompare : a.X.CompareTo(b.X);
-        });
+        candidates.Sort(
+            (a, b) =>
+            {
+                int yCompare = a.Y.CompareTo(b.Y);
+                return yCompare != 0 ? yCompare : a.X.CompareTo(b.X);
+            }
+        );
         return candidates;
     }
 
@@ -232,7 +283,11 @@ public partial class BattleMagicBacklashResolver : RefCounted
         return Mathf.Max(GdInterop.GetInt(sourceUnit.fumble_protection_used, skillId), 0);
     }
 
-    private static void SetFumbleProtectionUsed(BattleUnitState sourceUnit, StringName skillId, int value)
+    private static void SetFumbleProtectionUsed(
+        BattleUnitState sourceUnit,
+        StringName skillId,
+        int value
+    )
     {
         if (sourceUnit == null || GdInterop.IsEmpty(skillId))
             return;
@@ -243,7 +298,7 @@ public partial class BattleMagicBacklashResolver : RefCounted
     {
         if (sourceUnit == null || sourceUnit.attribute_snapshot == null)
             return 0;
-        return Mathf.Max(sourceUnit.attribute_snapshot.Call("get_value", MpMax).AsInt32(), 0);
+        return Mathf.Max(sourceUnit.attribute_snapshot.get_value(MpMax), 0);
     }
 
     private static void AppendLog(BattleEventBatch batch, string message)
@@ -276,7 +331,9 @@ public partial class BattleMagicBacklashResolver : RefCounted
         return skillDef?.combat_profile as CombatSkillDef;
     }
 
-    private static Godot.Collections.Array<Vector2I> DuplicateCoords(Godot.Collections.Array<Vector2I> values)
+    private static Godot.Collections.Array<Vector2I> DuplicateCoords(
+        Godot.Collections.Array<Vector2I> values
+    )
     {
         Godot.Collections.Array<Vector2I> result = new();
         if (values == null)

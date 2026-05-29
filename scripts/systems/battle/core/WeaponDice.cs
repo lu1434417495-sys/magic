@@ -8,9 +8,7 @@ public partial class WeaponDice : RefCounted
     public int dice_sides { get; set; }
     public int flat_bonus { get; set; }
 
-    public WeaponDice()
-    {
-    }
+    public WeaponDice() { }
 
     public WeaponDice duplicate_state()
     {
@@ -32,16 +30,15 @@ public partial class WeaponDice : RefCounted
         };
     }
 
-    public static WeaponDice from_dict(Variant data)
+    public static WeaponDice from_dict(GDictionary data)
     {
-        if (data.VariantType != Variant.Type.Dictionary)
+        if (data == null)
         {
             return new WeaponDice();
         }
-        GDictionary d = data.AsGodotDictionary();
-        int count = GetInt(d, "dice_count");
-        int sides = GetInt(d, "dice_sides");
-        int bonus = GetInt(d, "flat_bonus");
+        int count = GetInt(data, "dice_count");
+        int sides = GetInt(data, "dice_sides");
+        int bonus = GetInt(data, "flat_bonus");
         if (count <= 0 || sides <= 0)
         {
             return new WeaponDice();
@@ -55,12 +52,14 @@ public partial class WeaponDice : RefCounted
         {
             return new WeaponDice();
         }
-        return from_dict(new GDictionary
-        {
-            ["dice_count"] = GetObjectInt(dice_resource, "dice_count"),
-            ["dice_sides"] = GetObjectInt(dice_resource, "dice_sides"),
-            ["flat_bonus"] = GetObjectInt(dice_resource, "flat_bonus"),
-        });
+        return from_dict(
+            new GDictionary
+            {
+                ["dice_count"] = GetObjectInt(dice_resource, "dice_count"),
+                ["dice_sides"] = GetObjectInt(dice_resource, "dice_sides"),
+                ["flat_bonus"] = GetObjectInt(dice_resource, "flat_bonus"),
+            }
+        );
     }
 
     private static int GetInt(GDictionary values, string key)
@@ -70,7 +69,7 @@ public partial class WeaponDice : RefCounted
 
     private static int GetObjectInt(GodotObject source, string property)
     {
-        Variant value = source.Get(property);
+        var value = source.Get(property);
         return value.VariantType == Variant.Type.Nil ? 0 : value.AsInt32();
     }
 

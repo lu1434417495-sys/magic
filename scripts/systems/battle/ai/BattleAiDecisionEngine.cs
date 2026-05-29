@@ -1,13 +1,14 @@
+using System.Collections.Generic;
 using Godot;
 using static GdInterop;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
+using System;
 
 [GlobalClass]
 public partial class BattleAiDecisionEngine : RefCounted
 {
     private static readonly StringName ArcherSurvivalBucketId = "archer_survival";
-    private static readonly GDScript BattleAiPayloadGuardScript = GD.Load<GDScript>("res://scripts/systems/battle/ai/battle_ai_payload_guard.gd");
 
     private sealed class ScoreInputFacts
     {
@@ -40,105 +41,107 @@ public partial class BattleAiDecisionEngine : RefCounted
         public int PostActionRemainingThreatCount;
     }
 
-    public GodotObject choose_command_impl(
-        GodotObject context,
+    public BattleAiDecision choose_command_impl(
+        BattleAiContext context,
         GDictionary enemyAiBrains,
-        GodotObject stateResolver,
-        Callable waitDecisionFactory,
-        GodotObject scoreService,
-        Callable traceEnter = default,
-        Callable traceExit = default,
-        bool traceEnabled = false)
+        BattleAiStateResolver stateResolver,
+        System.Func<BattleAiContext, StringName, StringName, StringName, string, BattleAiDecision> waitDecisionFactory,
+        BattleAiScoreService scoreService
+    )
     {
         if (context == null)
         {
             return null;
         }
 
-        GodotObject unitState = GetObject(context, "unit_state");
+        BattleUnitState unitState = context.unit_state;
         if (unitState == null)
         {
             return null;
         }
 
-        StringName unitBrainId = GetStringName(unitState, "ai_brain_id");
-        GodotObject brain = ResolveBrain(enemyAiBrains, unitBrainId);
+        StringName unitBrainId = unitState.ai_brain_id;
+        EnemyAiBrainDef brain = ResolveBrain(enemyAiBrains, unitBrainId);
         if (brain == null)
         {
-            GodotObject missingBrainDecision = BuildWaitDecision(
+            BattleAiDecision missingBrainDecision = BuildWaitDecision(
                 waitDecisionFactory,
                 context,
                 new StringName(""),
                 new StringName(""),
                 new StringName("wait_missing_brain"),
-                $"{GetString(unitState, "display_name")} 缺少正式 AI brain，改为待机。");
+                $"{unitState.display_name} 缺少正式 AI brain，改为待机。"
+            );
             AttachPatchAndMark(context, missingBrainDecision);
             return missingBrainDecision;
         }
 
-        StringName brainId = GetStringName(brain, "brain_id");
+        StringName brainId = brain.brain_id;
 
-        GDictionary transitionResult = stateResolver != null
-            ? stateResolver.Call("resolve", context, brain).AsGodotDictionary()
-            : new GDictionary();
-        StringName nextStateId = GetStringName(transitionResult, "state_id", GetStringName(brain, "default_state_id"));
-        GodotObject stateDef = brain.Call("get_state", nextStateId).AsGodotObject();
+        BattleAiStateResolver.TransitionResult transitionResult =
+            stateResolver != null
+                ? stateResolver.ResolveTyped(context, brain)
+                : BattleAiStateResolver.TransitionResult.Empty();
+        StringName nextStateId =
+            transitionResult != null && !IsEmpty(transitionResult.StateId)
+                ? transitionResult.StateId
+                : brain.default_state_id;
+        EnemyAiStateDef stateDef = brain.get_state(nextStateId);
         if (stateDef == null)
         {
-            GodotObject missingStateDecision = BuildWaitDecision(
+            BattleAiDecision missingStateDecision = BuildWaitDecision(
                 waitDecisionFactory,
                 context,
                 brainId,
                 nextStateId,
                 new StringName("wait_missing_state"),
-                $"{GetString(unitState, "display_name")} 找不到 AI 状态 {nextStateId}，改为待机。");
+                $"{unitState.display_name} 找不到 AI 状态 {nextStateId}，改为待机。"
+            );
             PrepareDecision(missingStateDecision, brainId, nextStateId, transitionResult, null);
             AttachPatchAndMark(context, missingStateDecision);
             return missingStateDecision;
         }
 
-        GDictionary actionResolution = ResolveRuntimeActions(context, brain, nextStateId, stateDef);
-        StringName waitActionId = GetStringName(actionResolution, "wait_action_id");
+        RuntimeActionResolution actionResolution = ResolveRuntimeActions(
+            context,
+            brain,
+            nextStateId,
+            stateDef
+        );
+        StringName waitActionId = actionResolution.WaitActionId;
         if (!IsEmpty(waitActionId))
         {
-            GodotObject runtimeWaitDecision = BuildWaitDecision(
+            BattleAiDecision runtimeWaitDecision = BuildWaitDecision(
                 waitDecisionFactory,
                 context,
                 brainId,
                 nextStateId,
                 waitActionId,
-                GetString(actionResolution, "wait_reason_text"));
+                actionResolution.WaitReasonText
+            );
             PrepareDecision(runtimeWaitDecision, brainId, nextStateId, transitionResult, null);
             AttachPatchAndMark(context, runtimeWaitDecision);
             return runtimeWaitDecision;
         }
 
-        GodotObject bestScoredDecision = null;
+        BattleAiDecision bestScoredDecision = null;
         int bestScoredActionIndex = int.MaxValue;
-        GodotObject fallbackDecision = null;
-        GArray actions = GetArray(actionResolution, "actions");
+        BattleAiDecision fallbackDecision = null;
+        IReadOnlyList<EnemyAiAction> actions = actionResolution.Actions;
         for (int actionIndex = 0; actionIndex < actions.Count; actionIndex++)
         {
-            GodotObject action = actions[actionIndex].AsGodotObject();
+            EnemyAiAction action = actions[actionIndex];
             if (action == null)
             {
                 continue;
             }
 
-            GDictionary actionMetadata = context.HasMethod("get_runtime_action_metadata")
-                ? context.Call("get_runtime_action_metadata", action).AsGodotDictionary()
-                : new GDictionary();
-            if (context.HasMethod("push_action_metadata"))
-            {
-                context.Call("push_action_metadata", actionMetadata);
-            }
-            GodotObject decision = EvaluateAction(context, action);
-            if (context.HasMethod("pop_action_metadata"))
-            {
-                context.Call("pop_action_metadata");
-            }
+            GDictionary actionMetadata = context.get_runtime_action_metadata(action);
+            context.push_action_metadata(actionMetadata);
+            BattleAiDecision decision = EvaluateAction(context, action);
+            context.pop_action_metadata();
 
-            if (decision == null || GetObject(decision, "command") == null)
+            if (decision == null || decision.command == null)
             {
                 continue;
             }
@@ -146,10 +149,17 @@ public partial class BattleAiDecisionEngine : RefCounted
             PrepareDecision(decision, brainId, nextStateId, transitionResult, null);
             ApplyActionMetadataToDecision(decision, actionMetadata, scoreService);
 
-            GodotObject scoreInput = GetDecisionScoreInput(decision);
+            BattleAiScoreInput scoreInput = GetDecisionScoreInput(decision);
             if (scoreInput != null)
             {
-                if (ShouldReplaceScoredDecision(decision, actionIndex, bestScoredDecision, bestScoredActionIndex))
+                if (
+                    ShouldReplaceScoredDecision(
+                        decision,
+                        actionIndex,
+                        bestScoredDecision,
+                        bestScoredActionIndex
+                    )
+                )
                 {
                     bestScoredDecision = decision;
                     bestScoredActionIndex = actionIndex;
@@ -160,38 +170,39 @@ public partial class BattleAiDecisionEngine : RefCounted
             fallbackDecision ??= decision;
         }
 
-        GodotObject resolvedDecision = bestScoredDecision ?? fallbackDecision;
+        BattleAiDecision resolvedDecision = bestScoredDecision ?? fallbackDecision;
         if (resolvedDecision != null)
         {
             AttachPatchAndMark(context, resolvedDecision);
             return resolvedDecision;
         }
 
-        GodotObject waitDecision = BuildWaitDecision(
+        BattleAiDecision waitDecision = BuildWaitDecision(
             waitDecisionFactory,
             context,
             brainId,
             nextStateId,
             new StringName("wait_fallback"),
-            $"{GetString(unitState, "display_name")} 在状态 {nextStateId} 下没有找到合法指令，改为待机。");
+            $"{unitState.display_name} 在状态 {nextStateId} 下没有找到合法指令，改为待机。"
+        );
         PrepareDecision(waitDecision, brainId, nextStateId, transitionResult, null);
         AttachPatchAndMark(context, waitDecision);
         return waitDecision;
     }
 
-    public bool is_better_score_input(GodotObject candidate, GodotObject bestCandidate)
+    public bool is_better_score_input(BattleAiScoreInput candidate, BattleAiScoreInput bestCandidate)
     {
         return IsBetterScoreInput(candidate, bestCandidate);
     }
 
-    private static GodotObject EvaluateAction(GodotObject context, GodotObject action)
+    private static BattleAiDecision EvaluateAction(BattleAiContext context, EnemyAiAction action)
     {
         if (action == null)
         {
             return null;
         }
 
-        if (action.HasMethod("uses_candidate_request") && action.Call("uses_candidate_request").AsBool())
+        if (action.uses_candidate_request())
         {
             return EvaluateCandidateAction(context, action);
         }
@@ -199,159 +210,173 @@ public partial class BattleAiDecisionEngine : RefCounted
         return DecideWithActionFallback(context, action);
     }
 
-    private static GodotObject EvaluateCandidateAction(GodotObject context, GodotObject action)
+    private static BattleAiDecision EvaluateCandidateAction(BattleAiContext context, EnemyAiAction action)
     {
-        if (!action.HasMethod("build_candidate_request"))
+        if (context == null)
         {
-            return FailCandidateAction(action, "candidate_request action is missing build_candidate_request().");
-        }
-        if (context == null || !context.HasMethod("get_ai_query_service"))
-        {
-            return FailCandidateAction(action, "candidate_request action requires BattleAiContext.get_ai_query_service().");
+            return FailCandidateAction(
+                action,
+                "candidate_request action requires BattleAiContext.get_ai_query_service()."
+            );
         }
 
-        GodotObject query = context.Call("get_ai_query_service").AsGodotObject();
+        BattleAiQueryService query = context.get_ai_query_service();
         if (query == null)
         {
-            return FailCandidateAction(action, "candidate_request action requires a non-null AI query service.");
+            return FailCandidateAction(
+                action,
+                "candidate_request action requires a non-null AI query service."
+            );
         }
 
-        GodotObject request = action.Call("build_candidate_request", query).AsGodotObject();
+        BattleAiCandidateRequest request = action.build_candidate_request(query);
         if (request == null)
         {
             return FailCandidateAction(action, "candidate_request action returned null request.");
         }
-        if (!context.HasMethod("evaluate_candidate_request"))
-        {
-            return FailCandidateAction(action, "candidate_request action requires BattleAiContext.evaluate_candidate_request().");
-        }
 
-        return context.Call("evaluate_candidate_request", request).AsGodotObject();
+        return context.evaluate_candidate_request(request);
     }
 
-    private static GodotObject FailCandidateAction(GodotObject action, string message)
+    private static BattleAiDecision FailCandidateAction(EnemyAiAction action, string message)
     {
         StringName actionId = GetStringName(action, "action_id", "anonymous_action");
         string fullMessage = $"AI action {actionId} failed: {message}";
-        if (BattleAiPayloadGuardScript != null)
-        {
-            BattleAiPayloadGuardScript.Call(
-                "fail_loud",
-                fullMessage,
-                new GDictionary
-                {
-                    ["source"] = "BattleAiDecisionEngine",
-                    ["action_id"] = actionId,
-                });
-        }
-        else
-        {
-            GD.PushError(fullMessage);
-        }
+        GameLog.Error(fullMessage, "ai.decision.no_candidates", "ai");
         return null;
     }
 
-    private static GodotObject DecideWithActionFallback(GodotObject context, GodotObject action)
+    private static BattleAiDecision DecideWithActionFallback(
+        BattleAiContext context,
+        EnemyAiAction action
+    )
     {
-        if (action.HasMethod("decide"))
-        {
-            return action.Call("decide", context).AsGodotObject();
-        }
-        return null;
+        return action?.decide(context);
     }
 
-    private static GDictionary ResolveRuntimeActions(GodotObject context, GodotObject brain, StringName stateId, GodotObject stateDef)
+    private static RuntimeActionResolution ResolveRuntimeActions(
+        BattleAiContext context,
+        EnemyAiBrainDef brain,
+        StringName stateId,
+        EnemyAiStateDef stateDef
+    )
     {
         if (context == null)
         {
-            return new GDictionary { ["actions"] = new GArray() };
+            return RuntimeActionResolution.ForActions(System.Array.Empty<EnemyAiAction>());
         }
 
-        GodotObject runtimeActionPlan = GetObject(context, "runtime_action_plan");
+        BattleAiRuntimeActionPlan runtimeActionPlan = context.runtime_action_plan;
         if (runtimeActionPlan != null)
         {
-            if (context.HasMethod("is_runtime_action_plan_stale") && context.Call("is_runtime_action_plan_stale", brain).AsBool())
+            if (context.is_runtime_action_plan_stale(brain))
             {
-                return new GDictionary
-                {
-                    ["wait_action_id"] = new StringName("wait_stale_runtime_plan"),
-                    ["wait_reason_text"] = $"{GetString(GetObject(context, "unit_state"), "display_name")} 的 AI runtime plan 已过期，改为待机。",
-                };
+                return RuntimeActionResolution.ForWait(
+                    "wait_stale_runtime_plan",
+                    $"{context.unit_state.display_name} 的 AI runtime plan 已过期，改为待机。"
+                );
             }
-            if (!context.HasMethod("has_runtime_action_state") || !context.Call("has_runtime_action_state", stateId).AsBool())
+            if (!context.has_runtime_action_state(stateId))
             {
-                return new GDictionary
-                {
-                    ["wait_action_id"] = new StringName("wait_missing_runtime_plan"),
-                    ["wait_reason_text"] = $"{GetString(GetObject(context, "unit_state"), "display_name")} 缺少状态 {stateId} 的 AI runtime plan，改为待机。",
-                };
+                return RuntimeActionResolution.ForWait(
+                    "wait_missing_runtime_plan",
+                    $"{context.unit_state.display_name} 缺少状态 {stateId} 的 AI runtime plan，改为待机。"
+                );
             }
-            GArray runtimeActions = context.HasMethod("get_runtime_actions")
-                ? context.Call("get_runtime_actions", stateId).AsGodotArray()
-                : new GArray();
+            IReadOnlyList<EnemyAiAction> runtimeActions = context.GetRuntimeActionsTyped(stateId);
             if (runtimeActions.Count == 0)
             {
-                return new GDictionary
-                {
-                    ["wait_action_id"] = new StringName("wait_empty_runtime_state"),
-                    ["wait_reason_text"] = $"{GetString(GetObject(context, "unit_state"), "display_name")} 的 AI runtime state {stateId} 没有可评估 action，改为待机。",
-                };
+                return RuntimeActionResolution.ForWait(
+                    "wait_empty_runtime_state",
+                    $"{context.unit_state.display_name} 的 AI runtime state {stateId} 没有可评估 action，改为待机。"
+                );
             }
-            return new GDictionary { ["actions"] = runtimeActions };
+            return RuntimeActionResolution.ForActions(runtimeActions);
         }
 
-        if (GetBool(context, "allow_authored_action_fallback_for_tests"))
+        if (context.allow_authored_action_fallback_for_tests)
         {
-            GArray authoredActions = stateDef != null ? stateDef.Call("get_actions").AsGodotArray() : new GArray();
-            return new GDictionary { ["actions"] = authoredActions };
+            return RuntimeActionResolution.ForActions(
+                stateDef != null ? stateDef.GetTypedActions() : new List<EnemyAiAction>()
+            );
         }
 
-        return new GDictionary
-        {
-            ["wait_action_id"] = new StringName("wait_missing_runtime_plan"),
-            ["wait_reason_text"] = $"{GetString(GetObject(context, "unit_state"), "display_name")} 缺少 AI runtime plan，改为待机。",
-        };
+        return RuntimeActionResolution.ForWait(
+            "wait_missing_runtime_plan",
+            $"{context.unit_state.display_name} 缺少 AI runtime plan，改为待机。"
+        );
     }
 
-    private static GodotObject BuildWaitDecision(
-        Callable waitDecisionFactory,
-        GodotObject context,
+    private sealed class RuntimeActionResolution
+    {
+        public IReadOnlyList<EnemyAiAction> Actions = System.Array.Empty<EnemyAiAction>();
+        public StringName WaitActionId = "";
+        public string WaitReasonText = "";
+
+        public static RuntimeActionResolution ForActions(IReadOnlyList<EnemyAiAction> actions)
+        {
+            return new RuntimeActionResolution
+            {
+                Actions = actions ?? System.Array.Empty<EnemyAiAction>(),
+            };
+        }
+
+        public static RuntimeActionResolution ForWait(StringName waitActionId, string reasonText)
+        {
+            return new RuntimeActionResolution
+            {
+                WaitActionId = waitActionId,
+                WaitReasonText = reasonText ?? "",
+            };
+        }
+    }
+
+    private static BattleAiDecision BuildWaitDecision(
+        System.Func<BattleAiContext, StringName, StringName, StringName, string, BattleAiDecision> waitDecisionFactory,
+        BattleAiContext context,
         StringName brainId,
         StringName stateId,
         StringName actionId,
-        string reasonText)
+        string reasonText
+    )
     {
-        return waitDecisionFactory.Call(context, brainId, stateId, actionId, reasonText).AsGodotObject();
+        return waitDecisionFactory?.Invoke(context, brainId, stateId, actionId, reasonText);
     }
 
     private static void PrepareDecision(
-        GodotObject decision,
+        BattleAiDecision decision,
         StringName brainId,
         StringName stateId,
-        GDictionary transitionResult,
-        GodotObject scoreInputOverride)
+        BattleAiStateResolver.TransitionResult transitionResult,
+        BattleAiScoreInput scoreInputOverride
+    )
     {
         if (decision == null)
         {
             return;
         }
 
-        decision.Set("brain_id", brainId);
-        decision.Set("state_id", stateId);
-        decision.Set("transition", transitionResult?.Duplicate(true) ?? new GDictionary());
-        if (IsEmpty(GetStringName(decision, "action_id")))
+        decision.brain_id = brainId;
+        decision.state_id = stateId;
+        decision.TypedTransition = transitionResult;
+        decision.transition = transitionResult?.ToDictionary() ?? new GDictionary();
+        if (IsEmpty(decision.action_id))
         {
-            decision.Set("action_id", new StringName("anonymous_action"));
+            decision.action_id = new StringName("anonymous_action");
         }
 
-        GodotObject scoreInput = scoreInputOverride ?? GetDecisionScoreInput(decision);
-        if (IsEmpty(GetStringName(decision, "score_bucket_id")) && scoreInput != null)
+        BattleAiScoreInput scoreInput = scoreInputOverride ?? GetDecisionScoreInput(decision);
+        if (IsEmpty(decision.score_bucket_id) && scoreInput != null)
         {
-            decision.Set("score_bucket_id", GetStringName(scoreInput, "score_bucket_id"));
+            decision.score_bucket_id = scoreInput.score_bucket_id;
         }
     }
 
-    private static void ApplyActionMetadataToDecision(GodotObject decision, GDictionary metadata, GodotObject scoreService)
+    private static void ApplyActionMetadataToDecision(
+        BattleAiDecision decision,
+        GDictionary metadata,
+        BattleAiScoreService scoreService
+    )
     {
         if (decision == null || metadata == null || metadata.Count == 0)
         {
@@ -361,10 +386,10 @@ public partial class BattleAiDecisionEngine : RefCounted
         StringName metadataBucketId = GetStringName(metadata, "score_bucket_id");
         if (!IsEmpty(metadataBucketId))
         {
-            decision.Set("score_bucket_id", metadataBucketId);
+            decision.score_bucket_id = metadataBucketId;
         }
 
-        GodotObject scoreInput = GetDecisionScoreInput(decision);
+        BattleAiScoreInput scoreInput = GetDecisionScoreInput(decision);
         if (scoreInput == null)
         {
             return;
@@ -372,29 +397,33 @@ public partial class BattleAiDecisionEngine : RefCounted
 
         if (!IsEmpty(metadataBucketId))
         {
-            scoreInput.Set("score_bucket_id", metadataBucketId);
-            int priority = scoreService != null && scoreService.HasMethod("get_bucket_priority")
-                ? scoreService.Call("get_bucket_priority", metadataBucketId).AsInt32()
-                : 0;
-            scoreInput.Set("score_bucket_priority", priority);
+            scoreInput.score_bucket_id = metadataBucketId;
+            int priority =
+                scoreService != null ? scoreService.get_bucket_priority(metadataBucketId) : 0;
+            scoreInput.score_bucket_priority = priority;
         }
 
         GDictionary currentRuntimeMetadata = GetDictionary(scoreInput, "runtime_action_metadata");
         GDictionary runtimeActionMetadata = GetDictionary(metadata, "runtime_action_metadata");
         if (currentRuntimeMetadata.Count == 0 && runtimeActionMetadata.Count > 0)
         {
-            scoreInput.Set("runtime_action_metadata", runtimeActionMetadata.Duplicate(true));
+            scoreInput.runtime_action_metadata = runtimeActionMetadata.Duplicate(true);
         }
     }
 
-    private static bool ShouldReplaceScoredDecision(GodotObject candidate, int candidateActionIndex, GodotObject bestCandidate, int bestActionIndex)
+    private static bool ShouldReplaceScoredDecision(
+        BattleAiDecision candidate,
+        int candidateActionIndex,
+        BattleAiDecision bestCandidate,
+        int bestActionIndex
+    )
     {
-        GodotObject candidateScore = GetDecisionScoreInput(candidate);
+        BattleAiScoreInput candidateScore = GetDecisionScoreInput(candidate);
         if (candidateScore == null)
         {
             return false;
         }
-        GodotObject bestScore = GetDecisionScoreInput(bestCandidate);
+        BattleAiScoreInput bestScore = GetDecisionScoreInput(bestCandidate);
         if (bestScore == null)
         {
             return true;
@@ -410,7 +439,10 @@ public partial class BattleAiDecisionEngine : RefCounted
         return candidateActionIndex < bestActionIndex;
     }
 
-    private static bool IsBetterScoreInput(GodotObject candidate, GodotObject bestCandidate)
+    private static bool IsBetterScoreInput(
+        BattleAiScoreInput candidate,
+        BattleAiScoreInput bestCandidate
+    )
     {
         if (candidate == null)
         {
@@ -435,13 +467,21 @@ public partial class BattleAiDecisionEngine : RefCounted
         {
             return true;
         }
-        if (candidate.EstimatedFriendlyLethalTargetCount != bestCandidate.EstimatedFriendlyLethalTargetCount)
+        if (
+            candidate.EstimatedFriendlyLethalTargetCount
+            != bestCandidate.EstimatedFriendlyLethalTargetCount
+        )
         {
-            return candidate.EstimatedFriendlyLethalTargetCount < bestCandidate.EstimatedFriendlyLethalTargetCount;
+            return candidate.EstimatedFriendlyLethalTargetCount
+                < bestCandidate.EstimatedFriendlyLethalTargetCount;
         }
-        if (candidate.EstimatedFriendlyFireTargetCount != bestCandidate.EstimatedFriendlyFireTargetCount)
+        if (
+            candidate.EstimatedFriendlyFireTargetCount
+            != bestCandidate.EstimatedFriendlyFireTargetCount
+        )
         {
-            return candidate.EstimatedFriendlyFireTargetCount < bestCandidate.EstimatedFriendlyFireTargetCount;
+            return candidate.EstimatedFriendlyFireTargetCount
+                < bestCandidate.EstimatedFriendlyFireTargetCount;
         }
         if (candidate.FriendlyFirePenaltyScore != bestCandidate.FriendlyFirePenaltyScore)
         {
@@ -453,9 +493,13 @@ public partial class BattleAiDecisionEngine : RefCounted
         {
             return survivalRiskComparison > 0;
         }
-        if (candidate.EstimatedLethalThreatTargetCount != bestCandidate.EstimatedLethalThreatTargetCount)
+        if (
+            candidate.EstimatedLethalThreatTargetCount
+            != bestCandidate.EstimatedLethalThreatTargetCount
+        )
         {
-            return candidate.EstimatedLethalThreatTargetCount > bestCandidate.EstimatedLethalThreatTargetCount;
+            return candidate.EstimatedLethalThreatTargetCount
+                > bestCandidate.EstimatedLethalThreatTargetCount;
         }
         if (candidate.EstimatedLethalTargetCount != bestCandidate.EstimatedLethalTargetCount)
         {
@@ -469,7 +513,10 @@ public partial class BattleAiDecisionEngine : RefCounted
             return candidateEmergency;
         }
 
-        if (candidate.EstimatedLethalTargetCount > 0 && bestCandidate.EstimatedLethalTargetCount > 0)
+        if (
+            candidate.EstimatedLethalTargetCount > 0
+            && bestCandidate.EstimatedLethalTargetCount > 0
+        )
         {
             if (candidate.TotalScore != bestCandidate.TotalScore)
             {
@@ -483,7 +530,10 @@ public partial class BattleAiDecisionEngine : RefCounted
             {
                 return candidate.EffectiveTargetCount > bestCandidate.EffectiveTargetCount;
             }
-            int lethalNonfatalRiskComparison = CompareNonfatalPostActionSurvivalRisk(candidate, bestCandidate);
+            int lethalNonfatalRiskComparison = CompareNonfatalPostActionSurvivalRisk(
+                candidate,
+                bestCandidate
+            );
             if (lethalNonfatalRiskComparison != 0)
             {
                 return lethalNonfatalRiskComparison > 0;
@@ -515,7 +565,10 @@ public partial class BattleAiDecisionEngine : RefCounted
             return candidate.TargetCount > bestCandidate.TargetCount;
         }
 
-        int nonfatalRiskComparison = CompareNonfatalPostActionSurvivalRisk(candidate, bestCandidate);
+        int nonfatalRiskComparison = CompareNonfatalPostActionSurvivalRisk(
+            candidate,
+            bestCandidate
+        );
         if (nonfatalRiskComparison != 0)
         {
             return nonfatalRiskComparison > 0;
@@ -539,12 +592,18 @@ public partial class BattleAiDecisionEngine : RefCounted
         }
         if (scoreInput.HasPostActionThreatProjection)
         {
-            if (scoreInput.PreActionIsLethalSurvivalRisk && !scoreInput.PostActionIsLethalSurvivalRisk)
+            if (
+                scoreInput.PreActionIsLethalSurvivalRisk
+                && !scoreInput.PostActionIsLethalSurvivalRisk
+            )
             {
                 return true;
             }
-            if (scoreInput.PreActionThreatExpectedDamage > scoreInput.PostActionRemainingThreatExpectedDamage
-                && scoreInput.PostActionSurvivalMargin >= 0)
+            if (
+                scoreInput.PreActionThreatExpectedDamage
+                    > scoreInput.PostActionRemainingThreatExpectedDamage
+                && scoreInput.PostActionSurvivalMargin >= 0
+            )
             {
                 return true;
             }
@@ -577,13 +636,18 @@ public partial class BattleAiDecisionEngine : RefCounted
         return scoreInput.PositionObjectiveScore > 0;
     }
 
-    private static int ComparePostActionSurvivalRisk(ScoreInputFacts candidate, ScoreInputFacts bestCandidate)
+    private static int ComparePostActionSurvivalRisk(
+        ScoreInputFacts candidate,
+        ScoreInputFacts bestCandidate
+    )
     {
         if (candidate == null || bestCandidate == null)
         {
             return 0;
         }
-        if (!candidate.HasPostActionThreatProjection || !bestCandidate.HasPostActionThreatProjection)
+        if (
+            !candidate.HasPostActionThreatProjection || !bestCandidate.HasPostActionThreatProjection
+        )
         {
             return 0;
         }
@@ -596,17 +660,24 @@ public partial class BattleAiDecisionEngine : RefCounted
         return 0;
     }
 
-    private static int CompareNonfatalPostActionSurvivalRisk(ScoreInputFacts candidate, ScoreInputFacts bestCandidate)
+    private static int CompareNonfatalPostActionSurvivalRisk(
+        ScoreInputFacts candidate,
+        ScoreInputFacts bestCandidate
+    )
     {
         if (candidate == null || bestCandidate == null)
         {
             return 0;
         }
-        if (!candidate.HasPostActionThreatProjection || !bestCandidate.HasPostActionThreatProjection)
+        if (
+            !candidate.HasPostActionThreatProjection || !bestCandidate.HasPostActionThreatProjection
+        )
         {
             return 0;
         }
-        if (candidate.PostActionIsLethalSurvivalRisk || bestCandidate.PostActionIsLethalSurvivalRisk)
+        if (
+            candidate.PostActionIsLethalSurvivalRisk || bestCandidate.PostActionIsLethalSurvivalRisk
+        )
         {
             return 0;
         }
@@ -641,7 +712,7 @@ public partial class BattleAiDecisionEngine : RefCounted
         return 0;
     }
 
-    private static ScoreInputFacts BuildScoreInputFacts(GodotObject scoreInput)
+    private static ScoreInputFacts BuildScoreInputFacts(BattleAiScoreInput scoreInput)
     {
         if (scoreInput == null)
         {
@@ -649,98 +720,64 @@ public partial class BattleAiDecisionEngine : RefCounted
         }
         return new ScoreInputFacts
         {
-            ScoreBucketId = GetStringName(scoreInput, "score_bucket_id"),
-            EstimatedFriendlyLethalTargetCount = GetInt(scoreInput, "estimated_friendly_lethal_target_count"),
-            EstimatedFriendlyFireTargetCount = GetInt(scoreInput, "estimated_friendly_fire_target_count"),
-            FriendlyFirePenaltyScore = GetInt(scoreInput, "friendly_fire_penalty_score"),
-            EstimatedLethalThreatTargetCount = GetInt(scoreInput, "estimated_lethal_threat_target_count"),
-            EstimatedLethalTargetCount = GetInt(scoreInput, "estimated_lethal_target_count"),
-            TotalScore = GetInt(scoreInput, "total_score"),
-            HitPayoffScore = GetInt(scoreInput, "hit_payoff_score"),
-            EffectiveTargetCount = GetInt(scoreInput, "effective_target_count"),
-            ResourceCostScore = GetInt(scoreInput, "resource_cost_score"),
-            ScoreBucketPriority = GetInt(scoreInput, "score_bucket_priority"),
-            TargetCount = GetInt(scoreInput, "target_count"),
-            PositionObjectiveScore = GetInt(scoreInput, "position_objective_score"),
-            EnemyTargetCount = GetInt(scoreInput, "enemy_target_count"),
-            AllyTargetCount = GetInt(scoreInput, "ally_target_count"),
-            EstimatedDamage = GetInt(scoreInput, "estimated_damage"),
-            EstimatedControlCount = GetInt(scoreInput, "estimated_control_count"),
-            PositionCurrentDistance = GetInt(scoreInput, "position_current_distance"),
-            PositionSafeDistance = GetInt(scoreInput, "position_safe_distance"),
-            DistanceToPrimaryCoord = GetInt(scoreInput, "distance_to_primary_coord"),
-            HasPostActionThreatProjection = GetBool(scoreInput, "has_post_action_threat_projection"),
-            PreActionIsLethalSurvivalRisk = GetBool(scoreInput, "pre_action_is_lethal_survival_risk"),
-            PostActionIsLethalSurvivalRisk = GetBool(scoreInput, "post_action_is_lethal_survival_risk"),
-            PreActionThreatExpectedDamage = GetInt(scoreInput, "pre_action_threat_expected_damage"),
-            PostActionRemainingThreatExpectedDamage = GetInt(scoreInput, "post_action_remaining_threat_expected_damage"),
-            PostActionSurvivalMargin = GetInt(scoreInput, "post_action_survival_margin"),
-            PostActionRemainingThreatCount = GetInt(scoreInput, "post_action_remaining_threat_count"),
+            ScoreBucketId = scoreInput.score_bucket_id,
+            EstimatedFriendlyLethalTargetCount = scoreInput.estimated_friendly_lethal_target_count,
+            EstimatedFriendlyFireTargetCount = scoreInput.estimated_friendly_fire_target_count,
+            FriendlyFirePenaltyScore = scoreInput.friendly_fire_penalty_score,
+            EstimatedLethalThreatTargetCount = scoreInput.estimated_lethal_threat_target_count,
+            EstimatedLethalTargetCount = scoreInput.estimated_lethal_target_count,
+            TotalScore = scoreInput.total_score,
+            HitPayoffScore = scoreInput.hit_payoff_score,
+            EffectiveTargetCount = scoreInput.effective_target_count,
+            ResourceCostScore = scoreInput.resource_cost_score,
+            ScoreBucketPriority = scoreInput.score_bucket_priority,
+            TargetCount = scoreInput.target_count,
+            PositionObjectiveScore = scoreInput.position_objective_score,
+            EnemyTargetCount = scoreInput.enemy_target_count,
+            AllyTargetCount = scoreInput.ally_target_count,
+            EstimatedDamage = scoreInput.estimated_damage,
+            EstimatedControlCount = scoreInput.estimated_control_count,
+            PositionCurrentDistance = scoreInput.position_current_distance,
+            PositionSafeDistance = scoreInput.position_safe_distance,
+            DistanceToPrimaryCoord = scoreInput.distance_to_primary_coord,
+            HasPostActionThreatProjection = scoreInput.has_post_action_threat_projection,
+            PreActionIsLethalSurvivalRisk = scoreInput.pre_action_is_lethal_survival_risk,
+            PostActionIsLethalSurvivalRisk = scoreInput.post_action_is_lethal_survival_risk,
+            PreActionThreatExpectedDamage = scoreInput.pre_action_threat_expected_damage,
+            PostActionRemainingThreatExpectedDamage =
+                scoreInput.post_action_remaining_threat_expected_damage,
+            PostActionSurvivalMargin = scoreInput.post_action_survival_margin,
+            PostActionRemainingThreatCount = scoreInput.post_action_remaining_threat_count,
         };
     }
 
-    private static void AttachPatchAndMark(GodotObject context, GodotObject decision)
+    private static void AttachPatchAndMark(BattleAiContext context, BattleAiDecision decision)
     {
         AttachStatePatch(decision);
-        if (context != null && decision != null && context.HasMethod("mark_action_trace_chosen"))
-        {
-            context.Call("mark_action_trace_chosen", GetStringName(decision, "action_trace_id"), decision);
-        }
+        if (context != null && decision != null)
+            context.mark_action_trace_chosen(decision.action_trace_id, decision);
     }
 
-    private static void AttachStatePatch(GodotObject decision)
+    private static void AttachStatePatch(BattleAiDecision decision)
     {
         if (decision == null)
         {
             return;
         }
 
-        GDictionary blackboard = new GDictionary();
-        blackboard["last_brain_id"] = GetStringName(decision, "brain_id").ToString();
-        blackboard["last_state_id"] = GetStringName(decision, "state_id").ToString();
-        blackboard["last_action_id"] = GetStringName(decision, "action_id").ToString();
-        blackboard["last_reason_text"] = GetString(decision, "reason_text");
-
-        GDictionary transition = GetDictionary(decision, "transition");
-        if (transition.Count > 0)
-        {
-            blackboard["last_transition_previous_state_id"] = GetStringName(transition, "previous_state_id").ToString();
-            blackboard["last_transition_state_id"] = GetStringName(transition, "state_id").ToString();
-            blackboard["last_transition_rule_id"] = GetStringName(transition, "rule_id").ToString();
-            blackboard["last_transition_reason"] = GetString(transition, "reason");
-        }
-
-        GDictionary patch = new GDictionary
-        {
-            ["blackboard_set"] = blackboard,
-            ["blackboard_increment"] = new GDictionary
-            {
-                ["turn_decision_count"] = 1,
-            },
-        };
-        StringName brainId = GetStringName(decision, "brain_id");
-        if (!IsEmpty(brainId))
-        {
-            patch["ai_brain_id"] = brainId;
-        }
-        StringName stateId = GetStringName(decision, "state_id");
-        if (!IsEmpty(stateId))
-        {
-            patch["ai_state_id"] = stateId;
-        }
-        decision.Set("state_patch", patch);
+        BattleAiDecisionCommitter.AttachStatePatch(decision);
     }
 
-    private static GodotObject GetDecisionScoreInput(GodotObject decision)
+    private static BattleAiScoreInput GetDecisionScoreInput(BattleAiDecision decision)
     {
         if (decision == null)
         {
             return null;
         }
-        return GetObject(decision, "score_input") ?? GetObject(decision, "skill_score_input");
+        return decision.score_input ?? decision.skill_score_input;
     }
 
-    private static GodotObject ResolveBrain(GDictionary brains, StringName brainId)
+    private static EnemyAiBrainDef ResolveBrain(GDictionary brains, StringName brainId)
     {
         if (brains == null || IsEmpty(brainId))
         {
@@ -748,15 +785,16 @@ public partial class BattleAiDecisionEngine : RefCounted
         }
         if (brains.ContainsKey(brainId))
         {
-            return brains[brainId].AsGodotObject();
+            return brains[brainId].AsGodotObject() as EnemyAiBrainDef;
         }
         string brainText = brainId.ToString();
-        return brains.ContainsKey(brainText) ? brains[brainText].AsGodotObject() : null;
+        return brains.ContainsKey(brainText)
+            ? brains[brainText].AsGodotObject() as EnemyAiBrainDef
+            : null;
     }
 
     private static bool IsEmpty(StringName value)
     {
         return value == null || string.IsNullOrEmpty(value.ToString());
     }
-
 }

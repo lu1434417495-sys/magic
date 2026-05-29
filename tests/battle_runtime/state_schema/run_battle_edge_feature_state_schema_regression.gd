@@ -2,7 +2,7 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const BattleEdgeFeatureState = preload("res://scripts/systems/battle/core/battle_edge_feature_state.gd")
+const BattleEdgeFeatureState = preload("res://scripts/systems/battle/core/BattleEdgeFeatureState.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -15,7 +15,6 @@ func _initialize() -> void:
 func _run() -> void:
 	_test_make_wall_roundtrip()
 	_test_make_none_roundtrip()
-	_test_non_dictionary_is_rejected()
 	_test_missing_field_is_rejected()
 	_test_extra_field_is_rejected()
 	_test_wrong_types_are_rejected()
@@ -34,36 +33,31 @@ func _run() -> void:
 
 
 func _test_make_wall_roundtrip() -> void:
-	var wall := BattleEdgeFeatureState.make_wall()
+	var wall: BattleEdgeFeatureState = BattleEdgeFeatureState.make_wall()
 	var restored = BattleEdgeFeatureState.from_dict(wall.to_dict())
 	_assert_true(restored != null, "make_wall 的当前 to_dict 形状应能恢复。")
 	if restored == null:
 		return
-	_assert_eq(restored.feature_kind, BattleEdgeFeatureState.FEATURE_WALL, "make_wall roundtrip 应保留 feature_kind。")
-	_assert_eq(restored.render_kind, BattleEdgeFeatureState.RENDER_WALL, "make_wall roundtrip 应保留 render_kind。")
+	_assert_eq(restored.feature_kind, BattleEdgeFeatureState.FEATURE_WALL(), "make_wall roundtrip 应保留 feature_kind。")
+	_assert_eq(restored.render_kind, BattleEdgeFeatureState.RENDER_WALL(), "make_wall roundtrip 应保留 render_kind。")
 	_assert_eq(restored.render_layers, 1, "make_wall roundtrip 应保留 render_layers。")
 	_assert_true(restored.blocks_move, "make_wall roundtrip 应保留 blocks_move。")
 	_assert_true(restored.blocks_occupancy, "make_wall roundtrip 应保留 blocks_occupancy。")
 	_assert_true(restored.blocks_los, "make_wall roundtrip 应保留 blocks_los。")
-	_assert_eq(restored.interaction_kind, BattleEdgeFeatureState.INTERACT_NONE, "make_wall roundtrip 应保留 interaction_kind。")
+	_assert_eq(restored.interaction_kind, BattleEdgeFeatureState.INTERACT_NONE(), "make_wall roundtrip 应保留 interaction_kind。")
 	_assert_eq(restored.state_tag, &"", "make_wall roundtrip 应允许空 state_tag。")
 
 
 func _test_make_none_roundtrip() -> void:
-	var none_feature := BattleEdgeFeatureState.make_none()
+	var none_feature: BattleEdgeFeatureState = BattleEdgeFeatureState.make_none()
 	var restored = BattleEdgeFeatureState.from_dict(none_feature.to_dict())
 	_assert_true(restored != null, "make_none 的当前 to_dict 形状应能恢复。")
 	if restored == null:
 		return
-	_assert_eq(restored.feature_kind, BattleEdgeFeatureState.FEATURE_NONE, "make_none roundtrip 应保留 feature_kind。")
-	_assert_eq(restored.render_kind, BattleEdgeFeatureState.RENDER_NONE, "make_none roundtrip 应保留 render_kind。")
+	_assert_eq(restored.feature_kind, BattleEdgeFeatureState.FEATURE_NONE(), "make_none roundtrip 应保留 feature_kind。")
+	_assert_eq(restored.render_kind, BattleEdgeFeatureState.RENDER_NONE(), "make_none roundtrip 应保留 render_kind。")
 	_assert_eq(restored.render_layers, 0, "make_none roundtrip 应保留 render_layers。")
 	_assert_true(restored.is_empty(), "make_none roundtrip 后仍应为空 edge feature。")
-
-
-func _test_non_dictionary_is_rejected() -> void:
-	_assert_true(BattleEdgeFeatureState.from_dict("none") == null, "非 Dictionary 入参应返回 null。")
-	_assert_true(BattleEdgeFeatureState.from_dict(null) == null, "null 入参应返回 null。")
 
 
 func _test_missing_field_is_rejected() -> void:
@@ -127,12 +121,12 @@ func _test_negative_render_layers_is_rejected() -> void:
 
 
 func _test_duplicate_feature_still_uses_current_schema() -> void:
-	var duplicate := BattleEdgeFeatureState.make_low_wall().duplicate_feature()
+	var duplicate: BattleEdgeFeatureState = BattleEdgeFeatureState.make_low_wall().duplicate_feature()
 	_assert_true(duplicate != null, "duplicate_feature 应继续返回有效对象。")
 	if duplicate == null:
 		return
-	_assert_eq(duplicate.feature_kind, BattleEdgeFeatureState.FEATURE_LOW_WALL, "duplicate_feature 应保留 feature_kind。")
-	_assert_eq(duplicate.render_kind, BattleEdgeFeatureState.RENDER_WALL, "duplicate_feature 应保留 render_kind。")
+	_assert_eq(duplicate.feature_kind, BattleEdgeFeatureState.FEATURE_LOW_WALL(), "duplicate_feature 应保留 feature_kind。")
+	_assert_eq(duplicate.render_kind, BattleEdgeFeatureState.RENDER_WALL(), "duplicate_feature 应保留 render_kind。")
 	_assert_eq(duplicate.render_layers, 1, "duplicate_feature 应保留 render_layers。")
 
 

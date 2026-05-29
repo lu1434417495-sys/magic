@@ -1,58 +1,542 @@
 using Godot;
+using GArray = Godot.Collections.Array;
+using GDictionary = Godot.Collections.Dictionary;
 
 [GlobalClass]
 public partial class SettlementResearchService : RefCounted
 {
-    private const string RESEARCH_INTERACTION_ID = "service_research";
-    private const int RESEARCH_GOLD_COST = 200;
-    private static readonly StringName RESEARCH_SOURCE_TYPE = "npc_teach";
-    private static readonly Godot.Collections.Array<string> REQUIRED_SERVICE_PAYLOAD_STRING_FIELDS = new() { "facility_name", "npc_name", "service_type" };
-    private static readonly Godot.Collections.Array<string> REQUIRED_RESEARCH_CANDIDATE_STRING_FIELDS = new() { "research_id", "entry_type", "target_id", "target_label", "reason_text" };
-    private static readonly Godot.Collections.Array<Godot.Collections.Dictionary> RESEARCH_REWARD_CATALOG = new() { new Godot.Collections.Dictionary{ {"research_id","research_field_manual"},{"entry_type","knowledge_unlock"},{"target_id","field_manual"},{"target_label","野外手册"},{"reason_text","研究员整理出一份可长期翻阅的野外手册抄本。"} }, new Godot.Collections.Dictionary{ {"research_id","research_guard_break"},{"entry_type","skill_unlock"},{"target_id","warrior_guard_break"},{"target_label","裂甲斩"},{"reason_text","研究记录补全了裂甲斩的动作拆解。"} } };
+    private const string ResearchInteractionId = "service_research";
+    private const int ResearchGoldCost = 200;
+    private static readonly StringName ResearchSourceType = "npc_teach";
 
-    public bool is_supported_interaction(string interactionScriptId) => interactionScriptId.StripEdges() == RESEARCH_INTERACTION_ID;
-
-    public Godot.Collections.Dictionary build_service_metadata(GodotObject partyState, Godot.Collections.Dictionary payload = null)
+    private static readonly string[] RequiredServicePayloadStringFields =
     {
-        payload ??= new Godot.Collections.Dictionary();
-        bool canAfford = partyState != null && (bool)partyState.Call("can_afford", RESEARCH_GOLD_COST);
-        string catalogError = _validate_research_catalog_schema();
-        var memberAvailability = _build_member_research_availability(partyState, canAfford, catalogError);
-        var requestedMemberId = ProgressionDataUtils.to_string_name(payload.ContainsKey("member_id") ? payload["member_id"] : "");
-        bool hasAvailable = false; string memberDisabledReason = "";
-        if (requestedMemberId != "") { var sa = memberAvailability.ContainsKey((string)requestedMemberId) ? memberAvailability[(string)requestedMemberId].AsGodotDictionary() : new Godot.Collections.Dictionary(); hasAvailable = sa.ContainsKey("has_available_research") && sa["has_available_research"].AsBool(); memberDisabledReason = sa.ContainsKey("disabled_reason") ? sa["disabled_reason"].AsString() : "暂无可研究内容"; }
-        else foreach (var av in memberAvailability.Values) { if (av.VariantType == Variant.Type.Dictionary && av.AsGodotDictionary().ContainsKey("has_available_research") && av.AsGodotDictionary()["has_available_research"].AsBool()) { hasAvailable = true; break; } }
-        bool isEnabled = canAfford && hasAvailable; string disabledReason = "";
-        if (catalogError.Length > 0) disabledReason = "研究配置无效"; else if (!canAfford) disabledReason = "金币不足"; else if (!hasAvailable) disabledReason = memberDisabledReason.Length > 0 ? memberDisabledReason : "暂无可研究内容";
-        return new Godot.Collections.Dictionary { {"cost_label",$"{RESEARCH_GOLD_COST} 金"},{"is_enabled",isEnabled},{"disabled_reason",disabledReason},{"member_availability",memberAvailability} };
+        "facility_name",
+        "npc_name",
+        "service_type",
+    };
+
+    private static readonly string[] RequiredResearchCandidateStringFields =
+    {
+        "research_id",
+        "entry_type",
+        "target_id",
+        "target_label",
+        "reason_text",
+    };
+
+    private static readonly GArray ResearchRewardCatalog = new()
+    {
+        new GDictionary
+        {
+            ["research_id"] = "research_field_manual",
+            ["entry_type"] = "knowledge_unlock",
+            ["target_id"] = "field_manual",
+            ["target_label"] = "野外手册",
+            ["reason_text"] = "研究员整理出一份可长期翻阅的野外手册抄本。",
+        },
+        new GDictionary
+        {
+            ["research_id"] = "research_guard_break",
+            ["entry_type"] = "skill_unlock",
+            ["target_id"] = "warrior_guard_break",
+            ["target_label"] = "裂甲斩",
+            ["reason_text"] = "研究记录补全了裂甲斩的动作拆解。",
+        },
+    };
+
+    public bool is_supported_interaction(string interaction_script_id)
+    {
+        return (interaction_script_id ?? "").StripEdges() == ResearchInteractionId;
     }
 
-    public Godot.Collections.Dictionary execute(Godot.Collections.Dictionary settlement, Godot.Collections.Dictionary payload, GodotObject partyState, GodotObject characterManagement, GodotObject warehouseService)
+    public GDictionary build_service_metadata(PartyState party_state, GDictionary payload = null)
     {
-        var errors = new Godot.Collections.Array<string>();
-        foreach (string fn in REQUIRED_SERVICE_PAYLOAD_STRING_FIELDS) { if (!payload.ContainsKey(fn) || payload[fn].VariantType != Variant.Type.String || payload[fn].AsString().StripEdges().Length == 0) errors.Add($"缺少 {fn}"); }
-        var memberId = ProgressionDataUtils.to_string_name(payload.ContainsKey("member_id") ? payload["member_id"] : "");
-        var researchId = payload.ContainsKey("research_id") ? payload["research_id"].AsString().StripEdges() : "";
-        if (memberId == "") errors.Add("缺少 member_id"); if (researchId.Length == 0) errors.Add("缺少 research_id");
-        if (errors.Count > 0) return new Godot.Collections.Dictionary { {"ok",false},{"errors",errors} };
-        if (partyState == null || !(bool)partyState.Call("can_afford", RESEARCH_GOLD_COST)) { errors.Add("金币不足"); return new Godot.Collections.Dictionary { {"ok",false},{"errors",errors} }; }
-        var candidate = _find_catalog_entry(researchId); if (candidate == null) { errors.Add($"未知的研究项目: {researchId}"); return new Godot.Collections.Dictionary { {"ok",false},{"errors",errors} }; }
-        var entryType = ProgressionDataUtils.to_string_name(candidate.ContainsKey("entry_type") ? candidate["entry_type"] : "");
-        var targetId = ProgressionDataUtils.to_string_name(candidate.ContainsKey("target_id") ? candidate["target_id"] : "");
-        var targetLabel = candidate.ContainsKey("target_label") ? candidate["target_label"].AsString() : "";
-        var reasonText = candidate.ContainsKey("reason_text") ? candidate["reason_text"].AsString() : "";
-        if (!PendingCharacterRewardContentRules.is_supported_entry_type(entryType) || targetId == "") { errors.Add("研究奖励配置无效"); return new Godot.Collections.Dictionary { {"ok",false},{"errors",errors} }; }
-        partyState.Call("spend_gold", RESEARCH_GOLD_COST);
-        var rewardEntry = new Godot.Collections.Dictionary { {"entry_type",entryType},{"target_id",targetId},{"target_label",targetLabel},{"amount",1},{"reason_text",reasonText} };
-        return new Godot.Collections.Dictionary { {"ok",true},{"research_id",researchId},{"reward_entry",rewardEntry},{"source_type",RESEARCH_SOURCE_TYPE},{"source_id",researchId} };
+        payload ??= new GDictionary();
+        bool canAffordResearch = party_state != null && party_state.can_afford(ResearchGoldCost);
+        string catalogSchemaError = _validate_research_catalog_schema();
+        GDictionary memberAvailability = _build_member_research_availability(party_state, canAffordResearch, catalogSchemaError);
+        StringName requestedMemberId = GdInterop.GetStringName(payload, "member_id");
+
+        bool hasAvailableResearch = false;
+        string memberDisabledReason = "";
+        if (!GdInterop.IsEmpty(requestedMemberId))
+        {
+            GDictionary selectedAvailability = GdInterop.GetDictionary(memberAvailability, requestedMemberId.ToString());
+            hasAvailableResearch = GdInterop.GetBool(selectedAvailability, "has_available_research", false);
+            memberDisabledReason = GdInterop.GetString(selectedAvailability, "disabled_reason", "暂无可研究内容");
+        }
+        else
+        {
+            foreach (var availabilityValue in memberAvailability.Values)
+            {
+                if (availabilityValue.VariantType != Variant.Type.Dictionary)
+                {
+                    continue;
+                }
+                if (GdInterop.GetBool(availabilityValue.AsGodotDictionary(), "has_available_research", false))
+                {
+                    hasAvailableResearch = true;
+                    break;
+                }
+            }
+        }
+
+        bool isEnabled = canAffordResearch && hasAvailableResearch;
+        string disabledReason = "";
+        if (!string.IsNullOrEmpty(catalogSchemaError))
+        {
+            disabledReason = "研究配置无效";
+        }
+        else if (!canAffordResearch)
+        {
+            disabledReason = "金币不足";
+        }
+        else if (!hasAvailableResearch)
+        {
+            disabledReason = !string.IsNullOrEmpty(memberDisabledReason) ? memberDisabledReason : "暂无可研究内容";
+        }
+
+        return new GDictionary
+        {
+            ["cost_label"] = $"{ResearchGoldCost} 金",
+            ["is_enabled"] = isEnabled,
+            ["disabled_reason"] = disabledReason,
+            ["member_availability"] = memberAvailability,
+        };
     }
 
-    private Godot.Collections.Dictionary _build_member_research_availability(GodotObject partyState, bool canAfford, string catalogError) { var r = new Godot.Collections.Dictionary(); if (partyState == null) return r; var memberStates = partyState.Get("member_states").AsGodotDictionary(); foreach (var kv in memberStates) { string mid = kv.Key.AsString(); var memberState = kv.Value.AsGodotObject(); var memberR = new Godot.Collections.Dictionary { {"member_id",mid},{"has_available_research",false},{"disabled_reason",""} }; if (!canAfford) memberR["disabled_reason"] = "金币不足"; else if (catalogError.Length > 0) memberR["disabled_reason"] = "研究配置无效"; else { bool hasAny = false; foreach (var cat in RESEARCH_REWARD_CATALOG) { string etype = cat.ContainsKey("entry_type") ? cat["entry_type"].AsString() : ""; string tid = cat.ContainsKey("target_id") ? cat["target_id"].AsString() : ""; if (etype.Length > 0 && tid.Length > 0 && _can_member_research(memberState, etype, tid)) { hasAny = true; break; } } memberR["has_available_research"] = hasAny; if (!hasAny) memberR["disabled_reason"] = "暂无可研究内容"; } r[mid] = memberR; } return r; }
+    public GDictionary execute(GDictionary settlement, GDictionary payload, PartyState party_state, GArray quest_progress_events = null)
+    {
+        settlement ??= new GDictionary();
+        payload ??= new GDictionary();
+        quest_progress_events ??= new GArray();
 
-    private static bool _can_member_research(GodotObject memberState, string entryType, string targetId) { if (memberState == null || memberState.Get("progression").AsGodotObject() == null) return false; var prog = memberState.Get("progression").AsGodotObject(); if (entryType == "knowledge_unlock") { var known = prog.Get("known_knowledge_ids").AsGodotArray(); if (known.Contains(new StringName(targetId))) return false; } else if (entryType == "skill_unlock") { var skills = prog.Get("skills").AsGodotDictionary(); var sid = new StringName(targetId); if (skills.ContainsKey(sid)) { var sp = skills[sid].AsGodotObject(); if (sp != null && sp.Get("is_learned").AsBool()) return false; } } return true; }
+        if (party_state == null)
+        {
+            return _build_result(false, "当前不存在队伍数据。", quest_progress_events);
+        }
 
-    private static string _validate_research_catalog_schema() { foreach (var entry in RESEARCH_REWARD_CATALOG) { foreach (string fn in REQUIRED_RESEARCH_CANDIDATE_STRING_FIELDS) { if (!entry.ContainsKey(fn) || entry[fn].VariantType != Variant.Type.String || entry[fn].AsString().StripEdges().Length == 0) return $"研究目录缺少 {fn}"; } if (!PendingCharacterRewardContentRules.is_supported_entry_type(entry["entry_type"])) return $"不支持的 entry_type: {entry["entry_type"]}"; } return ""; }
+        string schemaError = _validate_execution_schema(settlement, payload);
+        if (!string.IsNullOrEmpty(schemaError))
+        {
+            return _build_result(false, schemaError, quest_progress_events);
+        }
 
-    private static Godot.Collections.Dictionary _find_catalog_entry(string researchId) { foreach (var entry in RESEARCH_REWARD_CATALOG) { if (entry.ContainsKey("research_id") && entry["research_id"].AsString() == researchId) return entry; } return null; }
+        string catalogSchemaError = _validate_research_catalog_schema();
+        if (!string.IsNullOrEmpty(catalogSchemaError))
+        {
+            return _build_result(false, catalogSchemaError, quest_progress_events);
+        }
+
+        PartyMemberState memberState = _resolve_target_member_state(party_state, payload);
+        if (memberState == null || memberState.progression == null)
+        {
+            return _build_result(false, "当前没有可承接研究的成员。", quest_progress_events);
+        }
+
+        GDictionary researchCandidate = _select_research_candidate(party_state, memberState);
+        if (researchCandidate.Count == 0)
+        {
+            return _build_result(false, $"{_resolve_member_name(memberState)} 当前暂无可研究的新内容。", quest_progress_events);
+        }
+
+        string facilityName = GdInterop.GetString(payload, "facility_name").StripEdges();
+        string npcName = GdInterop.GetString(payload, "npc_name").StripEdges();
+        string serviceType = GdInterop.GetString(payload, "service_type").StripEdges();
+        GDictionary pendingReward = _build_pending_research_reward(memberState, researchCandidate, facilityName, npcName, serviceType);
+        if (pendingReward.Count == 0)
+        {
+            return _build_result(false, "当前研究成果构造失败。", quest_progress_events);
+        }
+
+        string settlementName = GdInterop.GetString(settlement, "display_name").StripEdges();
+        GDictionary rewardEntry = _get_first_reward_entry(pendingReward);
+        string rewardLabel = GdInterop.GetString(rewardEntry, "target_label").StripEdges();
+        if (string.IsNullOrEmpty(rewardLabel))
+        {
+            return _build_result(false, "当前研究成果构造失败。", quest_progress_events);
+        }
+
+        if (!party_state.spend_gold(ResearchGoldCost))
+        {
+            return _build_result(false, "金币不足，无法委托研究。", quest_progress_events);
+        }
+
+        string message = $"{settlementName} 的 {facilityName} 已收下 {ResearchGoldCost} 金研究经费，由 {npcName} 启动本次{serviceType}委托。";
+        message += $"已整理出新成果：{rewardLabel}。";
+
+        return _build_result(
+            true,
+            message,
+            quest_progress_events,
+            true,
+            -ResearchGoldCost,
+            new GArray { pendingReward },
+            new GDictionary
+            {
+                ["research_interaction_id"] = ResearchInteractionId,
+                ["gold_spent"] = ResearchGoldCost,
+                ["facility_name"] = facilityName,
+                ["research_source_id"] = GdInterop.GetString(pendingReward, "source_id"),
+                ["research_entry_type"] = GdInterop.GetString(rewardEntry, "entry_type"),
+                ["research_target_id"] = GdInterop.GetString(rewardEntry, "target_id"),
+            });
+    }
+
+    public GArray _get_research_reward_catalog()
+    {
+        return GetResearchRewardCatalogCore();
+    }
+
+    protected virtual GArray GetResearchRewardCatalogCore()
+    {
+        return DuplicateDictionaryArrayUntyped(ResearchRewardCatalog);
+    }
+
+    private GDictionary _build_result(
+        bool success,
+        string message,
+        GArray questProgressEvents,
+        bool persistPartyState = false,
+        int goldDelta = 0,
+        GArray pendingCharacterRewards = null,
+        GDictionary serviceSideEffects = null)
+    {
+        var result = new SettlementServiceResult
+        {
+            success = success,
+            message = message,
+            persist_party_state = persistPartyState,
+            gold_delta = goldDelta,
+            pending_character_rewards = DuplicateDictionaryArrayUntyped(pendingCharacterRewards ?? new GArray()),
+            quest_progress_events = DuplicateDictionaryArrayUntyped(questProgressEvents ?? new GArray()),
+            service_side_effects = serviceSideEffects != null ? (GDictionary)serviceSideEffects.Duplicate(true) : new GDictionary(),
+        };
+        return result.to_dictionary();
+    }
+
+    private string _validate_execution_schema(GDictionary settlement, GDictionary payload)
+    {
+        string payloadError = _validate_required_string_fields(payload, RequiredServicePayloadStringFields, "research payload");
+        if (!string.IsNullOrEmpty(payloadError))
+        {
+            return payloadError;
+        }
+        return _validate_required_string_fields(settlement, new[] { "display_name" }, "settlement");
+    }
+
+    private string _validate_research_catalog_schema()
+    {
+        int index = 0;
+        foreach (var candidateValue in GetResearchRewardCatalog())
+        {
+            if (candidateValue.VariantType != Variant.Type.Dictionary)
+            {
+                return $"研究候选配置无效：catalog[{index}] 必须是 Dictionary。";
+            }
+            string candidateError = _validate_research_candidate_schema(candidateValue.AsGodotDictionary(), index);
+            if (!string.IsNullOrEmpty(candidateError))
+            {
+                return candidateError;
+            }
+            index++;
+        }
+        return "";
+    }
+
+    private string _validate_research_candidate_schema(GDictionary researchCandidate, int index = -1)
+    {
+        string schemaLabel = index >= 0 ? $"research candidate[{index}]" : "research candidate";
+        return _validate_required_string_fields(researchCandidate, RequiredResearchCandidateStringFields, schemaLabel);
+    }
+
+    private static string _validate_required_string_fields(GDictionary data, string[] fieldNames, string schemaLabel)
+    {
+        foreach (string fieldName in fieldNames)
+        {
+            if (data == null || !data.ContainsKey(fieldName))
+            {
+                return $"{schemaLabel}.{fieldName} 必须显式提供非空 String。";
+            }
+            var value = data[fieldName];
+            if (value.VariantType != Variant.Type.String || value.AsString().StripEdges().Length == 0)
+            {
+                return $"{schemaLabel}.{fieldName} 必须显式提供非空 String。";
+            }
+        }
+        return "";
+    }
+
+    private GArray GetResearchRewardCatalog()
+    {
+        return GetResearchRewardCatalogCore();
+    }
+
+    private static PartyMemberState _resolve_target_member_state(PartyState partyState, GDictionary payload)
+    {
+        if (partyState == null)
+        {
+            return null;
+        }
+        StringName requestedMemberId = GdInterop.GetStringName(payload, "member_id");
+        if (!GdInterop.IsEmpty(requestedMemberId))
+        {
+            return partyState.get_member_state(requestedMemberId);
+        }
+        StringName defaultMemberId = _resolve_default_member_id(partyState);
+        return !GdInterop.IsEmpty(defaultMemberId)
+            ? partyState.get_member_state(defaultMemberId)
+            : null;
+    }
+
+    private static StringName _resolve_default_member_id(PartyState partyState)
+    {
+        if (partyState == null)
+        {
+            return "";
+        }
+        StringName leaderMemberId = partyState.leader_member_id;
+        if (!GdInterop.IsEmpty(leaderMemberId) && partyState.get_member_state(leaderMemberId) != null)
+        {
+            return leaderMemberId;
+        }
+        foreach (var memberId in partyState.active_member_ids)
+        {
+            if (!GdInterop.IsEmpty(memberId) && partyState.get_member_state(memberId) != null)
+            {
+                return memberId;
+            }
+        }
+        return "";
+    }
+
+    private GDictionary _build_member_research_availability(PartyState partyState, bool canAffordResearch, string catalogSchemaError)
+    {
+        var availabilityByMember = new GDictionary();
+        if (partyState == null)
+        {
+            return availabilityByMember;
+        }
+        foreach (StringName memberId in _collect_rostered_member_ids(partyState))
+        {
+            PartyMemberState memberState = partyState.get_member_state(memberId);
+            bool hasCandidate = string.IsNullOrEmpty(catalogSchemaError)
+                && memberState != null
+                && memberState.progression != null
+                && _select_research_candidate(partyState, memberState).Count > 0;
+            string disabledReason = "";
+            if (!string.IsNullOrEmpty(catalogSchemaError))
+            {
+                disabledReason = "研究配置无效";
+            }
+            else if (!canAffordResearch)
+            {
+                disabledReason = "金币不足";
+            }
+            else if (!hasCandidate)
+            {
+                disabledReason = "暂无可研究内容";
+            }
+            availabilityByMember[memberId.ToString()] = new GDictionary
+            {
+                ["member_id"] = memberId.ToString(),
+                ["has_available_research"] = hasCandidate,
+                ["is_enabled"] = canAffordResearch && hasCandidate,
+                ["disabled_reason"] = disabledReason,
+            };
+        }
+        return availabilityByMember;
+    }
+
+    private static Godot.Collections.Array<StringName> _collect_rostered_member_ids(PartyState partyState)
+    {
+        var memberIds = new Godot.Collections.Array<StringName>();
+        if (partyState == null)
+        {
+            return memberIds;
+        }
+        AppendRosterMemberIds(memberIds, partyState.active_member_ids);
+        AppendRosterMemberIds(memberIds, partyState.reserve_member_ids);
+        return memberIds;
+    }
+
+    private static void AppendRosterMemberIds(Godot.Collections.Array<StringName> memberIds, Godot.Collections.Array<StringName> rawIds)
+    {
+        foreach (var memberId in rawIds)
+        {
+            if (!GdInterop.IsEmpty(memberId) && !memberIds.Contains(memberId))
+            {
+                memberIds.Add(memberId);
+            }
+        }
+    }
+
+    private GDictionary _select_research_candidate(PartyState partyState, PartyMemberState memberState)
+    {
+        if (memberState == null || memberState.progression == null)
+        {
+            return new GDictionary();
+        }
+        StringName memberId = memberState.member_id;
+        GDictionary reservedTargets = _collect_pending_reward_targets(partyState, memberId);
+        UnitProgress progression = memberState.progression;
+        foreach (var candidateValue in GetResearchRewardCatalog())
+        {
+            if (candidateValue.VariantType != Variant.Type.Dictionary)
+            {
+                continue;
+            }
+            GDictionary candidate = (GDictionary)candidateValue.AsGodotDictionary().Duplicate(true);
+            StringName entryType = new StringName(GdInterop.GetString(candidate, "entry_type").StripEdges());
+            StringName targetId = new StringName(GdInterop.GetString(candidate, "target_id").StripEdges());
+            if (GdInterop.IsEmpty(targetId))
+            {
+                continue;
+            }
+            if (reservedTargets.ContainsKey(_build_reward_target_key(entryType, targetId)))
+            {
+                continue;
+            }
+            if (entryType == PendingCharacterRewardContentRules.ENTRY_KNOWLEDGE_UNLOCK)
+            {
+                if (!progression.has_knowledge(targetId))
+                {
+                    return candidate;
+                }
+            }
+            else if (entryType == PendingCharacterRewardContentRules.ENTRY_SKILL_UNLOCK)
+            {
+                UnitSkillProgress skillProgress = progression.get_skill_progress(targetId);
+                if (skillProgress == null || !skillProgress.is_learned)
+                {
+                    return candidate;
+                }
+            }
+        }
+        return new GDictionary();
+    }
+
+    private static GDictionary _collect_pending_reward_targets(PartyState partyState, StringName memberId)
+    {
+        var targets = new GDictionary();
+        if (partyState == null || GdInterop.IsEmpty(memberId))
+        {
+            return targets;
+        }
+        foreach (var rewardValue in GdInterop.GetArray(partyState, "pending_character_rewards"))
+        {
+            GodotObject rewardObject = rewardValue.VariantType == Variant.Type.Object ? rewardValue.AsGodotObject() : null;
+            if (rewardObject == null || GdInterop.GetStringName(rewardObject, "member_id") != memberId)
+            {
+                continue;
+            }
+            foreach (var entryValue in GdInterop.GetArray(rewardObject, "entries"))
+            {
+                GodotObject entryObject = entryValue.VariantType == Variant.Type.Object ? entryValue.AsGodotObject() : null;
+                if (entryObject == null || entryObject.Call("is_empty").AsBool())
+                {
+                    continue;
+                }
+                targets[_build_reward_target_key(
+                    GdInterop.GetStringName(entryObject, "entry_type"),
+                    GdInterop.GetStringName(entryObject, "target_id"))] = true;
+            }
+        }
+        return targets;
+    }
+
+    private static StringName _build_reward_target_key(StringName entryType, StringName targetId)
+    {
+        return new StringName($"{entryType}|{targetId}");
+    }
+
+    private GDictionary _build_pending_research_reward(
+        PartyMemberState memberState,
+        GDictionary researchCandidate,
+        string facilityName,
+        string npcName,
+        string serviceType)
+    {
+        if (memberState == null || memberState.progression == null || researchCandidate == null || researchCandidate.Count == 0)
+        {
+            return new GDictionary();
+        }
+        if (!string.IsNullOrEmpty(_validate_research_candidate_schema(researchCandidate)))
+        {
+            return new GDictionary();
+        }
+        string targetId = GdInterop.GetString(researchCandidate, "target_id").StripEdges();
+        string targetLabel = GdInterop.GetString(researchCandidate, "target_label").StripEdges();
+        string researchId = GdInterop.GetString(researchCandidate, "research_id").StripEdges();
+        string entryType = GdInterop.GetString(researchCandidate, "entry_type").StripEdges();
+        string reasonText = GdInterop.GetString(researchCandidate, "reason_text").StripEdges();
+        string sourceLabel = _build_reward_source_label(facilityName, npcName, serviceType);
+        string memberName = _resolve_member_name(memberState);
+        string memberId = memberState.member_id.ToString();
+        string summaryText = $"{npcName} 为 {memberName} 整理出新的研究成果：{targetLabel}。";
+        return new GDictionary
+        {
+            ["reward_id"] = $"{memberId}_{researchId}_reward",
+            ["member_id"] = memberId,
+            ["member_name"] = memberName,
+            ["source_type"] = ResearchSourceType.ToString(),
+            ["source_id"] = researchId,
+            ["source_label"] = sourceLabel,
+            ["summary_text"] = summaryText,
+            ["entries"] = new GArray
+            {
+                new GDictionary
+                {
+                    ["entry_type"] = entryType,
+                    ["target_id"] = targetId,
+                    ["target_label"] = targetLabel,
+                    ["amount"] = 1,
+                    ["reason_text"] = reasonText,
+                },
+            },
+        };
+    }
+
+    private static string _build_reward_source_label(string _facilityName, string npcName, string serviceType)
+    {
+        return $"{npcName}·{serviceType}";
+    }
+
+    private static string _resolve_member_name(PartyMemberState memberState)
+    {
+        if (memberState == null)
+        {
+            return "成员";
+        }
+        string displayName = memberState.display_name;
+        return !string.IsNullOrEmpty(displayName) ? displayName : memberState.member_id.ToString();
+    }
+
+    private static GDictionary _get_first_reward_entry(GDictionary rewardData)
+    {
+        GArray entries = GdInterop.GetArray(rewardData, "entries");
+        if (entries.Count == 0 || entries[0].VariantType != Variant.Type.Dictionary)
+        {
+            return new GDictionary();
+        }
+        return (GDictionary)entries[0].AsGodotDictionary().Duplicate(true);
+    }
+
+    private static GArray DuplicateDictionaryArrayUntyped(GArray value)
+    {
+        var result = new GArray();
+        if (value == null)
+        {
+            return result;
+        }
+        foreach (var entryValue in value)
+        {
+            if (entryValue.VariantType == Variant.Type.Dictionary)
+            {
+                result.Add(entryValue.AsGodotDictionary().Duplicate(true));
+            }
+        }
+        return result;
+    }
 }
-

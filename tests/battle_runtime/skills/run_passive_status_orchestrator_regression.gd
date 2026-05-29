@@ -2,32 +2,30 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const ASCENSION_DEF_SCRIPT = preload("res://scripts/player/progression/ascension_def.gd")
-const BATTLE_UNIT_FACTORY_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_unit_factory.gd")
-const BATTLE_UNIT_FACTORY_RUNTIME_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_unit_factory_runtime.gd")
-const BATTLE_RANGE_SERVICE_SCRIPT = preload("res://scripts/systems/battle/rules/battle_range_service.gd")
-const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
-const CHARACTER_MANAGEMENT_MODULE_SCRIPT = preload("res://scripts/systems/progression/character_management_module.gd")
-const COMBAT_SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/combat_skill_def.gd")
-const PARTY_MEMBER_STATE_SCRIPT = preload("res://scripts/player/progression/party_member_state.gd")
-const PARTY_STATE_SCRIPT = preload("res://scripts/player/progression/party_state.gd")
-const PASSIVE_SOURCE_CONTEXT_SCRIPT = preload("res://scripts/systems/progression/passive_source_context.gd")
-const PASSIVE_STATUS_ORCHESTRATOR_SCRIPT = preload("res://scripts/systems/battle/runtime/passive_status_orchestrator.gd")
-const PROGRESSION_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/progression_content_registry.gd")
-const RACE_DEF_SCRIPT = preload("res://scripts/player/progression/race_def.gd")
-const RACIAL_GRANTED_SKILL_SCRIPT = preload("res://scripts/player/progression/racial_granted_skill.gd")
-const SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/skill_def.gd")
-const SUBRACE_DEF_SCRIPT = preload("res://scripts/player/progression/subrace_def.gd")
-const UNIT_PROFESSION_PROGRESS_SCRIPT = preload("res://scripts/player/progression/unit_profession_progress.gd")
-const UNIT_PROGRESS_SCRIPT = preload("res://scripts/player/progression/unit_progress.gd")
-const UNIT_SKILL_PROGRESS_SCRIPT = preload("res://scripts/player/progression/unit_skill_progress.gd")
+const ASCENSION_DEF_SCRIPT = preload("res://scripts/player/progression/AscensionDef.cs")
+const BATTLE_UNIT_FACTORY_SCRIPT = preload("res://scripts/systems/battle/runtime/BattleUnitFactory.cs")
+const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
+const CHARACTER_MANAGEMENT_MODULE_SCRIPT = preload("res://scripts/systems/progression/CharacterManagementModule.cs")
+const COMBAT_SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/CombatSkillDef.cs")
+const PARTY_MEMBER_STATE_SCRIPT = preload("res://scripts/player/progression/PartyMemberState.cs")
+const PARTY_STATE_SCRIPT = preload("res://scripts/player/progression/PartyState.cs")
+const PASSIVE_SOURCE_CONTEXT_SCRIPT = preload("res://scripts/systems/progression/PassiveSourceContext.cs")
+const PASSIVE_STATUS_ORCHESTRATOR_SCRIPT = preload("res://scripts/systems/battle/runtime/PassiveStatusOrchestrator.cs")
+const PROGRESSION_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/ProgressionContentRegistry.cs")
+const RACE_DEF_SCRIPT = preload("res://scripts/player/progression/RaceDef.cs")
+const RACIAL_GRANTED_SKILL_SCRIPT = preload("res://scripts/player/progression/RacialGrantedSkill.cs")
+const SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/SkillDef.cs")
+const SUBRACE_DEF_SCRIPT = preload("res://scripts/player/progression/SubraceDef.cs")
+const UNIT_PROFESSION_PROGRESS_SCRIPT = preload("res://scripts/player/progression/UnitProfessionProgress.cs")
+const UNIT_PROGRESS_SCRIPT = preload("res://scripts/player/progression/UnitProgress.cs")
+const UNIT_SKILL_PROGRESS_SCRIPT = preload("res://scripts/player/progression/UnitSkillProgress.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
 
 
 class FakeRuntime:
-	extends BATTLE_UNIT_FACTORY_RUNTIME_SCRIPT
+	extends RefCounted
 
 	var character_gateway: Object = null
 	var skill_defs: Dictionary = {}
@@ -141,7 +139,7 @@ func _test_orchestrator_projects_shooting_specialization_bow_only_range_bonus() 
 	skill_progress.is_learned = true
 	skill_progress.skill_level = 0
 	skill_progress.profession_granted_by = &"archer"
-	skill_progress.granted_source_type = UNIT_SKILL_PROGRESS_SCRIPT.GRANTED_SOURCE_PROFESSION
+	skill_progress.granted_source_type = &"profession"
 	skill_progress.granted_source_id = &"archer"
 	context.unit_progress.set_skill_progress(skill_progress)
 	var profession_progress = UNIT_PROFESSION_PROGRESS_SCRIPT.new()
@@ -171,7 +169,7 @@ func _test_orchestrator_projects_shooting_specialization_bow_only_range_bonus() 
 		"weapon_physical_damage_tag": "physical_pierce",
 	})
 	_assert_eq(
-		BATTLE_RANGE_SERVICE_SCRIPT.get_effective_skill_range(unit, weapon_skill),
+		BattleRangeService.get_effective_skill_range(unit, weapon_skill),
 		5,
 		"shooting specialization should add +1 range for bow weapons."
 	)
@@ -187,7 +185,7 @@ func _test_orchestrator_projects_shooting_specialization_bow_only_range_bonus() 
 		"weapon_physical_damage_tag": "physical_pierce",
 	})
 	_assert_eq(
-		BATTLE_RANGE_SERVICE_SCRIPT.get_effective_skill_range(unit, weapon_skill),
+		BattleRangeService.get_effective_skill_range(unit, weapon_skill),
 		5,
 		"shooting specialization must not add range for crossbows."
 	)
@@ -226,7 +224,7 @@ func _make_race_def():
 	race.trait_ids.append(&"test_race_trait")
 	race.vision_tags.append(&"darkvision")
 	race.damage_resistances = {&"fire": &"half"}
-	race.racial_granted_skills.append(_make_racial_grant(&"dragon_breath_test", RACIAL_GRANTED_SKILL_SCRIPT.CHARGE_KIND_PER_BATTLE, 2))
+	race.racial_granted_skills.append(_make_racial_grant(&"dragon_breath_test", &"per_battle", 2))
 	return race
 
 
@@ -237,7 +235,7 @@ func _make_subrace_def():
 	subrace.display_name = "Test Subrace"
 	subrace.trait_ids.append(&"test_subrace_trait")
 	subrace.save_advantage_tags.append(&"poison")
-	subrace.racial_granted_skills.append(_make_racial_grant(&"nimble_escape_test", RACIAL_GRANTED_SKILL_SCRIPT.CHARGE_KIND_PER_TURN, 1))
+	subrace.racial_granted_skills.append(_make_racial_grant(&"nimble_escape_test", &"per_turn", 1))
 	return subrace
 
 
@@ -247,7 +245,7 @@ func _make_ascension_def(suppresses_original_race_traits: bool):
 	ascension.display_name = "Test Ascension"
 	ascension.suppresses_original_race_traits = suppresses_original_race_traits
 	ascension.trait_ids.append(&"ascended_trait")
-	ascension.racial_granted_skills.append(_make_racial_grant(&"ascension_ray_test", RACIAL_GRANTED_SKILL_SCRIPT.CHARGE_KIND_PER_BATTLE, 3))
+	ascension.racial_granted_skills.append(_make_racial_grant(&"ascension_ray_test", &"per_battle", 3))
 	return ascension
 
 

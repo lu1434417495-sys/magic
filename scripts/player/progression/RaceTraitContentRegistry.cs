@@ -52,7 +52,7 @@ public partial class RaceTraitContentRegistry : IdentityContentRegistryBase
         "draconic_ancestry",
     };
 
-    private Godot.Collections.Dictionary _race_trait_defs = new();
+    private System.Collections.Generic.Dictionary<StringName, RaceTraitDef> _race_trait_defs = new();
 
     public RaceTraitContentRegistry()
     {
@@ -73,11 +73,17 @@ public partial class RaceTraitContentRegistry : IdentityContentRegistryBase
             _validation_errors.Add(e);
     }
 
-    public Godot.Collections.Dictionary get_race_trait_defs() => _race_trait_defs.Duplicate();
+    public Godot.Collections.Dictionary get_race_trait_defs()
+    {
+        var result = new Godot.Collections.Dictionary();
+        foreach (var kvp in _race_trait_defs)
+            result[kvp.Key] = kvp.Value;
+        return result;
+    }
 
     protected override void _register_resource(string resourcePath)
     {
-        var resource = GD.Load<Resource>(resourcePath);
+        var resource = GodotContentResourceLifetime.Keep(GD.Load<Resource>(resourcePath));
         if (resource == null)
         {
             _validation_errors.Add($"Failed to load race trait config {resourcePath}.");
@@ -107,15 +113,10 @@ public partial class RaceTraitContentRegistry : IdentityContentRegistryBase
     private Godot.Collections.Array<string> _collect_validation_errors()
     {
         var errors = new Godot.Collections.Array<string>();
-        foreach (var traitKey in _sorted_registry_keys(_race_trait_defs))
+        foreach (var traitKey in _sorted_registry_keys(_race_trait_defs.Keys))
         {
             var traitId = new StringName(traitKey);
-            if (!_race_trait_defs.ContainsKey(traitId))
-                continue;
-            var traitDef = _race_trait_defs[traitId].AsGodotObject() as RaceTraitDef;
-            if (traitDef == null)
-                continue;
-            _append_trait_validation_errors(errors, traitId, traitDef);
+            _append_trait_validation_errors(errors, traitId, _race_trait_defs[traitId]);
         }
         return errors;
     }
@@ -140,14 +141,17 @@ public partial class RaceTraitContentRegistry : IdentityContentRegistryBase
         if (!ValidEffectTypes.Contains(effectType))
             errors.Add($"{ownerLabel} uses unsupported effect_type {effectType}.");
 
-        foreach (var keyVariant in traitDef.@params.Keys)
+        foreach (var keyValue in traitDef.@params.Keys)
         {
-            if (!_is_string_or_string_name(keyVariant))
+            if (
+                keyValue.VariantType != Variant.Type.String
+                && keyValue.VariantType != Variant.Type.StringName
+            )
             {
-                errors.Add($"{ownerLabel}.params key {keyVariant} must be a String or StringName.");
+                errors.Add($"{ownerLabel}.params key {keyValue} must be a String or StringName.");
                 continue;
             }
-            if (string.IsNullOrEmpty(keyVariant.AsString().StripEdges()))
+            if (string.IsNullOrEmpty(keyValue.AsString().StripEdges()))
                 errors.Add($"{ownerLabel}.params has an empty key.");
         }
     }

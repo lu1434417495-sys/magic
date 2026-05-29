@@ -1,9 +1,9 @@
 [gd_resource type="Resource" script_class="SkillDef" format=3]
 
-[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="1_variant"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="2_effect"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="3_combat"]
-[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="4_skill"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="1_option"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="2_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="3_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="4_skill"]
 
 [sub_resource type="Resource" id="Resource_counter_status"]
 script = ExtResource("2_effect")
@@ -15,8 +15,8 @@ params = {
 "lock_counterattack": true
 }
 
-[sub_resource type="Resource" id="Resource_counter_variant"]
-script = ExtResource("1_variant")
+[sub_resource type="Resource" id="Resource_counter_option"]
+script = ExtResource("1_option")
 variant_id = &"counterattack_lock"
 display_name = "禁反击"
 description = "对 boss 施加 1 回合封印，目标不能反击。"
@@ -33,8 +33,8 @@ params = {
 "lock_crit": true
 }
 
-[sub_resource type="Resource" id="Resource_crit_variant"]
-script = ExtResource("1_variant")
+[sub_resource type="Resource" id="Resource_crit_option"]
+script = ExtResource("1_option")
 variant_id = &"crit_lock"
 display_name = "禁暴击"
 description = "对 boss 施加 1 回合封印，目标不能暴击。"
@@ -48,7 +48,7 @@ target_mode = &"unit"
 target_team_filter = &"enemy"
 range_value = 5
 ap_cost = 1
-cast_variants = Array[ExtResource("1_variant")]([SubResource("Resource_counter_variant"), SubResource("Resource_crit_variant")])
+cast_variants = Array[ExtResource("1_option")]([SubResource("Resource_counter_option"), SubResource("Resource_crit_option")])
 
 [resource]
 script = ExtResource("4_skill")

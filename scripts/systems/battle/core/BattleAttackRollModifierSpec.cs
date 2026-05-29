@@ -69,96 +69,100 @@ public partial class BattleAttackRollModifierSpec : RefCounted
         };
     }
 
-    public static BattleAttackRollModifierSpec from_dict(Variant data)
+    public static BattleAttackRollModifierSpec from_dict(GDictionary payload)
     {
-        if (data.VariantType != Variant.Type.Dictionary)
-        {
+        if (payload == null)
             return null;
-        }
-        GDictionary payload = data.AsGodotDictionary();
         if (!HasExactSchema(payload))
         {
             return null;
         }
-        if (!IsStringLike(Get(payload, "source_domain")))
+        if (!TryGetStringLike(payload, "source_domain", out string sourceDomain))
             return null;
-        if (!IsStringLike(Get(payload, "source_id")))
+        if (!TryGetStringLike(payload, "source_id", out string sourceId))
             return null;
-        if (!IsStringLike(Get(payload, "source_instance_id")))
+        if (!TryGetStringLike(payload, "source_instance_id", out string sourceInstanceId))
             return null;
-        if (Get(payload, "label").VariantType != Variant.Type.String)
+        if (!TryGetStrictString(payload, "label", out string label))
             return null;
-        if (Get(payload, "modifier_delta").VariantType != Variant.Type.Int)
+        if (!TryGetStrictInt(payload, "modifier_delta", out int modifierDelta))
             return null;
-        if (!IsStringLike(Get(payload, "stack_key")))
+        if (!TryGetStringLike(payload, "stack_key", out string stackKey))
             return null;
-        if (!IsStringLike(Get(payload, "stack_mode")))
+        if (!TryGetStringLike(payload, "stack_mode", out string stackMode))
             return null;
-        if (!IsStringLike(Get(payload, "roll_kind_filter")))
+        if (!TryGetStringLike(payload, "roll_kind_filter", out string rollKindFilter))
             return null;
-        if (!IsStringLike(Get(payload, "endpoint_mode")))
+        if (!TryGetStringLike(payload, "endpoint_mode", out string endpointMode))
             return null;
-        if (Get(payload, "distance_min_exclusive").VariantType != Variant.Type.Int)
+        if (!TryGetStrictInt(payload, "distance_min_exclusive", out int distanceMinExclusive))
             return null;
-        if (Get(payload, "distance_max_inclusive").VariantType != Variant.Type.Int)
+        if (!TryGetStrictInt(payload, "distance_max_inclusive", out int distanceMaxInclusive))
             return null;
-        if (!IsStringLike(Get(payload, "target_team_filter")))
+        if (!TryGetStringLike(payload, "target_team_filter", out string targetTeamFilterText))
             return null;
-        StringName targetTeamFilter = ToStringName(Get(payload, "target_team_filter"));
-        if (!IsValidSkillTargetTeamFilter(targetTeamFilter))
+        StringName targetTeamFilter = new StringName(targetTeamFilterText);
+        if (!CombatTargetTeamContentRules.is_valid_skill_target_team_filter(targetTeamFilter))
             return null;
-        if (!IsStringLike(Get(payload, "footprint_mode")))
+        if (!TryGetStringLike(payload, "footprint_mode", out string footprintMode))
             return null;
-        if (!IsStringLike(Get(payload, "applies_to")))
+        if (!TryGetStringLike(payload, "applies_to", out string appliesTo))
             return null;
 
         return new BattleAttackRollModifierSpec
         {
-            source_domain = ToStringName(Get(payload, "source_domain")),
-            source_id = ToStringName(Get(payload, "source_id")),
-            source_instance_id = Get(payload, "source_instance_id").AsString(),
-            label = Get(payload, "label").AsString(),
-            modifier_delta = Get(payload, "modifier_delta").AsInt32(),
-            stack_key = ToStringName(Get(payload, "stack_key")),
-            stack_mode = ToStringName(Get(payload, "stack_mode")),
-            roll_kind_filter = ToStringName(Get(payload, "roll_kind_filter")),
-            endpoint_mode = ToStringName(Get(payload, "endpoint_mode")),
-            distance_min_exclusive = Get(payload, "distance_min_exclusive").AsInt32(),
-            distance_max_inclusive = Get(payload, "distance_max_inclusive").AsInt32(),
+            source_domain = new StringName(sourceDomain),
+            source_id = new StringName(sourceId),
+            source_instance_id = sourceInstanceId,
+            label = label,
+            modifier_delta = modifierDelta,
+            stack_key = new StringName(stackKey),
+            stack_mode = new StringName(stackMode),
+            roll_kind_filter = new StringName(rollKindFilter),
+            endpoint_mode = new StringName(endpointMode),
+            distance_min_exclusive = distanceMinExclusive,
+            distance_max_inclusive = distanceMaxInclusive,
             target_team_filter = targetTeamFilter,
-            footprint_mode = ToStringName(Get(payload, "footprint_mode")),
-            applies_to = ToStringName(Get(payload, "applies_to")),
+            footprint_mode = new StringName(footprintMode),
+            applies_to = new StringName(appliesTo),
         };
     }
 
-    public static BattleAttackRollModifierSpec from_partial_dict(Variant data)
+    public static BattleAttackRollModifierSpec from_partial_dict(GDictionary payload)
     {
-        if (data.VariantType != Variant.Type.Dictionary)
-        {
+        if (payload == null)
             return null;
-        }
-        GDictionary payload = data.AsGodotDictionary();
-        StringName targetTeamFilter = ToStringName(Get(payload, "target_team_filter", "any"));
-        if (!IsValidSkillTargetTeamFilter(targetTeamFilter))
+        StringName targetTeamFilter = ProgressionDataUtils.to_string_name(
+            payload.GetValueOrDefault("target_team_filter", "any")
+        );
+        if (!CombatTargetTeamContentRules.is_valid_skill_target_team_filter(targetTeamFilter))
         {
             return null;
         }
         return new BattleAttackRollModifierSpec
         {
-            source_domain = ToStringName(Get(payload, "source_domain", "")),
-            source_id = ToStringName(Get(payload, "source_id", "")),
-            source_instance_id = Get(payload, "source_instance_id", "").AsString(),
-            label = Get(payload, "label", "").AsString(),
-            modifier_delta = Get(payload, "modifier_delta", 0).AsInt32(),
-            stack_key = ToStringName(Get(payload, "stack_key", "")),
-            stack_mode = ToStringName(Get(payload, "stack_mode", "add")),
-            roll_kind_filter = ToStringName(Get(payload, "roll_kind_filter", "")),
-            endpoint_mode = ToStringName(Get(payload, "endpoint_mode", "either")),
-            distance_min_exclusive = Get(payload, "distance_min_exclusive", -1).AsInt32(),
-            distance_max_inclusive = Get(payload, "distance_max_inclusive", -1).AsInt32(),
+            source_domain = ProgressionDataUtils.to_string_name(payload.GetValueOrDefault("source_domain", "")),
+            source_id = ProgressionDataUtils.to_string_name(payload.GetValueOrDefault("source_id", "")),
+            source_instance_id = payload.GetValueOrDefault("source_instance_id", "").AsString(),
+            label = payload.GetValueOrDefault("label", "").AsString(),
+            modifier_delta = payload.GetValueOrDefault("modifier_delta", 0).AsInt32(),
+            stack_key = ProgressionDataUtils.to_string_name(payload.GetValueOrDefault("stack_key", "")),
+            stack_mode = ProgressionDataUtils.to_string_name(payload.GetValueOrDefault("stack_mode", "add")),
+            roll_kind_filter = ProgressionDataUtils.to_string_name(
+                payload.GetValueOrDefault("roll_kind_filter", "")
+            ),
+            endpoint_mode = ProgressionDataUtils.to_string_name(
+                payload.GetValueOrDefault("endpoint_mode", "either")
+            ),
+            distance_min_exclusive = payload.GetValueOrDefault("distance_min_exclusive", -1).AsInt32(),
+            distance_max_inclusive = payload.GetValueOrDefault("distance_max_inclusive", -1).AsInt32(),
             target_team_filter = targetTeamFilter,
-            footprint_mode = ToStringName(Get(payload, "footprint_mode", "any_cell")),
-            applies_to = ToStringName(Get(payload, "applies_to", "attack_roll")),
+            footprint_mode = ProgressionDataUtils.to_string_name(
+                payload.GetValueOrDefault("footprint_mode", "any_cell")
+            ),
+            applies_to = ProgressionDataUtils.to_string_name(
+                payload.GetValueOrDefault("applies_to", "attack_roll")
+            ),
         };
     }
 
@@ -178,23 +182,111 @@ public partial class BattleAttackRollModifierSpec : RefCounted
         return true;
     }
 
-    private static bool IsStringLike(Variant value)
+    private static bool TryGetStringLike(GDictionary data, string key, out string value)
     {
-        return value.VariantType == Variant.Type.String || value.VariantType == Variant.Type.StringName;
+        if (TryGetExactValue(data, key, out object rawValue)
+            && TryAsStringLike(rawValue, out value))
+        {
+            return true;
+        }
+        value = "";
+        return false;
     }
 
-    private static StringName ToStringName(Variant value)
+    private static bool TryGetStrictString(GDictionary data, string key, out string value)
     {
-        return IsStringLike(value) ? new StringName(value.AsString()) : "";
+        if (TryGetExactValue(data, key, out object rawValue)
+            && TryAsStrictString(rawValue, out value))
+        {
+            return true;
+        }
+        value = "";
+        return false;
     }
 
-    private static bool IsValidSkillTargetTeamFilter(StringName value)
+    private static bool TryGetStrictInt(GDictionary data, string key, out int value)
     {
-        return value == "enemy" || value == "ally" || value == "self" || value == "any";
+        if (TryGetExactValue(data, key, out object rawValue)
+            && TryAsStrictInt(rawValue, out value))
+        {
+            return true;
+        }
+        value = 0;
+        return false;
     }
 
-    private static Variant Get(GDictionary payload, string key, Variant fallback = default)
+    private static bool TryAsStringLike(object rawValue, out string value)
     {
-        return payload.ContainsKey(key) ? payload[key] : fallback;
+        if (rawValue is Variant variant)
+        {
+            if (variant.VariantType == Variant.Type.String)
+            {
+                value = variant.AsString();
+                return true;
+            }
+            if (variant.VariantType == Variant.Type.StringName)
+            {
+                value = variant.AsStringName().ToString();
+                return true;
+            }
+            value = "";
+            return false;
+        }
+        if (rawValue is string stringValue)
+        {
+            value = stringValue;
+            return true;
+        }
+        if (rawValue is StringName stringNameValue)
+        {
+            value = stringNameValue.ToString();
+            return true;
+        }
+        value = "";
+        return false;
     }
+
+    private static bool TryAsStrictString(object rawValue, out string value)
+    {
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.String)
+        {
+            value = variant.AsString();
+            return true;
+        }
+        if (rawValue is string stringValue)
+        {
+            value = stringValue;
+            return true;
+        }
+        value = "";
+        return false;
+    }
+
+    private static bool TryAsStrictInt(object rawValue, out int value)
+    {
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Int)
+        {
+            value = variant.AsInt32();
+            return true;
+        }
+        if (rawValue is int intValue)
+        {
+            value = intValue;
+            return true;
+        }
+        value = 0;
+        return false;
+    }
+
+    private static bool TryGetExactValue(GDictionary data, string key, out object value)
+    {
+        if (data != null && data.ContainsKey(key))
+        {
+            value = data[key];
+            return true;
+        }
+        value = null;
+        return false;
+    }
+
 }

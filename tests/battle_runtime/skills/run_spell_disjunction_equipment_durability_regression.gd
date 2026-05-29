@@ -2,15 +2,14 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
-const ATTRIBUTE_SNAPSHOT_SCRIPT = preload("res://scripts/player/progression/attribute_snapshot.gd")
-const BATTLE_DAMAGE_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/rules/battle_damage_resolver.gd")
-const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
-const COMBAT_EFFECT_DEF_SCRIPT = preload("res://scripts/player/progression/combat_effect_def.gd")
-const EQUIPMENT_DURABILITY_RULES_SCRIPT = preload("res://scripts/player/equipment/equipment_durability_rules.gd")
-const EQUIPMENT_INSTANCE_STATE_SCRIPT = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
-const EQUIPMENT_STATE_SCRIPT = preload("res://scripts/player/equipment/equipment_state.gd")
-const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/AttributeService.cs")
+const ATTRIBUTE_SNAPSHOT_SCRIPT = preload("res://scripts/player/progression/AttributeSnapshot.cs")
+const BATTLE_DAMAGE_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/rules/BattleDamageResolver.cs")
+const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
+const COMBAT_EFFECT_DEF_SCRIPT = preload("res://scripts/player/progression/CombatEffectDef.cs")
+const EQUIPMENT_INSTANCE_STATE_SCRIPT = preload("res://scripts/player/warehouse/EquipmentInstanceState.cs")
+const EQUIPMENT_STATE_SCRIPT = preload("res://scripts/player/equipment/EquipmentState.cs")
+const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/UnitBaseAttributes.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -44,8 +43,8 @@ func _test_disjunction_failure_destroys_common_equipment_after_two_hits() -> voi
 		&"main_hand",
 		&"bronze_sword",
 		&"eq_common_sword",
-		EQUIPMENT_INSTANCE_STATE_SCRIPT.RarityTier.COMMON,
-		EQUIPMENT_DURABILITY_RULES_SCRIPT.get_default_current_durability(EQUIPMENT_INSTANCE_STATE_SCRIPT.RarityTier.COMMON)
+		EQUIPMENT_INSTANCE_STATE_SCRIPT.RARITY_TIER_COMMON(),
+		EquipmentDurabilityRules.GetDefaultCurrentDurability(EQUIPMENT_INSTANCE_STATE_SCRIPT.RARITY_TIER_COMMON())
 	)
 
 	var first_result: Dictionary = resolver.resolve_effects(
@@ -82,8 +81,8 @@ func _test_disjunction_reversed_effect_order_uses_attack_success_requirement() -
 		&"main_hand",
 		&"bronze_sword",
 		&"eq_reversed_sword",
-		EQUIPMENT_INSTANCE_STATE_SCRIPT.RarityTier.COMMON,
-		EQUIPMENT_DURABILITY_RULES_SCRIPT.get_default_current_durability(EQUIPMENT_INSTANCE_STATE_SCRIPT.RarityTier.COMMON)
+		EQUIPMENT_INSTANCE_STATE_SCRIPT.RARITY_TIER_COMMON(),
+		EquipmentDurabilityRules.GetDefaultCurrentDurability(EQUIPMENT_INSTANCE_STATE_SCRIPT.RARITY_TIER_COMMON())
 	)
 
 	var result: Dictionary = resolver.resolve_effects(
@@ -110,7 +109,7 @@ func _test_disjunction_success_leaves_durability_unchanged() -> void:
 		&"main_hand",
 		&"bronze_sword",
 		&"eq_saved_sword",
-		EQUIPMENT_INSTANCE_STATE_SCRIPT.RarityTier.COMMON,
+		EQUIPMENT_INSTANCE_STATE_SCRIPT.RARITY_TIER_COMMON(),
 		56
 	)
 
@@ -140,8 +139,8 @@ func _test_disjunction_rarity_bonus_can_pass_save() -> void:
 		&"main_hand",
 		&"bronze_sword",
 		&"eq_rare_sword",
-		EQUIPMENT_INSTANCE_STATE_SCRIPT.RarityTier.RARE,
-		EQUIPMENT_DURABILITY_RULES_SCRIPT.get_default_current_durability(EQUIPMENT_INSTANCE_STATE_SCRIPT.RarityTier.RARE)
+		EQUIPMENT_INSTANCE_STATE_SCRIPT.RARITY_TIER_RARE(),
+		EquipmentDurabilityRules.GetDefaultCurrentDurability(EQUIPMENT_INSTANCE_STATE_SCRIPT.RARITY_TIER_RARE())
 	)
 
 	var result: Dictionary = resolver.resolve_effects(
@@ -200,7 +199,7 @@ func _equip_instance(
 	current_durability: int
 ) -> void:
 	var equipment_state = EQUIPMENT_STATE_SCRIPT.new()
-	var instance = EQUIPMENT_INSTANCE_STATE_SCRIPT.create(item_id, instance_id)
+	var instance = EQUIPMENT_INSTANCE_STATE_SCRIPT.create_instance(item_id, instance_id)
 	instance.rarity = rarity
 	instance.current_durability = current_durability
 	var equipped := equipment_state.set_equipped_entry(slot_id, item_id, [slot_id], instance)
@@ -220,15 +219,15 @@ func _build_unit(unit_id: StringName, faction_id: StringName):
 	unit.current_aura = 0
 	unit.current_ap = 1
 	unit.attribute_snapshot = ATTRIBUTE_SNAPSHOT_SCRIPT.new()
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX, 30)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX, 0)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX, 0)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.AURA_MAX, 0)
-	unit.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.INTELLIGENCE, 18)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SNAPSHOT_SCRIPT.get_base_attribute_modifier_id(UNIT_BASE_ATTRIBUTES_SCRIPT.INTELLIGENCE), 4)
-	unit.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.WILLPOWER, 10)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SNAPSHOT_SCRIPT.get_base_attribute_modifier_id(UNIT_BASE_ATTRIBUTES_SCRIPT.WILLPOWER), 0)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.SPELL_PROFICIENCY_BONUS, 3)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX_ID(), 30)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX_ID(), 0)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX_ID(), 0)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.AURA_MAX_ID(), 0)
+	unit.attribute_snapshot.set_value(&"intelligence", 18)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SNAPSHOT_SCRIPT.get_base_attribute_modifier_id(&"intelligence"), 4)
+	unit.attribute_snapshot.set_value(&"willpower", 10)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SNAPSHOT_SCRIPT.get_base_attribute_modifier_id(&"willpower"), 0)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.SPELL_PROFICIENCY_BONUS_ID(), 3)
 	return unit
 
 

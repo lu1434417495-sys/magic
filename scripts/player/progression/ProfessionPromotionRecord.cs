@@ -26,8 +26,12 @@ public partial class ProfessionPromotionRecord : RefCounted
         return new GDictionary
         {
             ["new_rank"] = new_rank,
-            ["consumed_skill_ids"] = ProgressionDataUtils.string_name_array_to_string_array(consumed_skill_ids),
-            ["qualifier_skill_ids"] = ProgressionDataUtils.string_name_array_to_string_array(qualifier_skill_ids),
+            ["consumed_skill_ids"] = ProgressionDataUtils.string_name_array_to_string_array(
+                consumed_skill_ids
+            ),
+            ["qualifier_skill_ids"] = ProgressionDataUtils.string_name_array_to_string_array(
+                qualifier_skill_ids
+            ),
             ["snapshot_unit_base_attributes"] = snapshot_unit_base_attributes.Duplicate(true),
             ["timestamp"] = timestamp,
         };
@@ -51,38 +55,47 @@ public partial class ProfessionPromotionRecord : RefCounted
         {
             return null;
         }
-        Variant newRankVariant = data["new_rank"];
-        if (newRankVariant.VariantType != Variant.Type.Int || newRankVariant.AsInt32() < 0)
+        var newRankValue = data["new_rank"];
+        if (newRankValue.VariantType != Variant.Type.Int || newRankValue.AsInt32() < 0)
         {
             return null;
         }
-        GStringNameArray consumedSkillIds = _parse_unique_string_name_array(data["consumed_skill_ids"].AsGodotArray());
+        GStringNameArray consumedSkillIds = _parse_unique_string_name_array(
+            data["consumed_skill_ids"].AsGodotArray()
+        );
         if (consumedSkillIds == null)
         {
             return null;
         }
-        GStringNameArray qualifierSkillIds = _parse_unique_string_name_array(data["qualifier_skill_ids"].AsGodotArray());
+        GStringNameArray qualifierSkillIds = _parse_unique_string_name_array(
+            data["qualifier_skill_ids"].AsGodotArray()
+        );
         if (qualifierSkillIds == null)
         {
             return null;
         }
-        Variant timestampVariant = data["timestamp"];
-        if (timestampVariant.VariantType != Variant.Type.Int || timestampVariant.AsInt32() < 0)
+        var timestampValue = data["timestamp"];
+        if (timestampValue.VariantType != Variant.Type.Int || timestampValue.AsInt32() < 0)
         {
             return null;
         }
 
         return new ProfessionPromotionRecord
         {
-            new_rank = newRankVariant.AsInt32(),
+            new_rank = newRankValue.AsInt32(),
             consumed_skill_ids = consumedSkillIds,
             qualifier_skill_ids = qualifierSkillIds,
-            snapshot_unit_base_attributes = data["snapshot_unit_base_attributes"].AsGodotDictionary().Duplicate(true),
-            timestamp = timestampVariant.AsInt32(),
+            snapshot_unit_base_attributes = data["snapshot_unit_base_attributes"]
+                .AsGodotDictionary()
+                .Duplicate(true),
+            timestamp = timestampValue.AsInt32(),
         };
     }
 
-    private static bool _has_exact_fields(GDictionary data, Godot.Collections.Array<string> expectedFields)
+    private static bool _has_exact_fields(
+        GDictionary data,
+        Godot.Collections.Array<string> expectedFields
+    )
     {
         if (data.Count != expectedFields.Count)
         {
@@ -98,14 +111,24 @@ public partial class ProfessionPromotionRecord : RefCounted
         return true;
     }
 
-    private static StringName _parse_string_name_field(Variant value, out bool ok)
+    private static StringName _parse_string_name_field(object rawValue, out bool ok)
     {
         ok = false;
-        if (value.VariantType != Variant.Type.String && value.VariantType != Variant.Type.StringName)
+        if (rawValue is Variant value)
+        {
+            if (
+                value.VariantType != Variant.Type.String
+                && value.VariantType != Variant.Type.StringName
+            )
+            {
+                return "";
+            }
+        }
+        else if (rawValue is not string && rawValue is not StringName)
         {
             return "";
         }
-        StringName parsedValue = ProgressionDataUtils.to_string_name(value);
+        StringName parsedValue = ProgressionDataUtils.to_string_name(rawValue);
         if (parsedValue == (StringName)"")
         {
             return "";
@@ -118,7 +141,7 @@ public partial class ProfessionPromotionRecord : RefCounted
     {
         var parsedValues = new GStringNameArray();
         var seenValues = new GDictionary();
-        foreach (Variant rawValue in values)
+        foreach (var rawValue in values)
         {
             StringName parsedValue = _parse_string_name_field(rawValue, out bool ok);
             if (!ok || seenValues.ContainsKey(parsedValue))

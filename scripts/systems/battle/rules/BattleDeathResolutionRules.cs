@@ -16,21 +16,27 @@ public partial class BattleDeathResolutionRules : RefCounted
 
     public static int DEATH_PRIORITY_EXECUTE_FATAL() => 900;
 
-    public static bool is_power_word_kill_execute(Variant context)
+    public static bool is_power_word_kill_execute(GDictionary context)
     {
-        if (context.VariantType != Variant.Type.Dictionary)
+        if (context == null)
         {
             return false;
         }
-        GDictionary contextData = context.AsGodotDictionary();
-        Variant sourceValue = GdInterop.TryGet(contextData, KEY_DEATH_SOURCE(), out Variant rawValue)
+        var sourceValue = GdInterop.TryGet(context, KEY_DEATH_SOURCE(), out Variant rawValue)
             ? rawValue
             : Variant.From("");
         return ToStringNameLikeProgressionDataUtils(sourceValue) == DEATH_SOURCE_POWER_WORD_KILL_EXECUTE();
     }
 
-    private static StringName ToStringNameLikeProgressionDataUtils(Variant value)
+    public static bool is_power_word_kill_execute_without_context() => false;
+
+    private static StringName ToStringNameLikeProgressionDataUtils(object rawValue)
     {
+        if (rawValue is not Variant value)
+        {
+            string rawText = rawValue?.ToString()?.Trim() ?? "";
+            return string.IsNullOrEmpty(rawText) || rawText == "<null>" ? "" : new StringName(rawText);
+        }
         if (value.VariantType == Variant.Type.Nil)
         {
             return "";

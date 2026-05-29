@@ -1,8 +1,8 @@
 [gd_resource type="Resource" script_class="AscensionStageDef" format=3]
 
-[ext_resource type="Script" path="res://scripts/player/progression/ascension_stage_def.gd" id="1_stage"]
-[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="2_modifier"]
-[ext_resource type="Script" path="res://scripts/player/progression/racial_granted_skill.gd" id="3_grant"]
+[ext_resource type="Script" path="res://scripts/player/progression/AscensionStageDef.cs" id="1_stage"]
+[ext_resource type="Script" path="res://scripts/player/progression/AttributeModifier.cs" id="2_modifier"]
+[ext_resource type="Script" path="res://scripts/player/progression/RacialGrantedSkill.cs" id="3_grant"]
 
 [sub_resource type="Resource" id="Resource_strength"]
 script = ExtResource("2_modifier")

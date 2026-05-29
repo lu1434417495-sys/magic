@@ -10,7 +10,6 @@ public partial class BattleShieldService : RefCounted
     private static readonly StringName ShieldEffect = "shield";
     private static readonly StringName ShieldFallbackFamily = "shield";
     private static readonly StringName Constitution = "constitution";
-    private static readonly Script TrueRandomSeedServiceScript = GD.Load<Script>("res://scripts/utils/true_random_seed_service.gd");
 
     private WeakReference<GodotObject> _runtimeRef;
 
@@ -45,10 +44,14 @@ public partial class BattleShieldService : RefCounted
         }
 
         GDictionary rollContext = shield_roll_context ?? new GDictionary();
-        foreach (Variant effectValue in effect_defs)
+        foreach (var effectValue in effect_defs)
         {
-            GodotObject effectDef = effectValue.VariantType == Variant.Type.Nil ? null : effectValue.AsGodotObject();
-            if (effectDef == null || GdInterop.GetStringName(effectDef, "effect_type") != ShieldEffect)
+            GodotObject effectDef =
+                effectValue.VariantType == Variant.Type.Nil ? null : effectValue.AsGodotObject();
+            if (
+                effectDef == null
+                || GdInterop.GetStringName(effectDef, "effect_type") != ShieldEffect
+            )
             {
                 continue;
             }
@@ -96,10 +99,14 @@ public partial class BattleShieldService : RefCounted
         }
 
         StringName shieldFamily = _resolve_shield_family(skill_def, effect_def);
-        GDictionary shieldParams = DuplicateDictionary(GdInterop.GetDictionary(effect_def, "params"), true);
+        GDictionary shieldParams = DuplicateDictionary(
+            GdInterop.GetDictionary(effect_def, "params"),
+            true
+        );
         shieldParams["resolved_shield_hp"] = shieldHp;
         StringName shieldSourceUnitId = source_unit != null ? source_unit.unit_id : Empty;
-        StringName shieldSourceSkillId = skill_def != null ? GdInterop.GetStringName(skill_def, "skill_id") : Empty;
+        StringName shieldSourceSkillId =
+            skill_def != null ? GdInterop.GetStringName(skill_def, "skill_id") : Empty;
 
         target_unit.normalize_shield_state();
         if (!target_unit.has_shield())
@@ -124,9 +131,11 @@ public partial class BattleShieldService : RefCounted
             int nextShieldMaxHp = Math.Max(currentMaxHp, shieldHp);
             int nextCurrentShieldHp = Math.Max(currentHp, shieldHp);
             int nextShieldDuration = Math.Max(currentDuration, shieldDuration);
-            if (nextShieldMaxHp == currentMaxHp
+            if (
+                nextShieldMaxHp == currentMaxHp
                 && nextCurrentShieldHp == currentHp
-                && nextShieldDuration == currentDuration)
+                && nextShieldDuration == currentDuration
+            )
             {
                 return result;
             }
@@ -199,7 +208,11 @@ public partial class BattleShieldService : RefCounted
         return DefaultShieldResult(target_unit, applied, false);
     }
 
-    public int _resolve_shield_hp(BattleUnitState source_unit, GodotObject effect_def, GDictionary shield_roll_context = null)
+    public int _resolve_shield_hp(
+        BattleUnitState source_unit,
+        GodotObject effect_def,
+        GDictionary shield_roll_context = null
+    )
     {
         if (effect_def == null)
         {
@@ -279,7 +292,11 @@ public partial class BattleShieldService : RefCounted
         return parameters.Count > 0 && GdInterop.GetInt(parameters, "base_sides", 0) > 0;
     }
 
-    public int _roll_shield_hp_with_base_sides(BattleUnitState source_unit, GodotObject effect_def, GDictionary shield_roll_context = null)
+    public int _roll_shield_hp_with_base_sides(
+        BattleUnitState source_unit,
+        GodotObject effect_def,
+        GDictionary shield_roll_context = null
+    )
     {
         GDictionary rollContext = shield_roll_context ?? new GDictionary();
         long cacheKey = _get_shield_roll_cache_key(effect_def);
@@ -293,10 +310,10 @@ public partial class BattleShieldService : RefCounted
         int baseSides = GdInterop.GetInt(parameters, "base_sides", 4);
         int conModSides = GdInterop.GetInt(parameters, "con_mod_sides", 1);
         int diceSides = baseSides;
-        GodotObject attributeSnapshot = source_unit != null ? source_unit.attribute_snapshot : null;
+        AttributeSnapshot attributeSnapshot = source_unit?.attribute_snapshot;
         if (attributeSnapshot != null)
         {
-            int conScore = attributeSnapshot.Call("get_value", Constitution).AsInt32();
+            int conScore = attributeSnapshot.get_value(Constitution);
             int conMod = (int)Math.Floor((conScore - 10) / 2.0);
             diceSides = Math.Max(baseSides + conMod * conModSides, 4);
         }
@@ -322,13 +339,17 @@ public partial class BattleShieldService : RefCounted
             return 0;
         }
         GodotObject runtime = _runtime;
-        Variant stateValue = runtime.Get("_state");
+        if (runtime == null)
+        {
+            return 1;
+        }
+        var stateValue = runtime.Get("_state");
         if (stateValue.VariantType == Variant.Type.Nil)
         {
             return 1;
         }
 
-        return TrueRandomSeedServiceScript.Call("randi_range", 1, dice_sides).AsInt32();
+        return TrueRandomSeedService.randi_range(1, dice_sides);
     }
 
     public int _resolve_shield_duration_tu(GodotObject effect_def)
@@ -361,12 +382,14 @@ public partial class BattleShieldService : RefCounted
             GDictionary parameters = GdInterop.GetDictionary(effect_def, "params");
             if (parameters.Count > 0)
             {
-                StringName explicitFamily = ToStringNameLoose(GetVariant(parameters, "shield_family"));
+                StringName explicitFamily = ToStringNameLoose(
+                    parameters.GetValueOrDefault("shield_family")
+                );
                 if (!GdInterop.IsEmpty(explicitFamily))
                 {
                     return explicitFamily;
                 }
-                explicitFamily = ToStringNameLoose(GetVariant(parameters, "family"));
+                explicitFamily = ToStringNameLoose(parameters.GetValueOrDefault("family"));
                 if (!GdInterop.IsEmpty(explicitFamily))
                 {
                     return explicitFamily;
@@ -384,15 +407,23 @@ public partial class BattleShieldService : RefCounted
         return ShieldFallbackFamily;
     }
 
-    private static GDictionary DefaultShieldResult(BattleUnitState targetUnit, bool applied, bool useEmptyDefaults)
+    private static GDictionary DefaultShieldResult(
+        BattleUnitState targetUnit,
+        bool applied,
+        bool useEmptyDefaults
+    )
     {
         return new GDictionary
         {
             ["applied"] = applied,
-            ["current_shield_hp"] = targetUnit != null && !useEmptyDefaults ? targetUnit.current_shield_hp : 0,
-            ["shield_max_hp"] = targetUnit != null && !useEmptyDefaults ? targetUnit.shield_max_hp : 0,
-            ["shield_duration"] = targetUnit != null && !useEmptyDefaults ? targetUnit.shield_duration : -1,
-            ["shield_family"] = targetUnit != null && !useEmptyDefaults ? targetUnit.shield_family : Empty,
+            ["current_shield_hp"] =
+                targetUnit != null && !useEmptyDefaults ? targetUnit.current_shield_hp : 0,
+            ["shield_max_hp"] =
+                targetUnit != null && !useEmptyDefaults ? targetUnit.shield_max_hp : 0,
+            ["shield_duration"] =
+                targetUnit != null && !useEmptyDefaults ? targetUnit.shield_duration : -1,
+            ["shield_family"] =
+                targetUnit != null && !useEmptyDefaults ? targetUnit.shield_family : Empty,
         };
     }
 
@@ -401,13 +432,21 @@ public partial class BattleShieldService : RefCounted
         return source != null ? source.Duplicate(deep) : new GDictionary();
     }
 
-    private static Variant GetVariant(GDictionary dictionary, Variant key)
+    private static StringName ToStringNameLoose(object rawValue)
     {
-        return GdInterop.TryGet(dictionary, key, out Variant value) ? value : default;
-    }
-
-    private static StringName ToStringNameLoose(Variant value)
-    {
+        if (rawValue is string textValue)
+        {
+            string normalizedText = textValue.Trim();
+            return string.IsNullOrEmpty(normalizedText) ? Empty : new StringName(normalizedText);
+        }
+        if (rawValue is StringName stringName)
+        {
+            return stringName;
+        }
+        if (rawValue is not Variant value)
+        {
+            return Empty;
+        }
         if (value.VariantType == Variant.Type.Nil)
         {
             return Empty;
@@ -425,7 +464,11 @@ public partial class BattleShieldService : RefCounted
 
     private static GodotObject ResolveWeakRef(WeakReference<GodotObject> weakRef)
     {
-        if (weakRef == null || !weakRef.TryGetTarget(out GodotObject target) || !GodotObject.IsInstanceValid(target))
+        if (
+            weakRef == null
+            || !weakRef.TryGetTarget(out GodotObject target)
+            || !GodotObject.IsInstanceValid(target)
+        )
         {
             return null;
         }

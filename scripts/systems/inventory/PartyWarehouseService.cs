@@ -1,73 +1,879 @@
+using System;
 using Godot;
 
 [GlobalClass]
 public partial class PartyWarehouseService : RefCounted
 {
-    private static readonly StringName STORAGE_SPACE_ATTRIBUTE_ID = "storage_space";
-    private PartyState _party_state = new PartyState();
+    private static readonly StringName StorageSpaceAttributeId = "storage_space";
+
+    public static StringName STORAGE_SPACE_ATTRIBUTE_ID() => StorageSpaceAttributeId;
+
+    private PartyState _party_state = new();
     private Godot.Collections.Dictionary _item_defs = new();
     private WarehouseState _party_backpack_view;
-    private Callable _equipment_instance_id_allocator;
+    private Func<StringName> _equipment_instance_id_allocator;
     private int _local_equipment_instance_serial = 1;
 
-    public void setup(PartyState ps, Godot.Collections.Dictionary itemDefs = null, Callable eidAlloc = default) { _party_state = ps ?? new PartyState(); _item_defs = itemDefs ?? new Godot.Collections.Dictionary(); _party_backpack_view = null; _equipment_instance_id_allocator = eidAlloc; }
-    public void setup_party_backpack_view(PartyState ps, WarehouseState pbv, Godot.Collections.Dictionary itemDefs = null, Callable eidAlloc = default) { _party_state = ps ?? new PartyState(); _item_defs = itemDefs ?? new Godot.Collections.Dictionary(); _party_backpack_view = pbv ?? new WarehouseState(); _equipment_instance_id_allocator = eidAlloc; }
+    public void setup(
+        PartyState partyState,
+        Godot.Collections.Dictionary itemDefs = null,
+        Func<StringName> equipmentInstanceIdAllocator = null)
+    {
+        _party_state = partyState ?? new PartyState();
+        _item_defs = itemDefs ?? new Godot.Collections.Dictionary();
+        _party_backpack_view = null;
+        _equipment_instance_id_allocator = equipmentInstanceIdAllocator;
+    }
 
-    public int get_total_capacity() { if (_party_state == null) return 0; int tc = 0; foreach (var msv in _party_state.member_states.Values) { var ms = msv.AsGodotObject() as PartyMemberState; if (ms?.progression == null) continue; var uba = ms.progression.Get("unit_base_attributes").AsGodotObject() as UnitBaseAttributes; if (uba != null) tc += Mathf.Max(uba.get_attribute_value(STORAGE_SPACE_ATTRIBUTE_ID), 0); } return Mathf.Max(tc, 0); }
-    public int get_used_slots() { var ws = _get_warehouse_state(); return ws.get_non_empty_stacks().Count + ws.get_non_empty_instances().Count; }
+    public void setup(PartyState partyState, Godot.Collections.Dictionary itemDefs) =>
+        setup(partyState, itemDefs, default);
+
+    public void setup(PartyState partyState) =>
+        setup(partyState, null, default);
+
+    public void setup_party_backpack_view(
+        PartyState partyState,
+        WarehouseState partyBackpackView,
+        Godot.Collections.Dictionary itemDefs = null,
+        Func<StringName> equipmentInstanceIdAllocator = null)
+    {
+        _party_state = partyState ?? new PartyState();
+        _item_defs = itemDefs ?? new Godot.Collections.Dictionary();
+        _party_backpack_view = partyBackpackView ?? new WarehouseState();
+        _equipment_instance_id_allocator = equipmentInstanceIdAllocator;
+    }
+
+    public void setup_party_backpack_view(
+        PartyState partyState,
+        WarehouseState partyBackpackView,
+        Godot.Collections.Dictionary itemDefs) =>
+        setup_party_backpack_view(partyState, partyBackpackView, itemDefs, default);
+
+    public int get_total_capacity()
+    {
+        if (_party_state == null)
+            return 0;
+
+        int totalCapacity = 0;
+        foreach (var memberValue in _party_state.member_states.Values)
+        {
+            var memberState = memberValue.AsGodotObject() as PartyMemberState;
+            var unitBaseAttributes = memberState?.progression?.unit_base_attributes;
+            if (unitBaseAttributes == null)
+                continue;
+            totalCapacity += Mathf.Max(unitBaseAttributes.get_attribute_value(StorageSpaceAttributeId), 0);
+        }
+        return Mathf.Max(totalCapacity, 0);
+    }
+
+    public int get_used_slots()
+    {
+        var warehouseState = _get_warehouse_state();
+        return warehouseState.get_non_empty_stacks().Count + warehouseState.get_non_empty_instances().Count;
+    }
+
     public int get_free_slots() => Mathf.Max(get_total_capacity() - get_used_slots(), 0);
+
     public bool is_over_capacity() => get_used_slots() > get_total_capacity();
 
-    public int count_item(StringName itemId) { var ni = ProgressionDataUtils.to_string_name(itemId); if (ni == "") return 0; int tq = 0; var ws = _get_warehouse_state(); foreach (var s in ws.get_non_empty_stacks()) { if (s.AsGodotObject().Get("item_id").AsStringName() != ni) continue; tq += Mathf.Max(s.AsGodotObject().Get("quantity").AsInt32(), 0); } foreach (var i in ws.get_non_empty_instances()) { if (i.AsGodotObject().Get("item_id").AsStringName() == ni) tq += 1; } return tq; }
-    public Godot.Collections.Array get_stacks() => _get_warehouse_state().duplicate_state().stacks;
+    public int count_item(StringName itemId)
+    {
+        var normalizedItemId = ProgressionDataUtils.to_string_name(itemId);
+        if (normalizedItemId == "")
+            return 0;
 
-    public Godot.Collections.Array<Godot.Collections.Dictionary> get_inventory_entries() { var wh = _get_warehouse_state().duplicate_state(); var entries = new Godot.Collections.Array<Godot.Collections.Dictionary>(); foreach (var s in wh.get_non_empty_stacks()) { var so = s.AsGodotObject(); if (so == null || (bool)so.Call("is_empty")) continue; entries.Add(_build_inventory_entry(so.Get("item_id").AsStringName(), so.Get("quantity").AsInt32(), "stack")); } var ee = new System.Collections.Generic.List<Godot.Collections.Dictionary>(); foreach (var i in wh.get_non_empty_instances()) { var io = i.AsGodotObject(); if (io == null || io.Get("item_id").AsStringName() == "") continue; ee.Add(_build_inventory_entry(io.Get("item_id").AsStringName(), 1, "instance", io)); } ee.Sort((a, b) => string.CompareOrdinal($"{a["item_id"]}:{a.GetValueOrDefault("instance_id","")}", $"{b["item_id"]}:{b.GetValueOrDefault("instance_id","")}")); foreach (var e in ee) entries.Add(e); return entries; }
+        int totalQuantity = 0;
+        var warehouseState = _get_warehouse_state();
+        foreach (var stack in warehouseState.get_non_empty_stacks())
+        {
+            if (stack.item_id != normalizedItemId)
+                continue;
+            totalQuantity += Mathf.Max(stack.quantity, 0);
+        }
+        foreach (var instance in warehouseState.get_non_empty_instances())
+        {
+            if (instance.item_id == normalizedItemId)
+                totalQuantity += 1;
+        }
+        return totalQuantity;
+    }
 
-    public ItemDef get_item_def(StringName itemId) { var ni = ProgressionDataUtils.to_string_name(itemId); return _item_defs.ContainsKey(ni) ? _item_defs[ni].AsGodotObject() as ItemDef : null; }
-    public Godot.Collections.Dictionary preview_add_item(StringName itemId, int qty) => _process_add(itemId, qty, false, false);
-    public Godot.Collections.Dictionary add_item(StringName itemId, int qty) => _process_add(itemId, qty, true, true);
+    public Godot.Collections.Array<WarehouseStackState> get_stacks() =>
+        _get_warehouse_state().duplicate_state().stacks;
 
-    public Godot.Collections.Dictionary remove_item(StringName itemId, int qty) { var ni = ProgressionDataUtils.to_string_name(itemId); int rq = Mathf.Max(qty, 0); var wh = _ensure_warehouse_state(); _compact_state(wh); int usb = get_used_slots(); if (ni == "" || rq <= 0) return _rmr(ni, rq, 0, rq, usb, usb, ""); int rem = rq; var id = get_item_def(ni); if (id != null && id.is_equipment()) { var mi = _find_equipment_instance_indexes_by_item(wh, ni); if (rq == 1 && mi.Count == 1) { wh.equipment_instances.RemoveAt(mi[0]); rem = 0; } else { int usa = get_used_slots(); return _rmr(ni, rq, 0, rq, usb, usa, "equipment_instance_id_required"); } } else { for (int i = wh.stacks.Count - 1; i >= 0 && rem > 0; i--) { var sv = wh.stacks[i]; var so = sv.AsGodotObject(); if (so == null || so.Get("item_id").AsStringName() != ni) continue; int rq2 = Mathf.Min(Mathf.Max(so.Get("quantity").AsInt32(), 0), rem); so.Set("quantity", so.Get("quantity").AsInt32() - rq2); rem -= rq2; if (so.Get("quantity").AsInt32() <= 0) wh.stacks.RemoveAt(i); } } _compact_state(wh); int usa2 = get_used_slots(); return _rmr(ni, rq, rq - rem, rem, usb, usa2, ""); }
+    public Godot.Collections.Array<Godot.Collections.Dictionary> get_inventory_entries()
+    {
+        var warehouseState = _get_warehouse_state().duplicate_state();
+        var entries = new Godot.Collections.Array<Godot.Collections.Dictionary>();
 
-    public Godot.Collections.Dictionary preview_batch_swap(Godot.Collections.Array<StringName> w, Godot.Collections.Array<StringName> d) => _run_batch_swap_transaction(Variant.From(w).AsGodotArray(), Variant.From(d).AsGodotArray(), false);
-    public Godot.Collections.Dictionary commit_batch_swap(Godot.Collections.Array<StringName> w, Godot.Collections.Array<StringName> d) => _run_batch_swap_transaction(new Godot.Collections.Array(w), Variant.From(d).AsGodotArray(), true);
-    public Godot.Collections.Dictionary preview_batch_swap_entries(Godot.Collections.Array w, Godot.Collections.Array d) => _run_batch_swap_transaction(w, d, false);
-    public Godot.Collections.Dictionary commit_batch_swap_entries(Godot.Collections.Array w, Godot.Collections.Array d) => _run_batch_swap_transaction(w, d, true);
+        foreach (var stack in warehouseState.get_non_empty_stacks())
+        {
+            if (stack == null || stack.is_empty())
+                continue;
+            entries.Add(_build_inventory_entry(stack.item_id, stack.quantity, "stack"));
+        }
 
-    public GodotObject get_equipment_instance_by_id(StringName iid, StringName eid = default) { var ni = ProgressionDataUtils.to_string_name(iid); var ne = ProgressionDataUtils.to_string_name(eid); if (ne == "") return null; foreach (var iv in _get_warehouse_state().get_non_empty_instances()) { var io = iv.AsGodotObject(); if (io == null || ProgressionDataUtils.to_string_name(io.Get("instance_id")) != ne) continue; if (ne != "" && ProgressionDataUtils.to_string_name(io.Get("item_id")) != ne) return null; return EquipmentInstanceState.from_dict(io.Call("to_dict")); } return null; }
-    public bool has_equipment_instance(StringName iid, StringName eid = default) => get_equipment_instance_by_id(iid, eid) != null;
+        var equipmentEntries = new System.Collections.Generic.List<Godot.Collections.Dictionary>();
+        foreach (var instance in warehouseState.get_non_empty_instances())
+        {
+            if (instance == null || instance.item_id == "")
+                continue;
+            equipmentEntries.Add(_build_inventory_entry(instance.item_id, 1, "instance", instance));
+        }
+        equipmentEntries.Sort((a, b) =>
+            string.CompareOrdinal(
+                $"{GdInterop.GetString(a, "item_id")}:{GdInterop.GetString(a, "instance_id")}",
+                $"{GdInterop.GetString(b, "item_id")}:{GdInterop.GetString(b, "instance_id")}"));
 
-    public GodotObject take_equipment_instance_by_item(StringName iid) { var n = ProgressionDataUtils.to_string_name(iid); var wh = _ensure_warehouse_state(); var mi = _find_equipment_instance_indexes_by_item(wh, n); if (mi.Count != 1) return null; int idx = mi[0]; var inst = wh.equipment_instances[idx]; wh.equipment_instances.RemoveAt(idx); return inst.AsGodotObject(); }
-    public GodotObject take_equipment_instance_by_instance_id(StringName iid, StringName eid = default) { var ni = ProgressionDataUtils.to_string_name(iid); var ne = ProgressionDataUtils.to_string_name(eid); if (ne == "") return null; var wh = _ensure_warehouse_state(); for (int i = 0; i < wh.equipment_instances.Count; i++) { var io = wh.equipment_instances[i].AsGodotObject(); if (io == null || ProgressionDataUtils.to_string_name(io.Get("instance_id")) != ne) continue; if (ni != "" && ProgressionDataUtils.to_string_name(io.Get("item_id")) != ni) return null; wh.equipment_instances.RemoveAt(i); return io; } return null; }
+        foreach (var entry in equipmentEntries)
+            entries.Add(entry);
 
-    public Godot.Collections.Dictionary remove_equipment_instance(StringName iid, StringName instId) { var ni = ProgressionDataUtils.to_string_name(iid); var nii = ProgressionDataUtils.to_string_name(instId); var wh = _ensure_warehouse_state(); _compact_state(wh); int usb = get_used_slots(); var id = get_item_def(ni); if (ni == "" || id == null) { var r = _rmr2(ni, nii, 0, 1, usb, usb); r["error_code"] = "item_not_found"; return r; } if (!id.is_equipment()) { var r = _rmr2(ni, nii, 0, 1, usb, usb); r["error_code"] = "item_not_equipment"; return r; } if (nii == "") { var r = _rmr2(ni, nii, 0, 1, usb, usb); r["error_code"] = "equipment_instance_id_required"; return r; } bool matched = false; foreach (var iv in wh.get_non_empty_instances()) { var io = iv.AsGodotObject(); if (io == null || ProgressionDataUtils.to_string_name(io.Get("instance_id")) != nii) continue; matched = true; if (ProgressionDataUtils.to_string_name(io.Get("item_id")) != ni) { var r = _rmr2(ni, nii, 0, 1, usb, usb); r["error_code"] = "equipment_instance_item_mismatch"; return r; } break; } if (!matched) { var r = _rmr2(ni, nii, 0, 1, usb, usb); r["error_code"] = "warehouse_missing_instance"; return r; } var ri = take_equipment_instance_by_instance_id(nii, ni); if (ri == null) { var r = _rmr2(ni, nii, 0, 1, usb, usb); r["error_code"] = "warehouse_missing_instance"; return r; } _compact_state(wh); int usa = get_used_slots(); return _rmr2(ni, nii, 1, 0, usb, usa); }
+        return entries;
+    }
 
-    public Godot.Collections.Dictionary add_equipment_instance(GodotObject inst, bool forceNewId = false) { var wh = _ensure_warehouse_state(); _compact_state(wh); int usb = get_used_slots(); var iid = ProgressionDataUtils.to_string_name(inst?.Get("item_id") ?? ""); var id = get_item_def(iid); var r = new Godot.Collections.Dictionary { {"item_id",(string)iid},{"requested_quantity",1},{"added_quantity",0},{"remaining_quantity",1},{"used_slots_before",usb},{"used_slots_after",usb},{"free_slots_after",Mathf.Max(get_total_capacity()-usb,0)},{"is_over_capacity",usb>get_total_capacity()},{"item_found",id!=null},{"is_equipment",id!=null&&id.is_equipment()},{"allocated_equipment_instance_ids",new Godot.Collections.Array<string>()} }; if (inst == null || iid == "" || id == null || !id.is_equipment()) return r; if (get_total_capacity() - usb <= 0) return r; string aid = ""; if (forceNewId || inst.Get("instance_id").AsStringName() == "") { aid = (string)_allocate_equipment_instance_id(wh); inst.Set("instance_id", new StringName(aid)); if (aid == "") return r; } wh.equipment_instances.Add(inst); _compact_state(wh); int usa = get_used_slots(); r["added_quantity"] = 1; r["remaining_quantity"] = 0; r["used_slots_after"] = usa; r["free_slots_after"] = Mathf.Max(get_total_capacity() - usa, 0); r["is_over_capacity"] = usa > get_total_capacity(); if (aid != "") r["allocated_equipment_instance_ids"] = new Godot.Collections.Array<string> { aid }; return r; }
-    public bool deposit_equipment_instance(GodotObject inst) { if (inst == null) return false; var wh = _ensure_warehouse_state(); if (inst.Get("instance_id").AsStringName() == "") { var aid = _allocate_equipment_instance_id(wh); inst.Set("instance_id", aid); if (aid == "") return false; } wh.equipment_instances.Add(inst); return true; }
+    public ItemDef get_item_def(StringName itemId)
+    {
+        var normalizedItemId = ProgressionDataUtils.to_string_name(itemId);
+        if (_item_defs.ContainsKey(normalizedItemId))
+            return _item_defs[normalizedItemId].AsGodotObject() as ItemDef;
 
-    private Godot.Collections.Dictionary _execute_batch_swap(Godot.Collections.Array w, Godot.Collections.Array d, bool consumeAlloc) { foreach (var wv in w) { var we = _normalize_batch_item_entry(wv); var iid = ProgressionDataUtils.to_string_name(we.ContainsKey("item_id")?we["item_id"]:""); var instId = ProgressionDataUtils.to_string_name(we.ContainsKey("instance_id")?we["instance_id"]:""); var id = get_item_def(iid); Godot.Collections.Dictionary r; if (id != null && id.is_equipment() && instId != "") r = remove_equipment_instance(iid, instId); else r = remove_item(iid, 1); if (r.ContainsKey("removed_quantity") && r["removed_quantity"].AsInt32() <= 0) return new Godot.Collections.Dictionary { {"allowed",false},{"error_code",r.ContainsKey("error_code")&&r["error_code"].AsString().Length>0?r["error_code"].AsString():"warehouse_missing_item"},{"blocked_item_id",(string)iid},{"blocked_instance_id",(string)instId} }; } foreach (var dv in d) { var de = _normalize_batch_item_entry(dv); var iid2 = ProgressionDataUtils.to_string_name(de.ContainsKey("item_id")?de["item_id"]:""); var pv = preview_add_item(iid2, 1); if (pv.ContainsKey("remaining_quantity") && pv["remaining_quantity"].AsInt32() > 0) return new Godot.Collections.Dictionary { {"allowed",false},{"error_code","warehouse_blocked_swap"},{"blocked_item_id",(string)iid2},{"blocked_instance_id",(string)ProgressionDataUtils.to_string_name(de.ContainsKey("instance_id")?de["instance_id"]:"")} }; var eiv = de.ContainsKey("equipment_instance") ? de["equipment_instance"] : default(Variant); if (eiv.VariantType != Variant.Type.Nil) { var inst = eiv.AsGodotObject(); if (eiv.VariantType == Variant.Type.Dictionary) inst = EquipmentInstanceState.from_dict(eiv); var air = add_equipment_instance(inst, false); if (air.ContainsKey("added_quantity") && air["added_quantity"].AsInt32() <= 0) return new Godot.Collections.Dictionary { {"allowed",false},{"error_code",air.ContainsKey("error_code")?air["error_code"].AsString():"warehouse_blocked_swap"},{"blocked_item_id",(string)iid2},{"blocked_instance_id",(string)ProgressionDataUtils.to_string_name(de.ContainsKey("instance_id")?de["instance_id"]:"")} }; } else _process_add(iid2, 1, true, consumeAlloc); } return new Godot.Collections.Dictionary { {"allowed",true},{"error_code",""},{"blocked_item_id",""},{"blocked_instance_id",""} }; }
+        var stringKey = normalizedItemId.ToString();
+        return _item_defs.ContainsKey(stringKey) ? _item_defs[stringKey].AsGodotObject() as ItemDef : null;
+    }
 
-    private Godot.Collections.Dictionary _run_batch_swap_transaction(Godot.Collections.Array w, Godot.Collections.Array d, bool commit) { var bl = _get_warehouse_state().duplicate_state(); if (_party_state == null) _party_state = new PartyState(); var orig = _party_backpack_view ?? _party_state.warehouse_state; _set_transaction_warehouse_state(bl); var r = _execute_batch_swap(w, d, commit); if (r.ContainsKey("allowed") && r["allowed"].AsBool() && commit) { if (_party_backpack_view != null) { _copy_warehouse_state(bl, orig); _party_backpack_view = orig; } return r; } _set_transaction_warehouse_state(orig); return r; }
+    public Godot.Collections.Dictionary preview_add_item(StringName itemId, int quantity) =>
+        _process_add(itemId, quantity, false, false);
 
-    private static Godot.Collections.Dictionary _normalize_batch_item_entry(Variant ev) { if (ev.VariantType == Variant.Type.Dictionary) { var e = ev.AsGodotDictionary(); var r = new Godot.Collections.Dictionary { {"item_id",ProgressionDataUtils.to_string_name(e.ContainsKey("item_id")?e["item_id"]:"")},{"instance_id",ProgressionDataUtils.to_string_name(e.ContainsKey("instance_id")?e["instance_id"]:"")} }; if (e.ContainsKey("equipment_instance")) r["equipment_instance"] = e["equipment_instance"]; return r; } return new Godot.Collections.Dictionary { {"item_id",ProgressionDataUtils.to_string_name(ev)},{"instance_id",new StringName("")} }; }
+    public Godot.Collections.Dictionary add_item(StringName itemId, int quantity) =>
+        _process_add(itemId, quantity, true, true);
 
-    private Godot.Collections.Dictionary _process_add(StringName iid, int qty, bool mutate, bool consumeAlloc) { var ni = ProgressionDataUtils.to_string_name(iid); int rq = Mathf.Max(qty, 0), usb = get_used_slots(); var id = get_item_def(ni); var ts = mutate ? _ensure_warehouse_state() : _get_warehouse_state().duplicate_state(); _compact_state(ts); int cu = ts.stacks.Count + ts.get_non_empty_instances().Count; var r = new Godot.Collections.Dictionary { {"item_id",(string)ni},{"requested_quantity",rq},{"added_quantity",0},{"remaining_quantity",rq},{"used_slots_before",usb},{"used_slots_after",cu},{"free_slots_after",Mathf.Max(get_total_capacity()-cu,0)},{"created_stack_count",0},{"filled_existing_quantity",0},{"is_over_capacity",cu>get_total_capacity()},{"item_found",id!=null} }; if (ni == "" || rq <= 0 || id == null) return r; int rem = rq; if (id.is_equipment()) { int av = Mathf.Max(get_total_capacity() - ts.stacks.Count - ts.equipment_instances.Count, 0); int cr = 0; var aids = new Godot.Collections.Array<string>(); while (rem > 0 && av > 0) { var ni2 = _create_equipment_instance(ni, ts, consumeAlloc); if (ni2.Get("instance_id").AsStringName() == "") break; if (consumeAlloc) aids.Add((string)ni2.Get("instance_id").AsStringName()); ts.equipment_instances.Add(ni2); rem--; av--; cr++; } r["created_stack_count"] = cr; r["allocated_equipment_instance_ids"] = aids; } else { int fe = 0, ms = id.get_effective_max_stack(); foreach (var sv in ts.stacks) { if (rem <= 0) break; var so = sv.AsGodotObject(); if (so == null || so.Get("item_id").AsStringName() != ni) continue; if (so.Get("quantity").AsInt32() >= ms) continue; int ac = Mathf.Min(ms - so.Get("quantity").AsInt32(), rem); if (ac <= 0) continue; so.Set("quantity", so.Get("quantity").AsInt32() + ac); rem -= ac; fe += ac; } int cs = 0, ans = Mathf.Max(get_total_capacity() - ts.stacks.Count - ts.equipment_instances.Count, 0); while (rem > 0 && ans > 0) { var ns = new WarehouseStackState { item_id = ni, quantity = Mathf.Min(ms, rem) }; ts.stacks.Add(ns); rem -= ns.quantity; ans--; cs++; } _compact_state(ts); r["filled_existing_quantity"] = fe; r["created_stack_count"] = cs; } int usa = ts.stacks.Count + ts.get_non_empty_instances().Count; r["added_quantity"] = rq - rem; r["remaining_quantity"] = rem; r["used_slots_after"] = usa; r["free_slots_after"] = Mathf.Max(get_total_capacity() - usa, 0); r["is_over_capacity"] = usa > get_total_capacity(); return r; }
+    public Godot.Collections.Dictionary remove_item(StringName itemId, int quantity)
+    {
+        var normalizedItemId = ProgressionDataUtils.to_string_name(itemId);
+        int requestedQuantity = Mathf.Max(quantity, 0);
+        var warehouseState = _ensure_warehouse_state();
+        _compact_state(warehouseState);
+        int usedSlotsBefore = get_used_slots();
 
-    private EquipmentInstanceState _create_equipment_instance(StringName iid, WarehouseState ts, bool consumeAlloc) { var inst = EquipmentInstanceState.create(iid); inst.instance_id = consumeAlloc ? _allocate_equipment_instance_id(ts) : _allocate_preview_equipment_instance_id(ts); return inst; }
-    private StringName _allocate_equipment_instance_id(WarehouseState ts = null) { if (!string.IsNullOrEmpty(_equipment_instance_id_allocator.Method)) return ProgressionDataUtils.to_string_name(_equipment_instance_id_allocator.Call()); while (true) { var c = EquipmentInstanceState.format_instance_id(_local_equipment_instance_serial); _local_equipment_instance_serial++; if (!_equipment_instance_id_exists(c, ts)) return c; } }
-    private StringName _allocate_preview_equipment_instance_id(WarehouseState ts = null) { int s = 1; while (true) { var c = EquipmentInstanceState.format_preview_instance_id(s); s++; if (!_equipment_instance_id_exists(c, ts)) return c; } }
-    private bool _equipment_instance_id_exists(StringName iid, WarehouseState ts = null) { var n = ProgressionDataUtils.to_string_name(iid); if (n == "") return false; var states = new System.Collections.Generic.List<WarehouseState>(); if (ts != null) states.Add(ts); var cs = _get_warehouse_state(); if (cs != null && cs != ts) states.Add(cs); foreach (var st in states) foreach (var iv in st.get_non_empty_instances()) { var io = iv.AsGodotObject(); if (io != null && ProgressionDataUtils.to_string_name(io.Get("instance_id")) == n) return true; } return false; }
+        if (normalizedItemId == "" || requestedQuantity <= 0)
+            return _build_remove_item_result(normalizedItemId, requestedQuantity, 0, requestedQuantity, usedSlotsBefore, usedSlotsBefore, "");
 
-    private static Godot.Collections.Array<int> _find_equipment_instance_indexes_by_item(WarehouseState wh, StringName iid) { var r = new Godot.Collections.Array<int>(); if (wh == null) return r; var n = ProgressionDataUtils.to_string_name(iid); for (int i = 0; i < wh.equipment_instances.Count; i++) { var io = wh.equipment_instances[i].AsGodotObject(); if (io != null && ProgressionDataUtils.to_string_name(io.Get("item_id")) == n) r.Add(i); } return r; }
+        int remainingQuantity = requestedQuantity;
+        var itemDef = get_item_def(normalizedItemId);
 
-    private WarehouseState _ensure_warehouse_state() { if (_party_backpack_view != null) return _party_backpack_view; if (_party_state == null) _party_state = new PartyState(); if (_party_state.warehouse_state == null) _party_state.warehouse_state = new WarehouseState(); return _party_state.warehouse_state; }
-    private WarehouseState _get_warehouse_state() { if (_party_backpack_view != null) return _party_backpack_view; if (_party_state == null) return new WarehouseState(); return _party_state.warehouse_state ?? new WarehouseState(); }
-    private void _set_transaction_warehouse_state(WarehouseState wh) { if (_party_backpack_view != null) { _party_backpack_view = wh; return; } if (_party_state == null) _party_state = new PartyState(); _party_state.warehouse_state = wh; }
-    private static void _copy_warehouse_state(WarehouseState src, WarehouseState dst) { if (src == null || dst == null) return; dst.stacks.Clear(); dst.equipment_instances.Clear(); foreach (var sv in src.get_non_empty_stacks()) dst.stacks.Add(sv); foreach (var iv in src.get_non_empty_instances()) dst.equipment_instances.Add(EquipmentInstanceState.from_dict(iv.AsGodotObject().Call("to_dict"))); }
-    private static void _compact_state(WarehouseState wh) { if (wh == null) return; wh.stacks = wh.get_non_empty_stacks(); wh.equipment_instances = wh.get_non_empty_instances(); }
+        if (itemDef != null && itemDef.is_equipment())
+        {
+            var matchingIndexes = _find_equipment_instance_indexes_by_item(warehouseState, normalizedItemId);
+            if (requestedQuantity == 1 && matchingIndexes.Count == 1)
+            {
+                warehouseState.equipment_instances.RemoveAt(matchingIndexes[0]);
+                remainingQuantity = 0;
+            }
+            else
+            {
+                int usedSlotsAfterReject = get_used_slots();
+                return _build_remove_item_result(
+                    normalizedItemId,
+                    requestedQuantity,
+                    0,
+                    requestedQuantity,
+                    usedSlotsBefore,
+                    usedSlotsAfterReject,
+                    "equipment_instance_id_required");
+            }
+        }
+        else
+        {
+            for (int index = warehouseState.stacks.Count - 1; index >= 0 && remainingQuantity > 0; index--)
+            {
+                var stack = warehouseState.stacks[index];
+                if (stack == null || stack.item_id != normalizedItemId)
+                    continue;
 
-    private Godot.Collections.Dictionary _build_inventory_entry(StringName iid, int qty, StringName mode, GodotObject ei = null) { var ni = ProgressionDataUtils.to_string_name(iid); int rq = Mathf.Max(qty, 0); var id = get_item_def(ni); var gsid = id?.granted_skill_id ?? new StringName(""); var e = new Godot.Collections.Dictionary { {"item_id",(string)ni},{"display_name",id!=null&&id.display_name.Length>0?id.display_name:(string)ni},{"description",id?.description??"该物品定义缺失，当前仅保留存档中的 item_id 与数量。"},{"icon",id?.icon??""},{"quantity",rq},{"total_quantity",count_item(ni)},{"is_stackable",id?.is_stackable??rq>1},{"stack_limit",id?.get_effective_max_stack()??Mathf.Max(rq,1)},{"item_category",id!=null?(string)id.get_item_category_normalized():""},{"is_skill_book",id!=null&&id.is_skill_book()},{"granted_skill_id",(string)gsid},{"storage_mode",(string)mode} }; if (ei != null) { e["instance_id"] = (string)ProgressionDataUtils.to_string_name(ei.Get("instance_id")); e["rarity"] = ei.Get("rarity").AsInt32(); e["current_durability"] = ei.Get("current_durability").AsInt32(); } return e; }
-    private static Godot.Collections.Dictionary _rmr(StringName ni, int rq, int removed, int rem, int usb, int usa, string ec) { return new Godot.Collections.Dictionary { {"item_id",(string)ni},{"requested_quantity",rq},{"removed_quantity",removed},{"remaining_quantity",rem},{"used_slots_before",usb},{"used_slots_after",usa},{"free_slots_after",Mathf.Max(0,0)},{"is_over_capacity",false},{"error_code",ec} }; }
-    private Godot.Collections.Dictionary _rmr2(StringName ni, StringName nii, int removed, int rem, int usb, int usa) { return new Godot.Collections.Dictionary { {"item_id",(string)ni},{"instance_id",(string)nii},{"requested_quantity",1},{"removed_quantity",removed},{"remaining_quantity",rem},{"used_slots_before",usb},{"used_slots_after",usa},{"free_slots_after",Mathf.Max(get_total_capacity()-usa,0)},{"is_over_capacity",usa>get_total_capacity()},{"error_code",""} }; }
+                int removedQuantity = Mathf.Min(Mathf.Max(stack.quantity, 0), remainingQuantity);
+                stack.quantity -= removedQuantity;
+                remainingQuantity -= removedQuantity;
+                if (stack.quantity <= 0)
+                    warehouseState.stacks.RemoveAt(index);
+            }
+        }
+
+        _compact_state(warehouseState);
+        int usedSlotsAfter = get_used_slots();
+        return _build_remove_item_result(
+            normalizedItemId,
+            requestedQuantity,
+            requestedQuantity - remainingQuantity,
+            remainingQuantity,
+            usedSlotsBefore,
+            usedSlotsAfter,
+            "");
+    }
+
+    public Godot.Collections.Dictionary preview_batch_swap(
+        Godot.Collections.Array<StringName> itemsToWithdraw,
+        Godot.Collections.Array<StringName> itemsToDeposit) =>
+        _run_batch_swap_transaction(_to_untyped_array(itemsToWithdraw), _to_untyped_array(itemsToDeposit), false);
+
+    public Godot.Collections.Dictionary commit_batch_swap(
+        Godot.Collections.Array<StringName> itemsToWithdraw,
+        Godot.Collections.Array<StringName> itemsToDeposit) =>
+        _run_batch_swap_transaction(_to_untyped_array(itemsToWithdraw), _to_untyped_array(itemsToDeposit), true);
+
+    public Godot.Collections.Dictionary preview_batch_swap_entries(
+        Godot.Collections.Array itemsToWithdraw,
+        Godot.Collections.Array itemsToDeposit) =>
+        _run_batch_swap_transaction(itemsToWithdraw, itemsToDeposit, false);
+
+    public Godot.Collections.Dictionary commit_batch_swap_entries(
+        Godot.Collections.Array itemsToWithdraw,
+        Godot.Collections.Array itemsToDeposit) =>
+        _run_batch_swap_transaction(itemsToWithdraw, itemsToDeposit, true);
+
+    public EquipmentInstanceState get_equipment_instance_by_id(
+        StringName instanceId,
+        StringName expectedItemId = default)
+    {
+        var normalizedInstanceId = ProgressionDataUtils.to_string_name(instanceId);
+        var normalizedItemId = ProgressionDataUtils.to_string_name(expectedItemId);
+        if (normalizedInstanceId == "")
+            return null;
+
+        foreach (var instance in _get_warehouse_state().get_non_empty_instances())
+        {
+            if (instance.instance_id != normalizedInstanceId)
+                continue;
+            if (normalizedItemId != "" && instance.item_id != normalizedItemId)
+                return null;
+            return EquipmentInstanceState.from_dict(instance.to_dict());
+        }
+        return null;
+    }
+
+    public bool has_equipment_instance(StringName instanceId, StringName expectedItemId = default) =>
+        get_equipment_instance_by_id(instanceId, expectedItemId) != null;
+
+    public EquipmentInstanceState take_equipment_instance_by_item(StringName itemId)
+    {
+        var normalizedItemId = ProgressionDataUtils.to_string_name(itemId);
+        var warehouseState = _ensure_warehouse_state();
+        var matchingIndexes = _find_equipment_instance_indexes_by_item(warehouseState, normalizedItemId);
+        if (matchingIndexes.Count != 1)
+            return null;
+
+        int index = matchingIndexes[0];
+        var instance = warehouseState.equipment_instances[index];
+        warehouseState.equipment_instances.RemoveAt(index);
+        return instance;
+    }
+
+    public EquipmentInstanceState take_equipment_instance_by_instance_id(
+        StringName instanceId,
+        StringName expectedItemId = default)
+    {
+        var normalizedInstanceId = ProgressionDataUtils.to_string_name(instanceId);
+        var normalizedItemId = ProgressionDataUtils.to_string_name(expectedItemId);
+        if (normalizedInstanceId == "")
+            return null;
+
+        var warehouseState = _ensure_warehouse_state();
+        for (int index = 0; index < warehouseState.equipment_instances.Count; index++)
+        {
+            var instance = warehouseState.equipment_instances[index];
+            if (instance == null || instance.instance_id != normalizedInstanceId)
+                continue;
+            if (normalizedItemId != "" && instance.item_id != normalizedItemId)
+                return null;
+
+            warehouseState.equipment_instances.RemoveAt(index);
+            return instance;
+        }
+        return null;
+    }
+
+    public Godot.Collections.Dictionary remove_equipment_instance(StringName itemId, StringName instanceId)
+    {
+        var normalizedItemId = ProgressionDataUtils.to_string_name(itemId);
+        var normalizedInstanceId = ProgressionDataUtils.to_string_name(instanceId);
+        var warehouseState = _ensure_warehouse_state();
+        _compact_state(warehouseState);
+        int usedSlotsBefore = get_used_slots();
+        var itemDef = get_item_def(normalizedItemId);
+
+        if (normalizedItemId == "" || itemDef == null)
+            return _with_error(_build_remove_instance_result(normalizedItemId, normalizedInstanceId, 0, 1, usedSlotsBefore, usedSlotsBefore), "item_not_found");
+        if (!itemDef.is_equipment())
+            return _with_error(_build_remove_instance_result(normalizedItemId, normalizedInstanceId, 0, 1, usedSlotsBefore, usedSlotsBefore), "item_not_equipment");
+        if (normalizedInstanceId == "")
+            return _with_error(_build_remove_instance_result(normalizedItemId, normalizedInstanceId, 0, 1, usedSlotsBefore, usedSlotsBefore), "equipment_instance_id_required");
+
+        bool matchedAnyInstance = false;
+        foreach (var instance in warehouseState.get_non_empty_instances())
+        {
+            if (instance.instance_id != normalizedInstanceId)
+                continue;
+
+            matchedAnyInstance = true;
+            if (instance.item_id != normalizedItemId)
+                return _with_error(_build_remove_instance_result(normalizedItemId, normalizedInstanceId, 0, 1, usedSlotsBefore, usedSlotsBefore), "equipment_instance_item_mismatch");
+            break;
+        }
+
+        if (!matchedAnyInstance)
+            return _with_error(_build_remove_instance_result(normalizedItemId, normalizedInstanceId, 0, 1, usedSlotsBefore, usedSlotsBefore), "warehouse_missing_instance");
+
+        var removedInstance = take_equipment_instance_by_instance_id(normalizedInstanceId, normalizedItemId);
+        if (removedInstance == null)
+            return _with_error(_build_remove_instance_result(normalizedItemId, normalizedInstanceId, 0, 1, usedSlotsBefore, usedSlotsBefore), "warehouse_missing_instance");
+
+        _compact_state(warehouseState);
+        int usedSlotsAfter = get_used_slots();
+        return _build_remove_instance_result(normalizedItemId, normalizedInstanceId, 1, 0, usedSlotsBefore, usedSlotsAfter);
+    }
+
+    public Godot.Collections.Dictionary add_equipment_instance(
+        EquipmentInstanceState instance,
+        bool forceNewInstanceId = false)
+    {
+        var warehouseState = _ensure_warehouse_state();
+        _compact_state(warehouseState);
+        int usedSlotsBefore = get_used_slots();
+        var itemId = ProgressionDataUtils.to_string_name(instance?.item_id ?? new StringName(""));
+        var itemDef = get_item_def(itemId);
+        var result = new Godot.Collections.Dictionary
+        {
+            { "item_id", itemId.ToString() },
+            { "requested_quantity", 1 },
+            { "added_quantity", 0 },
+            { "remaining_quantity", 1 },
+            { "used_slots_before", usedSlotsBefore },
+            { "used_slots_after", usedSlotsBefore },
+            { "free_slots_after", Mathf.Max(get_total_capacity() - usedSlotsBefore, 0) },
+            { "is_over_capacity", usedSlotsBefore > get_total_capacity() },
+            { "item_found", itemDef != null },
+            { "is_equipment", itemDef != null && itemDef.is_equipment() },
+            { "allocated_equipment_instance_ids", new Godot.Collections.Array<string>() },
+        };
+
+        if (instance == null || itemId == "" || itemDef == null || !itemDef.is_equipment())
+            return result;
+        if (get_total_capacity() - usedSlotsBefore <= 0)
+            return result;
+
+        var allocatedInstanceId = new StringName("");
+        if (forceNewInstanceId || instance.instance_id == "")
+        {
+            allocatedInstanceId = _allocate_equipment_instance_id(warehouseState);
+            instance.instance_id = allocatedInstanceId;
+            if (allocatedInstanceId == "")
+                return result;
+        }
+
+        warehouseState.equipment_instances.Add(instance);
+        _compact_state(warehouseState);
+        int usedSlotsAfter = get_used_slots();
+        result["added_quantity"] = 1;
+        result["remaining_quantity"] = 0;
+        result["used_slots_after"] = usedSlotsAfter;
+        result["free_slots_after"] = Mathf.Max(get_total_capacity() - usedSlotsAfter, 0);
+        result["is_over_capacity"] = usedSlotsAfter > get_total_capacity();
+        if (allocatedInstanceId != "")
+            result["allocated_equipment_instance_ids"] = new Godot.Collections.Array<string> { allocatedInstanceId.ToString() };
+        return result;
+    }
+
+    public Godot.Collections.Dictionary add_equipment_instance(EquipmentInstanceState instance) =>
+        add_equipment_instance(instance, false);
+
+    public bool deposit_equipment_instance(EquipmentInstanceState instance)
+    {
+        if (instance == null)
+            return false;
+
+        var warehouseState = _ensure_warehouse_state();
+        if (instance.instance_id == "")
+        {
+            instance.instance_id = _allocate_equipment_instance_id(warehouseState);
+            if (instance.instance_id == "")
+                return false;
+        }
+        warehouseState.equipment_instances.Add(instance);
+        return true;
+    }
+
+    private Godot.Collections.Dictionary _execute_batch_swap(
+        Godot.Collections.Array itemsToWithdraw,
+        Godot.Collections.Array itemsToDeposit,
+        bool consumeAllocator)
+    {
+        foreach (var withdrawValue in itemsToWithdraw)
+        {
+            var withdrawEntry =
+                withdrawValue.VariantType == Variant.Type.Dictionary
+                    ? _normalize_batch_item_entry(withdrawValue.AsGodotDictionary())
+                    : _normalize_batch_item_entry(ProgressionDataUtils.to_string_name(withdrawValue));
+            var itemId = GdInterop.GetStringName(withdrawEntry, "item_id");
+            var instanceId = GdInterop.GetStringName(withdrawEntry, "instance_id");
+            var itemDef = get_item_def(itemId);
+            Godot.Collections.Dictionary result =
+                itemDef != null && itemDef.is_equipment() && instanceId != ""
+                    ? remove_equipment_instance(itemId, instanceId)
+                    : remove_item(itemId, 1);
+
+            if (result.ContainsKey("removed_quantity") && result["removed_quantity"].AsInt32() <= 0)
+            {
+                var errorCode = result.ContainsKey("error_code") ? result["error_code"].AsString() : "";
+                if (errorCode.Length == 0)
+                    errorCode = "warehouse_missing_item";
+                return new Godot.Collections.Dictionary
+                {
+                    { "allowed", false },
+                    { "error_code", errorCode },
+                    { "blocked_item_id", itemId.ToString() },
+                    { "blocked_instance_id", instanceId.ToString() },
+                };
+            }
+        }
+
+        foreach (var depositValue in itemsToDeposit)
+        {
+            var depositEntry =
+                depositValue.VariantType == Variant.Type.Dictionary
+                    ? _normalize_batch_item_entry(depositValue.AsGodotDictionary())
+                    : _normalize_batch_item_entry(ProgressionDataUtils.to_string_name(depositValue));
+            var itemId = GdInterop.GetStringName(depositEntry, "item_id");
+            var preview = preview_add_item(itemId, 1);
+            if (preview.ContainsKey("remaining_quantity") && preview["remaining_quantity"].AsInt32() > 0)
+            {
+                return new Godot.Collections.Dictionary
+                {
+                    { "allowed", false },
+                    { "error_code", "warehouse_blocked_swap" },
+                    { "blocked_item_id", itemId.ToString() },
+                    { "blocked_instance_id", GdInterop.GetStringName(depositEntry, "instance_id").ToString() },
+                };
+            }
+
+            if (depositEntry.ContainsKey("equipment_instance"))
+            {
+                var equipmentInstanceValue = depositEntry["equipment_instance"];
+                EquipmentInstanceState instance = null;
+                if (equipmentInstanceValue.VariantType == Variant.Type.Object)
+                    instance = equipmentInstanceValue.AsGodotObject() as EquipmentInstanceState;
+                else if (equipmentInstanceValue.VariantType == Variant.Type.Dictionary)
+                    instance = EquipmentInstanceState.from_dict(
+                        equipmentInstanceValue.AsGodotDictionary()
+                    );
+                var addInstanceResult = add_equipment_instance(instance, false);
+                if (addInstanceResult.ContainsKey("added_quantity") && addInstanceResult["added_quantity"].AsInt32() <= 0)
+                {
+                    return new Godot.Collections.Dictionary
+                    {
+                        { "allowed", false },
+                        { "error_code", addInstanceResult.ContainsKey("error_code") ? addInstanceResult["error_code"].AsString() : "warehouse_blocked_swap" },
+                        { "blocked_item_id", itemId.ToString() },
+                        { "blocked_instance_id", GdInterop.GetStringName(depositEntry, "instance_id").ToString() },
+                    };
+                }
+            }
+            else
+            {
+                _process_add(itemId, 1, true, consumeAllocator);
+            }
+        }
+
+        return new Godot.Collections.Dictionary
+        {
+            { "allowed", true },
+            { "error_code", "" },
+            { "blocked_item_id", "" },
+            { "blocked_instance_id", "" },
+        };
+    }
+
+    private Godot.Collections.Dictionary _run_batch_swap_transaction(
+        Godot.Collections.Array itemsToWithdraw,
+        Godot.Collections.Array itemsToDeposit,
+        bool commitOnSuccess)
+    {
+        var baselineState = _get_warehouse_state().duplicate_state();
+        _party_state ??= new PartyState();
+        var originalState = _party_backpack_view ?? _party_state.warehouse_state;
+
+        _set_transaction_warehouse_state(baselineState);
+        var result = _execute_batch_swap(itemsToWithdraw, itemsToDeposit, commitOnSuccess);
+        if (result.ContainsKey("allowed") && result["allowed"].AsBool() && commitOnSuccess)
+        {
+            if (_party_backpack_view != null)
+            {
+                _copy_warehouse_state(baselineState, originalState);
+                _party_backpack_view = originalState;
+            }
+            return result;
+        }
+
+        _set_transaction_warehouse_state(originalState);
+        return result;
+    }
+
+    private static Godot.Collections.Dictionary _normalize_batch_item_entry(
+        Godot.Collections.Dictionary entry
+    )
+    {
+        var result = new Godot.Collections.Dictionary
+        {
+            { "item_id", GdInterop.GetStringName(entry, "item_id") },
+            { "instance_id", GdInterop.GetStringName(entry, "instance_id") },
+        };
+        if (entry.ContainsKey("equipment_instance"))
+            result["equipment_instance"] = entry["equipment_instance"];
+        return result;
+    }
+
+    private static Godot.Collections.Dictionary _normalize_batch_item_entry(StringName itemId)
+    {
+        return new Godot.Collections.Dictionary
+        {
+            { "item_id", ProgressionDataUtils.to_string_name(itemId) },
+            { "instance_id", new StringName("") },
+        };
+    }
+
+    private Godot.Collections.Dictionary _process_add(
+        StringName itemId,
+        int quantity,
+        bool mutate,
+        bool consumeAllocator)
+    {
+        var normalizedItemId = ProgressionDataUtils.to_string_name(itemId);
+        int requestedQuantity = Mathf.Max(quantity, 0);
+        int usedSlotsBefore = get_used_slots();
+        var itemDef = get_item_def(normalizedItemId);
+        var targetState = mutate ? _ensure_warehouse_state() : _get_warehouse_state().duplicate_state();
+        _compact_state(targetState);
+
+        int currentUsed = targetState.stacks.Count + targetState.get_non_empty_instances().Count;
+        var result = new Godot.Collections.Dictionary
+        {
+            { "item_id", normalizedItemId.ToString() },
+            { "requested_quantity", requestedQuantity },
+            { "added_quantity", 0 },
+            { "remaining_quantity", requestedQuantity },
+            { "used_slots_before", usedSlotsBefore },
+            { "used_slots_after", currentUsed },
+            { "free_slots_after", Mathf.Max(get_total_capacity() - currentUsed, 0) },
+            { "created_stack_count", 0 },
+            { "filled_existing_quantity", 0 },
+            { "is_over_capacity", currentUsed > get_total_capacity() },
+            { "item_found", itemDef != null },
+        };
+
+        if (normalizedItemId == "" || requestedQuantity <= 0 || itemDef == null)
+            return result;
+
+        int remainingQuantity = requestedQuantity;
+        if (itemDef.is_equipment())
+        {
+            int availableNewSlots = Mathf.Max(get_total_capacity() - targetState.stacks.Count - targetState.equipment_instances.Count, 0);
+            int createdCount = 0;
+            var allocatedInstanceIds = new Godot.Collections.Array<string>();
+            while (remainingQuantity > 0 && availableNewSlots > 0)
+            {
+                var newInstance = _create_equipment_instance(normalizedItemId, targetState, consumeAllocator);
+                if (newInstance.instance_id == "")
+                    break;
+                if (consumeAllocator)
+                    allocatedInstanceIds.Add(newInstance.instance_id.ToString());
+                targetState.equipment_instances.Add(newInstance);
+                remainingQuantity -= 1;
+                availableNewSlots -= 1;
+                createdCount += 1;
+            }
+            result["created_stack_count"] = createdCount;
+            result["allocated_equipment_instance_ids"] = allocatedInstanceIds;
+        }
+        else
+        {
+            int filledExistingQuantity = 0;
+            int maxStack = itemDef.get_effective_max_stack();
+            foreach (var stack in targetState.stacks)
+            {
+                if (remainingQuantity <= 0)
+                    break;
+                if (stack == null || stack.item_id != normalizedItemId)
+                    continue;
+                if (stack.quantity >= maxStack)
+                    continue;
+
+                int acceptedQuantity = Mathf.Min(maxStack - stack.quantity, remainingQuantity);
+                if (acceptedQuantity <= 0)
+                    continue;
+
+                stack.quantity += acceptedQuantity;
+                remainingQuantity -= acceptedQuantity;
+                filledExistingQuantity += acceptedQuantity;
+            }
+
+            int createdStackCount = 0;
+            int availableNewStacks = Mathf.Max(get_total_capacity() - targetState.stacks.Count - targetState.equipment_instances.Count, 0);
+            while (remainingQuantity > 0 && availableNewStacks > 0)
+            {
+                var newStack = new WarehouseStackState
+                {
+                    item_id = normalizedItemId,
+                    quantity = Mathf.Min(maxStack, remainingQuantity),
+                };
+                targetState.stacks.Add(newStack);
+                remainingQuantity -= newStack.quantity;
+                availableNewStacks -= 1;
+                createdStackCount += 1;
+            }
+
+            _compact_state(targetState);
+            result["filled_existing_quantity"] = filledExistingQuantity;
+            result["created_stack_count"] = createdStackCount;
+        }
+
+        int usedSlotsAfter = targetState.stacks.Count + targetState.get_non_empty_instances().Count;
+        result["added_quantity"] = requestedQuantity - remainingQuantity;
+        result["remaining_quantity"] = remainingQuantity;
+        result["used_slots_after"] = usedSlotsAfter;
+        result["free_slots_after"] = Mathf.Max(get_total_capacity() - usedSlotsAfter, 0);
+        result["is_over_capacity"] = usedSlotsAfter > get_total_capacity();
+        return result;
+    }
+
+    private EquipmentInstanceState _create_equipment_instance(
+        StringName itemId,
+        WarehouseState targetState,
+        bool consumeAllocator)
+    {
+        var instance = EquipmentInstanceState.create_transient_instance(itemId);
+        instance.instance_id = consumeAllocator
+            ? _allocate_equipment_instance_id(targetState)
+            : _allocate_preview_equipment_instance_id(targetState);
+        return instance;
+    }
+
+    private StringName _allocate_equipment_instance_id(WarehouseState targetState = null)
+    {
+        if (_equipment_instance_id_allocator != null)
+            return ProgressionDataUtils.to_string_name(_equipment_instance_id_allocator.Invoke());
+
+        while (true)
+        {
+            var candidate = EquipmentInstanceState.format_instance_id(_local_equipment_instance_serial);
+            _local_equipment_instance_serial += 1;
+            if (!_equipment_instance_id_exists(candidate, targetState))
+                return candidate;
+        }
+    }
+
+    private StringName _allocate_preview_equipment_instance_id(WarehouseState targetState = null)
+    {
+        int serial = 1;
+        while (true)
+        {
+            var candidate = EquipmentInstanceState.format_preview_instance_id(serial);
+            serial += 1;
+            if (!_equipment_instance_id_exists(candidate, targetState))
+                return candidate;
+        }
+    }
+
+    private bool _equipment_instance_id_exists(StringName instanceId, WarehouseState targetState = null)
+    {
+        var normalizedId = ProgressionDataUtils.to_string_name(instanceId);
+        if (normalizedId == "")
+            return false;
+
+        var states = new System.Collections.Generic.List<WarehouseState>();
+        if (targetState != null)
+            states.Add(targetState);
+
+        var currentState = _get_warehouse_state();
+        if (currentState != null && currentState != targetState)
+            states.Add(currentState);
+
+        foreach (var state in states)
+        {
+            foreach (var instance in state.get_non_empty_instances())
+            {
+                if (instance.instance_id == normalizedId)
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    private static Godot.Collections.Array<int> _find_equipment_instance_indexes_by_item(
+        WarehouseState warehouseState,
+        StringName itemId)
+    {
+        var result = new Godot.Collections.Array<int>();
+        if (warehouseState == null)
+            return result;
+
+        var normalizedItemId = ProgressionDataUtils.to_string_name(itemId);
+        for (int index = 0; index < warehouseState.equipment_instances.Count; index++)
+        {
+            var instance = warehouseState.equipment_instances[index];
+            if (instance != null && instance.item_id == normalizedItemId)
+                result.Add(index);
+        }
+        return result;
+    }
+
+    private WarehouseState _ensure_warehouse_state()
+    {
+        if (_party_backpack_view != null)
+            return _party_backpack_view;
+
+        _party_state ??= new PartyState();
+        _party_state.warehouse_state ??= new WarehouseState();
+        return _party_state.warehouse_state;
+    }
+
+    private WarehouseState _get_warehouse_state()
+    {
+        if (_party_backpack_view != null)
+            return _party_backpack_view;
+        if (_party_state == null)
+            return new WarehouseState();
+        return _party_state.warehouse_state ?? new WarehouseState();
+    }
+
+    private void _set_transaction_warehouse_state(WarehouseState warehouseState)
+    {
+        if (_party_backpack_view != null)
+        {
+            _party_backpack_view = warehouseState;
+            return;
+        }
+
+        _party_state ??= new PartyState();
+        _party_state.warehouse_state = warehouseState;
+    }
+
+    private static void _copy_warehouse_state(WarehouseState sourceState, WarehouseState targetState)
+    {
+        if (sourceState == null || targetState == null)
+            return;
+
+        targetState.stacks.Clear();
+        targetState.equipment_instances.Clear();
+        foreach (var stack in sourceState.get_non_empty_stacks())
+            targetState.stacks.Add(stack.duplicate_state());
+        foreach (var instance in sourceState.get_non_empty_instances())
+            targetState.equipment_instances.Add(EquipmentInstanceState.from_dict(instance.to_dict()));
+    }
+
+    private static void _compact_state(WarehouseState warehouseState)
+    {
+        if (warehouseState == null)
+            return;
+        warehouseState.stacks = warehouseState.get_non_empty_stacks();
+        warehouseState.equipment_instances = warehouseState.get_non_empty_instances();
+    }
+
+    private Godot.Collections.Dictionary _build_inventory_entry(
+        StringName itemId,
+        int quantity,
+        StringName storageMode,
+        EquipmentInstanceState equipmentInstance = null)
+    {
+        var normalizedItemId = ProgressionDataUtils.to_string_name(itemId);
+        int resolvedQuantity = Mathf.Max(quantity, 0);
+        var itemDef = get_item_def(normalizedItemId);
+        var grantedSkillId = itemDef?.granted_skill_id ?? new StringName("");
+        var entry = new Godot.Collections.Dictionary
+        {
+            { "item_id", normalizedItemId.ToString() },
+            { "display_name", itemDef != null && itemDef.display_name.Length > 0 ? itemDef.display_name : normalizedItemId.ToString() },
+            { "description", itemDef?.description ?? "该物品定义缺失，当前仅保留存档中的 item_id 与数量。" },
+            { "icon", itemDef?.icon ?? "" },
+            { "quantity", resolvedQuantity },
+            { "total_quantity", count_item(normalizedItemId) },
+            { "is_stackable", itemDef?.is_stackable ?? resolvedQuantity > 1 },
+            { "stack_limit", itemDef?.get_effective_max_stack() ?? Mathf.Max(resolvedQuantity, 1) },
+            { "item_category", itemDef != null ? itemDef.get_item_category_normalized().ToString() : "" },
+            { "is_skill_book", itemDef != null && itemDef.is_skill_book() },
+            { "granted_skill_id", grantedSkillId.ToString() },
+            { "storage_mode", storageMode.ToString() },
+        };
+
+        if (equipmentInstance != null)
+        {
+            entry["instance_id"] = equipmentInstance.instance_id.ToString();
+            entry["rarity"] = equipmentInstance.rarity;
+            entry["current_durability"] = equipmentInstance.current_durability;
+        }
+        return entry;
+    }
+
+    private Godot.Collections.Dictionary _build_remove_item_result(
+        StringName itemId,
+        int requestedQuantity,
+        int removedQuantity,
+        int remainingQuantity,
+        int usedSlotsBefore,
+        int usedSlotsAfter,
+        string errorCode)
+    {
+        return new Godot.Collections.Dictionary
+        {
+            { "item_id", itemId.ToString() },
+            { "requested_quantity", requestedQuantity },
+            { "removed_quantity", removedQuantity },
+            { "remaining_quantity", remainingQuantity },
+            { "used_slots_before", usedSlotsBefore },
+            { "used_slots_after", usedSlotsAfter },
+            { "free_slots_after", Mathf.Max(get_total_capacity() - usedSlotsAfter, 0) },
+            { "is_over_capacity", usedSlotsAfter > get_total_capacity() },
+            { "error_code", errorCode },
+        };
+    }
+
+    private Godot.Collections.Dictionary _build_remove_instance_result(
+        StringName itemId,
+        StringName instanceId,
+        int removedQuantity,
+        int remainingQuantity,
+        int usedSlotsBefore,
+        int usedSlotsAfter)
+    {
+        return new Godot.Collections.Dictionary
+        {
+            { "item_id", itemId.ToString() },
+            { "instance_id", instanceId.ToString() },
+            { "requested_quantity", 1 },
+            { "removed_quantity", removedQuantity },
+            { "remaining_quantity", remainingQuantity },
+            { "used_slots_before", usedSlotsBefore },
+            { "used_slots_after", usedSlotsAfter },
+            { "free_slots_after", Mathf.Max(get_total_capacity() - usedSlotsAfter, 0) },
+            { "is_over_capacity", usedSlotsAfter > get_total_capacity() },
+            { "error_code", "" },
+        };
+    }
+
+    private static Godot.Collections.Dictionary _with_error(
+        Godot.Collections.Dictionary result,
+        string errorCode)
+    {
+        result["error_code"] = errorCode;
+        return result;
+    }
+
+    private static Godot.Collections.Array _to_untyped_array(Godot.Collections.Array<StringName> values)
+    {
+        var result = new Godot.Collections.Array();
+        if (values == null)
+            return result;
+
+        foreach (var value in values)
+            result.Add(value);
+        return result;
+    }
+
 }
-

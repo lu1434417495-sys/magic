@@ -2,9 +2,9 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
-const BattleEdgeFeatureState = preload("res://scripts/systems/battle/core/battle_edge_feature_state.gd")
-const BattleTerrainEffectState = preload("res://scripts/systems/battle/terrain/battle_terrain_effect_state.gd")
+const BattleCellState = preload("res://scripts/systems/battle/core/BattleCellState.cs")
+const BattleEdgeFeatureState = preload("res://scripts/systems/battle/core/BattleEdgeFeatureState.cs")
+const BattleTerrainEffectState = preload("res://scripts/systems/battle/terrain/BattleTerrainEffectState.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -16,7 +16,6 @@ func _initialize() -> void:
 
 func _run() -> void:
 	_test_valid_round_trip_with_edge_wall_and_timed_effect()
-	_test_rejects_non_dictionary()
 	_test_rejects_missing_field()
 	_test_rejects_extra_field()
 	_test_rejects_wrong_type()
@@ -56,19 +55,15 @@ func _test_valid_round_trip_with_edge_wall_and_timed_effect() -> void:
 	_assert_eq(restored.terrain_effect_ids, source.terrain_effect_ids, "roundtrip 应保留 terrain_effect_ids。")
 	_assert_eq(restored.timed_terrain_effects.size(), 1, "roundtrip 应恢复 timed terrain effect。")
 	_assert_eq(restored.timed_terrain_effects[0].field_instance_id, &"field_001", "roundtrip 应保留 terrain effect 字段。")
-	_assert_eq(restored.edge_feature_east.feature_kind, BattleEdgeFeatureState.FEATURE_WALL, "roundtrip 应恢复 east wall。")
-	_assert_eq(restored.edge_feature_south.feature_kind, BattleEdgeFeatureState.FEATURE_NONE, "roundtrip 应恢复 south none edge。")
+	_assert_eq(restored.edge_feature_east.feature_kind, BattleEdgeFeatureState.FEATURE_WALL(), "roundtrip 应恢复 east wall。")
+	_assert_eq(restored.edge_feature_south.feature_kind, BattleEdgeFeatureState.FEATURE_NONE(), "roundtrip 应恢复 south none edge。")
 
 	var duplicate: BattleCellState = restored.duplicate_cell()
 	_assert_true(duplicate != null, "duplicate_cell 应继续可用。")
-	_assert_eq(duplicate.edge_feature_east.feature_kind, BattleEdgeFeatureState.FEATURE_WALL, "duplicate_cell 应复制 edge feature。")
+	_assert_eq(duplicate.edge_feature_east.feature_kind, BattleEdgeFeatureState.FEATURE_WALL(), "duplicate_cell 应复制 edge feature。")
 	var columns := BattleCellState.build_columns_from_surface_cells({restored.coord: restored})
 	_assert_true(columns.has(restored.coord), "build_columns_from_surface_cells 应继续为合法 cell 生成列。")
 	_assert_true((columns.get(restored.coord, []) as Array).size() > 0, "build_columns_from_surface_cells 生成的列不应为空。")
-
-
-func _test_rejects_non_dictionary() -> void:
-	_assert_null(BattleCellState.from_dict("not_a_dictionary"), "from_dict 应拒绝非 Dictionary 入参。")
 
 
 func _test_rejects_missing_field() -> void:
@@ -160,13 +155,13 @@ func _test_null_edge_feature_serializes_as_current_none_payload() -> void:
 	var restored := BattleCellState.from_dict(payload)
 	_assert_true(restored != null, "null edge feature 的 canonical to_dict payload 应能被 strict from_dict 恢复。")
 	if restored != null:
-		_assert_eq(restored.edge_feature_east.feature_kind, BattleEdgeFeatureState.FEATURE_NONE, "null edge feature 应恢复为 none。")
+		_assert_eq(restored.edge_feature_east.feature_kind, BattleEdgeFeatureState.FEATURE_NONE(), "null edge feature 应恢复为 none。")
 
 
 func _build_valid_cell() -> BattleCellState:
 	var cell := BattleCellState.new()
 	cell.coord = Vector2i(2, 3)
-	cell.base_terrain = BattleCellState.TERRAIN_FLOWING_WATER
+	cell.base_terrain = BattleCellState.TERRAIN_FLOWING_WATER()
 	cell.base_height = 1
 	cell.height_offset = 1
 	cell.recalculate_runtime_values()

@@ -2,13 +2,12 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const WorldMapRuntimeProxy = preload("res://scripts/systems/game_runtime/world_map_runtime_proxy.gd")
-const WorldMapSystem = preload("res://scripts/systems/game_runtime/world_map_system.gd")
+const WorldMapSystem = preload("res://scripts/systems/game_runtime/WorldMapSystem.cs")
 
 class StagecoachTravelProxySpy:
 	var travel_calls: Array[String] = []
 
-	func command_stagecoach_travel(target_settlement_id: String) -> void:
+	func CommandStagecoachTravel(target_settlement_id: String) -> void:
 		travel_calls.append(target_settlement_id)
 
 var _test := TestRunner.new()
@@ -136,23 +135,23 @@ func _test_world_map_runtime_proxy_keeps_expected_contract() -> void:
 	var proxy := WorldMapRuntimeProxy.new()
 
 	var expected_methods: Array[String] = [
-		"get_status_text",
-		"get_log_snapshot",
-		"get_active_modal_id",
-		"get_active_settlement_id",
-		"get_active_map_id",
-		"get_pending_battle_start_prompt",
-		"get_selected_battle_skill_target_unit_ids",
-		"build_headless_snapshot",
-		"build_text_snapshot",
-		"command_world_move",
-		"command_confirm_submap_entry",
-		"command_confirm_battle_start",
-		"command_return_from_submap",
-		"command_battle_wait_or_resolve",
-		"reset_battle_focus",
-		"select_world_cell",
-		"select_battle_cell",
+		"GetStatusText",
+		"GetLogSnapshot",
+		"GetActiveModalId",
+		"GetActiveSettlementId",
+		"GetActiveMapId",
+		"GetPendingBattleStartPrompt",
+		"GetSelectedBattleSkillTargetUnitIds",
+		"BuildHeadlessSnapshot",
+		"BuildTextSnapshot",
+		"CommandWorldMove",
+		"CommandConfirmSubmapEntry",
+		"CommandConfirmBattleStart",
+		"CommandReturnFromSubmap",
+		"CommandBattleWaitOrResolve",
+		"ResetBattleFocus",
+		"SelectWorldCell",
+		"SelectBattleCell",
 	]
 
 	for method_name in expected_methods:

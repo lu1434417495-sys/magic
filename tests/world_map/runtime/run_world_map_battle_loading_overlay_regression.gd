@@ -2,9 +2,10 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const EncounterAnchorData = preload("res://scripts/systems/world/encounter_anchor_data.gd")
-const BattleTerrainGenerator = preload("res://scripts/systems/battle/terrain/battle_terrain_generator.gd")
-const GameSessionScript = preload("res://scripts/systems/persistence/game_session.gd")
+const EncounterAnchorData = preload("res://scripts/systems/world/EncounterAnchorData.cs")
+const BattleTerrainGenerator = preload("res://scripts/systems/battle/terrain/BattleTerrainGenerator.cs")
+const BattleCellState = preload("res://scripts/systems/battle/core/BattleCellState.cs")
+const GameSessionScript = preload("res://scripts/systems/persistence/GameSession.cs")
 const WorldMapScene = preload("res://scenes/main/world_map.tscn")
 
 const TEST_CONFIG_PATH := "res://data/configs/world_map/test_world_map_config.tres"
@@ -15,7 +16,7 @@ var _game_session = null
 
 
 class PendingTerrainGenerator:
-	extends BattleTerrainGenerator
+	extends RefCounted
 
 	const PENDING_FAIL_CALLS := 8
 
@@ -29,7 +30,7 @@ class PendingTerrainGenerator:
 		var cells: Dictionary = {}
 		for y in range(map_size.y):
 			for x in range(map_size.x):
-				var cell = BATTLE_CELL_STATE_SCRIPT.new()
+				var cell = BattleCellState.new()
 				cell.coord = Vector2i(x, y)
 				cell.base_terrain = &"land"
 				cell.base_height = 4
@@ -39,7 +40,7 @@ class PendingTerrainGenerator:
 		return {
 			"map_size": map_size,
 			"cells": cells,
-			"cell_columns": BATTLE_CELL_STATE_SCRIPT.build_columns_from_surface_cells(cells),
+			"cell_columns": BattleCellState.build_columns_from_surface_cells(cells),
 			"ally_spawns": [Vector2i(0, 0)],
 			"enemy_spawns": [Vector2i(2, 1)],
 			"terrain_profile_id": &"default",
@@ -142,7 +143,7 @@ func _test_world_map_loading_overlay_stays_visible_during_pending_battle_generat
 
 	var encounter_anchor = _find_encounter_anchor_by_kind(
 		_game_session.get_world_data(),
-		EncounterAnchorData.ENCOUNTER_KIND_SINGLE
+		EncounterAnchorData.ENCOUNTER_KIND_SINGLE()
 	)
 	_assert_true(encounter_anchor != null, "pending terrain loading 回归需要至少一个单体野怪遭遇。")
 	if encounter_anchor == null:
@@ -183,8 +184,8 @@ func _test_world_map_loading_overlay_stays_visible_during_pending_battle_generat
 
 
 func _find_encounter_anchor_by_kind(world_data: Dictionary, encounter_kind: StringName):
-	for encounter_variant in world_data.get("encounter_anchors", []):
-		var encounter_anchor = encounter_variant as EncounterAnchorData
+	for encounter_option in world_data.get("encounter_anchors", []):
+		var encounter_anchor = encounter_option as EncounterAnchorData
 		if encounter_anchor == null:
 			continue
 		if encounter_anchor.encounter_kind == encounter_kind:

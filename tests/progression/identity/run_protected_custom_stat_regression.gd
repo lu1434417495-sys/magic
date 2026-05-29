@@ -2,13 +2,13 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const AttributeService = preload("res://scripts/systems/attributes/attribute_service.gd")
-const CharacterManagementModule = preload("res://scripts/systems/progression/character_management_module.gd")
-const PartyWarehouseService = preload("res://scripts/systems/inventory/party_warehouse_service.gd")
-const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
-const PartyState = preload("res://scripts/player/progression/party_state.gd")
-const UnitBaseAttributes = preload("res://scripts/player/progression/unit_base_attributes.gd")
-const UnitProgress = preload("res://scripts/player/progression/unit_progress.gd")
+const AttributeService = preload("res://scripts/systems/attributes/AttributeService.cs")
+const CharacterManagementModule = preload("res://scripts/systems/progression/CharacterManagementModule.cs")
+const PartyWarehouseService = preload("res://scripts/systems/inventory/PartyWarehouseService.cs")
+const PartyMemberState = preload("res://scripts/player/progression/PartyMemberState.cs")
+const PartyState = preload("res://scripts/player/progression/PartyState.cs")
+const UnitBaseAttributes = preload("res://scripts/player/progression/UnitBaseAttributes.cs")
+const UnitProgress = preload("res://scripts/player/progression/UnitProgress.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -38,11 +38,11 @@ func _run() -> void:
 
 func _test_protected_custom_stat_keys_stay_minimal() -> void:
 	_assert_true(
-		AttributeService.PROTECTED_CUSTOM_STAT_KEYS.has(UnitBaseAttributes.HIDDEN_LUCK_AT_BIRTH),
+		AttributeService.PROTECTED_CUSTOM_STAT_KEYS_ARRAY().has(&"hidden_luck_at_birth"),
 		"PROTECTED_CUSTOM_STAT_KEYS 应默认包含 hidden_luck_at_birth。"
 	)
 	_assert_true(
-		not AttributeService.PROTECTED_CUSTOM_STAT_KEYS.has(PartyWarehouseService.STORAGE_SPACE_ATTRIBUTE_ID),
+		not AttributeService.PROTECTED_CUSTOM_STAT_KEYS_ARRAY().has(PartyWarehouseService.STORAGE_SPACE_ATTRIBUTE_ID()),
 		"PROTECTED_CUSTOM_STAT_KEYS 不应顺手保护其他 custom stat。"
 	)
 
@@ -67,9 +67,9 @@ func _test_non_whitelisted_sources_cannot_write_hidden_luck_at_birth() -> void:
 	]
 
 	for case in cases:
-		var service := _build_attribute_service(2)
-		var applied := service.apply_permanent_attribute_change(
-			UnitBaseAttributes.HIDDEN_LUCK_AT_BIRTH,
+		var service = _build_attribute_service(2)
+		var applied = service.apply_permanent_attribute_change(
+			&"hidden_luck_at_birth",
 			3,
 			{
 				"source_type": case.get("source_type", &""),
@@ -81,59 +81,59 @@ func _test_non_whitelisted_sources_cannot_write_hidden_luck_at_birth() -> void:
 			"%s 不应能写入 hidden_luck_at_birth。" % String(case.get("label", "未知来源"))
 		)
 		_assert_eq(
-			service.get_base_value(UnitBaseAttributes.HIDDEN_LUCK_AT_BIRTH),
+			service.get_base_value(&"hidden_luck_at_birth"),
 			2,
 			"%s 被拒绝后不应改写 hidden_luck_at_birth。" % String(case.get("label", "未知来源"))
 		)
 
 
 func _test_character_creation_and_explicit_story_scripts_can_write_hidden_luck_at_birth() -> void:
-	var creation_service := _build_attribute_service(1)
-	var creation_applied := creation_service.apply_permanent_attribute_change(
-		UnitBaseAttributes.HIDDEN_LUCK_AT_BIRTH,
+	var creation_service = _build_attribute_service(1)
+	var creation_applied = creation_service.apply_permanent_attribute_change(
+		&"hidden_luck_at_birth",
 		2,
 		{
-			"source_type": AttributeService.PROTECTED_CUSTOM_STAT_SOURCE_CHARACTER_CREATION,
+			"source_type": AttributeService.PROTECTED_CUSTOM_STAT_SOURCE_CHARACTER_CREATION_ID(),
 			"source_id": &"birth_roll",
 		}
 	)
 	_assert_true(creation_applied, "CharacterCreationService 来源应能写入 hidden_luck_at_birth。")
 	_assert_eq(
-		creation_service.get_base_value(UnitBaseAttributes.HIDDEN_LUCK_AT_BIRTH),
+		creation_service.get_base_value(&"hidden_luck_at_birth"),
 		3,
 		"CharacterCreationService 来源应真正累计 hidden_luck_at_birth。"
 	)
 
-	var unmarked_story_service := _build_attribute_service(1)
-	var unmarked_story_applied := unmarked_story_service.apply_permanent_attribute_change(
-		UnitBaseAttributes.HIDDEN_LUCK_AT_BIRTH,
+	var unmarked_story_service = _build_attribute_service(1)
+	var unmarked_story_applied = unmarked_story_service.apply_permanent_attribute_change(
+		&"hidden_luck_at_birth",
 		2,
 		{
-			"source_type": AttributeService.PROTECTED_CUSTOM_STAT_SOURCE_STORY_SCRIPT,
+			"source_type": AttributeService.PROTECTED_CUSTOM_STAT_SOURCE_STORY_SCRIPT_ID(),
 			"source_id": &"chapter_intro",
 		}
 	)
 	_assert_true(not unmarked_story_applied, "未显式标记的剧情脚本不应写入 hidden_luck_at_birth。")
 	_assert_eq(
-		unmarked_story_service.get_base_value(UnitBaseAttributes.HIDDEN_LUCK_AT_BIRTH),
+		unmarked_story_service.get_base_value(&"hidden_luck_at_birth"),
 		1,
 		"未显式标记的剧情脚本被拒绝后不应改写 hidden_luck_at_birth。"
 	)
 
-	var marked_story_service := _build_attribute_service(1)
+	var marked_story_service = _build_attribute_service(1)
 	var story_source_context := {
-		"source_type": AttributeService.PROTECTED_CUSTOM_STAT_SOURCE_STORY_SCRIPT,
+		"source_type": AttributeService.PROTECTED_CUSTOM_STAT_SOURCE_STORY_SCRIPT_ID(),
 		"source_id": &"chapter_intro",
 	}
-	story_source_context[AttributeService.PROTECTED_CUSTOM_STAT_WRITE_FLAG] = true
-	var marked_story_applied := marked_story_service.apply_permanent_attribute_change(
-		UnitBaseAttributes.HIDDEN_LUCK_AT_BIRTH,
+	story_source_context[AttributeService.PROTECTED_CUSTOM_STAT_WRITE_FLAG_ID()] = true
+	var marked_story_applied = marked_story_service.apply_permanent_attribute_change(
+		&"hidden_luck_at_birth",
 		2,
 		story_source_context
 	)
 	_assert_true(marked_story_applied, "显式标记的剧情脚本应能写入 hidden_luck_at_birth。")
 	_assert_eq(
-		marked_story_service.get_base_value(UnitBaseAttributes.HIDDEN_LUCK_AT_BIRTH),
+		marked_story_service.get_base_value(&"hidden_luck_at_birth"),
 		3,
 		"显式标记的剧情脚本应真正累计 hidden_luck_at_birth。"
 	)
@@ -147,7 +147,7 @@ func _test_pending_reward_flow_rejects_protected_hidden_luck_writes() -> void:
 	member_state.progression = UnitProgress.new()
 	member_state.progression.unit_id = &"hero"
 	member_state.progression.display_name = "Hero"
-	member_state.progression.unit_base_attributes.set_attribute_value(UnitBaseAttributes.HIDDEN_LUCK_AT_BIRTH, 2)
+	member_state.progression.unit_base_attributes.set_attribute_value(&"hidden_luck_at_birth", 2)
 	party_state.set_member_state(member_state)
 
 	var manager := CharacterManagementModule.new()
@@ -162,7 +162,7 @@ func _test_pending_reward_flow_rejects_protected_hidden_luck_writes() -> void:
 		[
 			{
 				"entry_type": "attribute_delta",
-				"target_id": String(UnitBaseAttributes.HIDDEN_LUCK_AT_BIRTH),
+				"target_id": String(&"hidden_luck_at_birth"),
 				"amount": 3,
 				"reason_text": "测试保护写入",
 			},
@@ -176,16 +176,16 @@ func _test_pending_reward_flow_rejects_protected_hidden_luck_writes() -> void:
 	var delta = manager.apply_pending_character_reward(reward)
 	_assert_true(delta.attribute_changes.is_empty(), "受保护 custom stat 被拒绝时不应记录 attribute delta。")
 	_assert_eq(
-		member_state.progression.unit_base_attributes.get_attribute_value(UnitBaseAttributes.HIDDEN_LUCK_AT_BIRTH),
+		member_state.progression.unit_base_attributes.get_attribute_value(&"hidden_luck_at_birth"),
 		2,
 		"受保护 custom stat 通过成就奖励链路写入时应保持原值。"
 	)
 
 
 func _test_unprotected_custom_stats_remain_writable() -> void:
-	var service := _build_attribute_service(1)
-	var applied := service.apply_permanent_attribute_change(
-		PartyWarehouseService.STORAGE_SPACE_ATTRIBUTE_ID,
+	var service = _build_attribute_service(1)
+	var applied = service.apply_permanent_attribute_change(
+		PartyWarehouseService.STORAGE_SPACE_ATTRIBUTE_ID(),
 		2,
 		{
 			"source_type": &"achievement",
@@ -194,20 +194,20 @@ func _test_unprotected_custom_stats_remain_writable() -> void:
 	)
 	_assert_true(applied, "未受保护的 custom stat 仍应允许通过正式写入点更新。")
 	_assert_eq(
-		service.get_base_value(PartyWarehouseService.STORAGE_SPACE_ATTRIBUTE_ID),
+		service.get_base_value(PartyWarehouseService.STORAGE_SPACE_ATTRIBUTE_ID()),
 		3,
 		"未受保护的 custom stat 应正常累计。"
 	)
 
 
-func _build_attribute_service(hidden_luck_at_birth: int, storage_space: int = 1) -> AttributeService:
+func _build_attribute_service(hidden_luck_at_birth: int, storage_space: int = 1):
 	var progression := UnitProgress.new()
 	progression.unit_id = &"hero"
 	progression.display_name = "Hero"
-	progression.unit_base_attributes.set_attribute_value(UnitBaseAttributes.HIDDEN_LUCK_AT_BIRTH, hidden_luck_at_birth)
-	progression.unit_base_attributes.set_attribute_value(PartyWarehouseService.STORAGE_SPACE_ATTRIBUTE_ID, storage_space)
+	progression.unit_base_attributes.set_attribute_value(&"hidden_luck_at_birth", hidden_luck_at_birth)
+	progression.unit_base_attributes.set_attribute_value(PartyWarehouseService.STORAGE_SPACE_ATTRIBUTE_ID(), storage_space)
 
-	var service := AttributeService.new()
+	var service = AttributeService.new()
 	service.setup(progression)
 	return service
 

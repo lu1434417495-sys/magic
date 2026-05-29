@@ -1,14 +1,14 @@
 extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
-const AscensionDef = preload("res://scripts/player/progression/ascension_def.gd")
-const AscensionStageDef = preload("res://scripts/player/progression/ascension_stage_def.gd")
-const BloodlineDef = preload("res://scripts/player/progression/bloodline_def.gd")
-const BloodlineStageDef = preload("res://scripts/player/progression/bloodline_stage_def.gd")
-const IdentityPayloadValidator = preload("res://scripts/systems/progression/identity_payload_validator.gd")
-const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
-const RaceDef = preload("res://scripts/player/progression/race_def.gd")
-const SubraceDef = preload("res://scripts/player/progression/subrace_def.gd")
+const AscensionDef = preload("res://scripts/player/progression/AscensionDef.cs")
+const AscensionStageDef = preload("res://scripts/player/progression/AscensionStageDef.cs")
+const BloodlineDef = preload("res://scripts/player/progression/BloodlineDef.cs")
+const BloodlineStageDef = preload("res://scripts/player/progression/BloodlineStageDef.cs")
+const IdentityPayloadValidator = preload("res://scripts/systems/progression/IdentityPayloadValidator.cs")
+const PartyMemberState = preload("res://scripts/player/progression/PartyMemberState.cs")
+const RaceDef = preload("res://scripts/player/progression/RaceDef.cs")
+const SubraceDef = preload("res://scripts/player/progression/SubraceDef.cs")
 
 var _runner := TestRunner.new()
 

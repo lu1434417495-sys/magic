@@ -2,18 +2,18 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const BODY_SIZE_RULES_SCRIPT = preload("res://scripts/systems/progression/body_size_rules.gd")
-const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
-const AttributeModifier = preload("res://scripts/player/progression/attribute_modifier.gd")
-const RaceDef = preload("res://scripts/player/progression/race_def.gd")
-const SubraceDef = preload("res://scripts/player/progression/subrace_def.gd")
-const AgeProfileDef = preload("res://scripts/player/progression/age_profile_def.gd")
-const BloodlineDef = preload("res://scripts/player/progression/bloodline_def.gd")
-const BloodlineStageDef = preload("res://scripts/player/progression/bloodline_stage_def.gd")
-const AscensionDef = preload("res://scripts/player/progression/ascension_def.gd")
-const AscensionStageDef = preload("res://scripts/player/progression/ascension_stage_def.gd")
-const RacialGrantedSkill = preload("res://scripts/player/progression/racial_granted_skill.gd")
-const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
+const BODY_SIZE_RULES_SCRIPT = preload("res://scripts/systems/progression/BodySizeRules.cs")
+const ProgressionContentRegistry = preload("res://scripts/player/progression/ProgressionContentRegistry.cs")
+const AttributeModifier = preload("res://scripts/player/progression/AttributeModifier.cs")
+const RaceDef = preload("res://scripts/player/progression/RaceDef.cs")
+const SubraceDef = preload("res://scripts/player/progression/SubraceDef.cs")
+const AgeProfileDef = preload("res://scripts/player/progression/AgeProfileDef.cs")
+const BloodlineDef = preload("res://scripts/player/progression/BloodlineDef.cs")
+const BloodlineStageDef = preload("res://scripts/player/progression/BloodlineStageDef.cs")
+const AscensionDef = preload("res://scripts/player/progression/AscensionDef.cs")
+const AscensionStageDef = preload("res://scripts/player/progression/AscensionStageDef.cs")
+const RacialGrantedSkill = preload("res://scripts/player/progression/RacialGrantedSkill.cs")
+const SkillDef = preload("res://scripts/player/progression/SkillDef.cs")
 const BodySizeRules = BODY_SIZE_RULES_SCRIPT
 
 const EXPECTED_RACE_IDS := [
@@ -276,7 +276,7 @@ func _test_dragonborn_subrace_breath_grants(registry: ProgressionContentRegistry
 		if grant == null:
 			continue
 		_assert_eq(grant.skill_id, expected_skill_id, "Dragonborn subrace %s should grant the expected breath skill." % String(subrace_id))
-		_assert_eq(grant.charge_kind, RacialGrantedSkill.CHARGE_KIND_PER_BATTLE, "Dragonborn breath should be per battle.")
+		_assert_eq(grant.charge_kind, "per_battle", "Dragonborn breath should be per battle.")
 		_assert_eq(grant.charges, 1, "Dragonborn breath should have one charge.")
 		var skill_def := skill_defs.get(grant.skill_id) as SkillDef
 		_assert_true(skill_def != null, "Dragonborn breath skill %s should exist." % String(grant.skill_id))
@@ -294,8 +294,8 @@ func _test_official_titan_bloodline_content(registry: ProgressionContentRegistry
 	_assert_eq(titan.display_name, "Titan Blood", "Titan bloodline should have a stable display name.")
 	_assert_eq(titan.stage_ids, [&"titan_awakened"], "Titan bloodline should list titan_awakened as its stage.")
 	_assert_eq(titan.racial_granted_skills.size(), 0, "Titan bloodline should not grant placeholder skills before official skills exist.")
-	_assert_modifier(titan.attribute_modifiers, UnitBaseAttributes.CONSTITUTION, 1, &"titan", &"bloodline")
-	_assert_modifier(titan.attribute_modifiers, UnitBaseAttributes.WILLPOWER, 1, &"titan", &"bloodline")
+	_assert_modifier(titan.attribute_modifiers, &"constitution", 1, &"titan", &"bloodline")
+	_assert_modifier(titan.attribute_modifiers, &"willpower", 1, &"titan", &"bloodline")
 
 	var awakened := bloodline_stage_defs.get(&"titan_awakened") as BloodlineStageDef
 	_assert_true(awakened != null, "Official bloodline stage registry should include titan_awakened.")
@@ -303,9 +303,9 @@ func _test_official_titan_bloodline_content(registry: ProgressionContentRegistry
 		return
 	_assert_eq(awakened.bloodline_id, &"titan", "Titan awakened stage should point back to titan bloodline.")
 	_assert_eq(awakened.racial_granted_skills.size(), 0, "Titan awakened should not grant placeholder skills before official skills exist.")
-	_assert_modifier(awakened.attribute_modifiers, UnitBaseAttributes.STRENGTH, 2, &"titan_awakened", &"bloodline")
-	_assert_modifier(awakened.attribute_modifiers, UnitBaseAttributes.CONSTITUTION, 2, &"titan_awakened", &"bloodline")
-	_assert_modifier(awakened.attribute_modifiers, UnitBaseAttributes.WILLPOWER, 1, &"titan_awakened", &"bloodline")
+	_assert_modifier(awakened.attribute_modifiers, &"strength", 2, &"titan_awakened", &"bloodline")
+	_assert_modifier(awakened.attribute_modifiers, &"constitution", 2, &"titan_awakened", &"bloodline")
+	_assert_modifier(awakened.attribute_modifiers, &"willpower", 1, &"titan_awakened", &"bloodline")
 	_assert_true(
 		_array_contains_text(awakened.trait_summary, "does not change body size"),
 		"Titan awakened summary should state that body size stays out of this bloodline stage."
@@ -335,16 +335,16 @@ func _test_official_titan_ascension_content(registry: ProgressionContentRegistry
 	_assert_eq(stage.body_size_category_override, &"large", "Titan avatar should override body size category to large.")
 	_assert_eq(
 		BodySizeRules.get_body_size_for_category(stage.body_size_category_override),
-		BodySizeRules.BODY_SIZE_LARGE,
+		BodySizeRules.body_size_large()(),
 		"Titan avatar body_size int should derive from BodySizeRules large."
 	)
-	_assert_modifier(stage.attribute_modifiers, UnitBaseAttributes.STRENGTH, 3, &"titan_avatar", &"ascension")
-	_assert_modifier(stage.attribute_modifiers, UnitBaseAttributes.CONSTITUTION, 2, &"titan_avatar", &"ascension")
-	_assert_modifier(stage.attribute_modifiers, UnitBaseAttributes.WILLPOWER, 2, &"titan_avatar", &"ascension")
+	_assert_modifier(stage.attribute_modifiers, &"strength", 3, &"titan_avatar", &"ascension")
+	_assert_modifier(stage.attribute_modifiers, &"constitution", 2, &"titan_avatar", &"ascension")
+	_assert_modifier(stage.attribute_modifiers, &"willpower", 2, &"titan_avatar", &"ascension")
 	_assert_eq(stage.racial_granted_skills.size(), 3, "Titan avatar should grant its official ascension combat skills.")
-	_assert_granted_skill(stage.racial_granted_skills, &"titan_stomp", RacialGrantedSkill.CHARGE_KIND_PER_BATTLE, 2, "Titan avatar")
-	_assert_granted_skill(stage.racial_granted_skills, &"titan_domain_pressure", RacialGrantedSkill.CHARGE_KIND_PER_BATTLE, 1, "Titan avatar")
-	_assert_granted_skill(stage.racial_granted_skills, &"titan_colossus_form", RacialGrantedSkill.CHARGE_KIND_PER_BATTLE, 1, "Titan avatar")
+	_assert_granted_skill(stage.racial_granted_skills, &"titan_stomp", "per_battle", 2, "Titan avatar")
+	_assert_granted_skill(stage.racial_granted_skills, &"titan_domain_pressure", "per_battle", 1, "Titan avatar")
+	_assert_granted_skill(stage.racial_granted_skills, &"titan_colossus_form", "per_battle", 1, "Titan avatar")
 	_assert_titan_stomp_skill(skill_defs)
 	_assert_titan_domain_pressure_skill(skill_defs)
 	_assert_titan_colossus_form_skill(skill_defs)
@@ -365,8 +365,8 @@ func _assert_granted_skill(
 	expected_charges: int,
 	owner_label: String
 ) -> void:
-	for grant_variant in granted_skills:
-		var grant := grant_variant as RacialGrantedSkill
+	for grant_option in granted_skills:
+		var grant := grant_option as RacialGrantedSkill
 		if grant == null or grant.skill_id != expected_skill_id:
 			continue
 		_assert_eq(grant.minimum_skill_level, 1, "%s %s grant should start from minimum skill level 1." % [owner_label, String(expected_skill_id)])
@@ -433,7 +433,7 @@ func _assert_titan_colossus_form_skill(skill_defs: Dictionary) -> void:
 		_assert_eq(body_size_effect.body_size_category, &"huge", "Titan Colossus Form should temporarily become huge.")
 		_assert_eq(
 			BodySizeRules.get_body_size_for_category(body_size_effect.body_size_category),
-			BodySizeRules.BODY_SIZE_HUGE,
+			BodySizeRules.body_size_huge()(),
 			"Titan Colossus Form body size int should derive from BodySizeRules huge."
 		)
 		_assert_eq(body_size_effect.duration_tu, 80, "Titan Colossus Form should use expected duration.")
@@ -466,12 +466,12 @@ func _assert_modifier(
 	expected_source_id: StringName,
 	expected_source_type: StringName
 ) -> void:
-	for modifier_variant in modifiers:
-		var modifier := modifier_variant as AttributeModifier
+	for modifier_option in modifiers:
+		var modifier := modifier_option as AttributeModifier
 		if modifier == null:
 			continue
 		if modifier.attribute_id == attribute_id and modifier.source_id == expected_source_id:
-			_assert_eq(modifier.mode, AttributeModifier.MODE_FLAT, "Titan modifier %s should be flat." % String(attribute_id))
+			_assert_eq(modifier.mode, &"flat", "Titan modifier %s should be flat." % String(attribute_id))
 			_assert_eq(modifier.value, expected_value, "Titan modifier %s should have expected value." % String(attribute_id))
 			_assert_eq(modifier.source_type, expected_source_type, "Titan modifier %s should use expected source type." % String(attribute_id))
 			return

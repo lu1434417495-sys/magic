@@ -2,14 +2,14 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const AchievementProgressState = preload("res://scripts/player/progression/achievement_progress_state.gd")
-const CharacterManagementModule = preload("res://scripts/systems/progression/character_management_module.gd")
-const FaithDeityDef = preload("res://scripts/player/progression/faith_deity_def.gd")
-const FaithRankDef = preload("res://scripts/player/progression/faith_rank_def.gd")
-const FaithService = preload("res://scripts/systems/progression/faith_service.gd")
-const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
-const PartyState = preload("res://scripts/player/progression/party_state.gd")
-const UnitProfessionProgress = preload("res://scripts/player/progression/unit_profession_progress.gd")
+const AchievementProgressState = preload("res://scripts/player/progression/AchievementProgressState.cs")
+const CharacterManagementModule = preload("res://scripts/systems/progression/CharacterManagementModule.cs")
+const FaithDeityDef = preload("res://scripts/player/progression/FaithDeityDef.cs")
+const FaithRankDef = preload("res://scripts/player/progression/FaithRankDef.cs")
+const FaithService = preload("res://scripts/systems/progression/FaithService.cs")
+const PartyMemberState = preload("res://scripts/player/progression/PartyMemberState.cs")
+const PartyState = preload("res://scripts/player/progression/PartyState.cs")
+const UnitProfessionProgress = preload("res://scripts/player/progression/UnitProfessionProgress.cs")
 
 const FORTUNA_DEITY_ID: StringName = &"fortuna"
 const MISFORTUNE_DEITY_ID: StringName = &"misfortune_black_crown"
@@ -343,10 +343,10 @@ func _build_party_member_state() -> PartyMemberState:
 func _has_reward_entry(rank_def: FaithRankDef, entry_type: StringName, target_id: StringName, amount: int) -> bool:
 	if rank_def == null:
 		return false
-	for reward_entry_variant in rank_def.reward_entries:
-		if reward_entry_variant is not Dictionary:
+	for reward_entry_option in rank_def.reward_entries:
+		if reward_entry_option is not Dictionary:
 			continue
-		var reward_entry := reward_entry_variant as Dictionary
+		var reward_entry := reward_entry_option as Dictionary
 		if ProgressionDataUtils.to_string_name(reward_entry.get("entry_type", "")) != entry_type:
 			continue
 		if ProgressionDataUtils.to_string_name(reward_entry.get("target_id", "")) != target_id:

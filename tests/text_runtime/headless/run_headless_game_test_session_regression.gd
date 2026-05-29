@@ -2,9 +2,9 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const HEADLESS_GAME_TEST_SESSION_SCRIPT = preload("res://scripts/systems/game_runtime/headless/headless_game_test_session.gd")
-const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_session.gd")
-const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/world/encounter_anchor_data.gd")
+const HEADLESS_GAME_TEST_SESSION_SCRIPT = preload("res://scripts/systems/game_runtime/headless/HeadlessGameTestSession.cs")
+const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/GameSession.cs")
+const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/world/EncounterAnchorData.cs")
 
 const SAVE_INDEX_PATH := "user://saves/index.dat"
 
@@ -48,8 +48,8 @@ func _test_dispose_clears_battle_save_lock_on_shared_game_session() -> void:
 		await _cleanup_shared_game_session(shared_game_session)
 		return
 
-	var battle_result: Dictionary = await session.start_battle_by_kind(ENCOUNTER_ANCHOR_DATA_SCRIPT.ENCOUNTER_KIND_SINGLE)
-	_assert_true(bool(battle_result.get("ok", false)), "Headless session 应能启动单体遭遇战。")
+	var battle_result: Dictionary = await session.start_battle_by_kind(ENCOUNTER_ANCHOR_DATA_SCRIPT.ENCOUNTER_KIND_SINGLE())
+	_assert_true(bool(battle_result.get("ok", false)), "Headless session 应能启动单体遭遇战：%s" % String(battle_result.get("message", "")))
 	if not bool(battle_result.get("ok", false)):
 		await session.dispose(true)
 		await _cleanup_shared_game_session(shared_game_session)

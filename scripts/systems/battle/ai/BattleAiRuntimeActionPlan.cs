@@ -2,8 +2,8 @@ using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 using GStringArray = Godot.Collections.Array<string>;
+using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 [GlobalClass]
 public partial class BattleAiRuntimeActionPlan : RefCounted
@@ -19,14 +19,25 @@ public partial class BattleAiRuntimeActionPlan : RefCounted
     public GStringArray warnings = new();
     public GStringArray errors = new();
 
-    public void set_source(BattleUnitState unit_state, GodotObject brain, GDictionary skill_defs)
+    private readonly Dictionary<StringName, List<EnemyAiAction>> _actionsByState = new();
+    private readonly Dictionary<StringName, List<EnemyAiAction>> _generatedActionsByState = new();
+    private readonly Dictionary<long, RuntimeActionMetadata> _metadataByInstanceId = new();
+    private readonly Dictionary<StringName, BattleAiSkillAffordanceRecord> _skillAffordanceRecordsBySkillId =
+        new();
+
+    public void set_source(BattleUnitState unit_state, EnemyAiBrainDef brain, GDictionary skill_defs)
     {
         unit_id = unit_state != null ? unit_state.unit_id : new StringName("");
-        brain_id = brain != null ? ProgressionDataUtils.to_string_name(brain.Get("brain_id")) : new StringName("");
+        brain_id = brain != null ? ProgressionDataUtils.to_string_name(brain.brain_id) : "";
         fingerprint = build_fingerprint(unit_state, brain, skill_defs);
     }
 
     public void add_state_actions(StringName state_id, GArray actions)
+    {
+        AddStateActionsTyped(state_id, DecodeActionArray(actions));
+    }
+
+    internal void AddStateActionsTyped(StringName state_id, IEnumerable<EnemyAiAction> actions)
     {
         StringName normalizedStateId = ProgressionDataUtils.to_string_name(state_id);
         if (normalizedStateId == "")
@@ -34,33 +45,29 @@ public partial class BattleAiRuntimeActionPlan : RefCounted
             return;
         }
         EnsureState(normalizedStateId);
-        var copiedActions = new GArray();
-        if (actions != null)
+        List<EnemyAiAction> copiedActions = CopyActionList(actions);
+        foreach (EnemyAiAction action in copiedActions)
         {
-            foreach (Variant actionVariant in actions)
+            if (get_action_metadata(action).Count == 0)
             {
-                GodotObject action = actionVariant.AsGodotObject();
-                if (action == null)
-                {
-                    continue;
-                }
-                copiedActions.Add(action);
-                if (get_action_metadata(action).Count == 0)
-                {
-                    set_action_metadata(action, new GDictionary
+                set_action_metadata(
+                    action,
+                    new GDictionary
                     {
                         ["generated"] = false,
                         ["state_id"] = normalizedStateId,
-                        ["action_id"] = ProgressionDataUtils.to_string_name(action.Get("action_id")),
-                        ["score_bucket_id"] = ProgressionDataUtils.to_string_name(action.Get("score_bucket_id")),
-                    });
-                }
+                        ["action_id"] = ProgressionDataUtils.to_string_name(action.action_id),
+                        ["score_bucket_id"] = ProgressionDataUtils.to_string_name(
+                            action.score_bucket_id
+                        ),
+                    }
+                );
             }
         }
-        actions_by_state[normalizedStateId] = copiedActions;
+        SetStateActions(normalizedStateId, copiedActions);
     }
 
-    public void add_action(StringName state_id, GodotObject action, GDictionary metadata = null)
+    public void add_action(StringName state_id, EnemyAiAction action, GDictionary metadata = null)
     {
         if (action == null)
         {
@@ -72,42 +79,85 @@ public partial class BattleAiRuntimeActionPlan : RefCounted
             return;
         }
         EnsureState(normalizedStateId);
-        GetStateActions(normalizedStateId).Add(action);
+        List<EnemyAiAction> stateActions = GetStateActions(normalizedStateId);
+        stateActions.Add(action);
+        SyncStateActionsMirror(normalizedStateId);
+
         GDictionary resolvedMetadata = metadata?.Duplicate(true) ?? new GDictionary();
         resolvedMetadata["state_id"] = normalizedStateId;
         if (!resolvedMetadata.ContainsKey("action_id"))
         {
-            resolvedMetadata["action_id"] = ProgressionDataUtils.to_string_name(action.Get("action_id"));
+            resolvedMetadata["action_id"] = ProgressionDataUtils.to_string_name(action.action_id);
         }
         if (!resolvedMetadata.ContainsKey("score_bucket_id"))
         {
-            resolvedMetadata["score_bucket_id"] = ProgressionDataUtils.to_string_name(action.Get("score_bucket_id"));
+            resolvedMetadata["score_bucket_id"] = ProgressionDataUtils.to_string_name(
+                action.score_bucket_id
+            );
         }
         set_action_metadata(action, resolvedMetadata);
         if (GdInterop.GetBool(resolvedMetadata, "generated"))
         {
-            if (!generated_actions_by_state.ContainsKey(normalizedStateId))
-            {
-                generated_actions_by_state[normalizedStateId] = new GArray();
-            }
-            generated_actions_by_state[normalizedStateId].AsGodotArray().Add(action);
+            List<EnemyAiAction> generatedActions = GetGeneratedActions(normalizedStateId);
+            generatedActions.Add(action);
+            SyncGeneratedActionsMirror(normalizedStateId);
         }
     }
 
     public GArray get_actions(StringName state_id)
     {
         StringName normalizedStateId = ProgressionDataUtils.to_string_name(state_id);
-        if (!actions_by_state.ContainsKey(normalizedStateId)
-            || actions_by_state[normalizedStateId].VariantType != Variant.Type.Array)
+        if (!_actionsByState.TryGetValue(normalizedStateId, out List<EnemyAiAction> actions))
         {
             return new GArray();
         }
-        return actions_by_state[normalizedStateId].AsGodotArray().Duplicate();
+        return ToActionArray(actions);
+    }
+
+    internal IReadOnlyList<EnemyAiAction> GetTypedActions(StringName state_id)
+    {
+        StringName normalizedStateId = ProgressionDataUtils.to_string_name(state_id);
+        return _actionsByState.TryGetValue(normalizedStateId, out List<EnemyAiAction> actions)
+            ? actions
+            : System.Array.Empty<EnemyAiAction>();
+    }
+
+    internal bool HasActionIdentityKey(EnemyAiAction action, string identityKey)
+    {
+        if (action == null || string.IsNullOrEmpty(identityKey))
+        {
+            return false;
+        }
+        return _metadataByInstanceId.TryGetValue(
+            InstanceKey(action),
+            out RuntimeActionMetadata metadata
+        ) && metadata.identity_key == identityKey;
+    }
+
+    internal bool TryGetSkillAffordances(
+        StringName skill_id,
+        out IReadOnlyList<StringName> affordances
+    )
+    {
+        StringName normalizedSkillId = ProgressionDataUtils.to_string_name(skill_id);
+        if (
+            normalizedSkillId != ""
+            && _skillAffordanceRecordsBySkillId.TryGetValue(
+                normalizedSkillId,
+                out BattleAiSkillAffordanceRecord record
+            )
+        )
+        {
+            affordances = record.affordances;
+            return true;
+        }
+        affordances = System.Array.Empty<StringName>();
+        return false;
     }
 
     public bool has_state(StringName state_id)
     {
-        return actions_by_state.ContainsKey(ProgressionDataUtils.to_string_name(state_id));
+        return _actionsByState.ContainsKey(ProgressionDataUtils.to_string_name(state_id));
     }
 
     public bool is_empty_state(StringName state_id)
@@ -115,28 +165,32 @@ public partial class BattleAiRuntimeActionPlan : RefCounted
         return has_state(state_id) && get_actions(state_id).Count == 0;
     }
 
-    public void set_action_metadata(GodotObject action, GDictionary metadata)
+    public void set_action_metadata(EnemyAiAction action, GDictionary metadata)
     {
         if (action == null)
         {
             return;
         }
-        metadata_by_instance_id[InstanceKey(action)] = metadata?.Duplicate(true) ?? new GDictionary();
+        long instanceId = InstanceKey(action);
+        _metadataByInstanceId[instanceId] = RuntimeActionMetadata.FromDictionary(
+            metadata,
+            action
+        );
+        SyncMetadataMirror(instanceId);
     }
 
-    public GDictionary get_action_metadata(GodotObject action)
+    public GDictionary get_action_metadata(EnemyAiAction action)
     {
         if (action == null)
         {
             return new GDictionary();
         }
         long instanceId = InstanceKey(action);
-        if (!metadata_by_instance_id.ContainsKey(instanceId)
-            || metadata_by_instance_id[instanceId].VariantType != Variant.Type.Dictionary)
+        if (!_metadataByInstanceId.TryGetValue(instanceId, out RuntimeActionMetadata metadata))
         {
             return new GDictionary();
         }
-        return metadata_by_instance_id[instanceId].AsGodotDictionary().Duplicate(true);
+        return metadata.ToDictionary();
     }
 
     public void set_skill_affordance_record(StringName skill_id, GDictionary record)
@@ -146,9 +200,9 @@ public partial class BattleAiRuntimeActionPlan : RefCounted
         {
             return;
         }
-        GDictionary copiedRecord = record?.Duplicate(true) ?? new GDictionary();
-        copiedRecord["skill_id"] = normalizedSkillId;
-        skill_affordance_records_by_skill_id[normalizedSkillId] = copiedRecord;
+        _skillAffordanceRecordsBySkillId[normalizedSkillId] =
+            BattleAiSkillAffordanceRecord.FromDictionary(normalizedSkillId, record);
+        SyncSkillAffordanceRecordMirror(normalizedSkillId);
     }
 
     public GDictionary get_skill_affordance_record(StringName skill_id)
@@ -158,12 +212,16 @@ public partial class BattleAiRuntimeActionPlan : RefCounted
         {
             return new GDictionary();
         }
-        if (!skill_affordance_records_by_skill_id.ContainsKey(normalizedSkillId)
-            || skill_affordance_records_by_skill_id[normalizedSkillId].VariantType != Variant.Type.Dictionary)
+        if (
+            !_skillAffordanceRecordsBySkillId.TryGetValue(
+                normalizedSkillId,
+                out BattleAiSkillAffordanceRecord record
+            )
+        )
         {
             return new GDictionary();
         }
-        return skill_affordance_records_by_skill_id[normalizedSkillId].AsGodotDictionary().Duplicate(true);
+        return record.ToDictionary();
     }
 
     public GStringArray validate()
@@ -179,22 +237,27 @@ public partial class BattleAiRuntimeActionPlan : RefCounted
         }
         foreach (StringName stateId in state_ids)
         {
-            if (!actions_by_state.ContainsKey(stateId) || actions_by_state[stateId].VariantType != Variant.Type.Array)
+            if (!_actionsByState.TryGetValue(stateId, out List<EnemyAiAction> stateActions))
             {
-                validationErrors.Add($"Runtime action plan state {stateId} actions payload is invalid.");
+                validationErrors.Add(
+                    $"Runtime action plan state {stateId} actions payload is invalid."
+                );
                 continue;
             }
-            foreach (Variant actionVariant in actions_by_state[stateId].AsGodotArray())
+            foreach (EnemyAiAction action in stateActions)
             {
-                GodotObject action = actionVariant.AsGodotObject();
                 if (action == null)
                 {
-                    validationErrors.Add($"Runtime action plan state {stateId} contains null action.");
+                    validationErrors.Add(
+                        $"Runtime action plan state {stateId} contains null action."
+                    );
                     continue;
                 }
                 if (get_action_metadata(action).Count == 0)
                 {
-                    validationErrors.Add($"Runtime action plan action {ProgressionDataUtils.to_string_name(action.Get("action_id"))} is missing metadata.");
+                    validationErrors.Add(
+                        $"Runtime action plan action {ProgressionDataUtils.to_string_name(action.action_id)} is missing metadata."
+                    );
                 }
             }
         }
@@ -202,17 +265,25 @@ public partial class BattleAiRuntimeActionPlan : RefCounted
         return validationErrors;
     }
 
-    public bool is_stale_for(BattleUnitState unit_state, GodotObject brain, GDictionary skill_defs)
+    public bool is_stale_for(
+        BattleUnitState unit_state,
+        EnemyAiBrainDef brain,
+        GDictionary skill_defs
+    )
     {
         return fingerprint != build_fingerprint(unit_state, brain, skill_defs);
     }
 
-    public static string build_fingerprint(BattleUnitState unit_state, GodotObject brain, GDictionary skill_defs)
+    public static string build_fingerprint(
+        BattleUnitState unit_state,
+        EnemyAiBrainDef brain,
+        GDictionary skill_defs
+    )
     {
         var parts = new List<string>
         {
             $"unit={(unit_state != null ? unit_state.unit_id.ToString() : "")}",
-            $"brain={(brain != null ? ProgressionDataUtils.to_string_name(brain.Get("brain_id")).ToString() : "")}",
+            $"brain={(brain != null ? ProgressionDataUtils.to_string_name(brain.brain_id).ToString() : "")}",
             $"skills={BuildSkillSignature(unit_state)}",
             $"brain_shape={BuildBrainShapeSignature(brain)}",
         };
@@ -225,19 +296,156 @@ public partial class BattleAiRuntimeActionPlan : RefCounted
         {
             state_ids.Add(stateId);
         }
-        if (!actions_by_state.ContainsKey(stateId))
+        if (!_actionsByState.ContainsKey(stateId))
         {
-            actions_by_state[stateId] = new GArray();
+            _actionsByState[stateId] = new List<EnemyAiAction>();
+            SyncStateActionsMirror(stateId);
         }
     }
 
-    private GArray GetStateActions(StringName stateId)
+    private List<EnemyAiAction> GetStateActions(StringName stateId)
     {
-        if (!actions_by_state.ContainsKey(stateId) || actions_by_state[stateId].VariantType != Variant.Type.Array)
+        if (!_actionsByState.TryGetValue(stateId, out List<EnemyAiAction> actions))
         {
-            actions_by_state[stateId] = new GArray();
+            actions = new List<EnemyAiAction>();
+            _actionsByState[stateId] = actions;
+            SyncStateActionsMirror(stateId);
         }
-        return actions_by_state[stateId].AsGodotArray();
+        return actions;
+    }
+
+    private List<EnemyAiAction> GetGeneratedActions(StringName stateId)
+    {
+        if (!_generatedActionsByState.TryGetValue(stateId, out List<EnemyAiAction> actions))
+        {
+            actions = new List<EnemyAiAction>();
+            _generatedActionsByState[stateId] = actions;
+        }
+        return actions;
+    }
+
+    private void SetStateActions(StringName stateId, List<EnemyAiAction> actions)
+    {
+        _actionsByState[stateId] = actions ?? new List<EnemyAiAction>();
+        SyncStateActionsMirror(stateId);
+    }
+
+    private void SyncStateActionsMirror(StringName stateId)
+    {
+        actions_by_state[stateId] = _actionsByState.TryGetValue(
+            stateId,
+            out List<EnemyAiAction> actions
+        )
+            ? ToActionArray(actions)
+            : new GArray();
+    }
+
+    private void SyncGeneratedActionsMirror(StringName stateId)
+    {
+        generated_actions_by_state[stateId] = _generatedActionsByState.TryGetValue(
+            stateId,
+            out List<EnemyAiAction> actions
+        )
+            ? ToActionArray(actions)
+            : new GArray();
+    }
+
+    private void SyncMetadataMirror(long instanceId)
+    {
+        if (_metadataByInstanceId.TryGetValue(instanceId, out RuntimeActionMetadata metadata))
+        {
+            metadata_by_instance_id[instanceId] = metadata.ToDictionary();
+        }
+    }
+
+    private void SyncSkillAffordanceRecordMirror(StringName skillId)
+    {
+        if (
+            _skillAffordanceRecordsBySkillId.TryGetValue(
+                skillId,
+                out BattleAiSkillAffordanceRecord record
+            )
+        )
+        {
+            skill_affordance_records_by_skill_id[skillId] = record.ToDictionary();
+        }
+    }
+
+    private static GArray ToActionArray(IEnumerable<EnemyAiAction> actions)
+    {
+        var result = new GArray();
+        if (actions == null)
+        {
+            return result;
+        }
+        foreach (EnemyAiAction action in actions)
+        {
+            if (action != null)
+            {
+                result.Add(action);
+            }
+        }
+        return result;
+    }
+
+    private static List<EnemyAiAction> DecodeActionArray(GArray actions)
+    {
+        var result = new List<EnemyAiAction>();
+        foreach (RuntimeActionArrayValue actionValue in ReadActionArrayValues(actions))
+        {
+            if (actionValue.TryGetAction(out EnemyAiAction action))
+            {
+                result.Add(action);
+            }
+        }
+        return result;
+    }
+
+    private readonly struct RuntimeActionArrayValue
+    {
+        public RuntimeActionArrayValue(Variant value)
+        {
+            Value = value;
+        }
+
+        public Variant Value { get; }
+
+        public bool TryGetAction(out EnemyAiAction action)
+        {
+            action = Value.AsGodotObject() as EnemyAiAction;
+            return action != null;
+        }
+    }
+
+    private static List<RuntimeActionArrayValue> ReadActionArrayValues(GArray actions)
+    {
+        var result = new List<RuntimeActionArrayValue>();
+        if (actions == null)
+        {
+            return result;
+        }
+        foreach (var rawAction in actions)
+        {
+            result.Add(new RuntimeActionArrayValue(rawAction));
+        }
+        return result;
+    }
+
+    private static List<EnemyAiAction> CopyActionList(IEnumerable<EnemyAiAction> actions)
+    {
+        var result = new List<EnemyAiAction>();
+        if (actions == null)
+        {
+            return result;
+        }
+        foreach (EnemyAiAction action in actions)
+        {
+            if (action != null)
+            {
+                result.Add(action);
+            }
+        }
+        return result;
     }
 
     private static string BuildSkillSignature(BattleUnitState unitState)
@@ -247,93 +455,367 @@ public partial class BattleAiRuntimeActionPlan : RefCounted
             return "";
         }
         var entries = new List<string>();
-        foreach (Variant rawSkillId in unitState.known_active_skill_ids)
+        foreach (StringName rawSkillId in unitState.known_active_skill_ids)
         {
             StringName skillId = ProgressionDataUtils.to_string_name(rawSkillId);
             if (skillId == "")
             {
                 continue;
             }
-            int level = unitState.known_skill_level_map.ContainsKey(skillId)
-                ? unitState.known_skill_level_map[skillId].AsInt32()
-                : 1;
+            int level = GetKnownSkillLevel(unitState, skillId);
             entries.Add($"{skillId}:{level}");
         }
         entries.Sort(System.StringComparer.Ordinal);
         return string.Join(",", entries);
     }
 
-    private static string BuildBrainShapeSignature(GodotObject brain)
+    private static int GetKnownSkillLevel(BattleUnitState unitState, StringName skillId)
     {
-        if (brain is not EnemyAiBrainDef typedBrain)
+        if (
+            unitState?.known_skill_level_map == null
+            || !unitState.known_skill_level_map.ContainsKey(skillId)
+        )
+        {
+            return 1;
+        }
+        return unitState.known_skill_level_map[skillId].AsInt32();
+    }
+
+    private static string BuildBrainShapeSignature(EnemyAiBrainDef brain)
+    {
+        if (brain == null)
         {
             return "";
         }
         var stateEntries = new List<string>();
-        foreach (EnemyAiStateDef stateDef in typedBrain.get_resolved_states())
+        foreach (EnemyAiStateDef stateDef in brain.get_resolved_states())
         {
             if (stateDef == null)
             {
                 continue;
             }
             var actionEntries = new List<string>();
-            foreach (Variant actionVariant in stateDef.actions)
+            foreach (EnemyAiAction action in stateDef.GetTypedActions())
             {
-                GodotObject action = actionVariant.AsGodotObject();
-                if (action == null)
-                {
-                    continue;
-                }
                 var declaredSkillIds = new List<string>();
-                if (action.HasMethod("get_declared_skill_ids"))
+                foreach (StringName skillId in action.get_declared_skill_ids())
                 {
-                    foreach (Variant skillId in action.Call("get_declared_skill_ids").AsGodotArray())
-                    {
-                        declaredSkillIds.Add(skillId.ToString());
-                    }
-                    declaredSkillIds.Sort(System.StringComparer.Ordinal);
+                    declaredSkillIds.Add(skillId.ToString());
                 }
+                declaredSkillIds.Sort(System.StringComparer.Ordinal);
                 string scriptPath = "";
                 GodotObject script = action.GetScript().AsGodotObject();
                 if (script is Resource scriptResource)
                 {
                     scriptPath = scriptResource.ResourcePath;
                 }
-                actionEntries.Add(string.Format(
-                    "{0}:{1}:{2}:{3}",
-                    ProgressionDataUtils.to_string_name(action.Get("action_id")),
-                    scriptPath,
-                    ProgressionDataUtils.to_string_name(action.Get("score_bucket_id")),
-                    string.Join(",", declaredSkillIds)));
+                actionEntries.Add(
+                    string.Format(
+                        "{0}:{1}:{2}:{3}",
+                        ProgressionDataUtils.to_string_name(action.action_id),
+                        scriptPath,
+                        ProgressionDataUtils.to_string_name(action.score_bucket_id),
+                        string.Join(",", declaredSkillIds)
+                    )
+                );
             }
 
             var slotEntries = new List<string>();
-            foreach (Variant slotVariant in stateDef.generation_slots)
+            foreach (
+                EnemyAiGenerationSlotDef slot in stateDef.GetTypedGenerationSlots()
+            )
             {
-                GodotObject slot = slotVariant.AsGodotObject();
-                if (slot != null && slot.HasMethod("to_signature"))
-                {
-                    slotEntries.Add(slot.Call("to_signature").ToString());
-                }
+                slotEntries.Add(slot.to_signature().ToString());
             }
-            stateEntries.Add($"{stateDef.state_id}{{actions=[{string.Join(";", actionEntries)}];slots=[{string.Join(";", slotEntries)}]}}");
+            stateEntries.Add(
+                $"{stateDef.state_id}{{actions=[{string.Join(";", actionEntries)}];slots=[{string.Join(";", slotEntries)}]}}"
+            );
         }
 
         var transitionEntries = new List<string>();
-        foreach (Variant ruleVariant in typedBrain.transition_rules)
+        foreach (EnemyAiTransitionRuleDef rule in brain.transition_rules)
         {
-            GodotObject rule = ruleVariant.AsGodotObject();
-            if (rule != null && rule.HasMethod("to_signature"))
+            if (rule != null)
             {
-                transitionEntries.Add(rule.Call("to_signature").ToString());
+                transitionEntries.Add(rule.to_signature());
             }
         }
         transitionEntries.Sort(System.StringComparer.Ordinal);
         return $"states={string.Join("||", stateEntries)}|transitions={string.Join("||", transitionEntries)}";
     }
 
-    private static long InstanceKey(GodotObject action)
+    private static long InstanceKey(EnemyAiAction action)
     {
         return unchecked((long)action.GetInstanceId());
     }
+
+    private sealed class RuntimeActionMetadata
+    {
+        public bool generated;
+        public StringName state_id = "";
+        public StringName slot_id = "";
+        public StringName slot_role = "";
+        public StringName skill_id = "";
+        public StringName variant_id = "";
+        public StringName action_family = "";
+        public StringName source_action_id = "";
+        public StringName score_bucket_id = "";
+        public StringName action_id = "";
+        public string identity_key = "";
+        public RuntimeActionExportMetadata runtime_action_metadata = new();
+        private List<RuntimeMetadataExtraField> _extra_fields = new();
+
+        public static RuntimeActionMetadata FromDictionary(
+            GDictionary metadata,
+            EnemyAiAction action
+        )
+        {
+            metadata ??= new GDictionary();
+            var result = new RuntimeActionMetadata
+            {
+                generated = GdInterop.GetBool(metadata, "generated"),
+                state_id = GdInterop.GetStringName(metadata, "state_id"),
+                slot_id = GdInterop.GetStringName(metadata, "slot_id"),
+                slot_role = GdInterop.GetStringName(metadata, "slot_role"),
+                skill_id = GdInterop.GetStringName(metadata, "skill_id"),
+                variant_id = GdInterop.GetStringName(metadata, "variant_id"),
+                action_family = GdInterop.GetStringName(metadata, "action_family"),
+                source_action_id = GdInterop.GetStringName(metadata, "source_action_id"),
+                score_bucket_id = GdInterop.GetStringName(metadata, "score_bucket_id"),
+                action_id = GdInterop.GetStringName(metadata, "action_id"),
+                identity_key = GdInterop.GetString(metadata, "identity_key"),
+                runtime_action_metadata = RuntimeActionExportMetadata.FromDictionary(
+                    GdInterop.GetDictionary(metadata, "runtime_action_metadata")
+                ),
+                _extra_fields = ReadExtraFields(metadata),
+            };
+
+            if (result.action_id == "" && action != null)
+            {
+                result.action_id = ProgressionDataUtils.to_string_name(action.action_id);
+            }
+            if (result.score_bucket_id == "" && action != null)
+            {
+                result.score_bucket_id = ProgressionDataUtils.to_string_name(
+                    action.score_bucket_id
+                );
+            }
+            return result;
+        }
+
+        public GDictionary ToDictionary()
+        {
+            GDictionary result = ExtraFieldsToDictionary(_extra_fields);
+            result["generated"] = generated;
+            result["state_id"] = state_id;
+            if (slot_id != "")
+            {
+                result["slot_id"] = slot_id;
+            }
+            if (slot_role != "")
+            {
+                result["slot_role"] = slot_role;
+            }
+            if (skill_id != "")
+            {
+                result["skill_id"] = skill_id;
+            }
+            if (variant_id != "")
+            {
+                result["variant_id"] = variant_id;
+            }
+            if (action_family != "")
+            {
+                result["action_family"] = action_family;
+            }
+            if (source_action_id != "")
+            {
+                result["source_action_id"] = source_action_id;
+            }
+            result["score_bucket_id"] = score_bucket_id;
+            result["action_id"] = action_id;
+            if (!string.IsNullOrEmpty(identity_key))
+            {
+                result["identity_key"] = identity_key;
+            }
+            if (!runtime_action_metadata.IsEmpty())
+            {
+                result["runtime_action_metadata"] = runtime_action_metadata.ToDictionary();
+            }
+            return result;
+        }
+    }
+
+    private readonly struct RuntimeMetadataExtraField
+    {
+        public RuntimeMetadataExtraField(Variant key, Variant value)
+        {
+            Key = key;
+            Value = value;
+            KeyText = ReadRuntimeMetadataKey(key);
+        }
+
+        public Variant Key { get; }
+
+        public Variant Value { get; }
+
+        public string KeyText { get; }
+
+        public RuntimeMetadataExtraField Clone() => new(Key, CloneVariantValue(Value));
+    }
+
+    private sealed class RuntimeActionExportMetadata
+    {
+        public bool generated;
+        public StringName state_id = "";
+        public StringName slot_id = "";
+        public StringName slot_role = "";
+        public StringName skill_id = "";
+        public StringName variant_id = "";
+        public StringName action_family = "";
+        public StringName source_action_id = "";
+        public string identity_key = "";
+
+        public static RuntimeActionExportMetadata FromDictionary(GDictionary metadata)
+        {
+            metadata ??= new GDictionary();
+            return new RuntimeActionExportMetadata
+            {
+                generated = GdInterop.GetBool(metadata, "generated"),
+                state_id = GdInterop.GetStringName(metadata, "state_id"),
+                slot_id = GdInterop.GetStringName(metadata, "slot_id"),
+                slot_role = GdInterop.GetStringName(metadata, "slot_role"),
+                skill_id = GdInterop.GetStringName(metadata, "skill_id"),
+                variant_id = GdInterop.GetStringName(metadata, "variant_id"),
+                action_family = GdInterop.GetStringName(metadata, "action_family"),
+                source_action_id = GdInterop.GetStringName(metadata, "source_action_id"),
+                identity_key = GdInterop.GetString(metadata, "identity_key"),
+            };
+        }
+
+        public bool IsEmpty()
+        {
+            return !generated
+                && state_id == ""
+                && slot_id == ""
+                && slot_role == ""
+                && skill_id == ""
+                && variant_id == ""
+                && action_family == ""
+                && source_action_id == ""
+                && string.IsNullOrEmpty(identity_key);
+        }
+
+        public GDictionary ToDictionary()
+        {
+            var result = new GDictionary
+            {
+                ["generated"] = generated,
+                ["state_id"] = state_id,
+                ["slot_id"] = slot_id,
+                ["slot_role"] = slot_role,
+                ["skill_id"] = skill_id,
+                ["variant_id"] = variant_id,
+                ["action_family"] = action_family,
+                ["source_action_id"] = source_action_id,
+                ["identity_key"] = identity_key,
+            };
+            return result;
+        }
+    }
+
+    private static List<RuntimeMetadataExtraField> ReadExtraFields(GDictionary source)
+    {
+        var result = new List<RuntimeMetadataExtraField>();
+        if (source == null)
+        {
+            return result;
+        }
+        foreach (var keyValue in source.Keys)
+        {
+            string key = ReadRuntimeMetadataKey(keyValue);
+            if (
+                IsTypedMetadataKey(key)
+                || BattleAiSkillAffordanceRecord.IsTypedKey(key)
+                || !TryGetDictionaryValue(source, keyValue, out Variant value)
+            )
+            {
+                continue;
+            }
+            result.Add(new RuntimeMetadataExtraField(keyValue, value));
+        }
+        return result;
+    }
+
+    private static GDictionary ExtraFieldsToDictionary(
+        IReadOnlyList<RuntimeMetadataExtraField> fields
+    )
+    {
+        var result = new GDictionary();
+        if (fields == null)
+        {
+            return result;
+        }
+        foreach (RuntimeMetadataExtraField field in fields)
+        {
+            RuntimeMetadataExtraField clonedField = field.Clone();
+            result[clonedField.Key] = clonedField.Value;
+        }
+        return result;
+    }
+
+    private static bool TryGetDictionaryValue(
+        GDictionary dictionary,
+        Variant key,
+        out Variant value
+    )
+    {
+        value = default;
+        if (dictionary == null || !dictionary.ContainsKey(key))
+        {
+            return false;
+        }
+        value = dictionary[key];
+        return true;
+    }
+
+    private static Variant CloneVariantValue(Variant value)
+    {
+        return value.VariantType switch
+        {
+            Variant.Type.Dictionary
+                => Variant.From(value.AsGodotDictionary().Duplicate(true)),
+            Variant.Type.Array => Variant.From(value.AsGodotArray().Duplicate(true)),
+            _ => value,
+        };
+    }
+
+    private static string ReadRuntimeMetadataKey(Variant key)
+    {
+        return key.VariantType switch
+        {
+            Variant.Type.String => key.AsString(),
+            Variant.Type.StringName => key.AsStringName().ToString(),
+            Variant.Type.Nil => "",
+            _ => key.ToString(),
+        };
+    }
+
+    private static bool IsTypedMetadataKey(string key)
+    {
+        return key
+            is "generated"
+                or "state_id"
+                or "slot_id"
+                or "slot_role"
+                or "skill_id"
+                or "variant_id"
+                or "action_family"
+                or "source_action_id"
+                or "score_bucket_id"
+                or "action_id"
+                or "identity_key"
+                or "runtime_action_metadata";
+    }
+
 }

@@ -3,8 +3,8 @@ extends SceneTree
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
 const CONTENT_VALIDATION_RUNNER_SCRIPT = preload("res://tests/runtime/validation/content_validation_runner.gd")
-const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
-const RaceTraitContentRegistry = preload("res://scripts/player/progression/race_trait_content_registry.gd")
+const ProgressionContentRegistry = preload("res://scripts/player/progression/ProgressionContentRegistry.cs")
+const RaceTraitContentRegistry = preload("res://scripts/player/progression/RaceTraitContentRegistry.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -52,8 +52,8 @@ func _test_official_identity_content_domain_validate_without_errors() -> void:
 
 func _get_errors(domain_result: Dictionary) -> Array[String]:
 	var errors: Array[String] = []
-	for error_variant in domain_result.get("errors", []):
-		errors.append(String(error_variant))
+	for error_option in domain_result.get("errors", []):
+		errors.append(String(error_option))
 	return errors
 
 

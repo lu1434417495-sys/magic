@@ -12,10 +12,9 @@ public partial class BattleRatingSystem : RefCounted
     private static readonly StringName EnemyDefeatedAchievement = "enemy_defeated";
     private static readonly StringName BattleWonAchievement = "battle_won";
     private static readonly StringName BattleRatingSourceType = "battle_rating";
-    private static readonly Script BattleSkillMasteryServiceScript = GD.Load<Script>("res://scripts/systems/battle/runtime/battle_skill_mastery_service.gd");
 
     private WeakReference<GodotObject> _runtimeRef;
-    private GodotObject _mastery_service;
+    private BattleSkillMasteryService _mastery_service;
     private readonly BattleContributionLedger _contributionLedger = new();
 
     private GodotObject _runtime
@@ -24,10 +23,10 @@ public partial class BattleRatingSystem : RefCounted
         set => _runtimeRef = value != null ? new WeakReference<GodotObject>(value) : null;
     }
 
-    public void setup(GodotObject runtime, GodotObject mastery_service = null)
+    public void setup(GodotObject runtime, BattleSkillMasteryService mastery_service = null)
     {
         _runtime = runtime;
-        _mastery_service = mastery_service ?? NewScriptInstance(BattleSkillMasteryServiceScript);
+        _mastery_service = mastery_service ?? new BattleSkillMasteryService();
     }
 
     public void dispose()
@@ -55,9 +54,10 @@ public partial class BattleRatingSystem : RefCounted
 
         GArray allyUnitIds = GdInterop.GetArray(state, "ally_unit_ids");
         GDictionary units = GdInterop.GetDictionary(state, "units");
-        foreach (Variant allyUnitIdValue in allyUnitIds)
+        foreach (var allyUnitIdValue in allyUnitIds)
         {
-            BattleUnitState unitState = GdInterop.GetObject(units, allyUnitIdValue) as BattleUnitState;
+            BattleUnitState unitState =
+                GdInterop.GetObject(units, allyUnitIdValue) as BattleUnitState;
             if (unitState == null)
             {
                 continue;
@@ -76,7 +76,9 @@ public partial class BattleRatingSystem : RefCounted
             GetBattleRatingStats()[sourceMemberId] = new GDictionary
             {
                 ["member_id"] = sourceMemberId,
-                ["member_name"] = string.IsNullOrEmpty(memberName) ? sourceMemberId.ToString() : memberName,
+                ["member_name"] = string.IsNullOrEmpty(memberName)
+                    ? sourceMemberId.ToString()
+                    : memberName,
                 ["cast_counts"] = new GDictionary(),
                 ["successful_skill_count"] = 0,
                 ["hostile_damage_done"] = 0,
@@ -105,18 +107,31 @@ public partial class BattleRatingSystem : RefCounted
         }
 
         GDictionary castCounts = GdInterop.GetDictionary(stats, "cast_counts");
-        StringName masterySkillId = _mastery_service != null
-            ? ToStringNameLoose(_mastery_service.Call("resolve_mastery_reward_skill_id", active_unit, skill_id))
-            : skill_id;
+        StringName masterySkillId =
+            _mastery_service != null
+                ? _mastery_service.ResolveMasteryRewardSkillId(active_unit, skill_id)
+                : skill_id;
         castCounts[masterySkillId] = GdInterop.GetInt(castCounts, masterySkillId, 0) + 1;
         stats["cast_counts"] = castCounts;
         stats["successful_skill_count"] = GdInterop.GetInt(stats, "successful_skill_count", 0) + 1;
         GetBattleRatingStats()[active_unit.source_member_id] = stats;
     }
 
-    public void record_skill_effect_result(BattleUnitState active_unit, int damage, int healing, int kill_count)
+    public void record_skill_effect_result(BattleUnitState source_unit, int damage, int healing, int kill_count)
     {
-        GD.PushError("MIGRATION: record_skill_effect_result is disabled. Emit per-target battle contribution events instead.");
+        if (!_has_runtime() || source_unit == null || GdInterop.IsEmpty(source_unit.source_member_id))
+        {
+            return;
+        }
+        GDictionary stats = _get_battle_rating_stats(source_unit);
+        if (stats.Count == 0)
+        {
+            return;
+        }
+        stats["total_damage_done"] = GdInterop.GetInt(stats, "total_damage_done", 0) + Math.Max(damage, 0);
+        stats["total_healing_done"] = GdInterop.GetInt(stats, "total_healing_done", 0) + Math.Max(healing, 0);
+        stats["kill_count"] = GdInterop.GetInt(stats, "kill_count", 0) + Math.Max(kill_count, 0);
+        GetBattleRatingStats()[source_unit.source_member_id] = stats;
     }
 
     public void record_contribution_from_units(
@@ -126,20 +141,24 @@ public partial class BattleRatingSystem : RefCounted
         int healing,
         bool caused_defeat,
         StringName origin_kind,
-        StringName skill_id)
+        StringName skill_id
+    )
     {
         if (!_has_runtime() || source_unit == null || target_unit == null)
         {
             return;
         }
-        RecordContributionEvent(BattleContributionEventBuilder.FromUnits(
-            source_unit,
-            target_unit,
-            damage,
-            healing,
-            caused_defeat,
-            origin_kind,
-            skill_id));
+        RecordContributionEvent(
+            BattleContributionEventBuilder.FromUnits(
+                source_unit,
+                target_unit,
+                damage,
+                healing,
+                caused_defeat,
+                origin_kind,
+                skill_id
+            )
+        );
     }
 
     public void record_contribution_event_from_dictionary(GDictionary payload)
@@ -153,11 +172,17 @@ public partial class BattleRatingSystem : RefCounted
 
     private void RecordContributionEvent(BattleContributionEvent contributionEvent)
     {
-        if (!_has_runtime() || contributionEvent == null || GdInterop.IsEmpty(contributionEvent.source_member_id))
+        if (
+            !_has_runtime()
+            || contributionEvent == null
+            || GdInterop.IsEmpty(contributionEvent.source_member_id)
+        )
         {
             return;
         }
-        GDictionary stats = _get_battle_rating_stats_by_member_id(contributionEvent.source_member_id);
+        GDictionary stats = _get_battle_rating_stats_by_member_id(
+            contributionEvent.source_member_id
+        );
         if (stats.Count == 0)
         {
             return;
@@ -173,13 +198,16 @@ public partial class BattleRatingSystem : RefCounted
         return _contributionLedger.ToGodotArray();
     }
 
-    public void record_enemy_defeated_achievement(BattleUnitState source_unit, BattleUnitState target_unit)
+    public void record_enemy_defeated_achievement(
+        BattleUnitState source_unit,
+        BattleUnitState target_unit
+    )
     {
         if (!_has_runtime())
         {
             return;
         }
-        GodotObject characterGateway = GetCharacterGateway();
+        IBattleRatingCharacterGateway characterGateway = GetCharacterGateway();
         if (source_unit == null || target_unit == null || characterGateway == null)
         {
             return;
@@ -194,7 +222,7 @@ public partial class BattleRatingSystem : RefCounted
             return;
         }
 
-        characterGateway.Call("record_achievement_event", sourceMemberId, EnemyDefeatedAchievement, 1);
+        characterGateway.record_achievement_event(sourceMemberId, EnemyDefeatedAchievement, 1);
     }
 
     public void record_battle_won_achievements()
@@ -203,18 +231,23 @@ public partial class BattleRatingSystem : RefCounted
         {
             return;
         }
-        GodotObject characterGateway = GetCharacterGateway();
+        IBattleRatingCharacterGateway characterGateway = GetCharacterGateway();
         GodotObject state = GetState();
-        if (state == null || GdInterop.GetStringName(state, "winner_faction_id") != PlayerFaction || characterGateway == null)
+        if (
+            state == null
+            || GdInterop.GetStringName(state, "winner_faction_id") != PlayerFaction
+            || characterGateway == null
+        )
         {
             return;
         }
 
         GArray allyUnitIds = GdInterop.GetArray(state, "ally_unit_ids");
         GDictionary units = GdInterop.GetDictionary(state, "units");
-        foreach (Variant allyUnitIdValue in allyUnitIds)
+        foreach (var allyUnitIdValue in allyUnitIds)
         {
-            BattleUnitState unitState = GdInterop.GetObject(units, allyUnitIdValue) as BattleUnitState;
+            BattleUnitState unitState =
+                GdInterop.GetObject(units, allyUnitIdValue) as BattleUnitState;
             if (unitState == null)
             {
                 continue;
@@ -224,7 +257,7 @@ public partial class BattleRatingSystem : RefCounted
             {
                 continue;
             }
-            characterGateway.Call("record_achievement_event", sourceMemberId, BattleWonAchievement, 1);
+            characterGateway.record_achievement_event(sourceMemberId, BattleWonAchievement, 1);
         }
     }
 
@@ -237,14 +270,14 @@ public partial class BattleRatingSystem : RefCounted
         GArray pendingRewards = GetPendingPostBattleCharacterRewards();
         pendingRewards.Clear();
         GodotObject state = GetState();
-        GodotObject characterGateway = GetCharacterGateway();
+        IBattleRatingCharacterGateway characterGateway = GetCharacterGateway();
         if (state == null || characterGateway == null)
         {
             return;
         }
 
         bool playerVictory = GdInterop.GetStringName(state, "winner_faction_id") == PlayerFaction;
-        foreach (Variant statsValue in GetBattleRatingStats().Values)
+        foreach (var statsValue in GetBattleRatingStats().Values)
         {
             if (statsValue.VariantType != Variant.Type.Dictionary)
             {
@@ -253,43 +286,36 @@ public partial class BattleRatingSystem : RefCounted
             GDictionary stats = statsValue.AsGodotDictionary();
             int score = calculate_battle_rating_score(stats, playerVictory);
 
-            StringName memberId = ToStringNameLoose(GetVariant(stats, "member_id"));
+            StringName memberId = ToStringNameLoose(stats.GetValueOrDefault("member_id"));
             if (GdInterop.IsEmpty(memberId))
             {
                 continue;
             }
             string memberName = GdInterop.GetString(stats, "member_name", memberId.ToString());
             string ratingLabel = resolve_battle_rating_label(score);
-            GArray rewardEntries = _mastery_service != null
-                ? ToArray(_mastery_service.Call("build_battle_rating_mastery_reward_entries", stats, score, ratingLabel))
-                : new GArray();
+            GArray rewardEntries =
+                _mastery_service != null
+                    ? _mastery_service.BuildBattleRatingMasteryRewardEntries(
+                        stats,
+                        score,
+                        ratingLabel
+                    )
+                    : new GArray();
             if (rewardEntries.Count == 0)
             {
                 continue;
             }
 
-            Variant rewardValue = characterGateway.Call(
-                "build_pending_skill_mastery_reward",
+            PendingCharacterReward reward = characterGateway.build_pending_skill_mastery_reward(
                 memberId,
                 BattleRatingSourceType,
                 "战斗结算",
                 rewardEntries,
                 $"在战斗中，{memberName}{_resolve_battle_rating_summary_suffix(score)}。评分 {score}。"
             );
-            if (rewardValue.VariantType == Variant.Type.Object
-                && rewardValue.AsGodotObject() is PendingCharacterReward typedReward
-                && !typedReward.is_empty())
+            if (reward != null && !reward.is_empty())
             {
-                pendingRewards.Add(typedReward);
-                continue;
-            }
-            if (rewardValue.VariantType == Variant.Type.Dictionary)
-            {
-                PendingCharacterReward reward = PendingCharacterReward.from_variant(rewardValue);
-                if (reward != null && !reward.is_empty())
-                {
-                    pendingRewards.Add(reward);
-                }
+                pendingRewards.Add(reward);
             }
         }
     }
@@ -300,7 +326,7 @@ public partial class BattleRatingSystem : RefCounted
         int hostileDamageDone = GdInterop.GetInt(stats, "hostile_damage_done", 0);
         int allyHealingDone = GdInterop.GetInt(stats, "ally_healing_done", 0);
         int enemyKillCount = GdInterop.GetInt(stats, "enemy_kill_count", 0);
-        StringName memberId = ToStringNameLoose(GetVariant(stats, "member_id"));
+        StringName memberId = ToStringNameLoose(stats.GetValueOrDefault("member_id"));
         bool survived = false;
         if (_has_runtime() && GetState() != null && !GdInterop.IsEmpty(memberId))
         {
@@ -333,10 +359,10 @@ public partial class BattleRatingSystem : RefCounted
         return score;
     }
 
-    public int resolve_battle_rating_mastery_amount(int score)
+    public int ResolveBattleRatingMasteryAmount(int score)
     {
-        _mastery_service ??= NewScriptInstance(BattleSkillMasteryServiceScript);
-        return _mastery_service.Call("resolve_battle_rating_mastery_amount", score).AsInt32();
+        _mastery_service ??= new BattleSkillMasteryService();
+        return _mastery_service.ResolveBattleRatingMasteryAmount(score);
     }
 
     public string resolve_battle_rating_label(int score)
@@ -355,9 +381,9 @@ public partial class BattleRatingSystem : RefCounted
             return new GDictionary();
         }
 
-        Variant statsVariant = GetVariant(GetBattleRatingStats(), active_unit.source_member_id);
-        return statsVariant.VariantType == Variant.Type.Dictionary
-            ? statsVariant.AsGodotDictionary().Duplicate(true)
+        var statsValue = GetBattleRatingStats().GetValueOrDefault(active_unit.source_member_id);
+        return statsValue.VariantType == Variant.Type.Dictionary
+            ? statsValue.AsGodotDictionary().Duplicate(true)
             : new GDictionary();
     }
 
@@ -368,9 +394,9 @@ public partial class BattleRatingSystem : RefCounted
             return new GDictionary();
         }
 
-        Variant statsVariant = GetVariant(GetBattleRatingStats(), member_id);
-        return statsVariant.VariantType == Variant.Type.Dictionary
-            ? statsVariant.AsGodotDictionary().Duplicate(true)
+        var statsValue = GetBattleRatingStats().GetValueOrDefault(member_id);
+        return statsValue.VariantType == Variant.Type.Dictionary
+            ? statsValue.AsGodotDictionary().Duplicate(true)
             : new GDictionary();
     }
 
@@ -380,9 +406,12 @@ public partial class BattleRatingSystem : RefCounted
         {
             return null;
         }
-        foreach (Variant unitStateValue in GdInterop.GetDictionary(GetState(), "units").Values)
+        foreach (var unitStateValue in GdInterop.GetDictionary(GetState(), "units").Values)
         {
-            BattleUnitState unitState = unitStateValue.VariantType == Variant.Type.Nil ? null : unitStateValue.AsGodotObject() as BattleUnitState;
+            BattleUnitState unitState =
+                unitStateValue.VariantType == Variant.Type.Nil
+                    ? null
+                    : unitStateValue.AsGodotObject() as BattleUnitState;
             if (unitState != null && unitState.source_member_id == member_id)
             {
                 return unitState;
@@ -420,8 +449,10 @@ public partial class BattleRatingSystem : RefCounted
         {
             return new GDictionary();
         }
-        Variant value = runtime.Call("get_battle_rating_stats");
-        return value.VariantType == Variant.Type.Dictionary ? value.AsGodotDictionary() : new GDictionary();
+        var value = runtime.Call("get_battle_rating_stats");
+        return value.VariantType == Variant.Type.Dictionary
+            ? value.AsGodotDictionary()
+            : new GDictionary();
     }
 
     private GArray GetPendingPostBattleCharacterRewards()
@@ -431,7 +462,7 @@ public partial class BattleRatingSystem : RefCounted
         {
             return new GArray();
         }
-        Variant value = runtime.Call("get_pending_post_battle_character_rewards");
+        var value = runtime.Call("get_pending_post_battle_character_rewards");
         return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : new GArray();
     }
 
@@ -442,34 +473,40 @@ public partial class BattleRatingSystem : RefCounted
         {
             return null;
         }
-        Variant value = runtime.Call("get_state");
+        var value = runtime.Call("get_state");
         return value.VariantType == Variant.Type.Nil ? null : value.AsGodotObject();
     }
 
-    private GodotObject GetCharacterGateway()
+    private IBattleRatingCharacterGateway GetCharacterGateway()
     {
-        GodotObject runtime = _runtime;
-        if (runtime == null)
+        if (_runtime is not BattleRuntimeModule runtime)
         {
             return null;
         }
-        Variant value = runtime.Call("get_character_gateway");
-        return value.VariantType == Variant.Type.Nil ? null : value.AsGodotObject();
+        GodotObject gateway = runtime.get_character_gateway();
+        if (gateway == null)
+        {
+            return null;
+        }
+        if (gateway is IBattleRatingCharacterGateway typedGateway)
+        {
+            return typedGateway;
+        }
+        GameLog.Error(
+            $"BattleRatingSystem requires character gateway to implement {nameof(IBattleRatingCharacterGateway)}; got {gateway.GetType().Name}.",
+            "battle.rating.invalid_gateway",
+            "battle"
+        );
+        return null;
     }
 
-    private static GodotObject NewScriptInstance(Script script)
+    private static void ApplyContributionToStats(
+        GDictionary stats,
+        BattleContributionEvent contributionEvent
+    )
     {
-        return script.Call("new").AsGodotObject();
-    }
-
-    private static GArray ToArray(Variant value)
-    {
-        return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : new GArray();
-    }
-
-    private static void ApplyContributionToStats(GDictionary stats, BattleContributionEvent contributionEvent)
-    {
-        bool isAllyOrSelf = contributionEvent.relation == BattleContributionRelation.Ally
+        bool isAllyOrSelf =
+            contributionEvent.relation == BattleContributionRelation.Ally
             || contributionEvent.relation == BattleContributionRelation.Self;
         if (contributionEvent.relation == BattleContributionRelation.Enemy)
         {
@@ -517,13 +554,21 @@ public partial class BattleRatingSystem : RefCounted
         stats[key] = GdInterop.GetInt(stats, key, 0) + amount;
     }
 
-    private static Variant GetVariant(GDictionary dictionary, Variant key)
+    private static StringName ToStringNameLoose(object rawValue)
     {
-        return GdInterop.TryGet(dictionary, key, out Variant value) ? value : default;
-    }
-
-    private static StringName ToStringNameLoose(Variant value)
-    {
+        if (rawValue is string textValue)
+        {
+            string normalizedText = textValue.Trim();
+            return string.IsNullOrEmpty(normalizedText) ? Empty : new StringName(normalizedText);
+        }
+        if (rawValue is StringName stringName)
+        {
+            return stringName;
+        }
+        if (rawValue is not Variant value)
+        {
+            return Empty;
+        }
         if (value.VariantType == Variant.Type.Nil)
         {
             return Empty;
@@ -539,7 +584,11 @@ public partial class BattleRatingSystem : RefCounted
 
     private static GodotObject ResolveWeakRef(WeakReference<GodotObject> weakRef)
     {
-        if (weakRef == null || !weakRef.TryGetTarget(out GodotObject target) || !GodotObject.IsInstanceValid(target))
+        if (
+            weakRef == null
+            || !weakRef.TryGetTarget(out GodotObject target)
+            || !GodotObject.IsInstanceValid(target)
+        )
         {
             return null;
         }

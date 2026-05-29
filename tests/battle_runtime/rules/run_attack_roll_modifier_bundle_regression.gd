@@ -1,9 +1,9 @@
 extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
-const BattleAttackCheckPolicyContext = preload("res://scripts/systems/battle/core/battle_attack_check_policy_context.gd")
-const BattleAttackCheckPolicyService = preload("res://scripts/systems/battle/rules/battle_attack_check_policy_service.gd")
-const BattleAttackRollModifierSpec = preload("res://scripts/systems/battle/core/battle_attack_roll_modifier_spec.gd")
+const BattleAttackCheckPolicyContext = preload("res://scripts/systems/battle/core/BattleAttackCheckPolicyContext.cs")
+const BattleAttackCheckPolicyService = preload("res://scripts/systems/battle/rules/BattleAttackCheckPolicyService.cs")
+const BattleAttackRollModifierSpec = preload("res://scripts/systems/battle/core/BattleAttackRollModifierSpec.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -34,7 +34,7 @@ func _test_positive_add_stack() -> void:
 		_build_spec(&"height", 1, &"height_bonus", &"add"),
 		_build_spec(&"height", 2, &"height_bonus", &"add"),
 	]
-	var resolved := service._resolve_stacked_specs(specs)
+	var resolved: Array = service.call("_resolve_stacked_specs", specs)
 	_assert_eq(resolved.size(), 1, "add stack 应合并为一条 post-stack spec。")
 	_assert_eq(int(resolved[0].modifier_delta) if not resolved.is_empty() else 0, 3, "add stack 应同号求和。")
 
@@ -45,14 +45,14 @@ func _test_penalty_max_and_min_stack() -> void:
 		_build_spec(&"dust_a", -1, &"dust_penalty", &"max"),
 		_build_spec(&"dust_b", -2, &"dust_penalty", &"max"),
 	]
-	var max_resolved := service._resolve_stacked_specs(max_specs)
+	var max_resolved: Array = service.call("_resolve_stacked_specs", max_specs)
 	_assert_eq(int(max_resolved[0].modifier_delta) if not max_resolved.is_empty() else 0, -2, "penalty max 应取绝对值最大的惩罚。")
 
 	var min_specs: Array[BattleAttackRollModifierSpec] = [
 		_build_spec(&"dust_a", -1, &"dust_penalty", &"min"),
 		_build_spec(&"dust_b", -2, &"dust_penalty", &"min"),
 	]
-	var min_resolved := service._resolve_stacked_specs(min_specs)
+	var min_resolved: Array = service.call("_resolve_stacked_specs", min_specs)
 	_assert_eq(int(min_resolved[0].modifier_delta) if not min_resolved.is_empty() else 0, -1, "penalty min 应取最接近 0 的惩罚。")
 
 
@@ -62,19 +62,19 @@ func _test_mixed_sign_stack_hard_fails_to_empty() -> void:
 		_build_spec(&"bonus", 1, &"mixed", &"max"),
 		_build_spec(&"penalty", -1, &"mixed", &"max"),
 	]
-	var resolved := service._resolve_stacked_specs(specs)
+	var resolved: Array = service.call("_resolve_stacked_specs", specs)
 	_assert_eq(resolved.size(), 0, "同一 stack_key 混合 bonus/penalty 应 hard fail，不产生 post-stack breakdown。")
 
 
 func _test_exact_schema_round_trip() -> void:
-	var payload := _build_spec(&"dust", -2, &"dust_attack_roll_penalty", &"max").to_dict()
+	var payload: Dictionary = _build_spec(&"dust", -2, &"dust_attack_roll_penalty", &"max").to_dict()
 	payload.erase("effective_modifier_delta")
-	var restored := BattleAttackRollModifierSpec.from_dict(payload) as BattleAttackRollModifierSpec
+	var restored = BattleAttackRollModifierSpec.from_dict(payload)
 	_assert_true(restored != null, "exact schema payload 应恢复为 typed modifier spec。")
 	_assert_eq(restored.modifier_delta if restored != null else 0, -2, "typed modifier spec roundtrip 应保留 modifier_delta。")
 	payload["unexpected"] = true
 	_assert_true(BattleAttackRollModifierSpec.from_dict(payload) == null, "exact schema 应拒绝额外字段。")
-	var invalid_target_filter_payload := _build_spec(&"dust", -2, &"dust_attack_roll_penalty", &"max").to_dict()
+	var invalid_target_filter_payload: Dictionary = _build_spec(&"dust", -2, &"dust_attack_roll_penalty", &"max").to_dict()
 	invalid_target_filter_payload.erase("effective_modifier_delta")
 	invalid_target_filter_payload["target_team_filter"] = "hostile"
 	_assert_true(BattleAttackRollModifierSpec.from_dict(invalid_target_filter_payload) == null, "modifier spec 不应接受 hostile 作为 target_team_filter。")
@@ -84,7 +84,7 @@ func _test_exact_schema_round_trip() -> void:
 	)
 
 
-func _build_spec(source_id: StringName, delta: int, stack_key: StringName, stack_mode: StringName) -> BattleAttackRollModifierSpec:
+func _build_spec(source_id: StringName, delta: int, stack_key: StringName, stack_mode: StringName):
 	var spec := BattleAttackRollModifierSpec.new()
 	spec.source_domain = &"terrain"
 	spec.source_id = source_id

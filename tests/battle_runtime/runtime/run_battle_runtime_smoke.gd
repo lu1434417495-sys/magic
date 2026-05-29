@@ -6,37 +6,35 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
-const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
-const BattleHitResolver = preload("res://scripts/systems/battle/rules/battle_hit_resolver.gd")
-const BattleRangeService = preload("res://scripts/systems/battle/rules/battle_range_service.gd")
-const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
-const BattleTimelineState = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
-const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
-const BattleEdgeFeatureState = preload("res://scripts/systems/battle/core/battle_edge_feature_state.gd")
-const BattleBoardPropCatalog = preload("res://scripts/utils/battle_board_prop_catalog.gd")
-const BattleGridService = preload("res://scripts/systems/battle/terrain/battle_grid_service.gd")
-const BattleTerrainEffectState = preload("res://scripts/systems/battle/terrain/battle_terrain_effect_state.gd")
-const BattleTerrainRules = preload("res://scripts/systems/battle/terrain/battle_terrain_rules.gd")
-const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
-const BattleStatusEffectState = preload("res://scripts/systems/battle/core/battle_status_effect_state.gd")
-const CharacterManagementModule = preload("res://scripts/systems/progression/character_management_module.gd")
-const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
-const CombatSkillDef = preload("res://scripts/player/progression/combat_skill_def.gd")
-const EncounterAnchorData = preload("res://scripts/systems/world/encounter_anchor_data.gd")
-const AttributeModifier = preload("res://scripts/player/progression/attribute_modifier.gd")
-const ItemDef = preload("res://scripts/player/warehouse/item_def.gd")
-const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
-const PartyState = preload("res://scripts/player/progression/party_state.gd")
-const ProgressionDataUtils = preload("res://scripts/player/progression/progression_data_utils.gd")
-const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
-const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
-const UnitProgress = preload("res://scripts/player/progression/unit_progress.gd")
-const WeaponDamageDiceDef = preload("res://scripts/player/warehouse/weapon_damage_dice_def.gd")
-const WeaponProfileDef = preload("res://scripts/player/warehouse/weapon_profile_def.gd")
-const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
-const EQUIPMENT_INSTANCE_STATE_SCRIPT = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
-const EQUIPMENT_RULES_SCRIPT = preload("res://scripts/player/equipment/equipment_rules.gd")
+const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/BattleRuntimeModule.cs")
+const BattleHitResolver = preload("res://scripts/systems/battle/rules/BattleHitResolver.cs")
+const BattleState = preload("res://scripts/systems/battle/core/BattleState.cs")
+const BattleTimelineState = preload("res://scripts/systems/battle/core/BattleTimelineState.cs")
+const BattleCellState = preload("res://scripts/systems/battle/core/BattleCellState.cs")
+const BattleEdgeFeatureState = preload("res://scripts/systems/battle/core/BattleEdgeFeatureState.cs")
+const BattleBoardPropCatalog = preload("res://scripts/utils/BattleBoardPropCatalog.cs")
+const BattleGridService = preload("res://scripts/systems/battle/terrain/BattleGridService.cs")
+const BattleTerrainEffectState = preload("res://scripts/systems/battle/terrain/BattleTerrainEffectState.cs")
+const BattleTerrainRules = preload("res://scripts/systems/battle/terrain/BattleTerrainRules.cs")
+const BattleUnitState = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
+const BattleStatusEffectState = preload("res://scripts/systems/battle/core/BattleStatusEffectState.cs")
+const CharacterManagementModule = preload("res://scripts/systems/progression/CharacterManagementModule.cs")
+const CombatEffectDef = preload("res://scripts/player/progression/CombatEffectDef.cs")
+const CombatSkillDef = preload("res://scripts/player/progression/CombatSkillDef.cs")
+const EncounterAnchorData = preload("res://scripts/systems/world/EncounterAnchorData.cs")
+const AttributeModifier = preload("res://scripts/player/progression/AttributeModifier.cs")
+const ItemDef = preload("res://scripts/player/warehouse/ItemDef.cs")
+const PartyMemberState = preload("res://scripts/player/progression/PartyMemberState.cs")
+const PartyState = preload("res://scripts/player/progression/PartyState.cs")
+const ProgressionDataUtils = preload("res://scripts/player/progression/ProgressionDataUtils.cs")
+const ProgressionContentRegistry = preload("res://scripts/player/progression/ProgressionContentRegistry.cs")
+const SkillDef = preload("res://scripts/player/progression/SkillDef.cs")
+const UnitProgress = preload("res://scripts/player/progression/UnitProgress.cs")
+const WeaponDamageDiceDef = preload("res://scripts/player/warehouse/WeaponDamageDiceDef.cs")
+const WeaponProfileDef = preload("res://scripts/player/warehouse/WeaponProfileDef.cs")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/AttributeService.cs")
+const EQUIPMENT_INSTANCE_STATE_SCRIPT = preload("res://scripts/player/warehouse/EquipmentInstanceState.cs")
+const EQUIPMENT_RULES_SCRIPT = preload("res://scripts/player/equipment/EquipmentRules.cs")
 const SharedDamageResolvers = preload("res://tests/shared/stub_damage_resolvers.gd")
 const SharedHitResolvers = preload("res://tests/shared/stub_hit_resolvers.gd")
 const StubBattleMasteryGateway = preload("res://tests/shared/stub_battle_mastery_gateway.gd")
@@ -66,6 +64,8 @@ func _run() -> void:
 	_test_change_equipment_transaction_updates_versatile_grip_from_offhand()
 	_test_change_equipment_rebuilds_snapshot_clamps_hp_and_reports()
 	_test_runtime_reports_multistep_reachable_move_coords()
+	_test_terrain_effect_move_cost_delta_chain_consistency()
+	_test_large_unit_reachable_preview_issue_consistency()
 	_test_spawn_anchor_prefers_better_local_mobility_over_corner_slot()
 	_test_spawn_anchor_rejects_water_start_cells()
 	_test_movement_tags_override_water_traversal_rules()
@@ -120,20 +120,20 @@ func _test_hit_resolver_boundary_natural_rules_are_explicit() -> void:
 	var resolver := BattleHitResolver.new()
 
 	var accurate_attacker := _build_unit(&"hit_boundary_accurate", Vector2i.ZERO, 1)
-	accurate_attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 100)
+	accurate_attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 100)
 	var easy_target := _build_enemy_unit(&"hit_boundary_easy_target", Vector2i(1, 0))
-	easy_target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, -10)
-	var easy_check := resolver.build_skill_attack_check(accurate_attacker, easy_target, null)
+	easy_target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), -10)
+	var easy_check: Dictionary = resolver.build_skill_attack_check(accurate_attacker, easy_target, null)
 	_assert_true(int(easy_check.get("required_roll", 99)) <= 1, "低 required roll 夹具应进入天然 1 边界语义。")
 	_assert_eq(int(easy_check.get("display_required_roll", 0)), 2, "低 required roll 预览应稳定显示为 2+。")
 	_assert_eq(int(easy_check.get("hit_rate_percent", 0)), 95, "低 required roll 在天然 1 语义下应只保留 95% 命中。")
 	_assert_true(String(easy_check.get("preview_text", "")).contains("天然 1 仍失手"), "低 required roll 预览应显式提示天然 1 失手语义。")
 
 	var weak_attacker := _build_unit(&"hit_boundary_weak", Vector2i.ZERO, 1)
-	weak_attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 0)
+	weak_attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 0)
 	var evasive_target := _build_enemy_unit(&"hit_boundary_evasive_target", Vector2i(1, 0))
-	evasive_target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 100)
-	var hard_check := resolver.build_skill_attack_check(weak_attacker, evasive_target, null)
+	evasive_target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 100)
+	var hard_check: Dictionary = resolver.build_skill_attack_check(weak_attacker, evasive_target, null)
 	_assert_true(int(hard_check.get("required_roll", 0)) > 20, "高 required roll 夹具应进入仅天然 20 命中语义。")
 	_assert_eq(int(hard_check.get("display_required_roll", 0)), 20, "高 required roll 预览应稳定显示为 20+。")
 	_assert_eq(int(hard_check.get("hit_rate_percent", 0)), 5, "高 required roll 在天然 20 语义下应只保留 5% 命中。")
@@ -144,30 +144,30 @@ func _test_armor_break_lowers_target_ac_without_damage_vulnerability() -> void:
 	var hit_resolver := BattleHitResolver.new()
 	var damage_resolver := SharedDamageResolvers.FixedHitMaxDamageResolver.new()
 	var attacker := _build_unit(&"armor_break_attacker", Vector2i.ZERO, 1)
-	attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 4)
+	attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 4)
 	var target := _build_enemy_unit(&"armor_break_target", Vector2i(1, 0))
-	target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 16)
+	target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 16)
 
-	var baseline_check := hit_resolver.build_skill_attack_check(attacker, target, null)
+	var baseline_check: Dictionary = hit_resolver.build_skill_attack_check(attacker, target, null)
 	var armor_break_effect := CombatEffectDef.new()
 	armor_break_effect.effect_type = &"status"
 	armor_break_effect.status_id = &"armor_break"
 	armor_break_effect.power = 1
 	armor_break_effect.duration_tu = 90
-	damage_resolver.resolve_effects(attacker, target, [armor_break_effect])
-	var broken_check := hit_resolver.build_skill_attack_check(attacker, target, null)
+	damage_resolver.resolve_effects(attacker, target, [armor_break_effect], {})
+	var broken_check: Dictionary = hit_resolver.build_skill_attack_check(attacker, target, null)
 	_assert_eq(int(broken_check.get("target_armor_class", 0)), int(baseline_check.get("target_armor_class", 0)) - 2, "armor_break power 1 应把有效 AC 降低 2。")
 	_assert_eq(int(broken_check.get("hit_rate_percent", 0)), int(baseline_check.get("hit_rate_percent", 0)) + 10, "armor_break 降低 AC 后应提高 10 个百分点命中率。")
 
 	var plain_target := _build_enemy_unit(&"plain_damage_target", Vector2i(1, 0))
 	var broken_target := _build_enemy_unit(&"broken_damage_target", Vector2i(1, 0))
-	damage_resolver.resolve_effects(attacker, broken_target, [armor_break_effect])
+	damage_resolver.resolve_effects(attacker, broken_target, [armor_break_effect], {})
 	var damage_effect := CombatEffectDef.new()
 	damage_effect.effect_type = &"damage"
 	damage_effect.damage_tag = &"physical_slash"
 	damage_effect.power = 10
-	var plain_result := damage_resolver.resolve_effects(attacker, plain_target, [damage_effect])
-	var broken_result := damage_resolver.resolve_effects(attacker, broken_target, [damage_effect])
+	var plain_result: Dictionary = damage_resolver.resolve_effects(attacker, plain_target, [damage_effect], {})
+	var broken_result: Dictionary = damage_resolver.resolve_effects(attacker, broken_target, [damage_effect], {})
 	_assert_eq(int(broken_result.get("damage", 0)), int(plain_result.get("damage", 0)), "armor_break 不应再提供承伤易伤倍率。")
 
 
@@ -259,22 +259,22 @@ func _test_start_battle_accepts_explicit_narrow_assault_profile() -> void:
 
 	var explicit_prop_counts := _count_explicit_props(state)
 	_assert_eq(
-		int(explicit_prop_counts.get(BattleBoardPropCatalog.PROP_OBJECTIVE_MARKER, 0)),
+		int(explicit_prop_counts.get(BattleBoardPropCatalog.PROP_OBJECTIVE_MARKER(), 0)),
 		1,
 		"narrow_assault 入口生成的 battle state 应保留唯一 objective marker。"
 	)
 	_assert_eq(
-		int(explicit_prop_counts.get(BattleBoardPropCatalog.PROP_TENT, 0)),
+		int(explicit_prop_counts.get(BattleBoardPropCatalog.PROP_TENT(), 0)),
 		2,
 		"narrow_assault 入口生成的 battle state 应保留双方 tent。"
 	)
 	_assert_eq(
-		int(explicit_prop_counts.get(BattleBoardPropCatalog.PROP_TORCH, 0)),
+		int(explicit_prop_counts.get(BattleBoardPropCatalog.PROP_TORCH(), 0)),
 		2,
 		"narrow_assault 入口生成的 battle state 应保留左右 torch。"
 	)
 	_assert_true(
-		_count_terrain_cells(state, BattleCellState.TERRAIN_SPIKE) >= 1,
+		_count_terrain_cells(state, BattleCellState.TERRAIN_SPIKE()) >= 1,
 		"narrow_assault 入口生成的 battle state 应保留突破口后的 spike kill-zone。"
 	)
 
@@ -314,7 +314,7 @@ func _test_start_battle_accepts_explicit_holdout_push_profile() -> void:
 	_assert_eq(state.ally_unit_ids.size(), 2, "显式 holdout_push 入口应保留传入的 ally battle party。")
 	_assert_eq(state.enemy_unit_ids.size(), 2, "显式 holdout_push 入口应构建请求数量的敌方单位。")
 
-	var objective_coords := _collect_explicit_prop_coords(state, BattleBoardPropCatalog.PROP_OBJECTIVE_MARKER)
+	var objective_coords := _collect_explicit_prop_coords(state, BattleBoardPropCatalog.PROP_OBJECTIVE_MARKER())
 	_assert_eq(objective_coords.size(), 1, "holdout_push 入口生成的 battle state 应保留唯一守点目标。")
 	if objective_coords.size() != 1:
 		return
@@ -344,21 +344,21 @@ func _test_start_battle_accepts_explicit_holdout_push_profile() -> void:
 
 	var explicit_prop_counts := _count_explicit_props(state)
 	_assert_eq(
-		int(explicit_prop_counts.get(BattleBoardPropCatalog.PROP_TENT, 0)),
+		int(explicit_prop_counts.get(BattleBoardPropCatalog.PROP_TENT(), 0)),
 		2,
 		"holdout_push 入口生成的 battle state 应保留双方 tent。"
 	)
 	_assert_eq(
-		int(explicit_prop_counts.get(BattleBoardPropCatalog.PROP_TORCH, 0)),
+		int(explicit_prop_counts.get(BattleBoardPropCatalog.PROP_TORCH(), 0)),
 		2,
 		"holdout_push 入口生成的 battle state 应保留双方 torch。"
 	)
 	_assert_true(
-		_count_terrain_cells(state, BattleCellState.TERRAIN_MUD) >= 2,
+		_count_terrain_cells(state, BattleCellState.TERRAIN_MUD()) >= 2,
 		"holdout_push 入口生成的 battle state 应保留推进侧泥地减速带。"
 	)
 	_assert_true(
-		_count_terrain_cells(state, BattleCellState.TERRAIN_SPIKE) >= 2,
+		_count_terrain_cells(state, BattleCellState.TERRAIN_SPIKE()) >= 2,
 		"holdout_push 入口生成的 battle state 应保留守点正面的 spike barricade 区域。"
 	)
 
@@ -366,7 +366,7 @@ func _test_start_battle_accepts_explicit_holdout_push_profile() -> void:
 func _build_cell(coord: Vector2i) -> BattleCellState:
 	var cell := BattleCellState.new()
 	cell.coord = coord
-	cell.base_terrain = BattleCellState.TERRAIN_LAND
+	cell.base_terrain = BattleCellState.TERRAIN_LAND()
 	cell.base_height = 4
 	cell.height_offset = 0
 	cell.recalculate_runtime_values()
@@ -431,7 +431,7 @@ func _test_move_command_executes_normally_on_stacked_columns() -> void:
 	runtime._state = state
 
 	var command := BattleCommand.new()
-	command.command_type = BattleCommand.TYPE_MOVE
+	command.command_type = BattleCommand.TYPE_MOVE()
 	command.unit_id = unit.unit_id
 	command.target_coord = Vector2i(1, 0)
 	var batch := runtime.issue_command(command)
@@ -470,7 +470,7 @@ func _test_action_locks_movement_until_post_action_permission() -> void:
 	runtime._state = state
 
 	var skill_command := BattleCommand.new()
-	skill_command.command_type = BattleCommand.TYPE_SKILL
+	skill_command.command_type = BattleCommand.TYPE_SKILL()
 	skill_command.unit_id = unit.unit_id
 	skill_command.skill_id = skill.skill_id
 	skill_command.target_unit_id = enemy.unit_id
@@ -480,7 +480,7 @@ func _test_action_locks_movement_until_post_action_permission() -> void:
 	_assert_true(unit.current_move_points > 0, "行动本身不应直接丢弃尚未使用的普通移动力。")
 
 	var move_command := BattleCommand.new()
-	move_command.command_type = BattleCommand.TYPE_MOVE
+	move_command.command_type = BattleCommand.TYPE_MOVE()
 	move_command.unit_id = unit.unit_id
 	move_command.target_coord = Vector2i(0, 1)
 	var locked_preview := runtime.preview_command(move_command)
@@ -510,8 +510,8 @@ func _test_on_kill_move_points_gain_unlocks_post_action_movement() -> void:
 	var state := _build_skill_test_state(Vector2i(4, 2))
 	var unit := _build_unit(&"death_reap_move_user", Vector2i(0, 0), 2)
 	unit.current_mp = 120
-	unit.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_MP)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 20)
+	unit.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_MP())
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 20)
 	unit.known_active_skill_ids = [skill.skill_id]
 	unit.known_skill_level_map = {skill.skill_id: 0}
 	var enemy := _build_enemy_unit(&"death_reap_move_enemy", Vector2i(1, 0))
@@ -531,7 +531,7 @@ func _test_on_kill_move_points_gain_unlocks_post_action_movement() -> void:
 	runtime._state = state
 
 	var skill_command := BattleCommand.new()
-	skill_command.command_type = BattleCommand.TYPE_SKILL
+	skill_command.command_type = BattleCommand.TYPE_SKILL()
 	skill_command.unit_id = unit.unit_id
 	skill_command.skill_id = skill.skill_id
 	skill_command.target_unit_id = enemy.unit_id
@@ -543,7 +543,7 @@ func _test_on_kill_move_points_gain_unlocks_post_action_movement() -> void:
 	_assert_true(unit.can_use_locked_move_points_this_turn, "死亡收割击杀后应授予行动后移动许可。 log=%s" % [str(skill_batch.log_lines)])
 
 	var move_command := BattleCommand.new()
-	move_command.command_type = BattleCommand.TYPE_MOVE
+	move_command.command_type = BattleCommand.TYPE_MOVE()
 	move_command.unit_id = unit.unit_id
 	move_command.target_coord = Vector2i(0, 1)
 	var preview := runtime.preview_command(move_command)
@@ -561,7 +561,7 @@ func _test_change_equipment_command_validates_target_ap_and_state_atomicity() ->
 	var unit: BattleUnitState = fixture.get("unit")
 	var command := _build_change_equipment_command(
 		unit.unit_id,
-		BattleCommand.EQUIPMENT_OPERATION_EQUIP,
+		BattleCommand.EQUIPMENT_OPERATION_EQUIP(),
 		&"head",
 		&"battle_cap_001",
 		&"leather_cap"
@@ -608,7 +608,7 @@ func _test_change_equipment_command_all_slots_use_battle_local_views() -> void:
 		var unit: BattleUnitState = fixture.get("unit")
 		var command := _build_change_equipment_command(
 			unit.unit_id,
-			BattleCommand.EQUIPMENT_OPERATION_EQUIP,
+			BattleCommand.EQUIPMENT_OPERATION_EQUIP(),
 			slot_id,
 			instance_id,
 			item_id
@@ -636,7 +636,7 @@ func _test_change_equipment_command_all_slots_use_battle_local_views() -> void:
 
 		var unequip_command := _build_change_equipment_command(
 			unit.unit_id,
-			BattleCommand.EQUIPMENT_OPERATION_UNEQUIP,
+			BattleCommand.EQUIPMENT_OPERATION_UNEQUIP(),
 			slot_id,
 			instance_id,
 			item_id
@@ -663,12 +663,12 @@ func _test_change_equipment_preserves_full_instance_fields() -> void:
 	var state: BattleState = fixture.get("state")
 	var unit: BattleUnitState = fixture.get("unit")
 	var backpack_instance = state.get_party_backpack_view().equipment_instances[0]
-	backpack_instance.rarity = EQUIPMENT_INSTANCE_STATE_SCRIPT.RarityTier.RARE
+	backpack_instance.rarity = EQUIPMENT_INSTANCE_STATE_SCRIPT.RARITY_TIER_RARE()
 	backpack_instance.current_durability = 9
 
 	var equip_command := _build_change_equipment_command(
 		unit.unit_id,
-		BattleCommand.EQUIPMENT_OPERATION_EQUIP,
+		BattleCommand.EQUIPMENT_OPERATION_EQUIP(),
 		&"head",
 		&"battle_full_instance_cap_001",
 		&"leather_cap"
@@ -678,7 +678,7 @@ func _test_change_equipment_preserves_full_instance_fields() -> void:
 	_assert_equipment_instance_fields(
 		unit.get_equipment_view().get_equipped_instance(&"head"),
 		"battle_full_instance_cap_001",
-		EQUIPMENT_INSTANCE_STATE_SCRIPT.RarityTier.RARE,
+		EQUIPMENT_INSTANCE_STATE_SCRIPT.RARITY_TIER_RARE(),
 		9,
 		"战斗装备位"
 	)
@@ -688,7 +688,7 @@ func _test_change_equipment_preserves_full_instance_fields() -> void:
 	unit.current_ap = 2
 	var unequip_command := _build_change_equipment_command(
 		unit.unit_id,
-		BattleCommand.EQUIPMENT_OPERATION_UNEQUIP,
+		BattleCommand.EQUIPMENT_OPERATION_UNEQUIP(),
 		&"head",
 		&"battle_full_instance_cap_001",
 		&"leather_cap"
@@ -700,7 +700,7 @@ func _test_change_equipment_preserves_full_instance_fields() -> void:
 		_assert_equipment_instance_fields(
 			state.get_party_backpack_view().equipment_instances[0],
 			"battle_full_instance_cap_001",
-			EQUIPMENT_INSTANCE_STATE_SCRIPT.RarityTier.RARE,
+			EQUIPMENT_INSTANCE_STATE_SCRIPT.RARITY_TIER_RARE(),
 			9,
 			"战斗背包"
 		)
@@ -714,7 +714,7 @@ func _test_change_equipment_transaction_auto_links_slots_and_rolls_back_capacity
 	var blocked_party: PartyState = blocked_fixture.get("party")
 	var blocked_command := _build_change_equipment_command(
 		blocked_unit.unit_id,
-		BattleCommand.EQUIPMENT_OPERATION_EQUIP,
+		BattleCommand.EQUIPMENT_OPERATION_EQUIP(),
 		&"main_hand",
 		&"greatsword_battle_001",
 		&"training_greatsword"
@@ -745,7 +745,7 @@ func _test_change_equipment_transaction_auto_links_slots_and_rolls_back_capacity
 	var party: PartyState = success_fixture.get("party")
 	var command := _build_change_equipment_command(
 		unit.unit_id,
-		BattleCommand.EQUIPMENT_OPERATION_EQUIP,
+		BattleCommand.EQUIPMENT_OPERATION_EQUIP(),
 		&"main_hand",
 		&"greatsword_battle_001",
 		&"training_greatsword"
@@ -780,7 +780,7 @@ func _test_change_equipment_transaction_updates_versatile_grip_from_offhand() ->
 
 	var command := _build_change_equipment_command(
 		unit.unit_id,
-		BattleCommand.EQUIPMENT_OPERATION_EQUIP,
+		BattleCommand.EQUIPMENT_OPERATION_EQUIP(),
 		&"off_hand",
 		&"shield_battle_001",
 		&"training_shield"
@@ -823,17 +823,17 @@ func _test_change_equipment_rebuilds_snapshot_clamps_hp_and_reports() -> void:
 	_assert_true(runtime._grid_service.place_unit(state, enemy, enemy.coord, true), "HP 换装测试敌方应能成功放入战场。")
 	runtime._state = state
 
-	var base_hp_max := int(unit.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX))
+	var base_hp_max := int(unit.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX_ID()))
 	var equip_command := _build_change_equipment_command(
 		unit.unit_id,
-		BattleCommand.EQUIPMENT_OPERATION_EQUIP,
+		BattleCommand.EQUIPMENT_OPERATION_EQUIP(),
 		&"body",
 		&"vital_armor_battle_001",
 		&"training_vital_armor"
 	)
 	var equip_batch := runtime.issue_command(equip_command)
 	_assert_eq(
-		int(unit.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX)),
+		int(unit.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX_ID())),
 		base_hp_max + 6,
 		"换装成功后应按 battle-local 装备 view 重建 attribute_snapshot。"
 	)
@@ -863,14 +863,14 @@ func _test_change_equipment_rebuilds_snapshot_clamps_hp_and_reports() -> void:
 	unit.current_hp = base_hp_max + 4
 	var unequip_command := _build_change_equipment_command(
 		unit.unit_id,
-		BattleCommand.EQUIPMENT_OPERATION_UNEQUIP,
+		BattleCommand.EQUIPMENT_OPERATION_UNEQUIP(),
 		&"body",
 		&"vital_armor_battle_001",
 		&"training_vital_armor"
 	)
 	var unequip_batch := runtime.issue_command(unequip_command)
 	_assert_eq(
-		int(unit.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX)),
+		int(unit.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX_ID())),
 		base_hp_max,
 		"卸装成功后应按 battle-local 装备 view 重建 attribute_snapshot。"
 	)
@@ -897,11 +897,11 @@ func _test_runtime_reports_multistep_reachable_move_coords() -> void:
 			state.cells[Vector2i(x, y)] = _build_cell(Vector2i(x, y))
 	var mud_cell := state.cells.get(Vector2i(1, 0)) as BattleCellState
 	if mud_cell != null:
-		mud_cell.base_terrain = BattleCellState.TERRAIN_MUD
+		mud_cell.base_terrain = BattleCellState.TERRAIN_MUD()
 		mud_cell.recalculate_runtime_values()
 	var blocked_cell := state.cells.get(Vector2i(3, 1)) as BattleCellState
 	if blocked_cell != null:
-		blocked_cell.base_terrain = BattleCellState.TERRAIN_DEEP_WATER
+		blocked_cell.base_terrain = BattleCellState.TERRAIN_DEEP_WATER()
 		blocked_cell.recalculate_runtime_values()
 	state.cell_columns = BattleCellState.build_columns_from_surface_cells(state.cells)
 
@@ -920,7 +920,7 @@ func _test_runtime_reports_multistep_reachable_move_coords() -> void:
 	_assert_true(not reachable_coords.has(Vector2i(3, 1)), "不可通行的水域不应进入可达集。")
 
 	var move_command := BattleCommand.new()
-	move_command.command_type = BattleCommand.TYPE_MOVE
+	move_command.command_type = BattleCommand.TYPE_MOVE()
 	move_command.unit_id = unit.unit_id
 	move_command.target_coord = Vector2i(1, 1)
 	var preview := runtime.preview_command(move_command)
@@ -931,6 +931,156 @@ func _test_runtime_reports_multistep_reachable_move_coords() -> void:
 	_assert_true(unit.current_move_points == 0, "多步移动后应按整条路径成本扣除移动力。")
 	_assert_true(batch.changed_unit_ids.has(unit.unit_id), "多步移动批次应记录变更单位。")
 	_assert_true(state.cells[Vector2i(1, 1)].occupant_unit_id == unit.unit_id, "多步移动后目标地格占位应同步更新。")
+
+
+func _test_terrain_effect_move_cost_delta_chain_consistency() -> void:
+	# 端到端验证：terrain effect 的 move_cost_delta 同时影响
+	# (1) get_unit_reachable_move_coords 的可达集
+	# (2) preview_command(move) 的允许判定
+	# (3) issue_command(move) 的实际扣点
+	# 防止未来 _resolve_move_path_result 或 _handle_move_command 绕过语义成本复算。
+	var runtime := BattleRuntimeModule.new()
+	var state := BattleState.new()
+	state.battle_id = &"move_cost_delta_chain"
+	state.phase = &"unit_acting"
+	state.map_size = Vector2i(4, 1)
+	state.timeline = BattleTimelineState.new()
+	state.cells = {}
+	for x in range(state.map_size.x):
+		state.cells[Vector2i(x, 0)] = _build_cell(Vector2i(x, 0))
+	state.cell_columns = BattleCellState.build_columns_from_surface_cells(state.cells)
+	var unit := _build_unit(&"move_cost_delta_unit", Vector2i(0, 0), 2)
+	unit.current_move_points = 3
+	state.units[unit.unit_id] = unit
+	state.ally_unit_ids = [unit.unit_id]
+	state.active_unit_id = unit.unit_id
+	_assert_true(runtime._grid_service.place_unit(state, unit, unit.coord, true), "terrain delta 链路测试单位应成功放入起点。")
+	runtime._state = state
+
+	# 基线：无 terrain effect 时 3 移动力可达整行 land
+	var baseline_coords := runtime.get_unit_reachable_move_coords(unit)
+	_assert_true(baseline_coords.has(Vector2i(3, 0)), "基线无 terrain effect 时，3 移动力应可达 (3,0)。")
+
+	# 在 (1,0) 注入 move_cost_delta = 2 的地形效果（land 基础 1 + delta 2 = 3）
+	var delta_effect := CombatEffectDef.new()
+	delta_effect.effect_type = &"terrain_effect"
+	delta_effect.tick_effect_type = &"none"
+	delta_effect.terrain_effect_id = &"chain_test_mud_patch"
+	delta_effect.duration_tu = 0
+	delta_effect.tick_interval_tu = 0
+	delta_effect.effect_target_team_filter = &"any"
+	delta_effect.params = {
+		"lifetime_policy": &"battle",
+		"move_cost_delta": 2,
+	}
+	_assert_true(
+		runtime._terrain_effect_system.upsert_timed_terrain_effect(Vector2i(1, 0), unit, null, delta_effect, &"chain_test_patch_1"),
+		"terrain delta 链路测试应能写入 move_cost_delta effect。"
+	)
+
+	# 现在 (1,0) 的进入成本=3 → 单位 3 移动力恰好可达 (1,0)，无法继续到 (2,0)/(3,0)
+	var reachable_after := runtime.get_unit_reachable_move_coords(unit)
+	_assert_true(reachable_after.has(Vector2i(1, 0)), "注入 move_cost_delta=2 后，(1,0) 应仍在可达集内（成本恰好 3）。")
+	_assert_true(not reachable_after.has(Vector2i(2, 0)), "注入 move_cost_delta=2 后，(2,0) 应离开可达集（累计成本 4 > 3）。")
+	_assert_true(not reachable_after.has(Vector2i(3, 0)), "注入 move_cost_delta=2 后，(3,0) 也应离开可达集。")
+
+	var move_command := BattleCommand.new()
+	move_command.command_type = BattleCommand.TYPE_MOVE()
+	move_command.unit_id = unit.unit_id
+	move_command.target_coord = Vector2i(1, 0)
+
+	var preview := runtime.preview_command(move_command)
+	_assert_true(preview.allowed, "preview_command 应允许移动到 terrain delta 加权后仍可达的 (1,0)。")
+	_assert_eq(int(preview.move_cost), 3, "preview_command 的 move_cost 应反映 delta 加权后的真实成本 3。")
+
+	var batch := runtime.issue_command(move_command)
+	_assert_true(unit.coord == Vector2i(1, 0), "issue_command(move) 应实际把单位推进到 (1,0)。")
+	_assert_eq(unit.current_move_points, 0, "执行后移动力应扣到 0，证明实际扣点遵循 delta 加权成本而非基础地形成本。")
+	_assert_true(batch.changed_unit_ids.has(unit.unit_id), "terrain delta 移动后批次应记录变更单位。")
+
+	# 越界目标应被预览拒绝（与可达集一致）
+	var blocked_command := BattleCommand.new()
+	blocked_command.command_type = BattleCommand.TYPE_MOVE()
+	blocked_command.unit_id = unit.unit_id
+	blocked_command.target_coord = Vector2i(3, 0)
+	var blocked_preview := runtime.preview_command(blocked_command)
+	_assert_true(not blocked_preview.allowed, "delta 加权后超出预算的终点 (3,0) 不应被允许，避免 preview/可达集脱钩。")
+
+
+func _test_large_unit_reachable_preview_issue_consistency() -> void:
+	# 端到端验证：大体型单位（body_size=LARGE，2x2 footprint）的可达集要按 footprint
+	# 整体合法性筛选，而不是只看 anchor 步数；同时 preview/issue_command 的成本扣除
+	# 与可达集复算保持一致。
+	var runtime := BattleRuntimeModule.new()
+	var state := BattleState.new()
+	state.battle_id = &"large_unit_move_chain"
+	state.phase = &"unit_acting"
+	state.map_size = Vector2i(5, 3)
+	state.timeline = BattleTimelineState.new()
+	state.cells = {}
+	for y in range(state.map_size.y):
+		for x in range(state.map_size.x):
+			state.cells[Vector2i(x, y)] = _build_cell(Vector2i(x, y))
+	# 在 (4,1) 放深水：anchor (3,1) 的 2x2 footprint 会覆盖 (3,1)/(4,1)/(3,2)/(4,2)，
+	# 其中 (4,1) 不可通行 → 此 anchor 应不进可达集。
+	var blocked_cell := state.cells.get(Vector2i(4, 1)) as BattleCellState
+	if blocked_cell != null:
+		blocked_cell.base_terrain = BattleCellState.TERRAIN_DEEP_WATER()
+		blocked_cell.recalculate_runtime_values()
+	state.cell_columns = BattleCellState.build_columns_from_surface_cells(state.cells)
+
+	var unit := _build_unit(&"large_move_unit", Vector2i(0, 0), 4)
+	unit.body_size = BattleUnitState.BODY_SIZE_LARGE()
+	unit.refresh_footprint()
+	unit.current_move_points = 4
+	state.units[unit.unit_id] = unit
+	state.ally_unit_ids = [unit.unit_id]
+	state.active_unit_id = unit.unit_id
+	_assert_true(runtime._grid_service.place_unit(state, unit, unit.coord, true), "大体型测试单位 (body_size=LARGE) 应能在 (0,0) 起点放下 2x2 footprint。")
+	runtime._state = state
+
+	var reachable_coords := runtime.get_unit_reachable_move_coords(unit)
+	_assert_true(reachable_coords.has(Vector2i(2, 1)), "anchor (2,1) 的 2x2 footprint 全在 land 上，应进入可达集。")
+	_assert_true(reachable_coords.has(Vector2i(2, 0)), "anchor (2,0) 的 2x2 footprint 全在 land 上，应进入可达集。")
+	_assert_true(
+		not reachable_coords.has(Vector2i(3, 1)),
+		"anchor (3,1) 的 2x2 footprint 包含 (4,1) 深水 → 应被 footprint 检查筛掉，即使路径步数够。"
+	)
+
+	var move_command := BattleCommand.new()
+	move_command.command_type = BattleCommand.TYPE_MOVE()
+	move_command.unit_id = unit.unit_id
+	move_command.target_coord = Vector2i(2, 1)
+
+	var preview := runtime.preview_command(move_command)
+	_assert_true(preview.allowed, "preview_command 应允许大体型单位移到 (2,1)（footprint 合法、成本可承担）。")
+	var preview_cost := int(preview.move_cost)
+	var move_points_before: int = unit.current_move_points
+
+	var batch := runtime.issue_command(move_command)
+	_assert_true(unit.coord == Vector2i(2, 1), "issue_command(move) 应实际把大体型单位 anchor 推进到 (2,1)。")
+	_assert_eq(
+		move_points_before - unit.current_move_points,
+		preview_cost,
+		"大体型单位实际扣除的移动力必须与 preview.move_cost 一致，避免 footprint/path 复算分裂。"
+	)
+	_assert_true(batch.changed_unit_ids.has(unit.unit_id), "大体型移动批次应记录变更单位。")
+
+	# 验证 footprint 在新位置正确占位
+	for occupied_coord in unit.occupied_coords:
+		var cell := state.cells.get(occupied_coord) as BattleCellState
+		_assert_true(
+			cell != null and cell.occupant_unit_id == unit.unit_id,
+			"大体型单位移到 (2,1) 后，footprint 内每格 (%s) 都应记录该单位的 occupant。" % str(occupied_coord)
+		)
+
+	# 越 footprint 边界的目标 anchor (3,1) 必须被 preview 拒绝
+	var blocked_command := BattleCommand.new()
+	blocked_command.command_type = BattleCommand.TYPE_MOVE()
+	blocked_command.unit_id = unit.unit_id
+	blocked_command.target_coord = Vector2i(3, 1)
+	var blocked_preview := runtime.preview_command(blocked_command)
+	_assert_true(not blocked_preview.allowed, "footprint 不能合法落地的 anchor (3,1) 必须被 preview 拒绝，与可达集结果一致。")
 
 
 func _test_spawn_anchor_prefers_better_local_mobility_over_corner_slot() -> void:
@@ -946,7 +1096,7 @@ func _test_spawn_anchor_prefers_better_local_mobility_over_corner_slot() -> void
 			state.cells[Vector2i(x, y)] = _build_cell(Vector2i(x, y))
 	var blocked_corner_exit := state.cells.get(Vector2i(0, 2)) as BattleCellState
 	if blocked_corner_exit != null:
-		blocked_corner_exit.base_terrain = BattleCellState.TERRAIN_DEEP_WATER
+		blocked_corner_exit.base_terrain = BattleCellState.TERRAIN_DEEP_WATER()
 		blocked_corner_exit.recalculate_runtime_values()
 	state.cell_columns = BattleCellState.build_columns_from_surface_cells(state.cells)
 	runtime._state = state
@@ -957,7 +1107,7 @@ func _test_spawn_anchor_prefers_better_local_mobility_over_corner_slot() -> void
 		Vector2i(1, 3),
 		Vector2i(0, 2),
 	]
-	var chosen_coord := runtime._find_spawn_anchor(unit, preferred_coords)
+	var chosen_coord: Vector2i = runtime._find_spawn_anchor(unit, preferred_coords)
 	_assert_eq(
 		chosen_coord,
 		Vector2i(1, 3),
@@ -978,7 +1128,7 @@ func _test_spawn_anchor_rejects_water_start_cells() -> void:
 			state.cells[Vector2i(x, y)] = _build_cell(Vector2i(x, y))
 	var shallow_water_cell := state.cells.get(Vector2i(1, 0)) as BattleCellState
 	if shallow_water_cell != null:
-		shallow_water_cell.base_terrain = BattleCellState.TERRAIN_SHALLOW_WATER
+		shallow_water_cell.base_terrain = BattleCellState.TERRAIN_SHALLOW_WATER()
 		shallow_water_cell.recalculate_runtime_values()
 	state.cell_columns = BattleCellState.build_columns_from_surface_cells(state.cells)
 	runtime._state = state
@@ -989,7 +1139,7 @@ func _test_spawn_anchor_rejects_water_start_cells() -> void:
 		Vector2i(0, 0),
 		Vector2i(2, 0),
 	]
-	var chosen_coord := runtime._find_spawn_anchor(unit, preferred_coords)
+	var chosen_coord: Vector2i = runtime._find_spawn_anchor(unit, preferred_coords)
 	_assert_eq(
 		chosen_coord,
 		Vector2i(0, 0),
@@ -1010,11 +1160,11 @@ func _test_movement_tags_override_water_traversal_rules() -> void:
 		Vector2i(2, 0): _build_cell(Vector2i(2, 0)),
 		Vector2i(3, 0): _build_cell(Vector2i(3, 0)),
 	}
-	(lane_state.cells.get(Vector2i(1, 0)) as BattleCellState).base_terrain = BattleCellState.TERRAIN_SHALLOW_WATER
-	(lane_state.cells.get(Vector2i(2, 0)) as BattleCellState).base_terrain = BattleCellState.TERRAIN_FLOWING_WATER
-	(lane_state.cells.get(Vector2i(3, 0)) as BattleCellState).base_terrain = BattleCellState.TERRAIN_DEEP_WATER
-	for cell_variant in lane_state.cells.values():
-		var lane_cell := cell_variant as BattleCellState
+	(lane_state.cells.get(Vector2i(1, 0)) as BattleCellState).base_terrain = BattleCellState.TERRAIN_SHALLOW_WATER()
+	(lane_state.cells.get(Vector2i(2, 0)) as BattleCellState).base_terrain = BattleCellState.TERRAIN_FLOWING_WATER()
+	(lane_state.cells.get(Vector2i(3, 0)) as BattleCellState).base_terrain = BattleCellState.TERRAIN_DEEP_WATER()
+	for cell_option in lane_state.cells.values():
+		var lane_cell := cell_option as BattleCellState
 		if lane_cell != null:
 			lane_cell.recalculate_runtime_values()
 	lane_state.cell_columns = BattleCellState.build_columns_from_surface_cells(lane_state.cells)
@@ -1035,7 +1185,7 @@ func _test_movement_tags_override_water_traversal_rules() -> void:
 	)
 
 	var wade_unit := _build_unit(&"wade_water_unit", Vector2i.ZERO, 3)
-	wade_unit.movement_tags = [BattleTerrainRules.TAG_WADE]
+	wade_unit.movement_tags = [BattleTerrainRules.TAG_WADE()]
 	_assert_eq(grid_service.get_unit_move_cost(lane_state, wade_unit, Vector2i(1, 0)), 1, "涉水单位进入浅水应只消耗 1 点移动力。")
 	_assert_eq(grid_service.get_unit_move_cost(lane_state, wade_unit, Vector2i(2, 0)), 2, "涉水单位进入流水应消耗 2 点移动力。")
 
@@ -1048,14 +1198,14 @@ func _test_movement_tags_override_water_traversal_rules() -> void:
 		Vector2i(0, 0): _build_cell(Vector2i(0, 0)),
 		Vector2i(1, 0): _build_cell(Vector2i(1, 0)),
 	}
-	(amphibious_state.cells.get(Vector2i(1, 0)) as BattleCellState).base_terrain = BattleCellState.TERRAIN_DEEP_WATER
-	for cell_variant in amphibious_state.cells.values():
-		var amphibious_cell := cell_variant as BattleCellState
+	(amphibious_state.cells.get(Vector2i(1, 0)) as BattleCellState).base_terrain = BattleCellState.TERRAIN_DEEP_WATER()
+	for cell_option in amphibious_state.cells.values():
+		var amphibious_cell := cell_option as BattleCellState
 		if amphibious_cell != null:
 			amphibious_cell.recalculate_runtime_values()
 	amphibious_state.cell_columns = BattleCellState.build_columns_from_surface_cells(amphibious_state.cells)
 	var amphibious_unit := _build_unit(&"amphibious_unit", Vector2i.ZERO, 2)
-	amphibious_unit.movement_tags = [BattleTerrainRules.TAG_AMPHIBIOUS]
+	amphibious_unit.movement_tags = [BattleTerrainRules.TAG_AMPHIBIOUS()]
 	amphibious_state.units[amphibious_unit.unit_id] = amphibious_unit
 	amphibious_state.ally_unit_ids = [amphibious_unit.unit_id]
 	amphibious_state.active_unit_id = amphibious_unit.unit_id
@@ -1101,7 +1251,7 @@ func _test_height_delta_reclassifies_adjacent_water_component() -> void:
 			cell.recalculate_runtime_values()
 			state.cells[cell.coord] = cell
 	var center_water := state.cells.get(Vector2i(1, 1)) as BattleCellState
-	center_water.base_terrain = BattleCellState.TERRAIN_DEEP_WATER
+	center_water.base_terrain = BattleCellState.TERRAIN_DEEP_WATER()
 	center_water.base_height = 4
 	center_water.recalculate_runtime_values()
 	state.cell_columns = BattleCellState.build_columns_from_surface_cells(state.cells)
@@ -1115,7 +1265,7 @@ func _test_height_delta_reclassifies_adjacent_water_component() -> void:
 	_assert_true(bool(applied.get("applied", false)), "降低堤岸后应触发邻近水域重分类。")
 	_assert_eq(
 		center_water.base_terrain,
-		BattleCellState.TERRAIN_FLOWING_WATER,
+		BattleCellState.TERRAIN_FLOWING_WATER(),
 		"当相邻地格降低到水面时，封闭水域应重分类为流水。"
 	)
 	_assert_eq(center_water.flow_direction, Vector2i.UP, "被击穿的流水应记录通向出口的流向。")
@@ -1129,7 +1279,7 @@ func _test_charge_preview_allows_impassable_first_step_and_resolves_as_stop() ->
 	var state := _build_skill_test_state(Vector2i(5, 1))
 	var blocked_cell := state.cells.get(Vector2i(1, 0)) as BattleCellState
 	if blocked_cell != null:
-		blocked_cell.base_terrain = BattleCellState.TERRAIN_DEEP_WATER
+		blocked_cell.base_terrain = BattleCellState.TERRAIN_DEEP_WATER()
 		blocked_cell.recalculate_runtime_values()
 	state.cell_columns = BattleCellState.build_columns_from_surface_cells(state.cells)
 
@@ -1143,7 +1293,7 @@ func _test_charge_preview_allows_impassable_first_step_and_resolves_as_stop() ->
 	runtime._state = state
 
 	var command := BattleCommand.new()
-	command.command_type = BattleCommand.TYPE_SKILL
+	command.command_type = BattleCommand.TYPE_SKILL()
 	command.unit_id = charger.unit_id
 	command.skill_id = &"charge"
 	command.target_coord = Vector2i(3, 0)
@@ -1192,7 +1342,7 @@ func _test_charge_preview_allows_larger_first_step_blocker_and_resolves_as_stop(
 	runtime._state = state
 
 	var command := BattleCommand.new()
-	command.command_type = BattleCommand.TYPE_SKILL
+	command.command_type = BattleCommand.TYPE_SKILL()
 	command.unit_id = charger.unit_id
 	command.skill_id = &"charge"
 	command.target_coord = Vector2i(4, 0)
@@ -1241,7 +1391,7 @@ func _test_charge_stops_at_larger_midpath_blocker_without_rollback() -> void:
 	runtime._state = state
 
 	var command := BattleCommand.new()
-	command.command_type = BattleCommand.TYPE_SKILL
+	command.command_type = BattleCommand.TYPE_SKILL()
 	command.unit_id = charger.unit_id
 	command.skill_id = &"charge"
 	command.target_coord = Vector2i(4, 0)
@@ -1287,7 +1437,7 @@ func _test_large_unit_charge_respects_full_frontier_wall_blocking() -> void:
 	runtime._state = state
 
 	var command := BattleCommand.new()
-	command.command_type = BattleCommand.TYPE_SKILL
+	command.command_type = BattleCommand.TYPE_SKILL()
 	command.unit_id = charger.unit_id
 	command.skill_id = &"charge"
 	command.target_coord = Vector2i(4, 0)
@@ -1329,7 +1479,7 @@ func _test_large_unit_charge_still_resolves_frontier_blockers() -> void:
 	runtime._state = state
 
 	var command := BattleCommand.new()
-	command.command_type = BattleCommand.TYPE_SKILL
+	command.command_type = BattleCommand.TYPE_SKILL()
 	command.unit_id = charger.unit_id
 	command.skill_id = &"charge"
 	command.target_coord = Vector2i(4, 0)
@@ -1356,7 +1506,7 @@ func _test_large_unit_charge_stops_on_partial_frontier_terrain_in_all_directions
 		var blocked_coord: Vector2i = case_data.get("partial_frontier_coord", Vector2i.ZERO)
 		var blocked_cell := state.cells.get(blocked_coord) as BattleCellState
 		if blocked_cell != null:
-			blocked_cell.base_terrain = BattleCellState.TERRAIN_DEEP_WATER
+			blocked_cell.base_terrain = BattleCellState.TERRAIN_DEEP_WATER()
 			blocked_cell.recalculate_runtime_values()
 		state.cell_columns = BattleCellState.build_columns_from_surface_cells(state.cells)
 		runtime._state = state
@@ -1589,7 +1739,7 @@ func _test_ground_line_and_cone_skills_follow_caster_facing() -> void:
 	var line_state := _build_skill_test_state(Vector2i(5, 5))
 	var line_user := _build_unit(&"line_skill_user", Vector2i(2, 2), 3)
 	line_user.current_mp = 120
-	line_user.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_MP)
+	line_user.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_MP())
 	line_user.known_active_skill_ids = [&"mage_flame_spear"]
 	line_user.known_skill_level_map = {&"mage_flame_spear": 1}
 	var line_enemy_front := _build_enemy_unit(&"line_enemy_front", Vector2i(2, 0))
@@ -1608,7 +1758,7 @@ func _test_ground_line_and_cone_skills_follow_caster_facing() -> void:
 	runtime._state = line_state
 
 	var line_command := BattleCommand.new()
-	line_command.command_type = BattleCommand.TYPE_SKILL
+	line_command.command_type = BattleCommand.TYPE_SKILL()
 	line_command.unit_id = line_user.unit_id
 	line_command.skill_id = &"mage_flame_spear"
 	line_command.target_coord = Vector2i(2, 1)
@@ -1621,7 +1771,7 @@ func _test_ground_line_and_cone_skills_follow_caster_facing() -> void:
 	_assert_eq(line_enemy_side.current_hp, 30, "炎枪术不应误伤侧向敌人。")
 
 	var narrow_cone_state := _build_skill_test_state(Vector2i(12, 11))
-	var narrow_cone_coords := runtime._grid_service.get_area_coords(
+	var narrow_cone_coords: Array = runtime._grid_service.get_area_coords(
 		narrow_cone_state,
 		Vector2i(6, 5),
 		&"narrow_cone",
@@ -1642,7 +1792,7 @@ func _test_ground_line_and_cone_skills_follow_caster_facing() -> void:
 	var front_arc_user := _build_unit(&"front_arc_skill_user", Vector2i(2, 2), 3)
 	front_arc_user.source_member_id = &"hero"
 	front_arc_user.current_stamina = 30
-	front_arc_user.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 100)
+	front_arc_user.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 100)
 	front_arc_user.apply_weapon_projection({
 		"weapon_profile_kind": "equipped",
 		"weapon_item_id": "front_arc_test_blade",
@@ -1656,11 +1806,11 @@ func _test_ground_line_and_cone_skills_follow_caster_facing() -> void:
 	front_arc_user.known_active_skill_ids = [&"warrior_sweeping_slash"]
 	front_arc_user.known_skill_level_map = {&"warrior_sweeping_slash": 1}
 	var front_arc_enemy_center := _build_enemy_unit(&"front_arc_enemy_center", Vector2i(2, 1))
-	front_arc_enemy_center.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
+	front_arc_enemy_center.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 0)
 	var front_arc_enemy_side := _build_enemy_unit(&"front_arc_enemy_side", Vector2i(3, 1))
-	front_arc_enemy_side.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
+	front_arc_enemy_side.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 0)
 	var front_arc_enemy_beyond := _build_enemy_unit(&"front_arc_enemy_beyond", Vector2i(2, 0))
-	front_arc_enemy_beyond.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
+	front_arc_enemy_beyond.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 0)
 	front_arc_state.units = {
 		front_arc_user.unit_id: front_arc_user,
 		front_arc_enemy_center.unit_id: front_arc_enemy_center,
@@ -1676,10 +1826,10 @@ func _test_ground_line_and_cone_skills_follow_caster_facing() -> void:
 	_assert_true(runtime._grid_service.place_unit(front_arc_state, front_arc_enemy_beyond, front_arc_enemy_beyond.coord, true), "前弧技能第二排敌人应能成功放入战场。")
 	runtime._state = front_arc_state
 	runtime.configure_damage_resolver_for_tests(SharedDamageResolvers.FixedHitOneDamageResolver.new())
-	runtime.configure_hit_resolver_for_tests(SharedHitResolvers.FixedHitResolver.new())
+	runtime.configure_hit_resolver_for_tests(SharedHitResolvers.build_fixed_hit_resolver())
 
 	var front_arc_command := BattleCommand.new()
-	front_arc_command.command_type = BattleCommand.TYPE_SKILL
+	front_arc_command.command_type = BattleCommand.TYPE_SKILL()
 	front_arc_command.unit_id = front_arc_user.unit_id
 	front_arc_command.skill_id = &"warrior_sweeping_slash"
 	front_arc_command.target_coord = Vector2i(2, 1)
@@ -1706,7 +1856,7 @@ func _test_archer_multishot_uses_target_unit_ids_in_manual_order() -> void:
 	var state := _build_skill_test_state(Vector2i(4, 1))
 	var archer := _build_unit(&"archer_multishot_user", Vector2i(0, 0), 3)
 	archer.current_stamina = 60
-	archer.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 100)
+	archer.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 100)
 	archer.known_active_skill_ids = [&"archer_multishot"]
 	archer.known_skill_level_map = {&"archer_multishot": 1}
 	archer.apply_weapon_projection({
@@ -1721,11 +1871,11 @@ func _test_archer_multishot_uses_target_unit_ids_in_manual_order() -> void:
 		"weapon_physical_damage_tag": "physical_pierce",
 	})
 	var enemy_a := _build_enemy_unit(&"enemy_a", Vector2i(1, 0))
-	enemy_a.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
+	enemy_a.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 0)
 	var enemy_b := _build_enemy_unit(&"enemy_b", Vector2i(2, 0))
-	enemy_b.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
+	enemy_b.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 0)
 	var enemy_c := _build_enemy_unit(&"enemy_c", Vector2i(3, 0))
-	enemy_c.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
+	enemy_c.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 0)
 
 	state.units = {
 		archer.unit_id: archer,
@@ -1743,7 +1893,7 @@ func _test_archer_multishot_uses_target_unit_ids_in_manual_order() -> void:
 	runtime._state = state
 
 	var command := BattleCommand.new()
-	command.command_type = BattleCommand.TYPE_SKILL
+	command.command_type = BattleCommand.TYPE_SKILL()
 	command.unit_id = archer.unit_id
 	command.skill_id = &"archer_multishot"
 	command.skill_variant_id = &"multishot_volley"
@@ -1773,7 +1923,7 @@ func _test_archer_multishot_level_scaled_target_limits() -> void:
 	var state := _build_skill_test_state(Vector2i(6, 1))
 	var archer := _build_unit(&"archer_multishot_limit_user", Vector2i(0, 0), 3)
 	archer.current_stamina = 80
-	archer.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 100)
+	archer.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 100)
 	archer.known_active_skill_ids = [&"archer_multishot"]
 	archer.known_skill_level_map = {&"archer_multishot": 0}
 	archer.apply_weapon_projection({
@@ -1790,7 +1940,7 @@ func _test_archer_multishot_level_scaled_target_limits() -> void:
 	var enemies: Array[BattleUnitState] = []
 	for index in range(5):
 		var enemy := _build_enemy_unit(ProgressionDataUtils.to_string_name("multishot_limit_enemy_%d" % index), Vector2i(index + 1, 0))
-		enemy.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
+		enemy.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 0)
 		enemies.append(enemy)
 
 	state.units = {archer.unit_id: archer}
@@ -1821,7 +1971,7 @@ func _test_archer_multishot_level_scaled_target_limits() -> void:
 
 func _build_archer_multishot_command(caster_unit_id: StringName, targets: Array[BattleUnitState]) -> BattleCommand:
 	var command := BattleCommand.new()
-	command.command_type = BattleCommand.TYPE_SKILL
+	command.command_type = BattleCommand.TYPE_SKILL()
 	command.unit_id = caster_unit_id
 	command.skill_id = &"archer_multishot"
 	command.skill_variant_id = &"multishot_volley"
@@ -1848,16 +1998,16 @@ func _test_multi_unit_skill_uses_stable_target_order() -> void:
 	var state := _build_skill_test_state(Vector2i(4, 2))
 	var mage := _build_unit(&"mage_arcane_missile_user", Vector2i(0, 1), 3)
 	mage.current_mp = 120
-	mage.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_MP)
-	mage.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 100)
+	mage.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_MP())
+	mage.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 100)
 	mage.known_active_skill_ids = [&"mage_arcane_missile"]
 	mage.known_skill_level_map = {&"mage_arcane_missile": 3}
 	var enemy_a := _build_enemy_unit(&"enemy_a", Vector2i(2, 0))
-	enemy_a.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
+	enemy_a.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 0)
 	var enemy_b := _build_enemy_unit(&"enemy_b", Vector2i(0, 0))
-	enemy_b.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
+	enemy_b.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 0)
 	var enemy_c := _build_enemy_unit(&"enemy_c", Vector2i(1, 0))
-	enemy_c.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
+	enemy_c.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 0)
 
 	state.units = {
 		mage.unit_id: mage,
@@ -1875,7 +2025,7 @@ func _test_multi_unit_skill_uses_stable_target_order() -> void:
 	runtime._state = state
 
 	var command := BattleCommand.new()
-	command.command_type = BattleCommand.TYPE_SKILL
+	command.command_type = BattleCommand.TYPE_SKILL()
 	command.unit_id = mage.unit_id
 	command.skill_id = &"mage_arcane_missile"
 	command.target_unit_ids = [enemy_a.unit_id, enemy_b.unit_id, enemy_c.unit_id]
@@ -1918,7 +2068,7 @@ func _test_skill_costs_and_cooldowns_apply_in_runtime() -> void:
 	runtime._state = state
 
 	var command := BattleCommand.new()
-	command.command_type = BattleCommand.TYPE_SKILL
+	command.command_type = BattleCommand.TYPE_SKILL()
 	command.unit_id = archer.unit_id
 	command.skill_id = &"archer_long_draw"
 	command.target_unit_id = enemy.unit_id
@@ -1944,7 +2094,7 @@ func _test_weapon_skill_range_uses_weapon_attack_range_not_skill_range() -> void
 
 	var state := _build_skill_test_state(Vector2i(3, 1))
 	var warrior := _build_unit(&"weapon_range_user", Vector2i(0, 0), 2)
-	warrior.set_natural_weapon_projection(&"test_blade", &"physical_slash", 1)
+	warrior.set_natural_weapon_projection(&"test_blade", &"physical_slash", 1, {}, &"")
 	warrior.known_active_skill_ids = [skill.skill_id]
 	warrior.known_skill_level_map = {skill.skill_id: 1}
 	var enemy := _build_enemy_unit(&"weapon_range_target", Vector2i(2, 0))
@@ -1960,7 +2110,7 @@ func _test_weapon_skill_range_uses_weapon_attack_range_not_skill_range() -> void
 	runtime._state = state
 
 	var command := BattleCommand.new()
-	command.command_type = BattleCommand.TYPE_SKILL
+	command.command_type = BattleCommand.TYPE_SKILL()
 	command.unit_id = warrior.unit_id
 	command.skill_id = skill.skill_id
 	command.target_unit_id = enemy.unit_id
@@ -1972,7 +2122,7 @@ func _test_weapon_skill_range_uses_weapon_attack_range_not_skill_range() -> void
 	)
 	_assert_eq(warrior.current_ap, 2, "武器攻击范围外的技能不应扣除 AP。")
 
-	warrior.set_natural_weapon_projection(&"test_blade", &"physical_slash", 2)
+	warrior.set_natural_weapon_projection(&"test_blade", &"physical_slash", 2, {}, &"")
 	var allowed_batch := runtime.issue_command(command)
 	_assert_true(allowed_batch.changed_unit_ids.has(warrior.unit_id), "武器攻击范围提高到 2 后，同一目标应允许结算。")
 	_assert_eq(warrior.current_ap, 1, "武器攻击范围内的技能应正常扣除 AP。")
@@ -2001,8 +2151,8 @@ func _test_battle_range_service_layers_modifiers_without_snapshot_truth() -> voi
 	skill.combat_profile.range_value = 99
 
 	var archer := _build_unit(&"range_layer_archer", Vector2i.ZERO, 2)
-	archer.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.WEAPON_ATTACK_RANGE, 8)
-	archer.set_natural_weapon_projection(&"test_bow", &"physical_pierce", 2)
+	archer.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.WEAPON_ATTACK_RANGE_ID(), 8)
+	archer.set_natural_weapon_projection(&"test_bow", &"physical_pierce", 2, {}, &"")
 
 	_assert_eq(
 		BattleRangeService.get_effective_skill_range(archer, skill),
@@ -2053,6 +2203,76 @@ func _test_battle_range_service_threat_range_includes_ground_area_outer_edge() -
 		"AI 战术威胁距离应计入地面范围技能的外缘覆盖。"
 	)
 
+	var cone_skill := _build_direct_damage_skill(&"ground_cone_outer_reach_contract", 1)
+	cone_skill.combat_profile.target_mode = &"ground"
+	cone_skill.combat_profile.target_team_filter = &"enemy"
+	cone_skill.combat_profile.range_value = 1
+	cone_skill.combat_profile.area_pattern = &"cone"
+	cone_skill.combat_profile.area_value = 3
+	_assert_eq(
+		BattleRangeService.get_effective_skill_threat_range(caster, cone_skill),
+		7,
+		"标准 cone 的威胁距离应按实际锥形侧翼最远格计算为 range + 2r。"
+	)
+	_assert_eq(
+		BattleRangeService.get_effective_skill_distance_contract_range(caster, cone_skill),
+		4,
+		"标准 cone 的距离合同应按沿指向方向的外缘计算为 range + r。"
+	)
+
+	var radius_skill := _build_direct_damage_skill(&"ground_radius_outer_reach_contract", 1)
+	radius_skill.combat_profile.target_mode = &"ground"
+	radius_skill.combat_profile.target_team_filter = &"enemy"
+	radius_skill.combat_profile.range_value = 1
+	radius_skill.combat_profile.area_pattern = &"radius"
+	radius_skill.combat_profile.area_value = 2
+	_assert_eq(
+		BattleRangeService.get_effective_skill_threat_range(caster, radius_skill),
+		5,
+		"radius/square 的威胁距离应按实际方形角落最远格计算为 range + 2r。"
+	)
+	_assert_eq(
+		BattleRangeService.get_effective_skill_distance_contract_range(caster, radius_skill),
+		3,
+		"radius/square 的距离合同应按配置外缘计算为 range + r。"
+	)
+
+	var diamond_skill := _build_direct_damage_skill(&"ground_diamond_outer_reach_contract", 1)
+	diamond_skill.combat_profile.target_mode = &"ground"
+	diamond_skill.combat_profile.target_team_filter = &"enemy"
+	diamond_skill.combat_profile.range_value = 1
+	diamond_skill.combat_profile.area_pattern = &"diamond"
+	diamond_skill.combat_profile.area_value = 2
+	_assert_eq(BattleRangeService.get_effective_skill_threat_range(caster, diamond_skill), 3, "diamond 威胁距离应按曼哈顿菱形外缘 range + r。")
+	_assert_eq(BattleRangeService.get_effective_skill_distance_contract_range(caster, diamond_skill), 3, "diamond 距离合同应按 range + r。")
+
+	var line_skill := _build_direct_damage_skill(&"ground_line_outer_reach_contract", 1)
+	line_skill.combat_profile.target_mode = &"ground"
+	line_skill.combat_profile.target_team_filter = &"enemy"
+	line_skill.combat_profile.range_value = 1
+	line_skill.combat_profile.area_pattern = &"line"
+	line_skill.combat_profile.area_value = 2
+	_assert_eq(BattleRangeService.get_effective_skill_threat_range(caster, line_skill), 3, "line 威胁距离应按指向轴线外缘 range + r。")
+	_assert_eq(BattleRangeService.get_effective_skill_distance_contract_range(caster, line_skill), 3, "line 距离合同应按 range + r。")
+
+	var cross_skill := _build_direct_damage_skill(&"ground_cross_outer_reach_contract", 1)
+	cross_skill.combat_profile.target_mode = &"ground"
+	cross_skill.combat_profile.target_team_filter = &"enemy"
+	cross_skill.combat_profile.range_value = 1
+	cross_skill.combat_profile.area_pattern = &"cross"
+	cross_skill.combat_profile.area_value = 2
+	_assert_eq(BattleRangeService.get_effective_skill_threat_range(caster, cross_skill), 3, "cross 威胁距离应按十字最长臂 range + r。")
+	_assert_eq(BattleRangeService.get_effective_skill_distance_contract_range(caster, cross_skill), 3, "cross 距离合同应按 range + r。")
+
+	var front_arc_skill := _build_direct_damage_skill(&"ground_front_arc_outer_reach_contract", 1)
+	front_arc_skill.combat_profile.target_mode = &"ground"
+	front_arc_skill.combat_profile.target_team_filter = &"enemy"
+	front_arc_skill.combat_profile.range_value = 1
+	front_arc_skill.combat_profile.area_pattern = &"front_arc"
+	front_arc_skill.combat_profile.area_value = 2
+	_assert_eq(BattleRangeService.get_effective_skill_threat_range(caster, front_arc_skill), 3, "front_arc 威胁距离应按前弧横向外缘 range + r。")
+	_assert_eq(BattleRangeService.get_effective_skill_distance_contract_range(caster, front_arc_skill), 3, "front_arc 距离合同应按 range + r。")
+
 
 func _test_weapon_skill_damage_tag_uses_current_weapon_type() -> void:
 	var resolver := SharedDamageResolvers.FixedHitOneDamageResolver.new()
@@ -2069,9 +2289,9 @@ func _test_weapon_skill_damage_tag_uses_current_weapon_type() -> void:
 	}
 	for unit_id in expected_tags.keys():
 		var source := _build_unit(unit_id, Vector2i.ZERO, 1)
-		source.set_natural_weapon_projection(&"test_weapon", expected_tags.get(unit_id), 1)
+		source.set_natural_weapon_projection(&"test_weapon", expected_tags.get(unit_id), 1, {}, &"")
 		var target := _build_enemy_unit(StringName("%s_target" % String(unit_id)), Vector2i(1, 0))
-		var result: Dictionary = resolver.resolve_effects(source, target, [effect])
+		var result: Dictionary = resolver.resolve_effects(source, target, [effect], {})
 		var events: Array = result.get("damage_events", [])
 		_assert_true(not events.is_empty(), "武器伤害类型回归应产生伤害事件。")
 		if events.is_empty():
@@ -2093,16 +2313,16 @@ func _test_weapon_damage_tag_override_does_not_require_weapon() -> void:
 	var runtime := BattleRuntimeModule.new()
 	runtime.setup(null, {skill.skill_id: skill}, {}, {})
 	runtime.configure_damage_resolver_for_tests(SharedDamageResolvers.FixedHitOneDamageResolver.new())
-	runtime.configure_hit_resolver_for_tests(SharedHitResolvers.FixedHitResolver.new())
+	runtime.configure_hit_resolver_for_tests(SharedHitResolvers.build_fixed_hit_resolver())
 
 	var state := _build_skill_test_state(Vector2i(2, 1))
 	var attacker := _build_unit(&"weapon_tag_only_user", Vector2i(0, 0), 2)
 	attacker.known_active_skill_ids = [skill.skill_id]
 	attacker.known_skill_level_map = {skill.skill_id: 1}
-	attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 100)
-	attacker.set_unarmed_weapon_projection()
+	attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 100)
+	attacker.set_unarmed_weapon_projection(&"physical_blunt", {"dice_count": 1, "dice_sides": 4, "flat_bonus": 0}, 1)
 	var target := _build_enemy_unit(&"weapon_tag_only_target", Vector2i(1, 0))
-	target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
+	target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 0)
 	state.units = {
 		attacker.unit_id: attacker,
 		target.unit_id: target,
@@ -2115,13 +2335,13 @@ func _test_weapon_damage_tag_override_does_not_require_weapon() -> void:
 	runtime._state = state
 
 	var command := BattleCommand.new()
-	command.command_type = BattleCommand.TYPE_SKILL
+	command.command_type = BattleCommand.TYPE_SKILL()
 	command.unit_id = attacker.unit_id
 	command.skill_id = skill.skill_id
 	command.target_unit_id = target.unit_id
 	command.target_coord = target.coord
 
-	var target_hp_before := target.current_hp
+	var target_hp_before: int = target.current_hp
 	var preview := runtime.preview_command(command)
 	_assert_true(preview != null and preview.allowed, "use_weapon_physical_damage_tag=true 不应隐式要求有效武器。")
 	var batch := runtime.issue_command(command)
@@ -2142,15 +2362,15 @@ func _test_requires_weapon_rejects_unarmed_and_natural_weapons() -> void:
 	var runtime := BattleRuntimeModule.new()
 	runtime.setup(null, {skill.skill_id: skill}, {}, {})
 	runtime.configure_damage_resolver_for_tests(SharedDamageResolvers.FixedHitOneDamageResolver.new())
-	runtime.configure_hit_resolver_for_tests(SharedHitResolvers.FixedHitResolver.new())
+	runtime.configure_hit_resolver_for_tests(SharedHitResolvers.build_fixed_hit_resolver())
 
 	var state := _build_skill_test_state(Vector2i(2, 1))
 	var attacker := _build_unit(&"requires_weapon_user", Vector2i(0, 0), 2)
 	attacker.known_active_skill_ids = [skill.skill_id]
 	attacker.known_skill_level_map = {skill.skill_id: 1}
-	attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 100)
+	attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 100)
 	var target := _build_enemy_unit(&"requires_weapon_target", Vector2i(1, 0))
-	target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
+	target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 0)
 	state.units = {
 		attacker.unit_id: attacker,
 		target.unit_id: target,
@@ -2163,14 +2383,14 @@ func _test_requires_weapon_rejects_unarmed_and_natural_weapons() -> void:
 	runtime._state = state
 
 	var command := BattleCommand.new()
-	command.command_type = BattleCommand.TYPE_SKILL
+	command.command_type = BattleCommand.TYPE_SKILL()
 	command.unit_id = attacker.unit_id
 	command.skill_id = skill.skill_id
 	command.target_unit_id = target.unit_id
 	command.target_coord = target.coord
 
-	attacker.set_unarmed_weapon_projection()
-	var target_hp_before := target.current_hp
+	attacker.set_unarmed_weapon_projection(&"physical_blunt", {"dice_count": 1, "dice_sides": 4, "flat_bonus": 0}, 1)
+	var target_hp_before: int = target.current_hp
 	var unarmed_batch := runtime.issue_command(command)
 	_assert_true(
 		not unarmed_batch.log_lines.is_empty() and String(unarmed_batch.log_lines[-1]).contains("需要装备"),
@@ -2179,7 +2399,7 @@ func _test_requires_weapon_rejects_unarmed_and_natural_weapons() -> void:
 	_assert_eq(attacker.current_ap, 2, "空手被 requires_weapon 阻断时不应扣除 AP。")
 	_assert_eq(target.current_hp, target_hp_before, "空手被 requires_weapon 阻断时不应结算伤害。")
 
-	attacker.set_natural_weapon_projection(&"natural_weapon", &"physical_slash", 1, {"dice_count": 1, "dice_sides": 6, "flat_bonus": 0})
+	attacker.set_natural_weapon_projection(&"natural_weapon", &"physical_slash", 1, {"dice_count": 1, "dice_sides": 6, "flat_bonus": 0}, &"")
 	var natural_batch := runtime.issue_command(command)
 	_assert_true(
 		not natural_batch.log_lines.is_empty() and String(natural_batch.log_lines[-1]).contains("需要装备"),
@@ -2217,15 +2437,15 @@ func _test_required_weapon_families_restricts_equipped_weapon_family() -> void:
 	var runtime := BattleRuntimeModule.new()
 	runtime.setup(null, {skill.skill_id: skill}, {}, {})
 	runtime.configure_damage_resolver_for_tests(SharedDamageResolvers.FixedHitOneDamageResolver.new())
-	runtime.configure_hit_resolver_for_tests(SharedHitResolvers.FixedHitResolver.new())
+	runtime.configure_hit_resolver_for_tests(SharedHitResolvers.build_fixed_hit_resolver())
 
 	var state := _build_skill_test_state(Vector2i(2, 1))
 	var attacker := _build_unit(&"required_bow_family_user", Vector2i(0, 0), 2)
 	attacker.known_active_skill_ids = [skill.skill_id]
 	attacker.known_skill_level_map = {skill.skill_id: 1}
-	attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 100)
+	attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 100)
 	var target := _build_enemy_unit(&"required_bow_family_target", Vector2i(1, 0))
-	target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
+	target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 0)
 	state.units = {
 		attacker.unit_id: attacker,
 		target.unit_id: target,
@@ -2238,13 +2458,13 @@ func _test_required_weapon_families_restricts_equipped_weapon_family() -> void:
 	runtime._state = state
 
 	var command := BattleCommand.new()
-	command.command_type = BattleCommand.TYPE_SKILL
+	command.command_type = BattleCommand.TYPE_SKILL()
 	command.unit_id = attacker.unit_id
 	command.skill_id = skill.skill_id
 	command.target_unit_id = target.unit_id
 	command.target_coord = target.coord
 
-	var target_hp_before := target.current_hp
+	var target_hp_before: int = target.current_hp
 	var no_weapon_batch := runtime.issue_command(command)
 	_assert_true(
 		not no_weapon_batch.log_lines.is_empty() and String(no_weapon_batch.log_lines[-1]).contains("指定武器家族"),
@@ -2331,7 +2551,7 @@ func _test_skill_mastery_reads_skill_damage_dice_only_and_scales_by_enemy_rank()
 	runtime._state = state
 
 	var command := BattleCommand.new()
-	command.command_type = BattleCommand.TYPE_SKILL
+	command.command_type = BattleCommand.TYPE_SKILL()
 	command.unit_id = caster.unit_id
 	command.skill_id = skill.skill_id
 	command.target_coord = Vector2i(2, 0)
@@ -2420,7 +2640,7 @@ func _test_ground_jump_precast_failure_does_not_consume_costs() -> void:
 	runtime._state = state
 
 	var command := BattleCommand.new()
-	command.command_type = BattleCommand.TYPE_SKILL
+	command.command_type = BattleCommand.TYPE_SKILL()
 	command.unit_id = warrior.unit_id
 	command.skill_id = &"warrior_jump_slash"
 	command.target_coord = blocker.coord
@@ -2459,7 +2679,7 @@ func _test_issue_command_flushes_battle_end_logs_to_state() -> void:
 	runtime._state = state
 
 	var command := BattleCommand.new()
-	command.command_type = BattleCommand.TYPE_SKILL
+	command.command_type = BattleCommand.TYPE_SKILL()
 	command.unit_id = caster.unit_id
 	command.skill_id = skill.skill_id
 	command.target_unit_id = target.unit_id
@@ -2600,8 +2820,8 @@ func _test_timeline_ready_units_sort_after_status_resolution() -> void:
 		mobile_unit.unit_id,
 		baseline_unit.unit_id,
 	]
-	for unit_variant in state.units.values():
-		var unit_state := unit_variant as BattleUnitState
+	for unit_option in state.units.values():
+		var unit_state := unit_option as BattleUnitState
 		_assert_true(runtime._grid_service.place_unit(state, unit_state, unit_state.coord, true), "ready 排序测试单位应能成功放入战场：%s" % String(unit_state.unit_id))
 	runtime._state = state
 
@@ -2629,8 +2849,8 @@ func _test_status_duration_serialization_preserves_tu_window() -> void:
 	archer.current_mp = 6
 	archer.current_stamina = 6
 	archer.current_aura = 6
-	archer.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_MP)
-	archer.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_AURA)
+	archer.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_MP())
+	archer.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_AURA())
 	archer.known_active_skill_ids = [&"archer_skirmish_step"]
 	archer.known_skill_level_map = {&"archer_skirmish_step": 1}
 	var enemy := _build_enemy_unit(&"status_skip_enemy", Vector2i(5, 1))
@@ -2647,7 +2867,7 @@ func _test_status_duration_serialization_preserves_tu_window() -> void:
 	runtime._state = state
 
 	var command := BattleCommand.new()
-	command.command_type = BattleCommand.TYPE_SKILL
+	command.command_type = BattleCommand.TYPE_SKILL()
 	command.unit_id = archer.unit_id
 	command.skill_id = &"archer_skirmish_step"
 	command.target_unit_id = archer.unit_id
@@ -2676,7 +2896,7 @@ func _test_status_duration_serialization_preserves_tu_window() -> void:
 	archer = restored
 
 	var wait_command := BattleCommand.new()
-	wait_command.command_type = BattleCommand.TYPE_WAIT
+	wait_command.command_type = BattleCommand.TYPE_WAIT()
 	wait_command.unit_id = archer.unit_id
 	runtime.issue_command(wait_command)
 	var carried_pre_aim = archer.get_status_effect(&"archer_pre_aim")
@@ -2742,7 +2962,7 @@ func _test_status_duration_slow_expires_correctly() -> void:
 	_assert_true(enemy.has_status_effect(&"slow"), "目标进入行动窗口时，slow 不应在 turn start 前被提前清除。")
 
 	var wait_command := BattleCommand.new()
-	wait_command.command_type = BattleCommand.TYPE_WAIT
+	wait_command.command_type = BattleCommand.TYPE_WAIT()
 	wait_command.unit_id = enemy.unit_id
 	runtime.issue_command(wait_command)
 	_assert_true(enemy.has_status_effect(&"slow"), "目标回合结束后，slow 不应再因为 turn end 被移除。")
@@ -2754,14 +2974,14 @@ func _test_status_duration_slow_expires_correctly() -> void:
 
 func _count_explicit_props(state: BattleState) -> Dictionary:
 	var counts := {
-		BattleBoardPropCatalog.PROP_OBJECTIVE_MARKER: 0,
-		BattleBoardPropCatalog.PROP_TENT: 0,
-		BattleBoardPropCatalog.PROP_TORCH: 0,
+		BattleBoardPropCatalog.PROP_OBJECTIVE_MARKER(): 0,
+		BattleBoardPropCatalog.PROP_TENT(): 0,
+		BattleBoardPropCatalog.PROP_TORCH(): 0,
 	}
 	if state == null:
 		return counts
-	for cell_variant in state.cells.values():
-		var cell := cell_variant as BattleCellState
+	for cell_option in state.cells.values():
+		var cell := cell_option as BattleCellState
 		if cell == null:
 			continue
 		for prop_id in cell.prop_ids:
@@ -2774,10 +2994,10 @@ func _collect_explicit_prop_coords(state: BattleState, prop_id: StringName) -> A
 	var coords: Array[Vector2i] = []
 	if state == null:
 		return coords
-	for coord_variant in state.cells.keys():
-		if coord_variant is not Vector2i:
+	for coord_option in state.cells.keys():
+		if coord_option is not Vector2i:
 			continue
-		var coord: Vector2i = coord_variant
+		var coord: Vector2i = coord_option
 		var cell := state.cells.get(coord) as BattleCellState
 		if cell == null or not cell.prop_ids.has(prop_id):
 			continue
@@ -2789,8 +3009,8 @@ func _count_terrain_cells(state: BattleState, terrain_id: StringName) -> int:
 	if state == null:
 		return 0
 	var count := 0
-	for cell_variant in state.cells.values():
-		var cell := cell_variant as BattleCellState
+	for cell_option in state.cells.values():
+		var cell := cell_option as BattleCellState
 		if cell == null:
 			continue
 		if cell.base_terrain == terrain_id:
@@ -2813,12 +3033,12 @@ func _build_unit(unit_id: StringName, coord: Vector2i, current_ap: int) -> Battl
 	unit.display_name = String(unit_id)
 	unit.faction_id = &"player"
 	unit.current_ap = current_ap
-	unit.current_move_points = BattleUnitState.DEFAULT_MOVE_POINTS_PER_TURN
+	unit.current_move_points = BattleUnitState.DEFAULT_MOVE_POINTS_PER_TURN()
 	unit.current_hp = 10
 	unit.current_stamina = 60
 	unit.is_alive = true
 	unit.set_anchor_coord(coord)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, ATTRIBUTE_SERVICE_SCRIPT.BASE_ARMOR_CLASS)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), ATTRIBUTE_SERVICE_SCRIPT.BASE_ARMOR_CLASS_VALUE())
 	return unit
 
 
@@ -2826,7 +3046,7 @@ func _set_turn_priority_stats(unit: BattleUnitState, agility: int, action_points
 	if unit == null:
 		return
 	unit.attribute_snapshot.set_value(&"agility", agility)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_POINTS, action_points)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_POINTS_ID(), action_points)
 	unit.current_ap = action_points
 	unit.current_move_points = move_points
 
@@ -2915,7 +3135,7 @@ func _build_change_equipment_command(
 	item_id: StringName
 ) -> BattleCommand:
 	var command := BattleCommand.new()
-	command.command_type = BattleCommand.TYPE_CHANGE_EQUIPMENT
+	command.command_type = BattleCommand.TYPE_CHANGE_EQUIPMENT()
 	command.unit_id = unit_id
 	command.target_unit_id = unit_id
 	command.equipment_operation = operation
@@ -2986,8 +3206,8 @@ func _make_transaction_weapon_item(
 ) -> ItemDef:
 	var item_def := ItemDef.new()
 	item_def.item_id = item_id
-	item_def.item_category = ItemDef.ITEM_CATEGORY_EQUIPMENT
-	item_def.equipment_type_id = ItemDef.EQUIPMENT_TYPE_WEAPON
+	item_def.item_category = &"equipment"
+	item_def.equipment_type_id = &"weapon"
 	item_def.equipment_slot_ids = ["main_hand"]
 	item_def.occupied_slot_ids = occupied_slot_ids
 	item_def.is_stackable = false
@@ -2997,11 +3217,11 @@ func _make_transaction_weapon_item(
 	profile.training_group = &"martial"
 	profile.range_type = &"melee"
 	profile.family = &"sword"
-	profile.damage_tag = ItemDef.DAMAGE_TAG_PHYSICAL_SLASH
+	profile.damage_tag = &"physical_slash"
 	profile.attack_range = 1
 	profile.one_handed_dice = one_handed_dice
 	profile.two_handed_dice = two_handed_dice
-	profile.properties_mode = WeaponProfileDef.PropertyMergeMode.REPLACE
+	profile.properties_mode = WeaponProfileDef.PROPERTY_MERGE_MODE_REPLACE()
 	profile.properties = properties
 	item_def.weapon_profile = profile
 	return item_def
@@ -3010,8 +3230,8 @@ func _make_transaction_weapon_item(
 func _make_transaction_shield_item(item_id: StringName) -> ItemDef:
 	var item_def := ItemDef.new()
 	item_def.item_id = item_id
-	item_def.item_category = ItemDef.ITEM_CATEGORY_EQUIPMENT
-	item_def.equipment_type_id = ItemDef.EQUIPMENT_TYPE_ARMOR
+	item_def.item_category = &"equipment"
+	item_def.equipment_type_id = &"armor"
 	item_def.equipment_slot_ids = ["off_hand"]
 	item_def.is_stackable = false
 	item_def.max_stack = 1
@@ -3021,14 +3241,14 @@ func _make_transaction_shield_item(item_id: StringName) -> ItemDef:
 func _make_transaction_hp_armor_item(item_id: StringName, hp_bonus: int) -> ItemDef:
 	var item_def := ItemDef.new()
 	item_def.item_id = item_id
-	item_def.item_category = ItemDef.ITEM_CATEGORY_EQUIPMENT
-	item_def.equipment_type_id = ItemDef.EQUIPMENT_TYPE_ARMOR
+	item_def.item_category = &"equipment"
+	item_def.equipment_type_id = &"armor"
 	item_def.equipment_slot_ids = ["body"]
 	item_def.is_stackable = false
 	item_def.max_stack = 1
 	var modifier := AttributeModifier.new()
-	modifier.attribute_id = ATTRIBUTE_SERVICE_SCRIPT.HP_MAX
-	modifier.mode = AttributeModifier.MODE_FLAT
+	modifier.attribute_id = ATTRIBUTE_SERVICE_SCRIPT.HP_MAX_ID()
+	modifier.mode = &"flat"
 	modifier.value = hp_bonus
 	modifier.source_type = &"equipment"
 	modifier.source_id = item_id
@@ -3037,10 +3257,10 @@ func _make_transaction_hp_armor_item(item_id: StringName, hp_bonus: int) -> Item
 
 
 func _find_change_equipment_report(report_entries: Array) -> Dictionary:
-	for entry_variant in report_entries:
-		if entry_variant is not Dictionary:
+	for entry_option in report_entries:
+		if entry_option is not Dictionary:
 			continue
-		var entry: Dictionary = entry_variant
+		var entry: Dictionary = entry_option
 		if String(entry.get("type", "")) == "change_equipment":
 			return entry
 	return {}
@@ -3155,8 +3375,8 @@ func _build_ground_damage_dice_skill(
 
 func _collect_damage_resolution_lines(log_lines: Array, actor_name: String) -> Array[String]:
 	var resolution_lines: Array[String] = []
-	for log_line_variant in log_lines:
-		var log_line := String(log_line_variant)
+	for log_line_option in log_lines:
+		var log_line := String(log_line_option)
 		if not log_line.contains(actor_name):
 			continue
 		if not log_line.contains("造成"):
@@ -3193,8 +3413,8 @@ func _advance_timeline_tu(runtime: BattleRuntimeModule, state: BattleState, tota
 	state.active_unit_id = &""
 	state.timeline.ready_unit_ids.clear()
 	state.timeline.tu_per_tick = 5
-	for unit_variant in state.units.values():
-		var unit_state := unit_variant as BattleUnitState
+	for unit_option in state.units.values():
+		var unit_state := unit_option as BattleUnitState
 		if unit_state != null:
 			unit_state.action_threshold = 1000000
 	runtime.advance(int(total_tu / 5))
@@ -3288,7 +3508,7 @@ func _build_large_charge_fixture(case_data: Dictionary, use_short_target: bool) 
 	runtime._state = state
 
 	var command := BattleCommand.new()
-	command.command_type = BattleCommand.TYPE_SKILL
+	command.command_type = BattleCommand.TYPE_SKILL()
 	command.unit_id = charger.unit_id
 	command.skill_id = &"charge"
 	command.target_coord = case_data.get("short_target_coord" if use_short_target else "target_coord", Vector2i.ZERO)

@@ -4,13 +4,13 @@ const TestRunner = preload("res://tests/shared/test_runner.gd")
 const BattleRuntimeTestHelpers = preload("res://tests/shared/battle_runtime_test_helpers.gd")
 
 const BATTLE_PANEL_SCENE = preload("res://scenes/ui/battle_map_panel.tscn")
-const BATTLE_MAP_PANEL_SCRIPT = preload("res://scripts/ui/battle_map_panel.gd")
-const BATTLE_GRID_SERVICE_SCRIPT = preload("res://scripts/systems/battle/terrain/battle_grid_service.gd")
-const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_state.gd")
-const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
-const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
-const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
-const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
+const BATTLE_MAP_PANEL_SCRIPT = preload("res://scripts/ui/BattleMapPanel.cs")
+const BATTLE_GRID_SERVICE_SCRIPT = preload("res://scripts/systems/battle/terrain/BattleGridService.cs")
+const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleState.cs")
+const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleTimelineState.cs")
+const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleCellState.cs")
+const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/AttributeService.cs")
 
 const VIEWPORT_SIZE := Vector2i(1600, 900)
 const MAP_SIZE := Vector2i(20, 14)
@@ -65,7 +65,8 @@ func _run_async() -> void:
 			preview_target_coords,
 			valid_target_coords,
 			0,
-			target_unit_ids
+			target_unit_ids,
+			&""
 		)
 		var warmup_ready := await _wait_for_panel_render_ready(panel)
 		if not warmup_ready:
@@ -144,7 +145,8 @@ func _run_panel_pass(
 				preview_target_coords,
 				valid_target_coords,
 				0,
-				target_unit_ids
+				target_unit_ids,
+				&""
 			)
 		else:
 			panel.refresh_overlay(
@@ -156,7 +158,8 @@ func _run_panel_pass(
 				preview_target_coords,
 				valid_target_coords,
 				0,
-				target_unit_ids
+				target_unit_ids,
+				&""
 			)
 		call_usec += Time.get_ticks_usec() - call_start
 
@@ -207,7 +210,7 @@ func _build_flat_state(map_size: Vector2i):
 		for x in range(map_size.x):
 			var cell = BATTLE_CELL_STATE_SCRIPT.new()
 			cell.coord = Vector2i(x, y)
-			cell.base_terrain = BATTLE_CELL_STATE_SCRIPT.TERRAIN_LAND
+			cell.base_terrain = BATTLE_CELL_STATE_SCRIPT.TERRAIN_LAND()
 			cell.base_height = 4
 			cell.height_offset = 0
 			cell.recalculate_runtime_values()
@@ -270,10 +273,10 @@ func _build_manual_unit(unit_id: StringName, display_name: String, coord: Vector
 	unit.attribute_snapshot.set_value(&"stamina_max", 60)
 	unit.attribute_snapshot.set_value(&"aura_max", 20)
 	unit.attribute_snapshot.set_value(&"action_points", 2)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 18)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 10)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 22)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 18)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 18)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 10)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 22)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 18)
 	unit.known_active_skill_ids.append(&"warrior_heavy_strike")
 	unit.known_active_skill_ids.append(&"warrior_guard")
 	unit.known_active_skill_ids.append(&"charge")
@@ -300,10 +303,10 @@ func _build_ai_unit(unit_id: StringName, display_name: String, coord: Vector2i):
 	unit.attribute_snapshot.set_value(&"stamina_max", 80)
 	unit.attribute_snapshot.set_value(&"aura_max", 20)
 	unit.attribute_snapshot.set_value(&"action_points", 2)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 16)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 14)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 16)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 16)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 16)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 14)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 16)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 16)
 	unit.known_active_skill_ids.append(&"archer_suppressive_fire")
 	unit.known_active_skill_ids.append(&"archer_pinning_shot")
 	for skill_id in unit.known_active_skill_ids:

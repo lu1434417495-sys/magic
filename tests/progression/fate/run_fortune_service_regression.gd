@@ -2,12 +2,12 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const BATTLE_FATE_EVENT_BUS_SCRIPT = preload("res://scripts/systems/battle/fate/battle_fate_event_bus.gd")
-const CharacterManagementModule = preload("res://scripts/systems/progression/character_management_module.gd")
-const FortuneService = preload("res://scripts/systems/battle/fate/fortune_service.gd")
-const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
-const PartyState = preload("res://scripts/player/progression/party_state.gd")
-const BattleFateEventBus = preload("res://scripts/systems/battle/fate/battle_fate_event_bus.gd")
+const BATTLE_FATE_EVENT_BUS_SCRIPT = preload("res://scripts/systems/battle/fate/BattleFateEventBus.cs")
+const CharacterManagementModule = preload("res://scripts/systems/progression/CharacterManagementModule.cs")
+const FortuneService = preload("res://scripts/systems/battle/fate/FortuneService.cs")
+const PartyMemberState = preload("res://scripts/player/progression/PartyMemberState.cs")
+const PartyState = preload("res://scripts/player/progression/PartyState.cs")
+const BattleFateEventBus = preload("res://scripts/systems/battle/fate/BattleFateEventBus.cs")
 const StubRng = preload("res://tests/shared/stub_rng.gd")
 
 
@@ -47,7 +47,7 @@ func _test_grants_fortune_mark_after_confirmation_success() -> void:
 
 	service.set_confirmation_rng_for_testing(StubRng.new([40, 40]))
 	(context.get("bus") as BattleFateEventBus).dispatch(
-		BATTLE_FATE_EVENT_BUS_SCRIPT.EVENT_CRITICAL_SUCCESS_UNDER_DISADVANTAGE,
+		&"critical_success_under_disadvantage",
 		_build_payload(&"hero", true, &"battle_success")
 	)
 
@@ -70,7 +70,7 @@ func _test_failed_confirmation_does_not_grant_mark() -> void:
 
 	service.set_confirmation_rng_for_testing(StubRng.new([1, 1]))
 	(context.get("bus") as BattleFateEventBus).dispatch(
-		BATTLE_FATE_EVENT_BUS_SCRIPT.EVENT_CRITICAL_SUCCESS_UNDER_DISADVANTAGE,
+		&"critical_success_under_disadvantage",
 		_build_payload(&"hero", true, &"battle_confirm_fail")
 	)
 
@@ -90,13 +90,13 @@ func _test_repeat_attempt_is_locked_per_member_per_run() -> void:
 
 	service.set_confirmation_rng_for_testing(StubRng.new([1, 1]))
 	bus.dispatch(
-		BATTLE_FATE_EVENT_BUS_SCRIPT.EVENT_CRITICAL_SUCCESS_UNDER_DISADVANTAGE,
+		&"critical_success_under_disadvantage",
 		_build_payload(&"hero", true, &"battle_repeat_lock")
 	)
 	var blocked_rng := StubRng.new([40, 40])
 	service.set_confirmation_rng_for_testing(blocked_rng)
 	bus.dispatch(
-		BATTLE_FATE_EVENT_BUS_SCRIPT.EVENT_CRITICAL_SUCCESS_UNDER_DISADVANTAGE,
+		&"critical_success_under_disadvantage",
 		_build_payload(&"hero", true, &"battle_repeat_lock_second")
 	)
 
@@ -118,7 +118,7 @@ func _test_normal_enemy_event_can_grant_mark() -> void:
 	var confirm_rng := StubRng.new([40, 40])
 	service.set_confirmation_rng_for_testing(confirm_rng)
 	bus.dispatch(
-		BATTLE_FATE_EVENT_BUS_SCRIPT.EVENT_CRITICAL_SUCCESS_UNDER_DISADVANTAGE,
+		&"critical_success_under_disadvantage",
 		_build_payload(&"hero", false, &"battle_normal_enemy")
 	)
 
@@ -160,7 +160,7 @@ func _build_member_state(member_id: StringName, display_name: String) -> PartyMe
 	member_state.display_name = display_name
 	member_state.progression.unit_id = member_id
 	member_state.progression.display_name = display_name
-	member_state.progression.unit_base_attributes.set_attribute_value(FortuneService.FORTUNE_MARKED_STAT_ID, 0)
+	member_state.progression.unit_base_attributes.set_attribute_value(FortuneService.FORTUNE_MARKED_STAT_ID(), 0)
 	return member_state
 
 
@@ -191,12 +191,12 @@ func _get_fortune_marked_value(manager: CharacterManagementModule, member_id: St
 	var member_state: PartyMemberState = manager.get_member_state(member_id)
 	if member_state == null or member_state.progression == null or member_state.progression.unit_base_attributes == null:
 		return 0
-	return member_state.progression.unit_base_attributes.get_attribute_value(FortuneService.FORTUNE_MARKED_STAT_ID)
+	return member_state.progression.unit_base_attributes.get_attribute_value(FortuneService.FORTUNE_MARKED_STAT_ID())
 
 
 func _build_attempt_flag_id(member_id: StringName) -> StringName:
 	return ProgressionDataUtils.to_string_name("%s%s" % [
-		FortuneService.FORTUNE_MARK_ATTEMPT_FLAG_PREFIX,
+		FortuneService.FORTUNE_MARK_ATTEMPT_FLAG_PREFIX(),
 		String(member_id),
 	])
 

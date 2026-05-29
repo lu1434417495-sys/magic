@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 using static GdInterop;
+using GDictionary = Godot.Collections.Dictionary;
 
 [GlobalClass]
 public partial class BattleEquipmentRequirementRules : RefCounted
@@ -45,7 +45,8 @@ public partial class BattleEquipmentRequirementRules : RefCounted
         GodotObject unit_state,
         StringName slot_id,
         StringName tag_id,
-        GDictionary item_defs)
+        GDictionary item_defs
+    )
     {
         if (unit_state == null || IsEmpty(tag_id))
         {
@@ -64,8 +65,14 @@ public partial class BattleEquipmentRequirementRules : RefCounted
             return false;
         }
 
-        StringName itemId = equipmentView.Call("get_equipped_item_id", normalizedSlotId).AsStringName();
-        if (IsEmpty(itemId) || item_defs == null || !TryGet(item_defs, itemId, out Variant itemDefValue))
+        StringName itemId = equipmentView
+            .Call("get_equipped_item_id", normalizedSlotId)
+            .AsStringName();
+        if (
+            IsEmpty(itemId)
+            || item_defs == null
+            || !TryGet(item_defs, itemId, out Variant itemDefValue)
+        )
         {
             return false;
         }
@@ -76,8 +83,9 @@ public partial class BattleEquipmentRequirementRules : RefCounted
             return false;
         }
 
-        Variant tagsValue = itemDef.Call("get_tags");
-        return tagsValue.VariantType == Variant.Type.Array && tagsValue.AsGodotArray().Contains(tag_id);
+        var tagsValue = itemDef.Call("get_tags");
+        return tagsValue.VariantType == Variant.Type.Array
+            && tagsValue.AsGodotArray().Contains(tag_id);
     }
 
     private static bool IsValidSlot(StringName slotId)

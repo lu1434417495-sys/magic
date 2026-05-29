@@ -1,3 +1,4 @@
+using System;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -15,100 +16,94 @@ public partial class FateRuntimeModule : RefCounted
     private static readonly StringName DoomSentenceSkillId = "doom_sentence";
     private static readonly StringName BlackCrownSealSkillId = "black_crown_seal";
 
-    private const string FortunaGuidanceServicePath = "res://scripts/systems/battle/fate/fortuna_guidance_service.gd";
-    private const string LowLuckEventServicePath = "res://scripts/systems/battle/fate/low_luck_event_service.gd";
-    private const string MisfortuneGuidanceServicePath = "res://scripts/systems/battle/fate/misfortune_guidance_service.gd";
-    private const string MisfortuneServicePath = "res://scripts/systems/battle/fate/misfortune_service.gd";
-
     private GodotObject _characterGateway;
     private GodotObject _battleRuntimeGateway;
-    private Callable _unitByMemberIdCallback = new();
+    private Func<StringName, BattleUnitState> _unitByMemberIdResolver;
     private FortuneService _fortuneService = new();
-    private GodotObject _fortunaGuidanceService = NewGdObject(FortunaGuidanceServicePath);
-    private GodotObject _lowLuckEventService = NewGdObject(LowLuckEventServicePath);
-    private GodotObject _misfortuneGuidanceService = NewGdObject(MisfortuneGuidanceServicePath);
-    private GodotObject _misfortuneService = NewGdObject(MisfortuneServicePath);
+    private FortunaGuidanceService _fortunaGuidanceService = new();
+    private LowLuckEventService _lowLuckEventService = new();
+    private MisfortuneGuidanceService _misfortuneGuidanceService = new();
+    private MisfortuneService _misfortuneService = new();
 
     public void setup(
         GodotObject character_gateway = null,
         BattleFateEventBus fate_event_bus = null,
         GodotObject battle_runtime_gateway = null,
-        Callable unit_by_member_id_callback = default)
+        Func<StringName, BattleUnitState> unit_by_member_id_resolver = null
+    )
     {
         _characterGateway = character_gateway;
         _battleRuntimeGateway = battle_runtime_gateway;
-        _unitByMemberIdCallback = IsCallableValid(unit_by_member_id_callback) ? unit_by_member_id_callback : new Callable();
+        _unitByMemberIdResolver = unit_by_member_id_resolver;
 
         // Guidance must see the pre-mark state before FortuneService mutates fortune_marked on the same bus event.
-        _fortunaGuidanceService?.Call("setup", _characterGateway, fate_event_bus);
+        _fortunaGuidanceService?.setup(_characterGateway, fate_event_bus);
         _fortuneService?.setup(_characterGateway, fate_event_bus);
-        _misfortuneService?.Call("setup", fate_event_bus, _unitByMemberIdCallback);
-        _lowLuckEventService?.Call("setup", _characterGateway, fate_event_bus);
-        _misfortuneGuidanceService?.Call("setup", _characterGateway, _battleRuntimeGateway);
+        _misfortuneService?.Setup(fate_event_bus, _unitByMemberIdResolver);
+        _lowLuckEventService?.Setup(_characterGateway, fate_event_bus);
+        _misfortuneGuidanceService?.Setup(_characterGateway, _battleRuntimeGateway);
     }
 
     public void dispose()
     {
-        DisposeSidecar(ref _fortunaGuidanceService);
+        _fortunaGuidanceService?.dispose();
         if (_fortuneService != null)
-        {
             _fortuneService.dispose();
-            _fortuneService.Dispose();
-            _fortuneService = null;
-        }
-        DisposeSidecar(ref _misfortuneService);
-        DisposeSidecar(ref _lowLuckEventService);
-        DisposeSidecar(ref _misfortuneGuidanceService);
+        _misfortuneService?.dispose();
+        _lowLuckEventService?.dispose();
+        _misfortuneGuidanceService?.dispose();
         _characterGateway = null;
         _battleRuntimeGateway = null;
-        _unitByMemberIdCallback = new Callable();
-        if (GodotObject.IsInstanceValid(this))
-            Dispose();
+        _unitByMemberIdResolver = null;
     }
 
     public void begin_battle(GDictionary calamity_store = null)
     {
-        _misfortuneService?.Call("begin_battle", calamity_store ?? new GDictionary());
+        _misfortuneService?.BeginBattle(calamity_store ?? new GDictionary());
     }
 
     public GDictionary get_calamity_by_member_id()
     {
         if (_misfortuneService == null)
             return new GDictionary();
-        return ToDictionary(_misfortuneService.Call("get_calamity_by_member_id"));
+        return _misfortuneService.GetCalamityByMemberId();
     }
 
     public int get_member_calamity(StringName member_id)
     {
         if (_misfortuneService == null)
             return 0;
-        return _misfortuneService.Call("get_member_calamity", member_id).AsInt32();
+        return _misfortuneService.GetMemberCalamity(member_id);
     }
 
     public int get_member_calamity_cap(StringName member_id)
     {
         if (_misfortuneService == null)
             return BaseCalamityCap;
-        return _misfortuneService.Call("get_member_calamity_cap", member_id).AsInt32();
+        return _misfortuneService.GetMemberCalamityCap(member_id);
     }
 
     public int get_black_star_brand_cast_cost(StringName member_id)
     {
         if (_misfortuneService == null)
             return BlackStarBrandRepeatCalamityCost;
-        return _misfortuneService.Call("get_black_star_brand_calamity_cost", member_id).AsInt32();
+        return _misfortuneService.GetBlackStarBrandCalamityCost(member_id);
     }
 
     public bool has_misfortune_reason(StringName member_id, StringName reason_id)
     {
-        return _misfortuneService != null && _misfortuneService.Call("has_triggered_reason", member_id, reason_id).AsBool();
+        return _misfortuneService != null
+            && _misfortuneService.HasTriggeredReason(member_id, reason_id);
     }
 
-    public string get_misfortune_skill_cast_block_reason(GodotObject unit_state, StringName skill_id)
+    public string get_misfortune_skill_cast_block_reason(
+        GodotObject unit_state,
+        StringName skill_id
+    )
     {
         if (_misfortuneService == null)
             return GetSkillSidecarMissingMessage(skill_id);
-        return _misfortuneService.Call("get_skill_cast_block_reason", unit_state, skill_id).AsString();
+        return _misfortuneService.GetSkillCastBlockReason(unit_state as BattleUnitState, skill_id);
     }
 
     public GDictionary consume_misfortune_skill_cast(GodotObject unit_state, StringName skill_id)
@@ -121,59 +116,73 @@ public partial class FateRuntimeModule : RefCounted
                 ["message"] = GetSkillSidecarMissingMessage(skill_id),
             };
         }
-        return ToDictionary(_misfortuneService.Call("consume_skill_cast", unit_state, skill_id));
+        return _misfortuneService.ConsumeSkillCast(unit_state as BattleUnitState, skill_id);
     }
 
-    public Variant handle_misfortune_trigger(StringName reason_id, GDictionary payload = null)
+    public GDictionary handle_misfortune_trigger(StringName reason_id, GDictionary payload = null)
     {
         if (_misfortuneService == null)
-            return Variant.From(new GDictionary());
-        return _misfortuneService.Call("handle_trigger", reason_id, payload ?? new GDictionary());
+            return new GDictionary();
+        return _misfortuneService.HandleTrigger(reason_id, payload ?? new GDictionary());
     }
 
-    public GDictionary handle_member_boss_phase_changed(StringName member_id, StringName phase_id = default)
+    public GDictionary handle_member_boss_phase_changed(
+        StringName member_id,
+        StringName phase_id = default
+    )
     {
         GodotObject unitState = ResolveUnitByMemberId(member_id);
         if (unitState == null)
             return new GDictionary();
-        Variant result = handle_misfortune_trigger(
+        GDictionary result = handle_misfortune_trigger(
             CalamityReasonBossPhaseChanged,
             new GDictionary
             {
                 ["unit_state"] = unitState,
                 ["phase_id"] = GdInterop.IsEmpty(phase_id) ? new StringName("") : phase_id,
-            });
-        return ToDictionary(result);
+            }
+        );
+        return result;
     }
 
-    public GDictionary handle_applied_statuses(GodotObject target_unit, Variant status_effect_ids)
+    public GDictionary handle_applied_statuses(GodotObject target_unit, GArray status_effect_ids)
     {
-        Variant result = handle_misfortune_trigger(
-            CalamityReasonStrongDebuff,
-            new GDictionary
-            {
-                ["target_unit"] = target_unit,
-                ["status_effect_ids"] = status_effect_ids,
-            });
-        return ToDictionary(result);
+        if (_misfortuneService == null)
+            return new GDictionary();
+        return _misfortuneService.HandleAppliedStatuses(
+            target_unit as BattleUnitState,
+            status_effect_ids ?? new GArray()
+        );
     }
 
-    public GDictionary handle_battle_resolution(BattleState battle_state, BattleResolutionResult battle_resolution_result)
+    public GDictionary handle_battle_resolution(
+        BattleState battle_state,
+        BattleResolutionResult battle_resolution_result
+    )
     {
         GDictionary lowLuckEventResult = new();
         if (_lowLuckEventService != null)
         {
-            lowLuckEventResult = ToDictionary(_lowLuckEventService.Call("handle_battle_resolution", battle_state, battle_resolution_result));
+            lowLuckEventResult = _lowLuckEventService.HandleBattleResolution(
+                battle_state,
+                battle_resolution_result
+            );
             MergeLowLuckBattleResultIntoResolution(battle_resolution_result, lowLuckEventResult);
         }
 
         Godot.Collections.Array<StringName> fortunaGuidanceUnlocks = new();
         if (_fortunaGuidanceService != null)
-            fortunaGuidanceUnlocks = ToStringNameArray(_fortunaGuidanceService.Call("handle_battle_resolution", battle_state, battle_resolution_result));
+            fortunaGuidanceUnlocks = _fortunaGuidanceService.handle_battle_resolution(
+                battle_state,
+                battle_resolution_result
+            );
 
         Godot.Collections.Array<StringName> misfortuneGuidanceUnlocks = new();
         if (_misfortuneGuidanceService != null)
-            misfortuneGuidanceUnlocks = ToStringNameArray(_misfortuneGuidanceService.Call("handle_battle_resolution", battle_state, battle_resolution_result));
+            misfortuneGuidanceUnlocks = _misfortuneGuidanceService.HandleBattleResolution(
+                battle_state,
+                battle_resolution_result
+            );
 
         return new GDictionary
         {
@@ -187,33 +196,38 @@ public partial class FateRuntimeModule : RefCounted
     {
         if (_fortunaGuidanceService == null)
             return new Godot.Collections.Array<StringName>();
-        return ToStringNameArray(_fortunaGuidanceService.Call("handle_chapter_completed", payload ?? new GDictionary()));
+        return _fortunaGuidanceService.handle_chapter_completed(payload ?? new GDictionary());
     }
 
     public Godot.Collections.Array<StringName> handle_misfortune_forge_result(
         StringName member_id,
         GDictionary result,
-        GDictionary item_defs = null)
+        GDictionary item_defs = null
+    )
     {
         if (_misfortuneGuidanceService == null)
             return new Godot.Collections.Array<StringName>();
-        return ToStringNameArray(_misfortuneGuidanceService.Call("handle_forge_result", member_id, result ?? new GDictionary(), item_defs ?? new GDictionary()));
+        return _misfortuneGuidanceService.HandleForgeResult(
+            member_id,
+            result ?? new GDictionary(),
+            item_defs ?? new GDictionary()
+        );
     }
 
     public GDictionary resolve_low_luck_settlement_event_rewards(GDictionary context)
     {
         if (_lowLuckEventService == null)
             return new GDictionary();
-        return ToDictionary(_lowLuckEventService.Call("handle_settlement_action", context ?? new GDictionary()));
+        return _lowLuckEventService.HandleSettlementAction(context ?? new GDictionary());
     }
 
     public void clear_misfortune_exalted_ready_flags(GArray member_ids = null)
     {
         if (_misfortuneGuidanceService != null)
-            _misfortuneGuidanceService.Call("clear_exalted_ready_flags", member_ids ?? new GArray());
+            _misfortuneGuidanceService.ClearExaltedReadyFlags(member_ids ?? new GArray());
     }
 
-    public void set_fortune_confirmation_rng_for_testing(Variant rng = default)
+    public void set_fortune_confirmation_rng_for_testing(GodotObject rng = null)
     {
         _fortuneService?.set_confirmation_rng_for_testing(rng);
     }
@@ -221,17 +235,21 @@ public partial class FateRuntimeModule : RefCounted
     private GodotObject ResolveUnitByMemberId(StringName memberId)
     {
         StringName normalizedMemberId = ProgressionDataUtils.to_string_name(memberId);
-        if (GdInterop.IsEmpty(normalizedMemberId) || !IsCallableValid(_unitByMemberIdCallback))
+        if (GdInterop.IsEmpty(normalizedMemberId) || _unitByMemberIdResolver == null)
             return null;
-        Variant result = _unitByMemberIdCallback.Call(normalizedMemberId);
-        return result.VariantType == Variant.Type.Object ? result.AsGodotObject() : null;
+        return _unitByMemberIdResolver.Invoke(normalizedMemberId);
     }
 
     private static void MergeLowLuckBattleResultIntoResolution(
         BattleResolutionResult battleResolutionResult,
-        GDictionary lowLuckEventResult)
+        GDictionary lowLuckEventResult
+    )
     {
-        if (battleResolutionResult == null || lowLuckEventResult == null || lowLuckEventResult.Count == 0)
+        if (
+            battleResolutionResult == null
+            || lowLuckEventResult == null
+            || lowLuckEventResult.Count == 0
+        )
             return;
 
         GArray extraLootEntries = GdInterop.GetArray(lowLuckEventResult, "loot_entries");
@@ -239,7 +257,7 @@ public partial class FateRuntimeModule : RefCounted
         {
             GArray mergedLootEntries = battleResolutionResult.loot_entries.Duplicate(true);
             GArray duplicatedLootEntries = extraLootEntries.Duplicate(true);
-            foreach (Variant entry in duplicatedLootEntries)
+            foreach (var entry in duplicatedLootEntries)
                 mergedLootEntries.Add(entry);
             battleResolutionResult.set_loot_entries(mergedLootEntries);
         }
@@ -249,59 +267,10 @@ public partial class FateRuntimeModule : RefCounted
         {
             GArray mergedRewards = battleResolutionResult.get_pending_character_rewards_copy();
             GArray duplicatedRewards = extraRewards.Duplicate(true);
-            foreach (Variant entry in duplicatedRewards)
+            foreach (var entry in duplicatedRewards)
                 mergedRewards.Add(entry);
             battleResolutionResult.set_pending_character_rewards(mergedRewards);
         }
-    }
-
-    private static GodotObject NewGdObject(string scriptPath)
-    {
-        GDScript script = GD.Load<GDScript>(scriptPath);
-        return script?.Call("new").AsGodotObject();
-    }
-
-    private static void CallIfPresent(GodotObject target, StringName methodName)
-    {
-        if (target != null && target.HasMethod(methodName))
-            target.Call(methodName);
-    }
-
-    private static void DisposeSidecar(ref GodotObject sidecar)
-    {
-        if (sidecar == null)
-            return;
-        if (GodotObject.IsInstanceValid(sidecar))
-        {
-            CallIfPresent(sidecar, "dispose");
-            sidecar.Dispose();
-        }
-        sidecar = null;
-    }
-
-    private static bool IsCallableValid(Callable callable)
-    {
-        return !callable.Equals(default(Callable)) && !string.IsNullOrEmpty(callable.Method.ToString());
-    }
-
-    private static GDictionary ToDictionary(Variant value)
-    {
-        return value.VariantType == Variant.Type.Dictionary ? value.AsGodotDictionary() : new GDictionary();
-    }
-
-    private static Godot.Collections.Array<StringName> ToStringNameArray(Variant value)
-    {
-        Godot.Collections.Array<StringName> result = new();
-        if (value.VariantType != Variant.Type.Array)
-            return result;
-
-        foreach (Variant rawValue in value.AsGodotArray())
-        {
-            StringName normalizedValue = ProgressionDataUtils.to_string_name(rawValue);
-            if (!GdInterop.IsEmpty(normalizedValue))
-                result.Add(normalizedValue);
-        }
-        return result;
     }
 
     private static string GetSkillSidecarMissingMessage(StringName skillId)

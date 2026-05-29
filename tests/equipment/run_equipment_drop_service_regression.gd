@@ -2,8 +2,8 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const EquipmentDropService = preload("res://scripts/systems/inventory/equipment_drop_service.gd")
-const EquipmentInstanceState = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
+const EquipmentDropService = preload("res://scripts/systems/inventory/EquipmentDropService.cs")
+const EquipmentInstanceState = preload("res://scripts/player/warehouse/EquipmentInstanceState.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -44,31 +44,31 @@ func _test_roll_drop_rarity_hits_all_threshold_tiers() -> void:
 		"COMMON 档位上界应落在 9",
 		[3, 3, 3],
 		0,
-		EquipmentInstanceState.RarityTier.COMMON
+		EquipmentInstanceState.RARITY_TIER_COMMON()
 	)
 	_assert_rarity_roll(
 		"UNCOMMON 档位门槛应落在 10",
 		[4, 3, 3],
 		0,
-		EquipmentInstanceState.RarityTier.UNCOMMON
+		EquipmentInstanceState.RARITY_TIER_UNCOMMON()
 	)
 	_assert_rarity_roll(
 		"RARE 档位门槛应落在 13",
 		[5, 4, 4],
 		0,
-		EquipmentInstanceState.RarityTier.RARE
+		EquipmentInstanceState.RARITY_TIER_RARE()
 	)
 	_assert_rarity_roll(
 		"EPIC 档位门槛应落在 16",
 		[6, 5, 5],
 		0,
-		EquipmentInstanceState.RarityTier.EPIC
+		EquipmentInstanceState.RARITY_TIER_EPIC()
 	)
 	_assert_rarity_roll(
 		"LEGENDARY 档位门槛应落在 18",
 		[6, 6, 6],
 		0,
-		EquipmentInstanceState.RarityTier.LEGENDARY
+		EquipmentInstanceState.RARITY_TIER_LEGENDARY()
 	)
 
 
@@ -77,25 +77,27 @@ func _test_roll_drop_rarity_accepts_caller_clamped_extremes() -> void:
 		"最低 drop_luck=-6 应直接参与 3d6 结果",
 		[6, 6, 6],
 		-6,
-		EquipmentInstanceState.RarityTier.UNCOMMON
+		EquipmentInstanceState.RARITY_TIER_UNCOMMON()
 	)
 	_assert_rarity_roll(
 		"最高 drop_luck=+5 应直接参与 3d6 结果",
 		[1, 1, 1],
 		5,
-		EquipmentInstanceState.RarityTier.COMMON
+		EquipmentInstanceState.RARITY_TIER_COMMON()
 	)
 
 
 func _test_roll_drops_keeps_empty_main_path_stable() -> void:
-	var service := EquipmentDropService.new(FixedRollRng.new([6, 6, 6]))
+	var service := EquipmentDropService.new()
+	service.set_rng_for_testing(FixedRollRng.new([6, 6, 6]))
 	var drops := service.roll_drops(&"starter_equipment", 0)
 	_assert_true(drops is Array, "roll_drops 当前应返回稳定的 Array。")
 	_assert_eq(drops.size(), 0, "正式掉落表尚未接入前，roll_drops 应返回空数组。")
 
 
 func _assert_rarity_roll(label: String, rolls: Array[int], drop_luck: int, expected_rarity: int) -> void:
-	var service := EquipmentDropService.new(FixedRollRng.new(rolls))
+	var service := EquipmentDropService.new()
+	service.set_rng_for_testing(FixedRollRng.new(rolls))
 	var actual_rarity := int(service.roll_drop_rarity(drop_luck))
 	_assert_eq(actual_rarity, expected_rarity, "%s。", [label])
 

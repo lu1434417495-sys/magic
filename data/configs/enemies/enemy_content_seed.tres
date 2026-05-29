@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="EnemyContentSeed" format=3]
 
-[ext_resource type="Script" path="res://scripts/enemies/enemy_content_seed.gd" id="1_seed"]
+[ext_resource type="Script" path="res://scripts/enemies/EnemyContentSeed.cs" id="1_seed"]
 [ext_resource type="Resource" path="res://data/configs/enemies/brains/frontline_bulwark.tres" id="2_brain_frontline"]
 [ext_resource type="Resource" path="res://data/configs/enemies/brains/healer_controller.tres" id="3_brain_healer"]
 [ext_resource type="Resource" path="res://data/configs/enemies/brains/melee_aggressor.tres" id="4_brain_melee"]

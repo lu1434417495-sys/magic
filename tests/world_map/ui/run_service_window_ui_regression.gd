@@ -2,18 +2,18 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const GameRuntimeFacade = preload("res://scripts/systems/game_runtime/game_runtime_facade.gd")
-const GameSessionScript = preload("res://scripts/systems/persistence/game_session.gd")
+const GameRuntimeFacade = preload("res://scripts/systems/game_runtime/GameRuntimeFacade.cs")
+const GameSessionScript = preload("res://scripts/systems/persistence/GameSession.cs")
 const SETTLEMENT_WINDOW_SCENE = preload("res://scenes/ui/settlement_window.tscn")
 const SHOP_WINDOW_SCENE = preload("res://scenes/ui/shop_window.tscn")
 const STAGECOACH_WINDOW_SCENE = preload("res://scenes/ui/shop_window.tscn")
 const CHARACTER_INFO_WINDOW_SCENE = preload("res://scenes/ui/character_info_window.tscn")
 const MASTERY_REWARD_WINDOW_SCENE = preload("res://scenes/ui/mastery_reward_window.tscn")
 const SUBMAP_ENTRY_WINDOW_SCENE = preload("res://scenes/ui/submap_entry_window.tscn")
-const PendingCharacterReward = preload("res://scripts/systems/progression/pending_character_reward.gd")
-const PendingCharacterRewardEntry = preload("res://scripts/systems/progression/pending_character_reward_entry.gd")
-const PartyState = preload("res://scripts/player/progression/party_state.gd")
-const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
+const PendingCharacterReward = preload("res://scripts/systems/progression/PendingCharacterReward.cs")
+const PendingCharacterRewardEntry = preload("res://scripts/systems/progression/PendingCharacterRewardEntry.cs")
+const PartyState = preload("res://scripts/player/progression/PartyState.cs")
+const PartyMemberState = preload("res://scripts/player/progression/PartyMemberState.cs")
 
 const TEST_CONFIG_PATH := "res://data/configs/world_map/test_world_map_config.tres"
 
@@ -33,7 +33,7 @@ func _run() -> void:
 	await _test_settlement_window_rejects_invalid_facility_and_resident_payload()
 	await _test_shop_window_preserves_confirm_contract_and_left_click_dismiss()
 	await _test_stagecoach_window_preserves_confirm_contract_and_rejects_bad_entry_schema()
-	await _test_service_windows_reject_bad_explicit_member_option_names()
+	await _test_service_windows_reject_bad_explicit_member_variant_names()
 	await _test_runtime_service_windows_render_real_member_summaries()
 	await _test_character_info_window_rejects_legacy_payload()
 	await _test_character_info_window_renders_explicit_sections()
@@ -508,7 +508,7 @@ func _test_stagecoach_window_preserves_confirm_contract_and_rejects_bad_entry_sc
 	await process_frame
 
 
-func _test_service_windows_reject_bad_explicit_member_option_names() -> void:
+func _test_service_windows_reject_bad_explicit_member_variant_names() -> void:
 	var settlement_window = SETTLEMENT_WINDOW_SCENE.instantiate()
 	var shop_window = SHOP_WINDOW_SCENE.instantiate()
 	root.add_child(settlement_window)
@@ -534,9 +534,9 @@ func _test_service_windows_reject_bad_explicit_member_option_names() -> void:
 
 	for payload_case in bad_payloads:
 		var case_label := String(payload_case["label"])
-		var member_options_variant: Variant = payload_case["member_options"]
+		var member_options_option: Variant = payload_case["member_options"]
 		var settlement_data := _make_settlement_window_data([_make_formal_settlement_service_entry()], {
-			"member_options": member_options_variant,
+			"member_options": member_options_option,
 		})
 		settlement_window.show_settlement(settlement_data)
 		await process_frame
@@ -550,7 +550,7 @@ func _test_service_windows_reject_bad_explicit_member_option_names() -> void:
 
 		var shop_data := _make_formal_shop_window_data([_make_formal_shop_window_entry()], {
 			"party_state": _make_party_state(),
-			"member_options": member_options_variant,
+			"member_options": member_options_option,
 		})
 		shop_window.show_shop(shop_data)
 		await process_frame
@@ -621,11 +621,11 @@ func _test_runtime_service_windows_render_real_member_summaries() -> void:
 	if not settlement_service.is_empty():
 		var open_result: Dictionary = settlement_facade.command_open_settlement(settlement_service.get("coord", Vector2i.ZERO))
 		_assert_true(bool(open_result.get("ok", false)), "正式 runtime 应能打开 shop 所在据点。")
-		var settlement_window_data := settlement_facade.get_settlement_window_data()
+		var settlement_window_data: Dictionary = settlement_facade.get_settlement_window_data()
 		_assert_true(not String(settlement_window_data.get("feedback_text", "")).is_empty(), "正式 settlement window data 应显式提供 feedback_text。")
 		_assert_true(settlement_window_data.get("footprint_size", null) is Vector2i, "正式 settlement window data 应显式提供 Vector2i footprint_size。")
 		_assert_true(not String(settlement_window_data.get("faction_id", "")).is_empty(), "正式 settlement window data 应显式提供 faction_id。")
-		_assert_member_option_payload(settlement_window_data, "settlement window data")
+		_assert_member_variant_payload(settlement_window_data, "settlement window data")
 		settlement_window.show_settlement(settlement_window_data)
 		await process_frame
 		_assert_true(settlement_window.member_selector.visible, "正式 settlement window data 应显示成员选择器。")
@@ -634,9 +634,9 @@ func _test_runtime_service_windows_render_real_member_summaries() -> void:
 
 		var shop_open_result: Dictionary = settlement_facade.command_execute_settlement_action(String(settlement_service.get("action_id", "")))
 		_assert_true(bool(shop_open_result.get("ok", false)), "正式 runtime 应能从据点窗口打开 shop modal。")
-		var shop_window_data := settlement_facade.get_shop_window_data()
+		var shop_window_data: Dictionary = settlement_facade.get_shop_window_data()
 		_assert_shop_modal_top_level_payload(shop_window_data, "shop", "shop window data")
-		_assert_member_option_payload(shop_window_data, "shop window data")
+		_assert_member_variant_payload(shop_window_data, "shop window data")
 		shop_window.show_shop(shop_window_data)
 		await process_frame
 		_assert_true(shop_window.member_selector.visible, "正式 shop window data 应显示成员选择器。")
@@ -683,12 +683,12 @@ func _test_runtime_service_windows_render_real_member_summaries() -> void:
 		_assert_true(bool(stagecoach_open_result.get("ok", false)), "正式 runtime 应能打开 stagecoach 所在据点。")
 		var open_modal_result: Dictionary = stagecoach_facade.command_execute_settlement_action(String(stagecoach_service.get("action_id", "")))
 		_assert_true(bool(open_modal_result.get("ok", false)), "正式 runtime 应能从据点窗口打开 stagecoach modal。")
-		var stagecoach_window_data := stagecoach_facade.get_stagecoach_window_data()
+		var stagecoach_window_data: Dictionary = stagecoach_facade.get_stagecoach_window_data()
 		_assert_shop_modal_top_level_payload(stagecoach_window_data, "stagecoach", "stagecoach window data")
-		_assert_member_option_payload(stagecoach_window_data, "stagecoach window data")
+		_assert_member_variant_payload(stagecoach_window_data, "stagecoach window data")
 		_assert_eq(String(stagecoach_window_data.get("panel_kind", "")), "stagecoach", "正式 stagecoach window data 应显式标记 panel_kind=stagecoach。")
-		var stagecoach_entries_variant = stagecoach_window_data.get("entries", [])
-		_assert_true(stagecoach_entries_variant is Array and not (stagecoach_entries_variant as Array).is_empty(), "正式 stagecoach window data 应包含至少一个已访问目的地。")
+		var stagecoach_entries_option = stagecoach_window_data.get("entries", [])
+		_assert_true(stagecoach_entries_option is Array and not (stagecoach_entries_option as Array).is_empty(), "正式 stagecoach window data 应包含至少一个已访问目的地。")
 		stagecoach_window.show_stagecoach(stagecoach_window_data)
 		await process_frame
 		_assert_true(stagecoach_window.member_selector.visible, "正式 stagecoach window data 应显示成员选择器。")
@@ -1267,17 +1267,17 @@ func _find_runtime_service_entry(facade: GameRuntimeFacade, action_ids: Array[St
 		return {}
 	var fog_system = facade.get_fog_system()
 	var player_faction_id := facade.get_player_faction_id()
-	for settlement_variant in facade.get_all_settlement_records():
-		if settlement_variant is not Dictionary:
+	for settlement_option in facade.get_all_settlement_records():
+		if settlement_option is not Dictionary:
 			continue
-		var settlement: Dictionary = settlement_variant
+		var settlement: Dictionary = settlement_option
 		var settlement_coord: Vector2i = settlement.get("origin", Vector2i.ZERO)
 		if require_visible and (fog_system == null or not fog_system.is_visible(settlement_coord, player_faction_id)):
 			continue
-		for service_variant in settlement.get("available_services", []):
-			if service_variant is not Dictionary:
+		for service_option in settlement.get("available_services", []):
+			if service_option is not Dictionary:
 				continue
-			var service: Dictionary = service_variant
+			var service: Dictionary = service_option
 			var service_action_id := String(service.get("action_id", "")).strip_edges()
 			if not allowed_action_ids.has(service_action_id):
 				continue
@@ -1290,31 +1290,31 @@ func _find_runtime_service_entry(facade: GameRuntimeFacade, action_ids: Array[St
 
 
 func _find_first_world_npc_coord(world_data: Dictionary) -> Vector2i:
-	for npc_variant in world_data.get("world_npcs", []):
-		if npc_variant is not Dictionary:
+	for npc_option in world_data.get("world_npcs", []):
+		if npc_option is not Dictionary:
 			continue
-		return (npc_variant as Dictionary).get("coord", Vector2i(-1, -1))
+		return (npc_option as Dictionary).get("coord", Vector2i(-1, -1))
 	return Vector2i(-1, -1)
 
 
 func _find_first_world_npc_record(world_data: Dictionary) -> Dictionary:
-	for npc_variant in world_data.get("world_npcs", []):
-		if npc_variant is not Dictionary:
+	for npc_option in world_data.get("world_npcs", []):
+		if npc_option is not Dictionary:
 			continue
-		return npc_variant as Dictionary
+		return npc_option as Dictionary
 	return {}
 
 
-func _assert_member_option_payload(window_data: Dictionary, label: String) -> void:
-	var member_options_variant = window_data.get("member_options", [])
-	_assert_true(member_options_variant is Array and not (member_options_variant as Array).is_empty(), "%s 应包含至少一个成员选项。" % label)
-	if member_options_variant is not Array or (member_options_variant as Array).is_empty():
+func _assert_member_variant_payload(window_data: Dictionary, label: String) -> void:
+	var member_options_option = window_data.get("member_options", [])
+	_assert_true(member_options_option is Array and not (member_options_option as Array).is_empty(), "%s 应包含至少一个成员选项。" % label)
+	if member_options_option is not Array or (member_options_option as Array).is_empty():
 		return
-	var first_option_variant = (member_options_variant as Array)[0]
-	_assert_true(first_option_variant is Dictionary, "%s 的首个成员选项应为 Dictionary。" % label)
-	if first_option_variant is not Dictionary:
+	var first_variant_option = (member_options_option as Array)[0]
+	_assert_true(first_variant_option is Dictionary, "%s 的首个成员选项应为 Dictionary。" % label)
+	if first_variant_option is not Dictionary:
 		return
-	var first_option := first_option_variant as Dictionary
+	var first_option := first_variant_option as Dictionary
 	_assert_true(first_option.has("display_name") and first_option["display_name"] is String and not String(first_option["display_name"]).strip_edges().is_empty(), "%s 的成员选项应包含非空 String display_name。" % label)
 	_assert_true(first_option.has("is_leader"), "%s 的成员选项应包含 is_leader。" % label)
 	_assert_true(first_option.has("current_hp"), "%s 的成员选项应包含 current_hp。" % label)

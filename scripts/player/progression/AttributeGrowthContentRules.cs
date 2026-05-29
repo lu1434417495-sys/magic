@@ -24,12 +24,14 @@ public partial class AttributeGrowthContentRules : RefCounted
         return ValidGrowthTiers.ContainsKey(growthTier);
     }
 
-    public static bool is_valid_growth_tier(StringName growth_tier) => IsValidGrowthTier(growth_tier);
+    public static bool is_valid_growth_tier(StringName growth_tier) =>
+        IsValidGrowthTier(growth_tier);
 
     public static bool IsValidAttributeId(StringName attributeId)
     {
         return UnitBaseAttributes.BASE_ATTRIBUTE_IDS().Contains(attributeId);
     }
 
-    public static bool is_valid_attribute_id(StringName attribute_id) => IsValidAttributeId(attribute_id);
+    public static bool is_valid_attribute_id(StringName attribute_id) =>
+        IsValidAttributeId(attribute_id);
 }

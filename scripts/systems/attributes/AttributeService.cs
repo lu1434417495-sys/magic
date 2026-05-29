@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -14,7 +15,7 @@ public partial class AttributeService : RefCounted
         "stamina_recovery_percent_bonus";
     public static readonly StringName AURA_MAX = "aura_max";
     public static readonly StringName ACTION_POINTS = "action_points";
-    public static readonly StringName ACTION_THRESHOLD = UnitBaseAttributes.ACTION_THRESHOLD;
+    public static readonly StringName ACTION_THRESHOLD = UnitBaseAttributes.ACTION_THRESHOLD();
     public static readonly StringName ATTACK_BONUS = "attack_bonus";
     public static readonly StringName WEAPON_ATTACK_RANGE = "weapon_attack_range";
     public static readonly StringName STRENGTH_MODIFIER = AttributeSnapshot.STRENGTH_MODIFIER();
@@ -71,7 +72,7 @@ public partial class AttributeService : RefCounted
 
     public static readonly Godot.Collections.Array<StringName> PROTECTED_CUSTOM_STAT_KEYS = new()
     {
-        UnitBaseAttributes.HIDDEN_LUCK_AT_BIRTH,
+        UnitBaseAttributes.HIDDEN_LUCK_AT_BIRTH(),
     };
 
     public static readonly StringName PROTECTED_CUSTOM_STAT_SOURCE_CHARACTER_CREATION =
@@ -174,12 +175,12 @@ public partial class AttributeService : RefCounted
         return result;
     }
 
-    private GodotObject _unit_progress;
+    private UnitProgress _unit_progress;
     private GDictionary _skill_defs = new();
     private GDictionary _profession_defs = new();
-    private Variant _equipment_state;
-    private Variant _passive_state;
-    private Variant _temporary_effects;
+    private GArray _equipment_state = new();
+    private GArray _passive_state = new();
+    private GArray _temporary_effects = new();
     private GDictionary _derived_rules = new();
     private AttributeSourceContext _context;
     private AttributeSnapshot _cached_snapshot;
@@ -190,21 +191,21 @@ public partial class AttributeService : RefCounted
         _derived_rules = BuildDefaultRules();
     }
 
-    public void setup(GodotObject unit_progress)
+    public void setup(UnitProgress unit_progress)
     {
         SetupInternal(unit_progress, default, default, default, default, default);
     }
 
-    public void setup(GodotObject unit_progress, Variant skill_defs, Variant profession_defs)
+    public void setup(UnitProgress unit_progress, GDictionary skill_defs, GDictionary profession_defs)
     {
         SetupInternal(unit_progress, skill_defs, profession_defs, default, default, default);
     }
 
     public void setup(
-        GodotObject unit_progress,
-        Variant skill_defs,
-        Variant profession_defs,
-        Variant equipment_state
+        UnitProgress unit_progress,
+        GDictionary skill_defs,
+        GDictionary profession_defs,
+        GArray equipment_state
     )
     {
         SetupInternal(
@@ -218,12 +219,12 @@ public partial class AttributeService : RefCounted
     }
 
     public void setup(
-        GodotObject unit_progress,
-        Variant skill_defs,
-        Variant profession_defs,
-        Variant equipment_state,
-        Variant passive_state,
-        Variant temporary_effects
+        UnitProgress unit_progress,
+        GDictionary skill_defs,
+        GDictionary profession_defs,
+        GArray equipment_state,
+        GArray passive_state,
+        GArray temporary_effects
     )
     {
         SetupInternal(
@@ -237,12 +238,12 @@ public partial class AttributeService : RefCounted
     }
 
     private void SetupInternal(
-        GodotObject unitProgress,
-        Variant skillDefs,
-        Variant professionDefs,
-        Variant equipmentState,
-        Variant passiveState,
-        Variant temporaryEffects
+        UnitProgress unitProgress,
+        GDictionary skillDefs,
+        GDictionary professionDefs,
+        GArray equipmentState,
+        GArray passiveState,
+        GArray temporaryEffects
     )
     {
         var context = new AttributeSourceContext
@@ -250,9 +251,9 @@ public partial class AttributeService : RefCounted
             unit_progress = unitProgress,
             skill_defs = IndexSkillDefs(skillDefs),
             profession_defs = IndexProfessionDefs(professionDefs),
-            equipment_state = equipmentState,
-            passive_state = passiveState,
-            temporary_effects = temporaryEffects,
+            equipment_state = equipmentState ?? new GArray(),
+            passive_state = passiveState ?? new GArray(),
+            temporary_effects = temporaryEffects ?? new GArray(),
         };
         setup_context(context);
     }
@@ -261,35 +262,35 @@ public partial class AttributeService : RefCounted
     {
         _context = context ?? new AttributeSourceContext();
         _unit_progress = _context.unit_progress;
-        _skill_defs = IndexSkillDefs(Variant.From(_context.skill_defs));
-        _profession_defs = IndexProfessionDefs(Variant.From(_context.profession_defs));
+        _skill_defs = IndexSkillDefs(_context.skill_defs);
+        _profession_defs = IndexProfessionDefs(_context.profession_defs);
         _equipment_state = _context.equipment_state;
         _passive_state = _context.passive_state;
         _temporary_effects = _context.temporary_effects;
         invalidate_snapshot();
     }
 
-    public void set_equipment_state(Variant equipment_state)
+    public void set_equipment_state(GArray equipment_state)
     {
-        _equipment_state = equipment_state;
+        _equipment_state = equipment_state ?? new GArray();
         if (_context != null)
-            _context.equipment_state = equipment_state;
+            _context.equipment_state = _equipment_state;
         invalidate_snapshot();
     }
 
-    public void set_passive_state(Variant passive_state)
+    public void set_passive_state(GArray passive_state)
     {
-        _passive_state = passive_state;
+        _passive_state = passive_state ?? new GArray();
         if (_context != null)
-            _context.passive_state = passive_state;
+            _context.passive_state = _passive_state;
         invalidate_snapshot();
     }
 
-    public void set_temporary_effects(Variant temporary_effects)
+    public void set_temporary_effects(GArray temporary_effects)
     {
-        _temporary_effects = temporary_effects;
+        _temporary_effects = temporary_effects ?? new GArray();
         if (_context != null)
-            _context.temporary_effects = temporary_effects;
+            _context.temporary_effects = _temporary_effects;
         invalidate_snapshot();
     }
 
@@ -334,7 +335,7 @@ public partial class AttributeService : RefCounted
         var modifierEntries = CollectAllModifierEntries();
         var resolvedBaseValues = ResolveBaseAttributeValues(modifierEntries);
 
-        foreach (StringName attributeId in UnitBaseAttributes.BASE_ATTRIBUTE_IDS)
+        foreach (StringName attributeId in UnitBaseAttributes.BASE_ATTRIBUTE_IDS())
             snapshot.set_value(attributeId, GetDictInt(resolvedBaseValues, attributeId, 0));
 
         foreach (StringName attributeId in GetKnownNonBaseAttributeIds())
@@ -406,19 +407,23 @@ public partial class AttributeService : RefCounted
         source_context ??= new GDictionary();
         if (IsProtectedCustomStat(attribute_id) && !CanWriteProtectedCustomStat(source_context))
         {
-            GD.PushWarning(
-                BuildProtectedCustomStatRejectionMessage(attribute_id, delta, source_context)
+            GameLog.Warning(
+                BuildProtectedCustomStatRejectionMessage(attribute_id, delta, source_context),
+                "attribute.protected_stat_rejected",
+                "attribute"
             );
             return false;
         }
 
         if (
-            !UnitBaseAttributes.BASE_ATTRIBUTE_IDS.Contains(attribute_id)
+            !UnitBaseAttributes.BASE_ATTRIBUTE_IDS().Contains(attribute_id)
             && !CanWriteCustomStat(attribute_id)
         )
         {
-            GD.PushWarning(
-                $"AttributeService: refuse permanent change for unsupported attribute {(string)attribute_id}."
+            GameLog.Warning(
+                $"AttributeService: refuse permanent change for unsupported attribute {(string)attribute_id}.",
+                "attribute.unsupported_permanent_change",
+                "attribute"
             );
             return false;
         }
@@ -435,21 +440,18 @@ public partial class AttributeService : RefCounted
     {
         if (_unit_progress == null)
             return null;
-        Variant value = _unit_progress.Get("unit_base_attributes");
-        return value.VariantType == Variant.Type.Object
-            ? value.AsGodotObject() as UnitBaseAttributes
-            : null;
+        return _unit_progress.unit_base_attributes;
     }
 
     private bool IsProtectedCustomStat(StringName attributeId)
     {
-        return !UnitBaseAttributes.BASE_ATTRIBUTE_IDS.Contains(attributeId)
+        return !UnitBaseAttributes.BASE_ATTRIBUTE_IDS().Contains(attributeId)
             && PROTECTED_CUSTOM_STAT_KEYS.Contains(attributeId);
     }
 
     private bool CanWriteCustomStat(StringName attributeId)
     {
-        if (attributeId == "" || UnitBaseAttributes.BASE_ATTRIBUTE_IDS.Contains(attributeId))
+        if (attributeId == "" || UnitBaseAttributes.BASE_ATTRIBUTE_IDS().Contains(attributeId))
             return false;
         var unitBaseAttributes = GetUnitBaseAttributes();
         if (unitBaseAttributes == null)
@@ -460,9 +462,7 @@ public partial class AttributeService : RefCounted
 
     private static bool CanWriteProtectedCustomStat(GDictionary sourceContext)
     {
-        var sourceType = ProgressionDataUtils.to_string_name(
-            GetDictValue(sourceContext, "source_type", "")
-        );
+        var sourceType = GetDictStringName(sourceContext, "source_type");
         if (sourceType == PROTECTED_CUSTOM_STAT_SOURCE_CHARACTER_CREATION)
             return true;
         if (sourceType != PROTECTED_CUSTOM_STAT_SOURCE_STORY_SCRIPT)
@@ -476,79 +476,53 @@ public partial class AttributeService : RefCounted
         GDictionary sourceContext
     )
     {
-        var sourceType = ProgressionDataUtils.to_string_name(
-            GetDictValue(sourceContext, "source_type", "")
-        );
-        var sourceId = ProgressionDataUtils.to_string_name(
-            GetDictValue(sourceContext, "source_id", "")
-        );
+        var sourceType = GetDictStringName(sourceContext, "source_type");
+        var sourceId = GetDictStringName(sourceContext, "source_id");
         return $"AttributeService: reject protected custom stat write {(string)attributeId} delta={delta} source_type={(string)sourceType} source_id={(string)sourceId}.";
     }
 
-    private static GDictionary IndexSkillDefs(Variant skillDefs)
+    private static GDictionary IndexSkillDefs(GDictionary skillDefs)
     {
         var indexedDefs = new GDictionary();
-        if (skillDefs.VariantType == Variant.Type.Dictionary)
+        if (skillDefs == null)
+            return indexedDefs;
+
+        foreach (object key in skillDefs.Keys)
         {
-            var defs = skillDefs.AsGodotDictionary();
-            foreach (Variant key in defs.Keys)
-            {
-                var skillDef = ToSkillDef(defs[key]);
-                if (skillDef == null)
-                    continue;
-                var indexedId =
-                    skillDef.skill_id != ""
-                        ? skillDef.skill_id
-                        : ProgressionDataUtils.to_string_name(key);
-                indexedDefs[indexedId] = skillDef;
-            }
-        }
-        else if (skillDefs.VariantType == Variant.Type.Array)
-        {
-            foreach (Variant rawDef in skillDefs.AsGodotArray())
-            {
-                var skillDef = ToSkillDef(rawDef);
-                if (skillDef != null && skillDef.skill_id != "")
-                    indexedDefs[skillDef.skill_id] = skillDef;
-            }
+            GdInterop.TryGet(skillDefs, key, out Variant _skillV);
+            if (!TryAsObject(_skillV, out SkillDef skillDef))
+                continue;
+            var indexedId =
+                skillDef.skill_id != "" ? skillDef.skill_id : ProgressionDataUtils.to_string_name(key);
+            indexedDefs[indexedId] = skillDef;
         }
         return indexedDefs;
     }
 
-    private static GDictionary IndexProfessionDefs(Variant professionDefs)
+    private static GDictionary IndexProfessionDefs(GDictionary professionDefs)
     {
         var indexedDefs = new GDictionary();
-        if (professionDefs.VariantType == Variant.Type.Dictionary)
+        if (professionDefs == null)
+            return indexedDefs;
+
+        foreach (object key in professionDefs.Keys)
         {
-            var defs = professionDefs.AsGodotDictionary();
-            foreach (Variant key in defs.Keys)
-            {
-                var professionDef = ToProfessionDef(defs[key]);
-                if (professionDef == null)
-                    continue;
-                var indexedId =
-                    professionDef.profession_id != ""
-                        ? professionDef.profession_id
-                        : ProgressionDataUtils.to_string_name(key);
-                indexedDefs[indexedId] = professionDef;
-            }
-        }
-        else if (professionDefs.VariantType == Variant.Type.Array)
-        {
-            foreach (Variant rawDef in professionDefs.AsGodotArray())
-            {
-                var professionDef = ToProfessionDef(rawDef);
-                if (professionDef != null && professionDef.profession_id != "")
-                    indexedDefs[professionDef.profession_id] = professionDef;
-            }
+            GdInterop.TryGet(professionDefs, key, out Variant _profV);
+            if (!TryAsObject(_profV, out ProfessionDef professionDef))
+                continue;
+            var indexedId =
+                professionDef.profession_id != ""
+                    ? professionDef.profession_id
+                    : ProgressionDataUtils.to_string_name(key);
+            indexedDefs[indexedId] = professionDef;
         }
         return indexedDefs;
     }
 
-    private GDictionary ResolveBaseAttributeValues(GArray modifierEntries)
+    private Dictionary<StringName, int> ResolveBaseAttributeValues(GArray modifierEntries)
     {
-        var resolvedValues = new GDictionary();
-        foreach (StringName attributeId in UnitBaseAttributes.BASE_ATTRIBUTE_IDS)
+        var resolvedValues = new Dictionary<StringName, int>();
+        foreach (StringName attributeId in UnitBaseAttributes.BASE_ATTRIBUTE_IDS())
             resolvedValues[attributeId] = ApplyModifierPipeline(
                 attributeId,
                 get_base_value(attributeId),
@@ -582,7 +556,7 @@ public partial class AttributeService : RefCounted
             return;
         AppendModifierEntries(
             entries,
-            Variant.From(_context.race_def.attribute_modifiers),
+            _context.race_def.attribute_modifiers,
             "race",
             _context.race_def.race_id,
             1
@@ -595,7 +569,7 @@ public partial class AttributeService : RefCounted
             return;
         AppendModifierEntries(
             entries,
-            Variant.From(_context.subrace_def.attribute_modifiers),
+            _context.subrace_def.attribute_modifiers,
             "subrace",
             _context.subrace_def.subrace_id,
             1
@@ -614,7 +588,7 @@ public partial class AttributeService : RefCounted
                 : _context.age_stage_rule.stage_id;
         AppendModifierEntries(
             entries,
-            Variant.From(_context.age_stage_rule.attribute_modifiers),
+            _context.age_stage_rule.attribute_modifiers,
             sourceType,
             sourceId,
             1
@@ -628,7 +602,7 @@ public partial class AttributeService : RefCounted
         if (_context.bloodline_def != null)
             AppendModifierEntries(
                 entries,
-                Variant.From(_context.bloodline_def.attribute_modifiers),
+                _context.bloodline_def.attribute_modifiers,
                 "bloodline",
                 _context.bloodline_def.bloodline_id,
                 1
@@ -636,7 +610,7 @@ public partial class AttributeService : RefCounted
         if (_context.bloodline_stage_def != null)
             AppendModifierEntries(
                 entries,
-                Variant.From(_context.bloodline_stage_def.attribute_modifiers),
+                _context.bloodline_stage_def.attribute_modifiers,
                 "bloodline",
                 _context.bloodline_stage_def.stage_id,
                 1
@@ -647,8 +621,7 @@ public partial class AttributeService : RefCounted
     {
         if (_context?.ascension_def == null)
             return;
-        Variant modifiers = _context.ascension_def.Get("attribute_modifiers");
-        if (modifiers.VariantType == Variant.Type.Array)
+        if (TryAsArray(_context.ascension_def.Get("attribute_modifiers"), out GArray modifiers))
             AppendModifierEntries(
                 entries,
                 modifiers,
@@ -664,7 +637,7 @@ public partial class AttributeService : RefCounted
             return;
         AppendModifierEntries(
             entries,
-            Variant.From(_context.ascension_stage_def.attribute_modifiers),
+            _context.ascension_stage_def.attribute_modifiers,
             "ascension",
             _context.ascension_stage_def.stage_id,
             1
@@ -677,7 +650,7 @@ public partial class AttributeService : RefCounted
     {
         if (_context == null || _context.versatility_pick == "")
             return;
-        if (!UnitBaseAttributes.BASE_ATTRIBUTE_IDS.Contains(_context.versatility_pick))
+        if (!UnitBaseAttributes.BASE_ATTRIBUTE_IDS().Contains(_context.versatility_pick))
             return;
 
         var modifier = new AttributeModifier
@@ -688,14 +661,14 @@ public partial class AttributeService : RefCounted
         };
         StringName sourceId = _context.race_def != null ? _context.race_def.race_id : "versatility";
         var modifiers = new GArray { modifier };
-        AppendModifierEntries(entries, Variant.From(modifiers), "versatility", sourceId, 1);
+        AppendModifierEntries(entries, modifiers, "versatility", sourceId, 1);
     }
 
     private void AppendProfessionModifierEntries(GArray entries)
     {
         if (_unit_progress == null)
             return;
-        foreach (Variant professionKey in GetDictionaryProperty(_unit_progress, "professions").Keys)
+        foreach (Variant professionKey in _unit_progress.professions.Keys)
         {
             var professionId = ProgressionDataUtils.to_string_name(professionKey);
             var professionProgress = GetProfessionProgress(professionId);
@@ -705,13 +678,13 @@ public partial class AttributeService : RefCounted
                 continue;
 
             var professionDef = _profession_defs.ContainsKey(professionId)
-                ? ToProfessionDef(_profession_defs[professionId])
+                ? GetGodotObject<ProfessionDef>(_profession_defs, professionId)
                 : null;
             if (professionDef == null)
                 continue;
             AppendModifierEntries(
                 entries,
-                Variant.From(professionDef.attribute_modifiers),
+                professionDef.attribute_modifiers,
                 "profession",
                 professionId,
                 professionProgress.rank
@@ -723,7 +696,7 @@ public partial class AttributeService : RefCounted
     {
         if (_unit_progress == null)
             return;
-        foreach (Variant skillKey in GetDictionaryProperty(_unit_progress, "skills").Keys)
+        foreach (Variant skillKey in _unit_progress.skills.Keys)
         {
             var skillId = ProgressionDataUtils.to_string_name(skillKey);
             var skillProgress = GetSkillProgress(skillId);
@@ -733,7 +706,7 @@ public partial class AttributeService : RefCounted
                 continue;
 
             var skillDef = _skill_defs.ContainsKey(skillId)
-                ? ToSkillDef(_skill_defs[skillId])
+                ? GetGodotObject<SkillDef>(_skill_defs, skillId)
                 : null;
             if (skillDef == null)
                 continue;
@@ -741,7 +714,7 @@ public partial class AttributeService : RefCounted
             int effectiveRank = Mathf.Max(skillProgress.skill_level, 1);
             AppendModifierEntries(
                 entries,
-                Variant.From(skillDef.attribute_modifiers),
+                skillDef.attribute_modifiers,
                 "skill",
                 skillId,
                 effectiveRank
@@ -767,100 +740,77 @@ public partial class AttributeService : RefCounted
 
     private void AppendExternalModifierEntries(
         GArray entries,
-        Variant state,
+        GArray state,
         StringName defaultSourceType
     )
     {
-        if (state.VariantType == Variant.Type.Nil)
+        if (state == null || state.Count == 0)
             return;
-
-        if (state.VariantType == Variant.Type.Array)
-        {
-            AppendModifierEntries(entries, state, defaultSourceType, defaultSourceType, 1);
-            return;
-        }
-
-        if (state.VariantType == Variant.Type.Dictionary)
-        {
-            var stateDict = state.AsGodotDictionary();
-            if (
-                GetDictValue(stateDict, "attribute_modifiers", default).VariantType
-                == Variant.Type.Array
-            )
-            {
-                AppendModifierEntries(
-                    entries,
-                    GetDictValue(stateDict, "attribute_modifiers", new GArray()),
-                    defaultSourceType,
-                    ProgressionDataUtils.to_string_name(
-                        GetDictValue(stateDict, "source_id", defaultSourceType)
-                    ),
-                    GetDictInt(stateDict, "rank", 1)
-                );
-                return;
-            }
-
-            foreach (Variant key in stateDict.Keys)
-            {
-                Variant modifiers = stateDict[key];
-                if (modifiers.VariantType == Variant.Type.Array)
-                    AppendModifierEntries(
-                        entries,
-                        modifiers,
-                        defaultSourceType,
-                        ProgressionDataUtils.to_string_name(key),
-                        1
-                    );
-            }
-            return;
-        }
-
-        if (state.VariantType == Variant.Type.Object)
-        {
-            var stateObject = state.AsGodotObject();
-            if (stateObject == null || !stateObject.HasMethod("get_attribute_modifiers"))
-                return;
-            StringName sourceId = defaultSourceType;
-            if (stateObject.HasMethod("get_source_id"))
-                sourceId = ProgressionDataUtils.to_string_name(stateObject.Call("get_source_id"));
-            AppendModifierEntries(
-                entries,
-                stateObject.Call("get_attribute_modifiers"),
-                defaultSourceType,
-                sourceId,
-                1
-            );
-        }
+        AppendModifierEntries(entries, state, defaultSourceType, defaultSourceType, 1);
     }
 
     private static void AppendModifierEntries(
         GArray entries,
-        Variant modifiers,
+        GArray modifiers,
         StringName sourceType,
         StringName sourceId,
         int rank
     )
     {
-        if (modifiers.VariantType != Variant.Type.Array)
+        if (modifiers == null)
             return;
 
-        foreach (Variant modifierVariant in modifiers.AsGodotArray())
+        foreach (AttributeModifier modifier in Objects<AttributeModifier>(modifiers))
         {
-            var modifier = ToAttributeModifier(modifierVariant);
-            if (modifier == null || modifier.attribute_id == "")
-                continue;
-
-            entries.Add(
-                new GDictionary
-                {
-                    ["attribute_id"] = modifier.attribute_id,
-                    ["mode"] = modifier.mode,
-                    ["value"] = modifier.get_value_for_rank(rank),
-                    ["source_type"] = sourceType != "" ? sourceType : modifier.source_type,
-                    ["source_id"] = sourceId != "" ? sourceId : modifier.source_id,
-                }
+            AppendModifierEntry(
+                entries,
+                modifier,
+                sourceType,
+                sourceId,
+                rank
             );
         }
+    }
+
+    private static void AppendModifierEntries<[MustBeVariant] T>(
+        GArray entries,
+        Godot.Collections.Array<T> modifiers,
+        StringName sourceType,
+        StringName sourceId,
+        int rank
+    )
+    {
+        if (modifiers == null)
+            return;
+
+        foreach (T modifierValue in modifiers)
+        {
+            if (TryAsObject(modifierValue, out AttributeModifier modifier))
+                AppendModifierEntry(entries, modifier, sourceType, sourceId, rank);
+        }
+    }
+
+    private static void AppendModifierEntry(
+        GArray entries,
+        AttributeModifier modifier,
+        StringName sourceType,
+        StringName sourceId,
+        int rank
+    )
+    {
+        if (modifier == null || modifier.attribute_id == "")
+            return;
+
+        entries.Add(
+            new GDictionary
+            {
+                ["attribute_id"] = modifier.attribute_id,
+                ["mode"] = modifier.mode,
+                ["value"] = modifier.get_value_for_rank(rank),
+                ["source_type"] = sourceType != "" ? sourceType : modifier.source_type,
+                ["source_id"] = sourceId != "" ? sourceId : modifier.source_id,
+            }
+        );
     }
 
     private int GetPersistentBaseValue(StringName attributeId)
@@ -883,19 +833,14 @@ public partial class AttributeService : RefCounted
         int flatDelta = 0;
         int percentDelta = 0;
 
-        foreach (Variant entryVariant in modifierEntries)
+        foreach (GDictionary entry in Dictionaries(modifierEntries))
         {
-            if (entryVariant.VariantType != Variant.Type.Dictionary)
-                continue;
-            var entry = entryVariant.AsGodotDictionary();
-            var modifierAttributeId = ProgressionDataUtils.to_string_name(
-                GetDictValue(entry, "attribute_id", "")
-            );
+            var modifierAttributeId = GetDictStringName(entry, "attribute_id");
             if (!ModifierEntryAppliesToAttribute(attributeId, modifierAttributeId))
                 continue;
 
             int value = GetDictInt(entry, "value", 0);
-            var mode = ProgressionDataUtils.to_string_name(GetDictValue(entry, "mode", "flat"));
+            var mode = GetDictStringName(entry, "mode", AttributeModifier.MODE_FLAT());
             if (mode == AttributeModifier.MODE_PERCENT())
                 percentDelta += value;
             else
@@ -920,17 +865,12 @@ public partial class AttributeService : RefCounted
     private int ResolveCharacterHpMaxPercentBonus(GArray modifierEntries)
     {
         int percentBonus = 0;
-        foreach (Variant entryVariant in modifierEntries)
+        foreach (GDictionary entry in Dictionaries(modifierEntries))
         {
-            if (entryVariant.VariantType != Variant.Type.Dictionary)
-                continue;
-            var entry = entryVariant.AsGodotDictionary();
-            var attributeId = ProgressionDataUtils.to_string_name(
-                GetDictValue(entry, "attribute_id", "")
-            );
+            var attributeId = GetDictStringName(entry, "attribute_id");
             if (attributeId != CHARACTER_HP_MAX_PERCENT_BONUS)
                 continue;
-            var mode = ProgressionDataUtils.to_string_name(GetDictValue(entry, "mode", "flat"));
+            var mode = GetDictStringName(entry, "mode", AttributeModifier.MODE_FLAT());
             if (mode == AttributeModifier.MODE_PERCENT())
                 continue;
             percentBonus += Mathf.Max(GetDictInt(entry, "value", 0), 0);
@@ -943,7 +883,7 @@ public partial class AttributeService : RefCounted
         if (_unit_progress == null)
             return 0;
         var pairs = new GArray();
-        foreach (Variant professionKey in GetDictionaryProperty(_unit_progress, "professions").Keys)
+        foreach (Variant professionKey in _unit_progress.professions.Keys)
         {
             var professionId = ProgressionDataUtils.to_string_name(professionKey);
             var professionProgress = GetProfessionProgress(professionId);
@@ -952,7 +892,7 @@ public partial class AttributeService : RefCounted
             if (!professionProgress.is_active || professionProgress.is_hidden)
                 continue;
             var professionDef = _profession_defs.ContainsKey(professionId)
-                ? ToProfessionDef(_profession_defs[professionId])
+                ? GetGodotObject<ProfessionDef>(_profession_defs, professionId)
                 : null;
             if (professionDef == null)
                 continue;
@@ -966,13 +906,16 @@ public partial class AttributeService : RefCounted
         if (_unit_progress == null)
             return AttributeSnapshot.calculate_spell_proficiency_bonus(0);
         return AttributeSnapshot.calculate_spell_proficiency_bonus(
-            _unit_progress.Get("character_level").AsInt32()
+            _unit_progress.character_level
         );
     }
 
-    private int CalculateBaseArmorClass(GDictionary resolvedBaseValues, GArray modifierEntries)
+    private int CalculateBaseArmorClass(
+        Dictionary<StringName, int> resolvedBaseValues,
+        GArray modifierEntries
+    )
     {
-        int agility = GetDictInt(resolvedBaseValues, UnitBaseAttributes.AGILITY, 0);
+        int agility = GetDictInt(resolvedBaseValues, UnitBaseAttributes.AGILITY(), 0);
         int agilityModifier = CalculateScoreModifier(agility);
         int cappedAgilityModifier = agilityModifier;
         int maxDexBonus = ResolveArmorMaxDexBonus(modifierEntries);
@@ -997,17 +940,12 @@ public partial class AttributeService : RefCounted
     private int ResolveArmorMaxDexBonus(GArray modifierEntries)
     {
         int resolvedCap = -1;
-        foreach (Variant entryVariant in modifierEntries)
+        foreach (GDictionary entry in Dictionaries(modifierEntries))
         {
-            if (entryVariant.VariantType != Variant.Type.Dictionary)
-                continue;
-            var entry = entryVariant.AsGodotDictionary();
-            var attributeId = ProgressionDataUtils.to_string_name(
-                GetDictValue(entry, "attribute_id", "")
-            );
+            var attributeId = GetDictStringName(entry, "attribute_id");
             if (attributeId != ARMOR_MAX_DEX_BONUS)
                 continue;
-            var mode = ProgressionDataUtils.to_string_name(GetDictValue(entry, "mode", "flat"));
+            var mode = GetDictStringName(entry, "mode", AttributeModifier.MODE_FLAT());
             if (mode == AttributeModifier.MODE_PERCENT())
                 continue;
             int value = GetDictInt(entry, "value", -1);
@@ -1083,7 +1021,7 @@ public partial class AttributeService : RefCounted
         var seen = new GDictionary();
         var knownAttributeIds = GetKnownNonBaseAttributeIds();
 
-        foreach (StringName attributeId in UnitBaseAttributes.BASE_ATTRIBUTE_IDS)
+        foreach (StringName attributeId in UnitBaseAttributes.BASE_ATTRIBUTE_IDS())
         {
             knownAttributeIds.Add(attributeId);
             seen[attributeId] = true;
@@ -1094,7 +1032,7 @@ public partial class AttributeService : RefCounted
         var unitBaseAttributes = GetUnitBaseAttributes();
         if (unitBaseAttributes != null)
         {
-            foreach (Variant key in unitBaseAttributes.custom_stats.Keys)
+            foreach (object key in unitBaseAttributes.custom_stats.Keys)
             {
                 var attributeId = ProgressionDataUtils.to_string_name(key);
                 if (seen.ContainsKey(attributeId))
@@ -1104,14 +1042,9 @@ public partial class AttributeService : RefCounted
             }
         }
 
-        foreach (Variant entryVariant in modifierEntries)
+        foreach (GDictionary entry in Dictionaries(modifierEntries))
         {
-            if (entryVariant.VariantType != Variant.Type.Dictionary)
-                continue;
-            var entry = entryVariant.AsGodotDictionary();
-            var attributeId = ProgressionDataUtils.to_string_name(
-                GetDictValue(entry, "attribute_id", "")
-            );
+            var attributeId = GetDictStringName(entry, "attribute_id");
             if (attributeId == "" || seen.ContainsKey(attributeId))
                 continue;
             seen[attributeId] = true;
@@ -1129,9 +1062,9 @@ public partial class AttributeService : RefCounted
             24,
             new GDictionary
             {
-                [UnitBaseAttributes.CONSTITUTION] = 5,
-                [UnitBaseAttributes.STRENGTH] = 1,
-                [UnitBaseAttributes.AGILITY] = 1,
+                [UnitBaseAttributes.CONSTITUTION()] = 5,
+                [UnitBaseAttributes.STRENGTH()] = 1,
+                [UnitBaseAttributes.AGILITY()] = 1,
             },
             1,
             0,
@@ -1141,7 +1074,7 @@ public partial class AttributeService : RefCounted
         rules[ACTION_POINTS] = new DerivedAttributeRule(
             ACTION_POINTS,
             1,
-            new GDictionary { [UnitBaseAttributes.AGILITY] = 1 },
+            new GDictionary { [UnitBaseAttributes.AGILITY()] = 1 },
             10,
             1,
             0,
@@ -1154,90 +1087,236 @@ public partial class AttributeService : RefCounted
     {
         if (_unit_progress == null)
             return null;
-        return ToProfessionProgress(_unit_progress.Call("get_profession_progress", professionId));
+        return _unit_progress.get_profession_progress(professionId);
     }
 
     private UnitSkillProgress GetSkillProgress(StringName skillId)
     {
         if (_unit_progress == null)
             return null;
-        return ToSkillProgress(_unit_progress.Call("get_skill_progress", skillId));
+        return _unit_progress.get_skill_progress(skillId);
     }
 
     private static GDictionary GetDictionaryProperty(GodotObject source, string propertyName)
     {
         if (source == null)
             return new GDictionary();
-        Variant value = source.Get(propertyName);
-        return value.VariantType == Variant.Type.Dictionary
-            ? value.AsGodotDictionary()
+        return TryAsDictionary(source.Get(propertyName), out GDictionary value)
+            ? value
             : new GDictionary();
     }
 
-    private static int GetDictInt(GDictionary data, Variant key, int fallback)
-    {
-        Variant value = GetDictValue(data, key, fallback);
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
-    }
-
-    private static bool GetDictBool(GDictionary data, Variant key, bool fallback)
-    {
-        Variant value = GetDictValue(data, key, fallback);
-        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
-    }
-
-    private static Variant GetDictValue(GDictionary data, Variant key, Variant fallback)
+    private static int GetDictInt(GDictionary data, string key, int fallback)
     {
         if (data == null)
             return fallback;
+        return TryGetDictValue(data, key, out object value) && TryAsInt(value, out int parsed)
+            ? parsed
+            : fallback;
+    }
+
+    private static int GetDictInt(GDictionary data, StringName key, int fallback)
+    {
+        if (data == null || key == null)
+            return fallback;
+        return TryGetDictValue(data, key, out object value) && TryAsInt(value, out int parsed)
+            ? parsed
+            : fallback;
+    }
+
+    private static int GetDictInt(Dictionary<StringName, int> data, StringName key, int fallback)
+    {
+        return data.TryGetValue(key, out var value) ? value : fallback;
+    }
+
+    private static bool GetDictBool(GDictionary data, StringName key, bool fallback)
+    {
+        if (data == null || key == null)
+            return fallback;
+        return TryGetDictValue(data, key, out object value) && TryAsBool(value, out bool parsed)
+            ? parsed
+            : fallback;
+    }
+
+    private static StringName GetDictStringName(
+        GDictionary data,
+        string key,
+        StringName fallback = default
+    )
+    {
+        if (data == null)
+            return fallback;
+        if (!TryGetDictValue(data, key, out object value))
+            return fallback;
+        StringName parsed = ProgressionDataUtils.to_string_name(value);
+        return parsed != "" ? parsed : fallback;
+    }
+
+    private static StringName GetDictStringName(
+        GDictionary data,
+        StringName key,
+        StringName fallback = default
+    )
+    {
+        if (data == null || key == null)
+            return fallback;
+        if (!TryGetDictValue(data, key, out object value))
+            return fallback;
+        StringName parsed = ProgressionDataUtils.to_string_name(value);
+        return parsed != "" ? parsed : fallback;
+    }
+
+    private static T GetGodotObject<T>(GDictionary data, StringName key)
+        where T : GodotObject
+    {
+        if (data == null || key == null || !data.ContainsKey(key))
+            return null;
+        return TryAsObject(data[key], out T value) ? value : null;
+    }
+
+    private static IEnumerable<GDictionary> Dictionaries(GArray values)
+    {
+        if (values == null)
+        {
+            yield break;
+        }
+        foreach (object rawValue in values)
+        {
+            if (TryAsDictionary(rawValue, out GDictionary value))
+            {
+                yield return value;
+            }
+        }
+    }
+
+    private static IEnumerable<T> Objects<T>(GArray values)
+        where T : GodotObject
+    {
+        if (values == null)
+        {
+            yield break;
+        }
+        foreach (object rawValue in values)
+        {
+            if (TryAsObject(rawValue, out T value))
+            {
+                yield return value;
+            }
+        }
+    }
+
+    private static bool TryAsArray(object rawValue, out GArray value)
+    {
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Array)
+        {
+            value = variant.AsGodotArray();
+            return true;
+        }
+        if (rawValue is GArray array)
+        {
+            value = array;
+            return true;
+        }
+        value = new GArray();
+        return false;
+    }
+
+    private static bool TryAsDictionary(object rawValue, out GDictionary value)
+    {
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Dictionary)
+        {
+            value = variant.AsGodotDictionary();
+            return true;
+        }
+        if (rawValue is GDictionary dictionary)
+        {
+            value = dictionary;
+            return true;
+        }
+        value = new GDictionary();
+        return false;
+    }
+
+    private static bool TryAsObject<T>(object rawValue, out T value)
+        where T : GodotObject
+    {
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Object)
+        {
+            value = variant.AsGodotObject() as T;
+            return value != null;
+        }
+        if (rawValue is T typedValue)
+        {
+            value = typedValue;
+            return true;
+        }
+        value = null;
+        return false;
+    }
+
+    private static bool TryAsInt(object rawValue, out int value)
+    {
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Int)
+        {
+            value = variant.AsInt32();
+            return true;
+        }
+        if (rawValue is int intValue)
+        {
+            value = intValue;
+            return true;
+        }
+        value = 0;
+        return false;
+    }
+
+    private static bool TryAsBool(object rawValue, out bool value)
+    {
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Bool)
+        {
+            value = variant.AsBool();
+            return true;
+        }
+        if (rawValue is bool boolValue)
+        {
+            value = boolValue;
+            return true;
+        }
+        value = false;
+        return false;
+    }
+
+    private static bool TryGetDictValue(GDictionary data, string key, out object value)
+    {
         if (data.ContainsKey(key))
-            return data[key];
-        if (key.VariantType == Variant.Type.String)
         {
-            var stringNameKey = new StringName(key.AsString());
-            if (data.ContainsKey(stringNameKey))
-                return data[stringNameKey];
+            value = data[key];
+            return true;
         }
-        if (key.VariantType == Variant.Type.StringName)
+        var stringNameKey = new StringName(key);
+        if (data.ContainsKey(stringNameKey))
         {
-            string stringKey = key.AsString();
-            if (data.ContainsKey(stringKey))
-                return data[stringKey];
+            value = data[stringNameKey];
+            return true;
         }
-        return fallback;
+        value = null;
+        return false;
     }
 
-    private static AttributeModifier ToAttributeModifier(Variant value)
+    private static bool TryGetDictValue(GDictionary data, StringName key, out object value)
     {
-        return value.VariantType == Variant.Type.Object
-            ? value.AsGodotObject() as AttributeModifier
-            : null;
-    }
-
-    private static SkillDef ToSkillDef(Variant value)
-    {
-        return value.VariantType == Variant.Type.Object ? value.AsGodotObject() as SkillDef : null;
-    }
-
-    private static ProfessionDef ToProfessionDef(Variant value)
-    {
-        return value.VariantType == Variant.Type.Object
-            ? value.AsGodotObject() as ProfessionDef
-            : null;
-    }
-
-    private static UnitSkillProgress ToSkillProgress(Variant value)
-    {
-        return value.VariantType == Variant.Type.Object
-            ? value.AsGodotObject() as UnitSkillProgress
-            : null;
-    }
-
-    private static UnitProfessionProgress ToProfessionProgress(Variant value)
-    {
-        return value.VariantType == Variant.Type.Object
-            ? value.AsGodotObject() as UnitProfessionProgress
-            : null;
+        if (data.ContainsKey(key))
+        {
+            value = data[key];
+            return true;
+        }
+        string stringKey = key.ToString();
+        if (data.ContainsKey(stringKey))
+        {
+            value = data[stringKey];
+            return true;
+        }
+        value = null;
+        return false;
     }
 }
-

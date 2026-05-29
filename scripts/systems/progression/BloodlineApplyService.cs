@@ -10,31 +10,43 @@ public partial class BloodlineApplyService : RefCounted
         _content_bundle = contentBundle ?? new Godot.Collections.Dictionary();
     }
 
-    public bool apply_bloodline(GodotObject memberState, StringName bloodlineId, StringName bloodlineStageId)
+    public bool apply_bloodline(
+        PartyMemberState memberState,
+        StringName bloodlineId,
+        StringName bloodlineStageId
+    )
     {
         if (memberState == null || bloodlineId == "" || bloodlineStageId == "")
             return false;
-        var bloodlineDef = _get_content_def("bloodline_defs", "bloodline", bloodlineId) as BloodlineDef;
-        var stageDef = _get_content_def("bloodline_stage_defs", "bloodline_stage", bloodlineStageId) as BloodlineStageDef;
+        var bloodlineDef =
+            _get_content_def("bloodline_defs", "bloodline", bloodlineId) as BloodlineDef;
+        var stageDef =
+            _get_content_def("bloodline_stage_defs", "bloodline_stage", bloodlineStageId)
+            as BloodlineStageDef;
         if (!_is_valid_bloodline_stage_pair(bloodlineDef, stageDef, bloodlineId, bloodlineStageId))
             return false;
-        memberState.Set("bloodline_id", bloodlineId);
-        memberState.Set("bloodline_stage_id", bloodlineStageId);
+        memberState.bloodline_id = bloodlineId;
+        memberState.bloodline_stage_id = bloodlineStageId;
         return true;
     }
 
-    public bool revoke_bloodline(GodotObject memberState)
+    public bool revoke_bloodline(PartyMemberState memberState)
     {
         if (memberState == null)
             return false;
-        if (memberState.Get("bloodline_id").AsStringName() == "" && memberState.Get("bloodline_stage_id").AsStringName() == "")
+        if (memberState.bloodline_id == "" && memberState.bloodline_stage_id == "")
             return false;
-        memberState.Set("bloodline_id", "");
-        memberState.Set("bloodline_stage_id", "");
+        memberState.bloodline_id = "";
+        memberState.bloodline_stage_id = "";
         return true;
     }
 
-    private bool _is_valid_bloodline_stage_pair(BloodlineDef bloodlineDef, BloodlineStageDef stageDef, StringName bloodlineId, StringName bloodlineStageId)
+    private bool _is_valid_bloodline_stage_pair(
+        BloodlineDef bloodlineDef,
+        BloodlineStageDef stageDef,
+        StringName bloodlineId,
+        StringName bloodlineStageId
+    )
     {
         if (bloodlineDef == null || stageDef == null)
             return false;
@@ -47,15 +59,24 @@ public partial class BloodlineApplyService : RefCounted
         return bloodlineDef.stage_ids.Contains(bloodlineStageId);
     }
 
-    private GodotObject _get_content_def(string primaryBucket, string aliasBucket, StringName entryId)
+    private GodotObject _get_content_def(
+        string primaryBucket,
+        string aliasBucket,
+        StringName entryId
+    )
     {
         if (entryId == "")
             return null;
         var bucket = _get_content_bucket(primaryBucket, aliasBucket);
-        return bucket != null && bucket.ContainsKey(entryId) ? bucket[entryId].AsGodotObject() : null;
+        return bucket != null && bucket.ContainsKey(entryId)
+            ? bucket[entryId].AsGodotObject()
+            : null;
     }
 
-    private Godot.Collections.Dictionary _get_content_bucket(string primaryBucket, string aliasBucket)
+    private Godot.Collections.Dictionary _get_content_bucket(
+        string primaryBucket,
+        string aliasBucket
+    )
     {
         if (_content_bundle.ContainsKey(primaryBucket))
         {

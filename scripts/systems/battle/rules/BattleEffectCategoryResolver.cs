@@ -5,7 +5,10 @@ using GArray = Godot.Collections.Array;
 [GlobalClass]
 public partial class BattleEffectCategoryResolver : RefCounted
 {
-    public Godot.Collections.Array<StringName> resolve_categories(GodotObject skill_def, GArray effect_defs)
+    public Godot.Collections.Array<StringName> ResolveCategories(
+        GodotObject skill_def,
+        GArray effect_defs
+    )
     {
         var categories = new Godot.Collections.Array<StringName>();
         var seen = new HashSet<StringName>();
@@ -21,7 +24,7 @@ public partial class BattleEffectCategoryResolver : RefCounted
             return categories;
         }
 
-        foreach (Variant effectValue in effect_defs)
+        foreach (var effectValue in effect_defs)
         {
             GodotObject effect = effectValue.AsGodotObject();
             if (effect == null)
@@ -34,14 +37,18 @@ public partial class BattleEffectCategoryResolver : RefCounted
         return categories;
     }
 
-    private static void AppendCategories(Godot.Collections.Array<StringName> categories, HashSet<StringName> seen, Variant rawValues)
+    private static void AppendCategories(
+        Godot.Collections.Array<StringName> categories,
+        HashSet<StringName> seen,
+        object rawValues
+    )
     {
-        if (rawValues.VariantType != Variant.Type.Array)
+        if (rawValues is not Variant value || value.VariantType != Variant.Type.Array)
         {
             return;
         }
 
-        foreach (Variant rawValue in rawValues.AsGodotArray())
+        foreach (var rawValue in value.AsGodotArray())
         {
             StringName category = GdInterop.ToStringName(rawValue);
             if (GdInterop.IsEmpty(category) || seen.Contains(category))

@@ -1,11 +1,11 @@
 [gd_resource type="Resource" script_class="WorldMapSettlementBundle" load_steps=58 format=3]
 
-[ext_resource type="Script" path="res://scripts/utils/world_map_settlement_bundle.gd" id="1_bundle"]
-[ext_resource type="Script" path="res://scripts/utils/settlement_config.gd" id="2_settlement"]
-[ext_resource type="Script" path="res://scripts/utils/facility_slot_config.gd" id="3_slot"]
-[ext_resource type="Script" path="res://scripts/utils/weighted_facility_entry.gd" id="4_weighted"]
-[ext_resource type="Script" path="res://scripts/utils/facility_config.gd" id="5_facility"]
-[ext_resource type="Script" path="res://scripts/utils/facility_npc_config.gd" id="6_npc"]
+[ext_resource type="Script" path="res://scripts/utils/WorldMapSettlementBundle.cs" id="1_bundle"]
+[ext_resource type="Script" path="res://scripts/utils/SettlementConfig.cs" id="2_settlement"]
+[ext_resource type="Script" path="res://scripts/utils/FacilitySlotConfig.cs" id="3_slot"]
+[ext_resource type="Script" path="res://scripts/utils/WeightedFacilityEntry.cs" id="4_weighted"]
+[ext_resource type="Script" path="res://scripts/utils/FacilityConfig.cs" id="5_facility"]
+[ext_resource type="Script" path="res://scripts/utils/FacilityNpcConfig.cs" id="6_npc"]
 
 [sub_resource type="Resource" id="Resource_notice_npc"]
 script = ExtResource("6_npc")

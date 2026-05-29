@@ -2,17 +2,15 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 const BattleRuntimeTestHelpers = preload("res://tests/shared/battle_runtime_test_helpers.gd")
-
-const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
-const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
-const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
-const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
-const BattleTimelineState = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
-const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
-const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
-const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
-const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
-const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
+const BattleCellState = preload("res://scripts/systems/battle/core/BattleCellState.cs")
+const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/BattleRuntimeModule.cs")
+const BattleState = preload("res://scripts/systems/battle/core/BattleState.cs")
+const BattleTimelineState = preload("res://scripts/systems/battle/core/BattleTimelineState.cs")
+const BattleUnitState = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
+const CombatEffectDef = preload("res://scripts/player/progression/CombatEffectDef.cs")
+const ProgressionContentRegistry = preload("res://scripts/player/progression/ProgressionContentRegistry.cs")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/AttributeService.cs")
+const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/UnitBaseAttributes.cs")
 
 const BLACK_STAR_BRAND_SKILL_ID: StringName = &"black_star_brand"
 const WARRIOR_GUARD_SKILL_ID: StringName = &"warrior_guard"
@@ -82,7 +80,7 @@ func _test_black_star_brand_first_cast_free_then_costs_calamity() -> void:
 	)
 
 	caster.current_ap = 3
-	var ap_before_blocked := caster.current_ap
+	var ap_before_blocked: int = caster.current_ap
 	var blocked_preview := runtime.preview_command(first_command)
 	_assert_true(
 		not blocked_preview.allowed and String(blocked_preview.log_lines[-1]).contains("calamity 不足"),
@@ -112,7 +110,7 @@ func _test_black_star_brand_normal_target_blocks_guard_and_counterattack() -> vo
 	caster.known_skill_level_map = {BLACK_STAR_BRAND_SKILL_ID: 1}
 	var enemy := _build_unit(&"brand_normal_enemy", "普通敌人", &"enemy", Vector2i(2, 1), 2)
 	enemy.current_stamina = 60
-	enemy.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX, 60)
+	enemy.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX_ID(), 60)
 	enemy.known_active_skill_ids = [WARRIOR_GUARD_SKILL_ID]
 	enemy.known_skill_level_map = {WARRIOR_GUARD_SKILL_ID: 1}
 	enemy.status_effects[STATUS_GUARDING] = {
@@ -147,7 +145,7 @@ func _test_black_star_brand_normal_target_blocks_guard_and_counterattack() -> vo
 		not guard_preview.allowed and String(guard_preview.log_lines[-1]).contains("封锁了格挡"),
 		"普通黑星烙印下预览 warrior_guard 应被阻断。 log=%s" % [str(guard_preview.log_lines)]
 	)
-	var ap_before_issue := enemy.current_ap
+	var ap_before_issue: int = enemy.current_ap
 	runtime.issue_command(guard_command)
 	_assert_eq(enemy.current_ap, ap_before_issue, "被普通黑星烙印封锁时不应继续扣除格挡技能的行动点。")
 	_assert_true(not enemy.has_status_effect(STATUS_GUARDING), "被普通黑星烙印封锁时不应重新获得 guarding。")
@@ -166,7 +164,7 @@ func _test_black_star_brand_elite_target_uses_elite_only_debuffs() -> void:
 	caster.known_skill_level_map = {BLACK_STAR_BRAND_SKILL_ID: 1}
 	var elite := _build_unit(&"brand_elite_target", "精英敌人", &"enemy", Vector2i(2, 1), 2, &"", true)
 	elite.current_stamina = 60
-	elite.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX, 60)
+	elite.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX_ID(), 60)
 	elite.known_active_skill_ids = [WARRIOR_GUARD_SKILL_ID, WARRIOR_HEAVY_STRIKE_SKILL_ID]
 	elite.known_skill_level_map = {WARRIOR_GUARD_SKILL_ID: 1, WARRIOR_HEAVY_STRIKE_SKILL_ID: 1}
 	var ally_target := _build_unit(&"brand_elite_ally_target", "被打击者", &"player", Vector2i(3, 1), 2)
@@ -256,7 +254,7 @@ func _build_skill_test_state(battle_id: StringName, map_size: Vector2i) -> Battl
 func _build_cell(coord: Vector2i) -> BattleCellState:
 	var cell := BattleCellState.new()
 	cell.coord = coord
-	cell.base_terrain = BattleCellState.TERRAIN_LAND
+	cell.base_terrain = BattleCellState.TERRAIN_LAND()
 	cell.base_height = 4
 	cell.height_offset = 0
 	cell.recalculate_runtime_values()
@@ -284,26 +282,26 @@ func _build_unit(
 	unit.current_aura = 0
 	unit.is_alive = true
 	unit.set_anchor_coord(coord)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX, 60)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX, 4)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX, 4)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.AURA_MAX, 2)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX_ID(), 60)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX_ID(), 4)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX_ID(), 4)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.AURA_MAX_ID(), 2)
 	unit.attribute_snapshot.set_value(&"action_points", maxi(current_ap, 1))
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 12)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 4)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 6)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 4)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 60)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 10)
-	unit.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.HIDDEN_LUCK_AT_BIRTH, 0)
-	unit.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.FAITH_LUCK_BONUS, 0)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 12)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 4)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 6)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 4)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 60)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 10)
+	unit.attribute_snapshot.set_value(&"hidden_luck_at_birth", 0)
+	unit.attribute_snapshot.set_value(&"faith_luck_bonus", 0)
 	unit.attribute_snapshot.set_value(FORTUNE_MARK_TARGET_STAT_ID, 1 if is_elite_or_boss else 0)
 	return unit
 
 
 func _build_skill_command(unit_id: StringName, skill_id: StringName, target_unit: BattleUnitState) -> BattleCommand:
 	var command := BattleCommand.new()
-	command.command_type = BattleCommand.TYPE_SKILL
+	command.command_type = BattleCommand.TYPE_SKILL()
 	command.unit_id = unit_id
 	command.skill_id = skill_id
 	command.target_unit_id = target_unit.unit_id if target_unit != null else &""
@@ -314,6 +312,7 @@ func _build_skill_command(unit_id: StringName, skill_id: StringName, target_unit
 func _build_damage_effect() -> CombatEffectDef:
 	var effect := CombatEffectDef.new()
 	effect.effect_type = &"damage"
+	effect.damage_tag = &"physical_slash"
 	effect.power = 12
 	return effect
 

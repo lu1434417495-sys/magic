@@ -6,29 +6,29 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const GameSessionScript = preload("res://scripts/systems/persistence/game_session.gd")
+const GameSessionScript = preload("res://scripts/systems/persistence/GameSession.cs")
 const WorldMapScene = preload("res://scenes/main/world_map.tscn")
 const PartyWarehouseWindowScene = preload("res://scenes/ui/party_warehouse_window.tscn")
-const PartyState = preload("res://scripts/player/progression/party_state.gd")
-const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
-const UnitProgress = preload("res://scripts/player/progression/unit_progress.gd")
-const UnitBaseAttributes = preload("res://scripts/player/progression/unit_base_attributes.gd")
-const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
-const QuestDef = preload("res://scripts/player/progression/quest_def.gd")
-const QuestState = preload("res://scripts/player/progression/quest_state.gd")
-const ItemDef = preload("res://scripts/player/warehouse/item_def.gd")
-const WarehouseState = preload("res://scripts/player/warehouse/warehouse_state.gd")
-const WarehouseStackState = preload("res://scripts/player/warehouse/warehouse_stack_state.gd")
-const EquipmentInstanceState = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
-const WeaponProfileDef = preload("res://scripts/player/warehouse/weapon_profile_def.gd")
-const ItemContentRegistry = preload("res://scripts/player/warehouse/item_content_registry.gd")
-const SkillBookItemFactory = preload("res://scripts/player/warehouse/skill_book_item_factory.gd")
-const ProgressionDataUtils = preload("res://scripts/player/progression/progression_data_utils.gd")
-const PartyWarehouseService = preload("res://scripts/systems/inventory/party_warehouse_service.gd")
-const CharacterManagementModule = preload("res://scripts/systems/progression/character_management_module.gd")
-const PartyItemUseService = preload("res://scripts/systems/inventory/party_item_use_service.gd")
-const SaveSerializer = preload("res://scripts/systems/persistence/save_serializer.gd")
-const SettlementShopService = preload("res://scripts/systems/settlement/settlement_shop_service.gd")
+const PartyState = preload("res://scripts/player/progression/PartyState.cs")
+const PartyMemberState = preload("res://scripts/player/progression/PartyMemberState.cs")
+const UnitProgress = preload("res://scripts/player/progression/UnitProgress.cs")
+const UnitBaseAttributes = preload("res://scripts/player/progression/UnitBaseAttributes.cs")
+const SkillDef = preload("res://scripts/player/progression/SkillDef.cs")
+const QuestDef = preload("res://scripts/player/progression/QuestDef.cs")
+const QuestState = preload("res://scripts/player/progression/QuestState.cs")
+const ItemDef = preload("res://scripts/player/warehouse/ItemDef.cs")
+const WarehouseState = preload("res://scripts/player/warehouse/WarehouseState.cs")
+const WarehouseStackState = preload("res://scripts/player/warehouse/WarehouseStackState.cs")
+const EquipmentInstanceState = preload("res://scripts/player/warehouse/EquipmentInstanceState.cs")
+const WeaponProfileDef = preload("res://scripts/player/warehouse/WeaponProfileDef.cs")
+const ItemContentRegistry = preload("res://scripts/player/warehouse/ItemContentRegistry.cs")
+const SkillBookItemFactory = preload("res://scripts/player/warehouse/SkillBookItemFactory.cs")
+const ProgressionDataUtils = preload("res://scripts/player/progression/ProgressionDataUtils.cs")
+const PartyWarehouseService = preload("res://scripts/systems/inventory/PartyWarehouseService.cs")
+const CharacterManagementModule = preload("res://scripts/systems/progression/CharacterManagementModule.cs")
+const PartyItemUseService = preload("res://scripts/systems/inventory/PartyItemUseService.cs")
+const SaveSerializer = preload("res://scripts/systems/persistence/SaveSerializer.cs")
+const SettlementShopService = preload("res://scripts/systems/settlement/SettlementShopService.cs")
 
 const TEST_CONFIG_PATH := "res://data/configs/world_map/test_world_map_config.tres"
 const NEW_CONSUMABLE_ITEM_QUANTITIES := {
@@ -197,12 +197,12 @@ func _test_warehouse_service_rules() -> void:
 	])
 	var equipment_instance_service := PartyWarehouseService.new()
 	equipment_instance_service.setup(equipment_instance_party, item_defs)
-	var mace_instance := EquipmentInstanceState.create(&"watchman_mace")
+	var mace_instance := EquipmentInstanceState.create_transient_instance(&"watchman_mace")
 	var instance_add_result: Dictionary = equipment_instance_service.add_equipment_instance(mace_instance)
 	_assert_eq(int(instance_add_result.get("added_quantity", 0)), 1, "装备实例容量接口应能写入已有实例。")
 	_assert_eq(int(instance_add_result.get("remaining_quantity", 0)), 0, "装备实例容量接口成功时不应返回剩余数量。")
 	_assert_eq(equipment_instance_service.count_item(&"watchman_mace"), 1, "装备实例容量接口应保留实例 item_id。")
-	var blocked_instance_result: Dictionary = equipment_instance_service.add_equipment_instance(EquipmentInstanceState.create(&"watchman_mace"))
+	var blocked_instance_result: Dictionary = equipment_instance_service.add_equipment_instance(EquipmentInstanceState.create_transient_instance(&"watchman_mace"))
 	_assert_eq(int(blocked_instance_result.get("added_quantity", -1)), 0, "背包满时装备实例容量接口不应写入。")
 	_assert_eq(int(blocked_instance_result.get("remaining_quantity", 0)), 1, "背包满时装备实例容量接口应返回未放入数量。")
 	_assert_eq(equipment_instance_service.count_item(&"watchman_mace"), 1, "背包满时装备实例不应被静默写入。")
@@ -221,7 +221,7 @@ func _test_world_level_equipment_instance_ids_are_incremental() -> void:
 	party.active_member_ids = [&"gear_porter"]
 	party.leader_member_id = &"gear_porter"
 	party.main_character_member_id = &"gear_porter"
-	var seeded_instance := EquipmentInstanceState.create(&"watchman_mace", &"eq_000001")
+	var seeded_instance := EquipmentInstanceState.create_instance(&"watchman_mace", &"eq_000001")
 	party.warehouse_state.equipment_instances = [seeded_instance]
 	var persist_error := int(_game_session.set_party_state(party))
 	if persist_error == OK:
@@ -320,7 +320,7 @@ func _test_warehouse_state_rejects_bad_schema() -> void:
 			_make_stack_payload("healing_herb", 2),
 		],
 		"equipment_instances": [
-			EquipmentInstanceState.create(&"bronze_sword", &"eq_schema_warehouse_bronze").to_dict(),
+			EquipmentInstanceState.create_instance(&"bronze_sword", &"eq_schema_warehouse_bronze").to_dict(),
 		],
 	})
 	_assert_true(valid_state != null, "当前 warehouse_state schema 应可读取。")
@@ -372,13 +372,13 @@ func _test_warehouse_state_rejects_bad_schema() -> void:
 		"warehouse stack 含额外旧字段应拒绝。"
 	)
 
-	var missing_rarity_instance := EquipmentInstanceState.create(&"bronze_sword", &"eq_schema_missing_rarity").to_dict()
+	var missing_rarity_instance = EquipmentInstanceState.create_instance(&"bronze_sword", &"eq_schema_missing_rarity").to_dict()
 	missing_rarity_instance.erase("rarity")
 	_assert_warehouse_state_rejects(
 		{"stacks": [], "equipment_instances": [missing_rarity_instance]},
 		"warehouse_state.equipment_instances 内坏装备实例应拒绝，而不是跳过。"
 	)
-	var extra_equipment_field := EquipmentInstanceState.create(&"bronze_sword", &"eq_schema_extra_field").to_dict()
+	var extra_equipment_field = EquipmentInstanceState.create_instance(&"bronze_sword", &"eq_schema_extra_field").to_dict()
 	extra_equipment_field["legacy_instance_level"] = 3
 	_assert_warehouse_state_rejects(
 		{"stacks": [], "equipment_instances": [extra_equipment_field]},
@@ -594,15 +594,15 @@ func _test_quest_reward_item_materializer() -> void:
 			&"contract_supply_receipt",
 			"补给签收",
 			[
-				{"reward_type": QuestDef.REWARD_GOLD, "amount": 12},
-				{"reward_type": QuestDef.REWARD_ITEM, "item_id": "iron_ore", "quantity": 2},
+				{"reward_type": QuestDef.REWARD_GOLD(), "amount": 12},
+				{"reward_type": QuestDef.REWARD_ITEM(), "item_id": "iron_ore", "quantity": 2},
 			]
 		),
 		&"contract_reward_overflow": _build_test_quest_def(
 			&"contract_reward_overflow",
 			"仓储超额",
 			[
-				{"reward_type": QuestDef.REWARD_ITEM, "item_id": "bronze_sword", "quantity": 1},
+				{"reward_type": QuestDef.REWARD_ITEM(), "item_id": "bronze_sword", "quantity": 1},
 			]
 		),
 	}
@@ -627,7 +627,7 @@ func _test_quest_reward_item_materializer() -> void:
 	var warehouse_service := PartyWarehouseService.new()
 	warehouse_service.setup(party, item_defs)
 
-	var claim_result := character_management.claim_quest_reward(&"contract_supply_receipt", 8)
+	var claim_result = character_management.claim_quest_reward(&"contract_supply_receipt", 8)
 	_assert_true(bool(claim_result.get("ok", false)), "item reward 任务应能正式写入共享仓库。")
 	_assert_eq(int(claim_result.get("gold_delta", 0)), 12, "item reward 任务应继续暴露 gold_delta。")
 	_assert_eq(_extract_item_reward_quantity(claim_result.get("item_rewards", []), "iron_ore"), 2, "item reward 结果应暴露写入仓库的物品条目。")
@@ -657,7 +657,7 @@ func _test_quest_reward_item_materializer() -> void:
 	overflow_quest.mark_completed(7)
 	overflow_party.set_claimable_quest_state(overflow_quest)
 
-	var overflow_result := overflow_character_management.claim_quest_reward(&"contract_reward_overflow", 9)
+	var overflow_result = overflow_character_management.claim_quest_reward(&"contract_reward_overflow", 9)
 	_assert_true(not bool(overflow_result.get("ok", true)), "容量不足时 quest item reward claim 应正式失败。")
 	_assert_eq(String(overflow_result.get("error_code", "")), "reward_overflow", "容量不足时 quest item reward claim 应返回 reward_overflow。")
 	_assert_true(overflow_party.has_claimable_quest(&"contract_reward_overflow"), "容量不足时任务应继续停留在 claimable_quests。")
@@ -703,13 +703,13 @@ func _test_equipment_instance_remove_requires_instance_id() -> void:
 	var party := _build_party_with_members([
 		_build_member_state(&"porter", "搬运员", 4),
 	])
-	var common_instance := EquipmentInstanceState.create(&"bronze_sword", &"eq_remove_common_sword")
-	common_instance.rarity = EquipmentInstanceState.RarityTier.COMMON
+	var common_instance := EquipmentInstanceState.create_instance(&"bronze_sword", &"eq_remove_common_sword")
+	common_instance.rarity = EquipmentInstanceState.RARITY_TIER_COMMON()
 	common_instance.current_durability = 9
-	var rare_instance := EquipmentInstanceState.create(&"bronze_sword", &"eq_remove_rare_sword")
-	rare_instance.rarity = EquipmentInstanceState.RarityTier.RARE
+	var rare_instance := EquipmentInstanceState.create_instance(&"bronze_sword", &"eq_remove_rare_sword")
+	rare_instance.rarity = EquipmentInstanceState.RARITY_TIER_RARE()
 	rare_instance.current_durability = 31
-	var mismatch_instance := EquipmentInstanceState.create(&"scout_charm", &"eq_remove_wrong_item")
+	var mismatch_instance := EquipmentInstanceState.create_instance(&"scout_charm", &"eq_remove_wrong_item")
 	party.warehouse_state.equipment_instances = [common_instance, rare_instance, mismatch_instance]
 	var service := PartyWarehouseService.new()
 	service.setup(party, item_defs)
@@ -736,18 +736,18 @@ func _test_equipment_instance_remove_requires_instance_id() -> void:
 	var sell_party := _build_party_with_members([
 		_build_member_state(&"seller", "出售测试员", 4),
 	])
-	var sell_common := EquipmentInstanceState.create(&"bronze_sword", &"eq_sell_common_sword")
-	sell_common.rarity = EquipmentInstanceState.RarityTier.COMMON
+	var sell_common := EquipmentInstanceState.create_instance(&"bronze_sword", &"eq_sell_common_sword")
+	sell_common.rarity = EquipmentInstanceState.RARITY_TIER_COMMON()
 	sell_common.current_durability = 8
-	var sell_rare := EquipmentInstanceState.create(&"bronze_sword", &"eq_sell_rare_sword")
-	sell_rare.rarity = EquipmentInstanceState.RarityTier.RARE
+	var sell_rare := EquipmentInstanceState.create_instance(&"bronze_sword", &"eq_sell_rare_sword")
+	sell_rare.rarity = EquipmentInstanceState.RARITY_TIER_RARE()
 	sell_rare.current_durability = 27
 	sell_party.warehouse_state.equipment_instances = [sell_common, sell_rare]
 	var sell_service := PartyWarehouseService.new()
 	sell_service.setup(sell_party, item_defs)
 	var shop_service := SettlementShopService.new()
 	var settlement_state := {}
-	var ambiguous_sell := shop_service.sell("service_local_trade", {}, settlement_state, item_defs, sell_service, sell_party, &"bronze_sword", 1)
+	var ambiguous_sell := shop_service.sell("service_local_trade", {}, settlement_state, item_defs, sell_service, sell_party, &"bronze_sword", 1, &"")
 	_assert_true(not bool(ambiguous_sell.get("success", true)), "重复装备实例出售缺少 instance_id 时应失败。")
 	_assert_true(String(ambiguous_sell.get("message", "")).contains("请选择要出售"), "重复装备实例出售失败文案应要求选择实例。")
 	_assert_true(sell_service.has_equipment_instance(&"eq_sell_common_sword", &"bronze_sword"), "出售失败后 common 实例应保留。")
@@ -834,7 +834,7 @@ func _test_skill_book_generation_and_use_rules() -> void:
 	missing_name_skill.mastery_curve = PackedInt32Array([1])
 	var missing_name_skill_defs := {}
 	missing_name_skill_defs[missing_name_skill.skill_id] = missing_name_skill
-	var generated_without_name := SkillBookItemFactory.new().build_generated_item_defs(missing_name_skill_defs)
+	var generated_without_name = SkillBookItemFactory.new().build_generated_item_defs(missing_name_skill_defs)
 	var missing_name_item_id := SkillBookItemFactory.build_item_id_for_skill(missing_name_skill.skill_id)
 	_assert_true(generated_without_name.is_empty(), "缺少 display_name 的 book 技能不应生成技能书物品。")
 	_assert_true(
@@ -867,14 +867,14 @@ func _test_skill_book_generation_and_use_rules() -> void:
 		character_management
 	)
 
-	var first_use_result := item_use_service.use_item(skill_book_item_id, &"reader")
+	var first_use_result = item_use_service.use_item(skill_book_item_id, &"reader")
 	_assert_true(bool(first_use_result.get("success", false)), "技能书首次使用应成功。")
 	_assert_eq(warehouse_service.count_item(skill_book_item_id), 0, "技能书成功使用后应消耗 1 本。")
 	var skill_progress = party.get_member_state(&"reader").progression.get_skill_progress(&"archer_aimed_shot")
 	_assert_true(skill_progress != null and skill_progress.is_learned, "技能书应让目标角色真正学会对应技能。")
 
 	warehouse_service.add_item(skill_book_item_id, 1)
-	var second_use_result := item_use_service.use_item(skill_book_item_id, &"reader")
+	var second_use_result = item_use_service.use_item(skill_book_item_id, &"reader")
 	_assert_true(not bool(second_use_result.get("success", false)), "已学会同技能后再次使用技能书应失败。")
 	_assert_eq(
 		ProgressionDataUtils.to_string_name(second_use_result.get("reason", "")),
@@ -886,9 +886,8 @@ func _test_skill_book_generation_and_use_rules() -> void:
 
 func _test_item_registry_validation() -> void:
 	var registry := ItemContentRegistry.new()
-	registry._validation_errors.clear()
-	registry._scan_directory("res://data/configs/__missing_items_registry__")
-	var validation_errors := registry.validate()
+	registry.rebuild_from_directories(["res://data/configs/__missing_items_registry__"], [])
+	var validation_errors = registry.validate()
 	var found_missing_dir_error := false
 	for validation_error in validation_errors:
 		if validation_error.contains("__missing_items_registry__"):
@@ -1030,7 +1029,7 @@ func _test_save_round_trip() -> void:
 		_build_stack(&"iron_ore", 12),
 	]
 	party_state.warehouse_state.equipment_instances = [
-		EquipmentInstanceState.create(&"bronze_sword", &"eq_roundtrip_bronze_sword"),
+		EquipmentInstanceState.create_instance(&"bronze_sword", &"eq_roundtrip_bronze_sword"),
 	]
 
 	var persist_error := int(_game_session.set_party_state(party_state))
@@ -1173,8 +1172,10 @@ func _test_world_map_entry_paths() -> void:
 	_assert_true(warehouse_service_button != null, "据点窗口中应存在共享仓库服务按钮。")
 	if warehouse_service_button != null:
 		warehouse_service_button.emit_signal("pressed")
-		await process_frame
-		await process_frame
+		for _attempt in range(5):
+			await process_frame
+			if warehouse.visible and not settlement.visible:
+				break
 		_assert_true(warehouse.visible, "据点服务应能打开同一个共享仓库窗口。")
 		_assert_true(not settlement.visible, "打开共享仓库后不应与据点窗口并存。")
 
@@ -1221,8 +1222,8 @@ func _press_key(keycode: Key) -> void:
 
 func _build_party_with_members(members: Array) -> PartyState:
 	var party_state := PartyState.new()
-	for member_variant in members:
-		var member_state := member_variant as PartyMemberState
+	for member_option in members:
+		var member_state := member_option as PartyMemberState
 		if member_state == null:
 			continue
 		party_state.set_member_state(member_state)
@@ -1265,15 +1266,15 @@ func _build_test_quest_def(quest_id: StringName, display_name: String, reward_en
 	quest_def.objective_defs = [
 		{
 			"objective_id": "warehouse_visit",
-			"objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION,
+			"objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION(),
 			"target_id": "service:warehouse",
 			"target_value": 1,
 		},
 	]
 	var typed_reward_entries: Array[Dictionary] = []
-	for reward_variant in reward_entries:
-		if reward_variant is Dictionary:
-			typed_reward_entries.append((reward_variant as Dictionary).duplicate(true))
+	for reward_option in reward_entries:
+		if reward_option is Dictionary:
+			typed_reward_entries.append((reward_option as Dictionary).duplicate(true))
 	quest_def.reward_entries = typed_reward_entries
 	return quest_def
 
@@ -1292,13 +1293,13 @@ func _make_stack_payload(item_id: Variant, quantity: Variant) -> Dictionary:
 	}
 
 
-func _extract_item_reward_quantity(item_reward_variants, item_id: String) -> int:
-	if item_reward_variants is not Array:
+func _extract_item_reward_quantity(item_reward_options, item_id: String) -> int:
+	if item_reward_options is not Array:
 		return 0
-	for reward_variant in item_reward_variants:
-		if reward_variant is not Dictionary:
+	for reward_option in item_reward_options:
+		if reward_option is not Dictionary:
 			continue
-		var reward_data := reward_variant as Dictionary
+		var reward_data := reward_option as Dictionary
 		if String(reward_data.get("item_id", "")) != item_id:
 			continue
 		return int(reward_data.get("quantity", 0))
@@ -1341,10 +1342,10 @@ func _instance_id_signature(party_state: PartyState) -> Array[String]:
 
 
 func _find_inventory_entry(entries: Array, item_id: String) -> Dictionary:
-	for entry_variant in entries:
-		if entry_variant is not Dictionary:
+	for entry_option in entries:
+		if entry_option is not Dictionary:
 			continue
-		var entry: Dictionary = entry_variant
+		var entry: Dictionary = entry_option
 		if String(entry.get("item_id", "")) == item_id:
 			return entry
 	return {}
@@ -1352,10 +1353,10 @@ func _find_inventory_entry(entries: Array, item_id: String) -> Dictionary:
 
 func _find_inventory_entries(entries: Array, item_id: String) -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
-	for entry_variant in entries:
-		if entry_variant is not Dictionary:
+	for entry_option in entries:
+		if entry_option is not Dictionary:
 			continue
-		var entry: Dictionary = entry_variant
+		var entry: Dictionary = entry_option
 		if String(entry.get("item_id", "")) == item_id:
 			result.append(entry)
 	return result

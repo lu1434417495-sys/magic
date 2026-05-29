@@ -33,7 +33,8 @@ public partial class BattleMetricsCollector : RefCounted
         GodotObject state = GdInterop.GetObject(runtime, "_state");
         var metrics = new GDictionary
         {
-            ["battle_id"] = state != null ? GdInterop.GetStringName(state, "battle_id").ToString() : "",
+            ["battle_id"] =
+                state != null ? GdInterop.GetStringName(state, "battle_id").ToString() : "",
             ["seed"] = state != null ? GdInterop.GetInt(state, "seed") : 0,
             ["units"] = new GDictionary(),
             ["factions"] = new GDictionary(),
@@ -46,9 +47,12 @@ public partial class BattleMetricsCollector : RefCounted
 
         GDictionary stateUnits = GdInterop.GetDictionary(state, "units");
         GDictionary units = GdInterop.GetDictionary(metrics, "units");
-        foreach (Variant unitValue in stateUnits.Values)
+        foreach (var unitValue in stateUnits.Values)
         {
-            BattleUnitState unitState = unitValue.VariantType == Variant.Type.Nil ? null : unitValue.AsGodotObject() as BattleUnitState;
+            BattleUnitState unitState =
+                unitValue.VariantType == Variant.Type.Nil
+                    ? null
+                    : unitValue.AsGodotObject() as BattleUnitState;
             if (unitState == null)
             {
                 continue;
@@ -70,7 +74,12 @@ public partial class BattleMetricsCollector : RefCounted
             ["control_mode"] = unit_state.control_mode.ToString(),
             ["source_member_id"] = unit_state.source_member_id.ToString(),
             ["turn_count"] = 0,
-            ["action_counts"] = new GDictionary { ["move"] = 0, ["skill"] = 0, ["wait"] = 0 },
+            ["action_counts"] = new GDictionary
+            {
+                ["move"] = 0,
+                ["skill"] = 0,
+                ["wait"] = 0,
+            },
             ["skill_attempt_counts"] = new GDictionary(),
             ["skill_success_counts"] = new GDictionary(),
             ["successful_skill_count"] = 0,
@@ -118,7 +127,12 @@ public partial class BattleMetricsCollector : RefCounted
                 ["faction_id"] = factionKey,
                 ["unit_count"] = 0,
                 ["turn_count"] = 0,
-                ["action_counts"] = new GDictionary { ["move"] = 0, ["skill"] = 0, ["wait"] = 0 },
+                ["action_counts"] = new GDictionary
+                {
+                    ["move"] = 0,
+                    ["skill"] = 0,
+                    ["wait"] = 0,
+                },
                 ["skill_attempt_counts"] = new GDictionary(),
                 ["skill_success_counts"] = new GDictionary(),
                 ["successful_skill_count"] = 0,
@@ -146,7 +160,11 @@ public partial class BattleMetricsCollector : RefCounted
         factionEntry["turn_count"] = GdInterop.GetInt(factionEntry, "turn_count", 0) + 1;
     }
 
-    public void _record_action_issued(BattleUnitState unit_state, StringName command_type, int ap_cost = 0)
+    public void _record_action_issued(
+        BattleUnitState unit_state,
+        StringName command_type,
+        int ap_cost = 0
+    )
     {
         if (unit_state != null)
         {
@@ -173,7 +191,11 @@ public partial class BattleMetricsCollector : RefCounted
         }
         _increment_metric_count(GdInterop.GetDictionary(unitEntry, "action_counts"), commandKey, 1);
         GDictionary factionEntry = _ensure_faction_metric_entry(unit_state.faction_id);
-        _increment_metric_count(GdInterop.GetDictionary(factionEntry, "action_counts"), commandKey, 1);
+        _increment_metric_count(
+            GdInterop.GetDictionary(factionEntry, "action_counts"),
+            commandKey,
+            1
+        );
     }
 
     public void _record_skill_attempt(BattleUnitState unit_state, StringName skill_id)
@@ -188,9 +210,17 @@ public partial class BattleMetricsCollector : RefCounted
         {
             return;
         }
-        _increment_metric_count(GdInterop.GetDictionary(unitEntry, "skill_attempt_counts"), skillKey, 1);
+        _increment_metric_count(
+            GdInterop.GetDictionary(unitEntry, "skill_attempt_counts"),
+            skillKey,
+            1
+        );
         GDictionary factionEntry = _ensure_faction_metric_entry(unit_state.faction_id);
-        _increment_metric_count(GdInterop.GetDictionary(factionEntry, "skill_attempt_counts"), skillKey, 1);
+        _increment_metric_count(
+            GdInterop.GetDictionary(factionEntry, "skill_attempt_counts"),
+            skillKey,
+            1
+        );
     }
 
     public void _record_skill_success(BattleUnitState unit_state, StringName skill_id)
@@ -205,11 +235,21 @@ public partial class BattleMetricsCollector : RefCounted
         {
             return;
         }
-        _increment_metric_count(GdInterop.GetDictionary(unitEntry, "skill_success_counts"), skillKey, 1);
-        unitEntry["successful_skill_count"] = GdInterop.GetInt(unitEntry, "successful_skill_count", 0) + 1;
+        _increment_metric_count(
+            GdInterop.GetDictionary(unitEntry, "skill_success_counts"),
+            skillKey,
+            1
+        );
+        unitEntry["successful_skill_count"] =
+            GdInterop.GetInt(unitEntry, "successful_skill_count", 0) + 1;
         GDictionary factionEntry = _ensure_faction_metric_entry(unit_state.faction_id);
-        _increment_metric_count(GdInterop.GetDictionary(factionEntry, "skill_success_counts"), skillKey, 1);
-        factionEntry["successful_skill_count"] = GdInterop.GetInt(factionEntry, "successful_skill_count", 0) + 1;
+        _increment_metric_count(
+            GdInterop.GetDictionary(factionEntry, "skill_success_counts"),
+            skillKey,
+            1
+        );
+        factionEntry["successful_skill_count"] =
+            GdInterop.GetInt(factionEntry, "successful_skill_count", 0) + 1;
     }
 
     public void _record_effect_metrics(
@@ -230,22 +270,31 @@ public partial class BattleMetricsCollector : RefCounted
         GDictionary targetFactionEntry = _ensure_faction_metric_entry(target_unit.faction_id);
         if (damage > 0)
         {
-            sourceEntry["total_damage_done"] = GdInterop.GetInt(sourceEntry, "total_damage_done", 0) + damage;
-            targetEntry["total_damage_taken"] = GdInterop.GetInt(targetEntry, "total_damage_taken", 0) + damage;
-            sourceFactionEntry["total_damage_done"] = GdInterop.GetInt(sourceFactionEntry, "total_damage_done", 0) + damage;
-            targetFactionEntry["total_damage_taken"] = GdInterop.GetInt(targetFactionEntry, "total_damage_taken", 0) + damage;
+            sourceEntry["total_damage_done"] =
+                GdInterop.GetInt(sourceEntry, "total_damage_done", 0) + damage;
+            targetEntry["total_damage_taken"] =
+                GdInterop.GetInt(targetEntry, "total_damage_taken", 0) + damage;
+            sourceFactionEntry["total_damage_done"] =
+                GdInterop.GetInt(sourceFactionEntry, "total_damage_done", 0) + damage;
+            targetFactionEntry["total_damage_taken"] =
+                GdInterop.GetInt(targetFactionEntry, "total_damage_taken", 0) + damage;
         }
         if (healing > 0)
         {
-            sourceEntry["total_healing_done"] = GdInterop.GetInt(sourceEntry, "total_healing_done", 0) + healing;
-            targetEntry["total_healing_received"] = GdInterop.GetInt(targetEntry, "total_healing_received", 0) + healing;
-            sourceFactionEntry["total_healing_done"] = GdInterop.GetInt(sourceFactionEntry, "total_healing_done", 0) + healing;
-            targetFactionEntry["total_healing_received"] = GdInterop.GetInt(targetFactionEntry, "total_healing_received", 0) + healing;
+            sourceEntry["total_healing_done"] =
+                GdInterop.GetInt(sourceEntry, "total_healing_done", 0) + healing;
+            targetEntry["total_healing_received"] =
+                GdInterop.GetInt(targetEntry, "total_healing_received", 0) + healing;
+            sourceFactionEntry["total_healing_done"] =
+                GdInterop.GetInt(sourceFactionEntry, "total_healing_done", 0) + healing;
+            targetFactionEntry["total_healing_received"] =
+                GdInterop.GetInt(targetFactionEntry, "total_healing_received", 0) + healing;
         }
         if (kill_count > 0)
         {
             sourceEntry["kill_count"] = GdInterop.GetInt(sourceEntry, "kill_count", 0) + kill_count;
-            sourceFactionEntry["kill_count"] = GdInterop.GetInt(sourceFactionEntry, "kill_count", 0) + kill_count;
+            sourceFactionEntry["kill_count"] =
+                GdInterop.GetInt(sourceFactionEntry, "kill_count", 0) + kill_count;
         }
     }
 
@@ -273,7 +322,11 @@ public partial class BattleMetricsCollector : RefCounted
 
     private static GodotObject ResolveWeakRef(WeakReference<GodotObject> weakRef)
     {
-        if (weakRef == null || !weakRef.TryGetTarget(out GodotObject target) || !GodotObject.IsInstanceValid(target))
+        if (
+            weakRef == null
+            || !weakRef.TryGetTarget(out GodotObject target)
+            || !GodotObject.IsInstanceValid(target)
+        )
         {
             return null;
         }

@@ -1,10 +1,10 @@
 [gd_resource type="Resource" script_class="SkillDef" format=3]
 
-[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_rv4kn"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_27ace"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_ydkjc"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_pvq0v"]
-[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_1jxv7"]
+[ext_resource type="Script" path="res://scripts/player/progression/AttributeModifier.cs" id="1_rv4kn"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="2_27ace"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="3_ydkjc"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="4_pvq0v"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="5_1jxv7"]
 
 [sub_resource type="Resource" id="Resource_rv4kn"]
 script = ExtResource("3_ydkjc")

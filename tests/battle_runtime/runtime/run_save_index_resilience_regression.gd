@@ -2,7 +2,7 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_session.gd")
+const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/GameSession.cs")
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
 const SAVE_DIRECTORY := "user://saves"
@@ -472,16 +472,16 @@ func _assert_save_index_file_uses_current_schema(context: String) -> void:
 	if compressed_index_file == null:
 		index_file.close()
 		return
-	var index_payload_variant = compressed_index_file.get_var(false)
+	var index_payload_option = compressed_index_file.get_var(false)
 	compressed_index_file.close()
 	index_file.close()
-	if index_payload_variant is not Dictionary:
+	if index_payload_option is not Dictionary:
 		_test.fail("%s重建后的 save index 应是 Godot Variant 二进制 Dictionary。" % context)
 		return
-	var index_payload := index_payload_variant as Dictionary
-	var version_variant: Variant = index_payload.get(&"version", null)
-	_assert_true(version_variant is not String, "%s重建后的 save index version 不应保留字符串数字。" % context)
-	_assert_eq(int(version_variant), SAVE_INDEX_VERSION, "%s重建后的 save index 应写入当前 version。" % context)
+	var index_payload := index_payload_option as Dictionary
+	var version_option: Variant = index_payload.get(&"version", null)
+	_assert_true(version_option is not String, "%s重建后的 save index version 不应保留字符串数字。" % context)
+	_assert_eq(int(version_option), SAVE_INDEX_VERSION, "%s重建后的 save index 应写入当前 version。" % context)
 	_assert_true(index_payload.get(&"saves", null) is Array, "%s重建后的 save index 应使用当前 saves 数组字段。" % context)
 	for raw_entry in index_payload.get(&"saves", []):
 		if raw_entry is not Dictionary:

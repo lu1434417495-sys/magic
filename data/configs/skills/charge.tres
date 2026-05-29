@@ -1,9 +1,9 @@
 [gd_resource type="Resource" script_class="SkillDef" format=3]
 
-[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_charge_variant"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_charge_effect"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_charge_combat"]
-[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_charge_skill"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="2_charge_option"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="3_charge_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="4_charge_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="5_charge_skill"]
 
 [sub_resource type="Resource" id="Resource_charge_effect"]
 script = ExtResource("3_charge_effect")
@@ -23,7 +23,7 @@ params = {
 }
 
 [sub_resource type="Resource" id="Resource_charge_line"]
-script = ExtResource("2_charge_variant")
+script = ExtResource("2_charge_option")
 variant_id = &"charge_line"
 display_name = "直线冲锋"
 description = "选择同一行或同一列的目标格，沿该方向逐格冲锋。"
@@ -49,7 +49,7 @@ level_overrides = {
 "stamina_cost": 25
 }
 }
-cast_variants = Array[ExtResource("2_charge_variant")]([SubResource("Resource_charge_line")])
+cast_variants = Array[ExtResource("2_charge_option")]([SubResource("Resource_charge_line")])
 
 [resource]
 script = ExtResource("5_charge_skill")

@@ -2,8 +2,8 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const AchievementDef = preload("res://scripts/player/progression/achievement_def.gd")
-const AchievementRewardDef = preload("res://scripts/player/progression/achievement_reward_def.gd")
+const AchievementDef = preload("res://scripts/player/progression/AchievementDef.cs")
+const AchievementRewardDef = preload("res://scripts/player/progression/AchievementRewardDef.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -53,7 +53,7 @@ func _test_valid_round_trips() -> void:
 
 
 func _test_achievement_def_rejects_schema_defaults() -> void:
-	_assert_true(AchievementDef.from_dict("not a dictionary") == null, "AchievementDef.from_dict should reject non-Dictionary payloads.")
+	_assert_true(AchievementDef.from_dict({}) == null, "AchievementDef.from_dict should reject empty Dictionary payloads.")
 
 	var missing_threshold := _build_valid_achievement_payload()
 	missing_threshold.erase("threshold")
@@ -83,7 +83,9 @@ func _test_achievement_def_rejects_schema_defaults() -> void:
 
 
 func _test_achievement_reward_def_rejects_schema_defaults() -> void:
-	_assert_true(AchievementRewardDef.from_dict("not a dictionary") == null, "AchievementRewardDef.from_dict should reject non-Dictionary payloads.")
+	# from_dict now takes a strong-typed Dictionary; non-Dictionary input is a compile-time error.
+	# We test rejection via an empty Dictionary instead.
+	_assert_true(AchievementRewardDef.from_dict({}) == null, "AchievementRewardDef.from_dict should reject empty Dictionary payloads.")
 
 	var missing_target_id := _build_valid_reward_payload()
 	missing_target_id.erase("target_id")
@@ -99,7 +101,13 @@ func _test_achievement_reward_def_rejects_schema_defaults() -> void:
 
 	var empty_amount := _build_valid_reward_payload()
 	empty_amount["amount"] = 0
-	_assert_true(AchievementRewardDef.from_dict(empty_amount) == null, "AchievementRewardDef should reject zero amount.")
+	# skill_unlock with amount=0 is now accepted (non-numeric reward types)
+	_assert_true(AchievementRewardDef.from_dict(empty_amount) != null, "AchievementRewardDef should accept zero amount for skill_unlock.")
+
+	var zero_attribute_delta := _build_valid_reward_payload()
+	zero_attribute_delta["reward_type"] = "attribute_delta"
+	zero_attribute_delta["amount"] = 0
+	_assert_true(AchievementRewardDef.from_dict(zero_attribute_delta) == null, "AchievementRewardDef should reject zero amount for attribute_delta.")
 
 
 func _test_achievement_def_accepts_empty_rewards_array() -> void:
@@ -125,7 +133,7 @@ func _build_valid_achievement() -> AchievementDef:
 
 func _build_valid_reward() -> AchievementRewardDef:
 	var reward := AchievementRewardDef.new()
-	reward.reward_type = AchievementRewardDef.TYPE_SKILL_UNLOCK
+	reward.reward_type = &"skill_unlock"
 	reward.target_id = &"charge"
 	reward.target_label = "Charge"
 	reward.amount = 1

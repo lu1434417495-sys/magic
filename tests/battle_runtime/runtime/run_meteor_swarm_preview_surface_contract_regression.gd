@@ -1,19 +1,18 @@
 extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
-const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
-const BattleSpecialProfileRegistry = preload("res://scripts/systems/battle/core/special_profiles/battle_special_profile_registry.gd")
-const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
-const BattleAiContext = preload("res://scripts/systems/battle/ai/battle_ai_context.gd")
-const BattleAiScoreService = preload("res://scripts/systems/battle/ai/battle_ai_score_service.gd")
-const BattleHudAdapter = preload("res://scripts/systems/battle/presentation/battle_hud_adapter.gd")
-const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
-const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
-const BattleTimelineState = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
-const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
-const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
+const ProgressionContentRegistry = preload("res://scripts/player/progression/ProgressionContentRegistry.cs")
+const BattleSpecialProfileRegistry = preload("res://scripts/systems/battle/core/special_profiles/BattleSpecialProfileRegistry.cs")
+const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/BattleRuntimeModule.cs")
+const BattleAiContext = preload("res://scripts/systems/battle/ai/BattleAiContext.cs")
+const BattleAiScoreService = preload("res://scripts/systems/battle/ai/BattleAiScoreService.cs")
+const BattleHudAdapter = preload("res://scripts/systems/battle/presentation/BattleHudAdapter.cs")
+const BattleState = preload("res://scripts/systems/battle/core/BattleState.cs")
+const BattleTimelineState = preload("res://scripts/systems/battle/core/BattleTimelineState.cs")
+const BattleCellState = preload("res://scripts/systems/battle/core/BattleCellState.cs")
+const BattleUnitState = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
 const SharedHitResolvers = preload("res://tests/shared/stub_hit_resolvers.gd")
-const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/AttributeService.cs")
 const BattleRuntimeTestHelpers = preload("res://tests/shared/battle_runtime_test_helpers.gd")
 
 var _test := TestRunner.new()
@@ -115,7 +114,7 @@ func _build_runtime_fixture(map_size: Vector2i, extra_units: Array) -> Dictionar
 	_assert_true(special_registry.validate().is_empty(), "正式 special profile registry 应可用于 preview surface fixture。")
 	var runtime := BattleRuntimeModule.new()
 	runtime.setup(null, skill_defs, {}, {}, null, null, {}, null, Callable(), special_registry.get_snapshot())
-	runtime.configure_hit_resolver_for_tests(SharedHitResolvers.FixedHitResolver.new(10))
+	runtime.configure_hit_resolver_for_tests(SharedHitResolvers.build_fixed_hit_resolver(10))
 	var state := _build_state(map_size)
 	var caster := _build_unit(&"meteor_surface_caster", "陨星术者", &"player", Vector2i(4, 0), 180)
 	caster.known_active_skill_ids.append(&"mage_meteor_swarm")
@@ -123,8 +122,8 @@ func _build_runtime_fixture(map_size: Vector2i, extra_units: Array) -> Dictionar
 	caster.current_ap = 4
 	caster.current_mp = 200
 	caster.current_aura = 3
-	caster.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_MP)
-	caster.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_AURA)
+	caster.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_MP())
+	caster.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_AURA())
 	state.units[caster.unit_id] = caster
 	state.ally_unit_ids.append(caster.unit_id)
 	for unit in extra_units:
@@ -136,8 +135,8 @@ func _build_runtime_fixture(map_size: Vector2i, extra_units: Array) -> Dictionar
 		else:
 			state.enemy_unit_ids.append(unit.unit_id)
 	state.active_unit_id = caster.unit_id
-	for unit_variant in state.units.values():
-		var unit_state := unit_variant as BattleUnitState
+	for unit_option in state.units.values():
+		var unit_state := unit_option as BattleUnitState
 		_assert_true(runtime._grid_service.place_unit(state, unit_state, unit_state.coord, true), "单位应能放入 preview surface 棋盘：%s" % String(unit_state.unit_id))
 	runtime._state = state
 	return {
@@ -172,7 +171,7 @@ func _build_unit(unit_id: StringName, display_name: String, faction_id: StringNa
 	unit.coord = coord
 	unit.is_alive = true
 	unit.current_hp = hp
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX, hp)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX_ID(), hp)
 	BattleRuntimeTestHelpers.seed_base_attributes_and_derive_ac(unit)
 	unit.refresh_footprint()
 	return unit
@@ -180,7 +179,7 @@ func _build_unit(unit_id: StringName, display_name: String, faction_id: StringNa
 
 func _build_command(caster: BattleUnitState, anchor_coord: Vector2i) -> BattleCommand:
 	var command := BattleCommand.new()
-	command.command_type = BattleCommand.TYPE_SKILL
+	command.command_type = BattleCommand.TYPE_SKILL()
 	command.unit_id = caster.unit_id
 	command.skill_id = &"mage_meteor_swarm"
 	command.target_coord = anchor_coord
@@ -207,7 +206,7 @@ func _assert_true(condition: bool, message: String) -> void:
 
 
 func _test_meteor_preview_uses_damage_resolver_preview_contract() -> void:
-	var source := _read_text("res://scripts/systems/battle/runtime/battle_meteor_swarm_resolver.gd")
+	var source := _read_text("res://scripts/systems/battle/runtime/BattleMeteorSwarmResolver.cs")
 	_assert_true(source.contains("preview_damage_effect("), "Meteor 友伤数值预览必须调用 BattleDamageResolver.preview_damage_effect。")
 	_assert_true(
 		not source.contains("_resolve_preview_mitigation_tier")

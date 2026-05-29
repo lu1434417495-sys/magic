@@ -2,13 +2,13 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
-const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
-const CombatSkillDef = preload("res://scripts/player/progression/combat_skill_def.gd")
-const SkillContentRegistry = preload("res://scripts/player/progression/skill_content_registry.gd")
-const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
-const AttributeService = preload("res://scripts/systems/attributes/attribute_service.gd")
-const UnitBaseAttributes = preload("res://scripts/player/progression/unit_base_attributes.gd")
+const ProgressionContentRegistry = preload("res://scripts/player/progression/ProgressionContentRegistry.cs")
+const CombatEffectDef = preload("res://scripts/player/progression/CombatEffectDef.cs")
+const CombatSkillDef = preload("res://scripts/player/progression/CombatSkillDef.cs")
+const SkillContentRegistry = preload("res://scripts/player/progression/SkillContentRegistry.cs")
+const SkillDef = preload("res://scripts/player/progression/SkillDef.cs")
+const AttributeService = preload("res://scripts/systems/attributes/AttributeService.cs")
+const UnitBaseAttributes = preload("res://scripts/player/progression/UnitBaseAttributes.cs")
 
 const OFFICIAL_SKILL_RESOURCE_DIRECTORY := "res://data/configs/skills/"
 const OFFICIAL_CHARGE_PATH := "res://data/configs/skills/charge.tres"
@@ -177,11 +177,11 @@ func _test_seed_skill_resources_scan_and_validate() -> void:
 			_assert_eq(int(charge.combat_profile.get_effective_resource_costs(2).get("stamina_cost", 0)), 35, "冲锋 2 级起体力消耗应降为 35。")
 			_assert_eq(int(charge.combat_profile.get_effective_resource_costs(4).get("stamina_cost", 0)), 30, "冲锋 4 级起体力消耗应降为 30。")
 			_assert_eq(int(charge.combat_profile.get_effective_resource_costs(6).get("stamina_cost", 0)), 25, "冲锋 6 级起体力消耗应降为 25。")
-			_assert_eq(int(charge.combat_profile.cast_variants.size()), 1, "冲锋应保留一个正式 cast variant。")
-			var charge_variant = charge.combat_profile.get_cast_variant(&"charge_line")
-			_assert_true(charge_variant != null, "冲锋应保留 charge_line 变体。")
-			if charge_variant != null and not charge_variant.effect_defs.is_empty():
-				var charge_effect = charge_variant.effect_defs[0]
+			_assert_eq(int(charge.combat_profile.cast_variants.size()), 1, "冲锋应保留一个正式 cast option。")
+			var charge_option = charge.combat_profile.get_cast_variant(&"charge_line")
+			_assert_true(charge_option != null, "冲锋应保留 charge_line 变体。")
+			if charge_option != null and not charge_option.effect_defs.is_empty():
+				var charge_effect = charge_option.effect_defs[0]
 				_assert_eq(charge_effect.effect_type, &"charge", "冲锋变体应保留 charge effect。")
 				_assert_eq(int(charge_effect.params.get("base_distance", 0)), 3, "冲锋基础距离应保留 3。")
 				_assert_eq(int((charge_effect.params.get("distance_by_level", {}) as Dictionary).get("7", 0)), 7, "冲锋 7 级距离应保留 7。")
@@ -196,12 +196,12 @@ func _test_seed_skill_resources_scan_and_validate() -> void:
 		_assert_eq(Array(warrior_toughness.mastery_curve), [1], "强健应保留 1 档占位熟练度曲线。")
 		_assert_eq(int(warrior_toughness.attribute_modifiers.size()), 2, "强健应配置人物生命和体力恢复两条修正。")
 		if int(warrior_toughness.attribute_modifiers.size()) >= 2:
-			var toughness_hp_modifier := warrior_toughness.attribute_modifiers[0]
-			_assert_eq(toughness_hp_modifier.attribute_id, AttributeService.CHARACTER_HP_MAX_PERCENT_BONUS, "强健应写入人物生命百分比通道。")
+			var toughness_hp_modifier = warrior_toughness.attribute_modifiers[0]
+			_assert_eq(toughness_hp_modifier.attribute_id, AttributeService.CHARACTER_HP_MAX_PERCENT_BONUS_ID(), "强健应写入人物生命百分比通道。")
 			_assert_eq(toughness_hp_modifier.mode, &"flat", "人物生命百分比通道应使用 flat 数值表达百分比点。")
 			_assert_eq(int(toughness_hp_modifier.value), 20, "强健应提供 20% 人物生命加成。")
-			var toughness_stamina_modifier := warrior_toughness.attribute_modifiers[1]
-			_assert_eq(toughness_stamina_modifier.attribute_id, AttributeService.STAMINA_RECOVERY_PERCENT_BONUS, "强健应写入体力恢复百分比通道。")
+			var toughness_stamina_modifier = warrior_toughness.attribute_modifiers[1]
+			_assert_eq(toughness_stamina_modifier.attribute_id, AttributeService.STAMINA_RECOVERY_PERCENT_BONUS_ID(), "强健应写入体力恢复百分比通道。")
 			_assert_eq(toughness_stamina_modifier.mode, &"flat", "体力恢复百分比通道应使用 flat 数值表达百分比点。")
 			_assert_eq(int(toughness_stamina_modifier.value), 50, "强健应提供 50% 体力恢复加成。")
 	_assert_resource_backed_skill_ids(skill_defs, OFFICIAL_PRIEST_RESOURCE_SKILL_IDS, &"priest", "神术")
@@ -244,12 +244,12 @@ func _test_seed_skill_resources_scan_and_validate() -> void:
 		_assert_eq(int(archer_multishot.combat_profile.get_effective_attack_roll_bonus(4)), 1, "连珠箭 4 级应获得攻击检定加值。")
 		_assert_eq(int(archer_multishot.combat_profile.get_effective_attack_roll_bonus(6)), 2, "连珠箭 6 级应获得 +2 攻击检定加值。")
 		_assert_eq(int(archer_multishot.combat_profile.get_effective_resource_costs(7).get("stamina_cost", 0)), 40, "连珠箭 7 级体力消耗应降为 40。")
-		var multishot_variant = archer_multishot.combat_profile.get_cast_variant(&"multishot_volley")
-		_assert_true(multishot_variant != null, "连珠箭应保留 multishot_volley 施放变体。")
-		if multishot_variant != null:
-			_assert_eq(int(multishot_variant.effect_defs.size()), 1, "连珠箭应只保留一条武器攻击伤害效果。")
-			if multishot_variant.effect_defs.size() >= 1:
-				var multishot_damage = multishot_variant.effect_defs[0]
+		var multishot_option = archer_multishot.combat_profile.get_cast_variant(&"multishot_volley")
+		_assert_true(multishot_option != null, "连珠箭应保留 multishot_volley 施放变体。")
+		if multishot_option != null:
+			_assert_eq(int(multishot_option.effect_defs.size()), 1, "连珠箭应只保留一条武器攻击伤害效果。")
+			if multishot_option.effect_defs.size() >= 1:
+				var multishot_damage = multishot_option.effect_defs[0]
 				_assert_eq(int(multishot_damage.power), 0, "连珠箭不应配置固定技能伤害。")
 				_assert_true(bool(multishot_damage.params.get("add_weapon_dice", false)), "连珠箭应使用当前弓的武器骰。")
 				_assert_true(bool(multishot_damage.params.get("use_weapon_physical_damage_tag", false)), "连珠箭应使用当前弓的物理伤害类型。")
@@ -597,7 +597,7 @@ func _test_attribute_growth_progress_schema_validation() -> void:
 	)
 
 	var string_name_key_skill := _make_growth_schema_skill(&"string_name_key_growth_schema_skill", &"basic", {
-		UnitBaseAttributes.AGILITY: 60,
+		&"agility": 60,
 	})
 	var string_name_key_errors: Array[String] = []
 	registry._append_attribute_growth_validation_errors(string_name_key_errors, string_name_key_skill.skill_id, string_name_key_skill)

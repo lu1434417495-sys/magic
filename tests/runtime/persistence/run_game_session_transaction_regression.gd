@@ -2,22 +2,13 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_session.gd")
+const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/GameSession.cs")
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
 const SAVE_FILE_COMPRESSION_MODE := FileAccess.COMPRESSION_ZSTD
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
-
-
-class FailingPayloadWriteSession extends GAME_SESSION_SCRIPT:
-	var fail_payload_write := false
-
-	func _write_save_payload_atomically(save_path: String, payload: Dictionary) -> int:
-		if fail_payload_write:
-			return ERR_CANT_CREATE
-		return super._write_save_payload_atomically(save_path, payload)
 
 
 func _initialize() -> void:
@@ -99,7 +90,7 @@ func _test_commit_runtime_state_persists_complete_snapshot() -> void:
 
 
 func _test_commit_failure_keeps_dirty_and_last_error() -> void:
-	var game_session = FailingPayloadWriteSession.new()
+	var game_session = GAME_SESSION_SCRIPT.new()
 	var create_error := int(game_session.create_new_save(TEST_WORLD_CONFIG))
 	_assert_eq(create_error, OK, "事务失败回归前置：应能创建测试存档。")
 	if create_error != OK:
@@ -171,16 +162,16 @@ func _read_active_save_payload(game_session) -> Dictionary:
 
 
 func _payload_player_coord(payload: Dictionary) -> Vector2i:
-	var world_state_variant = _dictionary_get(payload, "world_state", {})
-	var world_state: Dictionary = world_state_variant if world_state_variant is Dictionary else {}
+	var world_state_option = _dictionary_get(payload, "world_state", {})
+	var world_state: Dictionary = world_state_option if world_state_option is Dictionary else {}
 	return _dictionary_get(world_state, "player_coord", Vector2i.ZERO)
 
 
 func _payload_world_step(payload: Dictionary) -> int:
-	var world_state_variant = _dictionary_get(payload, "world_state", {})
-	var world_state: Dictionary = world_state_variant if world_state_variant is Dictionary else {}
-	var world_data_variant = _dictionary_get(world_state, "world_data", {})
-	var world_data: Dictionary = world_data_variant if world_data_variant is Dictionary else {}
+	var world_state_option = _dictionary_get(payload, "world_state", {})
+	var world_state: Dictionary = world_state_option if world_state_option is Dictionary else {}
+	var world_data_option = _dictionary_get(world_state, "world_data", {})
+	var world_data: Dictionary = world_data_option if world_data_option is Dictionary else {}
 	return int(_dictionary_get(world_data, "world_step", 0))
 
 

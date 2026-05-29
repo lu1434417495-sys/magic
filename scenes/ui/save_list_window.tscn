@@ -4,7 +4,7 @@
 
 
 ; External scripts, scenes, and shared assets referenced by this scene.
-[ext_resource type="Script" path="res://scripts/ui/save_list_window.gd" id="1_l0af2"]
+[ext_resource type="Script" path="res://scripts/ui/SaveListWindow.cs" id="1_l0af2"]
 [ext_resource type="StyleBoxFlat" path="res://scenes/ui/styles/panel_default.tres" id="2_panel_default"]
 
 ; Root node and primary scene tree.

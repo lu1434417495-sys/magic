@@ -1,11 +1,11 @@
 [gd_resource type="Resource" script_class="SkillDef" load_steps=6 format=3]
 
-[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="1_skill"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="2_combat"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="3_variant"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="1_skill"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="2_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="3_option"]
 
 [sub_resource type="Resource" id="Variant_dynamic_high"]
-script = ExtResource("3_variant")
+script = ExtResource("3_option")
 variant_id = &"dynamic_high"
 target_mode = &"ground"
 footprint_pattern = &"single"
@@ -18,7 +18,7 @@ target_mode = &"ground"
 target_team_filter = &"enemy"
 target_selection_mode = &"single_coord"
 selection_order_mode = &"stable"
-cast_variants = Array[ExtResource("3_variant")]([SubResource("Variant_dynamic_high")])
+cast_variants = Array[ExtResource("3_option")]([SubResource("Variant_dynamic_high")])
 
 [resource]
 script = ExtResource("1_skill")

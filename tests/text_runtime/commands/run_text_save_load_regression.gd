@@ -2,7 +2,7 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const GAME_TEXT_COMMAND_RUNNER_SCRIPT = preload("res://scripts/systems/game_runtime/headless/game_text_command_runner.gd")
+const GAME_TEXT_COMMAND_RUNNER_SCRIPT = preload("res://scripts/systems/game_runtime/headless/GameTextCommandRunner.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -99,10 +99,10 @@ func _test_game_load_reopens_forge_persisted_save() -> void:
 func _save_slots_include_id(runner, save_id: String) -> bool:
 	if runner == null or save_id.is_empty():
 		return false
-	for slot_variant in runner.get_session().get_game_session().list_save_slots():
-		if slot_variant is not Dictionary:
+	for slot_option in runner.get_session().get_game_session().list_save_slots():
+		if slot_option is not Dictionary:
 			continue
-		if String((slot_variant as Dictionary).get("save_id", "")) == save_id:
+		if String((slot_option as Dictionary).get("save_id", "")) == save_id:
 			return true
 	return false
 
@@ -111,10 +111,10 @@ func _count_warehouse_item(snapshot: Dictionary, item_id: String) -> int:
 	var warehouse_snapshot: Dictionary = snapshot.get("warehouse", {})
 	var window_data: Dictionary = warehouse_snapshot.get("window_data", {})
 	var entries: Array = window_data.get("entries", [])
-	for entry_variant in entries:
-		if entry_variant is not Dictionary:
+	for entry_option in entries:
+		if entry_option is not Dictionary:
 			continue
-		var entry: Dictionary = entry_variant
+		var entry: Dictionary = entry_option
 		if String(entry.get("item_id", "")) != item_id:
 			continue
 		return int(entry.get("quantity", entry.get("total_quantity", 0)))
@@ -128,10 +128,10 @@ func _count_runtime_warehouse_item(runner, item_id: String) -> int:
 	if runtime == null:
 		return 0
 	var window_data: Dictionary = runtime.get_warehouse_window_data()
-	for entry_variant in window_data.get("entries", []):
-		if entry_variant is not Dictionary:
+	for entry_option in window_data.get("entries", []):
+		if entry_option is not Dictionary:
 			continue
-		var entry: Dictionary = entry_variant
+		var entry: Dictionary = entry_option
 		if String(entry.get("item_id", "")) != item_id:
 			continue
 		return int(entry.get("quantity", entry.get("total_quantity", 0)))
@@ -141,17 +141,17 @@ func _count_runtime_warehouse_item(runner, item_id: String) -> int:
 func _count_party_state_item(party_state, item_id: String) -> int:
 	if party_state == null or party_state.warehouse_state == null:
 		return 0
-	for stack_variant in party_state.warehouse_state.get_non_empty_stacks():
-		if stack_variant == null:
+	for stack_option in party_state.warehouse_state.get_non_empty_stacks():
+		if stack_option == null:
 			continue
-		if String(stack_variant.item_id) != item_id:
+		if String(stack_option.item_id) != item_id:
 			continue
-		return maxi(int(stack_variant.quantity), 0)
+		return maxi(int(stack_option.quantity), 0)
 	var total := 0
-	for inst_variant in party_state.warehouse_state.get_non_empty_instances():
-		if inst_variant == null:
+	for inst_option in party_state.warehouse_state.get_non_empty_instances():
+		if inst_option == null:
 			continue
-		if String(inst_variant.item_id) != item_id:
+		if String(inst_option.item_id) != item_id:
 			continue
 		total += 1
 	return total
@@ -163,21 +163,21 @@ func _assert_ungenerated_submap_placeholder(runner, submap_id: String, message: 
 	if game_session == null:
 		return
 	var world_data: Dictionary = game_session.get_world_data()
-	var submaps_variant: Variant = world_data.get("mounted_submaps", {})
-	_assert_true(submaps_variant is Dictionary, "%s | mounted_submaps 应为 Dictionary。" % message)
-	if submaps_variant is not Dictionary:
+	var submaps_option: Variant = world_data.get("mounted_submaps", {})
+	_assert_true(submaps_option is Dictionary, "%s | mounted_submaps 应为 Dictionary。" % message)
+	if submaps_option is not Dictionary:
 		return
-	var submaps := submaps_variant as Dictionary
-	var submap_variant: Variant = submaps.get(submap_id, {})
-	_assert_true(submap_variant is Dictionary, "%s | 应存在子地图 %s。" % [message, submap_id])
-	if submap_variant is not Dictionary:
+	var submaps := submaps_option as Dictionary
+	var submap_option: Variant = submaps.get(submap_id, {})
+	_assert_true(submap_option is Dictionary, "%s | 应存在子地图 %s。" % [message, submap_id])
+	if submap_option is not Dictionary:
 		return
-	var submap := submap_variant as Dictionary
+	var submap := submap_option as Dictionary
 	_assert_true(not bool(submap.get("is_generated", true)), "%s | 子地图不应被标记为已生成。" % message)
-	var submap_world_data_variant: Variant = submap.get("world_data", null)
-	_assert_true(submap_world_data_variant is Dictionary, "%s | 子地图 world_data 占位应为 Dictionary。" % message)
-	if submap_world_data_variant is Dictionary:
-		_assert_true((submap_world_data_variant as Dictionary).is_empty(), "%s | 未生成子地图 world_data 必须保持空字典。" % message)
+	var submap_world_data_option: Variant = submap.get("world_data", null)
+	_assert_true(submap_world_data_option is Dictionary, "%s | 子地图 world_data 占位应为 Dictionary。" % message)
+	if submap_world_data_option is Dictionary:
+		_assert_true((submap_world_data_option as Dictionary).is_empty(), "%s | 未生成子地图 world_data 必须保持空字典。" % message)
 
 
 func _assert_command_ok(runner, command_text: String) -> void:

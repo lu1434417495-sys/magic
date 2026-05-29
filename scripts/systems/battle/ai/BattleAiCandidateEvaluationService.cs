@@ -1,3 +1,4 @@
+using System;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
@@ -6,61 +7,117 @@ public partial class BattleAiCandidateEvaluationService : RefCounted
 {
     private static readonly StringName FamilyMoveToRange = "move_to_range";
 
-    private readonly Godot.Collections.Dictionary<StringName, Callable> _evaluators = new();
+    private readonly System.Collections.Generic.Dictionary<
+        StringName,
+        Func<BattleAiCandidateRequest, BattleAiQueryService, BattleAiDecision>
+    > _evaluators = new();
+    private readonly BattleAiMoveToRangeCandidateEvaluator _moveToRangeEvaluator = new();
 
-    public void setup(GodotObject score_service)
+    public void setup(BattleAiScoreService score_service)
     {
         if (score_service == null)
         {
-            GD.PushError("BattleAiCandidateEvaluationService.setup requires BattleAiScoreService.");
+            GameLog.Error("BattleAiCandidateEvaluationService.setup requires BattleAiScoreService.", "ai.eval.missing_score_service", "ai");
         }
     }
 
-    public void register_evaluator(StringName family_id, Callable evaluator)
+    public void register_evaluator(
+        StringName family_id,
+        Func<BattleAiCandidateRequest, BattleAiQueryService, BattleAiDecision> evaluator
+    )
     {
         if (family_id == FamilyMoveToRange)
         {
-            GD.PushError("Evaluator for built-in family move_to_range must not be overridden.");
+            GameLog.Error("Evaluator for built-in family move_to_range must not be overridden.", "ai.eval.builtin_override", "ai");
             return;
         }
         if (_evaluators.ContainsKey(family_id))
         {
-            GD.PushError($"Evaluator for family {family_id} is already registered.");
+            GameLog.Error($"Evaluator for family {family_id} is already registered.", "ai.eval.duplicate_family", "ai");
             return;
         }
-        if (evaluator.Target == null || evaluator.Method == (StringName)"")
+        if (evaluator == null)
         {
-            GD.PushError($"Evaluator for family {family_id} must be a valid Callable.");
+            GameLog.Error($"Evaluator for family {family_id} must be a valid delegate.", "ai.eval.invalid_delegate", "ai");
             return;
         }
         _evaluators[family_id] = evaluator;
     }
 
-    public Variant evaluate(GodotObject request, GodotObject query)
+    public BattleAiDecision evaluate(BattleAiCandidateRequest request, BattleAiQueryService query)
     {
         if (request == null)
         {
-            GD.PushError("BattleAiCandidateEvaluationService.evaluate requires BattleAiCandidateRequest.");
-            return default;
+            GameLog.Error(
+                "BattleAiCandidateEvaluationService.evaluate requires BattleAiCandidateRequest.",
+                "ai.eval.missing_request",
+                "ai"
+            );
+            return null;
         }
 
-        StringName familyId = ReadStringName(request, "FamilyId");
-        if (_evaluators.TryGetValue(familyId, out Callable evaluator))
+        StringName familyId = request.FamilyId;
+        if (_evaluators.TryGetValue(familyId, out var evaluator))
         {
-            return evaluator.Call(request, query);
+            return evaluator.Invoke(request, query);
         }
         if (familyId == FamilyMoveToRange)
         {
             return evaluate_move_to_range_request(request, query);
         }
 
-        GD.PushError($"Unsupported candidate family_id {familyId}.");
-        return default;
+        GameLog.Error($"Unsupported candidate family_id {familyId}.", "ai.eval.unsupported_family", "ai");
+        return null;
     }
 
-    public Variant evaluate_move_to_range_request(GodotObject _request, GodotObject _query)
+    public BattleAiDecision evaluate_move_to_range_request(
+        BattleAiCandidateRequest request,
+        BattleAiQueryService query
+    )
     {
-        return default;
+        return _moveToRangeEvaluator.evaluate_move_to_range_request(
+            request,
+            query,
+            BuildMoveToRangeCommand,
+            BuildMoveToRangeDecision
+        );
+    }
+
+    public BattleCommand BuildMoveToRangeCommand(StringName actor_unit_id, Vector2I target_coord)
+    {
+        return new BattleCommand
+        {
+            command_type = BattleCommand.TYPE_MOVE(),
+            unit_id = actor_unit_id,
+            target_coord = target_coord,
+        };
+    }
+
+    public BattleAiDecision BuildMoveToRangeDecision(
+        BattleAiCandidateRequest request,
+        BattleCommand command,
+        BattleAiScoreInput score_input,
+        string target_display_name,
+        int path_cost
+    )
+    {
+        if (score_input != null && !score_input.is_sealed())
+        {
+            score_input.seal();
+        }
+        string targetLabel = string.IsNullOrEmpty(target_display_name)
+            ? "目标"
+            : target_display_name;
+        return new BattleAiDecision
+        {
+            command = command,
+            action_id = request.ActionId,
+            score_bucket_id = request.ScoreBucketId,
+            score_input = score_input,
+            skill_score_input = score_input,
+            reason_text =
+                $"{request.ActorUnitId} 调整到距离 {targetLabel} 的战术位置（移动消耗 {path_cost}）。",
+        };
     }
 
     public string _trim_reason(string value)
@@ -68,14 +125,4 @@ public partial class BattleAiCandidateEvaluationService : RefCounted
         return value?.StripEdges() ?? "";
     }
 
-    private static StringName ReadStringName(GodotObject source, string property)
-    {
-        Variant value = source.Get(property);
-        return value.VariantType switch
-        {
-            Variant.Type.StringName => value.AsStringName(),
-            Variant.Type.String => new StringName(value.AsString()),
-            _ => new StringName(value.ToString()),
-        };
-    }
 }

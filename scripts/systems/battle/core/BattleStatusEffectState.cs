@@ -78,40 +78,33 @@ public partial class BattleStatusEffectState : RefCounted
         return payload;
     }
 
-    public static BattleStatusEffectState from_dict(Variant data)
+    public static BattleStatusEffectState from_dict(GDictionary effectDict)
     {
-        if (data.VariantType != Variant.Type.Dictionary)
-        {
+        if (effectDict == null)
             return null;
-        }
-        GDictionary effectDict = data.AsGodotDictionary();
         if (!HasCurrentSchemaFields(effectDict))
         {
             return null;
         }
 
-        Variant rawStatusId = Get(effectDict, "status_id");
-        if (!IsNonEmptyStringLike(rawStatusId))
+        if (!TryGetStringLike(effectDict, "status_id", out string statusId)
+            || string.IsNullOrEmpty(statusId))
         {
             return null;
         }
-        Variant rawSourceUnitId = Get(effectDict, "source_unit_id");
-        if (!IsStringLike(rawSourceUnitId))
+        if (!TryGetStringLike(effectDict, "source_unit_id", out string sourceUnitId))
         {
             return null;
         }
-        Variant rawPower = Get(effectDict, "power");
-        if (rawPower.VariantType != Variant.Type.Int)
+        if (!TryGetStrictInt(effectDict, "power", out int power))
         {
             return null;
         }
-        Variant rawParams = Get(effectDict, "params");
-        if (rawParams.VariantType != Variant.Type.Dictionary)
+        if (!TryGetDictionary(effectDict, "params", out GDictionary parameters))
         {
             return null;
         }
-        Variant rawStacks = Get(effectDict, "stacks");
-        if (rawStacks.VariantType != Variant.Type.Int || rawStacks.AsInt32() < 0)
+        if (!TryGetStrictInt(effectDict, "stacks", out int stacks) || stacks < 0)
         {
             return null;
         }
@@ -119,54 +112,53 @@ public partial class BattleStatusEffectState : RefCounted
         int durationValue = -1;
         if (effectDict.ContainsKey("duration"))
         {
-            Variant rawDuration = Get(effectDict, "duration");
-            if (rawDuration.VariantType != Variant.Type.Int || rawDuration.AsInt32() < 0)
+            if (!TryGetStrictInt(effectDict, "duration", out durationValue) || durationValue < 0)
             {
                 return null;
             }
-            durationValue = rawDuration.AsInt32();
         }
 
         int tickIntervalValue = 0;
         if (effectDict.ContainsKey("tick_interval_tu"))
         {
-            Variant rawTickInterval = Get(effectDict, "tick_interval_tu");
-            if (rawTickInterval.VariantType != Variant.Type.Int || rawTickInterval.AsInt32() <= 0)
+            if (
+                !TryGetStrictInt(effectDict, "tick_interval_tu", out tickIntervalValue)
+                || tickIntervalValue <= 0
+            )
             {
                 return null;
             }
-            tickIntervalValue = rawTickInterval.AsInt32();
         }
 
         int nextTickAtValue = 0;
         if (effectDict.ContainsKey("next_tick_at_tu"))
         {
-            Variant rawNextTickAt = Get(effectDict, "next_tick_at_tu");
-            if (rawNextTickAt.VariantType != Variant.Type.Int || rawNextTickAt.AsInt32() <= 0)
+            if (
+                !TryGetStrictInt(effectDict, "next_tick_at_tu", out nextTickAtValue)
+                || nextTickAtValue <= 0
+            )
             {
                 return null;
             }
-            nextTickAtValue = rawNextTickAt.AsInt32();
         }
 
         bool skipDecayValue = false;
         if (effectDict.ContainsKey("skip_next_turn_end_decay"))
         {
-            Variant rawSkipDecay = Get(effectDict, "skip_next_turn_end_decay");
-            if (rawSkipDecay.VariantType != Variant.Type.Bool || !rawSkipDecay.AsBool())
+            if (!TryGetBool(effectDict, "skip_next_turn_end_decay", out skipDecayValue)
+                || !skipDecayValue)
             {
                 return null;
             }
-            skipDecayValue = true;
         }
 
         return new BattleStatusEffectState
         {
-            status_id = ToStringName(rawStatusId),
-            source_unit_id = ToStringName(rawSourceUnitId),
-            power = rawPower.AsInt32(),
-            @params = rawParams.AsGodotDictionary().Duplicate(true),
-            stacks = rawStacks.AsInt32(),
+            status_id = new StringName(statusId),
+            source_unit_id = new StringName(sourceUnitId),
+            power = power,
+            @params = parameters.Duplicate(true),
+            stacks = stacks,
             duration = durationValue,
             tick_interval_tu = tickIntervalValue,
             next_tick_at_tu = nextTickAtValue,
@@ -183,13 +175,12 @@ public partial class BattleStatusEffectState : RefCounted
                 return false;
             }
         }
-        foreach (Variant keyVariant in effectDict.Keys)
+        foreach (object keyValue in effectDict.Keys)
         {
-            if (keyVariant.VariantType != Variant.Type.String)
+            if (!TryAsStrictStringKey(keyValue, out string key))
             {
                 return false;
             }
-            string key = keyVariant.AsString();
             if (!HasString(RequiredSchemaFields, key) && !HasString(OptionalSchemaFields, key))
             {
                 return false;
@@ -198,19 +189,153 @@ public partial class BattleStatusEffectState : RefCounted
         return true;
     }
 
-    private static bool IsStringLike(Variant value)
+    private static bool TryGetStringLike(GDictionary data, string key, out string value)
     {
-        return value.VariantType == Variant.Type.String || value.VariantType == Variant.Type.StringName;
+        if (TryGetExactValue(data, key, out object rawValue)
+            && TryAsStringLike(rawValue, out value))
+        {
+            return true;
+        }
+        value = "";
+        return false;
     }
 
-    private static bool IsNonEmptyStringLike(Variant value)
+    private static bool TryGetStrictInt(GDictionary data, string key, out int value)
     {
-        return IsStringLike(value) && !value.AsString().IsEmpty();
+        if (TryGetExactValue(data, key, out object rawValue)
+            && TryAsStrictInt(rawValue, out value))
+        {
+            return true;
+        }
+        value = 0;
+        return false;
     }
 
-    private static StringName ToStringName(Variant value)
+    private static bool TryGetDictionary(GDictionary data, string key, out GDictionary value)
     {
-        return IsStringLike(value) ? new StringName(value.AsString()) : "";
+        if (TryGetExactValue(data, key, out object rawValue)
+            && TryAsDictionary(rawValue, out value))
+        {
+            return true;
+        }
+        value = new GDictionary();
+        return false;
+    }
+
+    private static bool TryGetBool(GDictionary data, string key, out bool value)
+    {
+        if (TryGetExactValue(data, key, out object rawValue) && TryAsBool(rawValue, out value))
+        {
+            return true;
+        }
+        value = false;
+        return false;
+    }
+
+    private static bool TryAsStrictStringKey(object rawValue, out string value)
+    {
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.String)
+        {
+            value = variant.AsString();
+            return true;
+        }
+        if (rawValue is string stringValue)
+        {
+            value = stringValue;
+            return true;
+        }
+        value = "";
+        return false;
+    }
+
+    private static bool TryAsStringLike(object rawValue, out string value)
+    {
+        if (rawValue is Variant variant)
+        {
+            if (variant.VariantType == Variant.Type.String)
+            {
+                value = variant.AsString();
+                return true;
+            }
+            if (variant.VariantType == Variant.Type.StringName)
+            {
+                value = variant.AsStringName().ToString();
+                return true;
+            }
+            value = "";
+            return false;
+        }
+        if (rawValue is string stringValue)
+        {
+            value = stringValue;
+            return true;
+        }
+        if (rawValue is StringName stringNameValue)
+        {
+            value = stringNameValue.ToString();
+            return true;
+        }
+        value = "";
+        return false;
+    }
+
+    private static bool TryAsStrictInt(object rawValue, out int value)
+    {
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Int)
+        {
+            value = variant.AsInt32();
+            return true;
+        }
+        if (rawValue is int intValue)
+        {
+            value = intValue;
+            return true;
+        }
+        value = 0;
+        return false;
+    }
+
+    private static bool TryAsDictionary(object rawValue, out GDictionary value)
+    {
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Dictionary)
+        {
+            value = variant.AsGodotDictionary();
+            return true;
+        }
+        if (rawValue is GDictionary dictionary)
+        {
+            value = dictionary;
+            return true;
+        }
+        value = new GDictionary();
+        return false;
+    }
+
+    private static bool TryAsBool(object rawValue, out bool value)
+    {
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Bool)
+        {
+            value = variant.AsBool();
+            return true;
+        }
+        if (rawValue is bool boolValue)
+        {
+            value = boolValue;
+            return true;
+        }
+        value = false;
+        return false;
+    }
+
+    private static bool TryGetExactValue(GDictionary data, string key, out object value)
+    {
+        if (data != null && data.ContainsKey(key))
+        {
+            value = data[key];
+            return true;
+        }
+        value = null;
+        return false;
     }
 
     private static bool HasString(string[] values, string value)
@@ -225,8 +350,4 @@ public partial class BattleStatusEffectState : RefCounted
         return false;
     }
 
-    private static Variant Get(GDictionary payload, string key)
-    {
-        return payload.ContainsKey(key) ? payload[key] : default;
-    }
 }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
+using VT = Godot.Variant.Type;
 
 [GlobalClass]
 public partial class GameLogService : RefCounted
@@ -39,7 +40,8 @@ public partial class GameLogService : RefCounted
         string domain,
         string event_id,
         string message,
-        GDictionary context = null)
+        GDictionary context = null
+    )
     {
         long timestampMs = (long)(Time.GetUnixTimeFromSystem() * 1000.0);
         var entry = new GDictionary
@@ -51,7 +53,7 @@ public partial class GameLogService : RefCounted
             ["domain"] = string.IsNullOrEmpty(domain) ? "runtime" : domain,
             ["event_id"] = event_id ?? "",
             ["message"] = message ?? "",
-            ["context"] = NormalizeVariant(context ?? new GDictionary()),
+            ["context"] = GdInterop.ToVariant(NormalizeValue(context ?? new GDictionary())),
         };
         _nextSeq += 1;
         _entries.Add(entry);
@@ -163,16 +165,22 @@ public partial class GameLogService : RefCounted
         {
             return;
         }
-        Error ensureDirError = DirAccess.MakeDirRecursiveAbsolute(ProjectSettings.GlobalizePath(LOG_DIRECTORY));
+        Error ensureDirError = DirAccess.MakeDirRecursiveAbsolute(
+            ProjectSettings.GlobalizePath(LOG_DIRECTORY)
+        );
         if (ensureDirError != Error.Ok)
         {
-            DisableFileWrite($"Failed to create log directory {LOG_DIRECTORY}. Error: {(int)ensureDirError}");
+            DisableFileWrite(
+                $"Failed to create log directory {LOG_DIRECTORY}. Error: {(int)ensureDirError}"
+            );
             return;
         }
         using var file = FileAccess.Open(_sessionLogVirtualPath, FileAccess.ModeFlags.Write);
         if (file == null)
         {
-            DisableFileWrite($"Failed to initialize log file {_sessionLogVirtualPath}. Error: {(int)FileAccess.GetOpenError()}");
+            DisableFileWrite(
+                $"Failed to initialize log file {_sessionLogVirtualPath}. Error: {(int)FileAccess.GetOpenError()}"
+            );
             return;
         }
         _writeEnabled = true;
@@ -187,7 +195,9 @@ public partial class GameLogService : RefCounted
         using var file = FileAccess.Open(_sessionLogVirtualPath, FileAccess.ModeFlags.ReadWrite);
         if (file == null)
         {
-            DisableFileWrite($"Failed to append log file {_sessionLogVirtualPath}. Error: {(int)FileAccess.GetOpenError()}");
+            DisableFileWrite(
+                $"Failed to append log file {_sessionLogVirtualPath}. Error: {(int)FileAccess.GetOpenError()}"
+            );
             return;
         }
         file.SeekEnd();
@@ -197,7 +207,7 @@ public partial class GameLogService : RefCounted
     private void DisableFileWrite(string message)
     {
         _writeEnabled = false;
-        GD.PushWarning(message);
+        GameLog.Warning(message, "log.file.disabled", "log");
     }
 
     private static string FormatUnixTimeMs(long unixTimeMs)
@@ -216,13 +226,43 @@ public partial class GameLogService : RefCounted
             GetInt(datetime, "hour", 0),
             GetInt(datetime, "minute", 0),
             GetInt(datetime, "second", 0),
-            MathMod(unixTimeMs, 1000));
+            MathMod(unixTimeMs, 1000)
+        );
     }
 
-    private static Variant NormalizeVariant(Variant value)
+    private static object NormalizeValue(object rawValue)
     {
+        if (rawValue is GDictionary rawDictionary)
+        {
+            var normalizedDict = new GDictionary();
+            foreach (var key in rawDictionary.Keys)
+                normalizedDict[key.ToString()] = GdInterop.ToVariant(NormalizeValue(rawDictionary[key]));
+            return normalizedDict;
+        }
+        if (rawValue is GArray rawArray)
+        {
+            var normalizedArray = new GArray();
+            foreach (var entry in rawArray)
+                normalizedArray.Add(GdInterop.ToVariant(NormalizeValue(entry)));
+            return normalizedArray;
+        }
+        if (rawValue is not Variant value)
+        {
+            return rawValue;
+        }
+
         switch (value.VariantType)
         {
+            case Variant.Type.Nil:
+                return null;
+            case Variant.Type.Bool:
+                return value.AsBool();
+            case Variant.Type.Int:
+                return value.AsInt64();
+            case Variant.Type.Float:
+                return value.AsDouble();
+            case Variant.Type.String:
+                return value.AsString();
             case Variant.Type.StringName:
                 return value.AsStringName().ToString();
             case Variant.Type.Vector2I:
@@ -238,18 +278,18 @@ public partial class GameLogService : RefCounted
             case Variant.Type.Dictionary:
             {
                 var normalizedDict = new GDictionary();
-                foreach (Variant key in value.AsGodotDictionary().Keys)
+                foreach (var key in value.AsGodotDictionary().Keys)
                 {
-                    normalizedDict[key.ToString()] = NormalizeVariant(value.AsGodotDictionary()[key]);
+                    normalizedDict[key.ToString()] = GdInterop.ToVariant(NormalizeValue(value.AsGodotDictionary()[key]));
                 }
                 return normalizedDict;
             }
             case Variant.Type.Array:
             {
                 var normalizedArray = new GArray();
-                foreach (Variant entry in value.AsGodotArray())
+                foreach (var entry in value.AsGodotArray())
                 {
-                    normalizedArray.Add(NormalizeVariant(entry));
+                    normalizedArray.Add(GdInterop.ToVariant(NormalizeValue(entry)));
                 }
                 return normalizedArray;
             }
@@ -258,11 +298,11 @@ public partial class GameLogService : RefCounted
                 GodotObject obj = value.AsGodotObject();
                 if (obj == null)
                 {
-                    return default;
+                    return null;
                 }
                 if (obj.HasMethod("to_dict"))
                 {
-                    return NormalizeVariant(obj.Call("to_dict"));
+                    return NormalizeValue(obj.Call("to_dict"));
                 }
                 return obj.ToString();
             }

@@ -1,6 +1,7 @@
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
+[GlobalClass]
 public partial class BattleUnitFactoryRuntime : RefCounted
 {
     public GodotObject get_character_gateway() => null;

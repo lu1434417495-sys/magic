@@ -2,7 +2,7 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const BATTLE_SIM_TRACE_SUMMARY_BUILDER_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_trace_summary_builder.gd")
+const BATTLE_SIM_TRACE_SUMMARY_BUILDER_SCRIPT = preload("res://scripts/systems/battle/sim/BattleSimTraceSummaryBuilder.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -33,7 +33,7 @@ func _test_compacts_top_level_analysis_report() -> void:
 		"win_rate": {"player": 0, "hostile": 1},
 		"runs": [_build_run()],
 	}
-	var summary: Dictionary = builder.build(report, "res://full_report.json")
+	var summary: Dictionary = builder.build(report, "res://full_report.json", {})
 	_assert_true(builder.has_traces(report), "builder 应能识别 top-level runs 中的 trace。")
 	_assert_eq(String(summary.get("source_report", "")), "res://full_report.json", "summary 应保留完整报告路径。")
 	_assert_eq(int(summary.get("trace_count", 0)), 2, "summary 应统计 trace 数。")

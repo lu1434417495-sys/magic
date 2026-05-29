@@ -201,10 +201,10 @@
 - `scripts/systems/progression/pending_character_reward.gd`
 - `scripts/systems/progression/pending_character_reward_entry.gd`
 - `scripts/systems/progression/character_management_module.gd`
-- `scripts/player/progression/quest_def.gd`
+- `scripts/player/progression/QuestDef.cs`
 - `scripts/player/progression/profession_content_registry.gd`
 - `scripts/systems/progression/character_creation_service.gd`
-- `scripts/systems/progression/identity_payload_validator.gd` new, or equivalent rules file
+- `scripts/systems/progression/IdentityPayloadValidator.cs` new, or equivalent rules file
 - `scripts/player/progression/trait_trigger_content_rules.gd`
 - `scripts/systems/battle/runtime/trait_trigger_hooks.gd`
 - `scripts/player/progression/identity_content_registry_base.gd`

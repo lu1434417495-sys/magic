@@ -1,19 +1,19 @@
 extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
-const BATTLE_AI_RUNTIME_ACTION_PLAN_SCRIPT = preload("res://scripts/systems/battle/ai/battle_ai_runtime_action_plan.gd")
-const BATTLE_AI_CONTEXT_SCRIPT = preload("res://scripts/systems/battle/ai/battle_ai_context.gd")
-const BATTLE_AI_SERVICE_SCRIPT = preload("res://scripts/systems/battle/ai/battle_ai_service.gd")
-const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_state.gd")
-const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
-const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
-const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
-const BATTLE_GRID_SERVICE_SCRIPT = preload("res://scripts/systems/battle/terrain/battle_grid_service.gd")
-const ENEMY_AI_BRAIN_DEF_SCRIPT = preload("res://scripts/enemies/enemy_ai_brain_def.gd")
-const ENEMY_AI_STATE_DEF_SCRIPT = preload("res://scripts/enemies/enemy_ai_state_def.gd")
-const ENEMY_AI_TRANSITION_RULE_DEF_SCRIPT = preload("res://scripts/enemies/enemy_ai_transition_rule_def.gd")
-const ENEMY_AI_TRANSITION_CONDITION_DEF_SCRIPT = preload("res://scripts/enemies/enemy_ai_transition_condition_def.gd")
-const WAIT_ACTION_SCRIPT = preload("res://scripts/enemies/actions/wait_action.gd")
+const BATTLE_AI_RUNTIME_ACTION_PLAN_SCRIPT = preload("res://scripts/systems/battle/ai/BattleAiRuntimeActionPlan.cs")
+const BATTLE_AI_CONTEXT_SCRIPT = preload("res://scripts/systems/battle/ai/BattleAiContext.cs")
+const BATTLE_AI_SERVICE_SCRIPT = preload("res://scripts/systems/battle/ai/BattleAiService.cs")
+const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleState.cs")
+const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleTimelineState.cs")
+const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleCellState.cs")
+const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
+const BATTLE_GRID_SERVICE_SCRIPT = preload("res://scripts/systems/battle/terrain/BattleGridService.cs")
+const ENEMY_AI_BRAIN_DEF_SCRIPT = preload("res://scripts/enemies/EnemyAiBrainDef.cs")
+const ENEMY_AI_STATE_DEF_SCRIPT = preload("res://scripts/enemies/EnemyAiStateDef.cs")
+const ENEMY_AI_TRANSITION_RULE_DEF_SCRIPT = preload("res://scripts/enemies/EnemyAiTransitionRuleDef.cs")
+const ENEMY_AI_TRANSITION_CONDITION_DEF_SCRIPT = preload("res://scripts/enemies/EnemyAiTransitionConditionDef.cs")
+const WAIT_ACTION_SCRIPT = preload("res://scripts/enemies/actions/WaitAction.cs")
 
 var _test := TestRunner.new()
 
@@ -96,7 +96,7 @@ func _build_service_fixture(enable_test_fallback: bool, plan) -> Dictionary:
 	var brain = _build_brain()
 	var service = BATTLE_AI_SERVICE_SCRIPT.new()
 	service.enable_mutation_guard = false
-	service.setup({brain.brain_id: brain})
+	service.setup({brain.brain_id: brain}, null)
 	var context = BATTLE_AI_CONTEXT_SCRIPT.new()
 	context.state = state
 	context.unit_state = actor
@@ -152,7 +152,7 @@ func _build_unit(unit_id: StringName, brain_id: StringName, state_id: StringName
 
 
 func _add_unit(grid_service, state, unit, is_enemy: bool) -> void:
-	grid_service.place_unit(state, unit, unit.coord)
+	grid_service.place_unit(state, unit, unit.coord, true)
 	state.units[unit.unit_id] = unit
 	if is_enemy:
 		state.enemy_unit_ids.append(unit.unit_id)

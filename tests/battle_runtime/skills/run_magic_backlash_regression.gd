@@ -3,14 +3,13 @@ extends SceneTree
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 const BattleRuntimeTestHelpers = preload("res://tests/shared/battle_runtime_test_helpers.gd")
 
-const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
-const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
-const BATTLE_COMMAND_SCRIPT = preload("res://scripts/systems/battle/core/battle_command.gd")
-const BATTLE_RUNTIME_MODULE_SCRIPT = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
-const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_state.gd")
-const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
-const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
-const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/AttributeService.cs")
+const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleCellState.cs")
+const BATTLE_RUNTIME_MODULE_SCRIPT = preload("res://scripts/systems/battle/runtime/BattleRuntimeModule.cs")
+const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleState.cs")
+const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleTimelineState.cs")
+const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
+const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/UnitBaseAttributes.cs")
 const SharedDamageResolvers = preload("res://tests/shared/stub_damage_resolvers.gd")
 const SharedHitResolvers = preload("res://tests/shared/stub_hit_resolvers.gd")
 
@@ -146,8 +145,8 @@ func _build_runtime_with_spell_control_roll(roll: int):
 	var skill_def = load("res://data/configs/skills/mage_fireball.tres")
 	var runtime = BATTLE_RUNTIME_MODULE_SCRIPT.new()
 	runtime.setup(null, {skill_def.skill_id: skill_def}, {}, {})
-	runtime.configure_damage_resolver_for_tests(SharedDamageResolvers.FixedFailedSaveDamageResolver.new([], [roll]))
-	runtime.configure_hit_resolver_for_tests(SharedHitResolvers.FixedHitResolver.new(roll))
+	runtime.configure_damage_resolver_for_tests(SharedDamageResolvers.build_fixed_failed_save_damage_resolver([], [roll]))
+	runtime.configure_hit_resolver_for_tests(SharedHitResolvers.build_fixed_hit_resolver(roll))
 	return runtime
 
 
@@ -168,7 +167,7 @@ func _build_state(map_size: Vector2i):
 func _build_cell(coord: Vector2i):
 	var cell = BATTLE_CELL_STATE_SCRIPT.new()
 	cell.coord = coord
-	cell.base_terrain = BATTLE_CELL_STATE_SCRIPT.TERRAIN_LAND
+	cell.base_terrain = BATTLE_CELL_STATE_SCRIPT.TERRAIN_LAND()
 	cell.base_height = 4
 	cell.recalculate_runtime_values()
 	return cell
@@ -188,26 +187,26 @@ func _build_unit(
 	unit.display_name = String(unit_id)
 	unit.faction_id = faction_id
 	unit.current_ap = current_ap
-	unit.current_move_points = BATTLE_UNIT_STATE_SCRIPT.DEFAULT_MOVE_POINTS_PER_TURN
+	unit.current_move_points = BATTLE_UNIT_STATE_SCRIPT.DEFAULT_MOVE_POINTS_PER_TURN()
 	unit.current_hp = 100
 	unit.current_mp = current_mp
 	unit.current_stamina = 60
 	unit.is_alive = true
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX, 100)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX, maxi(current_mp, 200))
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.SPELL_PROFICIENCY_BONUS, 2)
-	unit.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.AGILITY, 10)
-	unit.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.INTELLIGENCE, 16)
-	unit.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.HIDDEN_LUCK_AT_BIRTH, 0)
-	unit.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.FAITH_LUCK_BONUS, 0)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX_ID(), 100)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX_ID(), maxi(current_mp, 200))
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.SPELL_PROFICIENCY_BONUS_ID(), 2)
+	unit.attribute_snapshot.set_value(&"agility", 10)
+	unit.attribute_snapshot.set_value(&"intelligence", 16)
+	unit.attribute_snapshot.set_value(&"hidden_luck_at_birth", 0)
+	unit.attribute_snapshot.set_value(&"faith_luck_bonus", 0)
 	# 派生 AC=BASE_ARMOR_CLASS(8)+agility_mod(0)，BattleHitResolver 需要 ARMOR_CLASS 显式存在。
 	unit.attribute_snapshot.set_value(
-		ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS,
-		ATTRIBUTE_SERVICE_SCRIPT.BASE_ARMOR_CLASS
+		ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(),
+		ATTRIBUTE_SERVICE_SCRIPT.BASE_ARMOR_CLASS_VALUE()
 	)
 	# Fixture 显式给了 mp_max，就视作 MP 资源已解锁；否则技能 preview 在 get_locked_combat_resource_block_reason 直接拒。
-	unit.unlock_combat_resource(BATTLE_UNIT_STATE_SCRIPT.COMBAT_RESOURCE_MP)
-	unit.unlock_combat_resource(BATTLE_UNIT_STATE_SCRIPT.COMBAT_RESOURCE_AURA)
+	unit.unlock_combat_resource(BATTLE_UNIT_STATE_SCRIPT.COMBAT_RESOURCE_MP())
+	unit.unlock_combat_resource(BATTLE_UNIT_STATE_SCRIPT.COMBAT_RESOURCE_AURA())
 	if fireball_level >= 0:
 		unit.known_active_skill_ids.append(&"mage_fireball")
 		unit.known_skill_level_map[&"mage_fireball"] = fireball_level
@@ -226,8 +225,8 @@ func _activate(runtime, state, caster) -> void:
 
 
 func _build_fireball_command(unit_id: StringName, target_coord: Vector2i):
-	var command = BATTLE_COMMAND_SCRIPT.new()
-	command.command_type = BATTLE_COMMAND_SCRIPT.TYPE_SKILL
+	var command = BattleCommand.new()
+	command.command_type = BattleCommand.TYPE_SKILL()
 	command.unit_id = unit_id
 	command.skill_id = &"mage_fireball"
 	command.target_coord = target_coord
@@ -249,8 +248,8 @@ func _advance_timeline_tu(runtime, state, total_tu: int) -> void:
 	state.active_unit_id = &""
 	state.timeline.ready_unit_ids.clear()
 	state.timeline.tu_per_tick = 5
-	for unit_variant in state.units.values():
-		var unit_state = unit_variant
+	for unit_option in state.units.values():
+		var unit_state = unit_option
 		if unit_state != null:
 			unit_state.action_threshold = 1000000
 	runtime.advance(int(total_tu / 5))

@@ -6,7 +6,8 @@ using Godot.Collections;
 public partial class GameRuntimeRewardFlowHandler : RefCounted
 {
     private static readonly string RuntimeUnavailableMessage = "运行时尚未初始化。";
-    private static readonly string InvalidPromotionChoiceMessage = "晋升提交无效，当前选择仍需确认。";
+    private static readonly string InvalidPromotionChoiceMessage =
+        "晋升提交无效，当前选择仍需确认。";
 
     private WeakReference<GodotObject> _runtimeRef;
 
@@ -21,10 +22,50 @@ public partial class GameRuntimeRewardFlowHandler : RefCounted
         _runtime = runtime;
     }
 
+    public void setup(GodotObject runtime) => Setup(runtime);
+
     public new void Dispose()
     {
         _runtime = null;
     }
+
+    public void dispose() => Dispose();
+
+    public Dictionary get_current_promotion_prompt() => GetCurrentPromotionPrompt();
+
+    public Dictionary command_confirm_pending_reward() => CommandConfirmPendingReward();
+
+    public Dictionary command_choose_promotion(StringName professionId) =>
+        CommandChoosePromotion(professionId);
+
+    public Dictionary command_close_active_modal() => CommandCloseActiveModal();
+
+    public Dictionary submit_promotion_choice(
+        StringName memberId,
+        StringName professionId,
+        Dictionary selection
+    ) => SubmitPromotionChoice(memberId, professionId, selection);
+
+    public Dictionary cancel_promotion_choice() => CancelPromotionChoice();
+
+    public Dictionary confirm_active_reward() => ConfirmActiveReward();
+
+    public void on_character_info_window_closed() => OnCharacterInfoWindowClosed();
+
+    public bool on_promotion_choice_submitted(
+        StringName memberId,
+        StringName professionId,
+        Dictionary selection
+    ) => OnPromotionChoiceSubmitted(memberId, professionId, selection);
+
+    public void on_promotion_choice_cancelled() => OnPromotionChoiceCancelled();
+
+    public void on_character_reward_confirmed() => OnCharacterRewardConfirmed();
+
+    public void enqueue_pending_character_rewards(Godot.Collections.Array rewardOptions) =>
+        EnqueuePendingCharacterRewards(rewardOptions);
+
+    public bool present_pending_reward_if_ready() => PresentPendingRewardIfReady();
 
     public Dictionary GetCurrentPromotionPrompt()
     {
@@ -58,17 +99,17 @@ public partial class GameRuntimeRewardFlowHandler : RefCounted
         var prompt = GetCurrentPromotionPrompt();
         if (prompt.Count == 0)
             return CommandError("当前没有待确认的职业晋升选择。");
-        var memberId = ProgressionDataUtils.to_string_name(DictionaryGet(prompt, "member_id", ""));
-        var choices = DictionaryGet(prompt, "choices", new Godot.Collections.Array()).AsGodotArray();
-        foreach (var choiceVariant in choices)
+        var memberId = DictionaryStringName(prompt, "member_id");
+        var choices = DictionaryArray(prompt, "choices");
+        foreach (var choiceValue in choices)
         {
-            if (choiceVariant.VariantType != Variant.Type.Dictionary)
+            if (choiceValue.VariantType != Variant.Type.Dictionary)
                 continue;
-            var choiceData = choiceVariant.AsGodotDictionary();
-            var candidateProfessionId = ProgressionDataUtils.to_string_name(DictionaryGet(choiceData, "profession_id", ""));
+            var choiceData = choiceValue.AsGodotDictionary();
+            var candidateProfessionId = DictionaryStringName(choiceData, "profession_id");
             if (candidateProfessionId != professionId)
                 continue;
-            var selection = DictionaryGet(choiceData, "selection", new Dictionary()).AsGodotDictionary().Duplicate(true);
+            var selection = DictionaryDictionary(choiceData, "selection").Duplicate(true);
             if (OnPromotionChoiceSubmitted(memberId, candidateProfessionId, selection))
                 return CommandOk();
             return CommandError(InvalidPromotionChoiceMessage);
@@ -120,7 +161,11 @@ public partial class GameRuntimeRewardFlowHandler : RefCounted
         }
     }
 
-    public Dictionary SubmitPromotionChoice(StringName memberId, StringName professionId, Dictionary selection)
+    public Dictionary SubmitPromotionChoice(
+        StringName memberId,
+        StringName professionId,
+        Dictionary selection
+    )
     {
         if (!HasRuntime())
             return RuntimeUnavailableError();
@@ -155,13 +200,24 @@ public partial class GameRuntimeRewardFlowHandler : RefCounted
         PresentPendingRewardIfReady();
     }
 
-    public bool OnPromotionChoiceSubmitted(StringName memberId, StringName professionId, Dictionary selection)
+    public bool OnPromotionChoiceSubmitted(
+        StringName memberId,
+        StringName professionId,
+        Dictionary selection
+    )
     {
         if (!HasRuntime())
             return false;
         if (IsBattleActive())
         {
-            if (!PromotionPromptContainsChoice(GetPendingPromotionPrompt(), memberId, professionId, selection))
+            if (
+                !PromotionPromptContainsChoice(
+                    GetPendingPromotionPrompt(),
+                    memberId,
+                    professionId,
+                    selection
+                )
+            )
             {
                 RejectInvalidPromotionChoice();
                 return false;
@@ -204,19 +260,36 @@ public partial class GameRuntimeRewardFlowHandler : RefCounted
         var persistError = PersistPartyState();
         if (delta.needs_promotion_modal)
         {
-            SetPendingWorldPromotionPrompt(BuildRuntimePromotionPrompt(delta, "确认后将在世界地图立即生效。"));
+            SetPendingWorldPromotionPrompt(
+                BuildRuntimePromotionPrompt(delta, "确认后将在世界地图立即生效。")
+            );
             SetActiveModalId("promotion");
             if (persistError == Error.Ok)
-                UpdateStatus(string.Format("{0} 完成晋升后还有后续抉择待确认。", GetMemberDisplayName(memberId)));
+                UpdateStatus(
+                    string.Format(
+                        "{0} 完成晋升后还有后续抉择待确认。",
+                        GetMemberDisplayName(memberId)
+                    )
+                );
             else
-                UpdateStatus(string.Format("{0} 的晋升已应用，但队伍状态持久化失败。", GetMemberDisplayName(memberId)));
+                UpdateStatus(
+                    string.Format(
+                        "{0} 的晋升已应用，但队伍状态持久化失败。",
+                        GetMemberDisplayName(memberId)
+                    )
+                );
             return true;
         }
 
         if (persistError == Error.Ok)
             UpdateStatus(string.Format("{0} 完成职业晋升。", GetMemberDisplayName(memberId)));
         else
-            UpdateStatus(string.Format("{0} 完成职业晋升，但队伍状态持久化失败。", GetMemberDisplayName(memberId)));
+            UpdateStatus(
+                string.Format(
+                    "{0} 完成职业晋升，但队伍状态持久化失败。",
+                    GetMemberDisplayName(memberId)
+                )
+            );
         PresentPendingRewardIfReady();
         return true;
     }
@@ -259,37 +332,62 @@ public partial class GameRuntimeRewardFlowHandler : RefCounted
         var persistError = PersistPartyState();
         if (delta != null && delta.needs_promotion_modal)
         {
-            SetPendingWorldPromotionPrompt(BuildRuntimePromotionPrompt(delta, "确认后将在世界地图立即生效。"));
+            SetPendingWorldPromotionPrompt(
+                BuildRuntimePromotionPrompt(delta, "确认后将在世界地图立即生效。")
+            );
             SetActiveModalId("promotion");
             if (persistError == Error.Ok)
-                UpdateStatus(string.Format("{0} 的角色奖励已入账，职业晋升待确认。", reward.member_name));
+                UpdateStatus(
+                    string.Format("{0} 的角色奖励已入账，职业晋升待确认。", reward.member_name)
+                );
             else
-                UpdateStatus(string.Format("{0} 的角色奖励已入账，但队伍状态持久化失败。", reward.member_name));
+                UpdateStatus(
+                    string.Format(
+                        "{0} 的角色奖励已入账，但队伍状态持久化失败。",
+                        reward.member_name
+                    )
+                );
             return;
         }
 
-        if (delta == null || (delta.mastery_changes.Count == 0 && delta.knowledge_changes.Count == 0 && delta.attribute_changes.Count == 0))
+        if (
+            delta == null
+            || (
+                delta.mastery_changes.Count == 0
+                && delta.knowledge_changes.Count == 0
+                && delta.attribute_changes.Count == 0
+            )
+        )
         {
             if (persistError == Error.Ok)
-                UpdateStatus(string.Format("{0} 的本批奖励当前没有可入账项目。", reward.member_name));
+                UpdateStatus(
+                    string.Format("{0} 的本批奖励当前没有可入账项目。", reward.member_name)
+                );
             else
-                UpdateStatus(string.Format("{0} 的奖励处理完成，但队伍状态持久化失败。", reward.member_name));
+                UpdateStatus(
+                    string.Format("{0} 的奖励处理完成，但队伍状态持久化失败。", reward.member_name)
+                );
         }
         else
         {
             if (persistError == Error.Ok)
                 UpdateStatus(string.Format("{0} 的角色奖励已结算。", reward.member_name));
             else
-                UpdateStatus(string.Format("{0} 的角色奖励已结算，但队伍状态持久化失败。", reward.member_name));
+                UpdateStatus(
+                    string.Format(
+                        "{0} 的角色奖励已结算，但队伍状态持久化失败。",
+                        reward.member_name
+                    )
+                );
         }
         PresentPendingRewardIfReady();
     }
 
-    public void EnqueuePendingCharacterRewards(Godot.Collections.Array rewardVariants)
+    public void EnqueuePendingCharacterRewards(Godot.Collections.Array rewardOptions)
     {
         if (!HasRuntime())
             return;
-        EnqueueCharacterRewards(rewardVariants);
+        EnqueueCharacterRewards(rewardOptions);
     }
 
     public bool PresentPendingRewardIfReady()
@@ -315,10 +413,19 @@ public partial class GameRuntimeRewardFlowHandler : RefCounted
             }
             return false;
         }
-        if (activeModalId == "settlement" || activeModalId == "contract_board" || activeModalId == "shop"
-            || activeModalId == "forge" || activeModalId == "stagecoach" || activeModalId == "character_info"
-            || activeModalId == "party" || activeModalId == "warehouse" || activeModalId == "submap_confirm"
-            || activeModalId == "battle_start_confirm" || activeModalId == "game_over")
+        if (
+            activeModalId == "settlement"
+            || activeModalId == "contract_board"
+            || activeModalId == "shop"
+            || activeModalId == "forge"
+            || activeModalId == "stagecoach"
+            || activeModalId == "character_info"
+            || activeModalId == "party"
+            || activeModalId == "warehouse"
+            || activeModalId == "submap_confirm"
+            || activeModalId == "battle_start_confirm"
+            || activeModalId == "game_over"
+        )
             return false;
         var partyState = GetPartyState();
         if (partyState == null)
@@ -364,40 +471,46 @@ public partial class GameRuntimeRewardFlowHandler : RefCounted
         UpdateStatus(InvalidPromotionChoiceMessage);
     }
 
-    private bool PromotionPromptContainsChoice(Dictionary prompt, StringName memberId, StringName professionId, Dictionary selection)
+    private bool PromotionPromptContainsChoice(
+        Dictionary prompt,
+        StringName memberId,
+        StringName professionId,
+        Dictionary selection
+    )
     {
         if (prompt.Count == 0)
             return false;
-        if (ProgressionDataUtils.to_string_name(DictionaryGet(prompt, "member_id", "")) != memberId)
+        if (DictionaryStringName(prompt, "member_id") != memberId)
             return false;
-        var choicesVariant = DictionaryGet(prompt, "choices", default(Variant));
-        if (choicesVariant.VariantType != Variant.Type.Array)
+        var choices = DictionaryArray(prompt, "choices");
+        if (choices.Count == 0)
             return false;
-        var choices = choicesVariant.AsGodotArray();
-        foreach (var choiceVariant in choices)
+        foreach (var choiceValue in choices)
         {
-            if (choiceVariant.VariantType != Variant.Type.Dictionary)
+            if (choiceValue.VariantType != Variant.Type.Dictionary)
                 continue;
-            var choiceData = choiceVariant.AsGodotDictionary();
-            if (ProgressionDataUtils.to_string_name(DictionaryGet(choiceData, "profession_id", "")) != professionId)
+            var choiceData = choiceValue.AsGodotDictionary();
+            if (DictionaryStringName(choiceData, "profession_id") != professionId)
                 continue;
-            var choiceSelectionVariant = DictionaryGet(choiceData, "selection", default(Variant));
-            if (choiceSelectionVariant.VariantType != Variant.Type.Dictionary)
+            if (!TryDictionary(choiceData, "selection", out Dictionary choiceSelection))
                 continue;
-            var choiceSelection = choiceSelectionVariant.AsGodotDictionary();
             if (choiceSelection.Equals(selection))
                 return true;
         }
         return false;
     }
 
-    private bool BattlePromotionBatchApplied(BattleEventBatch batch, StringName memberId, StringName professionId)
+    private bool BattlePromotionBatchApplied(
+        BattleEventBatch batch,
+        StringName memberId,
+        StringName professionId
+    )
     {
         if (batch == null)
             return false;
-        foreach (var deltaVariant in batch.progression_deltas)
+        foreach (var deltaValue in batch.progression_deltas)
         {
-            var delta = deltaVariant.As<CharacterProgressionDelta>();
+            var delta = deltaValue.As<CharacterProgressionDelta>();
             if (PromotionDeltaApplied(delta, memberId, professionId))
                 return true;
         }
@@ -408,16 +521,20 @@ public partial class GameRuntimeRewardFlowHandler : RefCounted
     {
         if (batch == null)
             return false;
-        foreach (var deltaVariant in batch.progression_deltas)
+        foreach (var deltaValue in batch.progression_deltas)
         {
-            var delta = deltaVariant.As<CharacterProgressionDelta>();
+            var delta = deltaValue.As<CharacterProgressionDelta>();
             if (delta != null && delta.member_id == memberId && delta.needs_promotion_modal)
                 return true;
         }
         return false;
     }
 
-    private bool PromotionDeltaApplied(CharacterProgressionDelta delta, StringName memberId, StringName professionId)
+    private bool PromotionDeltaApplied(
+        CharacterProgressionDelta delta,
+        StringName memberId,
+        StringName professionId
+    )
     {
         if (delta == null)
             return false;
@@ -544,11 +661,17 @@ public partial class GameRuntimeRewardFlowHandler : RefCounted
             _runtime.Call("clear_pending_world_promotion_prompt_state");
     }
 
-    private BattleEventBatch SubmitBattlePromotionChoice(StringName memberId, StringName professionId, Dictionary selection)
+    private BattleEventBatch SubmitBattlePromotionChoice(
+        StringName memberId,
+        StringName professionId,
+        Dictionary selection
+    )
     {
         if (!HasRuntime())
             return null;
-        return _runtime.Call("submit_battle_promotion_choice", memberId, professionId, selection).As<BattleEventBatch>();
+        return _runtime
+            .Call("submit_battle_promotion_choice", memberId, professionId, selection)
+            .As<BattleEventBatch>();
     }
 
     private void ApplyBattleBatch(BattleEventBatch batch)
@@ -557,11 +680,17 @@ public partial class GameRuntimeRewardFlowHandler : RefCounted
             _runtime.Call("apply_battle_batch", batch);
     }
 
-    private CharacterProgressionDelta PromoteProfession(StringName memberId, StringName professionId, Dictionary selection)
+    private CharacterProgressionDelta PromoteProfession(
+        StringName memberId,
+        StringName professionId,
+        Dictionary selection
+    )
     {
         if (!HasRuntime())
             return null;
-        return _runtime.Call("promote_profession", memberId, professionId, selection).As<CharacterProgressionDelta>();
+        return _runtime
+            .Call("promote_profession", memberId, professionId, selection)
+            .As<CharacterProgressionDelta>();
     }
 
     private void SyncPartyStateFromCharacterManagement()
@@ -577,11 +706,16 @@ public partial class GameRuntimeRewardFlowHandler : RefCounted
         return (Error)_runtime.Call("persist_party_state").AsInt32();
     }
 
-    private Dictionary BuildRuntimePromotionPrompt(CharacterProgressionDelta delta, string selectionHint)
+    private Dictionary BuildRuntimePromotionPrompt(
+        CharacterProgressionDelta delta,
+        string selectionHint
+    )
     {
         if (!HasRuntime())
             return new Dictionary();
-        return _runtime.Call("build_runtime_promotion_prompt", delta, selectionHint).AsGodotDictionary();
+        return _runtime
+            .Call("build_runtime_promotion_prompt", delta, selectionHint)
+            .AsGodotDictionary();
     }
 
     private void SetPendingWorldPromotionPrompt(Dictionary prompt)
@@ -603,17 +737,21 @@ public partial class GameRuntimeRewardFlowHandler : RefCounted
             _runtime.Call("clear_active_reward_state");
     }
 
-    private CharacterProgressionDelta ApplyPendingCharacterRewardToParty(PendingCharacterReward reward)
+    private CharacterProgressionDelta ApplyPendingCharacterRewardToParty(
+        PendingCharacterReward reward
+    )
     {
         if (!HasRuntime())
             return null;
-        return _runtime.Call("apply_pending_character_reward_to_party", reward).As<CharacterProgressionDelta>();
+        return _runtime
+            .Call("apply_pending_character_reward_to_party", reward)
+            .As<CharacterProgressionDelta>();
     }
 
-    private void EnqueueCharacterRewards(Godot.Collections.Array rewardVariants)
+    private void EnqueueCharacterRewards(Godot.Collections.Array rewardOptions)
     {
         if (HasRuntime())
-            _runtime.Call("enqueue_character_rewards", rewardVariants);
+            _runtime.Call("enqueue_character_rewards", rewardOptions);
     }
 
     private GodotObject GetPartyState()
@@ -629,16 +767,52 @@ public partial class GameRuntimeRewardFlowHandler : RefCounted
             _runtime.Call("set_active_reward_state", reward);
     }
 
-    private static Variant DictionaryGet(Dictionary dictionary, Variant key, Variant fallback)
+    private static StringName DictionaryStringName(Dictionary dictionary, string key)
     {
         if (dictionary == null || !dictionary.ContainsKey(key))
-            return fallback;
-        return dictionary[key];
+            return "";
+        return ProgressionDataUtils.to_string_name(dictionary[key]);
+    }
+
+    private static Godot.Collections.Array DictionaryArray(Dictionary dictionary, string key)
+    {
+        if (dictionary == null || !dictionary.ContainsKey(key))
+            return new Godot.Collections.Array();
+        var value = dictionary[key];
+        return value.VariantType == Variant.Type.Array
+            ? value.AsGodotArray()
+            : new Godot.Collections.Array();
+    }
+
+    private static Dictionary DictionaryDictionary(Dictionary dictionary, string key)
+    {
+        if (dictionary == null || !dictionary.ContainsKey(key))
+            return new Dictionary();
+        var value = dictionary[key];
+        return value.VariantType == Variant.Type.Dictionary
+            ? value.AsGodotDictionary()
+            : new Dictionary();
+    }
+
+    private static bool TryDictionary(Dictionary dictionary, string key, out Dictionary value)
+    {
+        value = new Dictionary();
+        if (dictionary == null || !dictionary.ContainsKey(key))
+            return false;
+        var rawValue = dictionary[key];
+        if (rawValue.VariantType != Variant.Type.Dictionary)
+            return false;
+        value = rawValue.AsGodotDictionary();
+        return true;
     }
 
     private static GodotObject ResolveWeakRef(WeakReference<GodotObject> weakRef)
     {
-        if (weakRef == null || !weakRef.TryGetTarget(out GodotObject target) || !GodotObject.IsInstanceValid(target))
+        if (
+            weakRef == null
+            || !weakRef.TryGetTarget(out GodotObject target)
+            || !GodotObject.IsInstanceValid(target)
+        )
             return null;
         return target;
     }

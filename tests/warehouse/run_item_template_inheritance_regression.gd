@@ -2,11 +2,11 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const ItemDef = preload("res://scripts/player/warehouse/item_def.gd")
-const ItemContentRegistry = preload("res://scripts/player/warehouse/item_content_registry.gd")
-const AttributeModifier = preload("res://scripts/player/progression/attribute_modifier.gd")
-const WeaponProfileDef = preload("res://scripts/player/warehouse/weapon_profile_def.gd")
-const WeaponDamageDiceDef = preload("res://scripts/player/warehouse/weapon_damage_dice_def.gd")
+const ItemDef = preload("res://scripts/player/warehouse/ItemDef.cs")
+const ItemContentRegistry = preload("res://scripts/player/warehouse/ItemContentRegistry.cs")
+const AttributeModifier = preload("res://scripts/player/progression/AttributeModifier.cs")
+const WeaponProfileDef = preload("res://scripts/player/warehouse/WeaponProfileDef.cs")
+const WeaponDamageDiceDef = preload("res://scripts/player/warehouse/WeaponDamageDiceDef.cs")
 
 const LEGACY_WEAPON_FIELDS_FIXTURE := "res://tests/fixtures/resource_validation/item_registry_invalid/legacy_weapon_fields_item.tres"
 
@@ -332,8 +332,8 @@ func _test_item_def_exposes_only_weapon_profile_runtime_source() -> void:
 func _test_legacy_weapon_fields_are_not_runtime_fallback() -> void:
 	var no_profile_weapon := ItemDef.new()
 	no_profile_weapon.item_id = &"_fixture_no_profile_weapon"
-	no_profile_weapon.item_category = ItemDef.ITEM_CATEGORY_EQUIPMENT
-	no_profile_weapon.equipment_type_id = ItemDef.EQUIPMENT_TYPE_WEAPON
+	no_profile_weapon.item_category = &"equipment"
+	no_profile_weapon.equipment_type_id = &"weapon"
 	no_profile_weapon.equipment_slot_ids = ["main_hand"]
 	no_profile_weapon.tags = [&"weapon", &"melee"]
 
@@ -391,8 +391,8 @@ func _test_scalar_fallback() -> void:
 func _test_weapon_profile_merge_delegates_property_rules() -> void:
 	var template := ItemDef.new()
 	template.item_id = &"_fixture_profile_template"
-	template.item_category = ItemDef.ITEM_CATEGORY_EQUIPMENT
-	template.equipment_type_id = ItemDef.EQUIPMENT_TYPE_WEAPON
+	template.item_category = &"equipment"
+	template.equipment_type_id = &"weapon"
 	var template_profile := _build_weapon_profile(2, &"physical_slash")
 	template_profile.properties = [&"versatile"]
 	template.set("weapon_profile", template_profile)
@@ -401,7 +401,7 @@ func _test_weapon_profile_merge_delegates_property_rules() -> void:
 	instance.item_id = &"_fixture_profile_instance"
 	var instance_profile := WeaponProfileDef.new()
 	instance_profile.damage_tag = &"physical_blunt"
-	instance_profile.properties_mode = WeaponProfileDef.PropertyMergeMode.ADD
+	instance_profile.properties_mode = WeaponProfileDef.PROPERTY_MERGE_MODE_ADD()
 	instance_profile.properties = [&"shield_breaker", &"versatile"]
 	instance.set("weapon_profile", instance_profile)
 
@@ -415,14 +415,14 @@ func _test_weapon_profile_merge_delegates_property_rules() -> void:
 
 
 func _test_weapon_profile_inheritance_override_and_property_modes() -> void:
-	var template_profile := _build_weapon_profile(1, ItemDef.DAMAGE_TAG_PHYSICAL_SLASH)
+	var template_profile := _build_weapon_profile(1, &"physical_slash")
 	template_profile.weapon_type_id = &"longsword"
 	template_profile.training_group = &"martial"
 	template_profile.range_type = &"melee"
 	template_profile.family = &"sword"
 	template_profile.one_handed_dice = _build_weapon_dice(1, 8, 0)
 	template_profile.two_handed_dice = _build_weapon_dice(1, 10, 0)
-	template_profile.properties_mode = WeaponProfileDef.PropertyMergeMode.REPLACE
+	template_profile.properties_mode = WeaponProfileDef.PROPERTY_MERGE_MODE_REPLACE()
 	template_profile.properties = [&"finesse", &"light", &"versatile"]
 	var template := _build_weapon_item(&"_fixture_profile_template_full", template_profile)
 
@@ -445,10 +445,10 @@ func _test_weapon_profile_inheritance_override_and_property_modes() -> void:
 
 	var override_profile := WeaponProfileDef.new()
 	override_profile.weapon_type_id = &"spear"
-	override_profile.damage_tag = ItemDef.DAMAGE_TAG_PHYSICAL_PIERCE
+	override_profile.damage_tag = &"physical_pierce"
 	override_profile.attack_range = 2
 	override_profile.one_handed_dice = _build_weapon_dice(1, 6, 1)
-	override_profile.properties_mode = WeaponProfileDef.PropertyMergeMode.REPLACE
+	override_profile.properties_mode = WeaponProfileDef.PROPERTY_MERGE_MODE_REPLACE()
 	override_profile.properties = [&"thrown"]
 	var override_instance := _build_weapon_item(&"_fixture_profile_override", override_profile)
 	var override_merged: ItemDef = ItemContentRegistry.merge_with_template(template, override_instance)
@@ -465,32 +465,32 @@ func _test_weapon_profile_inheritance_override_and_property_modes() -> void:
 	var property_cases := [
 		{
 			"label": "inherit",
-			"mode": WeaponProfileDef.PropertyMergeMode.INHERIT,
+			"mode": WeaponProfileDef.PROPERTY_MERGE_MODE_INHERIT(),
 			"properties": [&"ignored"],
 			"expected": [&"finesse", &"light", &"versatile"],
 		},
 		{
 			"label": "replace",
-			"mode": WeaponProfileDef.PropertyMergeMode.REPLACE,
+			"mode": WeaponProfileDef.PROPERTY_MERGE_MODE_REPLACE(),
 			"properties": [&"heavy", &"heavy"],
 			"expected": [&"heavy"],
 		},
 		{
 			"label": "add",
-			"mode": WeaponProfileDef.PropertyMergeMode.ADD,
+			"mode": WeaponProfileDef.PROPERTY_MERGE_MODE_ADD(),
 			"properties": [&"reach", &"light"],
 			"expected": [&"finesse", &"light", &"versatile", &"reach"],
 		},
 		{
 			"label": "remove",
-			"mode": WeaponProfileDef.PropertyMergeMode.REMOVE,
+			"mode": WeaponProfileDef.PROPERTY_MERGE_MODE_REMOVE(),
 			"properties": [&"light", &"missing"],
 			"expected": [&"finesse", &"versatile"],
 		},
 	]
 	for case_data in property_cases:
 		var profile := WeaponProfileDef.new()
-		profile.properties_mode = int(case_data.get("mode", WeaponProfileDef.PropertyMergeMode.INHERIT))
+		profile.properties_mode = int(case_data.get("mode", WeaponProfileDef.PROPERTY_MERGE_MODE_INHERIT()))
 		profile.properties = _to_string_name_array(case_data.get("properties", []))
 		var instance := _build_weapon_item(StringName("_fixture_profile_%s" % String(case_data.get("label", ""))), profile)
 		var merged: ItemDef = ItemContentRegistry.merge_with_template(template, instance)
@@ -498,7 +498,7 @@ func _test_weapon_profile_inheritance_override_and_property_modes() -> void:
 		_assert_true(merged_profile != null, "properties_mode=%s 应产出 weapon_profile。" % String(case_data.get("label", "")))
 		if merged_profile != null:
 			_assert_eq(merged_profile.get_properties(), _to_string_name_array(case_data.get("expected", [])), "properties_mode=%s 应按规则合并 properties。" % String(case_data.get("label", "")))
-			_assert_eq(int(merged_profile.properties_mode), int(WeaponProfileDef.PropertyMergeMode.REPLACE), "合并后的 properties_mode 应归一为 REPLACE，避免运行时再次解释合并模式。")
+			_assert_eq(int(merged_profile.properties_mode), int(WeaponProfileDef.PROPERTY_MERGE_MODE_REPLACE()), "合并后的 properties_mode 应归一为 REPLACE，避免运行时再次解释合并模式。")
 
 
 func _test_item_category_inherits_from_template() -> void:
@@ -506,10 +506,10 @@ func _test_item_category_inherits_from_template() -> void:
 	# 旧行为下 has_equipment_category() 会返回 false，导致整段装备校验被跳过、武器在战斗里失效。
 	var template := ItemDef.new()
 	template.item_id = &"_fixture_category_template"
-	template.item_category = ItemDef.ITEM_CATEGORY_EQUIPMENT
-	template.equipment_type_id = ItemDef.EQUIPMENT_TYPE_WEAPON
+	template.item_category = &"equipment"
+	template.equipment_type_id = &"weapon"
 	template.equipment_slot_ids = ["main_hand"]
-	template.set("weapon_profile", _build_weapon_profile(1, ItemDef.DAMAGE_TAG_PHYSICAL_SLASH))
+	template.set("weapon_profile", _build_weapon_profile(1, &"physical_slash"))
 	template.tags = [&"weapon", &"melee"]
 	template.icon = "res://template_icon.svg"
 
@@ -529,7 +529,7 @@ func _test_item_category_inherits_from_template() -> void:
 	# 显式覆盖路径：实例填了 misc 应推翻模板。
 	var override_instance := ItemDef.new()
 	override_instance.item_id = &"_fixture_category_override"
-	override_instance.item_category = ItemDef.ITEM_CATEGORY_MISC
+	override_instance.item_category = &"misc"
 	var override_merged: ItemDef = ItemContentRegistry.merge_with_template(template, override_instance)
 	_assert_eq(String(override_merged.item_category), "misc", "实例显式 misc 应覆盖模板 equipment。")
 	_assert_true(not override_merged.is_equipment(), "实例显式 misc 后 is_equipment() 应为 false。")
@@ -543,11 +543,11 @@ func _test_item_category_normalized_helper() -> void:
 	_assert_true(not unset_def.is_skill_book(), "未填 item_category 不应被视为技能书。")
 
 	var explicit_misc := ItemDef.new()
-	explicit_misc.item_category = ItemDef.ITEM_CATEGORY_MISC
+	explicit_misc.item_category = &"misc"
 	_assert_eq(String(explicit_misc.get_item_category_normalized()), "misc", "显式 misc 经归一化后仍为 misc。")
 
 	var explicit_equipment := ItemDef.new()
-	explicit_equipment.item_category = ItemDef.ITEM_CATEGORY_EQUIPMENT
+	explicit_equipment.item_category = &"equipment"
 	_assert_true(explicit_equipment.has_equipment_category(), "显式 equipment 应被视为装备。")
 
 
@@ -593,7 +593,7 @@ func _test_modifier_deep_copy_and_source_id_rewrite() -> void:
 	template.item_id = &"_fixture_mod_template"
 	var template_mod := AttributeModifier.new()
 	template_mod.attribute_id = &"attack_bonus"
-	template_mod.mode = AttributeModifier.MODE_FLAT
+	template_mod.mode = &"flat"
 	template_mod.value = 1
 	template_mod.source_type = &"equipment"
 	template_mod.source_id = &"_fixture_mod_template"
@@ -603,7 +603,7 @@ func _test_modifier_deep_copy_and_source_id_rewrite() -> void:
 	instance.item_id = &"_fixture_mod_instance"
 	var instance_mod := AttributeModifier.new()
 	instance_mod.attribute_id = &"hit_bonus"
-	instance_mod.mode = AttributeModifier.MODE_FLAT
+	instance_mod.mode = &"flat"
 	instance_mod.value = 2
 	instance_mod.source_type = &"equipment"
 	instance_mod.source_id = &"_fixture_mod_instance"
@@ -698,8 +698,8 @@ func _build_weapon_dice(dice_count: int, dice_sides: int, flat_bonus: int = 0) -
 func _build_weapon_item(item_id: StringName, weapon_profile: WeaponProfileDef) -> ItemDef:
 	var item := ItemDef.new()
 	item.item_id = item_id
-	item.item_category = ItemDef.ITEM_CATEGORY_EQUIPMENT
-	item.equipment_type_id = ItemDef.EQUIPMENT_TYPE_WEAPON
+	item.item_category = &"equipment"
+	item.equipment_type_id = &"weapon"
 	item.equipment_slot_ids = ["main_hand"]
 	item.set("weapon_profile", weapon_profile)
 	return item

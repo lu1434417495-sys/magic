@@ -2,10 +2,10 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const GAME_RUNTIME_REWARD_FLOW_HANDLER_SCRIPT = preload("res://scripts/systems/game_runtime/game_runtime_reward_flow_handler.gd")
-const PARTY_STATE_SCRIPT = preload("res://scripts/player/progression/party_state.gd")
-const PENDING_CHARACTER_REWARD_SCRIPT = preload("res://scripts/systems/progression/pending_character_reward.gd")
-const PENDING_CHARACTER_REWARD_ENTRY_SCRIPT = preload("res://scripts/systems/progression/pending_character_reward_entry.gd")
+const GAME_RUNTIME_REWARD_FLOW_HANDLER_SCRIPT = preload("res://scripts/systems/game_runtime/GameRuntimeRewardFlowHandler.cs")
+const PARTY_STATE_SCRIPT = preload("res://scripts/player/progression/PartyState.cs")
+const PENDING_CHARACTER_REWARD_SCRIPT = preload("res://scripts/systems/progression/PendingCharacterReward.cs")
+const PENDING_CHARACTER_REWARD_ENTRY_SCRIPT = preload("res://scripts/systems/progression/PendingCharacterRewardEntry.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -328,11 +328,19 @@ class _FakeCharacterManagement extends RefCounted:
 		return _party_state
 
 
-	func enqueue_pending_character_rewards(reward_variants: Array) -> void:
-		for reward_variant in reward_variants:
-			var reward = PendingCharacterReward.from_variant(reward_variant)
+	func enqueue_pending_character_rewards(reward_options: Array) -> void:
+		for reward_option in reward_options:
+			var reward = _pending_reward_from_option(reward_option)
 			if reward != null and not reward.is_empty():
 				_party_state.enqueue_pending_character_reward(reward)
+
+
+	func _pending_reward_from_option(reward_option):
+		if reward_option is PendingCharacterReward:
+			return PendingCharacterReward.from_dict(reward_option.to_dict())
+		if reward_option is Dictionary:
+			return PendingCharacterReward.from_dict(reward_option)
+		return null
 
 
 	func promote_profession(member_id: StringName, profession_id: StringName, selection: Dictionary):
@@ -491,9 +499,9 @@ class _FakeRuntime extends RefCounted:
 		return _persist_party_state()
 
 
-	func enqueue_character_rewards(reward_variants: Array) -> void:
+	func enqueue_character_rewards(reward_options: Array) -> void:
 		if _character_management != null:
-			_character_management.enqueue_pending_character_rewards(reward_variants)
+			_character_management.enqueue_pending_character_rewards(reward_options)
 			_party_state = _character_management.get_party_state()
 
 

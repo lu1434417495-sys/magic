@@ -2,9 +2,9 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
-const BattleCellState = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
-const BattleGridService = preload("res://scripts/systems/battle/terrain/battle_grid_service.gd")
+const BattleState = preload("res://scripts/systems/battle/core/BattleState.cs")
+const BattleCellState = preload("res://scripts/systems/battle/core/BattleCellState.cs")
+const BattleGridService = preload("res://scripts/systems/battle/terrain/BattleGridService.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -75,7 +75,7 @@ func _test_projected_line_contract() -> void:
 
 
 func _new_geometry_service():
-	var geometry_path := "res://scripts/systems/battle/runtime/battle_barrier_geometry_service.gd"
+	var geometry_path := "res://scripts/systems/battle/runtime/BattleBarrierGeometryService.cs"
 	if not FileAccess.file_exists(geometry_path):
 		_failures.append("BattleBarrierGeometryService script is missing.")
 		return null
@@ -94,7 +94,7 @@ func _build_state(map_size: Vector2i) -> BattleState:
 		for x in range(map_size.x):
 			var cell := BattleCellState.new()
 			cell.coord = Vector2i(x, y)
-			cell.base_terrain = BattleCellState.TERRAIN_LAND
+			cell.base_terrain = BattleCellState.TERRAIN_LAND()
 			cell.base_height = 4
 			cell.recalculate_runtime_values()
 			state.cells[cell.coord] = cell

@@ -9,24 +9,40 @@ public partial class BattleAiStateResolver : RefCounted
 {
     private const int HpBasisPointsDenominator = 10000;
 
-    public GDictionary resolve(GodotObject context, GodotObject brain)
+    public GDictionary resolve(BattleAiContext context, EnemyAiBrainDef brain)
+    {
+        return ResolveTyped(context, brain).ToDictionary();
+    }
+
+    internal TransitionResult ResolveTyped(BattleAiContext context, EnemyAiBrainDef brain)
     {
         StringName previousStateId = GetPreviousStateId(context);
         StringName currentStateId = ResolveCurrentStateId(context, brain);
         if (brain == null)
         {
-            return Result(previousStateId, currentStateId, "", "missing_brain", new GArray());
+            return Result(
+                previousStateId,
+                currentStateId,
+                "",
+                "missing_brain",
+                new List<TransitionConditionTrace>()
+            );
         }
 
-        GArray rules = GetSortedRules(brain);
+        var rules = GetSortedRules(brain);
         if (rules.Count == 0)
         {
-            return Result(previousStateId, currentStateId, "", "no_transition_rules", new GArray());
+            return Result(
+                previousStateId,
+                currentStateId,
+                "",
+                "no_transition_rules",
+                new List<TransitionConditionTrace>()
+            );
         }
 
-        foreach (Variant ruleVariant in rules)
+        foreach (EnemyAiTransitionRuleDef rule in rules)
         {
-            GodotObject rule = ruleVariant.AsGodotObject();
             if (rule == null)
             {
                 continue;
@@ -36,7 +52,7 @@ public partial class BattleAiStateResolver : RefCounted
                 continue;
             }
 
-            var matchedConditions = new GArray();
+            var matchedConditions = new List<TransitionConditionTrace>();
             if (RuleMatches(context, currentStateId, rule, matchedConditions))
             {
                 return Result(
@@ -44,121 +60,110 @@ public partial class BattleAiStateResolver : RefCounted
                     ProgressionDataUtils.to_string_name(rule.Get("target_state_id")),
                     ProgressionDataUtils.to_string_name(rule.Get("rule_id")),
                     "matched_rule",
-                    matchedConditions);
+                    matchedConditions
+                );
             }
         }
 
-        return Result(previousStateId, currentStateId, "", "no_matching_rule", new GArray());
+        return Result(
+            previousStateId,
+            currentStateId,
+            "",
+            "no_matching_rule",
+            new List<TransitionConditionTrace>()
+        );
     }
 
-    private static StringName GetPreviousStateId(GodotObject context)
+    private static StringName GetPreviousStateId(BattleAiContext context)
     {
         BattleUnitState unitState = GetUnitState(context);
-        return unitState == null ? new StringName("") : ProgressionDataUtils.to_string_name(unitState.ai_state_id);
+        return unitState == null
+            ? new StringName("")
+            : ProgressionDataUtils.to_string_name(unitState.ai_state_id);
     }
 
-    private static StringName ResolveCurrentStateId(GodotObject context, GodotObject brain)
+    private static StringName ResolveCurrentStateId(BattleAiContext context, EnemyAiBrainDef brain)
     {
         if (brain == null)
         {
             return GetPreviousStateId(context);
         }
         StringName currentStateId = GetPreviousStateId(context);
-        if (currentStateId != (StringName)"" && brain.HasMethod("has_state") && brain.Call("has_state", currentStateId).AsBool())
+        if (currentStateId != (StringName)"" && brain.has_state(currentStateId))
         {
             return currentStateId;
         }
-        StringName defaultStateId = ProgressionDataUtils.to_string_name(brain.Get("default_state_id"));
-        if (defaultStateId != (StringName)"" && brain.HasMethod("has_state") && brain.Call("has_state", defaultStateId).AsBool())
+        StringName defaultStateId = brain.default_state_id;
+        if (defaultStateId != (StringName)"" && brain.has_state(defaultStateId))
         {
             return defaultStateId;
         }
         return defaultStateId;
     }
 
-    private static GArray GetSortedRules(GodotObject brain)
+    private static List<EnemyAiTransitionRuleDef> GetSortedRules(EnemyAiBrainDef brain)
     {
         if (brain == null)
         {
-            return new GArray();
+            return new List<EnemyAiTransitionRuleDef>();
         }
 
-        GArray rawRules = new();
-        if (brain.HasMethod("get_transition_rules"))
+        var rules = new List<EnemyAiTransitionRuleDef>();
+        foreach (EnemyAiTransitionRuleDef rule in brain.transition_rules)
         {
-            rawRules = brain.Call("get_transition_rules").AsGodotArray();
-        }
-        else
-        {
-            Variant transitionRules = brain.Get("transition_rules");
-            if (transitionRules.VariantType == Variant.Type.Array)
-            {
-                rawRules = transitionRules.AsGodotArray();
-            }
-        }
-
-        var rules = new List<GodotObject>();
-        foreach (Variant ruleVariant in rawRules)
-        {
-            GodotObject rule = ruleVariant.AsGodotObject();
             if (rule != null)
             {
                 rules.Add(rule);
             }
         }
-        rules.Sort((left, right) =>
-        {
-            int leftOrder = GetInt(left, "order");
-            int rightOrder = GetInt(right, "order");
-            if (leftOrder != rightOrder)
+        rules.Sort(
+            (left, right) =>
             {
-                return leftOrder.CompareTo(rightOrder);
+                int leftOrder = left.order;
+                int rightOrder = right.order;
+                if (leftOrder != rightOrder)
+                {
+                    return leftOrder.CompareTo(rightOrder);
+                }
+                string leftId = left.rule_id.ToString();
+                string rightId = right.rule_id.ToString();
+                int idCompare = string.CompareOrdinal(leftId, rightId);
+                if (idCompare != 0)
+                {
+                    return idCompare;
+                }
+                return string.CompareOrdinal(
+                    left.target_state_id.ToString(),
+                    right.target_state_id.ToString()
+                );
             }
-            string leftId = GetString(left, "rule_id");
-            string rightId = GetString(right, "rule_id");
-            int idCompare = string.CompareOrdinal(leftId, rightId);
-            if (idCompare != 0)
-            {
-                return idCompare;
-            }
-            return string.CompareOrdinal(GetString(left, "target_state_id"), GetString(right, "target_state_id"));
-        });
-
-        var sorted = new GArray();
-        foreach (GodotObject rule in rules)
-        {
-            sorted.Add(rule);
-        }
-        return sorted;
+        );
+        return rules;
     }
 
-    private static bool RuleAppliesToState(GodotObject rule, StringName stateId)
+    private static bool RuleAppliesToState(EnemyAiTransitionRuleDef rule, StringName stateId)
     {
         if (rule == null)
         {
             return false;
         }
-        if (rule.HasMethod("applies_to_state"))
-        {
-            return rule.Call("applies_to_state", stateId).AsBool();
-        }
-        GArray fromStateIds = GetArray(rule, "from_state_ids");
-        return fromStateIds.Count == 0 || fromStateIds.Contains(stateId);
+        return rule.applies_to_state(stateId);
     }
 
-    private static bool RuleMatches(GodotObject context, StringName currentStateId, GodotObject rule, GArray matchedConditions)
+    private static bool RuleMatches(
+        BattleAiContext context,
+        StringName currentStateId,
+        EnemyAiTransitionRuleDef rule,
+        List<TransitionConditionTrace> matchedConditions
+    )
     {
         if (rule == null)
         {
             return false;
         }
 
-        GArray conditions = rule.HasMethod("get_conditions")
-            ? rule.Call("get_conditions").AsGodotArray()
-            : GetArray(rule, "conditions");
-        foreach (Variant conditionVariant in conditions)
+        foreach (EnemyAiTransitionConditionDef condition in rule.GetTypedConditions())
         {
-            GodotObject condition = conditionVariant.AsGodotObject();
             if (condition == null)
             {
                 return false;
@@ -167,64 +172,65 @@ public partial class BattleAiStateResolver : RefCounted
             {
                 return false;
             }
-            matchedConditions.Add(condition.HasMethod("to_trace_dict")
-                ? condition.Call("to_trace_dict")
-                : new GDictionary());
+            matchedConditions.Add(TransitionConditionTrace.FromCondition(condition));
         }
         return true;
     }
 
-    private static bool ConditionMatches(GodotObject context, StringName currentStateId, GodotObject condition)
+    private static bool ConditionMatches(
+        BattleAiContext context,
+        StringName currentStateId,
+        EnemyAiTransitionConditionDef condition
+    )
     {
-        StringName predicate = ProgressionDataUtils.to_string_name(condition.Get("predicate"));
+        StringName predicate = condition.predicate;
         if (predicate == EnemyAiTransitionConditionDef.PREDICATE_ALWAYS())
         {
             return true;
         }
         if (predicate == EnemyAiTransitionConditionDef.PREDICATE_CURRENT_STATE_IS())
         {
-            return GetArray(condition, "state_ids").Contains(currentStateId);
+            return condition.state_ids.Contains(currentStateId);
         }
         if (predicate == EnemyAiTransitionConditionDef.PREDICATE_SELF_HP_AT_OR_BELOW())
         {
-            return IsUnitAtOrBelowHpBasisPoints(GetUnitState(context), GetInt(condition, "basis_points"));
+            return IsUnitAtOrBelowHpBasisPoints(
+                GetUnitState(context),
+                condition.basis_points
+            );
         }
         if (predicate == EnemyAiTransitionConditionDef.PREDICATE_ALLY_HP_AT_OR_BELOW())
         {
-            return HasAllyAtOrBelowHpBasisPoints(context, GetInt(condition, "basis_points"));
+            return HasAllyAtOrBelowHpBasisPoints(context, condition.basis_points);
         }
-        if (predicate == EnemyAiTransitionConditionDef.PREDICATE_NEAREST_ENEMY_DISTANCE_AT_OR_BELOW())
+        if (
+            predicate
+            == EnemyAiTransitionConditionDef.PREDICATE_NEAREST_ENEMY_DISTANCE_AT_OR_BELOW()
+        )
         {
-            return NearestEnemyDistanceAtOrBelow(context, GetInt(condition, "max_distance"));
+            return NearestEnemyDistanceAtOrBelow(context, condition.max_distance);
         }
         if (predicate == EnemyAiTransitionConditionDef.PREDICATE_HAS_SKILL_AFFORDANCE())
         {
-            return context != null
-                && context.HasMethod("has_skill_affordance")
-                && context.Call("has_skill_affordance", GetArray(condition, "affordances")).AsBool();
+            return context != null && context.HasSkillAffordanceValues(condition.affordances);
         }
         return false;
     }
 
-    private static BattleUnitState GetUnitState(GodotObject context)
+    private static BattleUnitState GetUnitState(BattleAiContext context)
     {
-        if (context == null)
-        {
-            return null;
-        }
-        return context.Get("unit_state").AsGodotObject() as BattleUnitState;
+        return context?.unit_state;
     }
 
-    private static BattleState GetBattleState(GodotObject context)
+    private static BattleState GetBattleState(BattleAiContext context)
     {
-        if (context == null)
-        {
-            return null;
-        }
-        return context.Get("state").AsGodotObject() as BattleState;
+        return context?.state;
     }
 
-    private static bool HasAllyAtOrBelowHpBasisPoints(GodotObject context, int thresholdBasisPoints)
+    private static bool HasAllyAtOrBelowHpBasisPoints(
+        BattleAiContext context,
+        int thresholdBasisPoints
+    )
     {
         BattleUnitState unitState = GetUnitState(context);
         BattleState state = GetBattleState(context);
@@ -233,9 +239,8 @@ public partial class BattleAiStateResolver : RefCounted
             return false;
         }
 
-        foreach (Variant unitVariant in state.units.Values)
+        foreach (BattleUnitState allyUnit in CollectUnits(state))
         {
-            BattleUnitState allyUnit = unitVariant.AsGodotObject() as BattleUnitState;
             if (allyUnit == null || !allyUnit.is_alive)
             {
                 continue;
@@ -256,7 +261,7 @@ public partial class BattleAiStateResolver : RefCounted
         return false;
     }
 
-    private static bool NearestEnemyDistanceAtOrBelow(GodotObject context, int maxDistance)
+    private static bool NearestEnemyDistanceAtOrBelow(BattleAiContext context, int maxDistance)
     {
         if (maxDistance < 0)
         {
@@ -265,29 +270,25 @@ public partial class BattleAiStateResolver : RefCounted
 
         BattleUnitState unitState = GetUnitState(context);
         BattleState state = GetBattleState(context);
-        GodotObject gridService = GetObject(context, "grid_service");
+        BattleGridService gridService = context?.grid_service;
         if (unitState == null || state == null || gridService == null)
         {
             return false;
         }
 
-        Godot.Collections.Array<StringName> candidateIds = unitState.faction_id == (StringName)"player"
-            ? state.enemy_unit_ids
-            : state.ally_unit_ids;
+        Godot.Collections.Array<StringName> candidateIds =
+            unitState.faction_id == (StringName)"player"
+                ? state.enemy_unit_ids
+                : state.ally_unit_ids;
         int bestDistance = 999999;
-        foreach (StringName unitIdVariant in candidateIds)
+        foreach (StringName unitIdValue in candidateIds)
         {
-            StringName unitId = ProgressionDataUtils.to_string_name(unitIdVariant);
-            if (!state.units.ContainsKey(unitId))
+            StringName unitId = ProgressionDataUtils.to_string_name(unitIdValue);
+            if (!TryGetUnit(state, unitId, out BattleUnitState candidate) || !candidate.is_alive)
             {
                 continue;
             }
-            BattleUnitState candidate = state.units[unitId].AsGodotObject() as BattleUnitState;
-            if (candidate == null || !candidate.is_alive)
-            {
-                continue;
-            }
-            int distance = gridService.Call("get_distance_between_units", unitState, candidate).AsInt32();
+            int distance = gridService.get_distance_between_units(unitState, candidate);
             if (distance < bestDistance)
             {
                 bestDistance = distance;
@@ -296,32 +297,208 @@ public partial class BattleAiStateResolver : RefCounted
         return bestDistance <= maxDistance;
     }
 
-    private static bool IsUnitAtOrBelowHpBasisPoints(BattleUnitState unitState, int thresholdBasisPoints)
+    private static bool IsUnitAtOrBelowHpBasisPoints(
+        BattleUnitState unitState,
+        int thresholdBasisPoints
+    )
     {
         if (unitState == null || unitState.attribute_snapshot == null)
         {
             return false;
         }
-        int hpMax = Mathf.Max(unitState.attribute_snapshot.Call("get_value", new StringName("hp_max")).AsInt32(), 1);
+        int hpMax = Mathf.Max(
+            unitState.attribute_snapshot.get_value(new StringName("hp_max")),
+            1
+        );
         int clampedThreshold = Mathf.Clamp(thresholdBasisPoints, 0, HpBasisPointsDenominator);
         int currentHp = Mathf.Clamp(unitState.current_hp, 0, hpMax);
         return currentHp * HpBasisPointsDenominator <= hpMax * clampedThreshold;
     }
 
-    private static GDictionary Result(
+    private static TransitionResult Result(
         StringName previousStateId,
         StringName stateId,
         StringName ruleId,
         StringName reason,
-        GArray matchedConditions)
+        List<TransitionConditionTrace> matchedConditions
+    )
     {
-        return new GDictionary
+        return new TransitionResult(
+            previousStateId,
+            stateId,
+            ruleId,
+            reason,
+            matchedConditions
+        );
+    }
+
+    internal sealed class TransitionResult
+    {
+        public TransitionResult(
+            StringName previousStateId,
+            StringName stateId,
+            StringName ruleId,
+            StringName reason,
+            List<TransitionConditionTrace> matchedConditions
+        )
         {
-            ["previous_state_id"] = previousStateId,
-            ["state_id"] = stateId,
-            ["rule_id"] = ruleId,
-            ["reason"] = reason,
-            ["matched_conditions"] = (matchedConditions ?? new GArray()).Duplicate(true),
-        };
+            PreviousStateId = previousStateId;
+            StateId = stateId;
+            RuleId = ruleId;
+            Reason = reason;
+            MatchedConditions =
+                matchedConditions != null
+                    ? new List<TransitionConditionTrace>(matchedConditions)
+                    : new List<TransitionConditionTrace>();
+        }
+
+        public StringName PreviousStateId { get; }
+        public StringName StateId { get; }
+        public StringName RuleId { get; }
+        public StringName Reason { get; }
+        public IReadOnlyList<TransitionConditionTrace> MatchedConditions { get; }
+
+        public static TransitionResult Empty() =>
+            new("", "", "", "", new List<TransitionConditionTrace>());
+
+        public GDictionary ToDictionary()
+        {
+            GArray matchedConditions = new();
+            foreach (TransitionConditionTrace condition in MatchedConditions)
+            {
+                if (condition != null)
+                {
+                    matchedConditions.Add(condition.ToDictionary());
+                }
+            }
+
+            return new GDictionary
+            {
+                ["previous_state_id"] = PreviousStateId,
+                ["state_id"] = StateId,
+                ["rule_id"] = RuleId,
+                ["reason"] = Reason,
+                ["matched_conditions"] = matchedConditions,
+            };
+        }
+    }
+
+    internal sealed class TransitionConditionTrace
+    {
+        private TransitionConditionTrace(
+            StringName predicate,
+            int basisPoints,
+            int maxDistance,
+            List<StringName> stateIds,
+            List<StringName> affordances
+        )
+        {
+            Predicate = predicate;
+            BasisPoints = basisPoints;
+            MaxDistance = maxDistance;
+            StateIds = stateIds ?? new List<StringName>();
+            Affordances = affordances ?? new List<StringName>();
+        }
+
+        public StringName Predicate { get; }
+        public int BasisPoints { get; }
+        public int MaxDistance { get; }
+        public IReadOnlyList<StringName> StateIds { get; }
+        public IReadOnlyList<StringName> Affordances { get; }
+
+        public static TransitionConditionTrace FromCondition(EnemyAiTransitionConditionDef condition)
+        {
+            if (condition == null)
+            {
+                return new TransitionConditionTrace(
+                    "",
+                    -1,
+                    -1,
+                    new List<StringName>(),
+                    new List<StringName>()
+                );
+            }
+
+            return new TransitionConditionTrace(
+                condition.predicate,
+                condition.basis_points,
+                condition.max_distance,
+                CopyStringNames(condition.state_ids),
+                CopyStringNames(condition.affordances)
+            );
+        }
+
+        public GDictionary ToDictionary()
+        {
+            return new GDictionary
+            {
+                ["predicate"] = Predicate.ToString(),
+                ["basis_points"] = BasisPoints,
+                ["max_distance"] = MaxDistance,
+                ["state_ids"] = StringNameListToStrings(StateIds),
+                ["affordances"] = StringNameListToStrings(Affordances),
+            };
+        }
+
+        private static List<StringName> CopyStringNames(
+            Godot.Collections.Array<StringName> values
+        )
+        {
+            List<StringName> result = new();
+            if (values == null)
+            {
+                return result;
+            }
+            foreach (StringName value in values)
+            {
+                result.Add(value);
+            }
+            return result;
+        }
+
+        private static Godot.Collections.Array<string> StringNameListToStrings(
+            IReadOnlyList<StringName> values
+        )
+        {
+            var result = new Godot.Collections.Array<string>();
+            if (values == null)
+            {
+                return result;
+            }
+            foreach (StringName value in values)
+            {
+                result.Add(value.ToString());
+            }
+            return result;
+        }
+    }
+
+    private static List<BattleUnitState> CollectUnits(BattleState state)
+    {
+        var result = new List<BattleUnitState>();
+        if (state?.units == null)
+        {
+            return result;
+        }
+        foreach (BattleUnitState unitState in state.GetUnitsTyped())
+        {
+            result.Add(unitState);
+        }
+        return result;
+    }
+
+    private static bool TryGetUnit(
+        BattleState state,
+        StringName unitId,
+        out BattleUnitState unitState
+    )
+    {
+        unitState = null;
+        StringName normalized = ProgressionDataUtils.to_string_name(unitId);
+        if (state == null || normalized == "")
+        {
+            return false;
+        }
+        return state.TryGetUnitTyped(normalized, out unitState);
     }
 }

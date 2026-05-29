@@ -1,4 +1,5 @@
 using Godot;
+using System.Collections.Generic;
 
 [GlobalClass]
 public partial class PartyState : RefCounted
@@ -25,9 +26,9 @@ public partial class PartyState : RefCounted
     public int gold;
     public StringName leader_member_id = "",
         main_character_member_id = "";
-    public Godot.Collections.Dictionary fate_run_flags = new(),
-        meta_flags = new();
-    public Godot.Collections.Array active_member_ids = new(),
+    public Dictionary<StringName, bool> fate_run_flags { get; private set; } = new();
+    public Dictionary<StringName, bool> meta_flags { get; private set; } = new();
+    public Godot.Collections.Array<StringName> active_member_ids = new(),
         reserve_member_ids = new();
     public Godot.Collections.Dictionary member_states = new();
     public Godot.Collections.Array<PendingCharacterReward> pending_character_rewards = new();
@@ -54,18 +55,9 @@ public partial class PartyState : RefCounted
             ? main_character_member_id
             : new StringName("");
 
-    public Godot.Collections.Dictionary get_fate_run_flags() =>
-        _normalize_fate_run_flags(Variant.From(fate_run_flags));
-
-    public void set_fate_run_flags(Godot.Collections.Dictionary v) =>
-        fate_run_flags = _normalize_fate_run_flags(Variant.From(v));
-
     public bool get_fate_run_flag(StringName id, bool defVal = false)
     {
-        if (id == "")
-            return defVal;
-        var n = _normalize_fate_run_flags(Variant.From(fate_run_flags));
-        return n.ContainsKey(id) && (bool)n[id];
+        return id != "" && fate_run_flags.TryGetValue(id, out bool value) ? value : defVal;
     }
 
     public bool has_fate_run_flag(StringName id) => get_fate_run_flag(id);
@@ -82,18 +74,9 @@ public partial class PartyState : RefCounted
             fate_run_flags.Remove(id);
     }
 
-    public Godot.Collections.Dictionary get_meta_flags() =>
-        _normalize_meta_flags(Variant.From(meta_flags));
-
-    public void set_meta_flags(Godot.Collections.Dictionary v) =>
-        meta_flags = _normalize_meta_flags(Variant.From(v));
-
     public bool get_meta_flag(StringName id, bool defVal = false)
     {
-        if (id == "")
-            return defVal;
-        var n = _normalize_meta_flags(Variant.From(meta_flags));
-        return n.ContainsKey(id) && (bool)n[id];
+        return id != "" && meta_flags.TryGetValue(id, out bool value) ? value : defVal;
     }
 
     public bool has_meta_flag(StringName id) => get_meta_flag(id);
@@ -114,20 +97,26 @@ public partial class PartyState : RefCounted
     {
         if (id == "")
             return;
-        active_member_ids = Variant
-            .From(ProgressionDataUtils.to_string_name_array(Variant.From(active_member_ids)))
-            .AsGodotArray();
-        reserve_member_ids = Variant
-            .From(ProgressionDataUtils.to_string_name_array(Variant.From(reserve_member_ids)))
-            .AsGodotArray();
+        active_member_ids = ProgressionDataUtils.to_string_name_array(
+            Variant.From(active_member_ids)
+        );
+        reserve_member_ids = ProgressionDataUtils.to_string_name_array(
+            Variant.From(reserve_member_ids)
+        );
         active_member_ids.Remove(id);
         reserve_member_ids.Remove(id);
         if (leader_member_id == id)
             leader_member_id =
-                active_member_ids.Count > 0
-                    ? active_member_ids[0].AsStringName()
-                    : new StringName("");
+                active_member_ids.Count > 0 ? active_member_ids[0] : new StringName("");
     }
+
+    public Godot.Collections.Array<QuestState> get_active_quests() => active_quests.Duplicate();
+
+    public Godot.Collections.Array<QuestState> get_claimable_quests() =>
+        claimable_quests.Duplicate();
+
+    public Godot.Collections.Array<StringName> get_completed_quest_ids() =>
+        completed_quest_ids.Duplicate();
 
     public int get_gold() => Mathf.Max(gold, 0);
 
@@ -212,6 +201,30 @@ public partial class PartyState : RefCounted
     }
 
     public bool has_claimable_quest(StringName qid) => get_claimable_quest_state(qid) != null;
+
+    public QuestState get_quest_state(StringName qid)
+    {
+        var activeQuest = get_active_quest_state(qid);
+        if (activeQuest != null)
+            return activeQuest;
+        return get_claimable_quest_state(qid);
+    }
+
+    public void set_quest_state(StringName qid, QuestState q)
+    {
+        if (q == null)
+            return;
+        if (q.quest_id == "")
+            q.quest_id = qid;
+        if (q.quest_id == "")
+            return;
+        if (q.status_id == QuestState.STATUS_COMPLETED)
+            set_claimable_quest_state(q);
+        else if (q.status_id == QuestState.STATUS_REWARDED)
+            add_completed_quest_id(q.quest_id);
+        else
+            set_active_quest_state(q);
+    }
 
     public void set_active_quest_state(QuestState q)
     {
@@ -375,7 +388,196 @@ public partial class PartyState : RefCounted
 
     public static PartyState from_dict(Godot.Collections.Dictionary data)
     {
-        return null; /* complex deserialization — linter expansion pending */
+        if (data.Count == 0)
+            return null;
+        if (!_has_exact_fields(data, TO_DICT_FIELDS))
+            return null;
+        if (data["version"].VariantType != Variant.Type.Int || data["version"].AsInt32() != 3)
+            return null;
+        if (data["warehouse_state"].VariantType != Variant.Type.Dictionary)
+            return null;
+        if (data["member_states"].VariantType != Variant.Type.Dictionary)
+            return null;
+        if (data["pending_character_rewards"].VariantType != Variant.Type.Array)
+            return null;
+        if (data["active_quests"].VariantType != Variant.Type.Array)
+            return null;
+        if (data["claimable_quests"].VariantType != Variant.Type.Array)
+            return null;
+        if (data["completed_quest_ids"].VariantType != Variant.Type.Array)
+            return null;
+        if (data["fate_run_flags"].VariantType != Variant.Type.Dictionary)
+            return null;
+        if (data["meta_flags"].VariantType != Variant.Type.Dictionary)
+            return null;
+        if (data["gold"].VariantType != Variant.Type.Int || data["gold"].AsInt32() < 0)
+            return null;
+        if (data["active_member_ids"].VariantType != Variant.Type.Array)
+            return null;
+        if (data["reserve_member_ids"].VariantType != Variant.Type.Array)
+            return null;
+
+        var leaderMemberId = _parse_required_string_name(
+            data["leader_member_id"],
+            out bool leaderOk
+        );
+        if (!leaderOk)
+            return null;
+        var mainCharacterMemberId = _parse_required_string_name(
+            data["main_character_member_id"],
+            out bool mainOk
+        );
+        if (!mainOk)
+            return null;
+
+        var parsedFateRunFlags = _parse_boolean_flag_dict(
+            data["fate_run_flags"].AsGodotDictionary()
+        );
+        if (parsedFateRunFlags == null)
+            return null;
+        var parsedMetaFlags = _parse_boolean_flag_dict(data["meta_flags"].AsGodotDictionary());
+        if (parsedMetaFlags == null)
+            return null;
+        var parsedActiveMemberIds = _parse_unique_string_name_array(
+            data["active_member_ids"].AsGodotArray()
+        );
+        if (parsedActiveMemberIds == null)
+            return null;
+        var parsedReserveMemberIds = _parse_unique_string_name_array(
+            data["reserve_member_ids"].AsGodotArray()
+        );
+        if (parsedReserveMemberIds == null)
+            return null;
+
+        var warehouseState = WarehouseState.from_dict(data["warehouse_state"].AsGodotDictionary());
+        if (warehouseState == null)
+            return null;
+
+        var partyState = new PartyState
+        {
+            version = data["version"].AsInt32(),
+            gold = data["gold"].AsInt32(),
+            leader_member_id = leaderMemberId,
+            main_character_member_id = mainCharacterMemberId,
+            fate_run_flags = parsedFateRunFlags,
+            meta_flags = parsedMetaFlags,
+            active_member_ids = parsedActiveMemberIds,
+            reserve_member_ids = parsedReserveMemberIds,
+            warehouse_state = warehouseState,
+        };
+
+        var memberStatesData = data["member_states"].AsGodotDictionary();
+        foreach (var key in memberStatesData.Keys)
+        {
+            var serializedMemberId = ProgressionDataUtils.to_string_name(key);
+            if (serializedMemberId == "")
+                return null;
+
+            var memberStatePayload = memberStatesData[key];
+            if (memberStatePayload.VariantType != Variant.Type.Dictionary)
+                return null;
+
+            var memberState = PartyMemberState.from_dict(memberStatePayload.AsGodotDictionary());
+            if (memberState == null || memberState.member_id != serializedMemberId)
+                return null;
+            if (partyState.member_states.ContainsKey(memberState.member_id))
+                return null;
+            partyState.member_states[memberState.member_id] = memberState;
+        }
+
+        if (!_has_unique_equipment_instance_ids(partyState))
+            return null;
+        if (
+            partyState.leader_member_id == ""
+            || !partyState.has_member_state(partyState.leader_member_id)
+        )
+            return null;
+
+        var rosterSeenIds = new Godot.Collections.Dictionary();
+        foreach (var memberId in partyState.active_member_ids)
+        {
+            if (!partyState.has_member_state(memberId))
+                return null;
+            rosterSeenIds[memberId] = true;
+        }
+        foreach (var memberId in partyState.reserve_member_ids)
+        {
+            if (rosterSeenIds.ContainsKey(memberId) || !partyState.has_member_state(memberId))
+                return null;
+            rosterSeenIds[memberId] = true;
+        }
+
+        foreach (var rewardValue in data["pending_character_rewards"].AsGodotArray())
+        {
+            if (rewardValue.VariantType != Variant.Type.Dictionary)
+                return null;
+            var reward = PendingCharacterReward.from_dict(rewardValue.AsGodotDictionary());
+            if (reward == null || reward.is_empty())
+                return null;
+            partyState.pending_character_rewards.Add(reward);
+        }
+
+        foreach (var questValue in data["active_quests"].AsGodotArray())
+        {
+            if (questValue.VariantType != Variant.Type.Dictionary)
+                return null;
+            var questState = QuestState.from_dict(questValue.AsGodotDictionary());
+            if (
+                questState == null
+                || questState.quest_id == ""
+                || partyState.has_active_quest(questState.quest_id)
+            )
+                return null;
+            if (questState.status_id != QuestState.STATUS_ACTIVE)
+                return null;
+            partyState.active_quests.Add(questState);
+        }
+
+        foreach (var questValue in data["claimable_quests"].AsGodotArray())
+        {
+            if (questValue.VariantType != Variant.Type.Dictionary)
+                return null;
+            var questState = QuestState.from_dict(questValue.AsGodotDictionary());
+            if (
+                questState == null
+                || questState.quest_id == ""
+                || partyState.has_claimable_quest(questState.quest_id)
+            )
+                return null;
+            if (questState.status_id != QuestState.STATUS_COMPLETED)
+                return null;
+            partyState.claimable_quests.Add(questState);
+        }
+
+        var parsedCompletedQuestIds = _parse_completed_quest_ids(
+            data["completed_quest_ids"].AsGodotArray()
+        );
+        if (parsedCompletedQuestIds == null)
+            return null;
+        partyState.completed_quest_ids = parsedCompletedQuestIds;
+
+        var activeQuestIds = partyState.get_active_quest_ids();
+        var claimableQuestIds = partyState.get_claimable_quest_ids();
+        foreach (var questId in activeQuestIds)
+        {
+            if (
+                claimableQuestIds.Contains(questId)
+                || partyState.completed_quest_ids.Contains(questId)
+            )
+                return null;
+        }
+        foreach (var questId in claimableQuestIds)
+        {
+            if (partyState.completed_quest_ids.Contains(questId))
+                return null;
+        }
+        if (
+            partyState.main_character_member_id == ""
+            || !partyState.has_member_state(partyState.main_character_member_id)
+        )
+            return null;
+
+        return partyState;
     }
 
     private static Godot.Collections.Array<Godot.Collections.Dictionary> _serialize_quest_state_array(
@@ -408,46 +610,136 @@ public partial class PartyState : RefCounted
         return r;
     }
 
-    private static Godot.Collections.Dictionary _normalize_fate_run_flags(Variant v)
+    private static bool _has_exact_fields(
+        Godot.Collections.Dictionary data,
+        Godot.Collections.Array<string> expectedFields
+    )
     {
-        var r = new Godot.Collections.Dictionary();
-        if (v.VariantType != Variant.Type.Dictionary)
-            return r;
-        foreach (var rk in v.AsGodotDictionary().Keys)
+        if (data.Count != expectedFields.Count)
+            return false;
+        foreach (var fieldName in expectedFields)
         {
-            var fid = ProgressionDataUtils.to_string_name(rk);
-            if (fid != "")
-                r[fid] = v.AsGodotDictionary()[rk].AsBool();
+            if (!data.ContainsKey(fieldName))
+                return false;
         }
-        return r;
+        return true;
     }
 
-    private static Godot.Collections.Dictionary _normalize_meta_flags(Variant v)
+    private static StringName _parse_required_string_name(object rawValue, out bool ok)
     {
-        var r = new Godot.Collections.Dictionary();
-        if (v.VariantType != Variant.Type.Dictionary)
-            return r;
-        foreach (var rk in v.AsGodotDictionary().Keys)
+        ok = false;
+        if (rawValue is Variant value)
         {
-            var fid = ProgressionDataUtils.to_string_name(rk);
-            if (fid != "")
-                r[fid] = v.AsGodotDictionary()[rk].AsBool();
+            if (
+                value.VariantType != Variant.Type.String
+                && value.VariantType != Variant.Type.StringName
+            )
+                return new StringName("");
         }
-        return r;
+        else if (rawValue is not string && rawValue is not StringName)
+        {
+            return new StringName("");
+        }
+
+        var parsed = ProgressionDataUtils.to_string_name(rawValue);
+        if (parsed == "")
+            return new StringName("");
+
+        ok = true;
+        return parsed;
     }
 
-    private static Godot.Collections.Dictionary _serialize_flags(Godot.Collections.Dictionary v)
+    private static Godot.Collections.Array<StringName> _parse_unique_string_name_array(
+        Godot.Collections.Array values
+    )
+    {
+        var parsedValues = new Godot.Collections.Array<StringName>();
+        var seenValues = new Godot.Collections.Dictionary();
+        foreach (var rawValue in values)
+        {
+            var parsedValue = ProgressionDataUtils.to_string_name(rawValue);
+            if (parsedValue == "" || seenValues.ContainsKey(parsedValue))
+                return null;
+            seenValues[parsedValue] = true;
+            parsedValues.Add(parsedValue);
+        }
+        return parsedValues;
+    }
+
+    private static Godot.Collections.Array<StringName> _parse_completed_quest_ids(
+        Godot.Collections.Array values
+    ) => _parse_unique_string_name_array(values);
+
+    private static Dictionary<StringName, bool> _parse_boolean_flag_dict(
+        Godot.Collections.Dictionary values
+    )
+    {
+        var parsedFlags = new Dictionary<StringName, bool>();
+        foreach (var rawKey in values.Keys)
+        {
+            var flagId = ProgressionDataUtils.to_string_name(rawKey);
+            if (flagId == "" || parsedFlags.ContainsKey(flagId))
+                return null;
+            if (values[rawKey].VariantType != Variant.Type.Bool)
+                return null;
+            parsedFlags[flagId] = values[rawKey].AsBool();
+        }
+        return parsedFlags;
+    }
+
+    private static bool _has_unique_equipment_instance_ids(PartyState partyState)
+    {
+        if (partyState == null)
+            return false;
+
+        var seenInstanceIds = new Godot.Collections.Dictionary();
+        if (partyState.warehouse_state != null)
+        {
+            foreach (var instance in partyState.warehouse_state.get_non_empty_instances())
+            {
+                if (instance == null)
+                    continue;
+                var instanceId = ProgressionDataUtils.to_string_name(instance.instance_id);
+                if (instanceId == "")
+                    continue;
+                if (seenInstanceIds.ContainsKey(instanceId))
+                    return false;
+                seenInstanceIds[instanceId] = true;
+            }
+        }
+
+        foreach (var memberValue in partyState.member_states.Values)
+        {
+            var memberState = memberValue.AsGodotObject() as PartyMemberState;
+            var equipmentState = memberState?.equipment_state;
+            if (equipmentState == null)
+                continue;
+
+            foreach (var entrySlotId in equipmentState.get_entry_slot_ids())
+            {
+                var instanceId = ProgressionDataUtils.to_string_name(
+                    equipmentState.get_equipped_instance_id(entrySlotId)
+                );
+                if (instanceId == "")
+                    continue;
+                if (seenInstanceIds.ContainsKey(instanceId))
+                    return false;
+                seenInstanceIds[instanceId] = true;
+            }
+        }
+        return true;
+    }
+
+    private static Godot.Collections.Dictionary _serialize_flags(Dictionary<StringName, bool> values)
     {
         var r = new Godot.Collections.Dictionary();
-        foreach (var k in ProgressionDataUtils.sorted_string_keys(v))
+        var sorted = new List<StringName>(values.Keys);
+        sorted.Sort((a, b) => string.CompareOrdinal(a.ToString(), b.ToString()));
+        foreach (var fid in sorted)
         {
-            var fid = ProgressionDataUtils.to_string_name(k);
             if (fid != "")
-                r[(string)fid] = v.ContainsKey(fid)
-                    ? v[fid].AsBool()
-                    : (v.ContainsKey(k) ? v[k].AsBool() : false);
+                r[(string)fid] = values[fid];
         }
         return r;
     }
 }
-

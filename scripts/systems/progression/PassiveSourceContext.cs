@@ -6,7 +6,7 @@ using GDictionary = Godot.Collections.Dictionary;
 public partial class PassiveSourceContext : RefCounted
 {
     public PartyMemberState member_state;
-    public GodotObject unit_progress;
+    public UnitProgress unit_progress;
     public GDictionary skill_progress_by_id = new();
 
     public RaceDef race_def;

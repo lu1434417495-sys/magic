@@ -6,39 +6,39 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const AchievementDef = preload("res://scripts/player/progression/achievement_def.gd")
-const AchievementProgressState = preload("res://scripts/player/progression/achievement_progress_state.gd")
-const AchievementRewardDef = preload("res://scripts/player/progression/achievement_reward_def.gd")
-const AttributeModifier = preload("res://scripts/player/progression/attribute_modifier.gd")
-const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
-const BattleUnitFactory = preload("res://scripts/systems/battle/runtime/battle_unit_factory.gd")
-const CharacterManagementModule = preload("res://scripts/systems/progression/character_management_module.gd")
-const AttributeService = preload("res://scripts/systems/attributes/attribute_service.gd")
-const AttributeSourceContext = preload("res://scripts/systems/attributes/attribute_source_context.gd")
-const GameSession = preload("res://scripts/systems/persistence/game_session.gd")
-const PARTY_WAREHOUSE_SERVICE_SCRIPT = preload("res://scripts/systems/inventory/party_warehouse_service.gd")
+const AchievementDef = preload("res://scripts/player/progression/AchievementDef.cs")
+const AchievementProgressState = preload("res://scripts/player/progression/AchievementProgressState.cs")
+const AchievementRewardDef = preload("res://scripts/player/progression/AchievementRewardDef.cs")
+const AttributeModifier = preload("res://scripts/player/progression/AttributeModifier.cs")
+const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/BattleRuntimeModule.cs")
+const BattleUnitFactory = preload("res://scripts/systems/battle/runtime/BattleUnitFactory.cs")
+const CharacterManagementModule = preload("res://scripts/systems/progression/CharacterManagementModule.cs")
+const AttributeService = preload("res://scripts/systems/attributes/AttributeService.cs")
+const AttributeSourceContext = preload("res://scripts/systems/attributes/AttributeSourceContext.cs")
+const GameSession = preload("res://scripts/systems/persistence/GameSession.cs")
+const PARTY_WAREHOUSE_SERVICE_SCRIPT = preload("res://scripts/systems/inventory/PartyWarehouseService.cs")
 const PartyManagementWindowScene = preload("res://scenes/ui/party_management_window.tscn")
-const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
-const PartyState = preload("res://scripts/player/progression/party_state.gd")
-const ProgressionContentRegistry = preload("res://scripts/player/progression/progression_content_registry.gd")
-const ProgressionService = preload("res://scripts/systems/progression/progression_service.gd")
-const ProgressionSerialization = preload("res://scripts/systems/persistence/progression_serialization.gd")
-const PendingCharacterReward = preload("res://scripts/systems/progression/pending_character_reward.gd")
-const PendingCharacterRewardEntry = preload("res://scripts/systems/progression/pending_character_reward_entry.gd")
-const QuestDef = preload("res://scripts/player/progression/quest_def.gd")
-const QuestState = preload("res://scripts/player/progression/quest_state.gd")
-const PracticeGrowthService = preload("res://scripts/systems/progression/practice_growth_service.gd")
-const RacialGrantedSkill = preload("res://scripts/player/progression/racial_granted_skill.gd")
-const RaceDef = preload("res://scripts/player/progression/race_def.gd")
-const SubraceDef = preload("res://scripts/player/progression/subrace_def.gd")
-const BloodlineDef = preload("res://scripts/player/progression/bloodline_def.gd")
-const BloodlineStageDef = preload("res://scripts/player/progression/bloodline_stage_def.gd")
-const AscensionDef = preload("res://scripts/player/progression/ascension_def.gd")
-const AscensionStageDef = preload("res://scripts/player/progression/ascension_stage_def.gd")
-const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
-const CombatSkillDef = preload("res://scripts/player/progression/combat_skill_def.gd")
-const SKILL_EFFECTIVE_MAX_LEVEL_RULES_SCRIPT = preload("res://scripts/systems/progression/skill_effective_max_level_rules.gd")
-const WorldMapSystem = preload("res://scripts/systems/game_runtime/world_map_system.gd")
+const PartyMemberState = preload("res://scripts/player/progression/PartyMemberState.cs")
+const PartyState = preload("res://scripts/player/progression/PartyState.cs")
+const ProgressionContentRegistry = preload("res://scripts/player/progression/ProgressionContentRegistry.cs")
+const ProgressionService = preload("res://scripts/systems/progression/ProgressionService.cs")
+const ProgressionSerialization = preload("res://scripts/systems/persistence/ProgressionSerialization.cs")
+const PendingCharacterReward = preload("res://scripts/systems/progression/PendingCharacterReward.cs")
+const PendingCharacterRewardEntry = preload("res://scripts/systems/progression/PendingCharacterRewardEntry.cs")
+const QuestDef = preload("res://scripts/player/progression/QuestDef.cs")
+const QuestState = preload("res://scripts/player/progression/QuestState.cs")
+const PracticeGrowthService = preload("res://scripts/systems/progression/PracticeGrowthService.cs")
+const RacialGrantedSkill = preload("res://scripts/player/progression/RacialGrantedSkill.cs")
+const RaceDef = preload("res://scripts/player/progression/RaceDef.cs")
+const SubraceDef = preload("res://scripts/player/progression/SubraceDef.cs")
+const BloodlineDef = preload("res://scripts/player/progression/BloodlineDef.cs")
+const BloodlineStageDef = preload("res://scripts/player/progression/BloodlineStageDef.cs")
+const AscensionDef = preload("res://scripts/player/progression/AscensionDef.cs")
+const AscensionStageDef = preload("res://scripts/player/progression/AscensionStageDef.cs")
+const SkillDef = preload("res://scripts/player/progression/SkillDef.cs")
+const CombatSkillDef = preload("res://scripts/player/progression/CombatSkillDef.cs")
+const SKILL_EFFECTIVE_MAX_LEVEL_RULES_SCRIPT = preload("res://scripts/systems/progression/SkillEffectiveMaxLevelRules.cs")
+const WorldMapSystem = preload("res://scripts/systems/game_runtime/WorldMapSystem.cs")
 
 ## 字段说明：记录测试过程中收集到的失败信息，便于最终集中输出并快速定位回归点。
 var _test := TestRunner.new()
@@ -178,8 +178,8 @@ func _test_archer_book_skill_catalog_registers_and_is_learnable() -> void:
 	var registry := ProgressionContentRegistry.new()
 	var skill_defs := registry.get_skill_defs()
 	var archer_skill_ids: Array[StringName] = []
-	for skill_def_variant in skill_defs.values():
-		var skill_def = skill_def_variant as SkillDef
+	for skill_def_option in skill_defs.values():
+		var skill_def = skill_def_option as SkillDef
 		if skill_def == null or not skill_def.tags.has(&"archer"):
 			continue
 		if skill_def.skill_type != &"active":
@@ -189,7 +189,7 @@ func _test_archer_book_skill_catalog_registers_and_is_learnable() -> void:
 	_assert_eq(archer_skill_ids.size(), 32, "弓箭手技能目录应完整注册 32 个主动技能。")
 
 	var party_state := _make_party_state([&"hero"])
-	var manager := _setup_manager(party_state, {})
+	var manager = _setup_manager(party_state, {})
 	for skill_id in _build_archer_design_skill_ids():
 		var skill_def = skill_defs.get(skill_id)
 		_assert_true(skill_def != null, "应注册弓箭手技能 %s。" % String(skill_id))
@@ -225,7 +225,7 @@ func _test_archer_profession_grant_passive_is_level_zero_and_not_manually_learna
 			_assert_eq(rank_one_grants[0].skill_id, &"archer_shooting_specialization", "弓箭手 1 级应授予射击专精。")
 
 	var manual_party_state := _make_party_state([&"manual_hero"])
-	var manual_manager := _setup_manager(manual_party_state, {})
+	var manual_manager = _setup_manager(manual_party_state, {})
 	_assert_true(
 		not manual_manager.learn_skill(&"manual_hero", &"archer_shooting_specialization"),
 		"射击专精不应允许手动学习。"
@@ -246,21 +246,21 @@ func _test_archer_profession_grant_passive_is_level_zero_and_not_manually_learna
 	var progress := UnitProgress.new()
 	progress.unit_id = &"grant_hero"
 	progress.display_name = "Grant Hero"
-	progress.unit_base_attributes.set_attribute_value(UnitBaseAttributes.CONSTITUTION, 10)
-	progress.unit_base_attributes.set_attribute_value(AttributeService.HP_MAX, 20)
+	progress.unit_base_attributes.set_attribute_value(&"constitution", 10)
+	progress.unit_base_attributes.set_attribute_value(AttributeService.HP_MAX_ID(), 20)
 	var promotion_skill_defs := skill_defs.duplicate()
 	_prepare_ready_active_level_trigger(progress, promotion_skill_defs, &"test_archer_grant_trigger")
 	var service := ProgressionService.new()
 	service.setup(progress, promotion_skill_defs, {profession.profession_id: profession})
 	_assert_true(
-		service.promote_profession(profession.profession_id, {ProgressionService.SELECTION_KEY_HP_ROLL_OVERRIDE: 4}),
+		service.promote_profession(profession.profession_id, {ProgressionService.SELECTION_KEY_HP_ROLL_OVERRIDE_ID(): 4}),
 		"测试职业应能晋升并授予射击专精。"
 	)
 	var granted_progress = progress.get_skill_progress(&"archer_shooting_specialization")
 	_assert_true(granted_progress != null and granted_progress.is_learned, "职业晋升应学会射击专精。")
 	if granted_progress != null:
 		_assert_eq(int(granted_progress.skill_level), 0, "职业授予射击专精时技能等级应保持 0。")
-		_assert_eq(granted_progress.granted_source_type, UnitSkillProgress.GRANTED_SOURCE_PROFESSION, "射击专精来源类型应为职业。")
+		_assert_eq(granted_progress.granted_source_type, &"profession", "射击专精来源类型应为职业。")
 		_assert_eq(granted_progress.granted_source_id, profession.profession_id, "射击专精来源 id 应记录授予职业。")
 
 
@@ -283,7 +283,7 @@ func _test_warrior_toughness_grant_scales_character_hp_only() -> void:
 			_assert_eq(rank_one_grants[0].skill_id, &"warrior_toughness", "战士 1 级应授予强健。")
 
 	var manual_party_state := _make_party_state([&"manual_warrior"])
-	var manual_manager := _setup_manager(manual_party_state, {})
+	var manual_manager = _setup_manager(manual_party_state, {})
 	_assert_true(
 		not manual_manager.learn_skill(&"manual_warrior", &"warrior_toughness"),
 		"强健不应允许手动学习。"
@@ -292,8 +292,8 @@ func _test_warrior_toughness_grant_scales_character_hp_only() -> void:
 	var progress := UnitProgress.new()
 	progress.unit_id = &"tough_hero"
 	progress.display_name = "Tough Hero"
-	progress.unit_base_attributes.set_attribute_value(UnitBaseAttributes.CONSTITUTION, 10)
-	progress.unit_base_attributes.set_attribute_value(AttributeService.HP_MAX, 30)
+	progress.unit_base_attributes.set_attribute_value(&"constitution", 10)
+	progress.unit_base_attributes.set_attribute_value(AttributeService.HP_MAX_ID(), 30)
 
 	var profession_progress := UnitProfessionProgress.new()
 	profession_progress.profession_id = &"warrior"
@@ -306,20 +306,20 @@ func _test_warrior_toughness_grant_scales_character_hp_only() -> void:
 	skill_progress.is_learned = true
 	skill_progress.skill_level = 0
 	skill_progress.profession_granted_by = &"warrior"
-	skill_progress.granted_source_type = UnitSkillProgress.GRANTED_SOURCE_PROFESSION
+	skill_progress.granted_source_type = &"profession"
 	skill_progress.granted_source_id = &"warrior"
 	progress.set_skill_progress(skill_progress)
 
 	var equipment_hp := AttributeModifier.new()
-	equipment_hp.attribute_id = AttributeService.HP_MAX
-	equipment_hp.mode = AttributeModifier.MODE_FLAT
+	equipment_hp.attribute_id = AttributeService.HP_MAX_ID()
+	equipment_hp.mode = &"flat"
 	equipment_hp.value = 10
 	equipment_hp.source_type = &"equipment"
 	equipment_hp.source_id = &"test_armor"
 
 	var temporary_hp := AttributeModifier.new()
-	temporary_hp.attribute_id = AttributeService.HP_MAX
-	temporary_hp.mode = AttributeModifier.MODE_FLAT
+	temporary_hp.attribute_id = AttributeService.HP_MAX_ID()
+	temporary_hp.mode = &"flat"
 	temporary_hp.value = 50
 	temporary_hp.source_type = &"temporary"
 	temporary_hp.source_id = &"test_buff"
@@ -334,9 +334,9 @@ func _test_warrior_toughness_grant_scales_character_hp_only() -> void:
 	var attribute_service := AttributeService.new()
 	attribute_service.setup_context(context)
 	var snapshot = attribute_service.get_snapshot()
-	_assert_eq(snapshot.get_value(AttributeService.CHARACTER_HP_MAX_PERCENT_BONUS), 20, "强健应提供人物生命百分比加成。")
-	_assert_eq(snapshot.get_value(AttributeService.STAMINA_RECOVERY_PERCENT_BONUS), 50, "强健应提供 50% 体力自然恢复加成。")
-	_assert_eq(snapshot.get_value(AttributeService.HP_MAX), 96, "强健只应放大 30 点人物生命到 36，再叠加装备 10 与临时 50。")
+	_assert_eq(snapshot.get_value(AttributeService.CHARACTER_HP_MAX_PERCENT_BONUS_ID()), 20, "强健应提供人物生命百分比加成。")
+	_assert_eq(snapshot.get_value(AttributeService.STAMINA_RECOVERY_PERCENT_BONUS_ID()), 50, "强健应提供 50% 体力自然恢复加成。")
+	_assert_eq(snapshot.get_value(AttributeService.HP_MAX_ID()), 96, "强健只应放大 30 点人物生命到 36，再叠加装备 10 与临时 50。")
 
 
 func _test_manual_skill_learning_rejects_grant_only_sources() -> void:
@@ -407,7 +407,7 @@ func _test_practice_replacement_requires_formal_learning_validation() -> void:
 		if mode == "blocked_relearn":
 			progression.block_skill_relearn(new_skill_id)
 
-		var manager := _setup_manager_with_skill_defs(
+		var manager = _setup_manager_with_skill_defs(
 			party_state,
 			{
 				old_skill.skill_id: old_skill,
@@ -441,7 +441,7 @@ func _test_practice_replacement_succeeds_after_formal_learning_validation() -> v
 	_learn_test_skill_progress(progression, old_skill.skill_id, 3)
 	_learn_test_skill_progress(progression, prerequisite_skill.skill_id, 2)
 
-	var manager := _setup_manager_with_skill_defs(
+	var manager = _setup_manager_with_skill_defs(
 		party_state,
 		{
 			old_skill.skill_id: old_skill,
@@ -467,7 +467,7 @@ func _test_practice_replacement_rejects_ambiguous_existing_track() -> void:
 	_learn_test_skill_progress(progression, first_old.skill_id, 2)
 	_learn_test_skill_progress(progression, second_old.skill_id, 4)
 
-	var manager := _setup_manager_with_skill_defs(
+	var manager = _setup_manager_with_skill_defs(
 		party_state,
 		{
 			first_old.skill_id: first_old,
@@ -499,7 +499,7 @@ func _test_practice_track_tags_are_exclusive_at_runtime() -> void:
 				skill_def.tags = [&"meditation", &"passive"]
 		var party_state := _make_party_state([&"hero"])
 		var progression: UnitProgress = party_state.get_member_state(&"hero").progression
-		var manager := _setup_manager_with_skill_defs(party_state, {skill_def.skill_id: skill_def})
+		var manager = _setup_manager_with_skill_defs(party_state, {skill_def.skill_id: skill_def})
 
 		_assert_true(
 			not manager.learn_skill(&"hero", skill_id, {"confirm_practice_replacement": true}),
@@ -573,23 +573,23 @@ func _test_racial_skill_grant_writes_level_and_source() -> void:
 
 	var grant := _make_test_racial_grant(race_skill.skill_id, 3)
 	_assert_true(
-		service.grant_racial_skill(grant, UnitSkillProgress.GRANTED_SOURCE_RACE, &"test_race"),
+		service.grant_racial_skill(grant, &"race", &"test_race"),
 		"身份授予入口应能写入 race 来源技能。"
 	)
 	var skill_progress = progress.get_skill_progress(race_skill.skill_id)
 	_assert_true(skill_progress != null and skill_progress.is_learned, "race 授予技能应变为 learned。")
 	if skill_progress != null:
 		_assert_eq(int(skill_progress.skill_level), 3, "race 授予技能应使用 grant.minimum_skill_level。")
-		_assert_eq(skill_progress.granted_source_type, UnitSkillProgress.GRANTED_SOURCE_RACE, "race 授予技能应记录来源类型。")
+		_assert_eq(skill_progress.granted_source_type, &"race", "race 授予技能应记录来源类型。")
 		_assert_eq(skill_progress.granted_source_id, &"test_race", "race 授予技能应记录来源 id。")
-	_assert_true(progress.has_combat_resource_unlocked(UnitProgress.COMBAT_RESOURCE_AURA), "身份授予耗斗气技能后应同步解锁斗气资源。")
+	_assert_true(progress.has_combat_resource_unlocked(UnitProgress.COMBAT_RESOURCE_AURA()), "身份授予耗斗气技能后应同步解锁斗气资源。")
 	_assert_true(
-		not service.grant_racial_skill(grant, UnitSkillProgress.GRANTED_SOURCE_RACE, &"test_race"),
+		not service.grant_racial_skill(grant, &"race", &"test_race"),
 		"重复身份授予不应覆盖已 learned 技能。"
 	)
 	_assert_eq(int(skill_progress.skill_level), 3, "重复身份授予后技能等级应保持不变。")
 	_assert_true(
-		not service.grant_racial_skill(grant, UnitSkillProgress.GRANTED_SOURCE_SUBRACE, &"test_subrace"),
+		not service.grant_racial_skill(grant, &"subrace", &"test_subrace"),
 		"grant source_type 与 SkillDef.learn_source 不一致时应拒绝。"
 	)
 
@@ -617,7 +617,7 @@ func _test_racial_skill_grant_validates_minimum_level_bounds() -> void:
 
 	var zero_level_grant := _make_test_racial_grant(zero_level_skill.skill_id, 0)
 	_assert_true(
-		service.grant_racial_skill(zero_level_grant, UnitSkillProgress.GRANTED_SOURCE_RACE, &"test_race"),
+		service.grant_racial_skill(zero_level_grant, &"race", &"test_race"),
 		"身份授予应允许 SkillDef.max_level = 0 且 minimum_skill_level = 0。"
 	)
 	var zero_skill_progress = progress.get_skill_progress(zero_level_skill.skill_id)
@@ -627,24 +627,24 @@ func _test_racial_skill_grant_validates_minimum_level_bounds() -> void:
 
 	var negative_grant := _make_test_racial_grant(capped_skill.skill_id, -1)
 	_assert_true(
-		not service.grant_racial_skill(negative_grant, UnitSkillProgress.GRANTED_SOURCE_RACE, &"test_race"),
+		not service.grant_racial_skill(negative_grant, &"race", &"test_race"),
 		"身份授予应拒绝负数 minimum_skill_level。"
 	)
 	var over_cap_grant := _make_test_racial_grant(capped_skill.skill_id, 3)
 	_assert_true(
-		not service.grant_racial_skill(over_cap_grant, UnitSkillProgress.GRANTED_SOURCE_RACE, &"test_race"),
+		not service.grant_racial_skill(over_cap_grant, &"race", &"test_race"),
 		"身份授予应拒绝超过 SkillDef.max_level 的 minimum_skill_level。"
 	)
 	_assert_eq(progress.get_skill_progress(capped_skill.skill_id), null, "非法等级身份授予不应写入技能进度。")
 
 
 func _test_game_session_backfills_and_revokes_identity_granted_skills() -> void:
-	var race_skill := _make_test_identity_grant_skill(&"test_race_skill", UnitSkillProgress.GRANTED_SOURCE_RACE)
-	var subrace_skill := _make_test_identity_grant_skill(&"test_subrace_skill", UnitSkillProgress.GRANTED_SOURCE_SUBRACE)
-	var bloodline_skill := _make_test_identity_grant_skill(&"test_bloodline_skill", UnitSkillProgress.GRANTED_SOURCE_BLOODLINE)
-	var bloodline_stage_skill := _make_test_identity_grant_skill(&"test_bloodline_stage_skill", UnitSkillProgress.GRANTED_SOURCE_BLOODLINE)
-	var ascension_skill := _make_test_identity_grant_skill(&"test_ascension_skill", UnitSkillProgress.GRANTED_SOURCE_ASCENSION)
-	var ascension_stage_skill := _make_test_identity_grant_skill(&"test_ascension_stage_skill", UnitSkillProgress.GRANTED_SOURCE_ASCENSION)
+	var race_skill := _make_test_identity_grant_skill(&"test_race_skill", &"race")
+	var subrace_skill := _make_test_identity_grant_skill(&"test_subrace_skill", &"subrace")
+	var bloodline_skill := _make_test_identity_grant_skill(&"test_bloodline_skill", &"bloodline")
+	var bloodline_stage_skill := _make_test_identity_grant_skill(&"test_bloodline_stage_skill", &"bloodline")
+	var ascension_skill := _make_test_identity_grant_skill(&"test_ascension_skill", &"ascension")
+	var ascension_stage_skill := _make_test_identity_grant_skill(&"test_ascension_stage_skill", &"ascension")
 
 	var session := GameSession.new()
 	session._skill_defs = {
@@ -688,42 +688,42 @@ func _test_game_session_backfills_and_revokes_identity_granted_skills() -> void:
 	_assert_identity_granted_skill(
 		member_state.progression,
 		race_skill.skill_id,
-		UnitSkillProgress.GRANTED_SOURCE_RACE,
+		&"race",
 		&"test_race",
 		2
 	)
 	_assert_identity_granted_skill(
 		member_state.progression,
 		subrace_skill.skill_id,
-		UnitSkillProgress.GRANTED_SOURCE_SUBRACE,
+		&"subrace",
 		&"test_subrace",
 		2
 	)
 	_assert_identity_granted_skill(
 		member_state.progression,
 		bloodline_skill.skill_id,
-		UnitSkillProgress.GRANTED_SOURCE_BLOODLINE,
+		&"bloodline",
 		&"test_bloodline",
 		2
 	)
 	_assert_identity_granted_skill(
 		member_state.progression,
 		bloodline_stage_skill.skill_id,
-		UnitSkillProgress.GRANTED_SOURCE_BLOODLINE,
+		&"bloodline",
 		&"test_bloodline_stage",
 		2
 	)
 	_assert_identity_granted_skill(
 		member_state.progression,
 		ascension_skill.skill_id,
-		UnitSkillProgress.GRANTED_SOURCE_ASCENSION,
+		&"ascension",
 		&"test_ascension",
 		2
 	)
 	_assert_identity_granted_skill(
 		member_state.progression,
 		ascension_stage_skill.skill_id,
-		UnitSkillProgress.GRANTED_SOURCE_ASCENSION,
+		&"ascension",
 		&"test_ascension_stage",
 		2
 	)
@@ -824,13 +824,13 @@ func _test_vajra_body_requires_attributes_and_achievement_and_syncs_battle_statu
 	var party_state := _make_party_state([&"hero"])
 	var member_state: PartyMemberState = party_state.get_member_state(&"hero")
 	var attributes: UnitBaseAttributes = member_state.progression.unit_base_attributes
-	attributes.set_attribute_value(UnitBaseAttributes.STRENGTH, 13)
-	attributes.set_attribute_value(UnitBaseAttributes.CONSTITUTION, 14)
-	attributes.set_attribute_value(UnitBaseAttributes.WILLPOWER, 13)
-	var manager := _setup_manager(party_state, registry.get_achievement_defs())
+	attributes.set_attribute_value(&"strength", 13)
+	attributes.set_attribute_value(&"constitution", 14)
+	attributes.set_attribute_value(&"willpower", 13)
+	var manager = _setup_manager(party_state, registry.get_achievement_defs())
 	_assert_true(not manager.learn_skill(&"hero", &"vajra_body"), "意志不足时不应学会金刚不坏。")
 
-	attributes.set_attribute_value(UnitBaseAttributes.WILLPOWER, 14)
+	attributes.set_attribute_value(&"willpower", 14)
 	_assert_true(not manager.learn_skill(&"hero", &"vajra_body"), "未达成濒死未倒时不应学会金刚不坏。")
 	_assert_true(manager.unlock_achievement(&"hero", &"near_death_unbroken"), "测试前置应能解锁濒死未倒。")
 	_assert_true(manager.learn_skill(&"hero", &"vajra_body"), "满足属性与成就后应能学会金刚不坏。")
@@ -891,20 +891,20 @@ func _test_vajra_body_requires_attributes_and_achievement_and_syncs_battle_statu
 
 func _test_seed_growth_achievement_events_unlock_via_real_progression_actions() -> void:
 	var party_state := _make_party_state([&"hero"])
-	var manager := _setup_manager(party_state)
+	var manager = _setup_manager(party_state)
 	var member_state: PartyMemberState = party_state.get_member_state(&"hero")
 	var attributes: UnitBaseAttributes = member_state.progression.unit_base_attributes
-	var agility_before: int = attributes.get_attribute_value(UnitBaseAttributes.AGILITY)
-	var perception_before: int = attributes.get_attribute_value(UnitBaseAttributes.PERCEPTION)
-	var willpower_before: int = attributes.get_attribute_value(UnitBaseAttributes.WILLPOWER)
+	var agility_before: int = attributes.get_attribute_value(&"agility")
+	var perception_before: int = attributes.get_attribute_value(&"perception")
+	var willpower_before: int = attributes.get_attribute_value(&"willpower")
 
-	attributes.set_attribute_value(UnitBaseAttributes.STRENGTH, 12)
-	attributes.set_attribute_value(UnitBaseAttributes.AGILITY, 14)
+	attributes.set_attribute_value(&"strength", 12)
+	attributes.set_attribute_value(&"agility", 14)
 	_assert_true(manager.learn_skill(&"hero", &"warrior_guard_break"), "成长链路应允许 hero 学会裂甲斩。")
 	_assert_true(manager.learn_knowledge(&"hero", &"field_manual"), "成长链路应允许 hero 学会测试知识。")
 	_assert_true(manager.learn_skill(&"hero", &"charge"), "成长链路应允许 hero 学会冲锋。")
 
-	var mastery_delta := manager.grant_battle_mastery(&"hero", &"charge", 20)
+	var mastery_delta = manager.grant_battle_mastery(&"hero", &"charge", 20)
 	_assert_eq(mastery_delta.mastery_changes.size(), 1, "冲锋熟练度应先正常入账，再推进成就。")
 
 	var progression: UnitProgress = member_state.progression
@@ -933,17 +933,17 @@ func _test_seed_growth_achievement_events_unlock_via_real_progression_actions() 
 		manager.apply_pending_character_reward(party_state.get_next_pending_character_reward())
 
 	_assert_eq(
-		attributes.get_attribute_value(UnitBaseAttributes.PERCEPTION),
+		attributes.get_attribute_value(&"perception"),
 		perception_before + 1,
 		"确认技能学习成就奖励后，应提高感知。"
 	)
 	_assert_eq(
-		attributes.get_attribute_value(UnitBaseAttributes.WILLPOWER),
+		attributes.get_attribute_value(&"willpower"),
 		willpower_before + 1,
 		"确认知识学习成就奖励后，应提高意志。"
 	)
 	_assert_eq(
-		attributes.get_attribute_value(UnitBaseAttributes.AGILITY),
+		attributes.get_attribute_value(&"agility"),
 		15,
 		"确认熟练度成就奖励后，应提高敏捷。"
 	)
@@ -951,13 +951,13 @@ func _test_seed_growth_achievement_events_unlock_via_real_progression_actions() 
 
 func _test_stamina_max_uses_constitution_strength_and_agility_formula() -> void:
 	var progress := UnitProgress.new()
-	progress.unit_base_attributes.set_attribute_value(UnitBaseAttributes.CONSTITUTION, 3)
-	progress.unit_base_attributes.set_attribute_value(UnitBaseAttributes.STRENGTH, 4)
-	progress.unit_base_attributes.set_attribute_value(UnitBaseAttributes.AGILITY, 2)
+	progress.unit_base_attributes.set_attribute_value(&"constitution", 3)
+	progress.unit_base_attributes.set_attribute_value(&"strength", 4)
+	progress.unit_base_attributes.set_attribute_value(&"agility", 2)
 	var service := AttributeService.new()
 	service.setup(progress)
 	_assert_eq(
-		service.get_total_value(AttributeService.STAMINA_MAX),
+		service.get_total_value(AttributeService.STAMINA_MAX_ID()),
 		45,
 		"体力上限应使用 24 + 5*体质 + 力量 + 敏捷。"
 	)
@@ -965,12 +965,12 @@ func _test_stamina_max_uses_constitution_strength_and_agility_formula() -> void:
 
 func _test_hp_max_uses_persistent_value_without_constitution_derivation() -> void:
 	var progress := UnitProgress.new()
-	progress.unit_base_attributes.set_attribute_value(UnitBaseAttributes.CONSTITUTION, 20)
-	progress.unit_base_attributes.set_attribute_value(AttributeService.HP_MAX, 31)
+	progress.unit_base_attributes.set_attribute_value(&"constitution", 20)
+	progress.unit_base_attributes.set_attribute_value(AttributeService.HP_MAX_ID(), 31)
 	var service := AttributeService.new()
 	service.setup(progress)
 	_assert_eq(
-		service.get_total_value(AttributeService.HP_MAX),
+		service.get_total_value(AttributeService.HP_MAX_ID()),
 		31,
 		"生命上限应读取持久 hp_max，不应在属性快照阶段继续按体质派生。"
 	)
@@ -991,19 +991,19 @@ func _test_profession_promotion_persists_hit_die_hp_gain() -> void:
 	var progress := UnitProgress.new()
 	progress.unit_id = &"hero"
 	progress.display_name = "Hero"
-	progress.unit_base_attributes.set_attribute_value(UnitBaseAttributes.CONSTITUTION, 14)
-	progress.unit_base_attributes.set_attribute_value(AttributeService.HP_MAX, 20)
+	progress.unit_base_attributes.set_attribute_value(&"constitution", 14)
+	progress.unit_base_attributes.set_attribute_value(AttributeService.HP_MAX_ID(), 20)
 	var skill_defs := {}
 	_prepare_ready_active_level_trigger(progress, skill_defs, &"test_d10_trigger_1")
 	var service := ProgressionService.new()
 	service.setup(progress, skill_defs, {profession.profession_id: profession})
 
 	_assert_true(
-		service.promote_profession(profession.profession_id, {ProgressionService.SELECTION_KEY_HP_ROLL_OVERRIDE: 7}),
+		service.promote_profession(profession.profession_id, {ProgressionService.SELECTION_KEY_HP_ROLL_OVERRIDE_ID(): 7}),
 		"测试职业应能晋升到 1 级。"
 	)
 	_assert_eq(
-		progress.unit_base_attributes.get_attribute_value(AttributeService.HP_MAX),
+		progress.unit_base_attributes.get_attribute_value(AttributeService.HP_MAX_ID()),
 		31,
 		"晋升时应把 d10 roll 7 + CON 调整值 2*2 的生命增量写入持久 hp_max。"
 	)
@@ -1014,11 +1014,11 @@ func _test_profession_promotion_persists_hit_die_hp_gain() -> void:
 		progress.set_skill_progress(second_trigger_progress)
 	service.setup(progress, skill_defs, {profession.profession_id: profession})
 	_assert_true(
-		service.promote_profession(profession.profession_id, {ProgressionService.SELECTION_KEY_HP_ROLL_OVERRIDE: 1}),
+		service.promote_profession(profession.profession_id, {ProgressionService.SELECTION_KEY_HP_ROLL_OVERRIDE_ID(): 1}),
 		"测试职业应能晋升到 2 级。"
 	)
 	_assert_eq(
-		progress.unit_base_attributes.get_attribute_value(AttributeService.HP_MAX),
+		progress.unit_base_attributes.get_attribute_value(AttributeService.HP_MAX_ID()),
 		36,
 		"后续晋升应继续把本级生命增量累加进持久 hp_max。"
 	)
@@ -1030,7 +1030,7 @@ func _test_attribute_progress_rewards_convert_below_twenty_and_accumulate_after_
 	manager.setup(party_state, {}, {}, {})
 	var member_state: PartyMemberState = party_state.get_member_state(&"hero")
 	var attributes: UnitBaseAttributes = member_state.progression.unit_base_attributes
-	attributes.set_attribute_value(UnitBaseAttributes.AGILITY, 2)
+	attributes.set_attribute_value(&"agility", 2)
 
 	var first_reward = manager.build_pending_character_reward(
 		&"hero",
@@ -1040,15 +1040,15 @@ func _test_attribute_progress_rewards_convert_below_twenty_and_accumulate_after_
 		"测试基础技能",
 		[{
 			"entry_type": "attribute_progress",
-			"target_id": String(UnitBaseAttributes.AGILITY),
+			"target_id": String(&"agility"),
 			"amount": 60,
 			"reason_text": "测试属性进度",
 		}],
 		"测试属性进度"
 	)
 	manager.apply_pending_character_reward(first_reward)
-	_assert_eq(attributes.get_attribute_value(UnitBaseAttributes.AGILITY), 2, "60 点敏捷进度不应直接提高属性。")
-	_assert_eq(int(member_state.progression.attribute_growth_progress.get(UnitBaseAttributes.AGILITY, 0)), 60, "60 点敏捷进度应被保存。")
+	_assert_eq(attributes.get_attribute_value(&"agility"), 2, "60 点敏捷进度不应直接提高属性。")
+	_assert_eq(int(member_state.progression.attribute_growth_progress.get(&"agility", 0)), 60, "60 点敏捷进度应被保存。")
 
 	var second_reward = manager.build_pending_character_reward(
 		&"hero",
@@ -1058,18 +1058,18 @@ func _test_attribute_progress_rewards_convert_below_twenty_and_accumulate_after_
 		"测试中级技能",
 		[{
 			"entry_type": "attribute_progress",
-			"target_id": String(UnitBaseAttributes.AGILITY),
+			"target_id": String(&"agility"),
 			"amount": 50,
 			"reason_text": "测试属性进度转化",
 		}],
 		"测试属性进度转化"
 	)
 	manager.apply_pending_character_reward(second_reward)
-	_assert_eq(attributes.get_attribute_value(UnitBaseAttributes.AGILITY), 3, "累计达到 100 后敏捷应 +1。")
-	_assert_eq(int(member_state.progression.attribute_growth_progress.get(UnitBaseAttributes.AGILITY, 0)), 10, "转化后应保留 10 点敏捷进度。")
+	_assert_eq(attributes.get_attribute_value(&"agility"), 3, "累计达到 100 后敏捷应 +1。")
+	_assert_eq(int(member_state.progression.attribute_growth_progress.get(&"agility", 0)), 10, "转化后应保留 10 点敏捷进度。")
 
-	attributes.set_attribute_value(UnitBaseAttributes.AGILITY, 19)
-	member_state.progression.attribute_growth_progress[UnitBaseAttributes.AGILITY] = 90
+	attributes.set_attribute_value(&"agility", 19)
+	member_state.progression.attribute_growth_progress[&"agility"] = 90
 	var cap_reward = manager.build_pending_character_reward(
 		&"hero",
 		&"agility_progress_240",
@@ -1078,15 +1078,15 @@ func _test_attribute_progress_rewards_convert_below_twenty_and_accumulate_after_
 		"测试终极技能",
 		[{
 			"entry_type": "attribute_progress",
-			"target_id": String(UnitBaseAttributes.AGILITY),
+			"target_id": String(&"agility"),
 			"amount": 240,
 			"reason_text": "测试 20 后累计",
 		}],
 		"测试 20 后累计"
 	)
 	manager.apply_pending_character_reward(cap_reward)
-	_assert_eq(attributes.get_attribute_value(UnitBaseAttributes.AGILITY), 20, "属性低于 20 时应最多转化到 20。")
-	_assert_eq(int(member_state.progression.attribute_growth_progress.get(UnitBaseAttributes.AGILITY, 0)), 230, "达到 20 后剩余进度应继续保存。")
+	_assert_eq(attributes.get_attribute_value(&"agility"), 20, "属性低于 20 时应最多转化到 20。")
+	_assert_eq(int(member_state.progression.attribute_growth_progress.get(&"agility", 0)), 230, "达到 20 后剩余进度应继续保存。")
 
 	var over_cap_reward = manager.build_pending_character_reward(
 		&"hero",
@@ -1096,15 +1096,15 @@ func _test_attribute_progress_rewards_convert_below_twenty_and_accumulate_after_
 		"测试 20 后继续累计",
 		[{
 			"entry_type": "attribute_progress",
-			"target_id": String(UnitBaseAttributes.AGILITY),
+			"target_id": String(&"agility"),
 			"amount": 120,
 			"reason_text": "测试 20 后继续累计",
 		}],
 		"测试 20 后继续累计"
 	)
 	manager.apply_pending_character_reward(over_cap_reward)
-	_assert_eq(attributes.get_attribute_value(UnitBaseAttributes.AGILITY), 20, "属性达到 20 后不应继续自动提高。")
-	_assert_eq(int(member_state.progression.attribute_growth_progress.get(UnitBaseAttributes.AGILITY, 0)), 350, "属性达到 20 后进度应无上限继续累计。")
+	_assert_eq(attributes.get_attribute_value(&"agility"), 20, "属性达到 20 后不应继续自动提高。")
+	_assert_eq(int(member_state.progression.attribute_growth_progress.get(&"agility", 0)), 350, "属性达到 20 后进度应无上限继续累计。")
 
 
 func _test_non_active_level_trigger_max_skill_does_not_grant_attribute_progress() -> void:
@@ -1130,7 +1130,7 @@ func _test_non_active_level_trigger_max_skill_does_not_grant_attribute_progress(
 	_assert_eq(int(skill_progress.skill_level), 3, "测试技能应提升到满级。")
 	_assert_eq(party_state.pending_character_rewards.size(), 0, "未被 active trigger 触发的技能满级不应入队属性进度奖励。")
 	_assert_true(not bool(skill_progress.core_max_growth_claimed), "未被 active trigger 触发时不应标记满级成长已领取。")
-	_assert_eq(int(member_state.progression.attribute_growth_progress.get(UnitBaseAttributes.AGILITY, 0)), 0, "未被 active trigger 触发时不应写入属性成长进度。")
+	_assert_eq(int(member_state.progression.attribute_growth_progress.get(&"agility", 0)), 0, "未被 active trigger 触发时不应写入属性成长进度。")
 
 	manager.grant_battle_mastery(&"hero", skill_def.skill_id, 999)
 	_assert_eq(party_state.pending_character_rewards.size(), 0, "重复获得熟练度也不应绕过 active trigger 规则。")
@@ -1156,19 +1156,19 @@ func _test_active_level_trigger_promotion_applies_attribute_growth() -> void:
 	var delta = manager.promote_profession(
 		&"hero",
 		profession.profession_id,
-		{ProgressionService.SELECTION_KEY_HP_ROLL_OVERRIDE: 1}
+		{ProgressionService.SELECTION_KEY_HP_ROLL_OVERRIDE_ID(): 1}
 	)
 	var skill_progress = member_state.progression.get_skill_progress(trigger_skill_id)
 	_assert_true(delta.changed_profession_ids.size() == 1, "active trigger 应能完成测试职业晋升。")
 	_assert_eq(delta.attribute_changes.size(), 1, "active trigger 晋升锁定应直接结算合法属性成长。")
-	_assert_eq(int(member_state.progression.attribute_growth_progress.get(UnitBaseAttributes.AGILITY, 0)), 60, "active trigger 合法 String key 应写入敏捷成长进度。")
+	_assert_eq(int(member_state.progression.attribute_growth_progress.get(&"agility", 0)), 60, "active trigger 合法 String key 应写入敏捷成长进度。")
 	_assert_true(skill_progress != null and bool(skill_progress.core_max_growth_claimed), "active trigger 属性成长实际结算后才应标记已领取。")
 	_assert_eq(party_state.pending_character_rewards.size(), 0, "active trigger 属性成长不应再通过待领取奖励入队。")
 
 
 func _test_active_level_trigger_promotion_ignores_invalid_attribute_growth_entries() -> void:
 	for case in [
-		{"skill_id": &"test_growth_string_name_key", "growth": {UnitBaseAttributes.AGILITY: 60}, "label": "StringName key"},
+		{"skill_id": &"test_growth_string_name_key", "growth": {&"agility": 60}, "label": "StringName key"},
 		{"skill_id": &"test_growth_unknown_key", "growth": {"unknown_attribute": 60}, "label": "未知属性 key"},
 		{"skill_id": &"test_growth_string_amount", "growth": {"agility": "60"}, "label": "非 int 数值"},
 		{"skill_id": &"test_growth_zero_amount", "growth": {"agility": 0}, "label": "非正数值"},
@@ -1193,12 +1193,12 @@ func _test_active_level_trigger_promotion_ignores_invalid_attribute_growth_entri
 		var delta = manager.promote_profession(
 			&"hero",
 			profession.profession_id,
-			{ProgressionService.SELECTION_KEY_HP_ROLL_OVERRIDE: 1}
+			{ProgressionService.SELECTION_KEY_HP_ROLL_OVERRIDE_ID(): 1}
 		)
 		var skill_progress = member_state.progression.get_skill_progress(trigger_skill_id)
 		_assert_true(delta.changed_profession_ids.size() == 1, "%s 不应阻止 active trigger 晋升本身。" % String(case.get("label", "")))
 		_assert_eq(delta.attribute_changes.size(), 0, "%s 不应产生属性成长变更。" % String(case.get("label", "")))
-		_assert_eq(int(member_state.progression.attribute_growth_progress.get(UnitBaseAttributes.AGILITY, 0)), 0, "%s 不应写入敏捷成长进度。" % String(case.get("label", "")))
+		_assert_eq(int(member_state.progression.attribute_growth_progress.get(&"agility", 0)), 0, "%s 不应写入敏捷成长进度。" % String(case.get("label", "")))
 		_assert_true(skill_progress != null and not bool(skill_progress.core_max_growth_claimed), "%s 没有实际属性成长时不应标记已领取。" % String(case.get("label", "")))
 		_assert_eq(party_state.pending_character_rewards.size(), 0, "%s 不应退回待领取奖励路径。" % String(case.get("label", "")))
 
@@ -1245,20 +1245,20 @@ func _test_profession_promotion_requires_ready_active_level_trigger_and_locks_it
 	var progress := UnitProgress.new()
 	progress.unit_id = &"hero"
 	progress.display_name = "Hero"
-	progress.unit_base_attributes.set_attribute_value(AttributeService.HP_MAX, 20)
+	progress.unit_base_attributes.set_attribute_value(AttributeService.HP_MAX_ID(), 20)
 	var skill_defs := {}
 	var service := ProgressionService.new()
 	service.setup(progress, skill_defs, {profession.profession_id: profession})
 
 	_assert_true(
-		not service.promote_profession(profession.profession_id, {ProgressionService.SELECTION_KEY_HP_ROLL_OVERRIDE: 1}),
+		not service.promote_profession(profession.profession_id, {ProgressionService.SELECTION_KEY_HP_ROLL_OVERRIDE_ID(): 1}),
 		"没有手动指定且达到上限的核心技能时，不应允许职业晋升。"
 	)
 
 	var trigger_skill_id := _prepare_ready_active_level_trigger(progress, skill_defs, &"test_level_trigger_ready")
 	service.setup(progress, skill_defs, {profession.profession_id: profession})
 	_assert_true(
-		service.promote_profession(profession.profession_id, {ProgressionService.SELECTION_KEY_HP_ROLL_OVERRIDE: 1}),
+		service.promote_profession(profession.profession_id, {ProgressionService.SELECTION_KEY_HP_ROLL_OVERRIDE_ID(): 1}),
 		"手动指定核心技能达到 non_core 上限后应允许职业晋升。"
 	)
 	var trigger_progress = progress.get_skill_progress(trigger_skill_id)
@@ -1280,8 +1280,8 @@ func _test_failed_profession_promotion_keeps_progress_state_atomic() -> void:
 	var progress := UnitProgress.new()
 	progress.unit_id = &"atomic_hero"
 	progress.display_name = "Atomic Hero"
-	progress.unit_base_attributes.set_attribute_value(UnitBaseAttributes.CONSTITUTION, 10)
-	progress.unit_base_attributes.set_attribute_value(AttributeService.HP_MAX, 20)
+	progress.unit_base_attributes.set_attribute_value(&"constitution", 10)
+	progress.unit_base_attributes.set_attribute_value(AttributeService.HP_MAX_ID(), 20)
 	var skill_defs := {}
 	var trigger_skill_id := _prepare_ready_active_level_trigger(progress, skill_defs, &"test_atomic_failed_trigger")
 	var service := ProgressionService.new()
@@ -1289,8 +1289,8 @@ func _test_failed_profession_promotion_keeps_progress_state_atomic() -> void:
 
 	_assert_true(
 		not service.promote_profession(profession.profession_id, {
-			ProgressionService.SELECTION_KEY_ASSIGNED_CORE_SKILL_IDS: [&"wrong_skill"],
-			ProgressionService.SELECTION_KEY_HP_ROLL_OVERRIDE: 8,
+			ProgressionService.SELECTION_KEY_ASSIGNED_CORE_SKILL_IDS_ID(): [&"wrong_skill"],
+			ProgressionService.SELECTION_KEY_HP_ROLL_OVERRIDE_ID(): 8,
 		}),
 		"显式 selection 不包含 ready trigger 时，晋升应失败。"
 	)
@@ -1299,7 +1299,7 @@ func _test_failed_profession_promotion_keeps_progress_state_atomic() -> void:
 		"失败晋升不应留下 rank 0 职业进度。"
 	)
 	_assert_eq(
-		int(progress.unit_base_attributes.get_attribute_value(AttributeService.HP_MAX)),
+		int(progress.unit_base_attributes.get_attribute_value(AttributeService.HP_MAX_ID())),
 		20,
 		"失败晋升不应写入生命上限。"
 	)
@@ -1395,7 +1395,7 @@ func _test_official_rank_up_precommits_ready_trigger_core() -> void:
 	var progress := UnitProgress.new()
 	progress.unit_id = &"hero"
 	progress.display_name = "Hero"
-	progress.unit_base_attributes.set_attribute_value(AttributeService.HP_MAX, 20)
+	progress.unit_base_attributes.set_attribute_value(AttributeService.HP_MAX_ID(), 20)
 
 	_set_official_skill_progress(progress, skill_defs, &"charge", false)
 	_set_official_skill_progress(progress, skill_defs, &"warrior_heavy_strike", true)
@@ -1405,7 +1405,7 @@ func _test_official_rank_up_precommits_ready_trigger_core() -> void:
 	var service := ProgressionService.new()
 	service.setup(progress, skill_defs, profession_defs)
 	_assert_true(
-		service.promote_profession(&"warrior", {ProgressionService.SELECTION_KEY_HP_ROLL_OVERRIDE: 1}),
+		service.promote_profession(&"warrior", {ProgressionService.SELECTION_KEY_HP_ROLL_OVERRIDE_ID(): 1}),
 		"战士 rank 1 应能通过正式 melee 解锁要求晋升。"
 	)
 	_set_official_skill_to_max_level(progress, skill_defs, &"warrior_heavy_strike")
@@ -1426,7 +1426,7 @@ func _test_official_rank_up_precommits_ready_trigger_core() -> void:
 		_assert_true(pending_choice.assignable_skill_candidate_ids.has(&"warrior_guard_break"), "待处理候选应暴露可预提交的裂甲斩。")
 		_assert_true(pending_choice.trigger_skill_ids.has(&"warrior_guard_break"), "待处理候选应记录本次 active trigger。")
 	_assert_true(
-		service.promote_profession(&"warrior", {ProgressionService.SELECTION_KEY_HP_ROLL_OVERRIDE: 1}),
+		service.promote_profession(&"warrior", {ProgressionService.SELECTION_KEY_HP_ROLL_OVERRIDE_ID(): 1}),
 		"确认 rank 2 晋升时，应把预提交触发核心真正归属到战士。"
 	)
 
@@ -1566,8 +1566,8 @@ func _test_attribute_growth_progress_round_trip_persists() -> void:
 	var progress := UnitProgress.new()
 	progress.unit_id = &"hero"
 	progress.display_name = "Hero"
-	progress.attribute_growth_progress[UnitBaseAttributes.STRENGTH] = 80
-	progress.attribute_growth_progress[UnitBaseAttributes.AGILITY] = 240
+	progress.attribute_growth_progress[&"strength"] = 80
+	progress.attribute_growth_progress[&"agility"] = 240
 
 	var skill_progress := UnitSkillProgress.new()
 	skill_progress.skill_id = &"test_growth_core"
@@ -1580,12 +1580,12 @@ func _test_attribute_growth_progress_round_trip_persists() -> void:
 	var restored_progress = UnitProgress.from_dict(progress.to_dict())
 	var restored_skill_progress = restored_progress.get_skill_progress(&"test_growth_core")
 	_assert_eq(
-		int(restored_progress.attribute_growth_progress.get(UnitBaseAttributes.STRENGTH, 0)),
+		int(restored_progress.attribute_growth_progress.get(&"strength", 0)),
 		80,
 		"基础属性成长进度应通过 UnitProgress 存档往返保留。"
 	)
 	_assert_eq(
-		int(restored_progress.attribute_growth_progress.get(UnitBaseAttributes.AGILITY, 0)),
+		int(restored_progress.attribute_growth_progress.get(&"agility", 0)),
 		240,
 		"超过 100 的属性成长进度应通过 UnitProgress 存档往返保留。"
 	)
@@ -2176,21 +2176,21 @@ func _test_combat_resource_unlocks_follow_learned_skill_costs() -> void:
 		aura_skill.skill_id: aura_skill,
 	}, {})
 
-	_assert_true(progress.has_combat_resource_unlocked(UnitProgress.COMBAT_RESOURCE_HP), "角色初始应解锁 HP 资源。")
-	_assert_true(progress.has_combat_resource_unlocked(UnitProgress.COMBAT_RESOURCE_STAMINA), "角色初始应解锁体力资源。")
-	_assert_true(not progress.has_combat_resource_unlocked(UnitProgress.COMBAT_RESOURCE_MP), "学习耗蓝技能前不应显示 MP 资源。")
-	_assert_true(not progress.has_combat_resource_unlocked(UnitProgress.COMBAT_RESOURCE_AURA), "学习耗斗气技能前不应显示斗气资源。")
+	_assert_true(progress.has_combat_resource_unlocked(UnitProgress.COMBAT_RESOURCE_HP()), "角色初始应解锁 HP 资源。")
+	_assert_true(progress.has_combat_resource_unlocked(UnitProgress.COMBAT_RESOURCE_STAMINA()), "角色初始应解锁体力资源。")
+	_assert_true(not progress.has_combat_resource_unlocked(UnitProgress.COMBAT_RESOURCE_MP()), "学习耗蓝技能前不应显示 MP 资源。")
+	_assert_true(not progress.has_combat_resource_unlocked(UnitProgress.COMBAT_RESOURCE_AURA()), "学习耗斗气技能前不应显示斗气资源。")
 
 	_assert_true(service.learn_skill(mp_skill.skill_id), "测试耗蓝技能应能学习。")
-	_assert_true(progress.has_combat_resource_unlocked(UnitProgress.COMBAT_RESOURCE_MP), "学习耗蓝技能后应正式解锁 MP 资源。")
-	_assert_true(not progress.has_combat_resource_unlocked(UnitProgress.COMBAT_RESOURCE_AURA), "只学习耗蓝技能不应解锁斗气资源。")
+	_assert_true(progress.has_combat_resource_unlocked(UnitProgress.COMBAT_RESOURCE_MP()), "学习耗蓝技能后应正式解锁 MP 资源。")
+	_assert_true(not progress.has_combat_resource_unlocked(UnitProgress.COMBAT_RESOURCE_AURA()), "只学习耗蓝技能不应解锁斗气资源。")
 
 	_assert_true(service.learn_skill(aura_skill.skill_id), "测试耗斗气技能应能学习。")
-	_assert_true(progress.has_combat_resource_unlocked(UnitProgress.COMBAT_RESOURCE_AURA), "学习耗斗气技能后应正式解锁斗气资源。")
+	_assert_true(progress.has_combat_resource_unlocked(UnitProgress.COMBAT_RESOURCE_AURA()), "学习耗斗气技能后应正式解锁斗气资源。")
 
 	var restored_progress = UnitProgress.from_dict(progress.to_dict())
-	_assert_true(restored_progress.has_combat_resource_unlocked(UnitProgress.COMBAT_RESOURCE_MP), "MP 解锁状态应通过 UnitProgress 存档往返保留。")
-	_assert_true(restored_progress.has_combat_resource_unlocked(UnitProgress.COMBAT_RESOURCE_AURA), "斗气解锁状态应通过 UnitProgress 存档往返保留。")
+	_assert_true(restored_progress.has_combat_resource_unlocked(UnitProgress.COMBAT_RESOURCE_MP()), "MP 解锁状态应通过 UnitProgress 存档往返保留。")
+	_assert_true(restored_progress.has_combat_resource_unlocked(UnitProgress.COMBAT_RESOURCE_AURA()), "斗气解锁状态应通过 UnitProgress 存档往返保留。")
 
 
 func _test_starting_and_random_skill_refresh_unlocks_combat_resources() -> void:
@@ -2216,7 +2216,7 @@ func _test_starting_and_random_skill_refresh_unlocks_combat_resources() -> void:
 		0
 	)
 	_assert_true(
-		member_state.progression.has_combat_resource_unlocked(UnitProgress.COMBAT_RESOURCE_AURA),
+		member_state.progression.has_combat_resource_unlocked(UnitProgress.COMBAT_RESOURCE_AURA()),
 		"新建角色随机起始书技能耗 Aura 时，应在创建链路刷新 runtime state 并解锁 Aura 资源。"
 	)
 	session.free()
@@ -2277,8 +2277,8 @@ func _test_saint_blade_combo_unlock_chain_requires_knowledge_levels_and_achievem
 			6,
 			[
 				_make_reward(
-					AchievementRewardDef.TYPE_ATTRIBUTE_DELTA,
-					UnitBaseAttributes.STRENGTH,
+					&"attribute_delta",
+					&"strength",
 					1,
 					"力量"
 				),
@@ -2286,11 +2286,11 @@ func _test_saint_blade_combo_unlock_chain_requires_knowledge_levels_and_achievem
 			&"warrior_combo_strike"
 		),
 	}
-	var manager := _setup_manager(party_state, achievement_defs)
+	var manager = _setup_manager(party_state, achievement_defs)
 	var member_state: PartyMemberState = party_state.get_member_state(&"hero")
 	var attributes: UnitBaseAttributes = member_state.progression.unit_base_attributes
-	attributes.set_attribute_value(UnitBaseAttributes.STRENGTH, 12)
-	attributes.set_attribute_value(UnitBaseAttributes.AGILITY, 14)
+	attributes.set_attribute_value(&"strength", 12)
+	attributes.set_attribute_value(&"agility", 14)
 	var progression: UnitProgress = member_state.progression
 
 	_assert_true(manager.learn_skill(&"hero", &"charge"), "前置条件：hero 应能学会冲锋。")
@@ -2333,7 +2333,7 @@ func _test_saint_blade_combo_unlock_chain_requires_knowledge_levels_and_achievem
 		"缺少成就条件时不应提前解锁圣剑连斩。"
 	)
 
-	var achievement_unlocks := manager.record_achievement_event(&"hero", &"skill_used", 6, &"warrior_combo_strike")
+	var achievement_unlocks = manager.record_achievement_event(&"hero", &"skill_used", 6, &"warrior_combo_strike")
 	_assert_eq(achievement_unlocks.size(), 1, "真实技能使用事件应能解锁测试成就。")
 	_assert_true(
 		progression.get_achievement_progress_state(&"six_hit_combo").is_unlocked,
@@ -2397,7 +2397,8 @@ func _test_composite_upgrade_replace_sources_with_result_keeps_sources_and_trans
 			&"saint_blade_combo",
 			[&"warrior_combo_strike", &"warrior_aura_slash"],
 			true,
-			&"replace_sources_with_result"
+			&"replace_sources_with_result",
+			&""
 		),
 		"replace_sources_with_result 应能在保留来源技能时完成复合升级。"
 	)
@@ -2442,8 +2443,8 @@ func _test_achievement_progress_is_member_scoped_and_unlocks_once() -> void:
 			2,
 			[
 				_make_reward(
-					AchievementRewardDef.TYPE_ATTRIBUTE_DELTA,
-					UnitBaseAttributes.STRENGTH,
+					&"attribute_delta",
+					&"strength",
 					1,
 					"力量"
 				),
@@ -2451,16 +2452,16 @@ func _test_achievement_progress_is_member_scoped_and_unlocks_once() -> void:
 			&"warrior_heavy_strike"
 		),
 	}
-	var manager := _setup_manager(party_state, achievement_defs)
+	var manager = _setup_manager(party_state, achievement_defs)
 
-	var first_unlocks := manager.record_achievement_event(&"hero_a", &"skill_used", 1, &"warrior_heavy_strike")
+	var first_unlocks = manager.record_achievement_event(&"hero_a", &"skill_used", 1, &"warrior_heavy_strike")
 	var progress_a = party_state.get_member_state(&"hero_a").progression.get_achievement_progress_state(&"skill_use_counter")
 	var progress_b = party_state.get_member_state(&"hero_b").progression.get_achievement_progress_state(&"skill_use_counter")
 	_assert_eq(first_unlocks.size(), 0, "首次未达阈值时不应返回已解锁成就。")
 	_assert_true(progress_a != null and int(progress_a.current_value) == 1, "hero_a 的成就进度应累计到 1。")
 	_assert_true(progress_b == null, "hero_b 不应被 hero_a 的事件推进。")
 
-	var second_unlocks := manager.record_achievement_event(&"hero_a", &"skill_used", 1, &"warrior_heavy_strike")
+	var second_unlocks = manager.record_achievement_event(&"hero_a", &"skill_used", 1, &"warrior_heavy_strike")
 	progress_a = party_state.get_member_state(&"hero_a").progression.get_achievement_progress_state(&"skill_use_counter")
 	_assert_eq(second_unlocks.size(), 1, "达到阈值时应只解锁一次成就。")
 	_assert_eq(second_unlocks[0], &"skill_use_counter", "解锁结果应返回对应的 achievement_id。")
@@ -2468,7 +2469,7 @@ func _test_achievement_progress_is_member_scoped_and_unlocks_once() -> void:
 	_assert_eq(int(progress_a.current_value), 2, "已解锁成就的累计值应停留在触发阈值时的值。")
 	_assert_eq(party_state.pending_character_rewards.size(), 1, "达成成就后应只入队一份奖励。")
 
-	var third_unlocks := manager.record_achievement_event(&"hero_a", &"skill_used", 1, &"warrior_heavy_strike")
+	var third_unlocks = manager.record_achievement_event(&"hero_a", &"skill_used", 1, &"warrior_heavy_strike")
 	progress_a = party_state.get_member_state(&"hero_a").progression.get_achievement_progress_state(&"skill_use_counter")
 	_assert_true(third_unlocks.is_empty(), "已解锁成就再次收到事件时不应重复解锁。")
 	_assert_eq(int(progress_a.current_value), 2, "已解锁成就再次收到事件时不应继续累计。")
@@ -2487,19 +2488,19 @@ func _test_single_event_can_unlock_multiple_achievements_in_queue_order() -> voi
 			"先解锁",
 			&"battle_won",
 			1,
-			[_make_reward(AchievementRewardDef.TYPE_ATTRIBUTE_DELTA, UnitBaseAttributes.STRENGTH, 1, "力量")]
+			[_make_reward(&"attribute_delta", &"strength", 1, "力量")]
 		),
 		&"b_second": _make_achievement(
 			&"b_second",
 			"后解锁",
 			&"battle_won",
 			1,
-			[_make_reward(AchievementRewardDef.TYPE_ATTRIBUTE_DELTA, UnitBaseAttributes.AGILITY, 1, "敏捷")]
+			[_make_reward(&"attribute_delta", &"agility", 1, "敏捷")]
 		),
 	}
-	var manager := _setup_manager(party_state, achievement_defs)
+	var manager = _setup_manager(party_state, achievement_defs)
 
-	var unlocked_ids := manager.record_achievement_event(&"hero", &"battle_won", 1)
+	var unlocked_ids = manager.record_achievement_event(&"hero", &"battle_won", 1)
 	_assert_eq(unlocked_ids.size(), 2, "一次事件应能同时解锁多条成就。")
 	_assert_eq(unlocked_ids[0], &"a_first", "解锁顺序应与排序后的 achievement_id 一致。")
 	_assert_eq(unlocked_ids[1], &"b_second", "解锁顺序应与排序后的 achievement_id 一致。")
@@ -2510,13 +2511,13 @@ func _test_single_event_can_unlock_multiple_achievements_in_queue_order() -> voi
 
 func _test_pending_character_reward_applies_in_stable_order() -> void:
 	var party_state := _make_party_state([&"hero"])
-	var manager := _setup_manager(party_state, {})
+	var manager = _setup_manager(party_state, {})
 	var member_state: PartyMemberState = party_state.get_member_state(&"hero")
 	var progression: UnitProgress = member_state.progression
 	var attributes: UnitBaseAttributes = progression.unit_base_attributes
-	attributes.set_attribute_value(UnitBaseAttributes.STRENGTH, 12)
-	attributes.set_attribute_value(UnitBaseAttributes.AGILITY, 14)
-	var strength_before: int = attributes.get_attribute_value(UnitBaseAttributes.STRENGTH)
+	attributes.set_attribute_value(&"strength", 12)
+	attributes.set_attribute_value(&"agility", 14)
+	var strength_before: int = attributes.get_attribute_value(&"strength")
 
 	var reward = manager.build_pending_character_reward(
 		&"hero",
@@ -2526,29 +2527,29 @@ func _test_pending_character_reward_applies_in_stable_order() -> void:
 		"组合奖励",
 		[
 			{
-				"entry_type": String(AchievementRewardDef.TYPE_KNOWLEDGE_UNLOCK),
+				"entry_type": String(&"knowledge_unlock"),
 				"target_id": "wayfarer_notes",
 				"target_label": "旅途见闻",
 				"amount": 1,
 				"reason_text": "先解锁知识",
 			},
 			{
-				"entry_type": String(AchievementRewardDef.TYPE_SKILL_UNLOCK),
+				"entry_type": String(&"skill_unlock"),
 				"target_id": "charge",
 				"target_label": "冲锋",
 				"amount": 1,
 				"reason_text": "再解锁技能",
 			},
 			{
-				"entry_type": String(AchievementRewardDef.TYPE_SKILL_MASTERY),
+				"entry_type": String(&"skill_mastery"),
 				"target_id": "charge",
 				"target_label": "冲锋",
 				"amount": 100,
 				"reason_text": "随后结算熟练度",
 			},
 			{
-				"entry_type": String(AchievementRewardDef.TYPE_ATTRIBUTE_DELTA),
-				"target_id": String(UnitBaseAttributes.STRENGTH),
+				"entry_type": String(&"attribute_delta"),
+				"target_id": String(&"strength"),
 				"target_label": "力量",
 				"amount": 2,
 				"reason_text": "最后补基础属性",
@@ -2567,7 +2568,7 @@ func _test_pending_character_reward_applies_in_stable_order() -> void:
 	_assert_eq(int(charge_progress.total_mastery_earned), 100, "技能熟练度奖励应在技能解锁后成功入账。")
 	_assert_eq(int(charge_progress.skill_level), 1, "100 点冲锋熟练度应将技能提升到 1 级。")
 	_assert_eq(
-		progression.unit_base_attributes.get_attribute_value(UnitBaseAttributes.STRENGTH),
+		progression.unit_base_attributes.get_attribute_value(&"strength"),
 		strength_before + 2,
 		"属性奖励应在最后稳定落到角色基础属性上。"
 	)
@@ -2579,7 +2580,7 @@ func _test_pending_character_reward_applies_in_stable_order() -> void:
 
 func _test_pending_character_reward_round_trip_persists() -> void:
 	var party_state := _make_party_state([&"hero"])
-	var manager := _setup_manager(party_state, {})
+	var manager = _setup_manager(party_state, {})
 	var reward = manager.build_pending_character_reward(
 		&"hero",
 		&"persist_reward",
@@ -2588,7 +2589,7 @@ func _test_pending_character_reward_round_trip_persists() -> void:
 		"持久化奖励",
 		[
 			{
-				"entry_type": String(AchievementRewardDef.TYPE_SKILL_UNLOCK),
+				"entry_type": String(&"skill_unlock"),
 				"target_id": "charge",
 				"target_label": "冲锋",
 				"amount": 1,
@@ -2625,7 +2626,7 @@ func _test_pending_character_reward_round_trip_persists() -> void:
 
 func _test_pending_character_reward_rejects_unsupported_entry_types() -> void:
 	var party_state := _make_party_state([&"hero"])
-	var manager := _setup_manager(party_state, {})
+	var manager = _setup_manager(party_state, {})
 	var reward = manager.build_pending_character_reward(
 		&"hero",
 		&"invalid_entry_reward",
@@ -2677,9 +2678,9 @@ func _test_pending_character_reward_rejects_unsupported_entry_types() -> void:
 
 func _test_pending_character_reward_apply_logs_unknown_entry_and_continues() -> void:
 	var party_state := _make_party_state([&"hero"])
-	var manager := _setup_manager(party_state, {})
+	var manager = _setup_manager(party_state, {})
 	var member_state: PartyMemberState = party_state.get_member_state(&"hero")
-	var strength_before: int = member_state.progression.unit_base_attributes.get_attribute_value(UnitBaseAttributes.STRENGTH)
+	var strength_before: int = member_state.progression.unit_base_attributes.get_attribute_value(&"strength")
 
 	var unknown_entry := PendingCharacterRewardEntry.new()
 	unknown_entry.entry_type = &"phantom_reward"
@@ -2689,8 +2690,8 @@ func _test_pending_character_reward_apply_logs_unknown_entry_and_continues() -> 
 	unknown_entry.reason_text = "理论不可达的坏 entry。"
 
 	var valid_entry := PendingCharacterRewardEntry.new()
-	valid_entry.entry_type = AchievementRewardDef.TYPE_ATTRIBUTE_DELTA
-	valid_entry.target_id = UnitBaseAttributes.STRENGTH
+	valid_entry.entry_type = &"attribute_delta"
+	valid_entry.target_id = &"strength"
 	valid_entry.target_label = "力量"
 	valid_entry.amount = 1
 	valid_entry.reason_text = "合法 entry 仍应继续结算。"
@@ -2710,7 +2711,7 @@ func _test_pending_character_reward_apply_logs_unknown_entry_and_continues() -> 
 	var delta = manager.apply_pending_character_reward(party_state.get_next_pending_character_reward())
 	_assert_true(party_state.pending_character_rewards.is_empty(), "未知 entry 被点击领取时不应卡住奖励队列。")
 	_assert_eq(
-		member_state.progression.unit_base_attributes.get_attribute_value(UnitBaseAttributes.STRENGTH),
+		member_state.progression.unit_base_attributes.get_attribute_value(&"strength"),
 		strength_before + 1,
 		"同一 reward 内的合法 entry 应继续结算。"
 	)
@@ -2820,25 +2821,25 @@ func _test_quest_reward_pending_character_materializer() -> void:
 	quest_def.objective_defs = [
 		{
 			"objective_id": "report_back",
-			"objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION,
+			"objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION(),
 			"target_id": "service_contract_board",
 			"target_value": 1,
 		},
 	]
 	quest_def.reward_entries = [
 		{
-			"reward_type": QuestDef.REWARD_PENDING_CHARACTER_REWARD,
+			"reward_type": QuestDef.REWARD_PENDING_CHARACTER_REWARD(),
 			"member_id": "hero",
 			"summary_text": "完成演练后获得成长奖励。",
 			"entries": [
 				{
-					"entry_type": String(AchievementRewardDef.TYPE_SKILL_UNLOCK),
+					"entry_type": String(&"skill_unlock"),
 					"target_id": "charge",
 					"target_label": "冲锋",
 					"amount": 1,
 				},
 				{
-					"entry_type": String(AchievementRewardDef.TYPE_SKILL_MASTERY),
+					"entry_type": String(&"skill_mastery"),
 					"target_id": "charge",
 					"target_label": "冲锋",
 					"amount": 10,
@@ -2864,7 +2865,7 @@ func _test_quest_reward_pending_character_materializer() -> void:
 	claimable_quest.mark_completed(9)
 	party_state.set_claimable_quest_state(claimable_quest)
 
-	var claim_result := manager.claim_quest_reward(quest_def.quest_id, 12)
+	var claim_result = manager.claim_quest_reward(quest_def.quest_id, 12)
 	_assert_true(bool(claim_result.get("ok", false)), "quest 的 pending_character_reward 应能正式入队。")
 	_assert_eq((claim_result.get("pending_character_rewards", []) as Array).size(), 1, "claim 结果应暴露 materialized 角色奖励。")
 	_assert_eq(party_state.pending_character_rewards.size(), 1, "quest 的成长奖励应进入正式 pending_character_rewards。")
@@ -2885,11 +2886,11 @@ func _test_quest_reward_pending_character_materializer() -> void:
 
 func _test_research_pending_character_reward_preserves_queue_naming_and_triggers_growth_events() -> void:
 	var party_state := _make_party_state([&"hero"])
-	var manager := _setup_manager(party_state)
+	var manager = _setup_manager(party_state)
 	var member_state: PartyMemberState = party_state.get_member_state(&"hero")
 	var progression: UnitProgress = member_state.progression
-	var perception_before: int = progression.unit_base_attributes.get_attribute_value(UnitBaseAttributes.PERCEPTION)
-	var willpower_before: int = progression.unit_base_attributes.get_attribute_value(UnitBaseAttributes.WILLPOWER)
+	var perception_before: int = progression.unit_base_attributes.get_attribute_value(&"perception")
+	var willpower_before: int = progression.unit_base_attributes.get_attribute_value(&"willpower")
 
 	var knowledge_reward = manager.build_pending_character_reward(
 		&"hero",
@@ -2899,7 +2900,7 @@ func _test_research_pending_character_reward_preserves_queue_naming_and_triggers
 		"大图书官·研究",
 		[
 			{
-				"entry_type": String(AchievementRewardDef.TYPE_KNOWLEDGE_UNLOCK),
+				"entry_type": String(&"knowledge_unlock"),
 				"target_id": "field_manual",
 				"target_label": "野外手册",
 				"amount": 1,
@@ -2924,7 +2925,7 @@ func _test_research_pending_character_reward_preserves_queue_naming_and_triggers
 	_assert_eq(party_state.pending_character_rewards[0].source_id, &"knowledge_learned_field_manual", "研究触发的知识学习成就应沿用正式 achievement source_id。")
 	manager.apply_pending_character_reward(party_state.get_next_pending_character_reward())
 	_assert_eq(
-		progression.unit_base_attributes.get_attribute_value(UnitBaseAttributes.WILLPOWER),
+		progression.unit_base_attributes.get_attribute_value(&"willpower"),
 		willpower_before + 1,
 		"研究解锁野外手册后，后续知识学习成就奖励应正常结算。"
 	)
@@ -2937,7 +2938,7 @@ func _test_research_pending_character_reward_preserves_queue_naming_and_triggers
 		"大图书官·研究",
 		[
 			{
-				"entry_type": String(AchievementRewardDef.TYPE_SKILL_UNLOCK),
+				"entry_type": String(&"skill_unlock"),
 				"target_id": "warrior_guard_break",
 				"target_label": "裂甲斩",
 				"amount": 1,
@@ -2963,7 +2964,7 @@ func _test_research_pending_character_reward_preserves_queue_naming_and_triggers
 	_assert_eq(party_state.pending_character_rewards[0].source_id, &"skill_learned_guard_break", "研究触发的技能学习成就应沿用正式 achievement source_id。")
 	manager.apply_pending_character_reward(party_state.get_next_pending_character_reward())
 	_assert_eq(
-		progression.unit_base_attributes.get_attribute_value(UnitBaseAttributes.PERCEPTION),
+		progression.unit_base_attributes.get_attribute_value(&"perception"),
 		perception_before + 1,
 		"研究解锁裂甲斩后，后续技能学习成就奖励应正常结算。"
 	)
@@ -2972,7 +2973,7 @@ func _test_research_pending_character_reward_preserves_queue_naming_and_triggers
 func _test_submit_item_objective_materializer_tracks_progress_and_failures() -> void:
 	var party_state := _make_party_state([&"hero"])
 	party_state.get_member_state(&"hero").progression.unit_base_attributes.set_attribute_value(
-		PARTY_WAREHOUSE_SERVICE_SCRIPT.STORAGE_SPACE_ATTRIBUTE_ID,
+		PARTY_WAREHOUSE_SERVICE_SCRIPT.STORAGE_SPACE_ATTRIBUTE_ID(),
 		4
 	)
 	var registry := ProgressionContentRegistry.new()
@@ -2985,7 +2986,7 @@ func _test_submit_item_objective_materializer_tracks_progress_and_failures() -> 
 	submit_item_quest.objective_defs = [
 		{
 			"objective_id": "deliver_ore",
-			"objective_type": QuestDef.OBJECTIVE_SUBMIT_ITEM,
+			"objective_type": QuestDef.OBJECTIVE_SUBMIT_ITEM(),
 			"target_id": "iron_ore",
 			"target_value": 2,
 		},
@@ -3004,7 +3005,7 @@ func _test_submit_item_objective_materializer_tracks_progress_and_failures() -> 
 	submit_item_missing_target_quest.objective_defs = [
 		{
 			"objective_id": "deliver_ore",
-			"objective_type": QuestDef.OBJECTIVE_SUBMIT_ITEM,
+			"objective_type": QuestDef.OBJECTIVE_SUBMIT_ITEM(),
 			"target_id": "iron_ore",
 		},
 	]
@@ -3032,7 +3033,7 @@ func _test_submit_item_objective_materializer_tracks_progress_and_failures() -> 
 	partial_submit_quest.record_objective_progress(&"deliver_ore", 1, 2, {"item_id": "iron_ore", "submitted_quantity": 1})
 	party_state.set_active_quest_state(partial_submit_quest)
 	warehouse_service.add_item(&"iron_ore", 1)
-	var partial_submit_result := manager.submit_item_objective(submit_item_quest.quest_id, &"deliver_ore", 4)
+	var partial_submit_result = manager.submit_item_objective(submit_item_quest.quest_id, &"deliver_ore", 4)
 	warehouse_service.setup(party_state, item_defs)
 	_assert_true(bool(partial_submit_result.get("ok", false)), "submit_item 成功时应通过 CharacterManagementModule 推进正式 objective。")
 	_assert_eq(int(partial_submit_result.get("submitted_quantity", 0)), 1, "已有部分进度时 submit_item 只应扣除剩余所需数量。")
@@ -3054,7 +3055,7 @@ func _test_submit_item_objective_materializer_tracks_progress_and_failures() -> 
 	var remaining_iron_ore := warehouse_service.count_item(&"iron_ore")
 	if remaining_iron_ore > 0:
 		warehouse_service.remove_item(&"iron_ore", remaining_iron_ore)
-	var shortage_submit_result := manager.submit_item_objective(submit_item_shortage_quest.quest_id, &"deliver_ore", 6)
+	var shortage_submit_result = manager.submit_item_objective(submit_item_shortage_quest.quest_id, &"deliver_ore", 6)
 	_assert_true(not bool(shortage_submit_result.get("ok", true)), "共享仓库缺料时 submit_item 应正式失败。")
 	_assert_eq(String(shortage_submit_result.get("error_code", "")), "submit_item_missing_inventory", "缺料时 submit_item 应返回正式缺料错误码。")
 	var active_shortage_quest: QuestState = party_state.get_active_quest_state(submit_item_shortage_quest.quest_id)
@@ -3072,7 +3073,7 @@ func _test_submit_item_objective_materializer_tracks_progress_and_failures() -> 
 		warehouse_service.remove_item(&"bronze_sword", remaining_bronze_sword)
 	warehouse_service.add_item(&"bronze_sword", 1)
 	var bronze_sword_count_before_wrong_submit := warehouse_service.count_item(&"bronze_sword")
-	var wrong_item_submit_result := manager.submit_item_objective(submit_item_wrong_item_quest.quest_id, &"deliver_ore", 8)
+	var wrong_item_submit_result = manager.submit_item_objective(submit_item_wrong_item_quest.quest_id, &"deliver_ore", 8)
 	warehouse_service.setup(party_state, item_defs)
 	_assert_true(not bool(wrong_item_submit_result.get("ok", true)), "仓库只有错误物品时 submit_item 应正式失败。")
 	_assert_eq(String(wrong_item_submit_result.get("error_code", "")), "submit_item_missing_inventory", "错误物品时 submit_item 仍应返回缺少目标物资。")
@@ -3087,7 +3088,7 @@ func _test_submit_item_objective_materializer_tracks_progress_and_failures() -> 
 	missing_target_submit_state.quest_id = submit_item_missing_target_quest.quest_id
 	missing_target_submit_state.mark_accepted(9)
 	party_state.set_active_quest_state(missing_target_submit_state)
-	var missing_target_submit_result := manager.submit_item_objective(submit_item_missing_target_quest.quest_id, &"deliver_ore", 10)
+	var missing_target_submit_result = manager.submit_item_objective(submit_item_missing_target_quest.quest_id, &"deliver_ore", 10)
 	_assert_true(not bool(missing_target_submit_result.get("ok", true)), "submit_item objective 缺 target_value 时应正式失败。")
 	_assert_eq(String(missing_target_submit_result.get("error_code", "")), "invalid_submit_item_objective", "缺 target_value 时不应按默认 1 提交任务。")
 	var active_missing_target_quest: QuestState = party_state.get_active_quest_state(submit_item_missing_target_quest.quest_id)
@@ -3105,7 +3106,7 @@ func _test_quest_progress_events_require_formal_progress_schema() -> void:
 	quest_def.objective_defs = [
 		{
 			"objective_id": "train_once",
-			"objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION,
+			"objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION(),
 			"target_id": "service:training",
 			"target_value": 2,
 		},
@@ -3177,12 +3178,12 @@ func _test_quest_progress_events_require_formal_progress_schema() -> void:
 		},
 	]
 	for bad_event in bad_events:
-		var summary := manager.apply_quest_progress_events([bad_event], 2)
+		var summary = manager.apply_quest_progress_events([bad_event], 2)
 		_assert_eq((summary.get("progressed_quest_ids", []) as Array).size(), 0, "坏 quest progress event 不应推进任务。")
 	_assert_eq(active_quest.get_objective_progress(&"train_once"), 0, "amount / 缺 event_type / 字符串字段 / 缺 world_step 不应被兼容成任务进度。")
 	_assert_true(not party_state.has_claimable_quest(quest_def.quest_id), "坏 progress event 不应把任务推进到 claimable。")
 
-	var formal_summary := manager.apply_quest_progress_events([
+	var formal_summary = manager.apply_quest_progress_events([
 		{
 			"event_type": "progress",
 			"quest_id": String(quest_def.quest_id),
@@ -3195,10 +3196,10 @@ func _test_quest_progress_events_require_formal_progress_schema() -> void:
 	_assert_eq(active_quest.get_objective_progress(&"train_once"), 1, "直接 quest progress event 应从 QuestDef 读取 target_value。")
 	_assert_true(not party_state.has_claimable_quest(quest_def.quest_id), "未达到 QuestDef target_value 前不应完成。")
 
-	var matched_summary := manager.apply_quest_progress_events([
+	var matched_summary = manager.apply_quest_progress_events([
 		{
 			"event_type": "progress",
-			"objective_type": String(QuestDef.OBJECTIVE_SETTLEMENT_ACTION),
+			"objective_type": String(QuestDef.OBJECTIVE_SETTLEMENT_ACTION()),
 			"target_id": "service:training",
 			"progress_delta": 1,
 			"world_step": 4,
@@ -3213,7 +3214,7 @@ func _test_quest_progress_events_require_formal_progress_schema() -> void:
 	missing_target_quest_def.objective_defs = [
 		{
 			"objective_id": "bad_target",
-			"objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION,
+			"objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION(),
 			"target_id": "service:bad",
 		},
 	]
@@ -3250,12 +3251,12 @@ func _test_party_state_quest_round_trip_persists() -> void:
 	quest_def.objective_defs = [
 		{
 			"objective_id": "defeat_wolves",
-			"objective_type": QuestDef.OBJECTIVE_DEFEAT_ENEMY,
+			"objective_type": QuestDef.OBJECTIVE_DEFEAT_ENEMY(),
 			"target_value": 3,
 		},
 		{
 			"objective_id": "report_back",
-			"objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION,
+			"objective_type": QuestDef.OBJECTIVE_SETTLEMENT_ACTION(),
 			"target_value": 1,
 		},
 	]
@@ -3331,7 +3332,7 @@ func _test_battle_achievement_only_queues_reward_without_mutating_runtime_unit()
 			1,
 			[
 				_make_reward(
-					AchievementRewardDef.TYPE_SKILL_UNLOCK,
+					&"skill_unlock",
 					&"charge",
 					1,
 					"冲锋"
@@ -3339,7 +3340,7 @@ func _test_battle_achievement_only_queues_reward_without_mutating_runtime_unit()
 			]
 		),
 	}
-	var manager := _setup_manager(party_state, achievement_defs)
+	var manager = _setup_manager(party_state, achievement_defs)
 	_assert_true(manager.learn_skill(&"hero", &"warrior_heavy_strike"), "前置条件：hero 应能学会重击。")
 	_assert_true(not manager.has_method("build_battle_party"), "CharacterManagementModule 不应再暴露战斗编队构建 API。")
 	_assert_true(not manager.has_method("refresh_battle_unit"), "CharacterManagementModule 不应再暴露战斗单位刷新 API。")
@@ -3348,7 +3349,7 @@ func _test_battle_achievement_only_queues_reward_without_mutating_runtime_unit()
 	var runtime_unit = unit_factory.build_ally_units(party_state, {})[0]
 	var skill_ids_before = runtime_unit.known_active_skill_ids.duplicate()
 
-	var unlocked_ids := manager.record_achievement_event(&"hero", &"battle_won", 1)
+	var unlocked_ids = manager.record_achievement_event(&"hero", &"battle_won", 1)
 	var future_unit = unit_factory.build_ally_units(party_state, {})[0]
 	var charge_progress = party_state.get_member_state(&"hero").progression.get_skill_progress(&"charge")
 
@@ -3413,7 +3414,7 @@ func _test_party_management_window_ignores_legacy_equipment_state_dictionary() -
 	}
 
 	var formal_equipment := EquipmentState.new()
-	var formal_instance := EquipmentInstanceState.create(&"bronze_sword", &"eq_000321")
+	var formal_instance := EquipmentInstanceState.create_instance(&"bronze_sword", &"eq_000321")
 	_assert_true(
 		formal_equipment.set_equipped_entry(&"main_hand", &"bronze_sword", [&"main_hand"], formal_instance),
 		"测试前置：正式 EquipmentState 应能写入主手装备。"
@@ -3423,8 +3424,8 @@ func _test_party_management_window_ignores_legacy_equipment_state_dictionary() -
 	var bronze_sword := ItemDef.new()
 	bronze_sword.item_id = &"bronze_sword"
 	bronze_sword.display_name = "青铜剑"
-	bronze_sword.item_category = ItemDef.ITEM_CATEGORY_EQUIPMENT
-	bronze_sword.equipment_type_id = ItemDef.EQUIPMENT_TYPE_WEAPON
+	bronze_sword.item_category = &"equipment"
+	bronze_sword.equipment_type_id = &"weapon"
 	bronze_sword.equipment_slot_ids = ["main_hand"]
 
 	var window = PartyManagementWindowScene.instantiate()
@@ -3464,8 +3465,8 @@ func _test_party_management_window_keeps_main_character_active() -> void:
 	_assert_true(window.select_member(&"hero"), "队伍管理窗口应能选中主角。")
 	_assert_true(window.move_to_reserve_button.disabled, "主角必须保持上阵时，窗口应禁用下阵按钮。")
 	window._on_move_to_reserve_button_pressed()
-	_assert_true(window._active_member_ids.has(&"hero"), "点击禁用按钮后，窗口内部 active roster 不应丢失主角。")
-	_assert_true(not window._reserve_member_ids.has(&"hero"), "点击禁用按钮后，窗口内部 reserve roster 不应出现主角。")
+	_assert_true(window.get_active_member_ids().has(&"hero"), "点击禁用按钮后，窗口 active roster 不应丢失主角。")
+	_assert_true(not window.get_reserve_member_ids().has(&"hero"), "点击禁用按钮后，窗口 reserve roster 不应出现主角。")
 	_assert_text_contains(String(window.status_label.text), "主角必须保持上阵", "尝试下阵主角时应显示明确提示。")
 	_assert_text_contains(String(window.overview_label.text), "主角：是", "主角详情应显式标记主角身份。")
 
@@ -3513,7 +3514,7 @@ func _build_archer_design_skill_ids() -> Array[StringName]:
 	]
 
 
-func _setup_manager(party_state: PartyState, achievement_defs = null) -> CharacterManagementModule:
+func _setup_manager(party_state: PartyState, achievement_defs = null):
 	var registry := ProgressionContentRegistry.new()
 	var manager := CharacterManagementModule.new()
 	manager.setup(
@@ -3529,7 +3530,7 @@ func _setup_manager_with_skill_defs(
 	party_state: PartyState,
 	skill_defs: Dictionary,
 	achievement_defs: Dictionary = {}
-) -> CharacterManagementModule:
+):
 	var manager := CharacterManagementModule.new()
 	manager.setup(party_state, skill_defs, {}, achievement_defs)
 	return manager
@@ -3544,8 +3545,8 @@ func _make_party_state(member_ids: Array[StringName]) -> PartyState:
 		member_state.progression.unit_id = member_id
 		member_state.progression.display_name = member_state.display_name
 		member_state.progression.character_level = 1
-		member_state.progression.unit_base_attributes.set_attribute_value(UnitBaseAttributes.STRENGTH, 3)
-		member_state.progression.unit_base_attributes.set_attribute_value(UnitBaseAttributes.AGILITY, 2)
+		member_state.progression.unit_base_attributes.set_attribute_value(&"strength", 3)
+		member_state.progression.unit_base_attributes.set_attribute_value(&"agility", 2)
 		member_state.current_hp = 18
 		member_state.current_mp = 6
 		party_state.set_member_state(member_state)
@@ -3559,7 +3560,7 @@ func _make_party_state(member_ids: Array[StringName]) -> PartyState:
 
 func _build_party_state_payload_with_pending_character_reward() -> Dictionary:
 	var party_state := _make_party_state([&"hero"])
-	var manager := _setup_manager(party_state, {})
+	var manager = _setup_manager(party_state, {})
 	var reward = manager.build_pending_character_reward(
 		&"hero",
 		&"strict_reward",
@@ -3568,7 +3569,7 @@ func _build_party_state_payload_with_pending_character_reward() -> Dictionary:
 		"严格奖励",
 		[
 			{
-				"entry_type": String(AchievementRewardDef.TYPE_SKILL_UNLOCK),
+				"entry_type": String(&"skill_unlock"),
 				"target_id": "charge",
 				"target_label": "冲锋",
 				"amount": 1,
@@ -3675,7 +3676,9 @@ func _build_unit_progress_payload_with_child_entries() -> Dictionary:
 	promotion_record.new_rank = 2
 	promotion_record.consumed_skill_ids = [&"test_strict_skill"]
 	promotion_record.qualifier_skill_ids = [&"test_strict_skill"]
-	promotion_record.snapshot_unit_base_attributes = {"strength": 3}
+	var snapshot_attributes := UnitBaseAttributes.new()
+	snapshot_attributes.set_attribute_value(&"strength", 3)
+	promotion_record.snapshot_unit_base_attributes = snapshot_attributes.to_dict()
 	promotion_record.timestamp = 123
 	profession_progress.add_promotion_record(promotion_record)
 	progress.set_profession_progress(profession_progress)
@@ -4025,7 +4028,7 @@ func _make_test_racial_grant(skill_id: StringName, minimum_skill_level: int) -> 
 	var grant := RacialGrantedSkill.new()
 	grant.skill_id = skill_id
 	grant.minimum_skill_level = minimum_skill_level
-	grant.charge_kind = RacialGrantedSkill.CHARGE_KIND_PER_BATTLE
+	grant.charge_kind = "per_battle"
 	grant.charges = 1
 	return grant
 

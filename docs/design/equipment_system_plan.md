@@ -649,7 +649,7 @@
 
 - `scripts/player/equipment/equipment_state.gd`
 - `scripts/player/warehouse/item_def.gd`
-- `scripts/player/warehouse/item_content_registry.gd`
+- `scripts/player/warehouse/ItemContentRegistry.cs`
 - `scripts/systems/party_equipment_service.gd`
 - `scripts/systems/party_warehouse_service.gd`
 - `scripts/systems/character_management_module.gd`

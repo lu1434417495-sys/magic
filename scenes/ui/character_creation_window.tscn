@@ -2,7 +2,7 @@
 ; Scene purpose: Character creation modal with atmospheric styling — name entry, dice tumble animation, threshold-met row glow, scan-line indicator, and birth-luck tier readout.
 ; Review focus: verify unique node names match @onready bindings, per-row PanelContainer wraps badge/name/value/threshold cells, and ScanContainer clip_contents stays enabled.
 
-[ext_resource type="Script" path="res://scripts/ui/character_creation_window.gd" id="1_ccw"]
+[ext_resource type="Script" path="res://scripts/ui/CharacterCreationWindow.cs" id="1_ccw"]
 [ext_resource type="StyleBoxFlat" path="res://scenes/ui/styles/panel_warm.tres" id="2_panel_warm"]
 
 [node name="CharacterCreationWindow" type="Control"]

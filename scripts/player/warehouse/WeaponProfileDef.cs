@@ -14,20 +14,42 @@ public partial class WeaponProfileDef : Resource
     }
 
     public static int PROPERTY_MERGE_MODE_INHERIT() => (int)PropertyMergeMode.INHERIT;
+
     public static int PROPERTY_MERGE_MODE_REPLACE() => (int)PropertyMergeMode.REPLACE;
+
     public static int PROPERTY_MERGE_MODE_ADD() => (int)PropertyMergeMode.ADD;
+
     public static int PROPERTY_MERGE_MODE_REMOVE() => (int)PropertyMergeMode.REMOVE;
 
-    [Export] public StringName weapon_type_id { get; set; } = new("");
-    [Export] public StringName training_group { get; set; } = new("");
-    [Export] public StringName range_type { get; set; } = new("");
-    [Export] public StringName family { get; set; } = new("");
-    [Export] public StringName damage_tag { get; set; } = new("");
-    [Export] public int attack_range { get; set; } = ATTACK_RANGE_INHERIT;
-    [Export] public WeaponDamageDiceDef one_handed_dice { get; set; } = null;
-    [Export] public WeaponDamageDiceDef two_handed_dice { get; set; } = null;
-    [Export] public int properties_mode = (int)PropertyMergeMode.INHERIT;
-    [Export] public Godot.Collections.Array<StringName> properties = new();
+    [Export]
+    public StringName weapon_type_id { get; set; } = new("");
+
+    [Export]
+    public StringName training_group { get; set; } = new("");
+
+    [Export]
+    public StringName range_type { get; set; } = new("");
+
+    [Export]
+    public StringName family { get; set; } = new("");
+
+    [Export]
+    public StringName damage_tag { get; set; } = new("");
+
+    [Export]
+    public int attack_range { get; set; } = ATTACK_RANGE_INHERIT;
+
+    [Export]
+    public WeaponDamageDiceDef one_handed_dice { get; set; } = null;
+
+    [Export]
+    public WeaponDamageDiceDef two_handed_dice { get; set; } = null;
+
+    [Export]
+    public int properties_mode = (int)PropertyMergeMode.INHERIT;
+
+    [Export]
+    public Godot.Collections.Array<StringName> properties = new();
 
     public WeaponProfileDef merge_with_template(WeaponProfileDef template_profile)
     {
@@ -51,12 +73,18 @@ public partial class WeaponProfileDef : Resource
 
     public Godot.Collections.Array<StringName> GetProperties() => get_properties();
 
-    public static WeaponProfileDef merge(WeaponProfileDef template_profile, WeaponProfileDef instance_profile)
+    public static WeaponProfileDef merge(
+        WeaponProfileDef template_profile,
+        WeaponProfileDef instance_profile
+    )
     {
         return merge_profiles(template_profile, instance_profile);
     }
 
-    public static WeaponProfileDef merge_profiles(WeaponProfileDef template_profile, WeaponProfileDef instance_profile)
+    public static WeaponProfileDef merge_profiles(
+        WeaponProfileDef template_profile,
+        WeaponProfileDef instance_profile
+    )
     {
         if (template_profile == null && instance_profile == null)
         {
@@ -77,27 +105,50 @@ public partial class WeaponProfileDef : Resource
             return merged;
         }
 
-        merged.weapon_type_id = _inherit_string_name(template_profile.weapon_type_id, instance_profile.weapon_type_id);
-        merged.training_group = _inherit_string_name(template_profile.training_group, instance_profile.training_group);
-        merged.range_type = _inherit_string_name(template_profile.range_type, instance_profile.range_type);
+        merged.weapon_type_id = _inherit_string_name(
+            template_profile.weapon_type_id,
+            instance_profile.weapon_type_id
+        );
+        merged.training_group = _inherit_string_name(
+            template_profile.training_group,
+            instance_profile.training_group
+        );
+        merged.range_type = _inherit_string_name(
+            template_profile.range_type,
+            instance_profile.range_type
+        );
         merged.family = _inherit_string_name(template_profile.family, instance_profile.family);
-        merged.damage_tag = _inherit_string_name(template_profile.damage_tag, instance_profile.damage_tag);
-        merged.attack_range = instance_profile.has_attack_range_override() ? instance_profile.attack_range : template_profile.attack_range;
-        merged.one_handed_dice = _inherit_dice(template_profile.one_handed_dice, instance_profile.one_handed_dice);
-        merged.two_handed_dice = _inherit_dice(template_profile.two_handed_dice, instance_profile.two_handed_dice);
-        merged.properties = _resolve_properties(template_profile.properties, instance_profile.properties, instance_profile.properties_mode);
+        merged.damage_tag = _inherit_string_name(
+            template_profile.damage_tag,
+            instance_profile.damage_tag
+        );
+        merged.attack_range = instance_profile.has_attack_range_override()
+            ? instance_profile.attack_range
+            : template_profile.attack_range;
+        merged.one_handed_dice = _inherit_dice(
+            template_profile.one_handed_dice,
+            instance_profile.one_handed_dice
+        );
+        merged.two_handed_dice = _inherit_dice(
+            template_profile.two_handed_dice,
+            instance_profile.two_handed_dice
+        );
+        merged.properties = _resolve_properties(
+            template_profile.properties,
+            instance_profile.properties,
+            instance_profile.properties_mode
+        );
         merged.properties_mode = (int)PropertyMergeMode.REPLACE;
         return merged;
     }
 
-    public static int normalize_properties_mode(Variant mode)
+    public static int normalize_properties_mode(int mode)
     {
-        int normalized = mode.AsInt32();
-        if (normalized < (int)PropertyMergeMode.INHERIT || normalized > (int)PropertyMergeMode.REMOVE)
+        if (mode < (int)PropertyMergeMode.INHERIT || mode > (int)PropertyMergeMode.REMOVE)
         {
             return (int)PropertyMergeMode.INHERIT;
         }
-        return normalized;
+        return mode;
     }
 
     private static void _copy_profile_fields(WeaponProfileDef source, WeaponProfileDef target)
@@ -114,12 +165,18 @@ public partial class WeaponProfileDef : Resource
         target.properties = _normalize_properties(source.properties);
     }
 
-    private static StringName _inherit_string_name(StringName template_value, StringName instance_value)
+    private static StringName _inherit_string_name(
+        StringName template_value,
+        StringName instance_value
+    )
     {
         return instance_value != new StringName("") ? instance_value : template_value;
     }
 
-    private static WeaponDamageDiceDef _inherit_dice(WeaponDamageDiceDef template_dice, WeaponDamageDiceDef instance_dice)
+    private static WeaponDamageDiceDef _inherit_dice(
+        WeaponDamageDiceDef template_dice,
+        WeaponDamageDiceDef instance_dice
+    )
     {
         return _duplicate_dice(instance_dice ?? template_dice);
     }
@@ -200,7 +257,9 @@ public partial class WeaponProfileDef : Resource
         return result;
     }
 
-    private static Godot.Collections.Array<StringName> _normalize_properties(Godot.Collections.Array<StringName> raw_properties)
+    private static Godot.Collections.Array<StringName> _normalize_properties(
+        Godot.Collections.Array<StringName> raw_properties
+    )
     {
         var result = new Godot.Collections.Array<StringName>();
         var seen = new Godot.Collections.Dictionary<StringName, bool>();
@@ -217,7 +276,9 @@ public partial class WeaponProfileDef : Resource
         return result;
     }
 
-    private static Godot.Collections.Array<StringName> instancePropertiesOrEmpty(Godot.Collections.Array<StringName> values)
+    private static Godot.Collections.Array<StringName> instancePropertiesOrEmpty(
+        Godot.Collections.Array<StringName> values
+    )
     {
         return values ?? new Godot.Collections.Array<StringName>();
     }

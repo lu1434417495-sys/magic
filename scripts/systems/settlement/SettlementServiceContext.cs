@@ -6,14 +6,14 @@ public partial class SettlementServiceContext : RefCounted
     public Godot.Collections.Dictionary settlement_record = new();
     public Godot.Collections.Dictionary facility_record = new();
     public Godot.Collections.Dictionary npc_record = new();
-    public GodotObject party_state;
+    public PartyState party_state;
     public GodotObject warehouse_service;
     public GodotObject character_management;
     public int world_step;
     public StringName member_id = "";
     public Godot.Collections.Dictionary payload = new();
 
-    public SettlementServiceContext duplicate_context()
+    public SettlementServiceContext DuplicateContext()
     {
         var clone = new SettlementServiceContext();
         clone.settlement_record = settlement_record.Duplicate(true);

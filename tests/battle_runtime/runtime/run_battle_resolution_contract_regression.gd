@@ -6,28 +6,28 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const BattleEventBatch = preload("res://scripts/systems/battle/core/battle_event_batch.gd")
-const BattleResolutionResult = preload("res://scripts/systems/battle/core/battle_resolution_result.gd")
-const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
-const GameRuntimeBattleLootCommitService = preload("res://scripts/systems/game_runtime/game_runtime_battle_loot_commit_service.gd")
-const GameRuntimeFacade = preload("res://scripts/systems/game_runtime/game_runtime_facade.gd")
-const BattleSessionFacade = preload("res://scripts/systems/game_runtime/battle_session_facade.gd")
-const CharacterManagementModule = preload("res://scripts/systems/progression/character_management_module.gd")
-const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
-const BattleTimelineState = preload("res://scripts/systems/battle/core/battle_timeline_state.gd")
-const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
-const PartyWarehouseService = preload("res://scripts/systems/inventory/party_warehouse_service.gd")
-const PendingCharacterReward = preload("res://scripts/systems/progression/pending_character_reward.gd")
-const PendingCharacterRewardEntry = preload("res://scripts/systems/progression/pending_character_reward_entry.gd")
-const PartyState = preload("res://scripts/player/progression/party_state.gd")
-const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
-const WarehouseState = preload("res://scripts/player/warehouse/warehouse_state.gd")
-const EquipmentInstanceState = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
-const ItemDef = preload("res://scripts/player/warehouse/item_def.gd")
-const AchievementDef = preload("res://scripts/player/progression/achievement_def.gd")
-const AchievementRewardDef = preload("res://scripts/player/progression/achievement_reward_def.gd")
-const UnitSkillProgress = preload("res://scripts/player/progression/unit_skill_progress.gd")
-const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
+const BattleEventBatch = preload("res://scripts/systems/battle/core/BattleEventBatch.cs")
+const BattleResolutionResult = preload("res://scripts/systems/battle/core/BattleResolutionResult.cs")
+const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/BattleRuntimeModule.cs")
+const GameRuntimeBattleLootCommitService = preload("res://scripts/systems/game_runtime/GameRuntimeBattleLootCommitService.cs")
+const GameRuntimeFacade = preload("res://scripts/systems/game_runtime/GameRuntimeFacade.cs")
+const BattleSessionFacade = preload("res://scripts/systems/game_runtime/BattleSessionFacade.cs")
+const CharacterManagementModule = preload("res://scripts/systems/progression/CharacterManagementModule.cs")
+const BattleState = preload("res://scripts/systems/battle/core/BattleState.cs")
+const BattleTimelineState = preload("res://scripts/systems/battle/core/BattleTimelineState.cs")
+const BattleUnitState = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
+const PartyWarehouseService = preload("res://scripts/systems/inventory/PartyWarehouseService.cs")
+const PendingCharacterReward = preload("res://scripts/systems/progression/PendingCharacterReward.cs")
+const PendingCharacterRewardEntry = preload("res://scripts/systems/progression/PendingCharacterRewardEntry.cs")
+const PartyState = preload("res://scripts/player/progression/PartyState.cs")
+const PartyMemberState = preload("res://scripts/player/progression/PartyMemberState.cs")
+const WarehouseState = preload("res://scripts/player/warehouse/WarehouseState.cs")
+const EquipmentInstanceState = preload("res://scripts/player/warehouse/EquipmentInstanceState.cs")
+const ItemDef = preload("res://scripts/player/warehouse/ItemDef.cs")
+const AchievementDef = preload("res://scripts/player/progression/AchievementDef.cs")
+const AchievementRewardDef = preload("res://scripts/player/progression/AchievementRewardDef.cs")
+const UnitSkillProgress = preload("res://scripts/player/progression/UnitSkillProgress.cs")
+const SkillDef = preload("res://scripts/player/progression/SkillDef.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -227,7 +227,7 @@ class _FakeBattleWritebackService extends RefCounted:
 		commit_call_count += 1
 		return {"ok": ok, "error_code": "" if ok else "writeback_conflict"}
 
-	func report_invariant_failure(_writeback_result: Dictionary, _battle_summary: Dictionary, _winner_faction_id: String) -> void:
+	func report_inoption_failure(_writeback_result: Dictionary, _battle_summary: Dictionary, _winner_faction_id: String) -> void:
 		report_call_count += 1
 
 
@@ -284,7 +284,7 @@ class _FakeBattleGateway extends RefCounted:
 		member_id: StringName,
 		source_type: StringName,
 		source_label: String,
-		entry_variants: Array,
+		entry_options: Array,
 		summary_text: String = ""
 	) -> PendingCharacterReward:
 		var reward := PendingCharacterReward.new()
@@ -295,10 +295,10 @@ class _FakeBattleGateway extends RefCounted:
 		reward.source_id = source_type
 		reward.source_label = source_label
 		reward.summary_text = summary_text
-		for entry_variant in entry_variants:
-			if entry_variant is not Dictionary:
+		for entry_option in entry_options:
+			if entry_option is not Dictionary:
 				continue
-			var entry_data: Dictionary = entry_variant
+			var entry_data: Dictionary = entry_option
 			var entry := PendingCharacterRewardEntry.new()
 			entry.entry_type = &"skill_mastery"
 			entry.target_id = ProgressionDataUtils.to_string_name(entry_data.get("target_id", ""))
@@ -1113,7 +1113,7 @@ func _build_transient_equipment_instance_payload() -> Dictionary:
 	return {
 		"instance_id": "",
 		"item_id": "bronze_sword",
-		"rarity": EquipmentInstanceState.RarityTier.RARE,
+		"rarity": EquipmentInstanceState.RARITY_TIER_RARE(),
 		"current_durability": 120,
 	}
 
@@ -1166,9 +1166,9 @@ func _build_loot_commit_item_defs() -> Dictionary:
 	sword.item_id = &"bronze_sword"
 	sword.display_name = "Bronze Sword"
 	sword.is_stackable = false
-	sword.item_category = ItemDef.ITEM_CATEGORY_EQUIPMENT
+	sword.item_category = &"equipment"
 	sword.equipment_slot_ids = ["main_hand"]
-	sword.equipment_type_id = ItemDef.EQUIPMENT_TYPE_WEAPON
+	sword.equipment_type_id = &"weapon"
 	return {
 		hide.item_id: hide,
 		sword.item_id: sword,
@@ -1287,7 +1287,7 @@ func _build_skill_defs_for_battle_end_test() -> Dictionary:
 
 func _build_achievement_defs_for_battle_end_test() -> Dictionary:
 	var reward_def := AchievementRewardDef.new()
-	reward_def.reward_type = AchievementRewardDef.TYPE_ATTRIBUTE_DELTA
+	reward_def.reward_type = &"attribute_delta"
 	reward_def.target_id = &"hp_max"
 	reward_def.target_label = "生命上限"
 	reward_def.amount = 1

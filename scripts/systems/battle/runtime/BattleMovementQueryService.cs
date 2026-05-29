@@ -15,9 +15,9 @@ public partial class BattleMovementQueryService : RefCounted
     private static readonly Vector2I InvalidCoord = new(-1, -1);
     private const int InfiniteCost = int.MaxValue / 4;
 
-    private GodotObject _state;
-    private GodotObject _gridService;
-    private Callable _moveCostCallback = new();
+    private BattleState _state;
+    private BattleGridService _gridService;
+    private Func<StringName, Vector2I, Vector2I, int> _moveCostProvider;
     private Vector2I _mapSize = Vector2I.Zero;
     private CellInfo[] _cells = System.Array.Empty<CellInfo>();
     private readonly System.Collections.Generic.Dictionary<StringName, UnitInfo> _units = new();
@@ -85,6 +85,46 @@ public partial class BattleMovementQueryService : RefCounted
         }
     }
 
+    private sealed class MovementQueryOptions
+    {
+        public int MaxCandidateCount;
+        public bool IncludeOrigin;
+        public bool PreferProgress;
+        public bool HasIncludeOrigin;
+        public bool HasPreferProgress;
+        public readonly PathSearchBudgetOverride PathBudget = new();
+    }
+
+    private sealed class PathSearchBudgetOverride
+    {
+        public bool HasMaxCost;
+        public bool HasMaxNodes;
+        public bool HasMaxDestinations;
+        public bool HasPathTreeMinDestinationCount;
+        public bool HasIncludeOrigin;
+        public bool HasPreferProgress;
+        public int MaxCost;
+        public int MaxNodes;
+        public int MaxDestinations;
+        public int PathTreeMinDestinationCount;
+        public bool IncludeOrigin;
+        public bool PreferProgress;
+
+        public PathSearchBudget Apply(PathSearchBudget budget)
+        {
+            return new PathSearchBudget(
+                HasMaxCost ? MaxCost : budget.MaxCost,
+                HasMaxNodes ? MaxNodes : budget.MaxNodes,
+                HasMaxDestinations ? MaxDestinations : budget.MaxDestinations,
+                HasPathTreeMinDestinationCount
+                    ? PathTreeMinDestinationCount
+                    : budget.PathTreeMinDestinationCount,
+                HasIncludeOrigin ? IncludeOrigin : budget.IncludeOrigin,
+                HasPreferProgress ? PreferProgress : budget.PreferProgress
+            );
+        }
+    }
+
     private readonly record struct PathSearchResult(
         bool Ok,
         StringName RejectReason,
@@ -145,40 +185,41 @@ public partial class BattleMovementQueryService : RefCounted
         public bool InvalidMoveCost;
     }
 
-    public void setup(GodotObject state, GodotObject grid_service, Callable move_cost_callback)
+    public void setup(
+        BattleState state,
+        BattleGridService grid_service,
+        Func<StringName, Vector2I, Vector2I, int> move_cost_provider
+    )
     {
         _state = state;
         _gridService = grid_service;
-        _moveCostCallback = move_cost_callback;
+        _moveCostProvider = move_cost_provider;
         EnsureSnapshotFresh();
     }
 
     public Dictionary collect_reachable_anchors(
-        GodotObject query,
         StringName unit_id,
         Vector2I from_coord,
         int max_cost,
-        GodotObject overlay = null,
-        Dictionary options = null)
+        BattleVirtualBoardOverlay overlay = null,
+        Dictionary options = null
+    )
     {
         EnsureSnapshotFresh();
         if (!TryGetUnit(unit_id, out UnitInfo unit))
         {
             return Failure(QueryReachable, "missing_unit");
         }
-        options ??= new Dictionary();
-        if (!ValidateOptions(options))
+        if (!TryParseOptions(options, out MovementQueryOptions queryOptions))
         {
             return Failure(QueryReachable, "invalid_options");
         }
-        if (!TryResolveBudget(unit, options, out PathSearchBudget budget))
+        if (!TryResolveBudget(unit, queryOptions, out PathSearchBudget budget))
         {
             return Failure(QueryReachable, "invalid_options");
         }
 
-        bool includeOrigin = TryGetStrictBool(options, "include_origin", out bool optionIncludeOrigin)
-            ? optionIncludeOrigin
-            : budget.IncludeOrigin;
+        bool includeOrigin = budget.IncludeOrigin;
         int maxDestinations = budget.MaxDestinations;
         int costLimit = Math.Max(max_cost, 0);
         var frontier = new Queue<Vector2I>();
@@ -224,45 +265,68 @@ public partial class BattleMovementQueryService : RefCounted
                     coords.Add(neighbor);
                     if (maxDestinations > 0 && coords.Count >= maxDestinations)
                     {
-                        return Success(QueryReachable, coords, InvalidCoord, new List<Vector2I>(), 0, visitedCount, false, overlay);
+                        return Success(
+                            QueryReachable,
+                            coords,
+                            InvalidCoord,
+                            new List<Vector2I>(),
+                            0,
+                            visitedCount,
+                            false,
+                            overlay
+                        );
                     }
                 }
             }
         }
 
-        coords.Sort((left, right) =>
-        {
-            int distanceCompare = GetDistance(from_coord, right).CompareTo(GetDistance(from_coord, left));
-            if (distanceCompare != 0)
+        coords.Sort(
+            (left, right) =>
             {
-                return distanceCompare;
+                int distanceCompare = GetDistance(from_coord, right)
+                    .CompareTo(GetDistance(from_coord, left));
+                if (distanceCompare != 0)
+                {
+                    return distanceCompare;
+                }
+                int yCompare = left.Y.CompareTo(right.Y);
+                return yCompare != 0 ? yCompare : left.X.CompareTo(right.X);
             }
-            int yCompare = left.Y.CompareTo(right.Y);
-            return yCompare != 0 ? yCompare : left.X.CompareTo(right.X);
-        });
-        return Success(QueryReachable, coords, InvalidCoord, new List<Vector2I>(), 0, visitedCount, false, overlay);
+        );
+        return Success(
+            QueryReachable,
+            coords,
+            InvalidCoord,
+            new List<Vector2I>(),
+            0,
+            visitedCount,
+            false,
+            overlay
+        );
     }
 
     public Dictionary collect_distance_band_destinations(
-        GodotObject query,
         StringName unit_id,
         StringName focus_target_id,
         int min_distance,
         int max_distance,
-        GodotObject overlay = null,
-        Dictionary options = null)
+        BattleVirtualBoardOverlay overlay = null,
+        Dictionary options = null
+    )
     {
         EnsureSnapshotFresh();
-        if (!TryGetUnit(unit_id, out UnitInfo unit) || !TryGetUnit(focus_target_id, out UnitInfo target))
+        if (
+            !TryGetUnit(unit_id, out UnitInfo unit)
+            || !TryGetUnit(focus_target_id, out UnitInfo target)
+        )
         {
             return Failure(QueryDistanceBand, "missing_unit");
         }
-        options ??= new Dictionary();
-        if (!ValidateOptions(options))
+        if (!TryParseOptions(options, out MovementQueryOptions queryOptions))
         {
             return Failure(QueryDistanceBand, "invalid_options");
         }
-        if (!TryResolveBudget(unit, options, out PathSearchBudget budget))
+        if (!TryResolveBudget(unit, queryOptions, out PathSearchBudget budget))
         {
             return Failure(QueryDistanceBand, "invalid_options");
         }
@@ -295,46 +359,69 @@ public partial class BattleMovementQueryService : RefCounted
                     coords.Add(coord);
                     if (maxDestinations > 0 && coords.Count >= maxDestinations)
                     {
-                        return Success(QueryDistanceBand, coords, InvalidCoord, new List<Vector2I>(), 0, seen.Count, false, overlay);
+                        return Success(
+                            QueryDistanceBand,
+                            coords,
+                            InvalidCoord,
+                            new List<Vector2I>(),
+                            0,
+                            seen.Count,
+                            false,
+                            overlay
+                        );
                     }
                 }
             }
         }
 
-        coords.Sort((left, right) =>
-        {
-            int distanceCompare = GetDistance(unit.Coord, left).CompareTo(GetDistance(unit.Coord, right));
-            if (distanceCompare != 0)
+        coords.Sort(
+            (left, right) =>
             {
-                return distanceCompare;
+                int distanceCompare = GetDistance(unit.Coord, left)
+                    .CompareTo(GetDistance(unit.Coord, right));
+                if (distanceCompare != 0)
+                {
+                    return distanceCompare;
+                }
+                int yCompare = left.Y.CompareTo(right.Y);
+                return yCompare != 0 ? yCompare : left.X.CompareTo(right.X);
             }
-            int yCompare = left.Y.CompareTo(right.Y);
-            return yCompare != 0 ? yCompare : left.X.CompareTo(right.X);
-        });
-        return Success(QueryDistanceBand, coords, InvalidCoord, new List<Vector2I>(), 0, seen.Count, false, overlay);
+        );
+        return Success(
+            QueryDistanceBand,
+            coords,
+            InvalidCoord,
+            new List<Vector2I>(),
+            0,
+            seen.Count,
+            false,
+            overlay
+        );
     }
 
     public Dictionary collect_distance_band_path_targets(
-        GodotObject query,
         StringName unit_id,
         StringName focus_target_id,
         int min_distance,
         int max_distance,
         int max_cost,
-        GodotObject overlay = null,
-        Dictionary options = null)
+        BattleVirtualBoardOverlay overlay = null,
+        Dictionary options = null
+    )
     {
         EnsureSnapshotFresh();
-        if (!TryGetUnit(unit_id, out UnitInfo unit) || !TryGetUnit(focus_target_id, out UnitInfo target))
+        if (
+            !TryGetUnit(unit_id, out UnitInfo unit)
+            || !TryGetUnit(focus_target_id, out UnitInfo target)
+        )
         {
             return PathTargetFailure("missing_unit");
         }
-        options ??= new Dictionary();
-        if (!ValidateOptions(options))
+        if (!TryParseOptions(options, out MovementQueryOptions queryOptions))
         {
             return PathTargetFailure("invalid_options");
         }
-        if (!TryResolveBudget(unit, options, out PathSearchBudget budget))
+        if (!TryResolveBudget(unit, queryOptions, out PathSearchBudget budget))
         {
             return PathTargetFailure("invalid_options");
         }
@@ -346,7 +433,8 @@ public partial class BattleMovementQueryService : RefCounted
             max_distance,
             0,
             overlay,
-            out int visitedDestinationCount);
+            out int visitedDestinationCount
+        );
         int resolvedMin = Math.Max(min_distance, 0);
         int resolvedMax = Math.Max(max_distance, resolvedMin);
         int currentDistance = DistanceFromAnchorToTarget(unit.Coord, unit.FootprintSize, target);
@@ -397,7 +485,8 @@ public partial class BattleMovementQueryService : RefCounted
             budget,
             currentDistance,
             resolvedMin,
-            resolvedMax);
+            resolvedMax
+        );
         if (searchResult.InvalidMoveCost)
         {
             return PathTargetFailure("invalid_move_cost");
@@ -413,7 +502,17 @@ public partial class BattleMovementQueryService : RefCounted
         var costs = new Godot.Collections.Array();
         var pathLengths = new Godot.Collections.Array();
         var spentCosts = new Godot.Collections.Array();
-        candidates.Sort((left, right) => ComparePathTargetCandidates(left, right, currentDistance, resolvedMin, resolvedMax, budget.PreferProgress));
+        candidates.Sort(
+            (left, right) =>
+                ComparePathTargetCandidates(
+                    left,
+                    right,
+                    currentDistance,
+                    resolvedMin,
+                    resolvedMax,
+                    budget.PreferProgress
+                )
+        );
         int maxCandidates = Math.Max(budget.MaxDestinations, 0);
         foreach (PathTargetCandidate candidate in candidates)
         {
@@ -427,7 +526,10 @@ public partial class BattleMovementQueryService : RefCounted
             pathLengths.Add(candidate.PathLength);
             spentCosts.Add(candidate.SpentCost);
         }
-        int pathRejectCount = Math.Max(destinations.Count - searchResult.ReachedDestinationCount, 0);
+        int pathRejectCount = Math.Max(
+            destinations.Count - searchResult.ReachedDestinationCount,
+            0
+        );
         int visitedCount = visitedDestinationCount + searchResult.VisitedCount;
         int unreachableDestinationCount = pathRejectCount;
         return new Dictionary
@@ -465,26 +567,155 @@ public partial class BattleMovementQueryService : RefCounted
         };
     }
 
+    internal BattleDistanceBandPathTargetResult CollectDistanceBandPathTargetsTyped(
+        StringName unitId,
+        StringName focusTargetId,
+        int minDistance,
+        int maxDistance,
+        int maxCost,
+        int maxNodes,
+        int maxDestinations,
+        int pathTreeMinDestinationCount,
+        bool includeOrigin,
+        bool preferProgress,
+        BattleVirtualBoardOverlay overlay = null
+    )
+    {
+        EnsureSnapshotFresh();
+        if (!TryGetUnit(unitId, out UnitInfo unit) || !TryGetUnit(focusTargetId, out UnitInfo target))
+        {
+            return BattleDistanceBandPathTargetResult.Failure("missing_unit");
+        }
+
+        var budget = new PathSearchBudget(
+            Math.Max(maxCost, 0),
+            Math.Max(maxNodes, 0),
+            Math.Max(maxDestinations, 0),
+            Math.Max(pathTreeMinDestinationCount, 0),
+            includeOrigin,
+            preferProgress
+        );
+        List<Vector2I> destinations = CollectDistanceBandDestinationList(
+            unit,
+            target,
+            minDistance,
+            maxDistance,
+            0,
+            overlay,
+            out int visitedDestinationCount
+        );
+        int resolvedMin = Math.Max(minDistance, 0);
+        int resolvedMax = Math.Max(maxDistance, resolvedMin);
+        int currentDistance = DistanceFromAnchorToTarget(unit.Coord, unit.FootprintSize, target);
+        if (destinations.Count == 0)
+        {
+            return new BattleDistanceBandPathTargetResult
+            {
+                Ok = true,
+                RejectReason = EmptyStringName,
+                DestinationCount = 0,
+                ReachedDestinationCount = 0,
+                UnreachableDestinationCount = 0,
+                PathRejectCount = 0,
+                SkippedOriginCount = 0,
+                VisitedCount = visitedDestinationCount,
+            };
+        }
+
+        var destinationSet = new HashSet<Vector2I>(destinations);
+        PathTargetSearchResult searchResult = BuildPathTargetCandidates(
+            unit,
+            target,
+            unit.Coord,
+            destinationSet,
+            maxCost,
+            overlay,
+            budget,
+            currentDistance,
+            resolvedMin,
+            resolvedMax
+        );
+        if (searchResult.InvalidMoveCost)
+        {
+            return BattleDistanceBandPathTargetResult.Failure("invalid_move_cost");
+        }
+        if (searchResult.BudgetExhausted)
+        {
+            return BattleDistanceBandPathTargetResult.Failure("budget_exhausted");
+        }
+
+        var result = new BattleDistanceBandPathTargetResult
+        {
+            Ok = true,
+            RejectReason = EmptyStringName,
+            DestinationCount = destinations.Count,
+            ReachedDestinationCount = searchResult.ReachedDestinationCount,
+            UnreachableDestinationCount = Math.Max(
+                destinations.Count - searchResult.ReachedDestinationCount,
+                0
+            ),
+            PathRejectCount = Math.Max(destinations.Count - searchResult.ReachedDestinationCount, 0),
+            SkippedOriginCount = searchResult.SkippedOriginCount,
+            VisitedCount = visitedDestinationCount + searchResult.VisitedCount,
+            SearchVisitedCount = searchResult.VisitedCount,
+            DestinationScanCount = visitedDestinationCount,
+            RelaxCount = searchResult.RelaxCount,
+        };
+
+        searchResult.Candidates.Sort(
+            (left, right) =>
+                ComparePathTargetCandidates(
+                    left,
+                    right,
+                    currentDistance,
+                    resolvedMin,
+                    resolvedMax,
+                    budget.PreferProgress
+                )
+        );
+        int maxCandidates = Math.Max(budget.MaxDestinations, 0);
+        foreach (PathTargetCandidate candidate in searchResult.Candidates)
+        {
+            if (maxCandidates > 0 && result.Candidates.Count >= maxCandidates)
+            {
+                break;
+            }
+            result.Candidates.Add(
+                new BattleDistanceBandPathTargetCandidate
+                {
+                    DestinationCoord = candidate.DestinationCoord,
+                    Coord = candidate.TargetCoord,
+                    PathCost = candidate.PathCost,
+                    PathLength = candidate.PathLength,
+                    SpentCost = candidate.SpentCost,
+                }
+            );
+        }
+        return result;
+    }
+
     public Dictionary resolve_distance_band_path_cost(
-        GodotObject query,
         StringName unit_id,
         StringName focus_target_id,
         int min_distance,
         int max_distance,
-        GodotObject overlay = null,
-        Dictionary options = null)
+        BattleVirtualBoardOverlay overlay = null,
+        Dictionary options = null
+    )
     {
         EnsureSnapshotFresh();
-        if (!TryGetUnit(unit_id, out UnitInfo unit) || !TryGetUnit(focus_target_id, out UnitInfo target))
+        if (
+            !TryGetUnit(unit_id, out UnitInfo unit)
+            || !TryGetUnit(focus_target_id, out UnitInfo target)
+        )
         {
             return PathCostFailure("missing_unit");
         }
-        options ??= new Dictionary();
-        if (!ValidateOptions(options))
+        if (!TryParseOptions(options, out MovementQueryOptions queryOptions))
         {
             return PathCostFailure("invalid_options");
         }
-        if (!TryResolveBudget(unit, options, out PathSearchBudget budget))
+        if (!TryResolveBudget(unit, queryOptions, out PathSearchBudget budget))
         {
             return PathCostFailure("invalid_options");
         }
@@ -497,7 +728,8 @@ public partial class BattleMovementQueryService : RefCounted
             resolvedMin,
             resolvedMax,
             overlay,
-            budget.MaxNodes);
+            budget.MaxNodes
+        );
         int visitedCount = pathResult.VisitedCount;
         if (!pathResult.Ok)
         {
@@ -509,7 +741,7 @@ public partial class BattleMovementQueryService : RefCounted
             ["ok"] = true,
             ["cost"] = pathResult.Cost,
             ["target_coord"] = pathResult.Path.Count > 0 ? pathResult.Path[^1] : InvalidCoord,
-            ["path"] = VectorListToVariantArray(pathResult.Path),
+            ["path"] = VectorListToValueArray(pathResult.Path),
             ["destination_count"] = 0,
             ["visited_count"] = visitedCount,
             ["reject_reason"] = EmptyStringName,
@@ -524,26 +756,31 @@ public partial class BattleMovementQueryService : RefCounted
     }
 
     public Dictionary resolve_current_turn_path_target(
-        GodotObject query,
         StringName unit_id,
         Vector2I from_coord,
         Vector2I destination_coord,
         int max_cost,
-        GodotObject overlay = null,
-        Dictionary options = null)
+        BattleVirtualBoardOverlay overlay = null,
+        Dictionary options = null
+    )
     {
         EnsureSnapshotFresh();
         if (!TryGetUnit(unit_id, out UnitInfo unit))
         {
             return Failure(QueryPathTarget, "missing_unit");
         }
-        options ??= new Dictionary();
-        if (!ValidateOptions(options))
+        if (!TryParseOptions(options, out MovementQueryOptions queryOptions))
         {
             return Failure(QueryPathTarget, "invalid_options");
         }
 
-        PathSearchResult pathResult = FindPath(unit, from_coord, destination_coord, overlay, options);
+        PathSearchResult pathResult = FindPath(
+            unit,
+            from_coord,
+            destination_coord,
+            overlay,
+            queryOptions
+        );
         if (!pathResult.Ok)
         {
             return Failure(QueryPathTarget, pathResult.RejectReason);
@@ -566,7 +803,16 @@ public partial class BattleMovementQueryService : RefCounted
             spent += stepCost;
             targetCoord = nextCoord;
         }
-        return Success(QueryPathTarget, new List<Vector2I>(), targetCoord, path, pathResult.Cost, pathResult.VisitedCount, true, overlay);
+        return Success(
+            QueryPathTarget,
+            new List<Vector2I>(),
+            targetCoord,
+            path,
+            pathResult.Cost,
+            pathResult.VisitedCount,
+            true,
+            overlay
+        );
     }
 
     private List<Vector2I> CollectDistanceBandDestinationList(
@@ -575,8 +821,9 @@ public partial class BattleMovementQueryService : RefCounted
         int minDistance,
         int maxDistance,
         int maxDestinations,
-        GodotObject overlay,
-        out int visitedCount)
+        BattleVirtualBoardOverlay overlay,
+        out int visitedCount
+    )
     {
         int resolvedMin = Math.Max(minDistance, 0);
         int resolvedMax = Math.Max(maxDistance, resolvedMin);
@@ -611,25 +858,30 @@ public partial class BattleMovementQueryService : RefCounted
                 }
             }
         }
-        coords.Sort((left, right) =>
-        {
-            int distanceCompare = GetDistance(unit.Coord, left).CompareTo(GetDistance(unit.Coord, right));
-            if (distanceCompare != 0)
+        coords.Sort(
+            (left, right) =>
             {
-                return distanceCompare;
+                int distanceCompare = GetDistance(unit.Coord, left)
+                    .CompareTo(GetDistance(unit.Coord, right));
+                if (distanceCompare != 0)
+                {
+                    return distanceCompare;
+                }
+                int yCompare = left.Y.CompareTo(right.Y);
+                return yCompare != 0 ? yCompare : left.X.CompareTo(right.X);
             }
-            int yCompare = left.Y.CompareTo(right.Y);
-            return yCompare != 0 ? yCompare : left.X.CompareTo(right.X);
-        });
+        );
         visitedCount = seen.Count;
         return coords;
     }
 
-    public Dictionary build_path_search_budget(GodotObject query, StringName unit_id, Dictionary options = null)
+    public Dictionary build_path_search_budget(
+        StringName unit_id,
+        Dictionary options = null
+    )
     {
         RebuildSnapshot();
-        options ??= new Dictionary();
-        if (!ValidateOptions(options))
+        if (!TryParseOptions(options, out MovementQueryOptions queryOptions))
         {
             return new Dictionary();
         }
@@ -637,28 +889,18 @@ public partial class BattleMovementQueryService : RefCounted
         {
             unit = null;
         }
-        Dictionary budget = BuildDefaultBudgetDictionary(unit, options);
-        if (options.ContainsKey("path_budget"))
-        {
-            Variant explicitBudgetVariant = options["path_budget"];
-            if (explicitBudgetVariant.VariantType == Variant.Type.Dictionary)
-            {
-                Dictionary copied = DuplicateDictionary(budget);
-                Dictionary explicitBudget = explicitBudgetVariant.AsGodotDictionary();
-                foreach (Variant key in explicitBudget.Keys)
-                {
-                    copied[key] = explicitBudget[key];
-                }
-                return TryParseBudget(copied, out PathSearchBudget copiedBudget) ? copiedBudget.ToDictionary() : new Dictionary();
-            }
-        }
-        return TryParseBudget(budget, out PathSearchBudget resolvedBudget) ? resolvedBudget.ToDictionary() : new Dictionary();
+        return TryResolveBudget(unit, queryOptions, out PathSearchBudget resolvedBudget)
+            ? resolvedBudget.ToDictionary()
+            : new Dictionary();
     }
 
     private void RebuildSnapshot()
     {
-        _mapSize = _state != null ? _state.Get("map_size").AsVector2I() : Vector2I.Zero;
-        _cells = _mapSize.X > 0 && _mapSize.Y > 0 ? new CellInfo[_mapSize.X * _mapSize.Y] : System.Array.Empty<CellInfo>();
+        _mapSize = _state != null ? _state.map_size : Vector2I.Zero;
+        _cells =
+            _mapSize.X > 0 && _mapSize.Y > 0
+                ? new CellInfo[_mapSize.X * _mapSize.Y]
+                : System.Array.Empty<CellInfo>();
         _units.Clear();
         _edges.Clear();
         EnsureRuntimeEdges();
@@ -667,11 +909,10 @@ public partial class BattleMovementQueryService : RefCounted
         {
             return;
         }
-        Variant cellsVariant = _state.Get("cells");
-        if (cellsVariant.VariantType == Variant.Type.Dictionary)
+        Dictionary cells = _state.cells;
+        if (cells != null)
         {
-            Dictionary cells = cellsVariant.AsGodotDictionary();
-            foreach (Variant key in cells.Keys)
+            foreach (var key in cells.Keys)
             {
                 if (key.VariantType != Variant.Type.Vector2I)
                 {
@@ -682,26 +923,25 @@ public partial class BattleMovementQueryService : RefCounted
                 {
                     continue;
                 }
-                GodotObject cell = cells[key].AsGodotObject();
+                BattleCellState cell = cells[key].AsGodotObject() as BattleCellState;
                 if (cell == null)
                 {
                     continue;
                 }
                 _cells[ToIndex(coord)] = new CellInfo(
                     true,
-                    NormalizeTerrain(cell.Get("base_terrain").AsStringName()),
-                    cell.Get("occupant_unit_id").AsStringName()
+                    NormalizeTerrain(cell.base_terrain),
+                    cell.occupant_unit_id
                 );
             }
         }
 
-        Variant unitsVariant = _state.Get("units");
-        if (unitsVariant.VariantType == Variant.Type.Dictionary)
+        Dictionary units = _state.units;
+        if (units != null)
         {
-            Dictionary units = unitsVariant.AsGodotDictionary();
-            foreach (Variant key in units.Keys)
+            foreach (var key in units.Keys)
             {
-                GodotObject unitObject = units[key].AsGodotObject();
+                BattleUnitState unitObject = units[key].AsGodotObject() as BattleUnitState;
                 UnitInfo unit = BuildUnitInfo(unitObject);
                 if (unit != null && unit.UnitId != EmptyStringName)
                 {
@@ -710,25 +950,25 @@ public partial class BattleMovementQueryService : RefCounted
             }
         }
 
-        Variant edgesVariant = _state.Get("runtime_edge_faces");
-        if (edgesVariant.VariantType == Variant.Type.Dictionary)
+        Dictionary edges = _state.runtime_edge_faces;
+        if (edges != null)
         {
-            Dictionary edges = edgesVariant.AsGodotDictionary();
-            foreach (Variant key in edges.Keys)
+            foreach (var key in edges.Keys)
             {
                 if (key.VariantType != Variant.Type.Vector3I)
                 {
                     continue;
                 }
-                GodotObject edgeObject = edges[key].AsGodotObject();
+                BattleEdgeFaceState edgeObject =
+                    edges[key].AsGodotObject() as BattleEdgeFaceState;
                 if (edgeObject == null)
                 {
                     continue;
                 }
                 _edges[key.AsVector3I()] = new EdgeInfo(
-                    edgeObject.Call("blocks_move").AsBool(),
-                    edgeObject.Call("blocks_occupancy").AsBool(),
-                    edgeObject.Get("height_difference").AsInt32()
+                    edgeObject.blocks_move(),
+                    edgeObject.blocks_occupancy(),
+                    edgeObject.height_difference
                 );
             }
         }
@@ -752,50 +992,45 @@ public partial class BattleMovementQueryService : RefCounted
         unchecked
         {
             long hash = 1469598103934665603;
-            Vector2I mapSize = _state.Get("map_size").AsVector2I();
+            Vector2I mapSize = _state.map_size;
             hash = (hash ^ mapSize.X) * 1099511628211;
             hash = (hash ^ mapSize.Y) * 1099511628211;
-            Variant cellsVariant = _state.Get("cells");
-            if (cellsVariant.VariantType == Variant.Type.Dictionary)
+            Dictionary cells = _state.cells;
+            if (cells != null)
             {
-                hash = (hash ^ cellsVariant.AsGodotDictionary().Count) * 1099511628211;
+                hash = (hash ^ cells.Count) * 1099511628211;
             }
-            Variant unitsVariant = _state.Get("units");
-            if (unitsVariant.VariantType == Variant.Type.Dictionary)
+            Dictionary units = _state.units;
+            if (units != null)
             {
-                Dictionary units = unitsVariant.AsGodotDictionary();
                 hash = (hash ^ units.Count) * 1099511628211;
-                foreach (Variant key in units.Keys)
+                foreach (var key in units.Keys)
                 {
-                    GodotObject unit = units[key].AsGodotObject();
+                    BattleUnitState unit = units[key].AsGodotObject() as BattleUnitState;
                     if (unit == null)
                     {
                         continue;
                     }
-                    StringName unitId = unit.Get("unit_id").AsStringName();
-                    Vector2I coord = unit.Get("coord").AsVector2I();
-                    Vector2I footprint = unit.Get("footprint_size").AsVector2I();
+                    StringName unitId = unit.unit_id;
+                    Vector2I coord = unit.coord;
+                    Vector2I footprint = unit.footprint_size;
                     hash = (hash ^ unitId.GetHashCode()) * 1099511628211;
                     hash = (hash ^ coord.X) * 1099511628211;
                     hash = (hash ^ coord.Y) * 1099511628211;
                     hash = (hash ^ footprint.X) * 1099511628211;
                     hash = (hash ^ footprint.Y) * 1099511628211;
-                    hash = (hash ^ unit.Get("current_move_points").AsInt32()) * 1099511628211;
-                    Variant tagsVariant = unit.Get("movement_tags");
-                    if (tagsVariant.VariantType == Variant.Type.Array)
+                    hash = (hash ^ unit.current_move_points) * 1099511628211;
+                    foreach (StringName tag in unit.movement_tags)
                     {
-                        foreach (Variant tag in tagsVariant.AsGodotArray())
-                        {
-                            hash = (hash ^ ToStringName(tag).GetHashCode()) * 1099511628211;
-                        }
+                        hash = (hash ^ ToStringName(tag).GetHashCode()) * 1099511628211;
                     }
                 }
             }
-            hash = (hash ^ (_state.Get("runtime_edges_dirty").AsBool() ? 1 : 0)) * 1099511628211;
-            Variant edgesVariant = _state.Get("runtime_edge_faces");
-            if (edgesVariant.VariantType == Variant.Type.Dictionary)
+            hash = (hash ^ (_state.runtime_edges_dirty ? 1 : 0)) * 1099511628211;
+            Dictionary edges = _state.runtime_edge_faces;
+            if (edges != null)
             {
-                hash = (hash ^ edgesVariant.AsGodotDictionary().Count) * 1099511628211;
+                hash = (hash ^ edges.Count) * 1099511628211;
             }
             return hash;
         }
@@ -803,21 +1038,21 @@ public partial class BattleMovementQueryService : RefCounted
 
     private void EnsureRuntimeEdges()
     {
-        if (_state == null || _gridService == null || !_gridService.HasMethod("get_edge_face"))
+        if (_state == null || _gridService == null)
         {
             return;
         }
         if (_mapSize.X > 1)
         {
-            _gridService.Call("get_edge_face", _state, Vector2I.Zero, Vector2I.Right);
+            _gridService.get_edge_face(_state, Vector2I.Zero, Vector2I.Right);
         }
         else if (_mapSize.Y > 1)
         {
-            _gridService.Call("get_edge_face", _state, Vector2I.Zero, Vector2I.Down);
+            _gridService.get_edge_face(_state, Vector2I.Zero, Vector2I.Down);
         }
     }
 
-    private UnitInfo BuildUnitInfo(GodotObject unitObject)
+    private UnitInfo BuildUnitInfo(BattleUnitState unitObject)
     {
         if (unitObject == null)
         {
@@ -825,33 +1060,22 @@ public partial class BattleMovementQueryService : RefCounted
         }
         var unit = new UnitInfo
         {
-            UnitId = unitObject.Get("unit_id").AsStringName(),
-            Coord = unitObject.Get("coord").AsVector2I(),
-            FootprintSize = NormalizeFootprint(unitObject.Get("footprint_size").AsVector2I()),
-            CurrentMovePoints = Math.Max(unitObject.Get("current_move_points").AsInt32(), 0),
+            UnitId = unitObject.unit_id,
+            Coord = unitObject.coord,
+            FootprintSize = NormalizeFootprint(unitObject.footprint_size),
+            CurrentMovePoints = Math.Max(unitObject.current_move_points, 0),
         };
-        Variant movementTagsVariant = unitObject.Get("movement_tags");
-        if (movementTagsVariant.VariantType == Variant.Type.Array)
+        foreach (StringName tag in unitObject.movement_tags)
         {
-            foreach (Variant tag in movementTagsVariant.AsGodotArray())
+            StringName normalized = ToStringName(tag);
+            if (normalized != EmptyStringName)
             {
-                StringName normalized = ToStringName(tag);
-                if (normalized != EmptyStringName)
-                {
-                    unit.MovementTags.Add(normalized);
-                }
+                unit.MovementTags.Add(normalized);
             }
         }
-        Variant occupiedCoordsVariant = unitObject.Get("occupied_coords");
-        if (occupiedCoordsVariant.VariantType == Variant.Type.Array)
+        foreach (Vector2I coord in unitObject.occupied_coords)
         {
-            foreach (Variant coordVariant in occupiedCoordsVariant.AsGodotArray())
-            {
-                if (coordVariant.VariantType == Variant.Type.Vector2I)
-                {
-                    unit.OccupiedCoords.Add(coordVariant.AsVector2I());
-                }
-            }
+            unit.OccupiedCoords.Add(coord);
         }
         if (unit.OccupiedCoords.Count == 0)
         {
@@ -860,7 +1084,13 @@ public partial class BattleMovementQueryService : RefCounted
         return unit;
     }
 
-    private PathSearchResult FindPath(UnitInfo unit, Vector2I fromCoord, Vector2I destinationCoord, GodotObject overlay, Dictionary options)
+    private PathSearchResult FindPath(
+        UnitInfo unit,
+        Vector2I fromCoord,
+        Vector2I destinationCoord,
+        BattleVirtualBoardOverlay overlay,
+        MovementQueryOptions options
+    )
     {
         if (!CanPlaceAnchor(unit, destinationCoord, overlay))
         {
@@ -871,7 +1101,10 @@ public partial class BattleMovementQueryService : RefCounted
             return PathSearchResult.Failure("invalid_options");
         }
         int maxNodes = budget.MaxNodes;
-        var bestCosts = new System.Collections.Generic.Dictionary<Vector2I, int> { [fromCoord] = 0 };
+        var bestCosts = new System.Collections.Generic.Dictionary<Vector2I, int>
+        {
+            [fromCoord] = 0,
+        };
         var previous = new System.Collections.Generic.Dictionary<Vector2I, Vector2I>();
         var frontier = new Queue<Vector2I>();
         frontier.Enqueue(fromCoord);
@@ -902,7 +1135,10 @@ public partial class BattleMovementQueryService : RefCounted
                     return PathSearchResult.Failure("invalid_move_cost", visitedCount);
                 }
                 int nextCost = currentCost + stepCost;
-                if (bestCosts.TryGetValue(neighbor, out int existingCost) && nextCost >= existingCost)
+                if (
+                    bestCosts.TryGetValue(neighbor, out int existingCost)
+                    && nextCost >= existingCost
+                )
                 {
                     continue;
                 }
@@ -919,8 +1155,9 @@ public partial class BattleMovementQueryService : RefCounted
         UnitInfo target,
         int minDistance,
         int maxDistance,
-        GodotObject overlay,
-        int maxNodes)
+        BattleVirtualBoardOverlay overlay,
+        int maxNodes
+    )
     {
         if (unit == null || target == null)
         {
@@ -935,7 +1172,10 @@ public partial class BattleMovementQueryService : RefCounted
         var costs = new System.Collections.Generic.Dictionary<Vector2I, int> { [unit.Coord] = 0 };
         var previous = new System.Collections.Generic.Dictionary<Vector2I, Vector2I>();
         var frontier = new PriorityQueue<PathSearchNode, int>();
-        frontier.Enqueue(new PathSearchNode(unit.Coord, 0), EstimateDistanceBandCost(unit, target, unit.Coord, minDistance, maxDistance));
+        frontier.Enqueue(
+            new PathSearchNode(unit.Coord, 0),
+            EstimateDistanceBandCost(unit, target, unit.Coord, minDistance, maxDistance)
+        );
         int visitedCount = 0;
 
         while (frontier.TryDequeue(out PathSearchNode node, out _))
@@ -975,7 +1215,9 @@ public partial class BattleMovementQueryService : RefCounted
                 }
                 costs[neighbor] = nextCost;
                 previous[neighbor] = current;
-                int priority = nextCost + EstimateDistanceBandCost(unit, target, neighbor, minDistance, maxDistance);
+                int priority =
+                    nextCost
+                    + EstimateDistanceBandCost(unit, target, neighbor, minDistance, maxDistance);
                 frontier.Enqueue(new PathSearchNode(neighbor, nextCost), priority);
             }
         }
@@ -983,7 +1225,13 @@ public partial class BattleMovementQueryService : RefCounted
         return PathSearchResult.Failure("unreachable", visitedCount);
     }
 
-    private int EstimateDistanceBandCost(UnitInfo unit, UnitInfo target, Vector2I anchorCoord, int minDistance, int maxDistance)
+    private int EstimateDistanceBandCost(
+        UnitInfo unit,
+        UnitInfo target,
+        Vector2I anchorCoord,
+        int minDistance,
+        int maxDistance
+    )
     {
         int distance = DistanceFromAnchorToTarget(anchorCoord, unit.FootprintSize, target);
         return GetDistanceGap(distance, minDistance, maxDistance);
@@ -995,14 +1243,22 @@ public partial class BattleMovementQueryService : RefCounted
         Vector2I fromCoord,
         HashSet<Vector2I> destinationSet,
         int maxCost,
-        GodotObject overlay,
+        BattleVirtualBoardOverlay overlay,
         PathSearchBudget budget,
         int currentDistance,
         int resolvedMin,
-        int resolvedMax)
+        int resolvedMax
+    )
     {
         var result = new PathTargetSearchResult();
-        if (unit == null || target == null || destinationSet == null || destinationSet.Count == 0 || !IsInside(fromCoord) || _cells.Length == 0)
+        if (
+            unit == null
+            || target == null
+            || destinationSet == null
+            || destinationSet.Count == 0
+            || !IsInside(fromCoord)
+            || _cells.Length == 0
+        )
         {
             return result;
         }
@@ -1012,16 +1268,13 @@ public partial class BattleMovementQueryService : RefCounted
         var metaByIndex = new PathTargetNodeMeta[_cells.Length];
         var frontier = new PriorityQueue<PathSearchNode, int>();
         var reachedDestinations = new HashSet<Vector2I>();
-        var bestByTargetCoord = new System.Collections.Generic.Dictionary<Vector2I, PathTargetCandidate>();
+        var bestByTargetCoord = new System.Collections.Generic.Dictionary<
+            Vector2I,
+            PathTargetCandidate
+        >();
 
         int startIndex = ToIndex(fromCoord);
-        metaByIndex[startIndex] = new PathTargetNodeMeta(
-            true,
-            0,
-            fromCoord,
-            0,
-            1,
-            InvalidCoord);
+        metaByIndex[startIndex] = new PathTargetNodeMeta(true, 0, fromCoord, 0, 1, InvalidCoord);
         frontier.Enqueue(new PathSearchNode(fromCoord, 0), 0);
 
         while (frontier.TryDequeue(out PathSearchNode currentNode, out int currentPriority))
@@ -1032,7 +1285,11 @@ public partial class BattleMovementQueryService : RefCounted
                 continue;
             }
             PathTargetNodeMeta currentMeta = metaByIndex[ToIndex(current)];
-            if (!currentMeta.HasValue || currentNode.Cost != currentMeta.Cost || currentPriority != currentMeta.Cost)
+            if (
+                !currentMeta.HasValue
+                || currentNode.Cost != currentMeta.Cost
+                || currentPriority != currentMeta.Cost
+            )
             {
                 continue;
             }
@@ -1053,7 +1310,11 @@ public partial class BattleMovementQueryService : RefCounted
                 }
                 else
                 {
-                    int targetDistance = DistanceFromAnchorToTarget(currentMeta.LandingCoord, unit.FootprintSize, target);
+                    int targetDistance = DistanceFromAnchorToTarget(
+                        currentMeta.LandingCoord,
+                        unit.FootprintSize,
+                        target
+                    );
                     var candidate = new PathTargetCandidate(
                         current,
                         currentMeta.LandingCoord,
@@ -1061,9 +1322,22 @@ public partial class BattleMovementQueryService : RefCounted
                         currentMeta.PathLength,
                         currentMeta.SpentCost,
                         targetDistance,
-                        GetDistanceGap(targetDistance, resolvedMin, resolvedMax));
-                    if (!bestByTargetCoord.TryGetValue(candidate.TargetCoord, out PathTargetCandidate existing)
-                        || IsBetterPathTargetCandidate(candidate, existing, currentDistance, resolvedMin, resolvedMax, budget.PreferProgress))
+                        GetDistanceGap(targetDistance, resolvedMin, resolvedMax)
+                    );
+                    if (
+                        !bestByTargetCoord.TryGetValue(
+                            candidate.TargetCoord,
+                            out PathTargetCandidate existing
+                        )
+                        || IsBetterPathTargetCandidate(
+                            candidate,
+                            existing,
+                            currentDistance,
+                            resolvedMin,
+                            resolvedMax,
+                            budget.PreferProgress
+                        )
+                    )
                     {
                         bestByTargetCoord[candidate.TargetCoord] = candidate;
                     }
@@ -1103,7 +1377,8 @@ public partial class BattleMovementQueryService : RefCounted
                     landingCoord,
                     spentCost,
                     currentMeta.PathLength + 1,
-                    current);
+                    current
+                );
                 result.RelaxCount++;
                 frontier.Enqueue(new PathSearchNode(neighbor, nextCost), nextCost);
             }
@@ -1117,8 +1392,9 @@ public partial class BattleMovementQueryService : RefCounted
         UnitInfo unit,
         Vector2I fromCoord,
         HashSet<Vector2I> destinationSet,
-        GodotObject overlay,
-        int maxNodes)
+        BattleVirtualBoardOverlay overlay,
+        int maxNodes
+    )
     {
         var result = new PathSearchTree();
         if (unit == null)
@@ -1133,7 +1409,10 @@ public partial class BattleMovementQueryService : RefCounted
 
         while (frontier.TryDequeue(out Vector2I current, out int currentPriority))
         {
-            if (!result.Costs.TryGetValue(current, out int currentCost) || currentPriority != currentCost)
+            if (
+                !result.Costs.TryGetValue(current, out int currentCost)
+                || currentPriority != currentCost
+            )
             {
                 continue;
             }
@@ -1165,7 +1444,10 @@ public partial class BattleMovementQueryService : RefCounted
                     return result;
                 }
                 int nextCost = currentCost + stepCost;
-                if (result.Costs.TryGetValue(neighbor, out int existingCost) && nextCost >= existingCost)
+                if (
+                    result.Costs.TryGetValue(neighbor, out int existingCost)
+                    && nextCost >= existingCost
+                )
                 {
                     continue;
                 }
@@ -1178,7 +1460,13 @@ public partial class BattleMovementQueryService : RefCounted
         return result;
     }
 
-    private bool TryResolveCurrentTurnPathTarget(UnitInfo unit, List<Vector2I> path, int maxCost, out Vector2I targetCoord, out int spentCost)
+    private bool TryResolveCurrentTurnPathTarget(
+        UnitInfo unit,
+        List<Vector2I> path,
+        int maxCost,
+        out Vector2I targetCoord,
+        out int spentCost
+    )
     {
         targetCoord = unit?.Coord ?? InvalidCoord;
         spentCost = 0;
@@ -1211,7 +1499,8 @@ public partial class BattleMovementQueryService : RefCounted
         int currentDistance,
         int minDistance,
         int maxDistance,
-        bool preferProgress)
+        bool preferProgress
+    )
     {
         if (left.DistanceGap != right.DistanceGap)
         {
@@ -1219,7 +1508,13 @@ public partial class BattleMovementQueryService : RefCounted
         }
         if (preferProgress)
         {
-            int progressCompare = CompareProgressDistance(left.DistanceToTarget, right.DistanceToTarget, currentDistance, minDistance, maxDistance);
+            int progressCompare = CompareProgressDistance(
+                left.DistanceToTarget,
+                right.DistanceToTarget,
+                currentDistance,
+                minDistance,
+                maxDistance
+            );
             if (progressCompare != 0)
             {
                 return progressCompare;
@@ -1247,12 +1542,26 @@ public partial class BattleMovementQueryService : RefCounted
         int currentDistance,
         int minDistance,
         int maxDistance,
-        bool preferProgress)
+        bool preferProgress
+    )
     {
-        return ComparePathTargetCandidates(candidate, existing, currentDistance, minDistance, maxDistance, preferProgress) < 0;
+        return ComparePathTargetCandidates(
+                candidate,
+                existing,
+                currentDistance,
+                minDistance,
+                maxDistance,
+                preferProgress
+            ) < 0;
     }
 
-    private static int CompareProgressDistance(int leftDistance, int rightDistance, int currentDistance, int minDistance, int maxDistance)
+    private static int CompareProgressDistance(
+        int leftDistance,
+        int rightDistance,
+        int currentDistance,
+        int minDistance,
+        int maxDistance
+    )
     {
         if (currentDistance > maxDistance && leftDistance != rightDistance)
         {
@@ -1282,7 +1591,11 @@ public partial class BattleMovementQueryService : RefCounted
         return 0;
     }
 
-    private static List<Vector2I> ReconstructPath(System.Collections.Generic.Dictionary<Vector2I, Vector2I> previous, Vector2I fromCoord, Vector2I destinationCoord)
+    private static List<Vector2I> ReconstructPath(
+        System.Collections.Generic.Dictionary<Vector2I, Vector2I> previous,
+        Vector2I fromCoord,
+        Vector2I destinationCoord
+    )
     {
         var path = new List<Vector2I> { destinationCoord };
         Vector2I current = destinationCoord;
@@ -1294,7 +1607,7 @@ public partial class BattleMovementQueryService : RefCounted
         return path;
     }
 
-    private bool CanStep(UnitInfo unit, Vector2I fromCoord, Vector2I toCoord, GodotObject overlay)
+    private bool CanStep(UnitInfo unit, Vector2I fromCoord, Vector2I toCoord, BattleVirtualBoardOverlay overlay)
     {
         if (unit == null || GetDistance(fromCoord, toCoord) != 1)
         {
@@ -1307,7 +1620,7 @@ public partial class BattleMovementQueryService : RefCounted
         return CanPlaceAnchor(unit, toCoord, overlay);
     }
 
-    private bool CanPlaceAnchor(UnitInfo unit, Vector2I anchorCoord, GodotObject overlay)
+    private bool CanPlaceAnchor(UnitInfo unit, Vector2I anchorCoord, BattleVirtualBoardOverlay overlay)
     {
         if (unit == null)
         {
@@ -1339,7 +1652,12 @@ public partial class BattleMovementQueryService : RefCounted
         {
             for (int y = 0; y < footprintSize.Y; y++)
             {
-                if (!IsEdgeTraversable(anchorCoord + new Vector2I(footprintSize.X - 1, y), Vector2I.Right))
+                if (
+                    !IsEdgeTraversable(
+                        anchorCoord + new Vector2I(footprintSize.X - 1, y),
+                        Vector2I.Right
+                    )
+                )
                 {
                     return false;
                 }
@@ -1361,7 +1679,12 @@ public partial class BattleMovementQueryService : RefCounted
         {
             for (int x = 0; x < footprintSize.X; x++)
             {
-                if (!IsEdgeTraversable(anchorCoord + new Vector2I(x, footprintSize.Y - 1), Vector2I.Down))
+                if (
+                    !IsEdgeTraversable(
+                        anchorCoord + new Vector2I(x, footprintSize.Y - 1),
+                        Vector2I.Down
+                    )
+                )
                 {
                     return false;
                 }
@@ -1458,137 +1781,204 @@ public partial class BattleMovementQueryService : RefCounted
 
     private int GetMoveCost(StringName unitId, Vector2I fromCoord, Vector2I toCoord)
     {
-        if (_moveCostCallback.Target == null && _moveCostCallback.Delegate == null)
+        if (_moveCostProvider == null)
         {
             return 1;
         }
-        Variant value = _moveCostCallback.Call(unitId, fromCoord, toCoord);
-        if (value.VariantType != Variant.Type.Int)
-        {
-            Fail("move_cost_callback must return int.");
-            return -1;
-        }
-        int cost = value.AsInt32();
+        int cost = _moveCostProvider.Invoke(unitId, fromCoord, toCoord);
         if (cost <= 0)
         {
-            Fail("move_cost_callback must return int >= 1.");
+            Fail("move_cost_provider must return int >= 1.");
             return -1;
         }
         return cost;
     }
 
-    private bool TryResolveBudget(UnitInfo unit, Dictionary options, out PathSearchBudget budget)
+    private bool TryResolveBudget(
+        UnitInfo unit,
+        MovementQueryOptions options,
+        out PathSearchBudget budget
+    )
     {
-        Dictionary rawBudget = BuildDefaultBudgetDictionary(unit, options);
-        if (options.ContainsKey("path_budget") && options["path_budget"].VariantType == Variant.Type.Dictionary)
-        {
-            Dictionary explicitBudget = options["path_budget"].AsGodotDictionary();
-            foreach (Variant key in explicitBudget.Keys)
-            {
-                rawBudget[key] = explicitBudget[key];
-            }
-        }
-        return TryParseBudget(rawBudget, out budget);
+        options ??= new MovementQueryOptions();
+        PathSearchBudget defaultBudget = BuildDefaultBudget(unit, options);
+        budget = options.PathBudget.Apply(defaultBudget);
+        return true;
     }
 
-    private static Dictionary BuildDefaultBudgetDictionary(UnitInfo unit, Dictionary options)
+    private static PathSearchBudget BuildDefaultBudget(
+        UnitInfo unit,
+        MovementQueryOptions options
+    )
     {
-        return new Dictionary
+        options ??= new MovementQueryOptions();
+        return new PathSearchBudget(
+            unit?.CurrentMovePoints ?? 0,
+            0,
+            Math.Max(options.MaxCandidateCount, 0),
+            0,
+            options.HasIncludeOrigin && options.IncludeOrigin,
+            options.HasPreferProgress && options.PreferProgress
+        );
+    }
+
+    private static bool TryParseOptions(Dictionary source, out MovementQueryOptions options)
+    {
+        options = new MovementQueryOptions();
+        if (source == null)
         {
-            ["max_cost"] = unit?.CurrentMovePoints ?? 0,
-            ["max_nodes"] = 0,
-            ["max_destinations"] = Math.Max(TryGetStrictInt(options, "max_candidate_count", out int maxCandidateCount) ? maxCandidateCount : 0, 0),
-            ["path_tree_min_destination_count"] = 0,
-            ["include_origin"] = TryGetStrictBool(options, "include_origin", out bool includeOrigin) && includeOrigin,
-            ["prefer_progress"] = TryGetStrictBool(options, "prefer_progress", out bool preferProgress) && preferProgress,
+            return true;
+        }
+        foreach (var keyValue in source.Keys)
+        {
+            string key = ReadDictionaryKey(keyValue);
+            switch (key)
+            {
+                case "max_candidate_count":
+                    if (!TryReadNonNegativeInt(source[keyValue], out options.MaxCandidateCount))
+                    {
+                        return FailStatic("movement query max_candidate_count must be int >= 0.");
+                    }
+                    break;
+                case "include_origin":
+                    if (!TryReadBool(source[keyValue], out options.IncludeOrigin))
+                    {
+                        return FailStatic("movement query include_origin must be bool.");
+                    }
+                    options.HasIncludeOrigin = true;
+                    break;
+                case "prefer_progress":
+                    if (!TryReadBool(source[keyValue], out options.PreferProgress))
+                    {
+                        return FailStatic("movement query prefer_progress must be bool.");
+                    }
+                    options.HasPreferProgress = true;
+                    break;
+                case "path_budget":
+                    if (source[keyValue].VariantType != Variant.Type.Dictionary)
+                    {
+                        return FailStatic("movement query path_budget must be Dictionary.");
+                    }
+                    if (!TryParseBudgetOverride(source[keyValue].AsGodotDictionary(), options.PathBudget))
+                    {
+                        return false;
+                    }
+                    break;
+                default:
+                    return FailStatic($"Unsupported movement query option {key}.");
+            }
+        }
+        return true;
+    }
+
+    private static bool TryParseBudgetOverride(
+        Dictionary source,
+        PathSearchBudgetOverride budget
+    )
+    {
+        foreach (var keyValue in source.Keys)
+        {
+            string key = ReadDictionaryKey(keyValue);
+            var value = source[keyValue];
+            switch (key)
+            {
+                case "max_cost":
+                    if (!TryReadNonNegativeInt(value, out budget.MaxCost))
+                    {
+                        return FailStatic("path_search_budget.max_cost must be int >= 0.");
+                    }
+                    budget.HasMaxCost = true;
+                    break;
+                case "max_nodes":
+                    if (!TryReadNonNegativeInt(value, out budget.MaxNodes))
+                    {
+                        return FailStatic("path_search_budget.max_nodes must be int >= 0.");
+                    }
+                    budget.HasMaxNodes = true;
+                    break;
+                case "max_destinations":
+                    if (!TryReadNonNegativeInt(value, out budget.MaxDestinations))
+                    {
+                        return FailStatic("path_search_budget.max_destinations must be int >= 0.");
+                    }
+                    budget.HasMaxDestinations = true;
+                    break;
+                case "path_tree_min_destination_count":
+                    if (!TryReadNonNegativeInt(value, out budget.PathTreeMinDestinationCount))
+                    {
+                        return FailStatic(
+                            "path_search_budget.path_tree_min_destination_count must be int >= 0."
+                        );
+                    }
+                    budget.HasPathTreeMinDestinationCount = true;
+                    break;
+                case "include_origin":
+                    if (!TryReadBool(value, out budget.IncludeOrigin))
+                    {
+                        return FailStatic("path_search_budget.include_origin must be bool.");
+                    }
+                    budget.HasIncludeOrigin = true;
+                    break;
+                case "prefer_progress":
+                    if (!TryReadBool(value, out budget.PreferProgress))
+                    {
+                        return FailStatic("path_search_budget.prefer_progress must be bool.");
+                    }
+                    budget.HasPreferProgress = true;
+                    break;
+                default:
+                    return FailStatic($"Unsupported path_search_budget key {key}.");
+            }
+        }
+        return true;
+    }
+
+    private static bool TryReadNonNegativeInt(Variant value, out int result)
+    {
+        if (value.VariantType == Variant.Type.Int && value.AsInt32() >= 0)
+        {
+            result = value.AsInt32();
+            return true;
+        }
+        result = 0;
+        return false;
+    }
+
+    private static bool TryReadBool(Variant value, out bool result)
+    {
+        if (value.VariantType == Variant.Type.Bool)
+        {
+            result = value.AsBool();
+            return true;
+        }
+        result = false;
+        return false;
+    }
+
+    private static string ReadDictionaryKey(Variant key)
+    {
+        return key.VariantType switch
+        {
+            Variant.Type.String => key.AsString(),
+            Variant.Type.StringName => key.AsStringName().ToString(),
+            _ => key.ToString(),
         };
     }
 
-    private static bool ValidateOptions(Dictionary options)
+    private Dictionary Success(
+        StringName queryKind,
+        List<Vector2I> coords,
+        Vector2I targetCoord,
+        List<Vector2I> path,
+        int cost,
+        int visitedCount,
+        bool targetCoordValid,
+        BattleVirtualBoardOverlay overlay
+    )
     {
-        foreach (Variant keyVariant in options.Keys)
-        {
-            string key = keyVariant.AsString();
-            if (key != "max_candidate_count" && key != "include_origin" && key != "prefer_progress" && key != "path_budget")
-            {
-                return FailStatic($"Unsupported movement query option {key}.");
-            }
-        }
-        if (options.ContainsKey("max_candidate_count") && (options["max_candidate_count"].VariantType != Variant.Type.Int || options["max_candidate_count"].AsInt32() < 0))
-        {
-            return FailStatic("movement query max_candidate_count must be int >= 0.");
-        }
-        if (options.ContainsKey("include_origin") && options["include_origin"].VariantType != Variant.Type.Bool)
-        {
-            return FailStatic("movement query include_origin must be bool.");
-        }
-        if (options.ContainsKey("prefer_progress") && options["prefer_progress"].VariantType != Variant.Type.Bool)
-        {
-            return FailStatic("movement query prefer_progress must be bool.");
-        }
-        if (options.ContainsKey("path_budget") && options["path_budget"].VariantType != Variant.Type.Dictionary)
-        {
-            return FailStatic("movement query path_budget must be Dictionary.");
-        }
-        return true;
-    }
-
-    private static bool ValidateBudget(Dictionary budget)
-    {
-        foreach (Variant keyVariant in budget.Keys)
-        {
-            string key = keyVariant.AsString();
-            if (key != "max_cost" && key != "max_nodes" && key != "max_destinations" && key != "path_tree_min_destination_count" && key != "include_origin" && key != "prefer_progress")
-            {
-                return FailStatic($"Unsupported path_search_budget key {key}.");
-            }
-        }
-        foreach (string key in new[] { "max_cost", "max_nodes", "max_destinations", "path_tree_min_destination_count" })
-        {
-            if (!budget.ContainsKey(key) || budget[key].VariantType != Variant.Type.Int || budget[key].AsInt32() < 0)
-            {
-                return FailStatic($"path_search_budget.{key} must be int >= 0.");
-            }
-        }
-        foreach (string key in new[] { "include_origin", "prefer_progress" })
-        {
-            if (!budget.ContainsKey(key) || budget[key].VariantType != Variant.Type.Bool)
-            {
-                return FailStatic($"path_search_budget.{key} must be bool.");
-            }
-        }
-        return true;
-    }
-
-    private static bool TryParseBudget(Dictionary rawBudget, out PathSearchBudget budget)
-    {
-        budget = default;
-        if (!ValidateBudget(rawBudget))
-        {
-            return false;
-        }
-        budget = new PathSearchBudget(
-            rawBudget["max_cost"].AsInt32(),
-            rawBudget["max_nodes"].AsInt32(),
-            rawBudget["max_destinations"].AsInt32(),
-            rawBudget["path_tree_min_destination_count"].AsInt32(),
-            rawBudget["include_origin"].AsBool(),
-            rawBudget["prefer_progress"].AsBool()
-        );
-        return true;
-    }
-
-    private Dictionary Success(StringName queryKind, List<Vector2I> coords, Vector2I targetCoord, List<Vector2I> path, int cost, int visitedCount, bool targetCoordValid, GodotObject overlay)
-    {
-        int overlayOverrideCount = 0;
-        if (overlay != null && overlay.HasMethod("describe"))
-        {
-            Variant descriptionVariant = overlay.Call("describe");
-            if (descriptionVariant.VariantType == Variant.Type.Dictionary)
-            {
-                overlayOverrideCount = GdInterop.GetInt(descriptionVariant.AsGodotDictionary(), "override_count");
-            }
-        }
+        int overlayOverrideCount = overlay != null
+            ? GdInterop.GetInt(overlay.describe(), "override_count")
+            : 0;
         Dictionary telemetry = new()
         {
             ["query_kind"] = queryKind,
@@ -1602,9 +1992,9 @@ public partial class BattleMovementQueryService : RefCounted
         return new Dictionary
         {
             ["ok"] = true,
-            ["coords"] = VectorListToVariantArray(coords),
+            ["coords"] = VectorListToValueArray(coords),
             ["target_coord"] = targetCoord,
-            ["path"] = VectorListToVariantArray(path),
+            ["path"] = VectorListToValueArray(path),
             ["cost"] = cost,
             ["visited_count"] = visitedCount,
             ["reject_reason"] = EmptyStringName,
@@ -1708,13 +2098,17 @@ public partial class BattleMovementQueryService : RefCounted
     private IEnumerable<Vector2I> GetNeighbors4(Vector2I coord)
     {
         Vector2I left = coord + Vector2I.Left;
-        if (IsInside(left)) yield return left;
+        if (IsInside(left))
+            yield return left;
         Vector2I right = coord + Vector2I.Right;
-        if (IsInside(right)) yield return right;
+        if (IsInside(right))
+            yield return right;
         Vector2I up = coord + Vector2I.Up;
-        if (IsInside(up)) yield return up;
+        if (IsInside(up))
+            yield return up;
         Vector2I down = coord + Vector2I.Down;
-        if (IsInside(down)) yield return down;
+        if (IsInside(down))
+            yield return down;
     }
 
     private static List<Vector2I> GetFootprintCoords(Vector2I anchorCoord, Vector2I footprintSize)
@@ -1741,7 +2135,11 @@ public partial class BattleMovementQueryService : RefCounted
         return Math.Abs(fromCoord.X - toCoord.X) + Math.Abs(fromCoord.Y - toCoord.Y);
     }
 
-    private static int DistanceFromAnchorToTarget(Vector2I anchorCoord, Vector2I anchorFootprintSize, UnitInfo target)
+    private static int DistanceFromAnchorToTarget(
+        Vector2I anchorCoord,
+        Vector2I anchorFootprintSize,
+        UnitInfo target
+    )
     {
         int bestDistance = InfiniteCost;
         foreach (Vector2I sourceCoord in GetFootprintCoords(anchorCoord, anchorFootprintSize))
@@ -1760,7 +2158,8 @@ public partial class BattleMovementQueryService : RefCounted
         {
             return true;
         }
-        return NormalizeTerrain(terrain) != (StringName)"deep_water" || movementTags.Contains("amphibious");
+        return NormalizeTerrain(terrain) != (StringName)"deep_water"
+            || movementTags.Contains("amphibious");
     }
 
     private static StringName NormalizeTerrain(StringName terrain)
@@ -1768,16 +2167,20 @@ public partial class BattleMovementQueryService : RefCounted
         return terrain == EmptyStringName ? (StringName)"land" : terrain;
     }
 
-    private static StringName GetOverlayOccupant(GodotObject overlay, Vector2I coord, StringName baseOccupant)
+    private static StringName GetOverlayOccupant(
+        BattleVirtualBoardOverlay overlay,
+        Vector2I coord,
+        StringName baseOccupant
+    )
     {
-        if (overlay == null || !overlay.HasMethod("get_occupant"))
+        if (overlay == null)
         {
             return baseOccupant;
         }
-        return overlay.Call("get_occupant", coord, baseOccupant).AsStringName();
+        return overlay.get_occupant(coord, baseOccupant);
     }
 
-    private static Godot.Collections.Array VectorListToVariantArray(List<Vector2I> coords)
+    private static Godot.Collections.Array VectorListToValueArray(List<Vector2I> coords)
     {
         var result = new Godot.Collections.Array();
         foreach (Vector2I coord in coords)
@@ -1790,7 +2193,7 @@ public partial class BattleMovementQueryService : RefCounted
     private static List<Vector2I> VariantArrayToVectorList(Godot.Collections.Array values)
     {
         var result = new List<Vector2I>();
-        foreach (Variant value in values)
+        foreach (var value in values)
         {
             if (value.VariantType == Variant.Type.Vector2I)
             {
@@ -1800,40 +2203,20 @@ public partial class BattleMovementQueryService : RefCounted
         return result;
     }
 
-    private static Dictionary DuplicateDictionary(Dictionary source)
+    private static StringName ToStringName(object rawValue)
     {
-        var result = new Dictionary();
-        foreach (Variant key in source.Keys)
+        if (rawValue is not Variant value)
         {
-            result[key] = source[key];
+            if (rawValue is StringName stringName)
+            {
+                return stringName;
+            }
+            if (rawValue is string text)
+            {
+                return new StringName(text);
+            }
+            return EmptyStringName;
         }
-        return result;
-    }
-
-    private static bool TryGetStrictInt(Dictionary dictionary, string key, out int value)
-    {
-        if (dictionary != null && dictionary.ContainsKey(key) && dictionary[key].VariantType == Variant.Type.Int)
-        {
-            value = dictionary[key].AsInt32();
-            return true;
-        }
-        value = 0;
-        return false;
-    }
-
-    private static bool TryGetStrictBool(Dictionary dictionary, string key, out bool value)
-    {
-        if (dictionary != null && dictionary.ContainsKey(key) && dictionary[key].VariantType == Variant.Type.Bool)
-        {
-            value = dictionary[key].AsBool();
-            return true;
-        }
-        value = false;
-        return false;
-    }
-
-    private static StringName ToStringName(Variant value)
-    {
         if (value.VariantType == Variant.Type.StringName)
         {
             return value.AsStringName();
@@ -1852,7 +2235,42 @@ public partial class BattleMovementQueryService : RefCounted
 
     private static bool FailStatic(string message)
     {
-        GD.PushError(message);
+        GameLog.Error(message, "battle.movement.query_failed", "battle");
         return false;
+    }
+}
+
+internal sealed class BattleDistanceBandPathTargetCandidate
+{
+    public Vector2I DestinationCoord = new(-1, -1);
+    public Vector2I Coord = new(-1, -1);
+    public int PathCost;
+    public int PathLength;
+    public int SpentCost;
+}
+
+internal sealed class BattleDistanceBandPathTargetResult
+{
+    public bool Ok;
+    public StringName RejectReason = "";
+    public readonly List<BattleDistanceBandPathTargetCandidate> Candidates = new();
+    public int DestinationCount;
+    public int ReachedDestinationCount;
+    public int UnreachableDestinationCount;
+    public int PathRejectCount;
+    public int SkippedOriginCount;
+    public int VisitedCount;
+    public int SearchVisitedCount;
+    public int DestinationScanCount;
+    public int RelaxCount;
+
+    public static BattleDistanceBandPathTargetResult Failure(StringName rejectReason)
+    {
+        return new BattleDistanceBandPathTargetResult
+        {
+            Ok = false,
+            RejectReason = rejectReason,
+            PathRejectCount = 1,
+        };
     }
 }

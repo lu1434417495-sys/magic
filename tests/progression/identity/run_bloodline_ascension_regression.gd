@@ -2,23 +2,23 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const AgeProfileDef = preload("res://scripts/player/progression/age_profile_def.gd")
-const AgeStageRule = preload("res://scripts/player/progression/age_stage_rule.gd")
-const AscensionApplyService = preload("res://scripts/systems/progression/ascension_apply_service.gd")
-const AscensionDef = preload("res://scripts/player/progression/ascension_def.gd")
-const AscensionStageDef = preload("res://scripts/player/progression/ascension_stage_def.gd")
-const BloodlineApplyService = preload("res://scripts/systems/progression/bloodline_apply_service.gd")
-const BloodlineDef = preload("res://scripts/player/progression/bloodline_def.gd")
-const BloodlineStageDef = preload("res://scripts/player/progression/bloodline_stage_def.gd")
-const CharacterManagementModule = preload("res://scripts/systems/progression/character_management_module.gd")
-const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
-const PartyState = preload("res://scripts/player/progression/party_state.gd")
-const RaceDef = preload("res://scripts/player/progression/race_def.gd")
-const RacialGrantedSkill = preload("res://scripts/player/progression/racial_granted_skill.gd")
-const SkillDef = preload("res://scripts/player/progression/skill_def.gd")
-const StageAdvancementApplyService = preload("res://scripts/systems/progression/stage_advancement_apply_service.gd")
-const StageAdvancementModifier = preload("res://scripts/player/progression/stage_advancement_modifier.gd")
-const SubraceDef = preload("res://scripts/player/progression/subrace_def.gd")
+const AgeProfileDef = preload("res://scripts/player/progression/AgeProfileDef.cs")
+const AgeStageRule = preload("res://scripts/player/progression/AgeStageRule.cs")
+const AscensionApplyService = preload("res://scripts/systems/progression/AscensionApplyService.cs")
+const AscensionDef = preload("res://scripts/player/progression/AscensionDef.cs")
+const AscensionStageDef = preload("res://scripts/player/progression/AscensionStageDef.cs")
+const BloodlineApplyService = preload("res://scripts/systems/progression/BloodlineApplyService.cs")
+const BloodlineDef = preload("res://scripts/player/progression/BloodlineDef.cs")
+const BloodlineStageDef = preload("res://scripts/player/progression/BloodlineStageDef.cs")
+const CharacterManagementModule = preload("res://scripts/systems/progression/CharacterManagementModule.cs")
+const PartyMemberState = preload("res://scripts/player/progression/PartyMemberState.cs")
+const PartyState = preload("res://scripts/player/progression/PartyState.cs")
+const RaceDef = preload("res://scripts/player/progression/RaceDef.cs")
+const RacialGrantedSkill = preload("res://scripts/player/progression/RacialGrantedSkill.cs")
+const SkillDef = preload("res://scripts/player/progression/SkillDef.cs")
+const StageAdvancementApplyService = preload("res://scripts/systems/progression/StageAdvancementApplyService.cs")
+const StageAdvancementModifier = preload("res://scripts/player/progression/StageAdvancementModifier.cs")
+const SubraceDef = preload("res://scripts/player/progression/SubraceDef.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -75,7 +75,7 @@ func _test_apply_services_validate_before_mutation() -> void:
 	_assert_eq(member.original_race_id_before_ascension, &"human", "首次 ascension 应保存原始 race。")
 	_assert_eq(member.ascension_started_at_world_step, 42, "apply_ascension 应记录开始 world step。")
 
-	var before_stage := member.ascension_stage_id
+	var before_stage = member.ascension_stage_id
 	_assert_true(
 		not ascension_service.apply_ascension(member, &"elf_ascension", &"elf_awakened", 43),
 		"AscensionApplyService 应拒绝不满足 allowed_race_ids 的升华。"
@@ -132,10 +132,10 @@ func _test_character_management_rejects_invalid_identity_apply_without_mutation(
 
 func _test_character_management_applies_identity_and_refreshes_grants() -> void:
 	var bundle := _make_identity_bundle()
-	var bloodline_skill := _make_skill(&"bloodline_skill", UnitSkillProgress.GRANTED_SOURCE_BLOODLINE)
-	var bloodline_stage_skill := _make_skill(&"bloodline_stage_skill", UnitSkillProgress.GRANTED_SOURCE_BLOODLINE)
-	var ascension_skill := _make_skill(&"ascension_skill", UnitSkillProgress.GRANTED_SOURCE_ASCENSION)
-	var ascension_stage_skill := _make_skill(&"ascension_stage_skill", UnitSkillProgress.GRANTED_SOURCE_ASCENSION)
+	var bloodline_skill := _make_skill(&"bloodline_skill", &"bloodline")
+	var bloodline_stage_skill := _make_skill(&"bloodline_stage_skill", &"bloodline")
+	var ascension_skill := _make_skill(&"ascension_skill", &"ascension")
+	var ascension_stage_skill := _make_skill(&"ascension_stage_skill", &"ascension")
 	var party_state := _make_party_state()
 	var manager := CharacterManagementModule.new()
 	manager.setup(
@@ -159,8 +159,8 @@ func _test_character_management_applies_identity_and_refreshes_grants() -> void:
 		"CharacterManagementModule.apply_bloodline 应委托服务并刷新成员。"
 	)
 	var member: PartyMemberState = party_state.get_member_state(&"hero")
-	_assert_identity_granted_skill(member, &"bloodline_skill", UnitSkillProgress.GRANTED_SOURCE_BLOODLINE, &"titan")
-	_assert_identity_granted_skill(member, &"bloodline_stage_skill", UnitSkillProgress.GRANTED_SOURCE_BLOODLINE, &"titan_awakened")
+	_assert_identity_granted_skill(member, &"bloodline_skill", &"bloodline", &"titan")
+	_assert_identity_granted_skill(member, &"bloodline_stage_skill", &"bloodline", &"titan_awakened")
 
 	_assert_true(manager.revoke_bloodline(&"hero"), "revoke_bloodline 应清空 bloodline 并触发技能撤销。")
 	_assert_true(
@@ -176,14 +176,14 @@ func _test_character_management_applies_identity_and_refreshes_grants() -> void:
 		manager.apply_ascension(&"hero", &"dragon_ascension", &"dragon_awakened", 11),
 		"CharacterManagementModule.apply_ascension 应委托服务并刷新成员。"
 	)
-	_assert_identity_granted_skill(member, &"ascension_skill", UnitSkillProgress.GRANTED_SOURCE_ASCENSION, &"dragon_ascension")
-	_assert_identity_granted_skill(member, &"ascension_stage_skill", UnitSkillProgress.GRANTED_SOURCE_ASCENSION, &"dragon_awakened")
+	_assert_identity_granted_skill(member, &"ascension_skill", &"ascension", &"dragon_ascension")
+	_assert_identity_granted_skill(member, &"ascension_stage_skill", &"ascension", &"dragon_awakened")
 	_assert_eq(member.effective_age_stage_id, &"dragon_awakened", "replaces_age_growth 的升华阶段应接管 effective_age_stage_id。")
 	_assert_eq(member.effective_age_stage_source_type, &"ascension", "升华接管年龄阶段时应记录来源类型。")
 	_assert_eq(member.body_size_category, &"large", "升华阶段体型 override 应刷新 body_size_category。")
 	_assert_eq(member.body_size, 3, "升华阶段体型 override 应通过 BodySizeRules 刷新 body_size。")
 
-	_assert_true(manager.revoke_ascension(&"hero"), "revoke_ascension 应清空 ascension 并触发技能撤销。")
+	_assert_true(manager.revoke_ascension(&"hero", true), "revoke_ascension 应清空 ascension 并触发技能撤销。")
 	_assert_eq(member.body_size_category, &"medium", "撤销升华后体型应回到 race/subrace 解析结果。")
 	_assert_eq(member.body_size, 2, "撤销升华后 body_size 应从 medium 重新派生。")
 	_assert_true(
@@ -233,7 +233,7 @@ func _test_identity_summary_includes_identity_projection() -> void:
 	_assert_true(manager.apply_bloodline(&"hero", &"titan", &"titan_awakened"), "身份摘要测试前置：应能应用 bloodline。")
 	_assert_true(manager.apply_ascension(&"hero", &"dragon_ascension", &"dragon_awakened", 11), "身份摘要测试前置：应能应用 ascension。")
 
-	var summary := manager.get_identity_summary_for_member(&"hero")
+	var summary = manager.get_identity_summary_for_member(&"hero")
 	_assert_eq(String(summary.get("race_label", "")), "Human", "身份摘要应包含 race display_name。")
 	_assert_eq(String(summary.get("subrace_label", "")), "High Human", "身份摘要应包含 subrace display_name。")
 	_assert_eq(String(summary.get("bloodline_label", "")), "titan", "身份摘要应包含 bloodline display_name。")
@@ -432,7 +432,7 @@ func _make_stage_advancement(modifier_id: StringName) -> StageAdvancementModifie
 	var modifier := StageAdvancementModifier.new()
 	modifier.modifier_id = modifier_id
 	modifier.display_name = String(modifier_id)
-	modifier.target_axis = StageAdvancementModifier.TARGET_AXIS_FULL
+	modifier.target_axis = &"full"
 	modifier.stage_offset = 2
 	modifier.max_stage_id = &"old"
 	modifier.applies_to_race_ids = [&"human"]
@@ -456,7 +456,7 @@ func _make_granted_skill(skill_id: StringName) -> RacialGrantedSkill:
 	var grant := RacialGrantedSkill.new()
 	grant.skill_id = skill_id
 	grant.minimum_skill_level = 1
-	grant.charge_kind = RacialGrantedSkill.CHARGE_KIND_PER_BATTLE
+	grant.charge_kind = "per_battle"
 	grant.charges = 1
 	return grant
 

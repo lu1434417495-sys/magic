@@ -178,7 +178,7 @@
 - `scripts/systems/battle/runtime/battle_skill_turn_resolver.gd`
 - `scripts/systems/battle/runtime/battle_unit_factory.gd`
 - `scripts/player/warehouse/item_def.gd`
-- `scripts/player/warehouse/item_content_registry.gd`
+- `scripts/player/warehouse/ItemContentRegistry.cs`
 - `scripts/player/equipment/weapon_profile_def.gd`
 - `scripts/player/warehouse/skill_book_item_factory.gd`
 - `tests/runtime/validation/content_validation_runner.gd`

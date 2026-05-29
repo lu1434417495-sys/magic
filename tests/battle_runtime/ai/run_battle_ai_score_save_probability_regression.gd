@@ -2,15 +2,15 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
-const BATTLE_AI_CONTEXT_SCRIPT = preload("res://scripts/systems/battle/ai/battle_ai_context.gd")
-const BATTLE_AI_SCORE_SERVICE_SCRIPT = preload("res://scripts/systems/battle/ai/battle_ai_score_service.gd")
-const BATTLE_PREVIEW_SCRIPT = preload("res://scripts/systems/battle/core/battle_preview.gd")
-const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_state.gd")
-const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
-const COMBAT_EFFECT_DEF_SCRIPT = preload("res://scripts/player/progression/combat_effect_def.gd")
-const SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/skill_def.gd")
-const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/AttributeService.cs")
+const BATTLE_AI_CONTEXT_SCRIPT = preload("res://scripts/systems/battle/ai/BattleAiContext.cs")
+const BATTLE_AI_SCORE_SERVICE_SCRIPT = preload("res://scripts/systems/battle/ai/BattleAiScoreService.cs")
+const BATTLE_PREVIEW_SCRIPT = preload("res://scripts/systems/battle/core/BattlePreview.cs")
+const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleState.cs")
+const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
+const COMBAT_EFFECT_DEF_SCRIPT = preload("res://scripts/player/progression/CombatEffectDef.cs")
+const SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/SkillDef.cs")
+const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/UnitBaseAttributes.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -52,7 +52,7 @@ func _test_ai_damage_estimate_weights_partial_save_probability() -> void:
 	effect.damage_tag = &"fire"
 	effect.power = 40
 	effect.save_dc = 11
-	effect.save_ability = UNIT_BASE_ATTRIBUTES_SCRIPT.CONSTITUTION
+	effect.save_ability = &"constitution"
 	effect.save_tag = &"fireball"
 	effect.save_partial_on_success = true
 
@@ -61,7 +61,7 @@ func _test_ai_damage_estimate_weights_partial_save_probability() -> void:
 	preview.target_unit_ids.append(target.unit_id)
 
 	var score_service = BATTLE_AI_SCORE_SERVICE_SCRIPT.new()
-	var score_input = score_service.build_skill_score_input(context, skill, null, preview, [effect])
+	var score_input = score_service.build_skill_score_input(context, skill, null, preview, [effect], {})
 
 	_assert_eq(int(score_input.estimated_damage), 30, "40 点伤害、50% 半伤豁免时，AI 期望伤害应为 30。")
 	_assert_eq(int(score_input.estimated_lethal_target_count), 0, "目标 35 HP 时，豁免加权后不应再被估成稳定击杀。")
@@ -83,11 +83,11 @@ func _make_unit(unit_id: StringName, faction_id: StringName, hp: int):
 	unit.faction_id = faction_id
 	unit.current_hp = hp
 	unit.is_alive = true
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX, hp)
-	unit.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.CONSTITUTION, 10)
-	unit.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.INTELLIGENCE, 10)
-	unit.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.WILLPOWER, 10)
-	unit.attribute_snapshot.set_value(UNIT_BASE_ATTRIBUTES_SCRIPT.AGILITY, 10)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX_ID(), hp)
+	unit.attribute_snapshot.set_value(&"constitution", 10)
+	unit.attribute_snapshot.set_value(&"intelligence", 10)
+	unit.attribute_snapshot.set_value(&"willpower", 10)
+	unit.attribute_snapshot.set_value(&"agility", 10)
 	return unit
 
 

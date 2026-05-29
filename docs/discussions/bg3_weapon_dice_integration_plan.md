@@ -179,7 +179,7 @@ godot --headless --script tests/battle_runtime/run_battle_balance_simulation.gd
 - 物品定义：`scripts/player/warehouse/item_def.gd`
 - 武器 profile：`scripts/player/warehouse/weapon_profile_def.gd`
 - 武器骰资源：`scripts/player/warehouse/weapon_damage_dice_def.gd`
-- 物品模板合并：`scripts/player/warehouse/item_content_registry.gd`
+- 物品模板合并：`scripts/player/warehouse/ItemContentRegistry.cs`
 - 队伍共享背包服务：`scripts/systems/party_warehouse_service.gd`
 - 战斗单位状态：`scripts/systems/battle_unit_state.gd`
 - 战斗状态：`scripts/systems/battle_state.gd`

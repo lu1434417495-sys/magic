@@ -3,21 +3,19 @@ extends SceneTree
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 const BattleTestFixture = preload("res://tests/shared/battle_test_fixture.gd")
 const BattleRuntimeTestHelpers = preload("res://tests/shared/battle_runtime_test_helpers.gd")
-
-const BattleCommand = preload("res://scripts/systems/battle/core/battle_command.gd")
-const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
-const BattleState = preload("res://scripts/systems/battle/core/battle_state.gd")
-const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
-const CharacterManagementModule = preload("res://scripts/systems/progression/character_management_module.gd")
-const EquipmentRequirement = preload("res://scripts/player/equipment/equipment_requirement.gd")
-const EquipmentInstanceState = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
-const ItemDef = preload("res://scripts/player/warehouse/item_def.gd")
-const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
-const PartyState = preload("res://scripts/player/progression/party_state.gd")
-const ProgressionDataUtils = preload("res://scripts/player/progression/progression_data_utils.gd")
-const UnitBaseAttributes = preload("res://scripts/player/progression/unit_base_attributes.gd")
-const UnitProfessionProgress = preload("res://scripts/player/progression/unit_profession_progress.gd")
-const UnitProgress = preload("res://scripts/player/progression/unit_progress.gd")
+const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/BattleRuntimeModule.cs")
+const BattleState = preload("res://scripts/systems/battle/core/BattleState.cs")
+const BattleUnitState = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
+const CharacterManagementModule = preload("res://scripts/systems/progression/CharacterManagementModule.cs")
+const EquipmentRequirement = preload("res://scripts/player/equipment/EquipmentRequirement.cs")
+const EquipmentInstanceState = preload("res://scripts/player/warehouse/EquipmentInstanceState.cs")
+const ItemDef = preload("res://scripts/player/warehouse/ItemDef.cs")
+const PartyMemberState = preload("res://scripts/player/progression/PartyMemberState.cs")
+const PartyState = preload("res://scripts/player/progression/PartyState.cs")
+const ProgressionDataUtils = preload("res://scripts/player/progression/ProgressionDataUtils.cs")
+const UnitBaseAttributes = preload("res://scripts/player/progression/UnitBaseAttributes.cs")
+const UnitProfessionProgress = preload("res://scripts/player/progression/UnitProfessionProgress.cs")
+const UnitProgress = preload("res://scripts/player/progression/UnitProgress.cs")
 
 const RESTRICTED_HELM_ID: StringName = &"requirement_test_restricted_helm"
 const RESTRICTED_HELM_INSTANCE_ID: StringName = &"requirement_test_restricted_helm_001"
@@ -108,6 +106,9 @@ func _test_battle_change_equipment_enforces_item_requirement() -> void:
 	member.body_size = 3
 	var profession_progress := UnitProfessionProgress.new()
 	profession_progress.profession_id = &"helmet_training"
+	# Equipment requirements require profession rank >= 1; a rank=0 placeholder
+	# should not satisfy "missing_profession" checks.
+	profession_progress.rank = 1
 	member.progression.set_profession_progress(profession_progress)
 	var allowed_preview := runtime.preview_command(command)
 	_assert_true(
@@ -153,10 +154,10 @@ func _test_duplicate_same_item_battle_equip_and_unequip_preserves_instance() -> 
 	state.enemy_unit_ids = [enemy.unit_id]
 	state.active_unit_id = unit.unit_id
 	var common_instance = _make_equipment_instance(DUPLICATE_HELM_COMMON_INSTANCE_ID, DUPLICATE_HELM_ID)
-	common_instance.rarity = EquipmentInstanceState.RarityTier.COMMON
+	common_instance.rarity = EquipmentInstanceState.RARITY_TIER_COMMON()
 	common_instance.current_durability = 12
 	var rare_instance = _make_equipment_instance(DUPLICATE_HELM_RARE_INSTANCE_ID, DUPLICATE_HELM_ID)
-	rare_instance.rarity = EquipmentInstanceState.RarityTier.RARE
+	rare_instance.rarity = EquipmentInstanceState.RARITY_TIER_RARE()
 	rare_instance.current_durability = 29
 	state.get_party_backpack_view().equipment_instances = [common_instance, rare_instance]
 	_assert_true(runtime._grid_service.place_unit(state, unit, unit.coord, true), "重复实例测试单位应能放入战场。")
@@ -178,7 +179,7 @@ func _test_duplicate_same_item_battle_equip_and_unequip_preserves_instance() -> 
 	var equipped_instance = unit.get_equipment_view().get_equipped_instance(&"head")
 	_assert_true(equipped_instance != null, "battle-local 装备位应保留完整 rare 实例。")
 	if equipped_instance != null:
-		_assert_eq(int(equipped_instance.rarity), int(EquipmentInstanceState.RarityTier.RARE), "battle-local 装备位应保留 rare 品质。")
+		_assert_eq(int(equipped_instance.rarity), int(EquipmentInstanceState.RARITY_TIER_RARE()), "battle-local 装备位应保留 rare 品质。")
 		_assert_eq(int(equipped_instance.current_durability), 29, "battle-local 装备位应保留 rare 耐久。")
 
 	unit.current_ap = 2
@@ -191,7 +192,7 @@ func _test_duplicate_same_item_battle_equip_and_unequip_preserves_instance() -> 
 	var returned_instance = _find_backpack_instance(state.get_party_backpack_view(), DUPLICATE_HELM_RARE_INSTANCE_ID)
 	_assert_true(returned_instance != null, "卸回背包后应能按 instance_id 找到 rare 实例。")
 	if returned_instance != null:
-		_assert_eq(int(returned_instance.rarity), int(EquipmentInstanceState.RarityTier.RARE), "卸回背包的 rare 实例应保留品质。")
+		_assert_eq(int(returned_instance.rarity), int(EquipmentInstanceState.RARITY_TIER_RARE()), "卸回背包的 rare 实例应保留品质。")
 		_assert_eq(int(returned_instance.current_durability), 29, "卸回背包的 rare 实例应保留耐久。")
 
 
@@ -199,8 +200,8 @@ func _build_restricted_helm_item(item_id: StringName) -> ItemDef:
 	var item_def := ItemDef.new()
 	item_def.item_id = item_id
 	item_def.display_name = "Requirement Test Helm"
-	item_def.item_category = ItemDef.ITEM_CATEGORY_EQUIPMENT
-	item_def.equipment_type_id = ItemDef.EQUIPMENT_TYPE_ARMOR
+	item_def.item_category = &"equipment"
+	item_def.equipment_type_id = &"armor"
 	item_def.equipment_slot_ids = ["head"]
 	item_def.is_stackable = false
 	item_def.max_stack = 1
@@ -215,8 +216,8 @@ func _build_plain_helm_item(item_id: StringName) -> ItemDef:
 	var item_def := ItemDef.new()
 	item_def.item_id = item_id
 	item_def.display_name = "Duplicate Test Helm"
-	item_def.item_category = ItemDef.ITEM_CATEGORY_EQUIPMENT
-	item_def.equipment_type_id = ItemDef.EQUIPMENT_TYPE_ARMOR
+	item_def.item_category = &"equipment"
+	item_def.equipment_type_id = &"armor"
 	item_def.equipment_slot_ids = ["head"]
 	item_def.is_stackable = false
 	item_def.max_stack = 1
@@ -267,10 +268,10 @@ func _build_equip_command(
 	item_id: StringName
 ) -> BattleCommand:
 	var command := BattleCommand.new()
-	command.command_type = BattleCommand.TYPE_CHANGE_EQUIPMENT
+	command.command_type = BattleCommand.TYPE_CHANGE_EQUIPMENT()
 	command.unit_id = unit_id
 	command.target_unit_id = unit_id
-	command.equipment_operation = BattleCommand.EQUIPMENT_OPERATION_EQUIP
+	command.equipment_operation = BattleCommand.EQUIPMENT_OPERATION_EQUIP()
 	command.equipment_slot_id = slot_id
 	command.equipment_item_id = item_id
 	command.equipment_instance_id = instance_id
@@ -287,10 +288,10 @@ func _build_unequip_command(
 	instance_id: StringName
 ) -> BattleCommand:
 	var command := BattleCommand.new()
-	command.command_type = BattleCommand.TYPE_CHANGE_EQUIPMENT
+	command.command_type = BattleCommand.TYPE_CHANGE_EQUIPMENT()
 	command.unit_id = unit_id
 	command.target_unit_id = unit_id
-	command.equipment_operation = BattleCommand.EQUIPMENT_OPERATION_UNEQUIP
+	command.equipment_operation = BattleCommand.EQUIPMENT_OPERATION_UNEQUIP()
 	command.equipment_slot_id = slot_id
 	command.equipment_instance_id = instance_id
 	return command
@@ -304,10 +305,10 @@ func _make_equipment_instance(instance_id: StringName, item_id: StringName):
 
 
 func _find_change_equipment_report(report_entries: Array) -> Dictionary:
-	for entry_variant in report_entries:
-		if entry_variant is not Dictionary:
+	for entry_option in report_entries:
+		if entry_option is not Dictionary:
 			continue
-		var entry: Dictionary = entry_variant
+		var entry: Dictionary = entry_option
 		if String(entry.get("type", entry.get("entry_type", ""))) == "change_equipment":
 			return entry
 	return {}

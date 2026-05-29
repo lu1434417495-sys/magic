@@ -6,30 +6,29 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
-const ATTRIBUTE_SNAPSHOT_SCRIPT = preload("res://scripts/player/progression/attribute_snapshot.gd")
-const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_state.gd")
-const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_cell_state.gd")
-const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
-const BattleUnitFactory = preload("res://scripts/systems/battle/runtime/battle_unit_factory.gd")
-const BattleUnitFactoryRuntime = preload("res://scripts/systems/battle/runtime/battle_unit_factory_runtime.gd")
-const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
-const CHARACTER_MANAGEMENT_MODULE_SCRIPT = preload("res://scripts/systems/progression/character_management_module.gd")
-const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/world/encounter_anchor_data.gd")
-const EQUIPMENT_STATE_SCRIPT = preload("res://scripts/player/equipment/equipment_state.gd")
-const GAME_RUNTIME_FACADE_SCRIPT = preload("res://scripts/systems/game_runtime/game_runtime_facade.gd")
-const ITEM_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/warehouse/item_content_registry.gd")
-const ITEM_DEF_SCRIPT = preload("res://scripts/player/warehouse/item_def.gd")
-const PARTY_MEMBER_STATE_SCRIPT = preload("res://scripts/player/progression/party_member_state.gd")
-const PARTY_STATE_SCRIPT = preload("res://scripts/player/progression/party_state.gd")
-const PROGRESSION_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/progression_content_registry.gd")
-const SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/skill_def.gd")
-const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/unit_base_attributes.gd")
-const UNIT_SKILL_PROGRESS_SCRIPT = preload("res://scripts/player/progression/unit_skill_progress.gd")
-const WAREHOUSE_STACK_STATE_SCRIPT = preload("res://scripts/player/warehouse/warehouse_stack_state.gd")
-const EQUIPMENT_INSTANCE_STATE_SCRIPT = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
-const WEAPON_DAMAGE_DICE_DEF_SCRIPT = preload("res://scripts/player/warehouse/weapon_damage_dice_def.gd")
-const WEAPON_PROFILE_DEF_SCRIPT = preload("res://scripts/player/warehouse/weapon_profile_def.gd")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/AttributeService.cs")
+const ATTRIBUTE_SNAPSHOT_SCRIPT = preload("res://scripts/player/progression/AttributeSnapshot.cs")
+const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleState.cs")
+const BATTLE_CELL_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleCellState.cs")
+const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/BattleRuntimeModule.cs")
+const BattleUnitFactory = preload("res://scripts/systems/battle/runtime/BattleUnitFactory.cs")
+const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
+const CHARACTER_MANAGEMENT_MODULE_SCRIPT = preload("res://scripts/systems/progression/CharacterManagementModule.cs")
+const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/world/EncounterAnchorData.cs")
+const EQUIPMENT_STATE_SCRIPT = preload("res://scripts/player/equipment/EquipmentState.cs")
+const GAME_RUNTIME_FACADE_SCRIPT = preload("res://scripts/systems/game_runtime/GameRuntimeFacade.cs")
+const ITEM_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/warehouse/ItemContentRegistry.cs")
+const ITEM_DEF_SCRIPT = preload("res://scripts/player/warehouse/ItemDef.cs")
+const PARTY_MEMBER_STATE_SCRIPT = preload("res://scripts/player/progression/PartyMemberState.cs")
+const PARTY_STATE_SCRIPT = preload("res://scripts/player/progression/PartyState.cs")
+const PROGRESSION_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progression/ProgressionContentRegistry.cs")
+const SKILL_DEF_SCRIPT = preload("res://scripts/player/progression/SkillDef.cs")
+const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/UnitBaseAttributes.cs")
+const UNIT_SKILL_PROGRESS_SCRIPT = preload("res://scripts/player/progression/UnitSkillProgress.cs")
+const WAREHOUSE_STACK_STATE_SCRIPT = preload("res://scripts/player/warehouse/WarehouseStackState.cs")
+const EQUIPMENT_INSTANCE_STATE_SCRIPT = preload("res://scripts/player/warehouse/EquipmentInstanceState.cs")
+const WEAPON_DAMAGE_DICE_DEF_SCRIPT = preload("res://scripts/player/warehouse/WeaponDamageDiceDef.cs")
+const WEAPON_PROFILE_DEF_SCRIPT = preload("res://scripts/player/warehouse/WeaponProfileDef.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -83,7 +82,7 @@ class FakeTerrainGenerator:
 
 
 class FakeRuntime:
-	extends BattleUnitFactoryRuntime
+	extends RefCounted
 
 	var _character_gateway: Object = null
 	var _skill_defs: Dictionary = {}
@@ -139,7 +138,7 @@ func _run() -> void:
 	_test_runtime_start_battle_uses_battle_unit_factory_without_character_party_builder()
 	_test_runtime_start_battle_clones_party_backpack_view()
 	_test_battle_local_views_write_back_to_party_state()
-	_test_battle_local_writeback_detects_instance_conflict_invariant()
+	_test_battle_local_writeback_detects_instance_conflict_inoption()
 	_test_battle_unit_factory_refreshes_from_character_gateway_snapshot()
 	_test_battle_unit_factory_clones_explicit_unit_charge_state()
 	_test_battle_unit_factory_projects_locked_skill_hit_bonus()
@@ -167,12 +166,12 @@ func _test_attribute_service_exposes_default_character_action_threshold() -> voi
 	service.setup(member_state.progression, {}, {})
 	var snapshot = service.get_snapshot()
 	_assert_eq(
-		snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_THRESHOLD),
-		ATTRIBUTE_SERVICE_SCRIPT.DEFAULT_CHARACTER_ACTION_THRESHOLD,
+		snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_THRESHOLD_ID()),
+		ATTRIBUTE_SERVICE_SCRIPT.DEFAULT_CHARACTER_ACTION_THRESHOLD_VALUE(),
 		"角色属性快照应暴露默认 action_threshold。"
 	)
 	_assert_true(
-		not snapshot.has_value(ATTRIBUTE_SERVICE_SCRIPT.WEAPON_ATTACK_RANGE),
+		not snapshot.has_value(ATTRIBUTE_SERVICE_SCRIPT.WEAPON_ATTACK_RANGE_ID()),
 		"角色属性快照不应再默认暴露旧 weapon_attack_range 战斗字段。"
 	)
 
@@ -228,7 +227,7 @@ func _test_runtime_start_battle_uses_battle_unit_factory_without_character_party
 			_assert_eq(unit.display_name, "Hero", "友方单位应从 party_state 读取显示名。")
 			_assert_eq(
 				unit.action_threshold,
-				ATTRIBUTE_SERVICE_SCRIPT.DEFAULT_CHARACTER_ACTION_THRESHOLD,
+				ATTRIBUTE_SERVICE_SCRIPT.DEFAULT_CHARACTER_ACTION_THRESHOLD_VALUE(),
 				"友方单位应从角色属性读取默认 action_threshold。"
 			)
 
@@ -245,7 +244,7 @@ func _test_runtime_start_battle_clones_party_backpack_view() -> void:
 		_make_equipment_instance(&"bronze_sword", &"equipped_bronze_001")
 	)
 	party_state.warehouse_state.stacks = [_make_stack(&"healing_herb", 2)]
-	party_state.warehouse_state.equipment_instances = [EQUIPMENT_INSTANCE_STATE_SCRIPT.create(&"bronze_sword", &"backpack_bronze_001")]
+	party_state.warehouse_state.equipment_instances = [EQUIPMENT_INSTANCE_STATE_SCRIPT.create_instance(&"bronze_sword", &"backpack_bronze_001")]
 	var gateway := FakeCharacterGateway.new()
 	gateway.party_state = party_state
 
@@ -356,7 +355,7 @@ func _test_battle_local_views_write_back_to_party_state() -> void:
 		_assert_eq(_backpack_instance_id_signature(restored_party.warehouse_state), ["party_sword_001"], "round-trip 后应保留写回的背包实例 ID。")
 
 
-func _test_battle_local_writeback_detects_instance_conflict_invariant() -> void:
+func _test_battle_local_writeback_detects_instance_conflict_inoption() -> void:
 	var party_state := _make_party_state([&"hero"])
 	var member_state = party_state.get_member_state(&"hero")
 	member_state.equipment_state = EQUIPMENT_STATE_SCRIPT.new()
@@ -468,7 +467,7 @@ func _test_battle_unit_factory_clones_explicit_unit_charge_state() -> void:
 	explicit_unit.body_size = 2
 	explicit_unit.body_size_category = &"medium"
 	explicit_unit.current_hp = 10
-	explicit_unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX, 10)
+	explicit_unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX_ID(), 10)
 	explicit_unit.per_battle_charges = {&"dragon_breath": 1}
 	explicit_unit.per_turn_charges = {&"nimble_escape": 1}
 	explicit_unit.per_turn_charge_limits = {&"nimble_escape": 1}
@@ -688,7 +687,7 @@ func _test_battle_unit_factory_uses_battle_local_equipment_view_for_refresh() ->
 	_assert_eq(String(unit.get_equipment_view().get_equipped_instance_id(&"main_hand")), "battle_start_sword", "battle-local 装备 view 应保留开战装备实例 ID。")
 	_assert_eq(String(unit.weapon_item_id), "bronze_sword", "初始武器投影应来自 battle-local 装备 view。")
 
-	var armor_ac_before := int(unit.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_AC_BONUS))
+	var armor_ac_before := int(unit.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_AC_BONUS_ID()))
 	unit.get_equipment_view().set_equipped_entry(
 		&"head",
 		&"leather_cap",
@@ -697,7 +696,7 @@ func _test_battle_unit_factory_uses_battle_local_equipment_view_for_refresh() ->
 	)
 	factory.refresh_battle_unit(unit)
 	_assert_eq(
-		int(unit.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_AC_BONUS)) - armor_ac_before,
+		int(unit.attribute_snapshot.get_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_AC_BONUS_ID())) - armor_ac_before,
 		1,
 		"刷新战斗单位属性快照应读取 battle-local 装备 view。"
 	)
@@ -748,9 +747,9 @@ func _test_runtime_syncs_member_aura_into_battle_and_back() -> void:
 	var party_state := _make_party_state([&"hero"])
 	var member_state: PartyMemberState = party_state.get_member_state(&"hero")
 	member_state.current_aura = 4
-	member_state.progression.unit_base_attributes.set_attribute_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX, 18)
-	member_state.progression.unit_base_attributes.set_attribute_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX, 6)
-	member_state.progression.unit_base_attributes.set_attribute_value(ATTRIBUTE_SERVICE_SCRIPT.AURA_MAX, 6)
+	member_state.progression.unit_base_attributes.set_attribute_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX_ID(), 18)
+	member_state.progression.unit_base_attributes.set_attribute_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX_ID(), 6)
+	member_state.progression.unit_base_attributes.set_attribute_value(ATTRIBUTE_SERVICE_SCRIPT.AURA_MAX_ID(), 6)
 
 	var gateway := CHARACTER_MANAGEMENT_MODULE_SCRIPT.new()
 	gateway.setup(party_state, registry.get_skill_defs(), {}, {}, {}, {})
@@ -803,16 +802,16 @@ func _test_enemy_resource_sync_handles_missing_attribute_snapshot() -> void:
 	unit.current_aura = 2
 
 	factory._sync_enemy_unlocked_resources(unit)
-	_assert_true(unit.has_combat_resource_unlocked(BattleUnitState.COMBAT_RESOURCE_HP), "缺属性快照时仍应保留默认 HP 资源。")
-	_assert_true(unit.has_combat_resource_unlocked(BattleUnitState.COMBAT_RESOURCE_STAMINA), "缺属性快照时仍应保留默认 stamina 资源。")
-	_assert_true(unit.has_combat_resource_unlocked(BattleUnitState.COMBAT_RESOURCE_MP), "缺属性快照但 current_mp 大于 0 时应解锁 MP。")
-	_assert_true(unit.has_combat_resource_unlocked(BattleUnitState.COMBAT_RESOURCE_AURA), "缺属性快照但 current_aura 大于 0 时应解锁 aura。")
+	_assert_true(unit.has_combat_resource_unlocked(BattleUnitState.COMBAT_RESOURCE_HP()), "缺属性快照时仍应保留默认 HP 资源。")
+	_assert_true(unit.has_combat_resource_unlocked(BattleUnitState.COMBAT_RESOURCE_STAMINA()), "缺属性快照时仍应保留默认 stamina 资源。")
+	_assert_true(unit.has_combat_resource_unlocked(BattleUnitState.COMBAT_RESOURCE_MP()), "缺属性快照但 current_mp 大于 0 时应解锁 MP。")
+	_assert_true(unit.has_combat_resource_unlocked(BattleUnitState.COMBAT_RESOURCE_AURA()), "缺属性快照但 current_aura 大于 0 时应解锁 aura。")
 
 	var empty_unit = BATTLE_UNIT_STATE_SCRIPT.new()
 	empty_unit.attribute_snapshot = null
 	factory._sync_enemy_unlocked_resources(empty_unit)
-	_assert_true(not empty_unit.has_combat_resource_unlocked(BattleUnitState.COMBAT_RESOURCE_MP), "缺属性快照且 current_mp 为 0 时不应解锁 MP。")
-	_assert_true(not empty_unit.has_combat_resource_unlocked(BattleUnitState.COMBAT_RESOURCE_AURA), "缺属性快照且 current_aura 为 0 时不应解锁 aura。")
+	_assert_true(not empty_unit.has_combat_resource_unlocked(BattleUnitState.COMBAT_RESOURCE_MP()), "缺属性快照且 current_mp 为 0 时不应解锁 MP。")
+	_assert_true(not empty_unit.has_combat_resource_unlocked(BattleUnitState.COMBAT_RESOURCE_AURA()), "缺属性快照且 current_aura 为 0 时不应解锁 aura。")
 
 
 func _test_battle_unit_factory_no_longer_builds_manual_fallback_terrain() -> void:
@@ -903,11 +902,11 @@ func _make_runtime_schema_unit(unit_id: StringName, faction_id: StringName) -> B
 	unit_state.control_mode = &"manual" if faction_id == &"player" else &"ai"
 	unit_state.current_hp = 10
 	unit_state.current_ap = 2
-	unit_state.current_move_points = BATTLE_UNIT_STATE_SCRIPT.DEFAULT_MOVE_POINTS_PER_TURN
+	unit_state.current_move_points = BATTLE_UNIT_STATE_SCRIPT.DEFAULT_MOVE_POINTS_PER_TURN()
 	unit_state.is_alive = true
-	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX, 10)
-	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_THRESHOLD, ATTRIBUTE_SERVICE_SCRIPT.DEFAULT_CHARACTER_ACTION_THRESHOLD)
-	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, ATTRIBUTE_SERVICE_SCRIPT.BASE_ARMOR_CLASS)
+	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX_ID(), 10)
+	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_THRESHOLD_ID(), ATTRIBUTE_SERVICE_SCRIPT.DEFAULT_CHARACTER_ACTION_THRESHOLD_VALUE())
+	unit_state.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), ATTRIBUTE_SERVICE_SCRIPT.BASE_ARMOR_CLASS_VALUE())
 	return unit_state
 
 
@@ -918,7 +917,7 @@ func _build_flat_cells(map_size: Vector2i) -> Dictionary:
 			var coord := Vector2i(x, y)
 			var cell = BATTLE_CELL_STATE_SCRIPT.new()
 			cell.coord = coord
-			cell.base_terrain = BATTLE_CELL_STATE_SCRIPT.TERRAIN_LAND
+			cell.base_terrain = BATTLE_CELL_STATE_SCRIPT.TERRAIN_LAND()
 			cell.recalculate_runtime_values()
 			cells[coord] = cell
 	return cells
@@ -943,8 +942,8 @@ func _make_weapon_item_def(
 ):
 	var item_def: ItemDef = ITEM_DEF_SCRIPT.new()
 	item_def.item_id = item_id
-	item_def.item_category = ITEM_DEF_SCRIPT.ITEM_CATEGORY_EQUIPMENT
-	item_def.equipment_type_id = ITEM_DEF_SCRIPT.EQUIPMENT_TYPE_WEAPON
+	item_def.item_category = &"equipment"
+	item_def.equipment_type_id = &"weapon"
 	item_def.equipment_slot_ids = ["main_hand"]
 	item_def.is_stackable = false
 	item_def.max_stack = 1
@@ -958,7 +957,7 @@ func _make_weapon_item_def(
 	profile.attack_range = attack_range
 	profile.one_handed_dice = one_handed_dice
 	profile.two_handed_dice = two_handed_dice
-	profile.properties_mode = WEAPON_PROFILE_DEF_SCRIPT.PropertyMergeMode.REPLACE
+	profile.properties_mode = WEAPON_PROFILE_DEF_SCRIPT.PROPERTY_MERGE_MODE_REPLACE()
 	profile.properties = properties
 	item_def.weapon_profile = profile
 	return item_def
@@ -994,7 +993,7 @@ func _make_stack(item_id: StringName, quantity: int):
 
 
 func _make_equipment_instance(item_id: StringName, instance_id: StringName):
-	return EQUIPMENT_INSTANCE_STATE_SCRIPT.create(item_id, instance_id)
+	return EQUIPMENT_INSTANCE_STATE_SCRIPT.create_instance(item_id, instance_id)
 
 
 func _backpack_stack_signature(backpack_state) -> Array[String]:
@@ -1062,12 +1061,12 @@ func _make_member_state(member_id: StringName) -> PartyMemberState:
 
 func _make_attribute_snapshot() -> AttributeSnapshot:
 	var snapshot := ATTRIBUTE_SNAPSHOT_SCRIPT.new()
-	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX, 8)
-	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX, 5)
-	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX, 7)
-	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.AURA_MAX, 6)
-	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_POINTS, 9)
-	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_THRESHOLD, 30)
+	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX_ID(), 8)
+	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX_ID(), 5)
+	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX_ID(), 7)
+	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.AURA_MAX_ID(), 6)
+	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_POINTS_ID(), 9)
+	snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_THRESHOLD_ID(), 30)
 	return snapshot
 
 

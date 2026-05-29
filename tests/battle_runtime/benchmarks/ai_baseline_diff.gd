@@ -10,8 +10,8 @@ static func summarize_stats(stats: Dictionary) -> Dictionary:
 	var call_count := int(stats.get("call_count", 0))
 	var total_usec := int(stats.get("total_usec", 0))
 	var max_usec := int(stats.get("max_usec", 0))
-	var samples_variant = stats.get("samples", PackedInt64Array())
-	var samples: PackedInt64Array = samples_variant
+	var samples_option = stats.get("samples", PackedInt64Array())
+	var samples: PackedInt64Array = samples_option
 	var summary := {
 		"call_count": call_count,
 		"total_usec": total_usec,
@@ -46,8 +46,8 @@ static func merge_runs(per_run_stats: Array) -> Dictionary:
 		merged["call_count"] = int(merged["call_count"]) + int(run_stats.get("call_count", 0))
 		merged["total_usec"] = int(merged["total_usec"]) + int(run_stats.get("total_usec", 0))
 		merged["max_usec"] = max(int(merged["max_usec"]), int(run_stats.get("max_usec", 0)))
-		var run_samples_variant = run_stats.get("samples", PackedInt64Array())
-		var run_samples: PackedInt64Array = run_samples_variant
+		var run_samples_option = run_stats.get("samples", PackedInt64Array())
+		var run_samples: PackedInt64Array = run_samples_option
 		var merged_samples: PackedInt64Array = merged["samples"]
 		merged_samples.append_array(run_samples)
 		merged["samples"] = merged_samples
@@ -97,8 +97,8 @@ static func compare(baseline: Dictionary, current: Dictionary, tolerance_pct: fl
 	var baseline_scenarios: Dictionary = baseline.get("scenarios", {})
 	for scenario_id in current_scenarios.keys():
 		var current_scenario: Dictionary = current_scenarios[scenario_id]
-		var baseline_scenario_variant = baseline_scenarios.get(scenario_id, null)
-		if baseline_scenario_variant == null:
+		var baseline_scenario_option = baseline_scenarios.get(scenario_id, null)
+		if baseline_scenario_option == null:
 			diffs.append({
 				"scenario_id": scenario_id,
 				"layer": "(scenario)",
@@ -106,13 +106,13 @@ static func compare(baseline: Dictionary, current: Dictionary, tolerance_pct: fl
 				"status": "missing_in_baseline",
 			})
 			continue
-		var baseline_scenario: Dictionary = baseline_scenario_variant
+		var baseline_scenario: Dictionary = baseline_scenario_option
 		var current_layers: Dictionary = current_scenario.get("layers", {})
 		var baseline_layers: Dictionary = baseline_scenario.get("layers", {})
 		for layer_name in current_layers.keys():
 			var current_layer: Dictionary = current_layers[layer_name]
-			var baseline_layer_variant = baseline_layers.get(layer_name, null)
-			if baseline_layer_variant == null:
+			var baseline_layer_option = baseline_layers.get(layer_name, null)
+			if baseline_layer_option == null:
 				diffs.append({
 					"scenario_id": scenario_id,
 					"layer": layer_name,
@@ -120,7 +120,7 @@ static func compare(baseline: Dictionary, current: Dictionary, tolerance_pct: fl
 					"status": "missing_in_baseline",
 				})
 				continue
-			var baseline_layer: Dictionary = baseline_layer_variant
+			var baseline_layer: Dictionary = baseline_layer_option
 			for metric in ["avg_usec", "p50_usec", "p95_usec"]:
 				var baseline_value := int(baseline_layer.get(metric, 0))
 				var current_value := int(current_layer.get(metric, 0))

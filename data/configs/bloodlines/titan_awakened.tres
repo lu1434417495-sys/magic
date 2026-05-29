@@ -1,7 +1,7 @@
 [gd_resource type="Resource" script_class="BloodlineStageDef" format=3]
 
-[ext_resource type="Script" path="res://scripts/player/progression/bloodline_stage_def.gd" id="1_stage"]
-[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="2_modifier"]
+[ext_resource type="Script" path="res://scripts/player/progression/BloodlineStageDef.cs" id="1_stage"]
+[ext_resource type="Script" path="res://scripts/player/progression/AttributeModifier.cs" id="2_modifier"]
 
 [sub_resource type="Resource" id="Resource_strength"]
 script = ExtResource("2_modifier")

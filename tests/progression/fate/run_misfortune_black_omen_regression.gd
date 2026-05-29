@@ -2,13 +2,13 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const CharacterManagementModule = preload("res://scripts/systems/progression/character_management_module.gd")
-const MisfortuneBlackOmenService = preload("res://scripts/systems/progression/misfortune_black_omen_service.gd")
-const EquipmentRules = preload("res://scripts/player/equipment/equipment_rules.gd")
-const EquipmentInstanceState = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
-const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
-const PartyState = preload("res://scripts/player/progression/party_state.gd")
-const ItemDef = preload("res://scripts/player/warehouse/item_def.gd")
+const CharacterManagementModule = preload("res://scripts/systems/progression/CharacterManagementModule.cs")
+const MisfortuneBlackOmenService = preload("res://scripts/systems/progression/MisfortuneBlackOmenService.cs")
+const EquipmentRules = preload("res://scripts/player/equipment/EquipmentRules.cs")
+const EquipmentInstanceState = preload("res://scripts/player/warehouse/EquipmentInstanceState.cs")
+const PartyMemberState = preload("res://scripts/player/progression/PartyMemberState.cs")
+const PartyState = preload("res://scripts/player/progression/PartyState.cs")
+const ItemDef = preload("res://scripts/player/warehouse/ItemDef.cs")
 
 const HERO_ID: StringName = &"hero"
 
@@ -50,7 +50,7 @@ func _test_cursed_relic_elite_or_boss_victory_hook_grants_doom_mark() -> void:
 		return
 
 	var result := service.try_run_hook(
-		MisfortuneBlackOmenService.HOOK_CURSED_RELIC_ELITE_OR_BOSS_VICTORY,
+		MisfortuneBlackOmenService.HOOK_CURSED_RELIC_ELITE_OR_BOSS_VICTORY_VALUE(),
 		{
 			"member_id": HERO_ID,
 			"encounter_won": true,
@@ -68,7 +68,7 @@ func _test_string_key_only_cursed_relic_item_defs_do_not_grant() -> void:
 	var cursed_relic := _build_item_def(
 		&"cursed_black_crown_shard",
 		[&"cursed", &"relic"],
-		[EquipmentRules.NECKLACE]
+		["necklace"]
 	)
 	var context := _build_context({String(cursed_relic.item_id): cursed_relic})
 	var member_state: PartyMemberState = context.get("member_state") as PartyMemberState
@@ -78,14 +78,14 @@ func _test_string_key_only_cursed_relic_item_defs_do_not_grant() -> void:
 		_assert_true(false, "String-key-only cursed relic hook 前置构建失败。")
 		return
 	member_state.equipment_state.set_equipped_entry(
-		EquipmentRules.NECKLACE,
+		"necklace",
 		cursed_relic.item_id,
-		[EquipmentRules.NECKLACE],
-		EquipmentInstanceState.create(cursed_relic.item_id, &"eq_black_omen_string_key_only_relic")
+		["necklace"],
+		EquipmentInstanceState.create_instance(cursed_relic.item_id, &"eq_black_omen_string_key_only_relic")
 	)
 
 	var result := service.try_run_hook(
-		MisfortuneBlackOmenService.HOOK_CURSED_RELIC_ELITE_OR_BOSS_VICTORY,
+		MisfortuneBlackOmenService.HOOK_CURSED_RELIC_ELITE_OR_BOSS_VICTORY_VALUE(),
 		{
 			"member_id": HERO_ID,
 			"encounter_won": true,
@@ -105,7 +105,7 @@ func _test_cursed_relic_explicit_flag_hook_grants_doom_mark() -> void:
 		return
 
 	var result := service.try_run_hook(
-		MisfortuneBlackOmenService.HOOK_CURSED_RELIC_ELITE_OR_BOSS_VICTORY,
+		MisfortuneBlackOmenService.HOOK_CURSED_RELIC_ELITE_OR_BOSS_VICTORY_VALUE(),
 		{
 			"member_id": HERO_ID,
 			"encounter_won": true,
@@ -129,7 +129,7 @@ func _test_boss_curse_survival_victory_hook_grants_doom_mark() -> void:
 		return
 
 	var result := service.try_run_hook(
-		MisfortuneBlackOmenService.HOOK_BOSS_CURSE_SURVIVAL_VICTORY,
+		MisfortuneBlackOmenService.HOOK_BOSS_CURSE_SURVIVAL_VICTORY_VALUE(),
 		{
 			"member_id": HERO_ID,
 			"encounter_won": true,
@@ -154,7 +154,7 @@ func _test_boss_curse_explicit_flag_hook_grants_doom_mark() -> void:
 		return
 
 	var result := service.try_run_hook(
-		MisfortuneBlackOmenService.HOOK_BOSS_CURSE_SURVIVAL_VICTORY,
+		MisfortuneBlackOmenService.HOOK_BOSS_CURSE_SURVIVAL_VICTORY_VALUE(),
 		{
 			"member_id": HERO_ID,
 			"encounter_won": true,
@@ -179,7 +179,7 @@ func _test_old_cursed_relic_payload_fields_do_not_grant() -> void:
 		return
 
 	var old_only_result := service.try_run_hook(
-		MisfortuneBlackOmenService.HOOK_CURSED_RELIC_ELITE_OR_BOSS_VICTORY,
+		MisfortuneBlackOmenService.HOOK_CURSED_RELIC_ELITE_OR_BOSS_VICTORY_VALUE(),
 		{
 			"attacker_member_id": HERO_ID,
 			"winner_faction_id": "player",
@@ -189,7 +189,7 @@ func _test_old_cursed_relic_payload_fields_do_not_grant() -> void:
 	_assert_rejected_without_doom_mark(old_only_result, manager, "只有旧 cursed relic payload 字段时")
 
 	var old_condition_result := service.try_run_hook(
-		MisfortuneBlackOmenService.HOOK_CURSED_RELIC_ELITE_OR_BOSS_VICTORY,
+		MisfortuneBlackOmenService.HOOK_CURSED_RELIC_ELITE_OR_BOSS_VICTORY_VALUE(),
 		{
 			"member_id": HERO_ID,
 			"winner_faction_id": "player",
@@ -208,7 +208,7 @@ func _test_old_boss_curse_payload_fields_do_not_grant() -> void:
 		return
 
 	var result := service.try_run_hook(
-		MisfortuneBlackOmenService.HOOK_BOSS_CURSE_SURVIVAL_VICTORY,
+		MisfortuneBlackOmenService.HOOK_BOSS_CURSE_SURVIVAL_VICTORY_VALUE(),
 		{
 			"member_id": HERO_ID,
 			"winner_faction_id": "player",
@@ -230,7 +230,7 @@ func _test_bad_schema_payloads_do_not_meet_conditions() -> void:
 		return
 
 	var bad_cursed_result := cursed_service.try_run_hook(
-		MisfortuneBlackOmenService.HOOK_CURSED_RELIC_ELITE_OR_BOSS_VICTORY,
+		MisfortuneBlackOmenService.HOOK_CURSED_RELIC_ELITE_OR_BOSS_VICTORY_VALUE(),
 		{
 			"member_id": HERO_ID,
 			"encounter_won": "true",
@@ -247,7 +247,7 @@ func _test_bad_schema_payloads_do_not_meet_conditions() -> void:
 		return
 
 	var bad_boss_result := boss_service.try_run_hook(
-		MisfortuneBlackOmenService.HOOK_BOSS_CURSE_SURVIVAL_VICTORY,
+		MisfortuneBlackOmenService.HOOK_BOSS_CURSE_SURVIVAL_VICTORY_VALUE(),
 		{
 			"member_id": HERO_ID,
 			"encounter_won": true,
@@ -263,16 +263,16 @@ func _build_context_with_cursed_relic() -> Dictionary:
 	var cursed_relic := _build_item_def(
 		&"cursed_black_crown_shard",
 		[&"cursed", &"relic"],
-		[EquipmentRules.NECKLACE]
+		["necklace"]
 	)
 	var context := _build_context({cursed_relic.item_id: cursed_relic})
 	var member_state: PartyMemberState = context.get("member_state") as PartyMemberState
 	if member_state != null:
 		member_state.equipment_state.set_equipped_entry(
-			EquipmentRules.NECKLACE,
+			"necklace",
 			cursed_relic.item_id,
-			[EquipmentRules.NECKLACE],
-			EquipmentInstanceState.create(cursed_relic.item_id, &"eq_black_omen_cursed_relic")
+			["necklace"],
+			EquipmentInstanceState.create_instance(cursed_relic.item_id, &"eq_black_omen_cursed_relic")
 		)
 	return context
 
@@ -293,7 +293,7 @@ func _build_context(item_defs: Dictionary) -> Dictionary:
 	member_state.progression.unit_id = HERO_ID
 	member_state.progression.display_name = "Hero"
 	member_state.progression.character_level = 20
-	member_state.progression.unit_base_attributes.set_attribute_value(MisfortuneBlackOmenService.DOOM_MARKED_STAT_ID, 0)
+	member_state.progression.unit_base_attributes.set_attribute_value(MisfortuneBlackOmenService.DOOM_MARKED_STAT_ID_VALUE(), 0)
 	party_state.set_member_state(member_state)
 
 	var manager := CharacterManagementModule.new()
@@ -314,10 +314,10 @@ func _build_item_def(item_id: StringName, tags: Array[StringName], slot_ids: Arr
 	var item_def := ItemDef.new()
 	item_def.item_id = item_id
 	item_def.display_name = String(item_id)
-	item_def.item_category = ItemDef.ITEM_CATEGORY_EQUIPMENT
+	item_def.item_category = &"equipment"
 	item_def.is_stackable = false
 	item_def.max_stack = 1
-	item_def.equipment_type_id = ItemDef.EQUIPMENT_TYPE_ACCESSORY
+	item_def.equipment_type_id = &"accessory"
 	item_def.equipment_slot_ids = []
 	for slot_id in slot_ids:
 		item_def.equipment_slot_ids.append(String(slot_id))
@@ -329,7 +329,7 @@ func _get_doom_marked_value(manager: CharacterManagementModule) -> int:
 	var member_state: PartyMemberState = manager.get_member_state(HERO_ID)
 	if member_state == null or member_state.progression == null or member_state.progression.unit_base_attributes == null:
 		return 0
-	return member_state.progression.unit_base_attributes.get_attribute_value(MisfortuneBlackOmenService.DOOM_MARKED_STAT_ID)
+	return member_state.progression.unit_base_attributes.get_attribute_value(MisfortuneBlackOmenService.DOOM_MARKED_STAT_ID_VALUE())
 
 
 func _assert_true(condition: bool, message: String) -> void:

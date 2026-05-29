@@ -2,12 +2,12 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/attribute_service.gd")
-const BATTLE_DAMAGE_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/rules/battle_damage_resolver.gd")
-const BATTLE_SAVE_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/rules/battle_save_resolver.gd")
-const BATTLE_STATUS_EFFECT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_status_effect_state.gd")
-const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
-const COMBAT_EFFECT_DEF_SCRIPT = preload("res://scripts/player/progression/combat_effect_def.gd")
+const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/AttributeService.cs")
+const BATTLE_DAMAGE_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/rules/BattleDamageResolver.cs")
+const BATTLE_SAVE_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/rules/BattleSaveResolver.cs")
+const BATTLE_STATUS_EFFECT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleStatusEffectState.cs")
+const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
+const COMBAT_EFFECT_DEF_SCRIPT = preload("res://scripts/player/progression/CombatEffectDef.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -49,8 +49,8 @@ func _test_preview_damage_effect_uses_shared_damage_math_without_mutating_units(
 		target,
 		effect,
 		{},
-		BATTLE_DAMAGE_RESOLVER_SCRIPT.DAMAGE_PREVIEW_ROLL_MODE_AVERAGE,
-		BATTLE_DAMAGE_RESOLVER_SCRIPT.DAMAGE_PREVIEW_SAVE_MODE_EXPECTED
+		BATTLE_DAMAGE_RESOLVER_SCRIPT.DAMAGE_PREVIEW_ROLL_MODE_AVERAGE(),
+		BATTLE_DAMAGE_RESOLVER_SCRIPT.DAMAGE_PREVIEW_SAVE_MODE_EXPECTED()
 	)
 	var expected_outcome := expected_preview.get("damage_outcome", {}) as Dictionary
 	_assert_eq(int(expected_outcome.get("rolled_damage", -1)), 20, "average preview 应复用 offense multiplier 后的 rolled_damage。")
@@ -65,8 +65,8 @@ func _test_preview_damage_effect_uses_shared_damage_math_without_mutating_units(
 		target,
 		effect,
 		{},
-		BATTLE_DAMAGE_RESOLVER_SCRIPT.DAMAGE_PREVIEW_ROLL_MODE_MAXIMUM,
-		BATTLE_DAMAGE_RESOLVER_SCRIPT.DAMAGE_PREVIEW_SAVE_MODE_WORST
+		BATTLE_DAMAGE_RESOLVER_SCRIPT.DAMAGE_PREVIEW_ROLL_MODE_MAXIMUM(),
+		BATTLE_DAMAGE_RESOLVER_SCRIPT.DAMAGE_PREVIEW_SAVE_MODE_WORST()
 	)
 	_assert_eq(int(worst_preview.get("post_save_damage", -1)), 11, "worst preview 应使用最大骰并保留同一减伤链。")
 	_assert_eq(int(worst_preview.get("hp_damage", -1)), 6, "worst preview 应在克隆护盾上结算 hp_damage。")
@@ -83,7 +83,7 @@ func _test_preview_damage_effect_uses_save_probability_without_rolling() -> void
 	var effect = _make_damage_effect(&"fire", 20)
 	effect.save_dc = 10
 	effect.save_ability = &"agility"
-	effect.save_tag = BATTLE_SAVE_RESOLVER_SCRIPT.SAVE_TAG_MAGIC
+	effect.save_tag = BATTLE_SAVE_RESOLVER_SCRIPT.SAVE_TAG_MAGIC()
 	effect.save_partial_on_success = true
 
 	var preview: Dictionary = resolver.preview_damage_effect(
@@ -91,8 +91,8 @@ func _test_preview_damage_effect_uses_save_probability_without_rolling() -> void
 		target,
 		effect,
 		{"save_roll_override": 20},
-		BATTLE_DAMAGE_RESOLVER_SCRIPT.DAMAGE_PREVIEW_ROLL_MODE_AVERAGE,
-		BATTLE_DAMAGE_RESOLVER_SCRIPT.DAMAGE_PREVIEW_SAVE_MODE_EXPECTED
+		BATTLE_DAMAGE_RESOLVER_SCRIPT.DAMAGE_PREVIEW_ROLL_MODE_AVERAGE(),
+		BATTLE_DAMAGE_RESOLVER_SCRIPT.DAMAGE_PREVIEW_SAVE_MODE_EXPECTED()
 	)
 	var save_estimate := preview.get("save_estimate", {}) as Dictionary
 	_assert_true(bool(save_estimate.get("has_save", false)), "save preview 应输出 save_estimate。")
@@ -120,11 +120,11 @@ func _make_unit(unit_id: StringName, faction_id: StringName):
 	unit.current_ap = 2
 	unit.current_stamina = 20
 	unit.is_alive = true
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX, 30)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX, 0)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_POINTS, 2)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS, 10)
-	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS, 0)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX_ID(), 30)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.MP_MAX_ID(), 0)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ACTION_POINTS_ID(), 2)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 10)
+	unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 0)
 	unit.attribute_snapshot.set_value(&"agility", 10)
 	unit.attribute_snapshot.set_value(&"agility_modifier", 0)
 	return unit

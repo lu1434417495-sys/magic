@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -7,12 +8,13 @@ using GDictionary = Godot.Collections.Dictionary;
 public partial class BattleBarrierGeometryService : RefCounted
 {
     public GDictionary classify_footprint_transition(
-        GodotObject state,
+        BattleState state,
         GArray from_footprint,
         GArray to_footprint,
-        GArray barrier_coords)
+        GArray barrier_coords
+    )
     {
-        GDictionary barrierLookup = CoordLookup(barrier_coords);
+        HashSet<Vector2I> barrierLookup = CoordLookup(barrier_coords);
         bool fromInside = FootprintOverlapsLookup(from_footprint, barrierLookup);
         bool toInside = FootprintOverlapsLookup(to_footprint, barrierLookup);
         return new GDictionary
@@ -24,14 +26,15 @@ public partial class BattleBarrierGeometryService : RefCounted
     }
 
     public bool line_crosses_barrier_area(
-        GodotObject state,
+        BattleState state,
         Vector2I source_coord,
         Vector2I target_coord,
-        GArray barrier_coords)
+        GArray barrier_coords
+    )
     {
-        GDictionary barrierLookup = CoordLookup(barrier_coords);
-        bool sourceInside = barrierLookup.ContainsKey(source_coord);
-        bool targetInside = barrierLookup.ContainsKey(target_coord);
+        HashSet<Vector2I> barrierLookup = CoordLookup(barrier_coords);
+        bool sourceInside = barrierLookup.Contains(source_coord);
+        bool targetInside = barrierLookup.Contains(target_coord);
         if (sourceInside && targetInside)
         {
             return false;
@@ -40,14 +43,13 @@ public partial class BattleBarrierGeometryService : RefCounted
         {
             return true;
         }
-        foreach (Variant coordVariant in LineCoords(source_coord, target_coord))
+        foreach (Vector2I coord in LineCoords(source_coord, target_coord))
         {
-            Vector2I coord = coordVariant.AsVector2I();
             if (coord == source_coord || coord == target_coord)
             {
                 continue;
             }
-            if (barrierLookup.ContainsKey(coord))
+            if (barrierLookup.Contains(coord))
             {
                 return true;
             }
@@ -57,18 +59,21 @@ public partial class BattleBarrierGeometryService : RefCounted
 
     public bool coord_inside_barrier(Vector2I coord, GArray barrier_coords)
     {
-        return CoordLookup(barrier_coords).ContainsKey(coord);
+        return CoordLookup(barrier_coords).Contains(coord);
     }
 
-    private static bool FootprintOverlapsLookup(GArray footprint, GDictionary lookup)
+    private static bool FootprintOverlapsLookup(GArray footprint, HashSet<Vector2I> lookup)
     {
         if (footprint == null || lookup == null)
         {
             return false;
         }
-        foreach (Variant coordVariant in footprint)
+        foreach (var coordValue in footprint)
         {
-            if (coordVariant.VariantType == Variant.Type.Vector2I && lookup.ContainsKey(coordVariant.AsVector2I()))
+            if (
+                coordValue.VariantType == Variant.Type.Vector2I
+                && lookup.Contains(coordValue.AsVector2I())
+            )
             {
                 return true;
             }
@@ -76,26 +81,26 @@ public partial class BattleBarrierGeometryService : RefCounted
         return false;
     }
 
-    private static GDictionary CoordLookup(GArray coords)
+    private static HashSet<Vector2I> CoordLookup(GArray coords)
     {
-        GDictionary lookup = new();
+        HashSet<Vector2I> lookup = new();
         if (coords == null)
         {
             return lookup;
         }
-        foreach (Variant coordVariant in coords)
+        foreach (var coordValue in coords)
         {
-            if (coordVariant.VariantType == Variant.Type.Vector2I)
+            if (coordValue.VariantType == Variant.Type.Vector2I)
             {
-                lookup[coordVariant.AsVector2I()] = true;
+                lookup.Add(coordValue.AsVector2I());
             }
         }
         return lookup;
     }
 
-    private static GArray LineCoords(Vector2I fromCoord, Vector2I toCoord)
+    private static List<Vector2I> LineCoords(Vector2I fromCoord, Vector2I toCoord)
     {
-        GArray coords = new();
+        List<Vector2I> coords = new();
         int x0 = fromCoord.X;
         int y0 = fromCoord.Y;
         int x1 = toCoord.X;

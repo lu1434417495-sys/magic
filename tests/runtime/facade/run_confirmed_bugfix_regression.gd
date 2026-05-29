@@ -2,14 +2,16 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const BATTLE_DAMAGE_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/rules/battle_damage_resolver.gd")
-const BATTLE_FATE_ATTACK_RULES_SCRIPT = preload("res://scripts/systems/battle/fate/battle_fate_attack_rules.gd")
-const BATTLE_HIT_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/rules/battle_hit_resolver.gd")
-const EQUIPMENT_INSTANCE_STATE_SCRIPT = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
-const PARTY_EQUIPMENT_SERVICE_SCRIPT = preload("res://scripts/systems/inventory/party_equipment_service.gd")
-const PARTY_MEMBER_STATE_SCRIPT = preload("res://scripts/player/progression/party_member_state.gd")
-const PARTY_STATE_SCRIPT = preload("res://scripts/player/progression/party_state.gd")
-const WORLD_MAP_GRID_SYSTEM_SCRIPT = preload("res://scripts/systems/world/world_map_grid_system.gd")
+const BATTLE_DAMAGE_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/rules/BattleDamageResolver.cs")
+const BATTLE_FATE_ATTACK_RULES_SCRIPT = preload("res://scripts/systems/battle/fate/BattleFateAttackRules.cs")
+const BATTLE_HIT_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/rules/BattleHitResolver.cs")
+const BATTLE_STATUS_EFFECT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleStatusEffectState.cs")
+const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
+const EQUIPMENT_INSTANCE_STATE_SCRIPT = preload("res://scripts/player/warehouse/EquipmentInstanceState.cs")
+const PARTY_EQUIPMENT_SERVICE_SCRIPT = preload("res://scripts/systems/inventory/PartyEquipmentService.cs")
+const PARTY_MEMBER_STATE_SCRIPT = preload("res://scripts/player/progression/PartyMemberState.cs")
+const PARTY_STATE_SCRIPT = preload("res://scripts/player/progression/PartyState.cs")
+const WORLD_MAP_GRID_SYSTEM_SCRIPT = preload("res://scripts/systems/world/WorldMapGridSystem.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -46,17 +48,27 @@ func _test_status_param_lookup_accepts_string_name_keys() -> void:
 	var fate_rules = BATTLE_FATE_ATTACK_RULES_SCRIPT.new()
 
 	_assert_eq(
-		damage_resolver._get_status_param_string_key(params, &"incoming_damage_multiplier", 1.0),
+		damage_resolver._get_status_param_float(params, &"incoming_damage_multiplier", 1.0),
 		1.5,
 		"伤害解析器应能读取 StringName key 的状态参数。"
 	)
 	_assert_eq(
-		hit_resolver._get_status_param_string_key(params, &"lock_crit", false),
+		hit_resolver._get_status_param_bool(params, &"lock_crit", false),
 		true,
 		"命中解析器应能读取 StringName key 的状态参数。"
 	)
+	var unit = BATTLE_UNIT_STATE_SCRIPT.new()
+	var status = BATTLE_STATUS_EFFECT_STATE_SCRIPT.new()
+	status.status_id = &"test_crit_lock"
+	status.source_unit_id = &"test_source"
+	status.power = 1
+	status.params = {
+		&"lock_crit": true,
+	}
+	status.stacks = 1
+	unit.set_status_effect(status)
 	_assert_eq(
-		fate_rules._get_status_param_string_key(params, &"lock_crit", false),
+		fate_rules.is_attack_crit_locked(unit),
 		true,
 		"命运攻击规则应能读取 StringName key 的状态参数。"
 	)
@@ -72,7 +84,7 @@ func _test_attack_disposition_respects_natural_roll_flags() -> void:
 	var disposition: StringName = hit_resolver._resolve_attack_roll_disposition_for_check(1, forced_hit_check)
 	_assert_eq(
 		disposition,
-		hit_resolver.ROLL_DISPOSITION_THRESHOLD_HIT,
+		&"threshold_hit",
 		"关闭 natural_one_auto_miss 后，d20=1 且 required_roll=1 应按普通命中处理。"
 	)
 
@@ -105,7 +117,7 @@ func _test_missing_item_def_does_not_trap_equipped_instance() -> void:
 	member_state.progression.unit_base_attributes.set_attribute_value(&"storage_space", 1)
 	party_state.member_states[member_state.member_id] = member_state
 	var occupied_slots: Array[StringName] = [&"main_hand"]
-	var instance = EQUIPMENT_INSTANCE_STATE_SCRIPT.create(&"missing_sword", &"eq_missing_sword")
+	var instance = EQUIPMENT_INSTANCE_STATE_SCRIPT.create_instance(&"missing_sword", &"eq_missing_sword")
 	_assert_true(
 		member_state.equipment_state.set_equipped_entry(&"main_hand", &"missing_sword", occupied_slots, instance),
 		"卸装回归前置：应能写入缺定义装备实例。"

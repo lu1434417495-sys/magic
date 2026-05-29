@@ -3,7 +3,10 @@ using Godot;
 [GlobalClass]
 public partial class BattleTerrainTopologyService : RefCounted
 {
-    public Godot.Collections.Array<Godot.Collections.Dictionary> reclassify_all_water_terrain(Godot.Collections.Dictionary cells, Vector2I mapSize)
+    public Godot.Collections.Array<Godot.Collections.Dictionary> reclassify_all_water_terrain(
+        Godot.Collections.Dictionary cells,
+        Vector2I mapSize
+    )
     {
         return _reclassify_components(cells, mapSize, _collect_all_water_coords(cells));
     }
@@ -14,7 +17,11 @@ public partial class BattleTerrainTopologyService : RefCounted
         Godot.Collections.Array<Vector2I> seedCoords
     )
     {
-        return _reclassify_components(cells, mapSize, _collect_seed_water_coords(cells, mapSize, seedCoords));
+        return _reclassify_components(
+            cells,
+            mapSize,
+            _collect_seed_water_coords(cells, mapSize, seedCoords)
+        );
     }
 
     private Godot.Collections.Array<Godot.Collections.Dictionary> _reclassify_components(
@@ -41,42 +48,51 @@ public partial class BattleTerrainTopologyService : RefCounted
             bool componentHasOutlet = _component_has_outlet(cells, mapSize, component);
             foreach (var coord in component)
             {
-                var cell = _get_cell(cells,coord) as BattleCellState;
+                var cell = _get_cell(cells, coord) as BattleCellState;
                 if (cell == null)
                     continue;
                 var nextFlowDirection = Vector2I.Zero;
                 var nextTerrain = BattleTerrainRules.TERRAIN_DEEP_WATER();
                 if (componentHasOutlet)
-                    nextFlowDirection = _resolve_flow_direction(cells, mapSize, coord, componentLookup);
+                    nextFlowDirection = _resolve_flow_direction(
+                        cells,
+                        mapSize,
+                        coord,
+                        componentLookup
+                    );
                 if (nextFlowDirection != Vector2I.Zero)
                     nextTerrain = BattleTerrainRules.TERRAIN_FLOWING_WATER();
                 else if (_is_shallow_cell(cells, mapSize, coord))
                     nextTerrain = BattleTerrainRules.TERRAIN_SHALLOW_WATER();
                 if (cell.base_terrain != nextTerrain || cell.flow_direction != nextFlowDirection)
                 {
-                    changes.Add(new Godot.Collections.Dictionary
-                    {
-                        { "coord", coord },
-                        { "before_terrain", cell.base_terrain },
-                        { "after_terrain", nextTerrain },
-                        { "before_flow_direction", cell.flow_direction },
-                        { "after_flow_direction", nextFlowDirection },
-                    });
+                    changes.Add(
+                        new Godot.Collections.Dictionary
+                        {
+                            { "coord", coord },
+                            { "before_terrain", cell.base_terrain },
+                            { "after_terrain", nextTerrain },
+                            { "before_flow_direction", cell.flow_direction },
+                            { "after_flow_direction", nextFlowDirection },
+                        }
+                    );
                 }
             }
         }
         return changes;
     }
 
-    private Godot.Collections.Array<Vector2I> _collect_all_water_coords(Godot.Collections.Dictionary cells)
+    private Godot.Collections.Array<Vector2I> _collect_all_water_coords(
+        Godot.Collections.Dictionary cells
+    )
     {
         var results = new Godot.Collections.Array<Vector2I>();
-        foreach (var coordVariant in cells.Keys)
+        foreach (var coordValue in cells.Keys)
         {
-            if (coordVariant.VariantType != Variant.Type.Vector2I)
+            if (coordValue.VariantType != Variant.Type.Vector2I)
                 continue;
-            var coord = coordVariant.AsVector2I();
-            var cell = cells.GetValueOrDefault(coord) as BattleCellState;
+            var coord = coordValue.AsVector2I();
+            var cell = cells.GetValueOrDefault(coord).AsGodotObject() as BattleCellState;
             if (_is_water_like(cell))
                 results.Add(coord);
         }
@@ -98,7 +114,7 @@ public partial class BattleTerrainTopologyService : RefCounted
                 if (seen.ContainsKey(coord))
                     continue;
                 seen[coord] = true;
-                var cell = cells.GetValueOrDefault(coord) as BattleCellState;
+                var cell = cells.GetValueOrDefault(coord).AsGodotObject() as BattleCellState;
                 if (_is_water_like(cell))
                     results.Add(coord);
             }
@@ -113,7 +129,7 @@ public partial class BattleTerrainTopologyService : RefCounted
         Godot.Collections.Dictionary visited
     )
     {
-        var startCell = cells.GetValueOrDefault(start) as BattleCellState;
+        var startCell = cells.GetValueOrDefault(start).AsGodotObject() as BattleCellState;
         if (!_is_water_like(startCell))
             return new Godot.Collections.Array<Vector2I>();
 
@@ -125,7 +141,7 @@ public partial class BattleTerrainTopologyService : RefCounted
             frontier.RemoveAt(0);
             if (visited.ContainsKey(current))
                 continue;
-            var currentCell = cells.GetValueOrDefault(current) as BattleCellState;
+            var currentCell = cells.GetValueOrDefault(current).AsGodotObject() as BattleCellState;
             if (!_is_water_like(currentCell))
                 continue;
             visited[current] = true;
@@ -149,12 +165,13 @@ public partial class BattleTerrainTopologyService : RefCounted
         {
             if (_is_edge_coord(mapSize, coord))
                 return true;
-            var cell = cells.GetValueOrDefault(coord) as BattleCellState;
+            var cell = cells.GetValueOrDefault(coord).AsGodotObject() as BattleCellState;
             if (cell == null)
                 continue;
             foreach (var neighbor in _get_neighbors_4(mapSize, coord))
             {
-                var neighborCell = cells.GetValueOrDefault(neighbor) as BattleCellState;
+                var neighborCell =
+                    cells.GetValueOrDefault(neighbor).AsGodotObject() as BattleCellState;
                 if (_is_water_like(neighborCell))
                     continue;
                 if (neighborCell != null && neighborCell.current_height <= cell.current_height)
@@ -171,7 +188,7 @@ public partial class BattleTerrainTopologyService : RefCounted
         Godot.Collections.Dictionary componentLookup
     )
     {
-        var cell = cells.GetValueOrDefault(coord) as BattleCellState;
+        var cell = cells.GetValueOrDefault(coord).AsGodotObject() as BattleCellState;
         if (cell == null)
             return Vector2I.Zero;
 
@@ -183,7 +200,8 @@ public partial class BattleTerrainTopologyService : RefCounted
             var neighborCoord = coord + direction;
             if (!_is_inside(mapSize, neighborCoord))
                 return direction;
-            var neighborCell = cells.GetValueOrDefault(neighborCoord) as BattleCellState;
+            var neighborCell =
+                cells.GetValueOrDefault(neighborCoord).AsGodotObject() as BattleCellState;
             if (_is_water_like(neighborCell))
                 continue;
             if (neighborCell == null)
@@ -205,23 +223,31 @@ public partial class BattleTerrainTopologyService : RefCounted
             var neighborCoord = coord + direction;
             if (componentLookup.ContainsKey(neighborCoord))
             {
-                var neighborCell = cells.GetValueOrDefault(neighborCoord) as BattleCellState;
-                if (neighborCell != null && neighborCell.base_terrain == BattleTerrainRules.TERRAIN_FLOWING_WATER())
+                var neighborCell =
+                    cells.GetValueOrDefault(neighborCoord).AsGodotObject() as BattleCellState;
+                if (
+                    neighborCell != null
+                    && neighborCell.base_terrain == BattleTerrainRules.TERRAIN_FLOWING_WATER()
+                )
                     return direction;
             }
         }
         return Vector2I.Zero;
     }
 
-    private bool _is_shallow_cell(Godot.Collections.Dictionary cells, Vector2I mapSize, Vector2I coord)
+    private bool _is_shallow_cell(
+        Godot.Collections.Dictionary cells,
+        Vector2I mapSize,
+        Vector2I coord
+    )
     {
-        var cell = cells.GetValueOrDefault(coord) as BattleCellState;
+        var cell = cells.GetValueOrDefault(coord).AsGodotObject() as BattleCellState;
         if (cell == null)
             return false;
         int minBankDelta = int.MaxValue;
         foreach (var neighbor in _get_neighbors_4(mapSize, coord))
         {
-            var neighborCell = cells.GetValueOrDefault(neighbor) as BattleCellState;
+            var neighborCell = cells.GetValueOrDefault(neighbor).AsGodotObject() as BattleCellState;
             if (_is_water_like(neighborCell))
                 continue;
             if (neighborCell == null)
@@ -229,7 +255,10 @@ public partial class BattleTerrainTopologyService : RefCounted
                 minBankDelta = 0;
                 continue;
             }
-            minBankDelta = Mathf.Min(minBankDelta, neighborCell.current_height - cell.current_height);
+            minBankDelta = Mathf.Min(
+                minBankDelta,
+                neighborCell.current_height - cell.current_height
+            );
         }
         if (minBankDelta == int.MaxValue)
             return false;
@@ -241,7 +270,10 @@ public partial class BattleTerrainTopologyService : RefCounted
         return cell != null && BattleTerrainRules.is_water_terrain(cell.base_terrain);
     }
 
-    private Godot.Collections.Array<Vector2I> _get_coord_and_neighbors(Vector2I mapSize, Vector2I coord)
+    private Godot.Collections.Array<Vector2I> _get_coord_and_neighbors(
+        Vector2I mapSize,
+        Vector2I coord
+    )
     {
         var coords = new Godot.Collections.Array<Vector2I>();
         if (_is_inside(mapSize, coord))

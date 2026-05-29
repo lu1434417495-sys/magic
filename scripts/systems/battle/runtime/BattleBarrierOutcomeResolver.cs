@@ -9,16 +9,55 @@ public partial class BattleBarrierOutcomeResolver : RefCounted
     private const int DEFAULT_FATAL_DAMAGE = 99999;
     private const int TELEPORT_RANDOM_ATTEMPTS = 64;
 
-    private WeakReference<GodotObject> _runtimeRef;
+    private WeakReference<BattleRuntimeModule> _runtimeRef;
+    private bool _disposed;
 
-    public void Setup(GodotObject runtime)
+    public void Setup(BattleRuntimeModule runtime)
     {
-        _runtimeRef = runtime != null ? new WeakReference<GodotObject>(runtime) : null;
+        _runtimeRef = runtime != null ? new WeakReference<BattleRuntimeModule>(runtime) : null;
     }
 
     public new void Dispose()
     {
+        if (_disposed)
+        {
+            return;
+        }
+        _disposed = true;
         _runtimeRef = null;
+        base.Dispose();
+    }
+
+    public Dictionary ApplyPassageOutcomes(
+        BattleUnitState unitState,
+        BattleBarrierInstanceState barrier,
+        BattleBarrierLayerState layer,
+        BattleEventBatch batch
+    )
+    {
+        var result = new Dictionary { ["applied"] = false, ["stopped"] = false };
+        if (
+            unitState == null
+            || barrier == null
+            || barrier.IsEmpty
+            || layer == null
+            || IsLayerEmpty(layer)
+        )
+            return result;
+
+        foreach (BattleBarrierOutcomeState outcome in layer.GetPassageOutcomesTyped())
+        {
+            if (outcome == null || outcome.IsEmpty)
+                continue;
+            var outcomeResult = _ApplyOutcome(unitState, barrier, layer, outcome, batch);
+            result["applied"] = true;
+            if (outcomeResult.GetValueOrDefault("stopped", false).AsBool() || !unitState.is_alive)
+            {
+                result["stopped"] = true;
+                return result;
+            }
+        }
+        return result;
     }
 
     public Dictionary ApplyPassageOutcomes(
@@ -28,52 +67,30 @@ public partial class BattleBarrierOutcomeResolver : RefCounted
         BattleEventBatch batch
     )
     {
-        var result = new Dictionary
-        {
-            ["applied"] = false,
-            ["stopped"] = false,
-        };
-        if (unitState == null || barrier == null || barrier.Count == 0 || layer == null || layer.Count == 0)
-            return result;
-        var outcomes = DictionaryGet(layer, "passage_outcomes", new Godot.Collections.Array()).AsGodotArray();
-        if (outcomes.Count == 0 && layer.ContainsKey("passage"))
-        {
-            outcomes = new Godot.Collections.Array { DictionaryGet(layer, "passage", new Dictionary()) };
-        }
-        foreach (Variant outcomeVariant in outcomes)
-        {
-            var outcome = outcomeVariant.VariantType == Variant.Type.Dictionary ? outcomeVariant.AsGodotDictionary() : new Dictionary();
-            if (outcome.Count == 0)
-                continue;
-            var outcomeResult = _ApplyOutcome(unitState, barrier, layer, outcome, batch);
-            result["applied"] = true;
-            if (DictionaryGet(outcomeResult, "stopped", false).AsBool() || !unitState.is_alive)
-            {
-                result["stopped"] = true;
-                return result;
-            }
-        }
-        return result;
+        return ApplyPassageOutcomes(
+            unitState,
+            BattleBarrierInstanceState.from_runtime_dict(barrier),
+            BattleBarrierLayerState.from_runtime_dict(layer),
+            batch
+        );
     }
 
     private Dictionary _ApplyOutcome(
         BattleUnitState unitState,
-        Dictionary barrier,
-        Dictionary layer,
-        Dictionary outcome,
+        BattleBarrierInstanceState barrier,
+        BattleBarrierLayerState layer,
+        BattleBarrierOutcomeState outcome,
         BattleEventBatch batch
     )
     {
-        var outcomeType = ProgressionDataUtils.to_string_name(DictionaryGet(outcome, "outcome_type", DictionaryGet(outcome, "outcome", "")));
-        switch (outcomeType)
+        switch (outcome?.outcome_type ?? new StringName(""))
         {
             case "damage":
                 return _ApplyDamageOutcome(unitState, barrier, layer, outcome, batch);
             case "poison_death":
                 return _ApplyPoisonDeathOutcome(unitState, barrier, layer, outcome, batch);
             case "status":
-                var statusId = ProgressionDataUtils.to_string_name(DictionaryGet(outcome, "status_id", ""));
-                return _ApplyStatusOutcome(unitState, barrier, layer, outcome, statusId, batch);
+                return _ApplyStatusOutcome(unitState, barrier, layer, outcome, batch);
             case "banish":
                 return _ApplyBanishOutcome(unitState, barrier, layer, outcome, batch);
             default:
@@ -83,23 +100,29 @@ public partial class BattleBarrierOutcomeResolver : RefCounted
 
     private Dictionary _ApplyDamageOutcome(
         BattleUnitState unitState,
-        Dictionary barrier,
-        Dictionary layer,
-        Dictionary outcome,
+        BattleBarrierInstanceState barrier,
+        BattleBarrierLayerState layer,
+        BattleBarrierOutcomeState outcome,
         BattleEventBatch batch
     )
     {
-        var amount = Mathf.Max((int)DictionaryGet(outcome, "amount", 0), 0);
+        var amount = Mathf.Max(outcome?.amount ?? 0, 0);
         if (amount <= 0)
             return new Dictionary { ["stopped"] = false };
         var saveResult = _ResolveOutcomeSave(unitState, barrier, layer, outcome);
         var finalAmount = amount;
-        if (DictionaryGet(saveResult, "success", false).AsBool() && DictionaryGet(outcome, "half_on_success", false).AsBool())
+        if (
+            saveResult.GetValueOrDefault("success", false).AsBool()
+            && outcome.half_on_success
+        )
             finalAmount = Mathf.Max((int)Mathf.Ceil(amount / 2.0f), 1);
-        var damageTag = ProgressionDataUtils.to_string_name(DictionaryGet(outcome, "damage_tag", "force"));
+        var damageTag = ResolveDamageTag(outcome.damage_tag, "force");
         var damageResult = _ApplyDirectDamage(unitState, barrier, finalAmount, damageTag);
         _AppendChangedUnit(batch, unitState);
-        _AppendLog(batch, $"{unitState.display_name} 触碰 {_GetLayerLabel(layer)}，受到 {DictionaryGet(damageResult, "damage", finalAmount)} 点伤害。");
+        _AppendLog(
+            batch,
+            $"{unitState.display_name} 触碰 {_GetLayerLabel(layer)}，受到 {damageResult.GetValueOrDefault("damage", finalAmount)} 点伤害。"
+        );
         if (!unitState.is_alive)
         {
             _HandleDefeatedByBarrier(unitState, barrier, batch);
@@ -110,22 +133,28 @@ public partial class BattleBarrierOutcomeResolver : RefCounted
 
     private Dictionary _ApplyPoisonDeathOutcome(
         BattleUnitState unitState,
-        Dictionary barrier,
-        Dictionary layer,
-        Dictionary outcome,
+        BattleBarrierInstanceState barrier,
+        BattleBarrierLayerState layer,
+        BattleBarrierOutcomeState outcome,
         BattleEventBatch batch
     )
     {
         var saveResult = _ResolveOutcomeSave(unitState, barrier, layer, outcome);
-        if (DictionaryGet(saveResult, "success", false).AsBool())
+        if (saveResult.GetValueOrDefault("success", false).AsBool())
         {
-            var successAmount = Mathf.Max((int)DictionaryGet(outcome, "success_amount", 0), 0);
+            var successAmount = Mathf.Max(outcome?.success_amount ?? 0, 0);
             if (successAmount <= 0)
                 return new Dictionary { ["stopped"] = false };
-            var damageTag = ProgressionDataUtils.to_string_name(DictionaryGet(outcome, "success_damage_tag", DictionaryGet(outcome, "damage_tag", "poison")));
+            var damageTag = ResolveDamageTag(
+                outcome.success_damage_tag != "" ? outcome.success_damage_tag : outcome.damage_tag,
+                "poison"
+            );
             var damageResult = _ApplyDirectDamage(unitState, barrier, successAmount, damageTag);
             _AppendChangedUnit(batch, unitState);
-            _AppendLog(batch, $"{unitState.display_name} 通过 {_GetLayerLabel(layer)} 的豁免，仍受到 {DictionaryGet(damageResult, "damage", successAmount)} 点伤害。");
+            _AppendLog(
+                batch,
+                $"{unitState.display_name} 通过 {_GetLayerLabel(layer)} 的豁免，仍受到 {damageResult.GetValueOrDefault("damage", successAmount)} 点伤害。"
+            );
             if (!unitState.is_alive)
             {
                 _HandleDefeatedByBarrier(unitState, barrier, batch);
@@ -134,55 +163,63 @@ public partial class BattleBarrierOutcomeResolver : RefCounted
             return new Dictionary { ["stopped"] = false };
         }
         var fatalDamage = Mathf.Max(
-            unitState.current_hp + unitState.current_shield_hp + (int)DictionaryGet(outcome, "fatal_damage", DEFAULT_FATAL_DAMAGE),
-            (int)DictionaryGet(outcome, "fatal_damage", DEFAULT_FATAL_DAMAGE)
+            unitState.current_hp
+                + unitState.current_shield_hp
+                + Mathf.Max(outcome?.fatal_damage ?? DEFAULT_FATAL_DAMAGE, 1),
+            Mathf.Max(outcome?.fatal_damage ?? DEFAULT_FATAL_DAMAGE, 1)
         );
         var deathResult = _ApplyDirectDamage(unitState, barrier, fatalDamage, "poison");
         _AppendChangedUnit(batch, unitState);
-        _AppendLog(batch, $"{unitState.display_name} 未通过 {_GetLayerLabel(layer)} 的豁免，触发即死效果。");
+        _AppendLog(
+            batch,
+            $"{unitState.display_name} 未通过 {_GetLayerLabel(layer)} 的豁免，触发即死效果。"
+        );
         if (!unitState.is_alive)
         {
             _HandleDefeatedByBarrier(unitState, barrier, batch);
             return new Dictionary { ["stopped"] = true };
         }
-        if ((int)DictionaryGet(deathResult, "damage", 0) > 0)
+        if ((int)deathResult.GetValueOrDefault("damage", 0) > 0)
             _AppendLog(batch, $"{unitState.display_name} 的免死效果抵消了即死。");
         return new Dictionary { ["stopped"] = false };
     }
 
     private Dictionary _ApplyStatusOutcome(
         BattleUnitState unitState,
-        Dictionary barrier,
-        Dictionary layer,
-        Dictionary outcome,
-        StringName statusId,
+        BattleBarrierInstanceState barrier,
+        BattleBarrierLayerState layer,
+        BattleBarrierOutcomeState outcome,
         BattleEventBatch batch
     )
     {
+        StringName statusId = outcome?.status_id ?? new StringName("");
         if (statusId == "")
             return new Dictionary { ["stopped"] = false };
         var saveResult = _ResolveOutcomeSave(unitState, barrier, layer, outcome);
-        if (DictionaryGet(saveResult, "success", false).AsBool())
+        if (saveResult.GetValueOrDefault("success", false).AsBool())
         {
             _AppendLog(batch, $"{unitState.display_name} 通过 {_GetLayerLabel(layer)} 的豁免。");
             return new Dictionary { ["stopped"] = false };
         }
         _ApplyBarrierStatus(unitState, barrier, layer, outcome, statusId);
         _AppendChangedUnit(batch, unitState);
-        _AppendLog(batch, $"{unitState.display_name} 未通过 {_GetLayerLabel(layer)} 的豁免，获得状态 {statusId}。");
+        _AppendLog(
+            batch,
+            $"{unitState.display_name} 未通过 {_GetLayerLabel(layer)} 的豁免，获得状态 {statusId}。"
+        );
         return new Dictionary { ["stopped"] = true };
     }
 
     private Dictionary _ApplyBanishOutcome(
         BattleUnitState unitState,
-        Dictionary barrier,
-        Dictionary layer,
-        Dictionary outcome,
+        BattleBarrierInstanceState barrier,
+        BattleBarrierLayerState layer,
+        BattleBarrierOutcomeState outcome,
         BattleEventBatch batch
     )
     {
         var saveResult = _ResolveOutcomeSave(unitState, barrier, layer, outcome);
-        if (DictionaryGet(saveResult, "success", false).AsBool())
+        if (saveResult.GetValueOrDefault("success", false).AsBool())
         {
             _AppendLog(batch, $"{unitState.display_name} 通过 {_GetLayerLabel(layer)} 的豁免。");
             return new Dictionary { ["stopped"] = false };
@@ -195,71 +232,97 @@ public partial class BattleBarrierOutcomeResolver : RefCounted
         var destination = _FindBanishTeleportCoord(unitState, barrier);
         if (destination == new Vector2I(-1, -1))
         {
-            _AppendLog(batch, $"{unitState.display_name} 被 {_GetLayerLabel(layer)} 放逐，但没有找到可传送落点。");
+            _AppendLog(
+                batch,
+                $"{unitState.display_name} 被 {_GetLayerLabel(layer)} 放逐，但没有找到可传送落点。"
+            );
             return new Dictionary { ["stopped"] = true };
         }
         var previousCoords = new Godot.Collections.Array();
         foreach (Vector2I coord in unitState.occupied_coords)
             previousCoords.Add(coord);
-        var gridService = _ResolveRuntime().Get("_grid_service").AsGodotObject();
-        var state = _ResolveRuntime().Get("_state").As<BattleState>();
-        gridService.Call("clear_unit_occupancy", state, unitState);
+        var runtime = _ResolveRuntime();
+        var state = runtime._state;
+        runtime._grid_service.clear_unit_occupancy(state, unitState);
         unitState.set_anchor_coord(destination);
-        gridService.Call("set_occupants", state, unitState.occupied_coords, unitState.unit_id);
+        runtime._grid_service.set_occupants(
+            state,
+            (Godot.Collections.Array)unitState.occupied_coords,
+            unitState.unit_id
+        );
         _AppendChangedCoords(batch, previousCoords);
         _AppendChangedUnit(batch, unitState);
-        _AppendLog(batch, $"{unitState.display_name} 被 {_GetLayerLabel(layer)} 随机传送到 ({destination.X}, {destination.Y})。");
+        _AppendLog(
+            batch,
+            $"{unitState.display_name} 被 {_GetLayerLabel(layer)} 随机传送到 ({destination.X}, {destination.Y})。"
+        );
         return new Dictionary { ["stopped"] = true };
     }
 
     private Dictionary _ResolveOutcomeSave(
         BattleUnitState unitState,
-        Dictionary barrier,
-        Dictionary layer,
-        Dictionary outcome
+        BattleBarrierInstanceState barrier,
+        BattleBarrierLayerState layer,
+        BattleBarrierOutcomeState outcome
     )
     {
         var effect = new CombatEffectDef();
         effect.effect_type = "status";
-        effect.save_dc = Mathf.Max((int)DictionaryGet(outcome, "save_dc", DictionaryGet(barrier, "save_dc", 0)), 1);
+        int outcomeSaveDc = outcome?.save_dc ?? 0;
+        int barrierSaveDc = barrier?.save_dc ?? 0;
+        effect.save_dc = Mathf.Max(outcomeSaveDc > 0 ? outcomeSaveDc : barrierSaveDc, 1);
         effect.save_dc_mode = BattleSaveResolver.SAVE_DC_MODE_STATIC();
-        effect.save_ability = ProgressionDataUtils.to_string_name(DictionaryGet(outcome, "save_ability", "willpower"));
-        effect.save_tag = ProgressionDataUtils.to_string_name(DictionaryGet(outcome, "save_tag", "magic"));
+        effect.save_ability = ResolveStringName(outcome?.save_ability ?? new StringName(""), "willpower");
+        effect.save_tag = ResolveStringName(outcome?.save_tag ?? new StringName(""), "magic");
         var context = new Dictionary();
-        if (layer.ContainsKey("save_roll_override"))
-            context["save_roll_override"] = (int)DictionaryGet(layer, "save_roll_override", 0);
-        return BattleSaveResolver.resolve_save_with_context(_GetBarrierSourceUnit(barrier), unitState, effect, context);
+        if (layer != null && layer.has_save_roll_override)
+            context["save_roll_override"] = layer.save_roll_override;
+        return BattleSaveResolver.resolve_save_with_context(
+            _GetBarrierSourceUnit(barrier),
+            unitState,
+            effect,
+            context
+        );
     }
 
     private void _ApplyBarrierStatus(
         BattleUnitState unitState,
-        Dictionary barrier,
-        Dictionary layer,
-        Dictionary outcome,
+        BattleBarrierInstanceState barrier,
+        BattleBarrierLayerState layer,
+        BattleBarrierOutcomeState outcome,
         StringName statusId
     )
     {
         var statusEntry = new BattleStatusEffectState();
         statusEntry.status_id = statusId;
-        statusEntry.source_unit_id = ProgressionDataUtils.to_string_name(DictionaryGet(barrier, "source_unit_id", ""));
+        statusEntry.source_unit_id = barrier?.source_unit_id ?? new StringName("");
         statusEntry.power = 1;
         statusEntry.stacks = 1;
         statusEntry.duration = -1;
+        int rawStatusSaveDc = outcome != null && outcome.save_dc > 0
+            ? outcome.save_dc
+            : barrier?.save_dc ?? 0;
+        int statusSaveDc = Mathf.Max(rawStatusSaveDc, 1);
+        StringName statusSaveAbility = ResolveStringName(
+            outcome?.save_ability ?? new StringName(""),
+            "willpower"
+        );
+        StringName statusSaveTag = ResolveStringName(outcome?.save_tag ?? new StringName(""), "magic");
         statusEntry.@params = new Dictionary
         {
-            ["source"] = DictionaryGet(barrier, "profile_id", "").AsString(),
-            ["layer_id"] = DictionaryGet(layer, "layer_id", "").AsString(),
+            ["source"] = barrier?.profile_id.ToString() ?? "",
+            ["layer_id"] = layer?.layer_id.ToString() ?? "",
             ["counts_as_debuff"] = true,
-            ["self_save_dc"] = Mathf.Max((int)DictionaryGet(outcome, "save_dc", DictionaryGet(barrier, "save_dc", 0)), 1),
-            ["self_save_ability"] = DictionaryGet(outcome, "save_ability", "willpower").AsString(),
-            ["self_save_tag"] = DictionaryGet(outcome, "save_tag", "magic").AsString(),
+            ["self_save_dc"] = statusSaveDc,
+            ["self_save_ability"] = statusSaveAbility.ToString(),
+            ["self_save_tag"] = statusSaveTag.ToString(),
         };
         unitState.set_status_effect(statusEntry);
     }
 
     private Dictionary _ApplyDirectDamage(
         BattleUnitState unitState,
-        Dictionary barrier,
+        BattleBarrierInstanceState barrier,
         int damageAmount,
         StringName damageTag
     )
@@ -269,53 +332,74 @@ public partial class BattleBarrierOutcomeResolver : RefCounted
             ["resolved_damage"] = Mathf.Max(damageAmount, 0),
             ["base_damage"] = Mathf.Max(damageAmount, 0),
             ["damage_tag"] = damageTag.ToString(),
-            ["damage_kind"] = DictionaryGet(barrier, "profile_id", "barrier").AsString(),
+            ["damage_kind"] = ResolveStringName(barrier?.profile_id ?? new StringName(""), "barrier").ToString(),
         };
         var sourceUnit = _GetBarrierSourceUnit(barrier);
-        var damageResolver = _ResolveRuntime().Get("_damage_resolver").AsGodotObject();
-        var damageResult = damageResolver.Call("apply_direct_damage_to_target", unitState, damageOutcome, sourceUnit).AsGodotDictionary();
+        var damageResult = _ResolveRuntime()
+            ._damage_resolver
+            .apply_direct_damage_to_target(unitState, damageOutcome, sourceUnit);
         unitState.is_alive = unitState.current_hp > 0;
         return damageResult;
     }
 
-    private void _HandleDefeatedByBarrier(BattleUnitState unitState, Dictionary barrier, BattleEventBatch batch)
+    private void _HandleDefeatedByBarrier(
+        BattleUnitState unitState,
+        BattleBarrierInstanceState barrier,
+        BattleEventBatch batch
+    )
     {
         var sourceUnit = _GetBarrierSourceUnit(barrier);
-        _ResolveRuntime().Call("handle_unit_defeated_by_runtime_effect",
-            unitState,
-            sourceUnit,
-            batch,
-            $"{unitState.display_name} 被 {_GetBarrierLabel(barrier)} 击倒。"
-        );
+        _ResolveRuntime()
+            .handle_unit_defeated_by_runtime_effect(
+                unitState,
+                sourceUnit,
+                batch,
+                $"{unitState.display_name} 被 {_GetBarrierLabel(barrier)} 击倒。"
+            );
     }
 
-    private void _RemoveSummonedUnit(BattleUnitState unitState, Dictionary barrier, Dictionary layer, BattleEventBatch batch)
+    private void _RemoveSummonedUnit(
+        BattleUnitState unitState,
+        BattleBarrierInstanceState barrier,
+        BattleBarrierLayerState layer,
+        BattleEventBatch batch
+    )
     {
-        _ResolveRuntime().Call("remove_summoned_unit_from_battle",
-            unitState,
-            batch,
-            $"{unitState.display_name} 是召唤物，被 {_GetLayerLabel(layer)} 直接放逐消失。"
-        );
+        _ResolveRuntime()
+            .remove_summoned_unit_from_battle(
+                unitState,
+                batch,
+                $"{unitState.display_name} 是召唤物，被 {_GetLayerLabel(layer)} 直接放逐消失。"
+            );
     }
 
-    private Vector2I _FindBanishTeleportCoord(BattleUnitState unitState, Dictionary barrier)
+    private Vector2I _FindBanishTeleportCoord(
+        BattleUnitState unitState,
+        BattleBarrierInstanceState barrier
+    )
     {
         var runtime = _ResolveRuntime();
         if (runtime == null)
             return new Vector2I(-1, -1);
-        var state = runtime.Get("_state").As<BattleState>();
-        var gridService = runtime.Get("_grid_service").AsGodotObject();
+        var state = runtime._state;
+        var gridService = runtime._grid_service;
         if (state == null || gridService == null || unitState == null)
             return new Vector2I(-1, -1);
         var candidates = new List<Vector2I>();
-        foreach (Variant coordVariant in state.cells.Keys)
+        foreach (BattleState.BattleCellEntry cellEntry in state.GetCellEntriesTyped())
         {
-            if (coordVariant.VariantType != Variant.Type.Vector2I)
-                continue;
-            var coord = coordVariant.AsVector2I();
+            Vector2I coord = cellEntry.Coord;
             if (_IsCoordInsideBarrier(coord, barrier))
                 continue;
-            if (!gridService.Call("can_place_footprint", state, coord, unitState.footprint_size, unitState.unit_id, unitState).AsBool())
+            if (
+                !gridService.can_place_footprint(
+                        state,
+                        coord,
+                        unitState.footprint_size,
+                        unitState.unit_id,
+                        unitState
+                    )
+            )
                 continue;
             candidates.Add(coord);
         }
@@ -326,30 +410,36 @@ public partial class BattleBarrierOutcomeResolver : RefCounted
             var index = TrueRandomSeedService.randi_range(0, candidates.Count - 1);
             return candidates[index];
         }
-        candidates.Sort((left, right) =>
-        {
-            var leftDistance = (int)gridService.Call("get_distance", unitState.coord, left);
-            var rightDistance = (int)gridService.Call("get_distance", unitState.coord, right);
-            if (leftDistance != rightDistance)
-                return leftDistance.CompareTo(rightDistance);
-            if (left.Y != right.Y)
-                return left.Y.CompareTo(right.Y);
-            return left.X.CompareTo(right.X);
-        });
+        candidates.Sort(
+            (left, right) =>
+            {
+                var leftDistance = gridService.get_distance(unitState.coord, left);
+                var rightDistance = gridService.get_distance(unitState.coord, right);
+                if (leftDistance != rightDistance)
+                    return leftDistance.CompareTo(rightDistance);
+                if (left.Y != right.Y)
+                    return left.Y.CompareTo(right.Y);
+                return left.X.CompareTo(right.X);
+            }
+        );
         return candidates[0];
     }
 
-    private bool _IsCoordInsideBarrier(Vector2I coord, Dictionary barrier)
+    private bool _IsCoordInsideBarrier(Vector2I coord, BattleBarrierInstanceState barrier)
     {
-        var anchor = DictionaryGet(barrier, "anchor_coord", new Vector2I(-999999, -999999)).AsVector2I();
-        var radius = Mathf.Max((int)DictionaryGet(barrier, "radius_cells", 0), 0);
-        var pattern = ProgressionDataUtils.to_string_name(DictionaryGet(barrier, "area_pattern", "diamond"));
+        if (barrier == null)
+        {
+            return false;
+        }
+        var anchor = barrier.anchor_coord;
+        var radius = Mathf.Max(barrier.radius_cells, 0);
+        var pattern = BattleTypedNames.ToAreaPattern(barrier.area_pattern);
         var dx = Mathf.Abs(coord.X - anchor.X);
         var dy = Mathf.Abs(coord.Y - anchor.Y);
         switch (pattern)
         {
-            case "square":
-            case "radius":
+            case BattleAreaPattern.Square:
+            case BattleAreaPattern.Radius:
                 return Mathf.Max(dx, dy) <= radius;
             default:
                 return dx + dy <= radius;
@@ -362,37 +452,64 @@ public partial class BattleBarrierOutcomeResolver : RefCounted
             return false;
         if (unitState.has_status_effect("summoned"))
             return true;
-        if (DictionaryGet(unitState.ai_blackboard, "summoned", false).AsBool())
+        if (unitState.ai_blackboard.GetValueOrDefault("summoned", false).AsBool())
             return true;
-        if (DictionaryGet(unitState.ai_blackboard, "temporary_unit", false).AsBool())
+        if (unitState.ai_blackboard.GetValueOrDefault("temporary_unit", false).AsBool())
             return true;
-        return !string.IsNullOrEmpty(DictionaryGet(unitState.ai_blackboard, "summon_source_unit_id", "").AsString());
+        return !string.IsNullOrEmpty(
+            unitState.ai_blackboard.GetValueOrDefault("summon_source_unit_id", "").AsString()
+        );
     }
 
-    private BattleUnitState _GetBarrierSourceUnit(Dictionary barrier)
+    private BattleUnitState _GetBarrierSourceUnit(BattleBarrierInstanceState barrier)
     {
         var runtime = _ResolveRuntime();
         if (runtime == null)
             return null;
-        var state = runtime.Get("_state").As<BattleState>();
+        var state = runtime._state;
         if (state == null)
             return null;
-        var sourceUnitId = ProgressionDataUtils.to_string_name(DictionaryGet(barrier, "source_unit_id", ""));
+        var sourceUnitId = barrier?.source_unit_id ?? new StringName("");
         if (sourceUnitId == "")
             return null;
-        if (!state.units.ContainsKey(sourceUnitId))
-            return null;
-        return state.units[sourceUnitId].As<BattleUnitState>();
+        return state.TryGetUnitTyped(sourceUnitId, out BattleUnitState sourceUnit)
+            ? sourceUnit
+            : null;
     }
 
-    private string _GetLayerLabel(Dictionary layer)
+    private string _GetLayerLabel(BattleBarrierLayerState layer)
     {
-        return DictionaryGet(layer, "display_name", DictionaryGet(layer, "layer_id", "屏障层")).AsString();
+        if (layer == null)
+            return "屏障层";
+        if (!string.IsNullOrEmpty(layer.display_name))
+            return layer.display_name;
+        string layerId = layer.layer_id.ToString();
+        return !string.IsNullOrEmpty(layerId) ? layerId : "屏障层";
     }
 
-    private string _GetBarrierLabel(Dictionary barrier)
+    private string _GetBarrierLabel(BattleBarrierInstanceState barrier)
     {
-        return DictionaryGet(barrier, "display_name", DictionaryGet(barrier, "profile_id", "屏障")).AsString();
+        if (barrier == null)
+            return "屏障";
+        if (!string.IsNullOrEmpty(barrier.display_name))
+            return barrier.display_name;
+        string profileId = barrier.profile_id.ToString();
+        return !string.IsNullOrEmpty(profileId) ? profileId : "屏障";
+    }
+
+    private static bool IsLayerEmpty(BattleBarrierLayerState layer)
+    {
+        return layer == null || (layer.layer_id == "" && layer.passage_outcomes.Count == 0);
+    }
+
+    private static StringName ResolveDamageTag(StringName value, StringName fallback)
+    {
+        return value != "" ? value : fallback;
+    }
+
+    private static StringName ResolveStringName(StringName value, StringName fallback)
+    {
+        return value != "" ? value : fallback;
     }
 
     private void _AppendChangedUnit(BattleEventBatch batch, BattleUnitState unitState)
@@ -400,8 +517,8 @@ public partial class BattleBarrierOutcomeResolver : RefCounted
         var runtime = _ResolveRuntime();
         if (runtime == null || batch == null || unitState == null)
             return;
-        runtime.Call("_append_changed_unit_id", batch, unitState.unit_id);
-        runtime.Call("_append_changed_unit_coords", batch, unitState);
+        runtime._append_changed_unit_id(batch, unitState.unit_id);
+        runtime._append_changed_unit_coords(batch, unitState);
     }
 
     private void _AppendChangedCoords(BattleEventBatch batch, Godot.Collections.Array coords)
@@ -409,7 +526,7 @@ public partial class BattleBarrierOutcomeResolver : RefCounted
         var runtime = _ResolveRuntime();
         if (runtime == null || batch == null)
             return;
-        runtime.Call("_append_changed_coords", batch, coords);
+        runtime._append_changed_coords(batch, coords);
     }
 
     private void _AppendLog(BattleEventBatch batch, string line)
@@ -419,17 +536,14 @@ public partial class BattleBarrierOutcomeResolver : RefCounted
         batch.log_lines.Add(line);
     }
 
-    private GodotObject _ResolveRuntime()
+    private BattleRuntimeModule _ResolveRuntime()
     {
-        if (_runtimeRef == null || !_runtimeRef.TryGetTarget(out GodotObject target) || !GodotObject.IsInstanceValid(target))
+        if (
+            _runtimeRef == null
+            || !_runtimeRef.TryGetTarget(out BattleRuntimeModule target)
+        )
             return null;
         return target;
     }
 
-    private static Variant DictionaryGet(Dictionary dictionary, Variant key, Variant fallback)
-    {
-        if (dictionary == null || !dictionary.ContainsKey(key))
-            return fallback;
-        return dictionary[key];
-    }
 }

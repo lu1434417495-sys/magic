@@ -5,7 +5,7 @@
 class_name AiProfileCapture
 extends RefCounted
 
-const AiTraceRecorderScript = preload("res://scripts/dev_tools/ai_trace_recorder.gd")
+const AiTraceRecorderScript = preload("res://scripts/dev_tools/AiTraceRecorder.cs")
 const AiHotspotsFormatterScript = preload("res://tests/battle_runtime/benchmarks/ai_hotspots_formatter.gd")
 
 var scenario_id := ""
@@ -55,22 +55,22 @@ func setup(
 	truncated = false
 	trace_events_sample.clear()
 	last_report.clear()
-	AiTraceRecorderScript.instance = null
+	AiTraceRecorderScript.set_instance(null)
 
 
 func begin_run(measured: bool = true):
-	AiTraceRecorderScript.instance = null
+	AiTraceRecorderScript.set_instance(null)
 	if not measured:
 		return null
 	var recorder = AiTraceRecorderScript.new()
 	if recorder.has_method("set_event_capture_enabled"):
 		recorder.set_event_capture_enabled(dump_trace_json)
-	AiTraceRecorderScript.instance = recorder
+	AiTraceRecorderScript.set_instance(recorder)
 	return recorder
 
 
 func end_run(recorder, ai_turns: int = 0) -> Dictionary:
-	AiTraceRecorderScript.instance = null
+	AiTraceRecorderScript.set_instance(null)
 	if recorder == null:
 		return {}
 	_merge_stats(aggregate_stats, recorder.get_func_stats())
@@ -171,18 +171,18 @@ static func resolve_git_commit() -> String:
 
 
 func _merge_stats(target: Dictionary, source: Dictionary) -> void:
-	for name_variant in source.keys():
-		var src: Dictionary = source[name_variant]
+	for name_option in source.keys():
+		var src: Dictionary = source[name_option]
 		var dst: Dictionary
-		if target.has(name_variant):
-			dst = target[name_variant]
+		if target.has(name_option):
+			dst = target[name_option]
 		else:
 			dst = {"ncalls": 0, "self_usec": 0, "total_usec": 0, "max_usec": 0}
 		dst["ncalls"] = int(dst["ncalls"]) + int(src.get("ncalls", 0))
 		dst["self_usec"] = int(dst["self_usec"]) + int(src.get("self_usec", 0))
 		dst["total_usec"] = int(dst["total_usec"]) + int(src.get("total_usec", 0))
 		dst["max_usec"] = max(int(dst["max_usec"]), int(src.get("max_usec", 0)))
-		target[name_variant] = dst
+		target[name_option] = dst
 
 
 func _write_trace_json(path: String) -> bool:

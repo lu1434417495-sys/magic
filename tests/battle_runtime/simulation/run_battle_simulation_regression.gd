@@ -2,10 +2,10 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const BATTLE_SIM_RUNNER_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_runner.gd")
-const BATTLE_SIM_SCENARIO_DEF_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_scenario_def.gd")
-const BATTLE_SIM_UNIT_SPEC_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_unit_spec.gd")
-const BATTLE_SIM_PROFILE_DEF_SCRIPT = preload("res://scripts/systems/battle/sim/battle_sim_profile_def.gd")
+const BATTLE_SIM_SCENARIO_DEF_SCRIPT = preload("res://scripts/systems/battle/sim/BattleSimScenarioDef.cs")
+const BATTLE_SIM_UNIT_SPEC_SCRIPT = preload("res://scripts/systems/battle/sim/BattleSimUnitSpec.cs")
+const BattleSimProfileDef = preload("res://scripts/systems/battle/sim/BattleSimProfileDef.cs")
+const BattleSimRunner = preload("res://scripts/systems/battle/sim/BattleSimRunner.cs")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -17,8 +17,8 @@ func _initialize() -> void:
 
 func _run() -> void:
 	_test_ready_queue_does_not_consume_timeline_ticks()
-	var runner = BATTLE_SIM_RUNNER_SCRIPT.new()
-	var report: Dictionary = runner.run_scenario(_build_scenario(), [_build_baseline_profile(), _build_suppressive_fire_blocked_profile()])
+	var runner = BattleSimRunner.new()
+	var report: Dictionary = runner.RunScenario(_build_scenario(), [_build_baseline_profile(), _build_suppressive_fire_blocked_profile()])
 	_assert_true((report.get("profile_entries", []) as Array).size() == 2, "simulation report 应包含 baseline 与 patch 两组 profile 结果。")
 	_assert_true((report.get("comparisons", []) as Array).size() == 1, "两组 profile 应产出 1 组 comparison。")
 	_assert_true(String(report.get("output_files", {}).get("report_json", "")) != "", "simulation runner 应写出主 report json。")
@@ -67,8 +67,8 @@ func _run() -> void:
 
 
 func _test_ready_queue_does_not_consume_timeline_ticks() -> void:
-	var runner = BATTLE_SIM_RUNNER_SCRIPT.new()
-	var report: Dictionary = runner.run_scenario(_build_ready_queue_scenario(), [_build_baseline_profile()])
+	var runner = BattleSimRunner.new()
+	var report: Dictionary = runner.RunScenario(_build_ready_queue_scenario(), [_build_baseline_profile()])
 	var profile_entries: Array = report.get("profile_entries", [])
 	_assert_true(profile_entries.size() == 1, "ready queue regression 应产出单 profile entry。")
 	if profile_entries.is_empty():
@@ -138,6 +138,7 @@ func _build_ready_queue_unit(
 	unit_spec.attribute_overrides = {
 		"hp_max": 30,
 		"action_points": 1,
+		"action_threshold": 5,
 		"armor_ac_bonus": 4,
 	}
 	return unit_spec
@@ -230,14 +231,14 @@ func _build_base_attributes(
 
 
 func _build_baseline_profile():
-	var profile = BATTLE_SIM_PROFILE_DEF_SCRIPT.new()
+	var profile = BattleSimProfileDef.new()
 	profile.profile_id = &"baseline"
 	profile.display_name = "Baseline"
 	return profile
 
 
 func _build_suppressive_fire_blocked_profile():
-	var profile = BATTLE_SIM_PROFILE_DEF_SCRIPT.new()
+	var profile = BattleSimProfileDef.new()
 	profile.profile_id = &"pinning_only"
 	profile.display_name = "Pinning Only"
 	profile.override_patches = [{

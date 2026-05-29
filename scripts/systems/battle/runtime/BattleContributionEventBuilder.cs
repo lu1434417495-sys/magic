@@ -11,7 +11,8 @@ public static class BattleContributionEventBuilder
         int healing,
         bool causedDefeat,
         StringName originKind,
-        StringName skillId)
+        StringName skillId
+    )
     {
         StringName sourceUnitId = sourceUnit?.unit_id ?? "";
         StringName targetUnitId = targetUnit?.unit_id ?? "";
@@ -25,7 +26,12 @@ public static class BattleContributionEventBuilder
             target_unit_id = targetUnitId,
             target_faction_id = targetFactionId,
             skill_id = skillId,
-            relation = ResolveRelation(sourceUnitId, sourceFactionId, targetUnitId, targetFactionId),
+            relation = ResolveRelation(
+                sourceUnitId,
+                sourceFactionId,
+                targetUnitId,
+                targetFactionId
+            ),
             origin_kind = ParseOriginKind(originKind),
             hp_damage_applied = Math.Max(damage, 0),
             hp_healing_applied = Math.Max(healing, 0),
@@ -48,7 +54,13 @@ public static class BattleContributionEventBuilder
             target_unit_id = targetUnitId,
             target_faction_id = targetFactionId,
             skill_id = GdInterop.GetStringName(payload, "skill_id"),
-            relation = ParseRelation(relationName, sourceUnitId, sourceFactionId, targetUnitId, targetFactionId),
+            relation = ParseRelation(
+                relationName,
+                sourceUnitId,
+                sourceFactionId,
+                targetUnitId,
+                targetFactionId
+            ),
             origin_kind = ParseOriginKind(GdInterop.GetStringName(payload, "origin_kind")),
             hp_damage_applied = Math.Max(GdInterop.GetInt(payload, "hp_damage_applied", 0), 0),
             hp_healing_applied = Math.Max(GdInterop.GetInt(payload, "hp_healing_applied", 0), 0),
@@ -60,7 +72,8 @@ public static class BattleContributionEventBuilder
         StringName sourceUnitId,
         StringName sourceFactionId,
         StringName targetUnitId,
-        StringName targetFactionId)
+        StringName targetFactionId
+    )
     {
         if (!GdInterop.IsEmpty(sourceUnitId) && sourceUnitId == targetUnitId)
         {
@@ -80,7 +93,8 @@ public static class BattleContributionEventBuilder
         StringName sourceUnitId,
         StringName sourceFactionId,
         StringName targetUnitId,
-        StringName targetFactionId)
+        StringName targetFactionId
+    )
     {
         string text = relationName.ToString();
         return text switch

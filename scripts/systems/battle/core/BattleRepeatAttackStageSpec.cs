@@ -15,7 +15,7 @@ public partial class BattleRepeatAttackStageSpec : RefCounted
     public StringName stage_label { get; set; } = "";
 
     public static BattleRepeatAttackStageSpec from_repeat_attack_effect(
-        GodotObject repeat_attack_effect,
+        CombatEffectDef repeat_attack_effect,
         int stage_index_value,
         int stage_count_value,
         int skill_level_value,
@@ -31,14 +31,17 @@ public partial class BattleRepeatAttackStageSpec : RefCounted
         };
         spec.stage_label = new StringName($"repeat_stage_{spec.stage_index}");
 
-        GDictionary parameters = GdInterop.GetDictionary(repeat_attack_effect, "params");
+        GDictionary parameters = repeat_attack_effect?.@params ?? new GDictionary();
         if (repeat_attack_effect == null || parameters == null || parameters.Count == 0)
         {
             return spec;
         }
 
         spec.stage_base_attack_bonus = GdInterop.GetInt(parameters, "base_attack_bonus", 0);
-        spec.follow_up_attack_penalty = Mathf.Max(GdInterop.GetInt(parameters, "follow_up_attack_penalty", 0), 0);
+        spec.follow_up_attack_penalty = Mathf.Max(
+            GdInterop.GetInt(parameters, "follow_up_attack_penalty", 0),
+            0
+        );
         spec.exponential_penalty = GdInterop.GetBool(parameters, "exponential_penalty", false);
         spec.penalty_free_stages = ResolvePenaltyFreeStages(parameters, spec.skill_level);
         return spec;
@@ -59,7 +62,10 @@ public partial class BattleRepeatAttackStageSpec : RefCounted
 
     private static int ResolvePenaltyFreeStages(GDictionary parameters, int skillLevel)
     {
-        GDictionary levelStagesMap = GdInterop.GetDictionary(parameters, "penalty_free_stages_by_level");
+        GDictionary levelStagesMap = GdInterop.GetDictionary(
+            parameters,
+            "penalty_free_stages_by_level"
+        );
         if (levelStagesMap.Count == 0)
         {
             return 0;
@@ -67,7 +73,7 @@ public partial class BattleRepeatAttackStageSpec : RefCounted
 
         int resolvedStages = 0;
         int bestLevel = -1;
-        foreach (Variant levelKey in levelStagesMap.Keys)
+        foreach (var levelKey in levelStagesMap.Keys)
         {
             int levelValue = levelKey.AsInt32();
             if (levelValue <= skillLevel && levelValue > bestLevel)

@@ -2,11 +2,9 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_session.gd")
+const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/GameSession.cs")
 const LOGIN_SCREEN_SCENE = preload("res://scenes/main/login_screen.tscn")
-const DISPLAY_SETTINGS_SERVICE_SCRIPT = preload("res://scripts/utils/display_settings_service.gd")
-const WORLD_MAP_CONTENT_VALIDATOR_SCRIPT = preload("res://scripts/utils/world_map_content_validator.gd")
-const UnitSkillProgress = preload("res://scripts/player/progression/unit_skill_progress.gd")
+const UnitSkillProgress = preload("res://scripts/player/progression/UnitSkillProgress.cs")
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
 const TEST_PRESET_ID := &"test"
@@ -14,13 +12,6 @@ const TEMP_SETTINGS_PATH := "user://bootstrap_display_settings_test.cfg"
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
-
-
-class InvalidWorldContentValidator:
-	extends RefCounted
-
-	func validate_world_presets(_enemy_templates: Dictionary = {}, _wild_encounter_rosters: Dictionary = {}) -> Array[String]:
-		return ["World content hard gate fixture error."]
 
 
 func _initialize() -> void:
@@ -52,7 +43,8 @@ func _run() -> void:
 
 func _test_display_settings_round_trip() -> void:
 	_cleanup_file(TEMP_SETTINGS_PATH)
-	var service = DISPLAY_SETTINGS_SERVICE_SCRIPT.new(TEMP_SETTINGS_PATH)
+	var service = DisplaySettingsService.new()
+	service.setup(TEMP_SETTINGS_PATH)
 	var expected_settings := {
 		"resolution": Vector2i(1920, 1080),
 		"fullscreen": true,
@@ -201,7 +193,7 @@ func _test_character_creation_applies_identity_granted_skills() -> void:
 			_assert_true(skill_progress != null, "建卡落地后应立即补授亚种技能，不需要等下一次读档。")
 			if skill_progress != null:
 				_assert_true(skill_progress.is_learned, "Red Dragonborn 火焰吐息应为已学会状态。")
-				_assert_eq(skill_progress.granted_source_type, UnitSkillProgress.GRANTED_SOURCE_SUBRACE, "Red Dragonborn 火焰吐息来源类型应为 subrace。")
+				_assert_eq(skill_progress.granted_source_type, &"subrace", "Red Dragonborn 火焰吐息来源类型应为 subrace。")
 				_assert_eq(skill_progress.granted_source_id, &"red_dragonborn", "Red Dragonborn 火焰吐息来源 id 应为 red_dragonborn。")
 	_cleanup_test_session(game_session)
 
@@ -258,7 +250,7 @@ func _test_game_session_rotates_log_boundary_on_create_load_unload() -> void:
 
 	var create_log_path := game_session.get_active_log_file_path()
 	_assert_eq(create_log_path, "", "创建新存档后默认不应写 session jsonl 日志文件。")
-	var create_logs := game_session.get_recent_logs(4)
+	var create_logs = game_session.get_recent_logs(4)
 	_assert_eq(int(create_logs.size()), 1, "新存档日志会话应从空缓冲开始。")
 	if create_logs.size() == 1:
 		_assert_eq(String(create_logs[0].get("event_id", "")), "session.save.create.ok", "新存档日志会话首条应记录 create.ok。")
@@ -270,7 +262,7 @@ func _test_game_session_rotates_log_boundary_on_create_load_unload() -> void:
 	if load_error == OK:
 		var load_log_path := game_session.get_active_log_file_path()
 		_assert_eq(load_log_path, "", "加载存档后默认不应写 session jsonl 日志文件。")
-		var load_logs := game_session.get_recent_logs(4)
+		var load_logs = game_session.get_recent_logs(4)
 		_assert_eq(int(load_logs.size()), 1, "加载存档后的日志缓冲应重新开始计数。")
 		if load_logs.size() == 1:
 			_assert_eq(String(load_logs[0].get("event_id", "")), "session.save.load.ok", "加载存档后的首条日志应记录 load.ok。")
@@ -280,7 +272,7 @@ func _test_game_session_rotates_log_boundary_on_create_load_unload() -> void:
 		_assert_true(not game_session.has_active_world(), "卸载世界后不应继续保留 active world。")
 		var unload_log_path := game_session.get_active_log_file_path()
 		_assert_eq(unload_log_path, "", "卸载世界后默认不应写 session jsonl 日志文件。")
-		var unload_logs := game_session.get_recent_logs(4)
+		var unload_logs = game_session.get_recent_logs(4)
 		_assert_eq(int(unload_logs.size()), 1, "卸载世界后的日志缓冲应重新开始计数。")
 		if unload_logs.size() == 1:
 			_assert_eq(String(unload_logs[0].get("event_id", "")), "session.runtime.unload.ok", "卸载世界后的首条日志应记录 unload.ok。")
@@ -341,7 +333,7 @@ func _test_content_validation_failure_blocks_formal_runtime_entries() -> void:
 		return
 
 	var blocked_session = GAME_SESSION_SCRIPT.new()
-	blocked_session._world_content_validator = InvalidWorldContentValidator.new()
+	_force_invalid_world_content(blocked_session)
 	var validation_snapshot: Dictionary = blocked_session.refresh_content_validation_snapshot()
 	_assert_true(not bool(validation_snapshot.get("ok", true)), "坏内容夹具应让 GameSession validation snapshot 失败。")
 
@@ -367,7 +359,7 @@ func _test_login_screen_blocks_character_creation_when_content_validation_fails(
 	_assert_true(shared_game_session != null, "登录壳内容门禁回归前置：SceneTree 应提供共享 GameSession。")
 	if shared_game_session == null:
 		return
-	shared_game_session._world_content_validator = InvalidWorldContentValidator.new()
+	_force_invalid_world_content(shared_game_session)
 
 	var login_screen = LOGIN_SCREEN_SCENE.instantiate()
 	root.add_child(login_screen)
@@ -396,7 +388,7 @@ func _test_login_screen_blocks_character_creation_when_content_validation_fails(
 	_assert_eq(login_screen._pending_start_type, &"", "正式预设路径被内容校验阻断后不应设置 pending start type。")
 	_assert_eq(login_screen._pending_preset_id, &"", "正式预设路径被内容校验阻断后不应设置 pending preset id。")
 
-	shared_game_session._world_content_validator = WORLD_MAP_CONTENT_VALIDATOR_SCRIPT.new()
+	_restore_world_content(shared_game_session)
 	login_screen._on_test_button_pressed()
 	_assert_true(login_screen.character_creation_window.visible, "内容恢复合法后测试地图入口应能正常打开建卡窗口。")
 	_assert_eq(login_screen._pending_start_type, login_screen.PENDING_START_TYPE_PRESET, "内容恢复合法后应设置 pending start type。")
@@ -404,7 +396,16 @@ func _test_login_screen_blocks_character_creation_when_content_validation_fails(
 
 	login_screen.queue_free()
 	await process_frame
-	shared_game_session._world_content_validator = WORLD_MAP_CONTENT_VALIDATOR_SCRIPT.new()
+	_restore_world_content(shared_game_session)
+
+
+func _force_invalid_world_content(game_session) -> void:
+	game_session._enemy_templates = {}
+	game_session._wild_encounter_rosters = {}
+
+
+func _restore_world_content(game_session) -> void:
+	game_session._refresh_enemy_content()
 
 
 func _test_login_screen_test_entry_creates_generated_world() -> void:
@@ -458,7 +459,7 @@ func _find_random_starting_skill_def(game_session, member):
 		var skill_progress = member.progression.get_skill_progress(StringName(skill_key))
 		if skill_progress == null or not skill_progress.is_learned:
 			continue
-		if skill_progress.granted_source_type != UnitSkillProgress.GRANTED_SOURCE_PLAYER:
+		if skill_progress.granted_source_type != &"player":
 			continue
 		if skill_progress.granted_source_id != &"":
 			continue

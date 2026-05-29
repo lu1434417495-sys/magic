@@ -2,17 +2,18 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const GameRuntimeFacade = preload("res://scripts/systems/game_runtime/game_runtime_facade.gd")
-const GameRuntimeSettlementCommandHandler = preload("res://scripts/systems/game_runtime/game_runtime_settlement_command_handler.gd")
-const SettlementShopService = preload("res://scripts/systems/settlement/settlement_shop_service.gd")
-const GameSessionScript = preload("res://scripts/systems/persistence/game_session.gd")
-const QuestProviderContentRules = preload("res://scripts/player/progression/quest_provider_content_rules.gd")
-const ProgressionDataUtils = preload("res://scripts/player/progression/progression_data_utils.gd")
-const PartyState = preload("res://scripts/player/progression/party_state.gd")
-const PartyMemberState = preload("res://scripts/player/progression/party_member_state.gd")
-const PendingCharacterReward = preload("res://scripts/systems/progression/pending_character_reward.gd")
-const QuestState = preload("res://scripts/player/progression/quest_state.gd")
-const UnitSkillProgress = preload("res://scripts/player/progression/unit_skill_progress.gd")
+const GameRuntimeFacade = preload("res://scripts/systems/game_runtime/GameRuntimeFacade.cs")
+const GameRuntimeSettlementCommandHandler = preload("res://scripts/systems/game_runtime/GameRuntimeSettlementCommandHandler.cs")
+const SettlementShopService = preload("res://scripts/systems/settlement/SettlementShopService.cs")
+const ItemDef = preload("res://scripts/player/warehouse/ItemDef.cs")
+const GameSessionScript = preload("res://scripts/systems/persistence/GameSession.cs")
+const QuestProviderContentRules = preload("res://scripts/player/progression/QuestProviderContentRules.cs")
+const ProgressionDataUtils = preload("res://scripts/player/progression/ProgressionDataUtils.cs")
+const PartyState = preload("res://scripts/player/progression/PartyState.cs")
+const PartyMemberState = preload("res://scripts/player/progression/PartyMemberState.cs")
+const PendingCharacterReward = preload("res://scripts/systems/progression/PendingCharacterReward.cs")
+const QuestState = preload("res://scripts/player/progression/QuestState.cs")
+const UnitSkillProgress = preload("res://scripts/player/progression/UnitSkillProgress.cs")
 
 const TEST_CONFIG_PATH := "res://data/configs/world_map/test_world_map_config.tres"
 
@@ -208,9 +209,9 @@ class MockRuntime:
 
 	func get_all_settlement_records() -> Array[Dictionary]:
 		var settlements: Array[Dictionary] = []
-		for settlement_variant in _settlements_by_id.values():
-			if settlement_variant is Dictionary:
-				settlements.append((settlement_variant as Dictionary).duplicate(true))
+		for settlement_option in _settlements_by_id.values():
+			if settlement_option is Dictionary:
+				settlements.append((settlement_option as Dictionary).duplicate(true))
 		return settlements
 
 	func get_party_state():
@@ -290,12 +291,12 @@ class MockRuntime:
 			_current_status_message = "当前没有可领取的任务《%s》奖励。" % quest_label
 			return build_command_error(_current_status_message)
 		var gold_delta := 0
-		var reward_entries_variant = quest_data.get("reward_entries", [])
-		if reward_entries_variant is Array:
-			for reward_variant in reward_entries_variant:
-				if reward_variant is not Dictionary:
+		var reward_entries_option = quest_data.get("reward_entries", [])
+		if reward_entries_option is Array:
+			for reward_option in reward_entries_option:
+				if reward_option is not Dictionary:
 					continue
-				var reward_data := reward_variant as Dictionary
+				var reward_data := reward_option as Dictionary
 				if String(reward_data.get("reward_type", "")) != "gold":
 					continue
 				gold_delta += maxi(int(reward_data.get("amount", 0)), 0)
@@ -327,10 +328,10 @@ class MockRuntime:
 			return build_command_error(_current_status_message)
 		var target_value := 1
 		var item_id := &""
-		for objective_variant in quest_data.get("objective_defs", []):
-			if objective_variant is not Dictionary:
+		for objective_option in quest_data.get("objective_defs", []):
+			if objective_option is not Dictionary:
 				continue
-			var objective_data := objective_variant as Dictionary
+			var objective_data := objective_option as Dictionary
 			if ProgressionDataUtils.to_string_name(objective_data.get("objective_id", "")) != objective_id:
 				continue
 			target_value = maxi(int(objective_data.get("target_value", 1)), 1)
@@ -365,26 +366,33 @@ class MockRuntime:
 	func open_party_warehouse_window(entry_label: String) -> void:
 		opened_warehouse_labels.append(entry_label)
 
-	func enqueue_pending_character_rewards(reward_variants: Array) -> void:
-		pending_rewards.append_array(reward_variants.duplicate(true))
-		for reward_variant in reward_variants:
-			var reward = PendingCharacterReward.from_variant(reward_variant)
+	func enqueue_pending_character_rewards(reward_options: Array) -> void:
+		pending_rewards.append_array(reward_options.duplicate(true))
+		for reward_option in reward_options:
+			var reward = _pending_reward_from_option(reward_option)
 			if reward == null:
 				continue
 			_party_state.enqueue_pending_character_reward(reward)
 
-	func apply_quest_progress_events_to_party(event_variants: Array, _source_domain: String = "settlement") -> Dictionary:
-		applied_quest_event_batches.append(event_variants.duplicate(true))
+	func _pending_reward_from_option(reward_option):
+		if reward_option is PendingCharacterReward:
+			return PendingCharacterReward.from_dict(reward_option.to_dict())
+		if reward_option is Dictionary:
+			return PendingCharacterReward.from_dict(reward_option)
+		return null
+
+	func apply_quest_progress_events_to_party(event_options: Array, _source_domain: String = "settlement") -> Dictionary:
+		applied_quest_event_batches.append(event_options.duplicate(true))
 		var summary := {
 			"accepted_quest_ids": [],
 			"progressed_quest_ids": [],
 			"claimable_quest_ids": [],
 			"completed_quest_ids": [],
 		}
-		for event_variant in event_variants:
-			if event_variant is not Dictionary:
+		for event_option in event_options:
+			if event_option is not Dictionary:
 				continue
-			var event_data := (event_variant as Dictionary).duplicate(true)
+			var event_data := (event_option as Dictionary).duplicate(true)
 			var quest_id := ProgressionDataUtils.to_string_name(event_data.get("quest_id", ""))
 			if quest_id == &"":
 				continue
@@ -611,7 +619,7 @@ func _test_settlement_handler_routes_research_service() -> void:
 	_assert_true(bool(research_service.get("is_enabled", false)), "金币充足时 research 服务入口应可点击。")
 	_assert_eq(String(research_service.get("cost_label", "")), "200 金", "research 服务应暴露正式金币成本。")
 
-	var research_result := handler.command_execute_settlement_action("service:research")
+	var research_result := handler.command_execute_settlement_action("service:research", {})
 	_assert_true(bool(research_result.get("ok", false)), "research 服务应能走正式 settlement action dispatch。")
 	_assert_eq(runtime._party_state.get_gold(), 50, "research 服务成功后应扣除正式研究成本。")
 	_assert_eq(runtime._active_modal_id, "settlement", "research 服务不应切走当前 settlement modal。")
@@ -644,7 +652,7 @@ func _test_settlement_handler_routes_research_service() -> void:
 	var reenabled_research_service := _find_service_entry(reenabled_window_data.get("available_services", []), "service:research")
 	_assert_true(bool(reenabled_research_service.get("is_enabled", false)), "首条 research 奖励尚未确认时，也应切到下一条可研究内容，而不是重复给野外手册。")
 
-	var second_research_result := handler.command_execute_settlement_action("service:research")
+	var second_research_result := handler.command_execute_settlement_action("service:research", {})
 	_assert_true(bool(second_research_result.get("ok", false)), "第二次 research 服务应继续走正式 settlement action dispatch。")
 	_assert_eq(runtime.pending_rewards.size(), 2, "第二次 research 服务应继续把奖励排入队列。")
 	_assert_eq(runtime._party_state.pending_character_rewards.size(), 2, "research 正式链路应把待领奖励同步写回 party_state。")
@@ -971,7 +979,7 @@ func _test_settlement_handler_routes_actions_and_modal_state() -> void:
 	_assert_true(not bounty_service.is_empty(), "据点窗口应暴露悬赏署服务入口。")
 	_assert_true(bool(bounty_service.get("is_enabled", false)), "悬赏署服务入口应为可点击状态。")
 
-	var warehouse_result := handler.command_execute_settlement_action("service:warehouse")
+	var warehouse_result := handler.command_execute_settlement_action("service:warehouse", {})
 	_assert_true(bool(warehouse_result.get("ok", false)), "据点仓储动作应执行成功。")
 	_assert_eq(runtime._active_settlement_id, "spring_village_01", "仓储动作后应记录当前据点 ID。")
 	_assert_eq(runtime._active_modal_id, "", "仓储动作后应让位给共享仓库 modal。")
@@ -985,7 +993,7 @@ func _test_settlement_handler_routes_actions_and_modal_state() -> void:
 	runtime._active_modal_id = "settlement"
 	runtime._active_settlement_id = "spring_village_01"
 
-	var contract_board_result := handler.command_execute_settlement_action("service:contract_board")
+	var contract_board_result := handler.command_execute_settlement_action("service:contract_board", {})
 	var contract_board_window_data := handler.get_contract_board_window_data()
 	var contract_board_entry_ids := _extract_contract_board_entry_ids(contract_board_window_data.get("entries", []))
 	_assert_true(bool(contract_board_result.get("ok", false)), "任务板服务应能切换到 contract_board modal。")
@@ -1145,7 +1153,7 @@ func _test_settlement_handler_routes_actions_and_modal_state() -> void:
 	_assert_eq(runtime._active_modal_id, "settlement", "关闭任务板后应返回 settlement modal。")
 	_assert_eq(runtime._active_settlement_id, "spring_village_01", "关闭任务板后应继续保留当前据点。")
 
-	var bounty_board_result := handler.command_execute_settlement_action("service:bounty_registry")
+	var bounty_board_result := handler.command_execute_settlement_action("service:bounty_registry", {})
 	var bounty_board_window_data := handler.get_contract_board_window_data()
 	var bounty_board_entry_ids := _extract_contract_board_entry_ids(bounty_board_window_data.get("entries", []))
 	_assert_true(bool(bounty_board_result.get("ok", false)), "悬赏署服务应复用 contract_board modal。")
@@ -1155,7 +1163,7 @@ func _test_settlement_handler_routes_actions_and_modal_state() -> void:
 	_assert_eq(bounty_board_entry_ids, ["contract_regional_bounty"], "悬赏署 modal 只应暴露自己的 bounty quest。")
 
 	handler.on_contract_board_window_closed()
-	handler.command_execute_settlement_action("service:contract_board")
+	handler.command_execute_settlement_action("service:contract_board", {})
 	var reopened_contract_entry_ids := _extract_contract_board_entry_ids(handler.get_contract_board_window_data().get("entries", []))
 	_assert_eq(reopened_contract_entry_ids, ["contract_first_hunt", "contract_manual_drill", "contract_repeatable_patrol", "contract_supply_drop"], "悬赏署 provider 不应污染正式 contract board 列表。")
 	handler.on_contract_board_window_closed()
@@ -1298,7 +1306,7 @@ func _test_settlement_handler_routes_actions_and_modal_state() -> void:
 	_assert_true(not missing_result.has("pending_mastery_rewards"), "失败结果也不应保留 legacy pending_mastery_rewards。")
 	_assert_true(not missing_result.has("effects"), "失败结果也不应保留 legacy effects。")
 
-	var stagecoach_result := handler.command_execute_settlement_action("service:stagecoach")
+	var stagecoach_result := handler.command_execute_settlement_action("service:stagecoach", {})
 	_assert_true(bool(stagecoach_result.get("ok", false)), "驿站服务应能打开路线窗口。")
 	_assert_eq(runtime._active_modal_id, "stagecoach", "打开驿站后应切换到驿站 modal。")
 	var travel_result := handler.command_stagecoach_travel("graystone_town_01")
@@ -1391,7 +1399,7 @@ func _test_settlement_shop_service_rejects_bad_entry_schema() -> void:
 			party_state.gold
 		)
 		_assert_eq((window_data.get("buy_entries", []) as Array).size(), 0, "%s 的坏 shop stock 不应生成购买窗口条目。" % label)
-		var gold_before := party_state.gold
+		var gold_before: int = int(party_state.gold)
 		var buy_result := shop_service.buy(
 			"service_basic_supply",
 			settlement_record,
@@ -1400,7 +1408,8 @@ func _test_settlement_shop_service_rejects_bad_entry_schema() -> void:
 			warehouse,
 			party_state,
 			&"healing_herb",
-			1
+			1,
+			&""
 		)
 		_assert_true(not bool(buy_result.get("success", true)), "%s 的坏 shop stock 不应允许购买交易。" % label)
 		_assert_eq(party_state.gold, gold_before, "%s 的坏 shop stock 不应扣除金币。" % label)
@@ -1464,7 +1473,8 @@ func _test_settlement_shop_service_rejects_bad_entry_schema() -> void:
 		no_price_warehouse,
 		no_price_party,
 		&"no_price_sample",
-		1
+		1,
+		&""
 	)
 	_assert_true(not bool(no_price_sell_result.get("success", true)), "缺少正式 sell_price 的物品不应允许出售交易。")
 	_assert_eq(no_price_party.gold, 0, "缺少正式 sell_price 的出售失败不应增加金币。")
@@ -1516,23 +1526,23 @@ func _test_settlement_handler_rejects_invalid_or_spoofed_actions() -> void:
 	handler.setup(runtime)
 
 	runtime._active_modal_id = ""
-	var closed_modal_result := handler.command_execute_settlement_action("service:basic_supply")
+	var closed_modal_result := handler.command_execute_settlement_action("service:basic_supply", {})
 	_assert_true(not bool(closed_modal_result.get("ok", true)), "未打开据点窗口时不应执行据点服务。")
 	_assert_eq(String(closed_modal_result.get("message", "")), "当前没有打开对应的据点窗口。", "未打开据点窗口应返回明确错误。")
 	runtime._active_modal_id = "settlement"
 
 	runtime._fog_system.visible = false
-	var hidden_settlement_result := handler.command_execute_settlement_action("service:basic_supply")
+	var hidden_settlement_result := handler.command_execute_settlement_action("service:basic_supply", {})
 	_assert_true(not bool(hidden_settlement_result.get("ok", true)), "不可见据点不应执行据点服务。")
 	_assert_eq(String(hidden_settlement_result.get("message", "")), "当前据点不在视野中，不能执行据点服务。", "不可见据点应返回明确错误。")
 	runtime._fog_system.visible = true
 
-	var missing_action_result := handler.command_execute_settlement_action("service:missing")
+	var missing_action_result := handler.command_execute_settlement_action("service:missing", {})
 	_assert_true(not bool(missing_action_result.get("ok", true)), "未开放的 action_id 应被直接拒绝。")
 	_assert_true(String(missing_action_result.get("message", "")).find("未开放该服务") >= 0, "未开放 action_id 的错误信息应明确指出未开放。")
 	_assert_eq(runtime._active_modal_id, "settlement", "未开放 action_id 失败后不应切换 modal。")
 
-	var disabled_stagecoach_result := handler.command_execute_settlement_action("service:stagecoach")
+	var disabled_stagecoach_result := handler.command_execute_settlement_action("service:stagecoach", {})
 	_assert_true(not bool(disabled_stagecoach_result.get("ok", true)), "禁用的据点服务不应继续执行。")
 	_assert_eq(String(disabled_stagecoach_result.get("message", "")), "驿站 当前不可用：暂无已访问路线。", "禁用服务应返回明确 disabled_reason。")
 	_assert_eq(runtime._active_modal_id, "settlement", "禁用服务失败后不应切换 modal。")
@@ -1572,13 +1582,13 @@ func _test_world_generation_exposes_research_service() -> void:
 		var world_data: Dictionary = game_session.get_world_data()
 		var found_research_service: Dictionary = {}
 		var found_legacy_unlock_archive := false
-		for settlement_variant in world_data.get("settlements", []):
-			if settlement_variant is not Dictionary:
+		for settlement_option in world_data.get("settlements", []):
+			if settlement_option is not Dictionary:
 				continue
-			for service_variant in (settlement_variant as Dictionary).get("available_services", []):
-				if service_variant is not Dictionary:
+			for service_option in (settlement_option as Dictionary).get("available_services", []):
+				if service_option is not Dictionary:
 					continue
-				var service_data: Dictionary = service_variant
+				var service_data: Dictionary = service_option
 				var interaction_script_id := String(service_data.get("interaction_script_id", ""))
 				if interaction_script_id == "service_research" and found_research_service.is_empty():
 					found_research_service = service_data.duplicate(true)
@@ -1625,8 +1635,8 @@ func _make_shop_item_def(
 	buy_price: int,
 	sell_price: int,
 	sellable: bool
-) -> MockShopItemDef:
-	var item_def := MockShopItemDef.new()
+) -> ItemDef:
+	var item_def := ItemDef.new()
 	item_def.display_name = display_name
 	item_def.description = description
 	item_def.icon = ""
@@ -1680,34 +1690,34 @@ func _has_call(calls: Array[Dictionary], method_name: String) -> bool:
 	return false
 
 
-func _find_service_entry(service_variants, action_id: String) -> Dictionary:
-	if service_variants is not Array:
+func _find_service_entry(service_options, action_id: String) -> Dictionary:
+	if service_options is not Array:
 		return {}
-	for service_variant in service_variants:
-		if service_variant is Dictionary and String(service_variant.get("action_id", "")) == action_id:
-			return (service_variant as Dictionary).duplicate(true)
+	for service_option in service_options:
+		if service_option is Dictionary and String(service_option.get("action_id", "")) == action_id:
+			return (service_option as Dictionary).duplicate(true)
 	return {}
 
 
-func _extract_contract_board_entry_ids(entry_variants) -> Array[String]:
+func _extract_contract_board_entry_ids(entry_options) -> Array[String]:
 	var result: Array[String] = []
-	if entry_variants is not Array:
+	if entry_options is not Array:
 		return result
-	for entry_variant in entry_variants:
-		if entry_variant is not Dictionary:
+	for entry_option in entry_options:
+		if entry_option is not Dictionary:
 			continue
-		var entry: Dictionary = entry_variant
+		var entry: Dictionary = entry_option
 		result.append(String(entry.get("quest_id", "")))
 	return result
 
 
-func _find_contract_board_entry(entry_variants, quest_id: String) -> Dictionary:
-	if entry_variants is not Array:
+func _find_contract_board_entry(entry_options, quest_id: String) -> Dictionary:
+	if entry_options is not Array:
 		return {}
-	for entry_variant in entry_variants:
-		if entry_variant is not Dictionary:
+	for entry_option in entry_options:
+		if entry_option is not Dictionary:
 			continue
-		var entry: Dictionary = entry_variant
+		var entry: Dictionary = entry_option
 		if String(entry.get("quest_id", "")) == quest_id:
 			return entry.duplicate(true)
 	return {}
@@ -1716,10 +1726,10 @@ func _find_contract_board_entry(entry_variants, quest_id: String) -> Dictionary:
 func _get_first_reward_entry(reward_data) -> Dictionary:
 	if reward_data is not Dictionary:
 		return {}
-	var entries_variant = (reward_data as Dictionary).get("entries", [])
-	if entries_variant is not Array or (entries_variant as Array).is_empty():
+	var entries_option = (reward_data as Dictionary).get("entries", [])
+	if entries_option is not Array or (entries_option as Array).is_empty():
 		return {}
-	var first_entry = (entries_variant as Array)[0]
+	var first_entry = (entries_option as Array)[0]
 	return (first_entry as Dictionary).duplicate(true) if first_entry is Dictionary else {}
 
 

@@ -1,36 +1,58 @@
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class ProgressionDataUtils : RefCounted
+internal static class ProgressionDataUtils
 {
-    public static StringName to_string_name(Variant value)
+    internal static StringName to_string_name(object rawValue)
     {
+        if (rawValue == null)
+        {
+            return "";
+        }
+        if (rawValue is StringName stringName)
+        {
+            return string.IsNullOrEmpty(stringName.ToString()) ? "" : stringName;
+        }
+        if (rawValue is not Variant value)
+        {
+            string rawText = rawValue.ToString();
+            return string.IsNullOrEmpty(rawText) || rawText == "<null>" ? "" : new StringName(rawText);
+        }
         if (value.VariantType == Variant.Type.Nil)
         {
             return "";
         }
 
-        string text = value.VariantType == Variant.Type.StringName
-            ? value.AsStringName().ToString()
-            : value.ToString();
+        string text =
+            value.VariantType == Variant.Type.StringName
+                ? value.AsStringName().ToString()
+                : value.ToString();
         return string.IsNullOrEmpty(text) || text == "<null>" ? "" : new StringName(text);
     }
 
-    public static string string_name_to_string(StringName value)
+    internal static string string_name_to_string(StringName value)
     {
         return value.ToString();
     }
 
-    public static Godot.Collections.Array<StringName> to_string_name_array(Variant values)
+    internal static Godot.Collections.Array<StringName> to_string_name_array(object rawValues)
     {
         var result = new Godot.Collections.Array<StringName>();
-        if (values.VariantType != Variant.Type.Array)
+        Godot.Collections.Array values = null;
+        if (rawValues is Variant variantValues && variantValues.VariantType == Variant.Type.Array)
+        {
+            values = variantValues.AsGodotArray();
+        }
+        else if (rawValues is Godot.Collections.Array arrayValues)
+        {
+            values = arrayValues;
+        }
+        if (values == null)
         {
             return result;
         }
 
-        foreach (Variant value in values.AsGodotArray())
+        foreach (var value in values)
         {
             StringName normalized = to_string_name(value);
             if (normalized != (StringName)"")
@@ -41,7 +63,9 @@ public partial class ProgressionDataUtils : RefCounted
         return result;
     }
 
-    public static Godot.Collections.Array<string> string_name_array_to_string_array(Godot.Collections.Array<StringName> values)
+    internal static Godot.Collections.Array<string> string_name_array_to_string_array(
+        Godot.Collections.Array<StringName> values
+    )
     {
         var result = new Godot.Collections.Array<string>();
         foreach (StringName value in values)
@@ -51,65 +75,58 @@ public partial class ProgressionDataUtils : RefCounted
         return result;
     }
 
-    public static GDictionary to_string_name_int_map(Variant values)
+    internal static GDictionary to_string_name_int_map(GDictionary values)
     {
         var result = new GDictionary();
-        if (values.VariantType != Variant.Type.Dictionary)
+        if (values == null)
         {
             return result;
         }
 
-        GDictionary source = values.AsGodotDictionary();
-        foreach (Variant key in source.Keys)
+        foreach (var key in values.Keys)
         {
-            result[to_string_name(key)] = source[key].AsInt32();
+            result[to_string_name(key)] = values[key].AsInt32();
         }
         return result;
     }
 
-    public static GDictionary string_name_int_map_to_string_dict(GDictionary values)
+    internal static GDictionary string_name_int_map_to_string_dict(GDictionary values)
     {
         var result = new GDictionary();
-        foreach (Variant key in values.Keys)
+        foreach (var key in values.Keys)
         {
             result[key.ToString()] = values[key].AsInt32();
         }
         return result;
     }
 
-    public static GDictionary to_string_name_array_map(Variant values)
+    internal static GDictionary string_name_int_map_to_string_dict(
+        System.Collections.Generic.Dictionary<StringName, int> values
+    )
     {
         var result = new GDictionary();
-        if (values.VariantType != Variant.Type.Dictionary)
-        {
-            return result;
-        }
-
-        GDictionary source = values.AsGodotDictionary();
-        foreach (Variant key in source.Keys)
-        {
-            result[to_string_name(key)] = to_string_name_array(source[key]);
-        }
+        foreach (var kvp in values)
+            result[kvp.Key.ToString()] = kvp.Value;
         return result;
     }
 
-    public static GDictionary string_name_array_map_to_string_dict(GDictionary values)
+    internal static GDictionary string_name_array_map_to_string_dict(GDictionary values)
     {
         var result = new GDictionary();
-        foreach (Variant key in values.Keys)
+        foreach (var key in values.Keys)
         {
             if (values[key].VariantType == Variant.Type.Array)
             {
-                result[key.ToString()] = StringNameArrayVariantToStringArray(values[key]);
+                result[key.ToString()] = StringNameArrayToStringArray(values[key].AsGodotArray());
             }
         }
         return result;
     }
 
-    public static Godot.Collections.Array<string> sorted_string_keys(GDictionary values)
+    internal static Godot.Collections.Array<string> sorted_string_keys(GDictionary values)
     {
         var sorted = new System.Collections.Generic.List<string>();
-        foreach (Variant key in values.Keys)
+        foreach (var key in values.Keys)
         {
             sorted.Add(key.ToString());
         }
@@ -123,10 +140,12 @@ public partial class ProgressionDataUtils : RefCounted
         return result;
     }
 
-    private static Godot.Collections.Array<string> StringNameArrayVariantToStringArray(Variant value)
+    private static Godot.Collections.Array<string> StringNameArrayToStringArray(
+        Godot.Collections.Array values
+    )
     {
         var result = new Godot.Collections.Array<string>();
-        foreach (Variant entry in value.AsGodotArray())
+        foreach (var entry in values)
         {
             StringName normalized = to_string_name(entry);
             if (normalized != (StringName)"")
@@ -135,5 +154,18 @@ public partial class ProgressionDataUtils : RefCounted
             }
         }
         return result;
+    }
+
+    /// <summary>
+    /// 检查 value 是否落在 [minValue, maxValue] 区间内。
+    /// maxValue == 0 表示无上限；maxValue &lt; 0 按无上限处理（配置错误场景）。
+    /// </summary>
+    internal static bool MatchesValueRange(int value, int minValue, int maxValue)
+    {
+        if (value < minValue)
+            return false;
+        if (maxValue < 0)
+            return true;
+        return maxValue == 0 || value <= maxValue;
     }
 }

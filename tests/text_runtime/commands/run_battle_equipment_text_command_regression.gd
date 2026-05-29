@@ -2,12 +2,12 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const GAME_TEXT_COMMAND_RUNNER_SCRIPT = preload("res://scripts/systems/game_runtime/headless/game_text_command_runner.gd")
-const EquipmentRequirement = preload("res://scripts/player/equipment/equipment_requirement.gd")
-const EquipmentInstanceState = preload("res://scripts/player/warehouse/equipment_instance_state.gd")
-const ItemDef = preload("res://scripts/player/warehouse/item_def.gd")
-const WeaponDamageDiceDef = preload("res://scripts/player/warehouse/weapon_damage_dice_def.gd")
-const WeaponProfileDef = preload("res://scripts/player/warehouse/weapon_profile_def.gd")
+const GAME_TEXT_COMMAND_RUNNER_SCRIPT = preload("res://scripts/systems/game_runtime/headless/GameTextCommandRunner.cs")
+const EquipmentRequirement = preload("res://scripts/player/equipment/EquipmentRequirement.cs")
+const EquipmentInstanceState = preload("res://scripts/player/warehouse/EquipmentInstanceState.cs")
+const ItemDef = preload("res://scripts/player/warehouse/ItemDef.cs")
+const WeaponDamageDiceDef = preload("res://scripts/player/warehouse/WeaponDamageDiceDef.cs")
+const WeaponProfileDef = preload("res://scripts/player/warehouse/WeaponProfileDef.cs")
 
 const VERSATILE_TEST_WEAPON_ID: StringName = &"wpndice_versatile_longsword"
 const OFFHAND_TEST_ITEM_ID: StringName = &"wpndice_offhand_focus"
@@ -201,7 +201,7 @@ func _install_battle_equipment_test_items(runner) -> void:
 		"应能注册战斗换装测试用受限头盔。"
 	)
 	_assert_eq(
-		game_session.install_test_content_def(&"item", String(STRING_KEY_ONLY_TEST_HELM_ID), _build_string_key_only_test_helm_def()),
+		game_session.install_test_content_def_string_key(&"item", String(STRING_KEY_ONLY_TEST_HELM_ID), _build_string_key_only_test_helm_def()),
 		OK,
 		"应能以 String key 注册战斗换装测试用头盔。"
 	)
@@ -223,7 +223,7 @@ func _install_string_key_only_battle_item_instance(runner) -> void:
 	if backpack == null:
 		return
 	backpack.equipment_instances.append(
-		EquipmentInstanceState.create(STRING_KEY_ONLY_TEST_HELM_ID, STRING_KEY_ONLY_TEST_HELM_INSTANCE_ID)
+		EquipmentInstanceState.create_instance(STRING_KEY_ONLY_TEST_HELM_ID, STRING_KEY_ONLY_TEST_HELM_INSTANCE_ID)
 	)
 
 
@@ -237,11 +237,11 @@ func _install_duplicate_battle_item_instances(runner) -> void:
 	_assert_true(backpack != null, "重复实例战斗换装回归前置：应存在 battle-local 背包。")
 	if backpack == null:
 		return
-	var common_instance := EquipmentInstanceState.create(DUPLICATE_TEST_CHARM_ID, DUPLICATE_TEST_CHARM_COMMON_INSTANCE_ID)
-	common_instance.rarity = EquipmentInstanceState.RarityTier.COMMON
+	var common_instance := EquipmentInstanceState.create_instance(DUPLICATE_TEST_CHARM_ID, DUPLICATE_TEST_CHARM_COMMON_INSTANCE_ID)
+	common_instance.rarity = EquipmentInstanceState.RARITY_TIER_COMMON()
 	common_instance.current_durability = 10
-	var rare_instance := EquipmentInstanceState.create(DUPLICATE_TEST_CHARM_ID, DUPLICATE_TEST_CHARM_RARE_INSTANCE_ID)
-	rare_instance.rarity = EquipmentInstanceState.RarityTier.RARE
+	var rare_instance := EquipmentInstanceState.create_instance(DUPLICATE_TEST_CHARM_ID, DUPLICATE_TEST_CHARM_RARE_INSTANCE_ID)
+	rare_instance.rarity = EquipmentInstanceState.RARITY_TIER_RARE()
 	rare_instance.current_durability = 24
 	backpack.equipment_instances.append(common_instance)
 	backpack.equipment_instances.append(rare_instance)
@@ -252,18 +252,18 @@ func _build_versatile_test_weapon_def() -> ItemDef:
 	item_def.item_id = VERSATILE_TEST_WEAPON_ID
 	item_def.display_name = "WPNDICE Versatile Longsword"
 	item_def.is_stackable = false
-	item_def.item_category = ItemDef.ITEM_CATEGORY_EQUIPMENT
-	item_def.equipment_type_id = ItemDef.EQUIPMENT_TYPE_WEAPON
+	item_def.item_category = &"equipment"
+	item_def.equipment_type_id = &"weapon"
 	item_def.equipment_slot_ids = ["main_hand"]
 	item_def.tags = [&"weapon", &"melee", &"versatile", &"test"]
 
 	var profile := WeaponProfileDef.new()
 	profile.weapon_type_id = &"wpndice_longsword"
-	profile.damage_tag = ItemDef.DAMAGE_TAG_PHYSICAL_SLASH
+	profile.damage_tag = &"physical_slash"
 	profile.attack_range = 1
 	profile.one_handed_dice = _build_weapon_dice(1, 8, 0)
 	profile.two_handed_dice = _build_weapon_dice(1, 10, 0)
-	profile.properties_mode = WeaponProfileDef.PropertyMergeMode.REPLACE
+	profile.properties_mode = WeaponProfileDef.PROPERTY_MERGE_MODE_REPLACE()
 	profile.properties = [&"versatile"]
 	item_def.weapon_profile = profile
 	return item_def
@@ -274,8 +274,8 @@ func _build_offhand_test_item_def() -> ItemDef:
 	item_def.item_id = OFFHAND_TEST_ITEM_ID
 	item_def.display_name = "WPNDICE Offhand Focus"
 	item_def.is_stackable = false
-	item_def.item_category = ItemDef.ITEM_CATEGORY_EQUIPMENT
-	item_def.equipment_type_id = ItemDef.EQUIPMENT_TYPE_ACCESSORY
+	item_def.item_category = &"equipment"
+	item_def.equipment_type_id = &"accessory"
 	item_def.equipment_slot_ids = ["off_hand"]
 	item_def.tags = [&"off_hand", &"focus", &"test"]
 	return item_def
@@ -286,8 +286,8 @@ func _build_duplicate_test_charm_def() -> ItemDef:
 	item_def.item_id = DUPLICATE_TEST_CHARM_ID
 	item_def.display_name = "WPNDICE Duplicate Charm"
 	item_def.is_stackable = false
-	item_def.item_category = ItemDef.ITEM_CATEGORY_EQUIPMENT
-	item_def.equipment_type_id = ItemDef.EQUIPMENT_TYPE_ACCESSORY
+	item_def.item_category = &"equipment"
+	item_def.equipment_type_id = &"accessory"
 	item_def.equipment_slot_ids = ["necklace"]
 	item_def.tags = [&"accessory", &"test"]
 	return item_def
@@ -298,8 +298,8 @@ func _build_restricted_test_helm_def() -> ItemDef:
 	item_def.item_id = RESTRICTED_TEST_HELM_ID
 	item_def.display_name = "WPNDICE Restricted Helm"
 	item_def.is_stackable = false
-	item_def.item_category = ItemDef.ITEM_CATEGORY_EQUIPMENT
-	item_def.equipment_type_id = ItemDef.EQUIPMENT_TYPE_ARMOR
+	item_def.item_category = &"equipment"
+	item_def.equipment_type_id = &"armor"
 	item_def.equipment_slot_ids = ["head"]
 	item_def.tags = [&"head", &"armor", &"test"]
 	var requirement := EquipmentRequirement.new()
@@ -313,8 +313,8 @@ func _build_string_key_only_test_helm_def() -> ItemDef:
 	item_def.item_id = STRING_KEY_ONLY_TEST_HELM_ID
 	item_def.display_name = "WPNDICE String Key Only Helm"
 	item_def.is_stackable = false
-	item_def.item_category = ItemDef.ITEM_CATEGORY_EQUIPMENT
-	item_def.equipment_type_id = ItemDef.EQUIPMENT_TYPE_ARMOR
+	item_def.item_category = &"equipment"
+	item_def.equipment_type_id = &"armor"
 	item_def.equipment_slot_ids = ["head"]
 	item_def.tags = [&"head", &"armor", &"test"]
 	return item_def
@@ -426,7 +426,7 @@ func _assert_battle_duplicate_unequip_round_trip(snapshot: Dictionary, runner) -
 	var returned_instance = _find_battle_backpack_instance(battle_state.get_party_backpack_view() if battle_state != null else null, DUPLICATE_TEST_CHARM_RARE_INSTANCE_ID)
 	_assert_true(returned_instance != null, "卸装 round-trip 后应能在 battle-local 背包找到 rare 实例。")
 	if returned_instance != null:
-		_assert_eq(int(returned_instance.rarity), int(EquipmentInstanceState.RarityTier.RARE), "卸装 round-trip 后 rare 品质应保留。")
+		_assert_eq(int(returned_instance.rarity), int(EquipmentInstanceState.RARITY_TIER_RARE()), "卸装 round-trip 后 rare 品质应保留。")
 		_assert_eq(int(returned_instance.current_durability), 24, "卸装 round-trip 后 rare 耐久应保留。")
 
 
@@ -543,10 +543,10 @@ func _assert_battle_unequip_body_armor_turn_end_without_hp_clamp(snapshot: Dicti
 func _find_latest_change_equipment_report(snapshot: Dictionary) -> Dictionary:
 	var reports: Array = snapshot.get("battle", {}).get("report_entries", [])
 	for index in range(reports.size() - 1, -1, -1):
-		var report_variant = reports[index]
-		if report_variant is not Dictionary:
+		var report_option = reports[index]
+		if report_option is not Dictionary:
 			continue
-		var report: Dictionary = report_variant
+		var report: Dictionary = report_option
 		if String(report.get("type", "")) == "change_equipment":
 			return report
 	return {}
@@ -554,10 +554,10 @@ func _find_latest_change_equipment_report(snapshot: Dictionary) -> Dictionary:
 
 func _find_battle_unit(battle_snapshot: Dictionary, unit_id: String) -> Dictionary:
 	var units: Array = battle_snapshot.get("units", [])
-	for unit_variant in units:
-		if unit_variant is not Dictionary:
+	for unit_option in units:
+		if unit_option is not Dictionary:
 			continue
-		var unit: Dictionary = unit_variant
+		var unit: Dictionary = unit_option
 		if String(unit.get("unit_id", "")) == unit_id:
 			return unit
 	return {}
@@ -565,10 +565,10 @@ func _find_battle_unit(battle_snapshot: Dictionary, unit_id: String) -> Dictiona
 
 func _find_battle_hud_backpack_entry(snapshot: Dictionary, item_id: String) -> Dictionary:
 	var entries: Array = snapshot.get("battle", {}).get("hud", {}).get("equipment_panel", {}).get("backpack_entries", [])
-	for entry_variant in entries:
-		if entry_variant is not Dictionary:
+	for entry_option in entries:
+		if entry_option is not Dictionary:
 			continue
-		var entry: Dictionary = entry_variant
+		var entry: Dictionary = entry_option
 		if String(entry.get("item_id", "")) == item_id:
 			return entry
 	return {}
@@ -578,10 +578,10 @@ func _find_other_battle_unit_id(snapshot: Dictionary) -> String:
 	var battle_snapshot: Dictionary = snapshot.get("battle", {})
 	var active_unit_id := String(battle_snapshot.get("active_unit_id", ""))
 	var units: Array = battle_snapshot.get("units", [])
-	for unit_variant in units:
-		if unit_variant is not Dictionary:
+	for unit_option in units:
+		if unit_option is not Dictionary:
 			continue
-		var unit: Dictionary = unit_variant
+		var unit: Dictionary = unit_option
 		var unit_id := String(unit.get("unit_id", ""))
 		if not unit_id.is_empty() and unit_id != active_unit_id:
 			return unit_id
@@ -589,20 +589,20 @@ func _find_other_battle_unit_id(snapshot: Dictionary) -> String:
 
 
 func _find_party_member(entries: Array, member_id: String) -> Dictionary:
-	for entry_variant in entries:
-		if entry_variant is not Dictionary:
+	for entry_option in entries:
+		if entry_option is not Dictionary:
 			continue
-		var entry: Dictionary = entry_variant
+		var entry: Dictionary = entry_option
 		if String(entry.get("member_id", "")) == member_id:
 			return entry
 	return {}
 
 
 func _find_equipped_entry(entries: Array, slot_id: String) -> Dictionary:
-	for entry_variant in entries:
-		if entry_variant is not Dictionary:
+	for entry_option in entries:
+		if entry_option is not Dictionary:
 			continue
-		var entry: Dictionary = entry_variant
+		var entry: Dictionary = entry_option
 		if String(entry.get("slot_id", "")) == slot_id:
 			return entry
 	return {}
@@ -621,17 +621,17 @@ func _count_battle_backpack_item(snapshot: Dictionary, item_id: String) -> int:
 	var backpack: Dictionary = snapshot.get("battle", {}).get("party_backpack", {})
 	var total := 0
 	var stacks: Array = backpack.get("stacks", [])
-	for stack_variant in stacks:
-		if stack_variant is not Dictionary:
+	for stack_option in stacks:
+		if stack_option is not Dictionary:
 			continue
-		var stack: Dictionary = stack_variant
+		var stack: Dictionary = stack_option
 		if String(stack.get("item_id", "")) == item_id:
 			total += int(stack.get("quantity", 0))
 	var instances: Array = backpack.get("equipment_instances", [])
-	for instance_variant in instances:
-		if instance_variant is not Dictionary:
+	for instance_option in instances:
+		if instance_option is not Dictionary:
 			continue
-		var instance: Dictionary = instance_variant
+		var instance: Dictionary = instance_option
 		if String(instance.get("item_id", "")) == item_id:
 			total += 1
 	return total
@@ -653,7 +653,7 @@ func _run_command(runner, command_text: String):
 	if result.skipped:
 		return result
 	if not result.ok:
-		print(result.render())
+		print(result.Render())
 		_test.fail("命令失败：%s | %s" % [command_text, result.message])
 	return result
 
@@ -664,7 +664,7 @@ func _run_command_expect_fail(runner, command_text: String):
 		_test.fail("命令被跳过，无法验证失败：%s" % command_text)
 		return result
 	if result.ok:
-		print(result.render())
+		print(result.Render())
 		_test.fail("命令应失败但成功：%s" % command_text)
 	return result
 

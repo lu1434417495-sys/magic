@@ -2,8 +2,8 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/game_session.gd")
-const GAME_RUNTIME_FACADE_SCRIPT = preload("res://scripts/systems/game_runtime/game_runtime_facade.gd")
+const GAME_SESSION_SCRIPT = preload("res://scripts/systems/persistence/GameSession.cs")
+const GAME_RUNTIME_FACADE_SCRIPT = preload("res://scripts/systems/game_runtime/GameRuntimeFacade.cs")
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
 
@@ -87,10 +87,10 @@ func _test_entering_settlement_hides_player_until_close() -> void:
 func _find_adjacent_settlement_probe(facade) -> Dictionary:
 	var settlements: Array = facade.get_world_data().get("settlements", [])
 	var grid_system = facade.get_grid_system()
-	for settlement_variant in settlements:
-		if settlement_variant is not Dictionary:
+	for settlement_option in settlements:
+		if settlement_option is not Dictionary:
 			continue
-		var settlement: Dictionary = settlement_variant
+		var settlement: Dictionary = settlement_option
 		var origin: Vector2i = settlement.get("origin", Vector2i.ZERO)
 		var size: Vector2i = settlement.get("footprint_size", Vector2i.ONE)
 		for offset_y in range(size.y):
@@ -133,10 +133,10 @@ func _is_valid_entry_probe(settlements: Array, grid_system, source_coord: Vector
 
 
 func _find_settlement_covering_coord(settlements: Array, coord: Vector2i) -> Dictionary:
-	for settlement_variant in settlements:
-		if settlement_variant is not Dictionary:
+	for settlement_option in settlements:
+		if settlement_option is not Dictionary:
 			continue
-		var settlement: Dictionary = settlement_variant
+		var settlement: Dictionary = settlement_option
 		var origin: Vector2i = settlement.get("origin", Vector2i.ZERO)
 		var footprint_size: Vector2i = settlement.get("footprint_size", Vector2i.ONE)
 		if Rect2i(origin, footprint_size).has_point(coord):

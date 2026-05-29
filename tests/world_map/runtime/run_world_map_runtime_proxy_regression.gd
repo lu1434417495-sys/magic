@@ -2,7 +2,6 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const WorldMapRuntimeProxy = preload("res://scripts/systems/game_runtime/world_map_runtime_proxy.gd")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -184,50 +183,50 @@ func _test_getters_forward_to_runtime() -> void:
 	var runtime := MockRuntime.new()
 	var render_spy := RenderSpy.new()
 	var proxy := WorldMapRuntimeProxy.new()
-	proxy.setup(runtime, Callable(render_spy, "capture"))
+	proxy.Setup(runtime, Callable(render_spy, "capture"))
 
-	_assert_eq(proxy.get_status_text(), "runtime-status", "get_status_text() 应直接读取 runtime。")
-	_assert_eq(proxy.get_active_modal_id(), "party", "get_active_modal_id() 应直接读取 runtime。")
+	_assert_eq(proxy.GetStatusText(), "runtime-status", "GetStatusText() 应直接读取 runtime。")
+	_assert_eq(proxy.GetActiveModalId(), "party", "GetActiveModalId() 应直接读取 runtime。")
 	_assert_eq(
-		proxy.get_active_settlement_id(),
+		proxy.GetActiveSettlementId(),
 		"settlement_alpha",
-		"get_active_settlement_id() 应直接读取 runtime。"
+		"GetActiveSettlementId() 应直接读取 runtime。"
 	)
-	_assert_eq(proxy.get_active_map_id(), "ashen_ashlands", "get_active_map_id() 应直接读取 runtime。")
-	_assert_eq(proxy.get_active_map_display_name(), "灰烬地图", "get_active_map_display_name() 应直接读取 runtime。")
-	_assert_eq(proxy.get_submap_return_hint_text(), "点击任意地点返回原位置。", "get_submap_return_hint_text() 应直接读取 runtime。")
-	_assert_true(not proxy.is_player_visible_on_world_map(), "is_player_visible_on_world_map() 应直接读取 runtime。")
-	_assert_eq(proxy.get_pending_battle_start_prompt().get("confirm_text", ""), "开始战斗", "get_pending_battle_start_prompt() 应直接读取 runtime。")
+	_assert_eq(proxy.GetActiveMapId(), "ashen_ashlands", "GetActiveMapId() 应直接读取 runtime。")
+	_assert_eq(proxy.GetActiveMapDisplayName(), "灰烬地图", "GetActiveMapDisplayName() 应直接读取 runtime。")
+	_assert_eq(proxy.GetSubmapReturnHintText(), "点击任意地点返回原位置。", "GetSubmapReturnHintText() 应直接读取 runtime。")
+	_assert_true(not proxy.IsPlayerVisibleOnWorldMap(), "IsPlayerVisibleOnWorldMap() 应直接读取 runtime。")
+	_assert_eq(proxy.GetPendingBattleStartPrompt().get("confirm_text", ""), "开始战斗", "GetPendingBattleStartPrompt() 应直接读取 runtime。")
 	_assert_eq(
-		_string_name_array_to_string_array(proxy.get_selected_battle_skill_target_unit_ids()),
+		_string_name_array_to_string_array(proxy.GetSelectedBattleSkillTargetUnitIds()),
 		["enemy_alpha", "enemy_beta"],
-		"get_selected_battle_skill_target_unit_ids() 应直接读取 runtime。"
+		"GetSelectedBattleSkillTargetUnitIds() 应直接读取 runtime。"
 	)
-	_assert_true(proxy.is_submap_active(), "is_submap_active() 应直接读取 runtime。")
+	_assert_true(proxy.IsSubmapActive(), "IsSubmapActive() 应直接读取 runtime。")
 	_assert_eq(render_spy.calls.size(), 0, "纯 getter 调用不应触发 render。")
 
 
 func _test_snapshot_methods_forward_to_runtime() -> void:
 	var runtime := MockRuntime.new()
 	var proxy := WorldMapRuntimeProxy.new()
-	proxy.setup(runtime, Callable(RenderSpy.new(), "capture"))
+	proxy.Setup(runtime, Callable(RenderSpy.new(), "capture"))
 
-	var headless_snapshot: Dictionary = proxy.build_headless_snapshot()
-	var text_snapshot := proxy.build_text_snapshot()
+	var headless_snapshot: Dictionary = proxy.BuildHeadlessSnapshot()
+	var text_snapshot: String = proxy.BuildTextSnapshot()
 
 	_assert_eq(
 		headless_snapshot.get("status", {}).get("text", ""),
 		"runtime-status",
-		"build_headless_snapshot() 应直接返回 runtime 快照。"
+		"BuildHeadlessSnapshot() 应直接返回 runtime 快照。"
 	)
-	_assert_eq(text_snapshot, "runtime-text", "build_text_snapshot() 应直接返回 runtime 文本快照。")
+	_assert_eq(text_snapshot, "runtime-text", "BuildTextSnapshot() 应直接返回 runtime 文本快照。")
 	_assert_true(
 		_has_call(runtime.calls, "build_headless_snapshot"),
-		"build_headless_snapshot() 应调用 runtime。"
+		"BuildHeadlessSnapshot() 应调用 runtime。"
 	)
 	_assert_true(
 		_has_call(runtime.calls, "build_text_snapshot"),
-		"build_text_snapshot() 应调用 runtime。"
+		"BuildTextSnapshot() 应调用 runtime。"
 	)
 
 
@@ -235,9 +234,9 @@ func _test_world_command_delegates_and_renders() -> void:
 	var runtime := MockRuntime.new()
 	var render_spy := RenderSpy.new()
 	var proxy := WorldMapRuntimeProxy.new()
-	proxy.setup(runtime, Callable(render_spy, "capture"))
+	proxy.Setup(runtime, Callable(render_spy, "capture"))
 
-	var result: Dictionary = proxy.command_world_move(Vector2i.LEFT, 2)
+	var result: Dictionary = proxy.CommandWorldMove(Vector2i.LEFT, 2)
 
 	_assert_true(bool(result.get("ok", false)), "world 命令应回传 runtime 的成功结果。")
 	_assert_true(_has_call(runtime.calls, "command_world_move"), "world 命令应委托给 runtime。")
@@ -256,9 +255,9 @@ func _test_battle_command_preserves_overlay_refresh_mode() -> void:
 	var runtime := MockRuntime.new()
 	var render_spy := RenderSpy.new()
 	var proxy := WorldMapRuntimeProxy.new()
-	proxy.setup(runtime, Callable(render_spy, "capture"))
+	proxy.Setup(runtime, Callable(render_spy, "capture"))
 
-	var result: Dictionary = proxy.command_battle_select_skill(3)
+	var result: Dictionary = proxy.CommandBattleSelectSkill(3)
 
 	_assert_true(_has_call(runtime.calls, "command_battle_select_skill"), "battle 命令应委托给 runtime。")
 	_assert_eq(
@@ -273,9 +272,9 @@ func _test_invalid_runtime_command_result_surfaces_error_and_renders() -> void:
 	var runtime := MockRuntime.new()
 	var render_spy := RenderSpy.new()
 	var proxy := WorldMapRuntimeProxy.new()
-	proxy.setup(runtime, Callable(render_spy, "capture"))
+	proxy.Setup(runtime, Callable(render_spy, "capture"))
 
-	var result: Dictionary = proxy._call_runtime_command(&"command_invalid_result")
+	var result: Dictionary = proxy.CallRuntimeCommand(&"command_invalid_result", [])
 
 	_assert_true(_has_call(runtime.calls, "command_invalid_result"), "proxy 应调用 runtime 并处理非 Dictionary 返回。")
 	_assert_true(not bool(result.get("ok", true)), "非 Dictionary 返回应转成失败结果。")
@@ -297,9 +296,9 @@ func _test_submap_command_delegates_and_renders() -> void:
 	var runtime := MockRuntime.new()
 	var render_spy := RenderSpy.new()
 	var proxy := WorldMapRuntimeProxy.new()
-	proxy.setup(runtime, Callable(render_spy, "capture"))
+	proxy.Setup(runtime, Callable(render_spy, "capture"))
 
-	var result: Dictionary = proxy.command_confirm_submap_entry()
+	var result: Dictionary = proxy.CommandConfirmSubmapEntry()
 
 	_assert_true(bool(result.get("ok", false)), "submap 命令应回传 runtime 的成功结果。")
 	_assert_true(_has_call(runtime.calls, "command_confirm_submap_entry"), "submap 命令应委托给 runtime。")
@@ -310,9 +309,9 @@ func _test_battle_start_confirm_command_delegates_and_renders() -> void:
 	var runtime := MockRuntime.new()
 	var render_spy := RenderSpy.new()
 	var proxy := WorldMapRuntimeProxy.new()
-	proxy.setup(runtime, Callable(render_spy, "capture"))
+	proxy.Setup(runtime, Callable(render_spy, "capture"))
 
-	var result: Dictionary = proxy.command_confirm_battle_start()
+	var result: Dictionary = proxy.CommandConfirmBattleStart()
 
 	_assert_true(bool(result.get("ok", false)), "battle start confirm 命令应回传 runtime 的成功结果。")
 	_assert_true(_has_call(runtime.calls, "command_confirm_battle_start"), "battle start confirm 命令应委托给 runtime。")
@@ -322,9 +321,9 @@ func _test_battle_start_confirm_command_delegates_and_renders() -> void:
 func _test_missing_runtime_returns_error_without_render() -> void:
 	var render_spy := RenderSpy.new()
 	var proxy := WorldMapRuntimeProxy.new()
-	proxy.setup(null, Callable(render_spy, "capture"))
+	proxy.Setup(null, Callable(render_spy, "capture"))
 
-	var result: Dictionary = proxy.command_world_move(Vector2i.RIGHT, 1)
+	var result: Dictionary = proxy.CommandWorldMove(Vector2i.RIGHT, 1)
 
 	_assert_true(not bool(result.get("ok", true)), "缺少 runtime 时命令应返回失败。")
 	_assert_eq(render_spy.calls.size(), 0, "缺少 runtime 时不应触发 render。")

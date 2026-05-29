@@ -1,10 +1,10 @@
 extends SceneTree
 
-const BattleDamageResolver = preload("res://scripts/systems/battle/rules/battle_damage_resolver.gd")
-const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/battle_runtime_module.gd")
-const BattleUnitState = preload("res://scripts/systems/battle/core/battle_unit_state.gd")
-const CombatEffectDef = preload("res://scripts/player/progression/combat_effect_def.gd")
-const FateAttackFormula = preload("res://scripts/systems/battle/fate/fate_attack_formula.gd")
+const BattleDamageResolver = preload("res://scripts/systems/battle/rules/BattleDamageResolver.cs")
+const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/BattleRuntimeModule.cs")
+const BattleUnitState = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
+const CombatEffectDef = preload("res://scripts/player/progression/CombatEffectDef.cs")
+const FateAttackFormula = preload("res://scripts/systems/battle/fate/FateAttackFormula.cs")
 const BattleTestFixture = preload("res://tests/shared/battle_test_fixture.gd")
 const BattleRuntimeTestHelpers = preload("res://tests/shared/battle_runtime_test_helpers.gd")
 const SharedDamageResolvers = preload("res://tests/shared/stub_damage_resolvers.gd")
@@ -71,15 +71,16 @@ func _test_battle_fixture_installs_and_places_runtime_state() -> void:
 
 
 func _test_fixed_roll_damage_resolver_uses_injected_rolls() -> void:
-	var resolver := SharedDamageResolvers.FixedRollDamageResolver.new([2], [20])
+	var resolver = SharedDamageResolvers.build_fixed_roll_damage_resolver([2], [20])
 	_test.assert_true(resolver is BattleDamageResolver, "FixedRollDamageResolver 应继承 BattleDamageResolver。")
 	var source = _fixture.build_unit(&"source") as BattleUnitState
 	var target = _fixture.build_enemy_unit(&"target") as BattleUnitState
 	var effect := CombatEffectDef.new()
 	effect.effect_type = &"damage"
+	effect.damage_tag = &"physical_slash"
 	effect.power = 1
 	effect.params = {"dice_count": 1, "dice_sides": 6}
-	var result: Dictionary = resolver.resolve_effects(source, target, [effect])
+	var result: Dictionary = resolver.resolve_effects(source, target, [effect], {})
 	_test.assert_eq(int(result.get("damage", 0)), 3, "FixedRollDamageResolver 应使用注入 damage roll。")
 
 

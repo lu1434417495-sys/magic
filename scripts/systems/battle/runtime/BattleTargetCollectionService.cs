@@ -12,19 +12,15 @@ public partial class BattleTargetCollectionService : RefCounted
     private static readonly StringName Self = "self";
     private static readonly StringName Unit = "unit";
     private static readonly StringName Ground = "ground";
-    private static readonly StringName PropAreaPattern = "area_pattern";
-    private static readonly StringName PropAreaValue = "area_value";
-    private static readonly StringName PropTargetMode = "target_mode";
-    private static readonly StringName PropTargetSelectionMode = "target_selection_mode";
-    private static readonly StringName PropTargetTeamFilter = "target_team_filter";
     private static readonly Vector2I MissingCoord = new(-1, -1);
 
     public GDictionary collect_combat_profile_target_coords(
-        GodotObject state,
-        GodotObject grid_service,
+        BattleState state,
+        BattleGridService grid_service,
         Vector2I source_coord,
-        GodotObject combat_profile,
-        GArray target_coords)
+        CombatSkillDef combat_profile,
+        GArray target_coords
+    )
     {
         return collect_combat_profile_target_coords(
             state,
@@ -34,16 +30,18 @@ public partial class BattleTargetCollectionService : RefCounted
             target_coords,
             null,
             new GArray(),
-            -1);
+            -1
+        );
     }
 
     public GDictionary collect_combat_profile_target_coords(
-        GodotObject state,
-        GodotObject grid_service,
+        BattleState state,
+        BattleGridService grid_service,
         Vector2I source_coord,
-        GodotObject combat_profile,
+        CombatSkillDef combat_profile,
         GArray target_coords,
-        BattleUnitState source_unit)
+        BattleUnitState source_unit
+    )
     {
         return collect_combat_profile_target_coords(
             state,
@@ -53,17 +51,19 @@ public partial class BattleTargetCollectionService : RefCounted
             target_coords,
             source_unit,
             new GArray(),
-            -1);
+            -1
+        );
     }
 
     public GDictionary collect_combat_profile_target_coords(
-        GodotObject state,
-        GodotObject grid_service,
+        BattleState state,
+        BattleGridService grid_service,
         Vector2I source_coord,
-        GodotObject combat_profile,
+        CombatSkillDef combat_profile,
         GArray target_coords,
         BattleUnitState source_unit,
-        GArray target_units)
+        GArray target_units
+    )
     {
         return collect_combat_profile_target_coords(
             state,
@@ -73,18 +73,20 @@ public partial class BattleTargetCollectionService : RefCounted
             target_coords,
             source_unit,
             target_units,
-            -1);
+            -1
+        );
     }
 
     public GDictionary collect_combat_profile_target_coords(
-        GodotObject state,
-        GodotObject grid_service,
+        BattleState state,
+        BattleGridService grid_service,
         Vector2I source_coord,
-        GodotObject combat_profile,
+        CombatSkillDef combat_profile,
         GArray target_coords,
         BattleUnitState source_unit,
         GArray target_units,
-        int skill_level)
+        int skill_level
+    )
     {
         if (combat_profile == null)
         {
@@ -92,13 +94,15 @@ public partial class BattleTargetCollectionService : RefCounted
         }
         if (IsSelfTargetCollection(combat_profile, skill_level))
         {
-            return BuildHandledResult(CollectSelfTargetCoords(state, grid_service, source_coord, source_unit));
+            return BuildHandledResult(
+                CollectSelfTargetCoords(state, grid_service, source_coord, source_unit)
+            );
         }
-        if (GdInterop.GetStringName(combat_profile, PropTargetMode) == Unit)
+        if (combat_profile.target_mode == Unit)
         {
             return BuildHandledResult(CollectTargetUnitCoords(target_units));
         }
-        if (GdInterop.GetStringName(combat_profile, PropTargetMode) != Ground)
+        if (combat_profile.target_mode != Ground)
         {
             return BuildUnhandledResult(target_coords);
         }
@@ -110,7 +114,7 @@ public partial class BattleTargetCollectionService : RefCounted
         StringName areaPattern = GetEffectiveAreaPattern(combat_profile, skill_level);
         int areaValue = Math.Max(GetEffectiveAreaValue(combat_profile, skill_level), 0);
         var coordSet = new HashSet<Vector2I>();
-        foreach (Variant rawTargetCoord in target_coords ?? new GArray())
+        foreach (var rawTargetCoord in target_coords ?? new GArray())
         {
             if (rawTargetCoord.VariantType != Variant.Type.Vector2I)
             {
@@ -128,8 +132,18 @@ public partial class BattleTargetCollectionService : RefCounted
                 areaCenter = source_coord;
             }
             bool collectedAny = false;
-            Vector2I areaDirection = source_coord != MissingCoord ? areaCenter - source_coord : Vector2I.Zero;
-            foreach (Vector2I effectCoord in GridGetAreaCoords(grid_service, state, areaCenter, areaPattern, areaValue, areaDirection))
+            Vector2I areaDirection =
+                source_coord != MissingCoord ? areaCenter - source_coord : Vector2I.Zero;
+            foreach (
+                Vector2I effectCoord in GridGetAreaCoords(
+                    grid_service,
+                    state,
+                    areaCenter,
+                    areaPattern,
+                    areaValue,
+                    areaDirection
+                )
+            )
             {
                 coordSet.Add(effectCoord);
                 collectedAny = true;
@@ -139,24 +153,20 @@ public partial class BattleTargetCollectionService : RefCounted
                 coordSet.Add(areaCenter);
             }
         }
-        return new GDictionary
-        {
-            ["handled"] = true,
-            ["target_coords"] = SortCoords(coordSet),
-        };
+        return new GDictionary { ["handled"] = true, ["target_coords"] = SortCoords(coordSet) };
     }
 
-    private static bool IsSelfTargetCollection(GodotObject combatProfile, int skillLevel)
+    private static bool IsSelfTargetCollection(CombatSkillDef combatProfile, int skillLevel)
     {
         if (combatProfile == null)
         {
             return false;
         }
-        if (GdInterop.GetStringName(combatProfile, PropTargetSelectionMode) == Self)
+        if (combatProfile.target_selection_mode == Self)
         {
             return true;
         }
-        if (GdInterop.GetStringName(combatProfile, PropTargetTeamFilter) == Self)
+        if (combatProfile.target_team_filter == Self)
         {
             return true;
         }
@@ -164,10 +174,11 @@ public partial class BattleTargetCollectionService : RefCounted
     }
 
     private static GVector2IArray CollectSelfTargetCoords(
-        GodotObject state,
-        GodotObject gridService,
+        BattleState state,
+        BattleGridService gridService,
         Vector2I sourceCoord,
-        BattleUnitState sourceUnit)
+        BattleUnitState sourceUnit
+    )
     {
         if (sourceUnit != null)
         {
@@ -184,7 +195,7 @@ public partial class BattleTargetCollectionService : RefCounted
     private static GVector2IArray CollectTargetUnitCoords(GArray targetUnits)
     {
         var coordSet = new HashSet<Vector2I>();
-        foreach (Variant rawTargetUnit in targetUnits ?? new GArray())
+        foreach (var rawTargetUnit in targetUnits ?? new GArray())
         {
             BattleUnitState targetUnit = ToBattleUnitState(rawTargetUnit);
             if (targetUnit == null)
@@ -202,20 +213,12 @@ public partial class BattleTargetCollectionService : RefCounted
 
     private static GDictionary BuildHandledResult(GArray targetCoords)
     {
-        return new GDictionary
-        {
-            ["handled"] = true,
-            ["target_coords"] = SortCoords(targetCoords),
-        };
+        return new GDictionary { ["handled"] = true, ["target_coords"] = SortCoords(targetCoords) };
     }
 
     private static GDictionary BuildHandledResult(IEnumerable<Vector2I> targetCoords)
     {
-        return new GDictionary
-        {
-            ["handled"] = true,
-            ["target_coords"] = SortCoords(targetCoords),
-        };
+        return new GDictionary { ["handled"] = true, ["target_coords"] = SortCoords(targetCoords) };
     }
 
     private static GDictionary BuildUnhandledResult(GArray targetCoords)
@@ -230,7 +233,7 @@ public partial class BattleTargetCollectionService : RefCounted
     private static GVector2IArray SortCoords(GArray targetCoords)
     {
         var coords = new List<Vector2I>();
-        foreach (Variant rawCoord in targetCoords ?? new GArray())
+        foreach (var rawCoord in targetCoords ?? new GArray())
         {
             if (rawCoord.VariantType == Variant.Type.Vector2I)
             {
@@ -243,11 +246,13 @@ public partial class BattleTargetCollectionService : RefCounted
     private static GVector2IArray SortCoords(IEnumerable<Vector2I> targetCoords)
     {
         var coords = new List<Vector2I>(targetCoords ?? Array.Empty<Vector2I>());
-        coords.Sort((left, right) =>
-        {
-            int yCompare = left.Y.CompareTo(right.Y);
-            return yCompare != 0 ? yCompare : left.X.CompareTo(right.X);
-        });
+        coords.Sort(
+            (left, right) =>
+            {
+                int yCompare = left.Y.CompareTo(right.Y);
+                return yCompare != 0 ? yCompare : left.X.CompareTo(right.X);
+            }
+        );
         var result = new GVector2IArray();
         foreach (Vector2I coord in coords)
         {
@@ -256,86 +261,64 @@ public partial class BattleTargetCollectionService : RefCounted
         return result;
     }
 
-    private static StringName GetEffectiveAreaPattern(GodotObject combatProfile, int skillLevel)
+    private static StringName GetEffectiveAreaPattern(CombatSkillDef combatProfile, int skillLevel)
     {
         if (combatProfile == null)
         {
             return Empty;
         }
-        Variant value = skillLevel >= 0
-            ? combatProfile.Call("get_effective_area_pattern", skillLevel)
-            : combatProfile.Get(PropAreaPattern);
-        return ToStringName(value);
+        return skillLevel >= 0
+            ? combatProfile.get_effective_area_pattern(skillLevel)
+            : combatProfile.area_pattern;
     }
 
-    private static int GetEffectiveAreaValue(GodotObject combatProfile, int skillLevel)
+    private static int GetEffectiveAreaValue(CombatSkillDef combatProfile, int skillLevel)
     {
         if (combatProfile == null)
         {
             return 0;
         }
-        Variant value = skillLevel >= 0
-            ? combatProfile.Call("get_effective_area_value", skillLevel)
-            : combatProfile.Get(PropAreaValue);
-        return ToInt(value);
+        return skillLevel >= 0
+            ? combatProfile.get_effective_area_value(skillLevel)
+            : combatProfile.area_value;
     }
 
-    private static bool GridIsInside(GodotObject gridService, GodotObject state, Vector2I coord)
+    private static bool GridIsInside(BattleGridService gridService, BattleState state, Vector2I coord)
     {
-        return gridService switch
-        {
-            null => false,
-            BattleGridService typedGridService => typedGridService.is_inside(state, coord),
-            _ => gridService.Call("is_inside", state, coord).AsBool(),
-        };
+        return gridService != null && gridService.is_inside(state, coord);
     }
 
     private static GVector2IArray GridGetAreaCoords(
-        GodotObject gridService,
-        GodotObject state,
+        BattleGridService gridService,
+        BattleState state,
         Vector2I areaCenter,
         StringName areaPattern,
         int areaValue,
-        Vector2I areaDirection)
+        Vector2I areaDirection
+    )
     {
         if (gridService == null)
         {
             return new GVector2IArray();
         }
-        if (gridService is BattleGridService typedGridService)
+        return gridService.get_area_coords(
+            state,
+            areaCenter,
+            areaPattern,
+            areaValue,
+            areaDirection
+        );
+    }
+
+    private static BattleUnitState ToBattleUnitState(object rawValue)
+    {
+        if (rawValue is not Variant value)
         {
-            return typedGridService.get_area_coords(state, areaCenter, areaPattern, areaValue, areaDirection);
+            return rawValue as BattleUnitState;
         }
-        Variant rawResult = gridService.Call("get_area_coords", state, areaCenter, areaPattern, areaValue, areaDirection);
-        return rawResult.VariantType == Variant.Type.Array
-            ? SortCoords(rawResult.AsGodotArray())
-            : new GVector2IArray();
+        return value.VariantType == Variant.Type.Object
+            ? value.AsGodotObject() as BattleUnitState
+            : null;
     }
 
-    private static BattleUnitState ToBattleUnitState(Variant value)
-    {
-        return value.VariantType == Variant.Type.Object ? value.AsGodotObject() as BattleUnitState : null;
-    }
-
-    private static StringName ToStringName(Variant value)
-    {
-        return value.VariantType switch
-        {
-            Variant.Type.StringName => value.AsStringName(),
-            Variant.Type.String => new StringName(value.AsString()),
-            Variant.Type.Nil => Empty,
-            _ => new StringName(value.ToString()),
-        };
-    }
-
-    private static int ToInt(Variant value)
-    {
-        return value.VariantType switch
-        {
-            Variant.Type.Int => value.AsInt32(),
-            Variant.Type.Float => (int)value.AsDouble(),
-            Variant.Type.String => int.TryParse(value.AsString(), out int parsed) ? parsed : 0,
-            _ => 0,
-        };
-    }
 }

@@ -3,30 +3,48 @@ using Godot;
 [GlobalClass]
 public partial class BattleBoardPropCatalog : RefCounted
 {
-    public static readonly StringName PROP_SPIKE_BARRICADE = "spike_barricade";
-    public static readonly StringName PROP_OBJECTIVE_MARKER = "objective_marker";
-    public static readonly StringName PROP_TENT = "tent";
-    public static readonly StringName PROP_TORCH = "torch";
+    private static readonly StringName PropSpikeBarricade = "spike_barricade";
+    private static readonly StringName PropObjectiveMarker = "objective_marker";
+    private static readonly StringName PropTent = "tent";
+    private static readonly StringName PropTorch = "torch";
 
-    public static bool is_supported(StringName propId)
+    public static StringName PROP_SPIKE_BARRICADE() => PropSpikeBarricade;
+
+    public static StringName PROP_OBJECTIVE_MARKER() => PropObjectiveMarker;
+
+    public static StringName PROP_TENT() => PropTent;
+
+    public static StringName PROP_TORCH() => PropTorch;
+
+    public bool IsSupported(StringName propId)
     {
-        return propId == PROP_SPIKE_BARRICADE
-            || propId == PROP_OBJECTIVE_MARKER
-            || propId == PROP_TENT
-            || propId == PROP_TORCH;
+        return propId == PropSpikeBarricade
+            || propId == PropObjectiveMarker
+            || propId == PropTent
+            || propId == PropTorch;
     }
 
-    public static bool requires_interaction_shape(StringName propId)
+    public bool RequiresInteractionShape(StringName propId)
     {
-        return propId == PROP_OBJECTIVE_MARKER;
+        return propId == PropObjectiveMarker;
     }
 
-    public static int get_sort_priority(StringName propId)
+    public int GetSortPriority(StringName propId)
     {
-        if (propId == PROP_SPIKE_BARRICADE) return 0;
-        if (propId == PROP_TORCH) return 1;
-        if (propId == PROP_TENT) return 2;
-        if (propId == PROP_OBJECTIVE_MARKER) return 3;
+        if (propId == PropSpikeBarricade)
+            return 0;
+        if (propId == PropTorch)
+            return 1;
+        if (propId == PropTent)
+            return 2;
+        if (propId == PropObjectiveMarker)
+            return 3;
         return 0;
     }
+
+    public bool is_supported(StringName propId) => IsSupported(propId);
+
+    public bool requires_interaction_shape(StringName propId) => RequiresInteractionShape(propId);
+
+    public int get_sort_priority(StringName propId) => GetSortPriority(propId);
 }
