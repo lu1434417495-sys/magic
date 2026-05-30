@@ -28,6 +28,21 @@ public interface IBattleRuntimeCharacterGateway : IBattleRatingCharacterGateway
 
     PartyMemberState get_member_state(StringName member_id);
 
+    AttributeSnapshot get_member_attribute_snapshot_for_equipment_view(
+        StringName member_id,
+        EquipmentState equipment_view
+    );
+
+    GDictionary get_member_weapon_projection_for_equipment_view(
+        StringName member_id,
+        EquipmentState equipment_view
+    );
+
+    PassiveSourceContext build_passive_source_context(
+        StringName member_id,
+        UnitProgress progression_state
+    );
+
     CharacterProgressionDelta promote_profession(
         StringName member_id,
         StringName profession_id,

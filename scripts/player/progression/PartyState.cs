@@ -74,6 +74,23 @@ public partial class PartyState : RefCounted
             fate_run_flags.Remove(id);
     }
 
+    public Godot.Collections.Dictionary capture_fate_run_flags()
+    {
+        var result = new Godot.Collections.Dictionary();
+        foreach (var kv in fate_run_flags)
+            result[kv.Key] = kv.Value;
+        return result;
+    }
+
+    public void apply_fate_run_flags(Godot.Collections.Dictionary flags)
+    {
+        var next = new Dictionary<StringName, bool>();
+        if (flags != null)
+            foreach (var key in flags.Keys)
+                next[ProgressionDataUtils.to_string_name(key)] = flags[key].AsBool();
+        fate_run_flags = next;
+    }
+
     public bool get_meta_flag(StringName id, bool defVal = false)
     {
         return id != "" && meta_flags.TryGetValue(id, out bool value) ? value : defVal;

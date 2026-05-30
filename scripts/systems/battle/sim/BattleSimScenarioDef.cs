@@ -120,12 +120,15 @@ public partial class BattleSimScenarioDef : Resource
         {
             if (us.VariantType == Variant.Type.Nil)
                 continue;
-            p.Add(
-                us.AsGodotObject()
-                    .Call("to_battle_unit_state", defaultFaction, defaultControlMode)
-                    .AsGodotObject()
-                    .Call("to_dict")
-            );
+            var unitSpec = us.AsGodotObject() as BattleSimUnitSpec;
+            if (unitSpec != null)
+            {
+                p.Add(unitSpec.to_battle_unit_state(defaultFaction, defaultControlMode).to_dict());
+                continue;
+            }
+            var unitState = us.AsGodotObject() as BattleUnitState;
+            if (unitState != null)
+                p.Add(unitState.to_dict());
         }
         return p;
     }

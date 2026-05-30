@@ -546,11 +546,11 @@ public partial class BattleResolutionResult : RefCounted
             {
                 continue;
             }
-            if (TryAsObject(rewardValue, out GodotObject rewardObject))
+            if (TryAsObject(rewardValue, out PendingCharacterReward rewardObject))
             {
-                if (rewardObject != null && rewardObject.HasMethod("to_dict"))
+                if (rewardObject != null)
                 {
-                    rewards.Add(rewardObject.Call("to_dict"));
+                    rewards.Add(rewardObject.to_dict());
                     continue;
                 }
             }
@@ -663,7 +663,7 @@ public partial class BattleResolutionResult : RefCounted
 
     private static GDictionary NormalizeEquipmentObjectData(GodotObject obj)
     {
-        object instanceDict = obj.Call("to_dict");
+        object instanceDict = (obj as EquipmentInstanceState)?.to_dict();
         return TryRawDictionary(instanceDict, out _)
             ? NormalizeEquipmentInstanceData(instanceDict)
             : new GDictionary();

@@ -7,20 +7,20 @@ public partial class GameRuntimePartyCommandHandler : RefCounted
 {
     private static readonly StringName RuntimeUnavailableMessage = "运行时尚未初始化。";
 
-    private WeakReference<GodotObject> _runtimeRef;
+    private WeakReference<GameRuntimeFacade> _runtimeRef;
 
-    private GodotObject _runtime
+    private GameRuntimeFacade _runtime
     {
         get => ResolveWeakRef(_runtimeRef);
-        set => _runtimeRef = value != null ? new WeakReference<GodotObject>(value) : null;
+        set => _runtimeRef = value != null ? new WeakReference<GameRuntimeFacade>(value) : null;
     }
 
-    public void Setup(GodotObject runtime)
+    public void Setup(GameRuntimeFacade runtime)
     {
         _runtime = runtime;
     }
 
-    public void setup(GodotObject runtime)
+    public void setup(GameRuntimeFacade runtime)
     {
         Setup(runtime);
     }
@@ -381,14 +381,14 @@ public partial class GameRuntimePartyCommandHandler : RefCounted
     {
         if (!HasRuntime())
             return Error.Unavailable;
-        return (Error)_runtime.Call("persist_party_state").AsInt32();
+        return (Error)_runtime.persist_party_state();
     }
 
     private string GetItemDisplayName(StringName itemId)
     {
         if (!HasRuntime())
             return itemId.ToString();
-        return _runtime.Call("get_item_display_name", itemId).AsString();
+        return _runtime.get_item_display_name(itemId);
     }
 
     private StringName GetMainCharacterMemberId(PartyState partyState)
@@ -421,7 +421,7 @@ public partial class GameRuntimePartyCommandHandler : RefCounted
     {
         if (!HasRuntime())
             return memberId.ToString();
-        return _runtime.Call("get_member_display_name", memberId).AsString();
+        return _runtime.get_member_display_name(memberId);
     }
 
     private string GetSkillDisplayName(StringName skillId)
@@ -429,7 +429,7 @@ public partial class GameRuntimePartyCommandHandler : RefCounted
         var gameSession = GetGameSession();
         if (gameSession == null)
             return skillId.ToString();
-        var skillDefs = gameSession.Call("get_skill_defs").AsGodotDictionary();
+        var skillDefs = gameSession.get_skill_defs();
         if (skillDefs.ContainsKey(skillId))
         {
             var skillDef = skillDefs[skillId].As<SkillDef>();
@@ -524,14 +524,14 @@ public partial class GameRuntimePartyCommandHandler : RefCounted
                 ["message"] = message,
                 ["battle_refresh_mode"] = "",
             };
-        return _runtime.Call("build_command_ok", message).AsGodotDictionary();
+        return _runtime.build_command_ok(message);
     }
 
     private Dictionary CommandError(string message)
     {
         if (!HasRuntime())
             return new Dictionary { ["ok"] = false, ["message"] = message };
-        return _runtime.Call("build_command_error", message).AsGodotDictionary();
+        return _runtime.build_command_error(message);
     }
 
     private Dictionary RuntimeUnavailableError()
@@ -543,60 +543,60 @@ public partial class GameRuntimePartyCommandHandler : RefCounted
     {
         if (!HasRuntime())
             return false;
-        return _runtime.Call("get_generation_config").VariantType != Variant.Type.Nil;
+        return _runtime.get_generation_config() != null;
     }
 
     private bool IsBattleActive()
     {
         if (!HasRuntime())
             return false;
-        return _runtime.Call("is_battle_active").AsBool();
+        return _runtime.is_battle_active();
     }
 
     private bool IsModalWindowOpen()
     {
         if (!HasRuntime())
             return false;
-        return _runtime.Call("is_modal_window_open").AsBool();
+        return _runtime.is_modal_window_open();
     }
 
     private PartyState GetPartyState()
     {
         if (!HasRuntime())
             return null;
-        return _runtime.Call("get_party_state").AsGodotObject() as PartyState;
+        return _runtime.get_party_state();
     }
 
     private void SetPartyState(PartyState partyState)
     {
         if (HasRuntime())
-            _runtime.Call("set_party_state", partyState);
+            _runtime.set_party_state(partyState);
     }
 
     private string GetActiveModalId()
     {
         if (!HasRuntime())
             return "";
-        return _runtime.Call("get_active_modal_id").AsString();
+        return _runtime.get_active_modal_id();
     }
 
     private void SetActiveModalId(string modalId)
     {
         if (HasRuntime())
-            _runtime.Call("set_runtime_active_modal_id", modalId);
+            _runtime.set_runtime_active_modal_id(modalId);
     }
 
     private StringName GetPartySelectedMemberId()
     {
         if (!HasRuntime())
             return "";
-        return _runtime.Call("get_party_selected_member_id").AsStringName();
+        return _runtime.get_party_selected_member_id();
     }
 
     private void SetPartySelectedMemberId(StringName memberId)
     {
         if (HasRuntime())
-            _runtime.Call("set_party_selected_member_id", memberId);
+            _runtime.set_party_selected_member_id(memberId);
     }
 
     private Dictionary EquipPartyItem(
@@ -608,96 +608,59 @@ public partial class GameRuntimePartyCommandHandler : RefCounted
     {
         if (!HasRuntime())
             return new Dictionary();
-        return _runtime
-            .Call("equip_party_item", memberId, itemId, slotId, instanceId)
-            .AsGodotDictionary();
+        return _runtime.equip_party_item(memberId, itemId, slotId, instanceId);
     }
 
     private Dictionary UnequipPartyItem(StringName memberId, StringName slotId)
     {
         if (!HasRuntime())
             return new Dictionary();
-        return _runtime.Call("unequip_party_item", memberId, slotId).AsGodotDictionary();
+        return _runtime.unequip_party_item(memberId, slotId);
     }
 
     private void SyncCharacterManagementPartyState()
     {
         if (HasRuntime())
-            _runtime.Call("sync_character_management_party_state");
+            _runtime.sync_character_management_party_state();
     }
 
     private void OpenPartyWarehouseWindow(string entryLabel)
     {
         if (HasRuntime())
-            _runtime.Call("open_party_warehouse_window", entryLabel);
+            _runtime.open_party_warehouse_window(entryLabel);
     }
 
     private bool PresentPendingRewardIfReady()
     {
         if (!HasRuntime())
             return false;
-        return _runtime.Call("present_pending_reward_if_ready").AsBool();
+        return _runtime.present_pending_reward_if_ready();
     }
 
     private void UpdateStatus(string message)
     {
         if (HasRuntime())
-            _runtime.Call("update_status", message);
+            _runtime.update_status(message);
     }
 
     private string GetStatusText()
     {
         if (!HasRuntime())
             return "";
-        return _runtime.Call("get_status_text").AsString();
+        return _runtime.get_status_text();
     }
 
-    private GodotObject GetGameSession()
+    private GameSession GetGameSession()
     {
         if (!HasRuntime())
             return null;
-        return _runtime.Call("get_game_session").AsGodotObject();
-    }
-
-    private GodotObject GetPartyWarehouseService()
-    {
-        if (!HasRuntime())
-            return null;
-        return _runtime.Call("get_party_warehouse_service").AsGodotObject();
-    }
-
-    private GodotObject GetPartyItemUseService()
-    {
-        if (!HasRuntime())
-            return null;
-        return _runtime.Call("get_party_item_use_service").AsGodotObject();
-    }
-
-    private GodotObject GetPartyEquipmentService()
-    {
-        if (!HasRuntime())
-            return null;
-        return _runtime.Call("get_party_equipment_service").AsGodotObject();
-    }
-
-    private GodotObject GetCharacterManagement()
-    {
-        if (!HasRuntime())
-            return null;
-        return _runtime.Call("get_character_management").AsGodotObject();
-    }
-
-    private GodotObject GetWarehouseHandler()
-    {
-        if (!HasRuntime())
-            return null;
-        return _runtime.Call("get_warehouse_handler").AsGodotObject();
+        return _runtime.get_game_session();
     }
 
     private void RefreshFog()
     {
         if (HasRuntime())
-            _runtime.Call("refresh_fog");
+            _runtime.refresh_fog();
     }
 
     private static bool DictionaryBool(Dictionary dictionary, string key, bool fallback)
@@ -723,13 +686,9 @@ public partial class GameRuntimePartyCommandHandler : RefCounted
         return ProgressionDataUtils.to_string_name(dictionary[key]);
     }
 
-    private static GodotObject ResolveWeakRef(WeakReference<GodotObject> weakRef)
+    private static GameRuntimeFacade ResolveWeakRef(WeakReference<GameRuntimeFacade> weakRef)
     {
-        if (
-            weakRef == null
-            || !weakRef.TryGetTarget(out GodotObject target)
-            || !GodotObject.IsInstanceValid(target)
-        )
+        if (weakRef == null || !weakRef.TryGetTarget(out GameRuntimeFacade target))
             return null;
         return target;
     }

@@ -9,27 +9,15 @@ public partial class BattleFateAttackRules : RefCounted
 
     private static readonly StringName STATUS_CROWN_BREAK_BROKEN_FANG = "crown_break_broken_fang";
 
-    public bool does_attack_roll_hit(int hitRoll, Godot.Collections.Dictionary attackCheck)
+    public bool does_attack_roll_hit(int hitRoll, AttackCheckInput attackCheck)
     {
-        bool naturalOneAutoMiss = attackCheck.ContainsKey("natural_one_auto_miss")
-            ? (bool)attackCheck["natural_one_auto_miss"]
-            : true;
-
-        if (naturalOneAutoMiss && hitRoll <= 1)
+        if (attackCheck.NaturalOneAutoMiss && hitRoll <= 1)
             return false;
 
-        bool naturalTwentyAutoHit = attackCheck.ContainsKey("natural_twenty_auto_hit")
-            ? (bool)attackCheck["natural_twenty_auto_hit"]
-            : true;
-
-        if (naturalTwentyAutoHit && hitRoll >= NATURAL_HIT_ROLL)
+        if (attackCheck.NaturalTwentyAutoHit && hitRoll >= NATURAL_HIT_ROLL)
             return true;
 
-        int requiredRoll = attackCheck.ContainsKey("required_roll")
-            ? attackCheck["required_roll"].AsInt32()
-            : 21;
-
-        return hitRoll >= requiredRoll;
+        return hitRoll >= attackCheck.RequiredRoll;
     }
 
     public bool does_gate_die_crit(int critGateRoll, int critGateDie, bool critLocked)

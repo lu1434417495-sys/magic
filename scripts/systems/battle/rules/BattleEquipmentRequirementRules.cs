@@ -53,8 +53,8 @@ public partial class BattleEquipmentRequirementRules : RefCounted
             return false;
         }
 
-        GodotObject equipmentView = unit_state.Call("get_equipment_view").AsGodotObject();
-        if (equipmentView == null || !equipmentView.HasMethod("get_equipped_item_id"))
+        EquipmentState equipmentView = (unit_state as BattleUnitState)?.get_equipment_view();
+        if (equipmentView == null)
         {
             return false;
         }
@@ -65,9 +65,7 @@ public partial class BattleEquipmentRequirementRules : RefCounted
             return false;
         }
 
-        StringName itemId = equipmentView
-            .Call("get_equipped_item_id", normalizedSlotId)
-            .AsStringName();
+        StringName itemId = equipmentView.get_equipped_item_id(normalizedSlotId);
         if (
             IsEmpty(itemId)
             || item_defs == null
@@ -77,15 +75,13 @@ public partial class BattleEquipmentRequirementRules : RefCounted
             return false;
         }
 
-        GodotObject itemDef = itemDefValue.AsGodotObject();
-        if (itemDef == null || !itemDef.HasMethod("get_tags"))
+        ItemDef itemDef = itemDefValue.AsGodotObject() as ItemDef;
+        if (itemDef == null)
         {
             return false;
         }
 
-        var tagsValue = itemDef.Call("get_tags");
-        return tagsValue.VariantType == Variant.Type.Array
-            && tagsValue.AsGodotArray().Contains(tag_id);
+        return itemDef.get_tags().Contains(tag_id);
     }
 
     private static bool IsValidSlot(StringName slotId)

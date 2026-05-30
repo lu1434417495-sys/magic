@@ -69,8 +69,8 @@ public partial class FixedRollDamageResolver : BattleDamageResolver
         RefCounted source_unit,
         RefCounted target_unit,
         Godot.Collections.Array effect_defs,
-        GDictionary attack_check,
-        GDictionary attack_context = null
+        AttackCheckInput attack_check,
+        AttackContext attack_context = null
     )
     {
         return base.resolve_attack_effects(
@@ -86,7 +86,7 @@ public partial class FixedRollDamageResolver : BattleDamageResolver
         RefCounted source_unit,
         RefCounted target_unit,
         Godot.Collections.Array effect_defs,
-        GDictionary attack_check
+        AttackCheckInput attack_check
     )
     {
         return base.resolve_attack_effects(
@@ -94,7 +94,7 @@ public partial class FixedRollDamageResolver : BattleDamageResolver
             target_unit as BattleUnitState,
             effect_defs,
             attack_check,
-            new GDictionary()
+            new AttackContext()
         );
     }
 
@@ -139,7 +139,7 @@ public partial class FixedRollDamageResolver : BattleDamageResolver
         int upper = Math.Max(min_value, max_value);
         if (battle_state != null)
         {
-            battle_state.attack_roll_nonce = Math.Max((int)battle_state.attack_roll_nonce, 0) + 1;
+            battle_state.next_attack_roll_nonce();
         }
         if (_attackRolls.Count == 0)
         {

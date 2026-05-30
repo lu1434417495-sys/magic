@@ -7,9 +7,9 @@ public partial class AttributeGrowthService : RefCounted
 
     private const int BASE_ATTRIBUTE_PROGRESS_CONVERSION_CAP = 20;
 
-    private GodotObject _unit_progress;
+    private UnitProgress _unit_progress;
 
-    public void setup(GodotObject unitProgress)
+    public void setup(UnitProgress unitProgress)
     {
         _unit_progress = unitProgress;
     }
@@ -44,22 +44,22 @@ public partial class AttributeGrowthService : RefCounted
 
         if (
             _unit_progress == null
-            || _unit_progress.Get("unit_base_attributes").AsGodotObject() == null
+            || _unit_progress.unit_base_attributes == null
         )
             return result;
 
         if (!is_valid_attribute_id(attributeId) || amount <= 0)
             return result;
 
-        var growthProgress = _unit_progress.Get("attribute_growth_progress").AsGodotDictionary();
+        var growthProgress = _unit_progress.attribute_growth_progress;
 
-        var baseAttrs = _unit_progress.Get("unit_base_attributes").AsGodotObject();
+        var baseAttrs = _unit_progress.unit_base_attributes;
 
         int beforeProgress = growthProgress.ContainsKey(attributeId)
             ? growthProgress[attributeId].AsInt32()
             : 0;
 
-        int beforeAttribute = baseAttrs.Call("get_attribute_value", attributeId).AsInt32();
+        int beforeAttribute = baseAttrs.get_attribute_value(attributeId);
 
         int nextProgress = beforeProgress + amount;
 
@@ -77,7 +77,7 @@ public partial class AttributeGrowthService : RefCounted
 
         growthProgress[attributeId] = nextProgress;
 
-        baseAttrs.Call("set_attribute_value", attributeId, nextAttribute);
+        baseAttrs.set_attribute_value(attributeId, nextAttribute);
 
         result["progress_delta"] = amount;
 

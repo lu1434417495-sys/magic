@@ -1,6 +1,6 @@
 # 当前 Godot 项目的上下文装载单元
 
-更新日期：`2026-05-27`
+更新日期：`2026-05-30`
 
 ## 使用规则
 
@@ -396,6 +396,11 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scripts/systems/battle/core/BattleEdgeFaceState.cs`
   - `scripts/systems/battle/core/BattleAttackRollModifierBundle.cs`
   - `scripts/systems/battle/core/BattleAttackRollModifierSpec.cs`
+  - `scripts/systems/battle/core/AttackCheckInput.cs`
+  - `scripts/systems/battle/core/AttackRollResult.cs`
+  - `scripts/systems/battle/core/AttackContext.cs`
+  - `scripts/systems/battle/core/AttackTraitTriggerResult.cs`
+  - `scripts/systems/battle/core/AttackResolutionMetadata.cs`
   - `scripts/systems/battle/core/BattleRepeatAttackStageSpec.cs`
   - `scripts/systems/battle/core/BattleAttackCheckPolicyContext.cs`
   - `scripts/systems/battle/terrain/BattleTerrainRules.cs`
@@ -505,9 +510,11 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 - 文件：
   - `tests/run_regression_suite.py`
   - `tests/shared/*.gd`
+  - `tests/shared/*.cs`
   - `tests/equipment/run_*.gd`
   - `tests/warehouse/run_*.gd`
   - `tests/battle_runtime/**/*.gd`
+  - `tests/battle_runtime/**/run_*.cs`
   - `tests/progression/**/*.gd`
   - `tests/runtime/**/*.gd`
   - `tests/text_runtime/**/*.gd`
@@ -518,7 +525,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `tools/character_creation_reroll_simulation.gd`
   - `.codex/skills/battle-sim-analysis/SKILL.md`
 - 执行约束：
-  - 常规测试优先用 `python tests/run_regression_suite.py` 或相关 `godot --headless --script tests/.../run_*.gd`。
+  - 常规测试优先用 `python tests/run_regression_suite.py` 或相关 `godot --headless --script tests/.../run_*.gd` / `run_*.cs`。
   - 默认不要运行 `tests/battle_runtime/simulation/*`、`tests/battle_runtime/benchmarks/*`、`tests/text_runtime/tools/*`。
   - 只有用户明确要求 battle simulation、数值模拟、AI 对战模拟或平衡分析时，才运行 simulation / benchmark 入口。
 - 负责：headless 回归、schema/runtime contract、测试 fixture、截图/签名辅助、文本命令回归、AI function-level profiling helper 与 profile gate 校验。

@@ -37,7 +37,7 @@ public partial class BattleHitResolver : RefCounted
     private readonly BattleFateAttackRules _fate_attack_rules = new();
     private readonly TraitTriggerHooks _trait_trigger_hooks = new();
 
-    public GDictionary resolve_repeat_attack_stage_hit(
+    public AttackRollResult resolve_repeat_attack_stage_hit(
         BattleState battle_state,
         BattleUnitState active_unit,
         BattleUnitState target_unit,
@@ -46,7 +46,7 @@ public partial class BattleHitResolver : RefCounted
         int stage_index
     )
     {
-        GDictionary attackCheck = build_repeat_attack_stage_hit_check(
+        AttackCheckInput attackCheck = build_repeat_attack_stage_hit_check(
             active_unit,
             target_unit,
             skill_def,
@@ -56,7 +56,7 @@ public partial class BattleHitResolver : RefCounted
         return roll_attack_check(battle_state, attackCheck);
     }
 
-    public GDictionary build_repeat_attack_stage_hit_check(
+    public AttackCheckInput build_repeat_attack_stage_hit_check(
         BattleUnitState active_unit,
         BattleUnitState target_unit,
         SkillDef skill_def,
@@ -121,7 +121,7 @@ public partial class BattleHitResolver : RefCounted
         );
     }
 
-    public GDictionary build_fate_aware_repeat_attack_stage_hit_check(
+    public AttackCheckInput build_fate_aware_repeat_attack_stage_hit_check(
         BattleState battle_state,
         BattleUnitState active_unit,
         BattleUnitState target_unit,
@@ -130,7 +130,7 @@ public partial class BattleHitResolver : RefCounted
         int stage_index
     )
     {
-        GDictionary baseAttackCheck = build_repeat_attack_stage_hit_check(
+        AttackCheckInput baseAttackCheck = build_repeat_attack_stage_hit_check(
             active_unit,
             target_unit,
             skill_def,
@@ -177,7 +177,7 @@ public partial class BattleHitResolver : RefCounted
             Math.Max(resolvedStageCount, 1),
             REPEAT_ATTACK_PREVIEW_STAGE_GUARD
         );
-        var stageChecks = new GDictArray();
+        var stageChecks = new List<AttackCheckInput>();
         var stageHitRates = new GIntArray();
         var stageSuccessRates = new GIntArray();
         var stageBaseHitRates = new GIntArray();
@@ -185,7 +185,7 @@ public partial class BattleHitResolver : RefCounted
         var stagePreviewTexts = new Godot.Collections.Array<string>();
         for (int stageIndex = 0; stageIndex < normalizedStageCount; stageIndex++)
         {
-            GDictionary attackCheck = build_fate_aware_repeat_attack_stage_hit_check(
+            AttackCheckInput attackCheck = build_fate_aware_repeat_attack_stage_hit_check(
                 battle_state,
                 active_unit,
                 target_unit,
@@ -193,19 +193,18 @@ public partial class BattleHitResolver : RefCounted
                 repeat_attack_effect,
                 stageIndex
             );
-            int stageSuccessRate = GdInterop.GetInt(attackCheck, "success_rate_percent", 0);
-            stageChecks.Add((GDictionary)attackCheck.Duplicate(true));
+            int stageSuccessRate = attackCheck.SuccessRatePercent;
+            stageChecks.Add(attackCheck);
             stageHitRates.Add(stageSuccessRate);
             stageSuccessRates.Add(stageSuccessRate);
-            stageBaseHitRates.Add(GdInterop.GetInt(attackCheck, "base_hit_rate_percent", 0));
-            stageRequiredRolls.Add(GdInterop.GetInt(attackCheck, "display_required_roll", 20));
-            stagePreviewTexts.Add(GdInterop.GetString(attackCheck, "preview_text", ""));
+            stageBaseHitRates.Add(attackCheck.BaseHitRatePercent);
+            stageRequiredRolls.Add(attackCheck.DisplayRequiredRoll);
+            stagePreviewTexts.Add(attackCheck.PreviewText);
         }
         GDictionary effectParams = GdInterop.GetDictionary(repeat_attack_effect, "params");
         return new GDictionary
         {
             ["summary_text"] = _format_repeat_attack_preview_summary(stageChecks),
-            ["stage_checks"] = stageChecks,
             ["stage_hit_rates"] = stageHitRates,
             ["stage_success_rates"] = stageSuccessRates,
             ["stage_base_hit_rates"] = stageBaseHitRates,
@@ -239,25 +238,24 @@ public partial class BattleHitResolver : RefCounted
         {
             return build_force_hit_no_crit_attack_preview();
         }
-        GDictionary attackCheck = _build_fate_aware_attack_check_preview(
+        AttackCheckInput attackCheck = _build_fate_aware_attack_check_preview(
             battle_state,
             active_unit,
             target_unit,
             build_skill_attack_check(active_unit, target_unit, skill_def)
         );
-        int successRate = GdInterop.GetInt(attackCheck, "success_rate_percent", 0);
-        int baseHitRate = GdInterop.GetInt(attackCheck, "base_hit_rate_percent", successRate);
-        string previewText = GdInterop.GetString(attackCheck, "preview_text", "");
+        int successRate = attackCheck.SuccessRatePercent;
+        int baseHitRate = attackCheck.BaseHitRatePercent;
+        string previewText = attackCheck.PreviewText;
         return new GDictionary
         {
             ["summary_text"] = $"预计命中率 {previewText}",
-            ["stage_checks"] = new GDictArray { (GDictionary)attackCheck.Duplicate(true) },
             ["stage_hit_rates"] = new GIntArray { successRate },
             ["stage_success_rates"] = new GIntArray { successRate },
             ["stage_base_hit_rates"] = new GIntArray { baseHitRate },
             ["stage_required_rolls"] = new GIntArray
             {
-                GdInterop.GetInt(attackCheck, "display_required_roll", NATURAL_HIT_ROLL),
+                attackCheck.DisplayRequiredRoll,
             },
             ["stage_preview_texts"] = new Godot.Collections.Array<string> { previewText },
             ["hit_rate_percent"] = successRate,
@@ -269,23 +267,9 @@ public partial class BattleHitResolver : RefCounted
     public GDictionary build_force_hit_no_crit_attack_preview()
     {
         string previewText = "100%（必定命中；禁暴击）";
-        var attackCheck = new GDictionary
-        {
-            ["required_roll"] = NATURAL_MISS_ROLL,
-            ["display_required_roll"] = NATURAL_MISS_ROLL,
-            ["hit_rate_percent"] = 100,
-            ["success_rate_percent"] = 100,
-            ["base_hit_rate_percent"] = 100,
-            ["force_hit_no_crit"] = true,
-            ["crit_locked"] = true,
-            ["natural_one_auto_miss"] = false,
-            ["natural_twenty_auto_hit"] = false,
-            ["preview_text"] = previewText,
-        };
         return new GDictionary
         {
             ["summary_text"] = $"预计命中率 {previewText}",
-            ["stage_checks"] = new GDictArray { (GDictionary)attackCheck.Duplicate(true) },
             ["stage_hit_rates"] = new GIntArray { 100 },
             ["stage_success_rates"] = new GIntArray { 100 },
             ["stage_base_hit_rates"] = new GIntArray { 100 },
@@ -299,7 +283,7 @@ public partial class BattleHitResolver : RefCounted
         };
     }
 
-    public GDictionary build_skill_attack_check(
+    public AttackCheckInput build_skill_attack_check(
         BattleUnitState active_unit,
         BattleUnitState target_unit,
         SkillDef skill_def
@@ -308,7 +292,7 @@ public partial class BattleHitResolver : RefCounted
         return build_skill_attack_check(active_unit, target_unit, skill_def, 0, 0);
     }
 
-    public GDictionary build_skill_attack_check(
+    public AttackCheckInput build_skill_attack_check(
         BattleUnitState active_unit,
         BattleUnitState target_unit,
         SkillDef skill_def,
@@ -357,9 +341,7 @@ public partial class BattleHitResolver : RefCounted
         GodotObject combatProfile =
             skill_def != null ? GdInterop.GetObject(skill_def, "combat_profile") : null;
         int skillAttackBonus =
-            combatProfile != null
-                ? combatProfile.Call("get_effective_attack_roll_bonus", skillLevel).AsInt32()
-                : 0;
+            (combatProfile as CombatSkillDef)?.get_effective_attack_roll_bonus(skillLevel) ?? 0;
         int lockedSkillHitBonus = _get_skill_lock_hit_bonus(
             active_unit,
             skill_def != null ? GdInterop.GetStringName(skill_def, "skill_id") : new StringName("")
@@ -376,25 +358,24 @@ public partial class BattleHitResolver : RefCounted
             - situationalAttackBonus
             + situationalAttackPenalty;
         int hitRatePercent = _compute_hit_rate_percent(requiredRoll);
-        var attackCheck = new GDictionary
-        {
-            ["attacker_base_attack_bonus"] = attackerBaseAttackBonus,
-            ["attacker_attack_bonus"] = attackerAttackBonus,
-            ["attacker_bab"] = attackerBaseAttackBonus,
-            ["target_armor_class"] = targetArmorClass,
-            ["skill_attack_bonus"] = skillAttackBonus,
-            ["locked_skill_hit_bonus"] = lockedSkillHitBonus,
-            ["situational_attack_bonus"] = situationalAttackBonus,
-            ["situational_attack_penalty"] = situationalAttackPenalty,
-            ["required_roll"] = requiredRoll,
-            ["display_required_roll"] = _get_display_required_roll(requiredRoll),
-            ["hit_rate_percent"] = hitRatePercent,
-            ["success_rate_percent"] = hitRatePercent,
-            ["natural_one_auto_miss"] = true,
-            ["natural_twenty_auto_hit"] = true,
-        };
-        attackCheck["preview_text"] = format_attack_check_preview(attackCheck);
-        return attackCheck;
+        int displayRequiredRoll = _get_display_required_roll(requiredRoll);
+        return new AttackCheckInput(
+            attackerBaseAttackBonus: attackerBaseAttackBonus,
+            attackerAttackBonus: attackerAttackBonus,
+            attackerBab: attackerBaseAttackBonus,
+            targetArmorClass: targetArmorClass,
+            skillAttackBonus: skillAttackBonus,
+            lockedSkillHitBonus: lockedSkillHitBonus,
+            situationalAttackBonus: situationalAttackBonus,
+            situationalAttackPenalty: situationalAttackPenalty,
+            requiredRoll: requiredRoll,
+            displayRequiredRoll: displayRequiredRoll,
+            hitRatePercent: hitRatePercent,
+            successRatePercent: hitRatePercent,
+            naturalOneAutoMiss: true,
+            naturalTwentyAutoHit: true,
+            previewText: $"{hitRatePercent}%（{_format_required_roll_text(requiredRoll)}）"
+        );
     }
 
     public int _get_unit_attribute_value(
@@ -443,30 +424,18 @@ public partial class BattleHitResolver : RefCounted
         return Math.Max(targetArmorClass, 1);
     }
 
-    public GDictionary _build_invalid_attack_check(StringName error_id, string error_message)
+    public AttackCheckInput _build_invalid_attack_check(StringName error_id, string error_message)
     {
-        return new GDictionary
-        {
-            ["invalid"] = true,
-            ["error_id"] = error_id.ToString(),
-            ["error_message"] = error_message,
-            ["attacker_base_attack_bonus"] = 0,
-            ["attacker_attack_bonus"] = 0,
-            ["attacker_bab"] = 0,
-            ["target_armor_class"] = 0,
-            ["skill_attack_bonus"] = 0,
-            ["locked_skill_hit_bonus"] = 0,
-            ["situational_attack_bonus"] = 0,
-            ["situational_attack_penalty"] = 0,
-            ["required_roll"] = ATTACK_CHECK_TARGET,
-            ["display_required_roll"] = _get_display_required_roll(ATTACK_CHECK_TARGET),
-            ["hit_rate_percent"] = 0,
-            ["success_rate_percent"] = 0,
-            ["base_hit_rate_percent"] = 0,
-            ["natural_one_auto_miss"] = true,
-            ["natural_twenty_auto_hit"] = false,
-            ["preview_text"] = $"无效命中检定：{error_message}",
-        };
+        return new AttackCheckInput(
+            requiredRoll: ATTACK_CHECK_TARGET,
+            displayRequiredRoll: _get_display_required_roll(ATTACK_CHECK_TARGET),
+            naturalOneAutoMiss: true,
+            naturalTwentyAutoHit: false,
+            invalid: true,
+            errorId: error_id,
+            errorMessage: error_message,
+            previewText: $"无效命中检定：{error_message}"
+        );
     }
 
     public int _get_target_armor_break_penalty(BattleUnitState target_unit)
@@ -475,9 +444,7 @@ public partial class BattleHitResolver : RefCounted
         {
             return 0;
         }
-        var statusEntry =
-            target_unit.Call("get_status_effect", STATUS_ARMOR_BREAK).AsGodotObject()
-            as BattleStatusEffectState;
+        var statusEntry = target_unit.get_status_effect(STATUS_ARMOR_BREAK);
         if (statusEntry == null)
         {
             return 0;
@@ -491,9 +458,7 @@ public partial class BattleHitResolver : RefCounted
         {
             return 0;
         }
-        var statusEntry =
-            target_unit.Call("get_status_effect", STATUS_DODGE_BONUS_UP).AsGodotObject()
-            as BattleStatusEffectState;
+        var statusEntry = target_unit.get_status_effect(STATUS_DODGE_BONUS_UP);
         if (statusEntry == null)
         {
             return 0;
@@ -508,15 +473,13 @@ public partial class BattleHitResolver : RefCounted
             return 0;
         }
         int attackDelta = 0;
-        if (active_unit.Call("has_status_effect", STATUS_BLACK_STAR_BRAND_ELITE).AsBool())
+        if (active_unit.has_status_effect(STATUS_BLACK_STAR_BRAND_ELITE))
         {
             attackDelta = BLACK_STAR_BRAND_ATTACK_BONUS_DELTA;
         }
         else
         {
-            var statusEntry =
-                active_unit.Call("get_status_effect", STATUS_ATTACK_ROLL_BONUS_UP).AsGodotObject()
-                as BattleStatusEffectState;
+            var statusEntry = active_unit.get_status_effect(STATUS_ATTACK_ROLL_BONUS_UP);
             if (statusEntry != null)
             {
                 attackDelta = Math.Max(statusEntry.power, statusEntry.stacks);
@@ -537,9 +500,7 @@ public partial class BattleHitResolver : RefCounted
         )
         {
             StringName statusId = ProgressionDataUtils.to_string_name(statusIdValue);
-            var statusEntry =
-                active_unit.Call("get_status_effect", statusId).AsGodotObject()
-                as BattleStatusEffectState;
+            var statusEntry = active_unit.get_status_effect(statusId);
             if (statusEntry == null)
             {
                 continue;
@@ -556,7 +517,7 @@ public partial class BattleHitResolver : RefCounted
     {
         return target_unit != null
             && (
-                target_unit.Call("has_status_effect", STATUS_CROWN_BREAK_BLINDED_EYE).AsBool()
+                target_unit.has_status_effect(STATUS_CROWN_BREAK_BLINDED_EYE)
                 || _unit_has_status_bool_param(target_unit, "lock_dodge_bonus")
             );
     }
@@ -572,9 +533,7 @@ public partial class BattleHitResolver : RefCounted
         )
         {
             StringName statusId = ProgressionDataUtils.to_string_name(statusIdValue);
-            var statusEntry =
-                unit_state.Call("get_status_effect", statusId).AsGodotObject()
-                as BattleStatusEffectState;
+            var statusEntry = unit_state.get_status_effect(statusId);
             if (statusEntry == null || statusEntry.@params == null)
             {
                 continue;
@@ -600,84 +559,70 @@ public partial class BattleHitResolver : RefCounted
         return GdInterop.TryGet(@params, param_key, out var value) ? value.AsBool() : fallback;
     }
 
-    public GDictionary roll_attack_check(BattleState battle_state, GDictionary attack_check)
+    public virtual AttackRollResult roll_attack_check(BattleState battle_state, AttackCheckInput attack_check)
     {
-        if (attack_check.Count == 0)
+        if (attack_check.Invalid)
         {
-            StringName emptyDisposition = _resolve_attack_roll_disposition(
-                NATURAL_MISS_ROLL,
-                ATTACK_CHECK_TARGET
+            return new AttackRollResult(
+                roll: 0,
+                rollDisposition: ROLL_DISPOSITION_THRESHOLD_MISS,
+                success: false,
+                resolutionText: string.IsNullOrEmpty(attack_check.PreviewText)
+                    ? "无效命中检定"
+                    : attack_check.PreviewText,
+                attackRollNonce: _get_attack_roll_nonce_text(battle_state)
             );
-            return new GDictionary
-            {
-                ["success"] = false,
-                ["roll"] = NATURAL_MISS_ROLL,
-                ["required_roll"] = ATTACK_CHECK_TARGET,
-                ["display_required_roll"] = _get_display_required_roll(ATTACK_CHECK_TARGET),
-                ["hit_rate_percent"] = 0,
-                ["success_rate_percent"] = 0,
-                ["natural_one_auto_miss"] = true,
-                ["natural_twenty_auto_hit"] = true,
-                ["roll_disposition"] = emptyDisposition,
-                ["preview_text"] = format_attack_check_preview(new GDictionary()),
-                ["resolution_text"] = format_attack_check_resolution(
-                    new GDictionary
-                    {
-                        ["roll"] = NATURAL_MISS_ROLL,
-                        ["required_roll"] = ATTACK_CHECK_TARGET,
-                        ["roll_disposition"] = emptyDisposition,
-                    }
-                ),
-            };
-        }
-        if (GdInterop.GetBool(attack_check, "invalid", false))
-        {
-            GDictionary invalidResult = (GDictionary)attack_check.Duplicate(true);
-            invalidResult["success"] = false;
-            invalidResult["roll"] = 0;
-            invalidResult["roll_disposition"] = ROLL_DISPOSITION_THRESHOLD_MISS;
-            invalidResult["resolution_text"] = GdInterop.GetString(
-                attack_check,
-                "preview_text",
-                "无效命中检定"
-            );
-            return invalidResult;
         }
         int roll = _roll_battle_d20(battle_state);
         StringName rollDisposition = _resolve_attack_roll_disposition_for_check(roll, attack_check);
-        GDictionary result = (GDictionary)attack_check.Duplicate(true);
-        result["roll"] = roll;
-        result["roll_disposition"] = rollDisposition;
-        result["success"] = _is_attack_roll_disposition_success(rollDisposition);
-        result["resolution_text"] = format_attack_check_resolution(result);
-        return result;
+        bool success = _is_attack_roll_disposition_success(rollDisposition);
+        var result = new AttackRollResult(
+            roll: roll,
+            rollDisposition: rollDisposition,
+            success: success,
+            attackRollNonce: _get_attack_roll_nonce_text(battle_state)
+        );
+        return new AttackRollResult(
+            roll: roll,
+            rollDisposition: rollDisposition,
+            success: success,
+            resolutionText: format_attack_check_resolution(attack_check, result),
+            attackRollNonce: result.AttackRollNonce
+        );
     }
 
-    public GDictionary roll_hit_rate(BattleState battle_state, int hit_rate_percent)
+    public virtual AttackRollResult roll_hit_rate(BattleState battle_state, int hit_rate_percent)
     {
         int clampedHitRate = Math.Clamp(hit_rate_percent, 0, 100);
         int syntheticRequiredRoll = _get_required_roll_for_hit_rate(clampedHitRate);
-        var syntheticAttackCheck = new GDictionary
-        {
-            ["required_roll"] = syntheticRequiredRoll,
-            ["display_required_roll"] = _get_display_required_roll(syntheticRequiredRoll),
-            ["natural_one_auto_miss"] = clampedHitRate < 100,
-            ["natural_twenty_auto_hit"] = clampedHitRate > 0,
-        };
+        int displayRequiredRoll = _get_display_required_roll(syntheticRequiredRoll);
+        var syntheticAttackCheck = new AttackCheckInput(
+            requiredRoll: syntheticRequiredRoll,
+            displayRequiredRoll: displayRequiredRoll,
+            naturalOneAutoMiss: clampedHitRate < 100,
+            naturalTwentyAutoHit: clampedHitRate > 0
+        );
         int resolvedHitRate = _compute_attack_check_success_rate_percent(syntheticAttackCheck);
-        syntheticAttackCheck["hit_rate_percent"] = resolvedHitRate;
-        syntheticAttackCheck["success_rate_percent"] = resolvedHitRate;
-        syntheticAttackCheck["preview_text"] = format_attack_check_preview(syntheticAttackCheck);
+        syntheticAttackCheck = new AttackCheckInput(
+            requiredRoll: syntheticRequiredRoll,
+            displayRequiredRoll: displayRequiredRoll,
+            hitRatePercent: resolvedHitRate,
+            successRatePercent: resolvedHitRate,
+            naturalOneAutoMiss: clampedHitRate < 100,
+            naturalTwentyAutoHit: clampedHitRate > 0,
+            previewText: $"{resolvedHitRate}%（{_format_required_roll_text(syntheticRequiredRoll)}）"
+        );
         return roll_attack_check(battle_state, syntheticAttackCheck);
     }
 
-    public GDictionary resolve_attack_metadata(
+    public virtual AttackResolutionMetadata resolve_attack_metadata(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
-        GDictionary attack_check,
-        GDictionary attack_context
+        AttackCheckInput attack_check,
+        AttackContext attack_context
     )
     {
+        attack_context ??= new AttackContext();
         int hiddenLuckAtBirth = _get_hidden_luck_at_birth(source_unit);
         int faithLuckBonus = _get_faith_luck_bonus(source_unit);
         int effectiveLuck = _get_effective_luck(source_unit);
@@ -686,84 +631,96 @@ public partial class BattleHitResolver : RefCounted
             target_unit,
             attack_context
         );
-        int critGateDie = FateAttackFormula.calc_crit_gate_die_size(effectiveLuck, isDisadvantage);
-        bool forceHitNoCrit = GdInterop.GetBool(attack_context, "force_hit_no_crit", false);
-        bool critLocked = _fate_attack_rules.is_attack_crit_locked(source_unit) || forceHitNoCrit;
-        int requiredRoll = GdInterop.GetInt(attack_check, "required_roll", ATTACK_CHECK_TARGET);
-        var metadata = new GDictionary
+        if (attack_check.Invalid)
         {
-            ["attack_resolution"] = ATTACK_RESOLUTION_MISS,
-            ["attack_success"] = false,
-            ["critical_hit"] = false,
-            ["critical_fail"] = false,
-            ["ordinary_miss"] = false,
-            ["is_disadvantage"] = isDisadvantage,
-            ["hidden_luck_at_birth"] = hiddenLuckAtBirth,
-            ["faith_luck_bonus"] = faithLuckBonus,
-            ["effective_luck"] = effectiveLuck,
-            ["crit_locked"] = critLocked,
-            ["crit_gate_die"] = critGateDie,
-            ["crit_gate_roll"] = 0,
-            ["hit_roll"] = 0,
-            ["fumble_low_end"] = FateAttackFormula.calc_fumble_low_end(effectiveLuck),
-            ["crit_threshold"] = FateAttackFormula.calc_crit_threshold(
+            return new AttackResolutionMetadata
+            {
+                AttackResolution = ATTACK_RESOLUTION_MISS,
+                AttackSuccess = false,
+                OrdinaryMiss = true,
+                IsDisadvantage = isDisadvantage,
+                HiddenLuckAtBirth = hiddenLuckAtBirth,
+                FaithLuckBonus = faithLuckBonus,
+                EffectiveLuck = effectiveLuck,
+                RequiredRoll = attack_check.RequiredRoll,
+                DisplayRequiredRoll = attack_check.DisplayRequiredRoll,
+                HitRatePercent = attack_check.HitRatePercent,
+                SuccessRatePercent = attack_check.SuccessRatePercent,
+                SkillId = attack_context.SkillId,
+            };
+        }
+        int critGateDie = FateAttackFormula.calc_crit_gate_die_size(effectiveLuck, isDisadvantage);
+        bool forceHitNoCrit = attack_check.ForceHitNoCrit || attack_context.ForceHitNoCrit;
+        bool critLocked = _fate_attack_rules.is_attack_crit_locked(source_unit) || forceHitNoCrit;
+        int requiredRoll = attack_check.RequiredRoll;
+        var metadata = new AttackResolutionMetadata
+        {
+            AttackResolution = ATTACK_RESOLUTION_MISS,
+            IsDisadvantage = isDisadvantage,
+            HiddenLuckAtBirth = hiddenLuckAtBirth,
+            FaithLuckBonus = faithLuckBonus,
+            EffectiveLuck = effectiveLuck,
+            CritLocked = critLocked,
+            CritGateDie = critGateDie,
+            FumbleLowEnd = FateAttackFormula.calc_fumble_low_end(effectiveLuck),
+            CritThreshold = FateAttackFormula.calc_crit_threshold(
                 hiddenLuckAtBirth,
                 faithLuckBonus
             ),
-            ["required_roll"] = requiredRoll,
-            ["display_required_roll"] = GdInterop.GetInt(
-                attack_check,
-                "display_required_roll",
-                Math.Clamp(requiredRoll, 2, NATURAL_HIT_ROLL)
-            ),
-            ["hit_rate_percent"] = GdInterop.GetInt(attack_check, "hit_rate_percent", 0),
-            ["trait_trigger_results"] = new GArray(),
+            RequiredRoll = requiredRoll,
+            DisplayRequiredRoll =
+                attack_check.DisplayRequiredRoll != 0
+                    ? attack_check.DisplayRequiredRoll
+                    : Math.Clamp(requiredRoll, 2, NATURAL_HIT_ROLL),
+            HitRatePercent = attack_check.HitRatePercent,
+            SuccessRatePercent = attack_check.SuccessRatePercent,
+            SkillId = attack_context.SkillId,
         };
         if (forceHitNoCrit)
         {
-            metadata["attack_resolution"] = ATTACK_RESOLUTION_HIT;
-            metadata["attack_success"] = true;
+            metadata.AttackResolution = ATTACK_RESOLUTION_HIT;
+            metadata.AttackSuccess = true;
             return metadata;
         }
 
         if (critGateDie > NATURAL_HIT_ROLL)
         {
             int critGateRoll = _roll_attack_die(critGateDie, isDisadvantage, attack_context);
-            metadata["crit_gate_roll"] = critGateRoll;
+            metadata.CritGateRoll = critGateRoll;
             if (_fate_attack_rules.does_gate_die_crit(critGateRoll, critGateDie, critLocked))
             {
-                metadata["attack_resolution"] = ATTACK_RESOLUTION_CRITICAL_HIT;
-                metadata["attack_success"] = true;
-                metadata["critical_hit"] = true;
+                metadata.AttackResolution = ATTACK_RESOLUTION_CRITICAL_HIT;
+                metadata.AttackSuccess = true;
+                metadata.CriticalHit = true;
                 return metadata;
             }
         }
 
         int hitRoll = _roll_attack_die(NATURAL_HIT_ROLL, isDisadvantage, attack_context);
-        metadata["hit_roll"] = hitRoll;
-        GDictionary naturalOneTraitResult = _resolve_natural_one_trait_reroll(
+        metadata.HitRoll = hitRoll;
+        AttackTraitTriggerResult naturalOneTraitResult = _resolve_natural_one_trait_reroll(
             source_unit,
             hitRoll,
             attack_context
         );
-        if (GdInterop.GetBool(naturalOneTraitResult, "triggered", false))
+        if (naturalOneTraitResult.Triggered)
         {
-            hitRoll = GdInterop.GetInt(naturalOneTraitResult, "rerolled_roll", hitRoll);
-            metadata["hit_roll"] = hitRoll;
-            _append_trait_trigger_result(metadata, naturalOneTraitResult);
+            hitRoll = naturalOneTraitResult.RerolledRoll;
+            metadata.HitRoll = hitRoll;
+            metadata.TraitTriggerResults.Add(naturalOneTraitResult);
         }
 
-        if (hitRoll <= GdInterop.GetInt(metadata, "fumble_low_end", 1))
+        if (hitRoll <= metadata.FumbleLowEnd)
         {
             if (_try_apply_reverse_fate_amulet(source_unit))
             {
-                metadata["attack_resolution"] = ATTACK_RESOLUTION_MISS;
-                metadata["ordinary_miss"] = true;
-                metadata["reverse_fate_downgraded"] = true;
+                metadata.AttackResolution = ATTACK_RESOLUTION_MISS;
+                metadata.OrdinaryMiss = true;
+                metadata.ReverseFateDowngraded = true;
                 return metadata;
             }
-            metadata["attack_resolution"] = ATTACK_RESOLUTION_CRITICAL_FAIL;
-            metadata["critical_fail"] = true;
+            metadata.AttackResolution = ATTACK_RESOLUTION_CRITICAL_FAIL;
+            metadata.CriticalFail = true;
             return metadata;
         }
 
@@ -772,24 +729,24 @@ public partial class BattleHitResolver : RefCounted
                 hitRoll,
                 critLocked,
                 critGateDie,
-                GdInterop.GetInt(metadata, "crit_threshold", NATURAL_HIT_ROLL)
+                metadata.CritThreshold
             )
         )
         {
-            metadata["attack_resolution"] = ATTACK_RESOLUTION_CRITICAL_HIT;
-            metadata["attack_success"] = true;
-            metadata["critical_hit"] = true;
+            metadata.AttackResolution = ATTACK_RESOLUTION_CRITICAL_HIT;
+            metadata.AttackSuccess = true;
+            metadata.CriticalHit = true;
             return metadata;
         }
 
         if (_fate_attack_rules.does_attack_roll_hit(hitRoll, attack_check))
         {
-            metadata["attack_resolution"] = ATTACK_RESOLUTION_HIT;
-            metadata["attack_success"] = true;
+            metadata.AttackResolution = ATTACK_RESOLUTION_HIT;
+            metadata.AttackSuccess = true;
             return metadata;
         }
 
-        metadata["ordinary_miss"] = true;
+        metadata.OrdinaryMiss = true;
         return metadata;
     }
 
@@ -926,34 +883,39 @@ public partial class BattleHitResolver : RefCounted
         );
     }
 
-    public int roll_attack_die(int die_size, bool is_disadvantage, GDictionary attack_context)
+    public virtual int roll_attack_die(int die_size, bool is_disadvantage, GDictionary attack_context)
     {
         return _roll_attack_die(die_size, is_disadvantage, attack_context);
     }
 
-    public string format_attack_check_preview(GDictionary attack_check)
+    public virtual int roll_attack_die(
+        int die_size,
+        bool is_disadvantage,
+        AttackContext attack_context
+    )
     {
-        int hitRatePercent = GdInterop.GetInt(attack_check, "success_rate_percent", 0);
-        int requiredRoll = GdInterop.GetInt(attack_check, "required_roll", ATTACK_CHECK_TARGET);
+        return _roll_attack_die(die_size, is_disadvantage, attack_context);
+    }
+
+    public string format_attack_check_preview(AttackCheckInput attack_check)
+    {
+        int hitRatePercent = attack_check.SuccessRatePercent;
+        int requiredRoll = attack_check.RequiredRoll;
         return $"{hitRatePercent}%（{_format_required_roll_text(requiredRoll)}）";
     }
 
-    public string format_attack_check_resolution(GDictionary attack_result)
+    public string format_attack_check_resolution(
+        AttackCheckInput attack_check,
+        AttackRollResult attack_result
+    )
     {
-        string previewText = GdInterop.GetString(
-            attack_result,
-            "preview_text",
-            format_attack_check_preview(attack_result)
-        );
-        int roll = GdInterop.GetInt(attack_result, "roll", NATURAL_MISS_ROLL);
-        StringName rollDisposition = GdInterop.GetStringName(
-            attack_result,
-            "roll_disposition",
-            _resolve_attack_roll_disposition(
-                roll,
-                GdInterop.GetInt(attack_result, "required_roll", ATTACK_CHECK_TARGET)
-            )
-        );
+        string previewText = string.IsNullOrEmpty(attack_check.PreviewText)
+            ? format_attack_check_preview(attack_check)
+            : attack_check.PreviewText;
+        int roll = attack_result.Roll;
+        StringName rollDisposition = GdInterop.IsEmpty(attack_result.RollDisposition)
+            ? _resolve_attack_roll_disposition_for_check(roll, attack_check)
+            : attack_result.RollDisposition;
         if (rollDisposition == ROLL_DISPOSITION_NATURAL_AUTO_MISS)
         {
             return $"{previewText}，d20={roll}（天然 1 失手）";
@@ -971,8 +933,7 @@ public partial class BattleHitResolver : RefCounted
         {
             return NATURAL_MISS_ROLL;
         }
-        int nonce = Math.Max(GdInterop.GetInt(battle_state, "attack_roll_nonce", 0), 0);
-        battle_state.Set("attack_roll_nonce", nonce + 1);
+        battle_state.next_attack_roll_nonce();
         return TrueRandomSeedService.randi_range(NATURAL_MISS_ROLL, NATURAL_HIT_ROLL);
     }
 
@@ -1006,6 +967,44 @@ public partial class BattleHitResolver : RefCounted
         return hookResult;
     }
 
+    public AttackTraitTriggerResult _resolve_natural_one_trait_reroll(
+        BattleUnitState source_unit,
+        int hit_roll,
+        AttackContext attack_context
+    )
+    {
+        if (_trait_trigger_hooks == null)
+        {
+            return new AttackTraitTriggerResult();
+        }
+        AttackTraitTriggerResult hookResult = _trait_trigger_hooks.on_natural_one_typed(
+            source_unit,
+            hit_roll,
+            NATURAL_HIT_ROLL
+        );
+        if (!hookResult.Triggered)
+        {
+            return hookResult;
+        }
+        if (!hookResult.RerollDie)
+        {
+            return hookResult;
+        }
+        int rerolledRoll = _roll_attack_die(NATURAL_HIT_ROLL, false, attack_context);
+        return new AttackTraitTriggerResult(
+            triggered: hookResult.Triggered,
+            @event: hookResult.Event,
+            traitId: hookResult.TraitId,
+            effectType: hookResult.EffectType,
+            originalRoll: hookResult.OriginalRoll,
+            rerollDie: hookResult.RerollDie,
+            rerolledRoll: rerolledRoll,
+            dieSize: hookResult.DieSize,
+            chargeKey: hookResult.ChargeKey,
+            chargesRemaining: hookResult.ChargesRemaining
+        );
+    }
+
     public bool _resolve_attack_disadvantage(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
@@ -1021,13 +1020,48 @@ public partial class BattleHitResolver : RefCounted
         {
             return false;
         }
-        return battleState.Call("is_attack_disadvantage", source_unit, target_unit).AsBool();
+        return battleState.is_attack_disadvantage(source_unit, target_unit);
+    }
+
+    public bool _resolve_attack_disadvantage(
+        BattleUnitState source_unit,
+        BattleUnitState target_unit,
+        AttackContext attack_context
+    )
+    {
+        if (attack_context == null)
+        {
+            return false;
+        }
+        if (attack_context.HasIsDisadvantage)
+        {
+            return attack_context.IsDisadvantage;
+        }
+        BattleState battleState = attack_context.BattleState;
+        if (battleState == null)
+        {
+            return false;
+        }
+        return battleState.is_attack_disadvantage(source_unit, target_unit);
     }
 
     public int _roll_attack_die(int die_size, bool is_disadvantage, GDictionary attack_context)
     {
         var battleState = GdInterop.GetObject(attack_context, "battle_state") as BattleState;
         int normalizedDieSize = Math.Max(die_size, 1);
+        int firstRoll = _roll_attack_die_once(normalizedDieSize, attack_context, battleState);
+        if (!is_disadvantage)
+        {
+            return firstRoll;
+        }
+        int secondRoll = _roll_attack_die_once(normalizedDieSize, attack_context, battleState);
+        return Math.Min(firstRoll, secondRoll);
+    }
+
+    public int _roll_attack_die(int die_size, bool is_disadvantage, AttackContext attack_context)
+    {
+        int normalizedDieSize = Math.Max(die_size, 1);
+        BattleState battleState = attack_context?.BattleState;
         int firstRoll = _roll_attack_die_once(normalizedDieSize, attack_context, battleState);
         if (!is_disadvantage)
         {
@@ -1048,10 +1082,24 @@ public partial class BattleHitResolver : RefCounted
         {
             if (battle_state != null)
             {
-                battle_state.Set(
-                    "attack_roll_nonce",
-                    Math.Max(GdInterop.GetInt(battle_state, "attack_roll_nonce", 0), 0) + 1
-                );
+                battle_state.next_attack_roll_nonce();
+            }
+            return overrideRoll;
+        }
+        return _roll_true_random_attack_range(1, die_size, battle_state);
+    }
+
+    public int _roll_attack_die_once(
+        int die_size,
+        AttackContext attack_context,
+        BattleState battle_state
+    )
+    {
+        if (attack_context != null && attack_context.TryConsumeAttackRollOverride(die_size, out int overrideRoll))
+        {
+            if (battle_state != null)
+            {
+                battle_state.next_attack_roll_nonce();
             }
             return overrideRoll;
         }
@@ -1093,10 +1141,7 @@ public partial class BattleHitResolver : RefCounted
     {
         if (battle_state != null)
         {
-            battle_state.Set(
-                "attack_roll_nonce",
-                Math.Max(GdInterop.GetInt(battle_state, "attack_roll_nonce", 0), 0) + 1
-            );
+            battle_state.next_attack_roll_nonce();
         }
         return TrueRandomSeedService.randi_range(min_value, max_value);
     }
@@ -1158,7 +1203,7 @@ public partial class BattleHitResolver : RefCounted
             duration = Math.Max(duration_tu, -1),
             @params = (GDictionary)status_params.Duplicate(true),
         };
-        unit_state.Call("set_status_effect", statusEntry);
+        unit_state.set_status_effect(statusEntry);
     }
 
     public void _append_trait_trigger_result(GDictionary target, GDictionary trigger_result)
@@ -1195,7 +1240,7 @@ public partial class BattleHitResolver : RefCounted
         {
             return DEFAULT_REPEAT_ATTACK_PREVIEW_STAGE_COUNT;
         }
-        if (active_unit.Call("has_status_effect", STATUS_CROWN_BREAK_BROKEN_HAND).AsBool())
+        if (active_unit.has_status_effect(STATUS_CROWN_BREAK_BROKEN_HAND))
         {
             return 1;
         }
@@ -1271,61 +1316,57 @@ public partial class BattleHitResolver : RefCounted
         return GdInterop.GetInt(active_unit, "current_aura");
     }
 
-    public string _format_repeat_attack_preview_summary(GDictArray stage_checks)
+    public string _format_repeat_attack_preview_summary(List<AttackCheckInput> stage_checks)
     {
         if (stage_checks.Count == 0)
         {
             return "";
         }
         var parts = new List<string>();
-        foreach (GDictionary stageCheck in stage_checks)
+        foreach (AttackCheckInput stageCheck in stage_checks)
         {
             parts.Add(
-                GdInterop.GetString(
-                    stageCheck,
-                    "preview_text",
-                    format_attack_check_preview(stageCheck)
-                )
+                string.IsNullOrEmpty(stageCheck.PreviewText)
+                    ? format_attack_check_preview(stageCheck)
+                    : stageCheck.PreviewText
             );
         }
         return $"预计命中率 {string.Join(" -> ", parts)}";
     }
 
-    public GDictionary _build_fate_aware_attack_check_preview(
+    public AttackCheckInput _build_fate_aware_attack_check_preview(
         BattleState battle_state,
         BattleUnitState active_unit,
         BattleUnitState target_unit,
-        GDictionary attack_check
+        AttackCheckInput attack_check
     )
     {
-        GDictionary resolvedCheck = (GDictionary)attack_check.Duplicate(true);
-        if (GdInterop.GetBool(resolvedCheck, "invalid", false))
+        if (attack_check.Invalid)
         {
-            resolvedCheck["hit_rate_percent"] = 0;
-            resolvedCheck["success_rate_percent"] = 0;
-            resolvedCheck["base_hit_rate_percent"] = 0;
-            resolvedCheck["preview_text"] = GdInterop.GetString(
-                resolvedCheck,
-                "preview_text",
-                "无效命中检定"
+            return new AttackCheckInput(
+                requiredRoll: attack_check.RequiredRoll,
+                displayRequiredRoll: attack_check.DisplayRequiredRoll,
+                naturalOneAutoMiss: attack_check.NaturalOneAutoMiss,
+                naturalTwentyAutoHit: attack_check.NaturalTwentyAutoHit,
+                invalid: true,
+                errorId: attack_check.ErrorId,
+                errorMessage: attack_check.ErrorMessage,
+                previewText: string.IsNullOrEmpty(attack_check.PreviewText)
+                    ? "无效命中检定"
+                    : attack_check.PreviewText
             );
-            return resolvedCheck;
         }
-        int baseHitRatePercent = GdInterop.GetInt(attack_check, "hit_rate_percent", 0);
-        resolvedCheck["base_hit_rate_percent"] = baseHitRatePercent;
-        if (!resolvedCheck.ContainsKey("success_rate_percent"))
-        {
-            resolvedCheck["success_rate_percent"] = 0;
-        }
+        int baseHitRatePercent = attack_check.HitRatePercent;
         if (battle_state == null || active_unit == null || target_unit == null)
         {
-            resolvedCheck["preview_text"] = format_attack_check_preview(resolvedCheck);
-            return resolvedCheck;
+            return CopyAttackCheck(
+                attack_check,
+                baseHitRatePercent: baseHitRatePercent,
+                previewText: format_attack_check_preview(attack_check)
+            );
         }
 
-        bool isDisadvantage = battle_state
-            .Call("is_attack_disadvantage", active_unit, target_unit)
-            .AsBool();
+        bool isDisadvantage = battle_state.is_attack_disadvantage(active_unit, target_unit);
         int hiddenLuckAtBirth = _get_hidden_luck_at_birth(active_unit);
         int faithLuckBonus = _get_faith_luck_bonus(active_unit);
         int effectiveLuck = Math.Clamp(
@@ -1348,38 +1389,40 @@ public partial class BattleHitResolver : RefCounted
             fumbleLowEnd,
             isDisadvantage
         );
-        resolvedCheck["hit_rate_percent"] = successRatePercent;
-        resolvedCheck["success_rate_percent"] = successRatePercent;
-        resolvedCheck["is_disadvantage"] = isDisadvantage;
-        resolvedCheck["effective_luck"] = effectiveLuck;
-        resolvedCheck["crit_gate_die"] = critGateDie;
-        resolvedCheck["crit_threshold"] = critThreshold;
-        resolvedCheck["fumble_low_end"] = fumbleLowEnd;
-        resolvedCheck["crit_locked"] = critLocked;
-        resolvedCheck["preview_text"] = _format_fate_aware_attack_check_preview(resolvedCheck);
-        return resolvedCheck;
+        AttackCheckInput resolvedCheck = CopyAttackCheck(
+            attack_check,
+            hitRatePercent: successRatePercent,
+            successRatePercent: successRatePercent,
+            baseHitRatePercent: baseHitRatePercent,
+            isDisadvantage: isDisadvantage,
+            critGateDie: critGateDie,
+            critThreshold: critThreshold,
+            fumbleLowEnd: fumbleLowEnd,
+            critLocked: critLocked
+        );
+        return CopyAttackCheck(
+            resolvedCheck,
+            previewText: _format_fate_aware_attack_check_preview(resolvedCheck)
+        );
     }
 
-    public string _format_fate_aware_attack_check_preview(GDictionary attack_check)
+    public string _format_fate_aware_attack_check_preview(AttackCheckInput attack_check)
     {
-        int successRatePercent = GdInterop.GetInt(attack_check, "success_rate_percent", 0);
-        string requiredRollText = _format_required_roll_text(
-            GdInterop.GetInt(attack_check, "required_roll", ATTACK_CHECK_TARGET)
-        );
-        int baseHitRatePercent = GdInterop.GetInt(
-            attack_check,
-            "base_hit_rate_percent",
-            successRatePercent
-        );
+        int successRatePercent = attack_check.SuccessRatePercent;
+        string requiredRollText = _format_required_roll_text(attack_check.RequiredRoll);
+        int baseHitRatePercent =
+            attack_check.BaseHitRatePercent > 0
+                ? attack_check.BaseHitRatePercent
+                : successRatePercent;
         if (successRatePercent <= baseHitRatePercent)
         {
             return $"{successRatePercent}%（{requiredRollText}）";
         }
-        bool critLocked = GdInterop.GetBool(attack_check, "crit_locked", false);
-        int critGateDie = GdInterop.GetInt(attack_check, "crit_gate_die", NATURAL_HIT_ROLL);
+        bool critLocked = attack_check.CritLocked;
+        int critGateDie = attack_check.CritGateDie;
         if (!critLocked && critGateDie == NATURAL_HIT_ROLL)
         {
-            return $"{successRatePercent}%（{requiredRollText}；高位大成功 {GdInterop.GetInt(attack_check, "crit_threshold", NATURAL_HIT_ROLL)}-20 直达）";
+            return $"{successRatePercent}%（{requiredRollText}；高位大成功 {attack_check.CritThreshold}-20 直达）";
         }
         if (!critLocked && critGateDie > NATURAL_HIT_ROLL)
         {
@@ -1389,7 +1432,7 @@ public partial class BattleHitResolver : RefCounted
     }
 
     public int _compute_fate_attack_success_rate_percent(
-        GDictionary attack_check,
+        AttackCheckInput attack_check,
         bool crit_locked,
         int crit_gate_die,
         int crit_threshold,
@@ -1409,7 +1452,7 @@ public partial class BattleHitResolver : RefCounted
     }
 
     public double _compute_fate_attack_success_rate_basis_points(
-        GDictionary attack_check,
+        AttackCheckInput attack_check,
         bool crit_locked,
         int crit_gate_die,
         int crit_threshold,
@@ -1439,7 +1482,7 @@ public partial class BattleHitResolver : RefCounted
     }
 
     public double _compute_d20_attack_success_rate_basis_points(
-        GDictionary attack_check,
+        AttackCheckInput attack_check,
         bool crit_locked,
         int crit_gate_die,
         int crit_threshold,
@@ -1495,7 +1538,7 @@ public partial class BattleHitResolver : RefCounted
 
     public bool _is_d20_attack_success_roll(
         int roll,
-        GDictionary attack_check,
+        AttackCheckInput attack_check,
         bool crit_locked,
         int crit_gate_die,
         int crit_threshold,
@@ -1583,7 +1626,7 @@ public partial class BattleHitResolver : RefCounted
         );
     }
 
-    public int _compute_attack_check_success_rate_percent(GDictionary attack_check)
+    public int _compute_attack_check_success_rate_percent(AttackCheckInput attack_check)
     {
         int successCount = 0;
         for (int roll = NATURAL_MISS_ROLL; roll <= NATURAL_HIT_ROLL; roll++)
@@ -1600,20 +1643,17 @@ public partial class BattleHitResolver : RefCounted
         return successCount * 5;
     }
 
-    public StringName _resolve_attack_roll_disposition_for_check(int roll, GDictionary attack_check)
+    public StringName _resolve_attack_roll_disposition_for_check(
+        int roll,
+        AttackCheckInput attack_check
+    )
     {
-        int requiredRoll = GdInterop.GetInt(attack_check, "required_roll", ATTACK_CHECK_TARGET);
-        if (
-            GdInterop.GetBool(attack_check, "natural_one_auto_miss", true)
-            && roll <= NATURAL_MISS_ROLL
-        )
+        int requiredRoll = attack_check.RequiredRoll;
+        if (attack_check.NaturalOneAutoMiss && roll <= NATURAL_MISS_ROLL)
         {
             return ROLL_DISPOSITION_NATURAL_AUTO_MISS;
         }
-        if (
-            GdInterop.GetBool(attack_check, "natural_twenty_auto_hit", true)
-            && roll >= NATURAL_HIT_ROLL
-        )
+        if (attack_check.NaturalTwentyAutoHit && roll >= NATURAL_HIT_ROLL)
         {
             return ROLL_DISPOSITION_NATURAL_AUTO_HIT;
         }
@@ -1672,4 +1712,57 @@ public partial class BattleHitResolver : RefCounted
         int successfulRolls = (int)Math.Ceiling(clampedHitRate / 5.0);
         return ATTACK_CHECK_TARGET - successfulRolls;
     }
+
+    private static AttackCheckInput CopyAttackCheck(
+        AttackCheckInput source,
+        int? hitRatePercent = null,
+        int? successRatePercent = null,
+        int? baseHitRatePercent = null,
+        bool? isDisadvantage = null,
+        int? critGateDie = null,
+        int? critThreshold = null,
+        int? fumbleLowEnd = null,
+        bool? critLocked = null,
+        string previewText = null
+    )
+    {
+        return new AttackCheckInput(
+            attackerBaseAttackBonus: source.AttackerBaseAttackBonus,
+            attackerAttackBonus: source.AttackerAttackBonus,
+            attackerBab: source.AttackerBab,
+            targetArmorClass: source.TargetArmorClass,
+            skillAttackBonus: source.SkillAttackBonus,
+            lockedSkillHitBonus: source.LockedSkillHitBonus,
+            situationalAttackBonus: source.SituationalAttackBonus,
+            situationalAttackPenalty: source.SituationalAttackPenalty,
+            requiredRoll: source.RequiredRoll,
+            displayRequiredRoll: source.DisplayRequiredRoll,
+            hitRatePercent: hitRatePercent ?? source.HitRatePercent,
+            successRatePercent: successRatePercent ?? source.SuccessRatePercent,
+            baseHitRatePercent: baseHitRatePercent ?? source.BaseHitRatePercent,
+            naturalOneAutoMiss: source.NaturalOneAutoMiss,
+            naturalTwentyAutoHit: source.NaturalTwentyAutoHit,
+            critThreshold: critThreshold ?? source.CritThreshold,
+            fumbleLowEnd: fumbleLowEnd ?? source.FumbleLowEnd,
+            critLocked: critLocked ?? source.CritLocked,
+            critGateDie: critGateDie ?? source.CritGateDie,
+            forceHitNoCrit: source.ForceHitNoCrit,
+            apCost: source.ApCost,
+            auraCost: source.AuraCost,
+            mpCost: source.MpCost,
+            staminaCost: source.StaminaCost,
+            costResource: source.CostResource,
+            skillId: source.SkillId,
+            followUpAttackPenalty: source.FollowUpAttackPenalty,
+            exponentialPenalty: source.ExponentialPenalty,
+            isDisadvantage: isDisadvantage ?? source.IsDisadvantage,
+            invalid: source.Invalid,
+            errorId: source.ErrorId,
+            errorMessage: source.ErrorMessage,
+            previewText: previewText ?? source.PreviewText
+        );
+    }
+
+    private static string _get_attack_roll_nonce_text(BattleState battle_state) =>
+        battle_state != null ? battle_state.attack_roll_nonce.ToString() : "";
 }

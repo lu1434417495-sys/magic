@@ -9,9 +9,9 @@ public partial class FortuneService : RefCounted
     private static readonly StringName CriticalSuccessUnderDisadvantage =
         "critical_success_under_disadvantage";
 
-    private GodotObject _characterGateway;
+    private IBattleRuntimeCharacterGateway _characterGateway;
     private BattleFateEventBus _fateEventBus;
-    private GodotObject _confirmationRngOverride;
+    private RandomNumberGenerator _confirmationRngOverride;
 
     public static StringName FORTUNE_MARKED_STAT_ID()
     {
@@ -24,7 +24,7 @@ public partial class FortuneService : RefCounted
     }
 
     public void setup(
-        GodotObject character_gateway = null,
+        IBattleRuntimeCharacterGateway character_gateway = null,
         BattleFateEventBus fate_event_bus = null
     )
     {
@@ -48,21 +48,17 @@ public partial class FortuneService : RefCounted
         _confirmationRngOverride = null;
     }
 
-    public void set_confirmation_rng_for_testing(GodotObject rng = null)
+    public void set_confirmation_rng_for_testing(RandomNumberGenerator rng = null)
     {
-        _confirmationRngOverride = null;
-        if (rng != null && rng.HasMethod("randi_range"))
-            _confirmationRngOverride = rng;
+        _confirmationRngOverride = rng;
     }
 
     public bool has_attempted_fortune_mark(StringName member_id)
     {
-        GodotObject partyState = GetPartyState();
+        PartyState partyState = GetPartyState();
         if (partyState == null || member_id == "")
             return false;
-        return partyState
-            .Call("has_fate_run_flag", BuildFortuneMarkAttemptFlagId(member_id))
-            .AsBool();
+        return partyState.has_fate_run_flag(BuildFortuneMarkAttemptFlagId(member_id));
     }
 
     public bool try_grant_fortune_mark_from_payload(GDictionary payload)
@@ -71,11 +67,11 @@ public partial class FortuneService : RefCounted
         if (attackerMemberId == "")
             return false;
 
-        GodotObject partyState = GetPartyState();
+        PartyState partyState = GetPartyState();
         if (partyState == null)
             return false;
         StringName attemptFlagId = BuildFortuneMarkAttemptFlagId(attackerMemberId);
-        if (partyState.Call("has_fate_run_flag", attemptFlagId).AsBool())
+        if (partyState.has_fate_run_flag(attemptFlagId))
             return false;
 
         PartyMemberState memberState = GetMemberState(attackerMemberId);
@@ -85,7 +81,7 @@ public partial class FortuneService : RefCounted
         if (GetCustomStatValue(memberState, FortuneMarkedStatId) >= 1)
             return false;
 
-        partyState.Call("set_fate_run_flag", attemptFlagId, true);
+        partyState.set_fate_run_flag(attemptFlagId, true);
 
         int critGateDie = Mathf.Max(GetInt(payload, "crit_gate_die", 0), 1);
         bool isDisadvantage = GetBool(payload, "is_disadvantage", false);
@@ -108,9 +104,9 @@ public partial class FortuneService : RefCounted
         try_grant_fortune_mark_from_payload(payload);
     }
 
-    private GodotObject ResolveConfirmationRng(GDictionary payload)
+    private RandomNumberGenerator ResolveConfirmationRng(GDictionary payload)
     {
-        if (_confirmationRngOverride != null && _confirmationRngOverride.HasMethod("randi_range"))
+        if (_confirmationRngOverride != null)
             return _confirmationRngOverride;
         var rng = new RandomNumberGenerator();
         rng.Seed = StringExtensions.Hash(BuildConfirmationSeedSource(payload));
@@ -130,26 +126,16 @@ public partial class FortuneService : RefCounted
         );
     }
 
-    private GodotObject GetPartyState()
+    private PartyState GetPartyState()
     {
-        if (_characterGateway == null || !_characterGateway.HasMethod("get_party_state"))
-            return null;
-        var partyState = _characterGateway.Call("get_party_state");
-        return partyState.VariantType == Variant.Type.Object ? partyState.AsGodotObject() : null;
+        return _characterGateway?.get_party_state();
     }
 
     private PartyMemberState GetMemberState(StringName memberId)
     {
-        if (
-            _characterGateway == null
-            || memberId == ""
-            || !_characterGateway.HasMethod("get_member_state")
-        )
+        if (_characterGateway == null || memberId == "")
             return null;
-        var memberState = _characterGateway.Call("get_member_state", memberId);
-        return memberState.VariantType == Variant.Type.Object
-            ? memberState.AsGodotObject() as PartyMemberState
-            : null;
+        return _characterGateway.get_member_state(memberId);
     }
 
     private static int GetCustomStatValue(PartyMemberState memberState, StringName statId)
@@ -160,12 +146,7 @@ public partial class FortuneService : RefCounted
 
     private static UnitBaseAttributes GetUnitBaseAttributes(PartyMemberState memberState)
     {
-        if (memberState == null || memberState.progression == null)
-            return null;
-        var attributes = memberState.progression.Get("unit_base_attributes");
-        return attributes.VariantType == Variant.Type.Object
-            ? attributes.AsGodotObject() as UnitBaseAttributes
-            : null;
+        return memberState?.progression?.unit_base_attributes;
     }
 
     private static StringName BuildFortuneMarkAttemptFlagId(StringName memberId)

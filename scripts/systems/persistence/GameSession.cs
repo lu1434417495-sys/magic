@@ -2581,13 +2581,13 @@ public partial class GameSession : Node
         };
     }
 
-    public GDictionary _build_content_validation_domain_snapshot(GodotObject registry)
+    public GDictionary _build_content_validation_domain_snapshot(IValidatableRegistry registry)
     {
         GStringArray errors = new();
-        if (registry != null && registry.HasMethod("validate"))
+        if (registry != null)
         {
-            foreach (var validationError in registry.Call("validate").AsGodotArray())
-                errors.Add(validationError.AsString());
+            foreach (var validationError in registry.validate())
+                errors.Add(validationError);
         }
         return new GDictionary
         {

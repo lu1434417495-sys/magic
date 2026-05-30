@@ -51,7 +51,6 @@ public partial class BattleUnitState : RefCounted
         "control_mode",
         "ai_brain_id",
         "ai_state_id",
-        "ai_blackboard",
         "coord",
         "body_size",
         "body_size_category",
@@ -176,7 +175,7 @@ public partial class BattleUnitState : RefCounted
     public StringName control_mode = "manual";
     public StringName ai_brain_id = "";
     public StringName ai_state_id = "";
-    public GDictionary ai_blackboard = new();
+    public BattleAiBlackboard ai_blackboard = new();
     public Vector2I coord = Vector2I.Zero;
     public int body_size = BodySizeMedium;
     public StringName body_size_category = BodySizeCategoryMedium;
@@ -660,7 +659,7 @@ public partial class BattleUnitState : RefCounted
             ["control_mode"] = control_mode.ToString(),
             ["ai_brain_id"] = ai_brain_id.ToString(),
             ["ai_state_id"] = ai_state_id.ToString(),
-            ["ai_blackboard"] = DuplicateDictionary(ai_blackboard, true),
+            // ai_blackboard is runtime-only and not serialized
             ["coord"] = coord,
             ["body_size"] = body_size,
             ["body_size_category"] = body_size_category.ToString(),
@@ -878,7 +877,6 @@ public partial class BattleUnitState : RefCounted
         foreach (
             string fieldName in new[]
             {
-                "ai_blackboard",
                 "attribute_snapshot",
                 "equipment_view",
                 "shield_params",
@@ -1057,7 +1055,7 @@ public partial class BattleUnitState : RefCounted
             control_mode = ToStringName(payload["control_mode"]),
             ai_brain_id = ToStringName(payload["ai_brain_id"]),
             ai_state_id = ToStringName(payload["ai_state_id"]),
-            ai_blackboard = DuplicateDictionary(payload["ai_blackboard"].AsGodotDictionary(), true),
+            ai_blackboard = new BattleAiBlackboard(),
             coord = coordValue.AsVector2I(),
             body_size = bodySizeInt,
             body_size_category = parsedBodySizeCategory,

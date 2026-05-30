@@ -45,15 +45,15 @@ public partial class BattleSpecialSkillResolver : RefCounted
 
     private WeakReference<GodotObject> _runtimeRef;
 
-    private GodotObject _runtime
+    private BattleRuntimeModule _runtime
     {
-        get => ResolveWeakRef(_runtimeRef);
+        get => ResolveWeakRef(_runtimeRef) as BattleRuntimeModule;
         set => _runtimeRef = value != null ? new WeakReference<GodotObject>(value) : null;
     }
 
     public void setup(GodotObject runtime)
     {
-        _runtime = runtime;
+        _runtime = runtime as BattleRuntimeModule;
     }
 
     public void dispose()
@@ -71,9 +71,11 @@ public partial class BattleSpecialSkillResolver : RefCounted
         {
             return false;
         }
-        return _runtime
-            .Call("_is_unit_valid_for_effect", source_unit, target_unit, target_team_filter)
-            .AsBool();
+        return _runtime._is_unit_valid_for_effect(
+            source_unit as BattleUnitState,
+            target_unit as BattleUnitState,
+            target_team_filter
+        );
     }
 
     public void _apply_skill_mastery_grant(
@@ -86,7 +88,7 @@ public partial class BattleSpecialSkillResolver : RefCounted
         {
             return;
         }
-        _runtime.Call("_apply_skill_mastery_grant", unit_state, grant, batch);
+        _runtime._apply_skill_mastery_grant(unit_state as BattleUnitState, grant, batch as BattleEventBatch);
     }
 
     public void _append_changed_coords(GodotObject batch, GArray coords)
@@ -95,7 +97,7 @@ public partial class BattleSpecialSkillResolver : RefCounted
         {
             return;
         }
-        _runtime.Call("_append_changed_coords", batch, coords);
+        _runtime._append_changed_coords(batch as BattleEventBatch, coords);
     }
 
     public void _append_changed_unit_id(GodotObject batch, StringName unit_id)
@@ -104,7 +106,7 @@ public partial class BattleSpecialSkillResolver : RefCounted
         {
             return;
         }
-        _runtime.Call("_append_changed_unit_id", batch, unit_id);
+        _runtime._append_changed_unit_id(batch as BattleEventBatch, unit_id);
     }
 
     public void _append_changed_unit_coords(GodotObject batch, GodotObject unit_state)
@@ -113,7 +115,7 @@ public partial class BattleSpecialSkillResolver : RefCounted
         {
             return;
         }
-        _runtime.Call("_append_changed_unit_coords", batch, unit_state);
+        _runtime._append_changed_unit_coords(batch as BattleEventBatch, unit_state as BattleUnitState);
     }
 
     public void _apply_on_kill_gain_resources_effects(
@@ -220,10 +222,7 @@ public partial class BattleSpecialSkillResolver : RefCounted
             return result;
         }
 
-        GodotObject layeredBarrierService = GdInterop.GetObject(
-            _runtime,
-            "_layered_barrier_service"
-        );
+        BattleLayeredBarrierService layeredBarrierService = _runtime._layered_barrier_service;
         var seenForcedMoveEffects = new GDictionary();
         foreach (var effectDefValue in effect_defs)
         {
@@ -237,16 +236,13 @@ public partial class BattleSpecialSkillResolver : RefCounted
             {
                 GDictionary barrierResult =
                     layeredBarrierService != null
-                        ? layeredBarrierService
-                            .Call(
-                                "ApplyLayeredBarrierEffect",
-                                active_unit,
-                                target_unit ?? active_unit,
-                                skill_def,
-                                effectDef,
-                                batch
-                            )
-                            .AsGodotDictionary()
+                        ? layeredBarrierService.ApplyLayeredBarrierEffect(
+                            active_unit as BattleUnitState,
+                            (target_unit ?? active_unit) as BattleUnitState,
+                            skill_def as SkillDef,
+                            effectDef as CombatEffectDef,
+                            batch as BattleEventBatch
+                        )
                         : new GDictionary();
                 if (GdInterop.GetBool(barrierResult, "applied", false))
                 {
@@ -363,7 +359,7 @@ public partial class BattleSpecialSkillResolver : RefCounted
     )
     {
         GodotObject state = RtState();
-        GodotObject gridService = GdInterop.GetObject(_runtime, "_grid_service");
+        BattleGridService gridService = _runtime.get_grid_service();
         if (state == null || first_unit == null || second_unit == null)
         {
             return false;
@@ -389,29 +385,27 @@ public partial class BattleSpecialSkillResolver : RefCounted
         {
             return false;
         }
-        gridService.Call("clear_unit_occupancy", state, first_unit);
-        gridService.Call("clear_unit_occupancy", state, second_unit);
+        gridService.clear_unit_occupancy(state, first_unit as BattleUnitState);
+        gridService.clear_unit_occupancy(state, second_unit as BattleUnitState);
         bool canSwap =
-            gridService.Call("can_place_unit", state, first_unit, secondCoord, true).AsBool()
-            && gridService.Call("can_place_unit", state, second_unit, firstCoord, true).AsBool();
+            gridService.can_place_unit(state, first_unit as BattleUnitState, secondCoord, true)
+            && gridService.can_place_unit(state, second_unit as BattleUnitState, firstCoord, true);
         if (!canSwap)
         {
-            gridService.Call(
-                "set_occupants",
+            gridService.set_occupants(
                 state,
                 firstPreviousCoords,
                 GdInterop.GetStringName(first_unit, "unit_id")
             );
-            gridService.Call(
-                "set_occupants",
+            gridService.set_occupants(
                 state,
                 secondPreviousCoords,
                 GdInterop.GetStringName(second_unit, "unit_id")
             );
             return false;
         }
-        gridService.Call("place_unit", state, first_unit, secondCoord, true);
-        gridService.Call("place_unit", state, second_unit, firstCoord, true);
+        gridService.place_unit(state, first_unit as BattleUnitState, secondCoord, true);
+        gridService.place_unit(state, second_unit as BattleUnitState, firstCoord, true);
         _append_changed_coords(batch, firstPreviousCoords);
         _append_changed_coords(batch, secondPreviousCoords);
         _append_changed_unit_coords(batch, first_unit);
@@ -432,17 +426,17 @@ public partial class BattleSpecialSkillResolver : RefCounted
         {
             return false;
         }
-        GodotObject layeredBarrierService = GdInterop.GetObject(
-            _runtime,
-            "_layered_barrier_service"
-        );
+        BattleLayeredBarrierService layeredBarrierService = _runtime._layered_barrier_service;
         if (layeredBarrierService == null)
         {
             return true;
         }
-        GDictionary barrierResult = layeredBarrierService
-            .Call("ResolveUnitBoundaryCrossing", unit_state, from_coord, to_coord, batch)
-            .AsGodotDictionary();
+        GDictionary barrierResult = layeredBarrierService.ResolveUnitBoundaryCrossing(
+            unit_state as BattleUnitState,
+            from_coord,
+            to_coord,
+            batch as BattleEventBatch
+        );
         return !GdInterop.GetBool(barrierResult, "blocked", false)
             && GdInterop.GetBool(unit_state, "is_alive")
             && GdInterop.GetVector2I(unit_state, "coord") == from_coord;
@@ -497,7 +491,7 @@ public partial class BattleSpecialSkillResolver : RefCounted
                 BLACK_STAR_BRAND_DURATION_TU,
                 GdInterop.GetStringName(active_unit, "unit_id")
             );
-            target_unit.Call("erase_status_effect", STATUS_GUARDING);
+            (target_unit as BattleUnitState)?.erase_status_effect(STATUS_GUARDING);
             result["status_effect_ids"] = new GArray { STATUS_BLACK_STAR_BRAND_NORMAL };
             result["log_lines"] = new GArray
             {
@@ -532,7 +526,7 @@ public partial class BattleSpecialSkillResolver : RefCounted
             duration = Math.Max(duration_tu, -1),
             @params = (GDictionary)status_params.Duplicate(true),
         };
-        unit_state.Call("set_status_effect", statusEntry);
+        (unit_state as BattleUnitState)?.set_status_effect(statusEntry);
     }
 
     public void _clear_black_star_brand_statuses(GodotObject unit_state)
@@ -541,9 +535,9 @@ public partial class BattleSpecialSkillResolver : RefCounted
         {
             return;
         }
-        unit_state.Call("erase_status_effect", STATUS_BLACK_STAR_BRAND_NORMAL);
-        unit_state.Call("erase_status_effect", STATUS_BLACK_STAR_BRAND_ELITE);
-        unit_state.Call("erase_status_effect", STATUS_BLACK_STAR_BRAND_ELITE_GUARD_WINDOW);
+        (unit_state as BattleUnitState)?.erase_status_effect(STATUS_BLACK_STAR_BRAND_NORMAL);
+        (unit_state as BattleUnitState)?.erase_status_effect(STATUS_BLACK_STAR_BRAND_ELITE);
+        (unit_state as BattleUnitState)?.erase_status_effect(STATUS_BLACK_STAR_BRAND_ELITE_GUARD_WINDOW);
     }
 
     public bool _is_black_star_brand_elite_target(GodotObject unit_state)
@@ -587,16 +581,16 @@ public partial class BattleSpecialSkillResolver : RefCounted
         {
             return;
         }
-        unit_state.Call("erase_status_effect", STATUS_CROWN_BREAK_BROKEN_FANG);
-        unit_state.Call("erase_status_effect", STATUS_CROWN_BREAK_BROKEN_HAND);
-        unit_state.Call("erase_status_effect", STATUS_CROWN_BREAK_BLINDED_EYE);
+        (unit_state as BattleUnitState)?.erase_status_effect(STATUS_CROWN_BREAK_BROKEN_FANG);
+        (unit_state as BattleUnitState)?.erase_status_effect(STATUS_CROWN_BREAK_BROKEN_HAND);
+        (unit_state as BattleUnitState)?.erase_status_effect(STATUS_CROWN_BREAK_BLINDED_EYE);
     }
 
     public bool _is_crown_break_target_eligible(GodotObject active_unit, GodotObject target_unit)
     {
         return target_unit != null
             && _is_unit_valid_for_effect(active_unit, target_unit, "enemy")
-            && target_unit.Call("has_status_effect", STATUS_BLACK_STAR_BRAND_ELITE).AsBool();
+            && (target_unit as BattleUnitState)?.has_status_effect(STATUS_BLACK_STAR_BRAND_ELITE) == true;
     }
 
     public bool _is_crown_break_skill(StringName skill_id)
@@ -636,7 +630,7 @@ public partial class BattleSpecialSkillResolver : RefCounted
     {
         forced_move_context ??= new GDictionary();
         GodotObject state = RtState();
-        GodotObject gridService = GdInterop.GetObject(_runtime, "_grid_service");
+        BattleGridService gridService = _runtime.get_grid_service();
         if (state == null || unit_state == null || effect_def == null)
         {
             return 0;
@@ -669,10 +663,7 @@ public partial class BattleSpecialSkillResolver : RefCounted
             return 0;
         }
 
-        GodotObject layeredBarrierService = GdInterop.GetObject(
-            _runtime,
-            "_layered_barrier_service"
-        );
+        BattleLayeredBarrierService layeredBarrierService = _runtime._layered_barrier_service;
         int movedSteps = 0;
         for (int step = 0; step < moveDistance; step++)
         {
@@ -690,30 +681,24 @@ public partial class BattleSpecialSkillResolver : RefCounted
                 break;
             }
             if (
-                !gridService
-                    .Call(
-                        "can_traverse",
-                        state,
-                        GdInterop.GetVector2I(unit_state, "coord"),
-                        nextCoord,
-                        unit_state
-                    )
-                    .AsBool()
+                !gridService.can_traverse(
+                    state,
+                    GdInterop.GetVector2I(unit_state, "coord"),
+                    nextCoord,
+                    unit_state as BattleUnitState
+                )
             )
             {
                 break;
             }
             GDictionary barrierResult =
                 layeredBarrierService != null
-                    ? layeredBarrierService
-                        .Call(
-                            "ResolveUnitBoundaryCrossing",
-                            unit_state,
-                            GdInterop.GetVector2I(unit_state, "coord"),
-                            nextCoord,
-                            batch
-                        )
-                        .AsGodotDictionary()
+                    ? layeredBarrierService.ResolveUnitBoundaryCrossing(
+                        unit_state as BattleUnitState,
+                        GdInterop.GetVector2I(unit_state, "coord"),
+                        nextCoord,
+                        batch as BattleEventBatch
+                    )
                     : new GDictionary();
             if (
                 GdInterop.GetBool(barrierResult, "blocked", false)
@@ -724,7 +709,7 @@ public partial class BattleSpecialSkillResolver : RefCounted
             }
             GArray previousCoords = (GArray)
                 GdInterop.GetArray(unit_state, "occupied_coords").Duplicate();
-            if (!gridService.Call("move_unit", state, unit_state, nextCoord).AsBool())
+            if (!gridService.move_unit(state, unit_state as BattleUnitState, nextCoord))
             {
                 break;
             }
@@ -750,7 +735,7 @@ public partial class BattleSpecialSkillResolver : RefCounted
             ["log_lines"] = new GArray(),
         };
         GodotObject state = RtState();
-        GodotObject gridService = GdInterop.GetObject(_runtime, "_grid_service");
+        BattleGridService gridService = _runtime.get_grid_service();
         if (state == null || target_unit == null || effect_def == null)
         {
             return result;
@@ -774,9 +759,7 @@ public partial class BattleSpecialSkillResolver : RefCounted
             return result;
         }
 
-        var existingEntry =
-            target_unit.Call("get_status_effect", statusId).AsGodotObject()
-            as BattleStatusEffectState;
+        var existingEntry = (target_unit as BattleUnitState)?.get_status_effect(statusId);
         StringName restoreCategory = GdInterop.GetStringName(target_unit, "body_size_category");
         if (existingEntry != null && existingEntry.@params != null)
         {
@@ -797,27 +780,23 @@ public partial class BattleSpecialSkillResolver : RefCounted
         Vector2I previousFootprint = GdInterop.GetVector2I(target_unit, "footprint_size");
         GArray previousCoords = (GArray)
             GdInterop.GetArray(target_unit, "occupied_coords").Duplicate();
-        gridService.Call("clear_unit_occupancy", state, target_unit);
-        target_unit.Call("set_body_size_category", targetCategory);
+        gridService.clear_unit_occupancy(state, target_unit as BattleUnitState);
+        (target_unit as BattleUnitState)?.set_body_size_category(targetCategory);
         if (
-            !gridService
-                .Call(
-                    "can_place_footprint",
-                    state,
-                    GdInterop.GetVector2I(target_unit, "coord"),
-                    GdInterop.GetVector2I(target_unit, "footprint_size"),
-                    GdInterop.GetStringName(target_unit, "unit_id"),
-                    target_unit
-                )
-                .AsBool()
+            !gridService.can_place_footprint(
+                state,
+                GdInterop.GetVector2I(target_unit, "coord"),
+                GdInterop.GetVector2I(target_unit, "footprint_size"),
+                GdInterop.GetStringName(target_unit, "unit_id"),
+                target_unit as BattleUnitState
+            )
         )
         {
             target_unit.Set("body_size_category", previousCategory);
             target_unit.Set("body_size", previousBodySize);
             target_unit.Set("footprint_size", previousFootprint);
             target_unit.Set("occupied_coords", previousCoords);
-            gridService.Call(
-                "set_occupants",
+            gridService.set_occupants(
                 state,
                 GdInterop.GetArray(target_unit, "occupied_coords"),
                 GdInterop.GetStringName(target_unit, "unit_id")
@@ -829,8 +808,7 @@ public partial class BattleSpecialSkillResolver : RefCounted
                 );
             return result;
         }
-        gridService.Call(
-            "set_occupants",
+        gridService.set_occupants(
             state,
             GdInterop.GetArray(target_unit, "occupied_coords"),
             GdInterop.GetStringName(target_unit, "unit_id")
@@ -883,9 +861,9 @@ public partial class BattleSpecialSkillResolver : RefCounted
         {
             return false;
         }
-        GodotObject statusEntry = target_unit
-            .Call("get_status_effect", STATUS_VAJRA_BODY)
-            .AsGodotObject();
+        BattleStatusEffectState statusEntry = (target_unit as BattleUnitState)?.get_status_effect(
+            STATUS_VAJRA_BODY
+        );
         if (statusEntry == null || GdInterop.GetObject(statusEntry, "params") == null)
         {
             return false;
@@ -905,16 +883,15 @@ public partial class BattleSpecialSkillResolver : RefCounted
         GodotObject batch = null
     )
     {
-        GodotObject skillMasteryService = GdInterop.GetObject(_runtime, "_skill_mastery_service");
-        var grant = skillMasteryService.Call(
-            "build_vajra_body_mastery_grant",
-            source_unit,
-            target_unit,
-            skill_def,
+        BattleSkillMasteryService skillMasteryService = _runtime._skill_mastery_service;
+        var grant = skillMasteryService.build_vajra_body_mastery_grant(
+            source_unit as BattleUnitState,
+            target_unit as BattleUnitState,
+            skill_def as SkillDef,
             result,
-            _runtime.Get("_skill_defs")
+            _runtime.Get("_skill_defs").AsGodotDictionary()
         );
-        _apply_skill_mastery_grant(target_unit, grant.AsGodotDictionary(), batch);
+        _apply_skill_mastery_grant(target_unit, grant, batch);
     }
 
     public Vector2I _pick_forced_move_coord(
@@ -926,12 +903,12 @@ public partial class BattleSpecialSkillResolver : RefCounted
     {
         forced_move_context ??= new GDictionary();
         GodotObject state = RtState();
-        GodotObject gridService = GdInterop.GetObject(_runtime, "_grid_service");
+        BattleGridService gridService = _runtime.get_grid_service();
         if (state == null || unit_state == null)
         {
             return new Vector2I(-1, -1);
         }
-        unit_state.Call("refresh_footprint");
+        (unit_state as BattleUnitState)?.refresh_footprint();
         var bestCoord = new Vector2I(-1, -1);
         int bestScore = FORCED_MOVE_INVALID_SCORE;
         foreach (
@@ -946,15 +923,12 @@ public partial class BattleSpecialSkillResolver : RefCounted
         {
             Vector2I candidateCoord = GdInterop.GetVector2I(unit_state, "coord") + direction;
             if (
-                !gridService
-                    .Call(
-                        "can_traverse",
-                        state,
-                        GdInterop.GetVector2I(unit_state, "coord"),
-                        candidateCoord,
-                        unit_state
-                    )
-                    .AsBool()
+                !gridService.can_traverse(
+                    state,
+                    GdInterop.GetVector2I(unit_state, "coord"),
+                    candidateCoord,
+                    unit_state as BattleUnitState
+                )
             )
             {
                 continue;
@@ -999,7 +973,7 @@ public partial class BattleSpecialSkillResolver : RefCounted
     {
         forced_move_context ??= new GDictionary();
         GodotObject state = RtState();
-        GodotObject gridService = GdInterop.GetObject(_runtime, "_grid_service");
+        BattleGridService gridService = _runtime.get_grid_service();
         if (state == null || unit_state == null)
         {
             return FORCED_MOVE_INVALID_SCORE;
@@ -1023,21 +997,17 @@ public partial class BattleSpecialSkillResolver : RefCounted
                 GodotObject hostileUnit = hostileUnitValue.AsGodotObject();
                 closestHostileDistance = Math.Min(
                     closestHostileDistance,
-                    gridService
-                        .Call(
-                            "get_distance",
-                            candidate_coord,
-                            GdInterop.GetVector2I(hostileUnit, "coord")
-                        )
-                        .AsInt32()
+                    gridService.get_distance(
+                        candidate_coord,
+                        GdInterop.GetVector2I(hostileUnit, "coord")
+                    )
                 );
             }
         }
         int score = closestHostileDistance * 100;
         score -=
-            gridService
-                .Call("get_distance", GdInterop.GetVector2I(unit_state, "coord"), candidate_coord)
-                .AsInt32() * 10;
+            gridService.get_distance(GdInterop.GetVector2I(unit_state, "coord"), candidate_coord)
+            * 10;
         score -= candidate_coord.Y * 2 + candidate_coord.X;
         if (mode == "evasive")
         {
@@ -1186,8 +1156,7 @@ public partial class BattleSpecialSkillResolver : RefCounted
         {
             return;
         }
-        _runtime.Call(
-            "handle_misfortune_trigger",
+        _runtime.handle_misfortune_trigger(
             CALAMITY_REASON_ADJACENT_ALLY_DEFEATED,
             new GDictionary
             {
@@ -1258,7 +1227,7 @@ public partial class BattleSpecialSkillResolver : RefCounted
         {
             return adjacentAllies;
         }
-        defeated_unit.Call("refresh_footprint");
+        (defeated_unit as BattleUnitState)?.refresh_footprint();
         foreach (var unitValue in GdInterop.GetDictionary(RtState(), "units").Values)
         {
             GodotObject candidate = unitValue.AsGodotObject();
@@ -1281,7 +1250,7 @@ public partial class BattleSpecialSkillResolver : RefCounted
             {
                 continue;
             }
-            candidate.Call("refresh_footprint");
+            (candidate as BattleUnitState)?.refresh_footprint();
             if (_are_units_adjacent(candidate, defeated_unit))
             {
                 adjacentAllies.Add(candidate);

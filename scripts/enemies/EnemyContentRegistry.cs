@@ -1,7 +1,7 @@
 using Godot;
 
 [GlobalClass]
-public partial class EnemyContentRegistry : RefCounted
+public partial class EnemyContentRegistry : RefCounted, IValidatableRegistry
 {
     private const string ENEMY_CONTENT_SEED_RESOURCE_PATH =
         "res://data/configs/enemies/enemy_content_seed.tres";

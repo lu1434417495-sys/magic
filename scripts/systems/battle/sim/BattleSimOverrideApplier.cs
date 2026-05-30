@@ -17,7 +17,7 @@ public partial class BattleSimOverrideApplier : RefCounted
 
         GodotObject ai_score_profile =
             profile?.ai_score_profile != null
-                ? profile.ai_score_profile.Call("duplicate", true).AsGodotObject()
+                ? profile.ai_score_profile.Duplicate(true)
                 : new BattleAiScoreProfile();
 
         var errors = new Godot.Collections.Array<string>();
@@ -215,7 +215,7 @@ public partial class BattleSimOverrideApplier : RefCounted
         var states = _get_brain_states(brain);
         foreach (var state_def in states)
         {
-            var state_obj = state_def.AsGodotObject();
+            var state_obj = state_def.AsGodotObject() as EnemyAiStateDef;
 
             if (state_obj == null)
                 continue;
@@ -223,12 +223,8 @@ public partial class BattleSimOverrideApplier : RefCounted
             if (state_id != "" && state_obj.Get("state_id").AsStringName() != state_id)
                 continue;
 
-            var actions = state_obj.Call("get_actions").AsGodotArray<Variant>();
-
-            foreach (var action_resource in actions)
+            foreach (var action_obj in state_obj.get_actions())
             {
-                var action_obj = action_resource.AsGodotObject();
-
                 if (action_obj == null)
                     continue;
 

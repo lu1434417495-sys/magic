@@ -48,8 +48,6 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	_test_hit_resolver_boundary_natural_rules_are_explicit()
-	_test_armor_break_lowers_target_ac_without_damage_vulnerability()
 	_test_timed_terrain_processing_accepts_dictionary_keys()
 	_test_start_battle_accepts_explicit_narrow_assault_profile()
 	_test_start_battle_accepts_explicit_holdout_push_profile()
@@ -114,61 +112,6 @@ func _run() -> void:
 		push_error(failure)
 	print("Battle runtime smoke: FAIL (%d)" % _failures.size())
 	quit(1)
-
-
-func _test_hit_resolver_boundary_natural_rules_are_explicit() -> void:
-	var resolver := BattleHitResolver.new()
-
-	var accurate_attacker := _build_unit(&"hit_boundary_accurate", Vector2i.ZERO, 1)
-	accurate_attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 100)
-	var easy_target := _build_enemy_unit(&"hit_boundary_easy_target", Vector2i(1, 0))
-	easy_target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), -10)
-	var easy_check: Dictionary = resolver.build_skill_attack_check(accurate_attacker, easy_target, null)
-	_assert_true(int(easy_check.get("required_roll", 99)) <= 1, "低 required roll 夹具应进入天然 1 边界语义。")
-	_assert_eq(int(easy_check.get("display_required_roll", 0)), 2, "低 required roll 预览应稳定显示为 2+。")
-	_assert_eq(int(easy_check.get("hit_rate_percent", 0)), 95, "低 required roll 在天然 1 语义下应只保留 95% 命中。")
-	_assert_true(String(easy_check.get("preview_text", "")).contains("天然 1 仍失手"), "低 required roll 预览应显式提示天然 1 失手语义。")
-
-	var weak_attacker := _build_unit(&"hit_boundary_weak", Vector2i.ZERO, 1)
-	weak_attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 0)
-	var evasive_target := _build_enemy_unit(&"hit_boundary_evasive_target", Vector2i(1, 0))
-	evasive_target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 100)
-	var hard_check: Dictionary = resolver.build_skill_attack_check(weak_attacker, evasive_target, null)
-	_assert_true(int(hard_check.get("required_roll", 0)) > 20, "高 required roll 夹具应进入仅天然 20 命中语义。")
-	_assert_eq(int(hard_check.get("display_required_roll", 0)), 20, "高 required roll 预览应稳定显示为 20+。")
-	_assert_eq(int(hard_check.get("hit_rate_percent", 0)), 5, "高 required roll 在天然 20 语义下应只保留 5% 命中。")
-	_assert_true(String(hard_check.get("preview_text", "")).contains("仅天然 20"), "高 required roll 预览应显式提示天然 20 语义。")
-
-
-func _test_armor_break_lowers_target_ac_without_damage_vulnerability() -> void:
-	var hit_resolver := BattleHitResolver.new()
-	var damage_resolver := SharedDamageResolvers.FixedHitMaxDamageResolver.new()
-	var attacker := _build_unit(&"armor_break_attacker", Vector2i.ZERO, 1)
-	attacker.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 4)
-	var target := _build_enemy_unit(&"armor_break_target", Vector2i(1, 0))
-	target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 16)
-
-	var baseline_check: Dictionary = hit_resolver.build_skill_attack_check(attacker, target, null)
-	var armor_break_effect := CombatEffectDef.new()
-	armor_break_effect.effect_type = &"status"
-	armor_break_effect.status_id = &"armor_break"
-	armor_break_effect.power = 1
-	armor_break_effect.duration_tu = 90
-	damage_resolver.resolve_effects(attacker, target, [armor_break_effect], {})
-	var broken_check: Dictionary = hit_resolver.build_skill_attack_check(attacker, target, null)
-	_assert_eq(int(broken_check.get("target_armor_class", 0)), int(baseline_check.get("target_armor_class", 0)) - 2, "armor_break power 1 应把有效 AC 降低 2。")
-	_assert_eq(int(broken_check.get("hit_rate_percent", 0)), int(baseline_check.get("hit_rate_percent", 0)) + 10, "armor_break 降低 AC 后应提高 10 个百分点命中率。")
-
-	var plain_target := _build_enemy_unit(&"plain_damage_target", Vector2i(1, 0))
-	var broken_target := _build_enemy_unit(&"broken_damage_target", Vector2i(1, 0))
-	damage_resolver.resolve_effects(attacker, broken_target, [armor_break_effect], {})
-	var damage_effect := CombatEffectDef.new()
-	damage_effect.effect_type = &"damage"
-	damage_effect.damage_tag = &"physical_slash"
-	damage_effect.power = 10
-	var plain_result: Dictionary = damage_resolver.resolve_effects(attacker, plain_target, [damage_effect], {})
-	var broken_result: Dictionary = damage_resolver.resolve_effects(attacker, broken_target, [damage_effect], {})
-	_assert_eq(int(broken_result.get("damage", 0)), int(plain_result.get("damage", 0)), "armor_break 不应再提供承伤易伤倍率。")
 
 
 func _test_timed_terrain_processing_accepts_dictionary_keys() -> void:

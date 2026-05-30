@@ -23,8 +23,8 @@ public partial class MisfortuneGuidanceService : RefCounted
     private static readonly StringName CalamityReasonCriticalFail = "critical_fail";
     private static readonly StringName CalamityReasonStrongDebuff = "strong_debuff";
 
-    private GodotObject _characterGateway;
-    private GodotObject _battleRuntimeGateway;
+    private IBattleRuntimeCharacterGateway _characterGateway;
+    private BattleRuntimeModule _battleRuntimeGateway;
 
     public static StringName ACHIEVEMENT_GUIDANCE_TRUE_ID() => AchievementGuidanceTrue;
 
@@ -34,21 +34,21 @@ public partial class MisfortuneGuidanceService : RefCounted
 
     public static StringName ACHIEVEMENT_GUIDANCE_BLESSED_ID() => AchievementGuidanceBlessed;
 
-    public void Setup(GodotObject characterGateway = null, GodotObject battleRuntimeGateway = null)
+    public void Setup(IBattleRuntimeCharacterGateway characterGateway = null, BattleRuntimeModule battleRuntimeGateway = null)
     {
         _characterGateway = characterGateway;
         _battleRuntimeGateway = battleRuntimeGateway;
     }
 
     public void setup(
-        GodotObject character_gateway = null,
-        GodotObject battle_runtime_gateway = null
+        IBattleRuntimeCharacterGateway character_gateway = null,
+        BattleRuntimeModule battle_runtime_gateway = null
     )
     {
         Setup(character_gateway, battle_runtime_gateway);
     }
 
-    public void BindBattleRuntimeGateway(GodotObject battleRuntimeGateway = null)
+    public void BindBattleRuntimeGateway(BattleRuntimeModule battleRuntimeGateway = null)
     {
         _battleRuntimeGateway = battleRuntimeGateway;
     }
@@ -176,7 +176,7 @@ public partial class MisfortuneGuidanceService : RefCounted
             return;
         if (memberIds == null || memberIds.Count == 0)
         {
-            var fateFlags = partyState.Call("get_fate_run_flags").AsGodotDictionary();
+            var fateFlags = partyState.fate_run_flags;
             foreach (var key in fateFlags.Keys)
             {
                 var flagId = ProgressionDataUtils.to_string_name(key);
@@ -185,15 +185,12 @@ public partial class MisfortuneGuidanceService : RefCounted
                 var flagStr = flagId.ToString();
                 if (!flagStr.StartsWith(ExaltedReadyFlagPrefix))
                     continue;
-                partyState.Call("clear_fate_run_flag", flagId);
+                partyState.clear_fate_run_flag(flagId);
             }
             return;
         }
         foreach (var memberId in memberIds)
-            partyState.Call(
-                "clear_fate_run_flag",
-                BuildExaltedReadyFlagId(memberId.AsStringName())
-            );
+            partyState.clear_fate_run_flag(BuildExaltedReadyFlagId(memberId.AsStringName()));
     }
 
     public void clear_exalted_ready_flags(Godot.Collections.Array member_ids = null)
@@ -223,7 +220,7 @@ public partial class MisfortuneGuidanceService : RefCounted
             var value = calamityByMemberId.GetValueOrDefault(memberKey, 0).AsInt32();
             if (Mathf.Max(value, 0) <= 0)
                 continue;
-            partyState.Call("set_fate_run_flag", BuildExaltedReadyFlagId(memberId), true);
+            partyState.set_fate_run_flag(BuildExaltedReadyFlagId(memberId), true);
         }
     }
 
@@ -235,24 +232,12 @@ public partial class MisfortuneGuidanceService : RefCounted
 
     private bool HasMisfortuneReason(StringName memberId, StringName reasonId)
     {
-        if (_battleRuntimeGateway == null || memberId == "" || reasonId == "")
-            return false;
-        if (!_battleRuntimeGateway.HasMethod("has_misfortune_reason"))
-            return false;
-        return _battleRuntimeGateway.Call("has_misfortune_reason", memberId, reasonId).AsBool();
+        return _battleRuntimeGateway?.has_misfortune_reason(memberId, reasonId) ?? false;
     }
 
     private Dictionary GetCalamityByMemberId()
     {
-        if (
-            _battleRuntimeGateway == null
-            || !_battleRuntimeGateway.HasMethod("get_calamity_by_member_id")
-        )
-            return new Dictionary();
-        var calamityMap = _battleRuntimeGateway.Call("get_calamity_by_member_id");
-        if (calamityMap.VariantType == Variant.Type.Dictionary)
-            return calamityMap.AsGodotDictionary().Duplicate(true);
-        return new Dictionary();
+        return _battleRuntimeGateway?.get_calamity_by_member_id()?.Duplicate(true) ?? new Dictionary();
     }
 
     private StringName ResolveEliteSealSourceMemberId(
@@ -327,16 +312,16 @@ public partial class MisfortuneGuidanceService : RefCounted
         if (outputItemId == "")
             return false;
         var itemDef = GetItemDef(itemDefs, outputItemId);
-        if (itemDef == null || !itemDef.Call("is_equipment").AsBool())
+        if (itemDef == null || !itemDef.is_equipment())
             return false;
-        var tags = itemDef.Call("get_tags").AsGodotArray();
+        var tags = itemDef.get_tags();
         foreach (var tag in tags)
         {
             var tagStr = tag.AsStringName();
             if (tagStr == "dark" || tagStr == "misfortune" || tagStr == "doom")
                 return true;
         }
-        var groups = itemDef.Call("get_crafting_groups").AsGodotArray();
+        var groups = itemDef.get_crafting_groups();
         foreach (var group in groups)
         {
             var groupStr = group.AsStringName();
@@ -410,16 +395,11 @@ public partial class MisfortuneGuidanceService : RefCounted
     {
         if (_characterGateway == null || memberId == "" || achievementId == "")
             return false;
-        if (!_characterGateway.HasMethod("unlock_achievement"))
-            return false;
-        return _characterGateway
-            .Call(
-                "unlock_achievement",
-                memberId,
-                achievementId,
-                new Dictionary { ["summary_text"] = BuildSummaryText(achievementId) }
-            )
-            .AsBool();
+        return (_characterGateway as CharacterManagementModule)?.unlock_achievement(
+            memberId,
+            achievementId,
+            new Dictionary { ["summary_text"] = BuildSummaryText(achievementId) }
+        ) ?? false;
     }
 
     private string BuildSummaryText(StringName achievementId)
@@ -439,7 +419,7 @@ public partial class MisfortuneGuidanceService : RefCounted
     {
         if (_characterGateway == null || !_characterGateway.HasMethod("get_party_state"))
             return null;
-        return _characterGateway.Call("get_party_state").AsGodotObject();
+        return _characterGateway.get_party_state();
     }
 
     private PartyMemberState GetMemberState(StringName memberId)
@@ -450,7 +430,7 @@ public partial class MisfortuneGuidanceService : RefCounted
             || !_characterGateway.HasMethod("get_member_state")
         )
             return null;
-        return _characterGateway.Call("get_member_state", memberId).As<PartyMemberState>();
+        return _characterGateway.get_member_state(memberId);
     }
 
     private bool IsDoomMarked(PartyMemberState memberState)
@@ -462,7 +442,7 @@ public partial class MisfortuneGuidanceService : RefCounted
             .AsGodotObject();
         if (unitBaseAttributes == null)
             return false;
-        return unitBaseAttributes.Call("get_attribute_value", DoomMarkedStatId).AsInt32() > 0;
+        return unitBaseAttributes.get_attribute_value(DoomMarkedStatId) > 0;
     }
 
     private bool IsMisfortuneDevotee(PartyMemberState memberState)
@@ -474,7 +454,7 @@ public partial class MisfortuneGuidanceService : RefCounted
             .AsGodotObject();
         if (unitBaseAttributes == null)
             return false;
-        return unitBaseAttributes.Call("get_attribute_value", DoomAuthorityStatId).AsInt32() > 0;
+        return unitBaseAttributes.get_attribute_value(DoomAuthorityStatId) > 0;
     }
 
     private bool HasExaltedReadyFlag(StringName memberId)
@@ -482,7 +462,7 @@ public partial class MisfortuneGuidanceService : RefCounted
         var partyState = GetPartyState();
         if (partyState == null || memberId == "")
             return false;
-        return partyState.Call("has_fate_run_flag", BuildExaltedReadyFlagId(memberId)).AsBool();
+        return partyState.has_fate_run_flag(BuildExaltedReadyFlagId(memberId));
     }
 
     private StringName BuildExaltedReadyFlagId(StringName memberId)

@@ -3,14 +3,14 @@ using Godot;
 [GlobalClass]
 public partial class SkillMergeService : RefCounted
 {
-    private GodotObject _unit_progress;
+    private UnitProgress _unit_progress;
     private Godot.Collections.Dictionary _skill_defs = new();
-    private GodotObject _assignment_service;
+    private ProfessionAssignmentService _assignment_service;
 
     public void setup(
-        GodotObject unitProgress,
+        UnitProgress unitProgress,
         Godot.Collections.Dictionary skillDefs,
-        GodotObject assignmentService = null
+        ProfessionAssignmentService assignmentService = null
     )
     {
         _unit_progress = unitProgress;
@@ -27,7 +27,7 @@ public partial class SkillMergeService : RefCounted
     {
         if (_unit_progress == null || resultSkillId == "")
             return false;
-        if (_unit_progress.Call("is_skill_relearn_blocked", resultSkillId).AsBool())
+        if (_unit_progress.is_skill_relearn_blocked(resultSkillId))
             return false;
         var nss = _normalize_source_skill_ids(sourceSkillIds, resultSkillId);
         if (nss.Count == 0 || !_all_source_skills_exist(nss))
@@ -50,8 +50,8 @@ public partial class SkillMergeService : RefCounted
             rp.assigned_profession_id = rtp;
         else
             rp.clear_profession_assignment();
-        _unit_progress.Call("remember_merge_sources", resultSkillId, nss);
-        _unit_progress.Call("set_skill_progress", rp);
+        _unit_progress.remember_merge_sources(resultSkillId, nss);
+        _unit_progress.set_skill_progress(rp);
         return attach_merged_result_skill(resultSkillId, keepCore, rtp);
     }
 
@@ -65,7 +65,7 @@ public partial class SkillMergeService : RefCounted
     {
         if (_unit_progress == null || resultSkillId == "")
             return false;
-        if (_unit_progress.Call("is_skill_relearn_blocked", resultSkillId).AsBool())
+        if (_unit_progress.is_skill_relearn_blocked(resultSkillId))
             return false;
         var nss = _normalize_source_skill_ids(sourceSkillIds, resultSkillId);
         if (nss.Count == 0 || !_all_source_skills_exist(nss))
@@ -82,8 +82,8 @@ public partial class SkillMergeService : RefCounted
             return false;
         rp.is_learned = true;
         rp.merged_from_skill_ids = new Godot.Collections.Array<StringName>(nss);
-        _unit_progress.Call("remember_merge_sources", resultSkillId, nss);
-        _unit_progress.Call("set_skill_progress", rp);
+        _unit_progress.remember_merge_sources(resultSkillId, nss);
+        _unit_progress.set_skill_progress(rp);
         var rtp2 = targetProfessionId;
         if (coreTransitionMode == "replace_sources_with_result" && rtp2 == "")
             rtp2 = _infer_target_profession_id_from_sources(nss);
@@ -107,7 +107,7 @@ public partial class SkillMergeService : RefCounted
             rp.is_core = false;
             rp.clear_profession_assignment();
         }
-        _unit_progress.Call("sync_active_core_skill_ids");
+        _unit_progress.sync_active_core_skill_ids();
         return true;
     }
 
@@ -119,21 +119,21 @@ public partial class SkillMergeService : RefCounted
         foreach (var sid in nss)
         {
             var sp =
-                _unit_progress.Call("get_skill_progress", sid).AsGodotObject() as UnitSkillProgress;
+                _unit_progress.get_skill_progress(sid);
             if (sp == null)
                 continue;
             if (sp.merged_from_skill_ids.Count > 0)
-                _unit_progress.Call("remember_merge_sources", sid, sp.merged_from_skill_ids);
+                _unit_progress.remember_merge_sources(sid, sp.merged_from_skill_ids);
             if (sp.assigned_profession_id != "")
                 _remove_source_skill_from_profession(sid, sp.assigned_profession_id);
             else
                 _remove_source_skill_from_all_professions(sid);
             _clear_level_trigger_references(sid);
             sp.clear_profession_assignment();
-            _unit_progress.Call("block_skill_relearn", sid);
-            _unit_progress.Call("remove_skill_progress", sid);
+            _unit_progress.block_skill_relearn(sid);
+            _unit_progress.remove_skill_progress(sid);
         }
-        _unit_progress.Call("sync_active_core_skill_ids");
+        _unit_progress.sync_active_core_skill_ids();
     }
 
     public bool attach_merged_result_skill(
@@ -144,13 +144,11 @@ public partial class SkillMergeService : RefCounted
     {
         if (_unit_progress == null)
             return false;
-        var rsp =
-            _unit_progress.Call("get_skill_progress", resultSkillId).AsGodotObject()
-            as UnitSkillProgress;
+        var rsp = _unit_progress.get_skill_progress(resultSkillId);
         if (rsp == null)
         {
             rsp = new UnitSkillProgress { skill_id = resultSkillId, is_learned = true };
-            _unit_progress.Call("set_skill_progress", rsp);
+            _unit_progress.set_skill_progress(rsp);
         }
         if (!keepCore)
         {
@@ -158,8 +156,8 @@ public partial class SkillMergeService : RefCounted
             _remove_source_skill_from_all_professions(resultSkillId);
             rsp.is_core = false;
             rsp.clear_profession_assignment();
-            _unit_progress.Call("set_skill_progress", rsp);
-            _unit_progress.Call("sync_active_core_skill_ids");
+            _unit_progress.set_skill_progress(rsp);
+            _unit_progress.sync_active_core_skill_ids();
             return true;
         }
         if (targetProfessionId == "")
@@ -172,21 +170,19 @@ public partial class SkillMergeService : RefCounted
         rsp.is_core = true;
         rsp.assigned_profession_id = targetProfessionId;
         pp.add_core_skill(resultSkillId);
-        _unit_progress.Call("set_skill_progress", rsp);
-        _unit_progress.Call("sync_active_core_skill_ids");
+        _unit_progress.set_skill_progress(rsp);
+        _unit_progress.sync_active_core_skill_ids();
         return true;
     }
 
     public Godot.Collections.Array<StringName> get_merged_source_skill_ids(StringName skillId) =>
-        _unit_progress?.Call("get_merged_source_skill_ids", skillId).AsGodotArray<StringName>()
+        _unit_progress?.get_merged_source_skill_ids(skillId)
         ?? new Godot.Collections.Array<StringName>();
 
     public Godot.Collections.Array<StringName> get_merged_source_skill_ids_recursive(
         StringName skillId
     ) =>
-        _unit_progress
-            ?.Call("get_merged_source_skill_ids_recursive", skillId)
-            .AsGodotArray<StringName>()
+        _unit_progress?.get_merged_source_skill_ids_recursive(skillId)
         ?? new Godot.Collections.Array<StringName>();
 
     private Godot.Collections.Dictionary _index_skill_defs(Godot.Collections.Dictionary skillDefs)
@@ -227,7 +223,7 @@ public partial class SkillMergeService : RefCounted
     private bool _all_source_skills_exist(Godot.Collections.Array<StringName> sids)
     {
         foreach (var sid in sids)
-            if (_unit_progress.Call("get_skill_progress", sid).AsGodotObject() == null)
+            if (_unit_progress.get_skill_progress(sid) == null)
                 return false;
         return true;
     }
@@ -240,7 +236,7 @@ public partial class SkillMergeService : RefCounted
         foreach (var sid in sids)
         {
             var sp =
-                _unit_progress.Call("get_skill_progress", sid).AsGodotObject() as UnitSkillProgress;
+                _unit_progress.get_skill_progress(sid);
             if (sp == null || !sp.is_core || sp.assigned_profession_id == "")
                 continue;
             if (inferred == "")
@@ -257,7 +253,7 @@ public partial class SkillMergeService : RefCounted
     )
     {
         var existing =
-            _unit_progress.Call("get_skill_progress", rsid).AsGodotObject() as UnitSkillProgress;
+            _unit_progress.get_skill_progress(rsid);
         if (existing != null)
             return existing;
         var rp = new UnitSkillProgress { skill_id = rsid, is_learned = true };
@@ -271,7 +267,7 @@ public partial class SkillMergeService : RefCounted
         foreach (var sid in sids)
         {
             var sp =
-                _unit_progress.Call("get_skill_progress", sid).AsGodotObject() as UnitSkillProgress;
+                _unit_progress.get_skill_progress(sid);
             if (sp == null)
                 continue;
             sml = Mathf.Max(sml, sp.skill_level);
@@ -319,23 +315,22 @@ public partial class SkillMergeService : RefCounted
     {
         if (_unit_progress == null || sid == "")
             return;
-        if (_unit_progress.Get("active_level_trigger_core_skill_id").AsStringName() == sid)
-            _unit_progress.Set("active_level_trigger_core_skill_id", new StringName(""));
-        _unit_progress.Get("locked_level_trigger_skill_ids").AsGodotArray().Remove(sid);
-        var sp =
-            _unit_progress.Call("get_skill_progress", sid).AsGodotObject() as UnitSkillProgress;
+        if (_unit_progress.active_level_trigger_core_skill_id == sid)
+            _unit_progress.active_level_trigger_core_skill_id = new StringName("");
+        _unit_progress.locked_level_trigger_skill_ids.Remove(sid);
+        var sp = _unit_progress.get_skill_progress(sid);
         if (sp == null)
             return;
         sp.is_level_trigger_active = false;
         sp.is_level_trigger_locked = false;
-        _unit_progress.Call("set_skill_progress", sp);
+        _unit_progress.set_skill_progress(sp);
     }
 
     private void _remove_source_skill_from_profession(StringName sid, StringName pid)
     {
         if (_assignment_service != null)
         {
-            _assignment_service.Call("remove_core_skill_from_profession", sid, pid);
+            _assignment_service.remove_core_skill_from_profession(sid, pid);
             return;
         }
         var pp = _get_profession_progress(pid);
@@ -349,7 +344,7 @@ public partial class SkillMergeService : RefCounted
     {
         if (_unit_progress == null)
             return;
-        var profs = _unit_progress.Get("professions").AsGodotDictionary();
+        var profs = _unit_progress.professions;
         foreach (var pk in profs.Keys)
         {
             var pid = ProgressionDataUtils.to_string_name(pk);
@@ -361,8 +356,7 @@ public partial class SkillMergeService : RefCounted
     }
 
     private UnitProfessionProgress _get_profession_progress(StringName pid) =>
-        _unit_progress?.Call("get_profession_progress", pid).AsGodotObject()
-        as UnitProfessionProgress;
+        _unit_progress?.get_profession_progress(pid);
 
     private bool _replace_source_cores_with_result(
         Godot.Collections.Array<StringName> sids,
@@ -378,7 +372,7 @@ public partial class SkillMergeService : RefCounted
         foreach (var sid in sids)
         {
             var sp =
-                _unit_progress.Call("get_skill_progress", sid).AsGodotObject() as UnitSkillProgress;
+                _unit_progress.get_skill_progress(sid);
             if (sp == null || sp.assigned_profession_id != tpid)
                 continue;
             _clear_level_trigger_references(sid);
@@ -388,7 +382,7 @@ public partial class SkillMergeService : RefCounted
         }
         _remove_source_skill_from_all_professions(rsid, tpid);
         var rsp =
-            _unit_progress.Call("get_skill_progress", rsid).AsGodotObject() as UnitSkillProgress;
+            _unit_progress.get_skill_progress(rsid);
         if (rsp == null)
         {
             rsp = new UnitSkillProgress { skill_id = rsid, is_learned = true };
@@ -396,7 +390,7 @@ public partial class SkillMergeService : RefCounted
         rsp.is_core = true;
         rsp.assigned_profession_id = tpid;
         pp.add_core_skill(rsid);
-        _unit_progress.Call("set_skill_progress", rsp);
+        _unit_progress.set_skill_progress(rsp);
         return true;
     }
 }

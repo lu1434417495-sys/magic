@@ -5,11 +5,11 @@ using GDictionary = Godot.Collections.Dictionary;
 [GlobalClass]
 public partial class ProfessionAssignmentService : RefCounted
 {
-    private GodotObject _unit_progress;
+    private UnitProgress _unit_progress;
     private GDictionary _skill_defs = new();
     private GDictionary _profession_defs = new();
 
-    public void setup(GodotObject unit_progress, GDictionary skill_defs, GDictionary profession_defs)
+    public void setup(UnitProgress unit_progress, GDictionary skill_defs, GDictionary profession_defs)
     {
         _unit_progress = unit_progress;
         _skill_defs = IndexSkillDefs(skill_defs);
@@ -18,8 +18,8 @@ public partial class ProfessionAssignmentService : RefCounted
 
     public bool can_assign_core_skill_to_profession(StringName skill_id, StringName profession_id)
     {
-        GodotObject skillProgress = GetSkillProgress(skill_id);
-        GodotObject professionProgress = GetProfessionProgress(profession_id);
+        UnitSkillProgress skillProgress = GetSkillProgress(skill_id);
+        UnitProfessionProgress professionProgress = GetProfessionProgress(profession_id);
         SkillDef skillDef = GetSkillDef(skill_id);
         if (skillProgress == null || professionProgress == null || skillDef == null)
             return false;
@@ -50,18 +50,18 @@ public partial class ProfessionAssignmentService : RefCounted
         if (!can_assign_core_skill_to_profession(skill_id, profession_id))
             return false;
 
-        GodotObject skillProgress = GetSkillProgress(skill_id);
-        GodotObject professionProgress = GetProfessionProgress(profession_id);
+        UnitSkillProgress skillProgress = GetSkillProgress(skill_id);
+        UnitProfessionProgress professionProgress = GetProfessionProgress(profession_id);
         RemoveSkillFromAllProfessions(skill_id, profession_id);
         skillProgress.Set("assigned_profession_id", profession_id);
-        professionProgress.Call("add_core_skill", skill_id);
-        _unit_progress.Call("sync_active_core_skill_ids");
+        professionProgress.add_core_skill(skill_id);
+        _unit_progress.sync_active_core_skill_ids();
         return true;
     }
 
     public bool remove_core_skill_from_profession(StringName skill_id, StringName profession_id)
     {
-        GodotObject professionProgress = GetProfessionProgress(profession_id);
+        UnitProfessionProgress professionProgress = GetProfessionProgress(profession_id);
         if (professionProgress == null)
             return false;
 
@@ -69,15 +69,15 @@ public partial class ProfessionAssignmentService : RefCounted
         if (!coreSkillIds.Contains(skill_id))
             return false;
 
-        professionProgress.Call("remove_core_skill", skill_id);
-        GodotObject skillProgress = GetSkillProgress(skill_id);
+        professionProgress.remove_core_skill(skill_id);
+        UnitSkillProgress skillProgress = GetSkillProgress(skill_id);
         if (
             skillProgress != null
             && GdInterop.GetStringName(skillProgress, "assigned_profession_id") == profession_id
         )
-            skillProgress.Call("clear_profession_assignment");
+            skillProgress.clear_profession_assignment();
 
-        _unit_progress.Call("sync_active_core_skill_ids");
+        _unit_progress.sync_active_core_skill_ids();
         return true;
     }
 
@@ -86,9 +86,9 @@ public partial class ProfessionAssignmentService : RefCounted
         if (_unit_progress == null)
             return false;
 
-        GodotObject professionProgress = GetProfessionProgress(profession_id);
+        UnitProfessionProgress professionProgress = GetProfessionProgress(profession_id);
         ProfessionDef professionDef = GetProfessionDef(profession_id);
-        GodotObject skillProgress = GetSkillProgress(skill_id);
+        UnitSkillProgress skillProgress = GetSkillProgress(skill_id);
         SkillDef skillDef = GetSkillDef(skill_id);
         if (
             professionProgress == null
@@ -99,7 +99,7 @@ public partial class ProfessionAssignmentService : RefCounted
             return false;
 
         int currentCharacterLevel = GetEffectiveCharacterLevel();
-        _unit_progress.Call("sync_active_core_skill_ids");
+        _unit_progress.sync_active_core_skill_ids();
         if (
             GdInterop.GetArray(_unit_progress, "active_core_skill_ids").Count
             >= currentCharacterLevel
@@ -145,22 +145,22 @@ public partial class ProfessionAssignmentService : RefCounted
         if (!can_promote_non_core_to_core(skill_id, profession_id))
             return false;
 
-        GodotObject skillProgress = GetSkillProgress(skill_id);
+        UnitSkillProgress skillProgress = GetSkillProgress(skill_id);
         if (skillProgress == null)
             return false;
 
         skillProgress.Set("is_core", true);
         skillProgress.Set("assigned_profession_id", profession_id);
 
-        GodotObject professionProgress = GetProfessionProgress(profession_id);
-        professionProgress.Call("add_core_skill", skill_id);
-        _unit_progress.Call("sync_active_core_skill_ids");
+        UnitProfessionProgress professionProgress = GetProfessionProgress(profession_id);
+        professionProgress.add_core_skill(skill_id);
+        _unit_progress.sync_active_core_skill_ids();
         return true;
     }
 
     public Godot.Collections.Array<StringName> get_profession_core_skills(StringName profession_id)
     {
-        GodotObject professionProgress = GetProfessionProgress(profession_id);
+        UnitProfessionProgress professionProgress = GetProfessionProgress(profession_id);
         if (professionProgress == null)
             return new Godot.Collections.Array<StringName>();
 
@@ -176,7 +176,7 @@ public partial class ProfessionAssignmentService : RefCounted
 
     public StringName get_skill_assigned_profession(StringName skill_id)
     {
-        GodotObject skillProgress = GetSkillProgress(skill_id);
+        UnitSkillProgress skillProgress = GetSkillProgress(skill_id);
         return skillProgress == null
             ? new StringName("")
             : GdInterop.GetStringName(skillProgress, "assigned_profession_id");
@@ -218,20 +218,14 @@ public partial class ProfessionAssignmentService : RefCounted
         return indexedDefs;
     }
 
-    private GodotObject GetSkillProgress(StringName skillId)
+    private UnitSkillProgress GetSkillProgress(StringName skillId)
     {
-        if (_unit_progress == null)
-            return null;
-        var result = _unit_progress.Call("get_skill_progress", skillId);
-        return result.VariantType == Variant.Type.Object ? result.AsGodotObject() : null;
+        return _unit_progress?.get_skill_progress(skillId);
     }
 
-    private GodotObject GetProfessionProgress(StringName professionId)
+    private UnitProfessionProgress GetProfessionProgress(StringName professionId)
     {
-        if (_unit_progress == null)
-            return null;
-        var result = _unit_progress.Call("get_profession_progress", professionId);
-        return result.VariantType == Variant.Type.Object ? result.AsGodotObject() : null;
+        return _unit_progress?.get_profession_progress(professionId);
     }
 
     private SkillDef GetSkillDef(StringName skillId)
@@ -263,8 +257,8 @@ public partial class ProfessionAssignmentService : RefCounted
             if (!GdInterop.IsEmpty(exceptProfessionId) && professionId == exceptProfessionId)
                 continue;
 
-            GodotObject professionProgress = GetProfessionProgress(professionId);
-            professionProgress?.Call("remove_core_skill", skillId);
+            UnitProfessionProgress professionProgress = GetProfessionProgress(professionId);
+            professionProgress?.remove_core_skill(skillId);
         }
     }
 

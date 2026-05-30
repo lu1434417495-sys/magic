@@ -97,7 +97,7 @@ public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCh
     }
 
     public Godot.Collections.Dictionary build_runtime_context(
-        GodotObject runtime,
+        BattleRuntimeModule runtime,
         Godot.Collections.Dictionary base_context
     )
     {
@@ -118,11 +118,7 @@ public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCh
             hostile_member_ids
         );
         var hostile_units =
-            runtime
-                ?.Get("_unit_factory")
-                .AsGodotObject()
-                ?.Call("build_ally_units", party_state, Variant.From(hostile_context))
-                .AsGodotArray()
+            runtime?._unit_factory?.build_ally_units(party_state, hostile_context)
             ?? new Godot.Collections.Array();
         foreach (var unitV in hostile_units)
             _apply_unit_runtime_metadata(unitV.AsGodotObject(), "hostile");
@@ -164,7 +160,7 @@ public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCh
 
     public Godot.Collections.Dictionary get_item_defs() => _item_defs;
 
-    public GodotObject get_member_attribute_snapshot_for_equipment_view(
+    public AttributeSnapshot get_member_attribute_snapshot_for_equipment_view(
         StringName member_id,
         EquipmentState equipment_view
     ) =>
@@ -689,7 +685,7 @@ public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCh
         if (unit_progress == null)
             return;
         var progression_service = new ProgressionService();
-        progression_service.Call("setup", member_state.progression, _skill_defs, _profession_defs);
+        progression_service.setup(member_state.progression, _skill_defs, _profession_defs);
         foreach (var skill_config in skill_configs)
         {
             if (skill_config == null)
@@ -703,11 +699,11 @@ public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCh
                 continue;
             var skill_progress = unit_progress.get_skill_progress(skill_id);
             if (skill_progress == null || !skill_progress.is_learned)
-                progression_service.Call("learn_skill", skill_id);
-            var skill_def = _dict_obj(_skill_defs, skill_id);
+                progression_service.learn_skill(skill_id);
+            var skill_def = _dict_obj<SkillDef>(_skill_defs, skill_id);
             if (is_core)
             {
-                progression_service.Call("set_skill_core", skill_id, true);
+                progression_service.set_skill_core(skill_id, true);
                 skill_progress = unit_progress.get_skill_progress(skill_id);
                 _unlock_fixture_core_skill_level_cap(
                     unit_progress,
@@ -718,31 +714,26 @@ public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCh
             }
             int mastery_amount = _calculate_mastery_for_level(skill_def, target_level);
             if (mastery_amount > 0)
-                progression_service.Call(
-                    "grant_skill_mastery",
-                    skill_id,
-                    mastery_amount,
-                    "training"
-                );
+                progression_service.grant_skill_mastery(skill_id, mastery_amount, "training");
             if (is_core)
             {
-                progression_service.Call("set_skill_core", skill_id, true);
+                progression_service.set_skill_core(skill_id, true);
                 _apply_core_max_growth(member_state, skill_id, target_level);
             }
         }
-        progression_service.Call("refresh_runtime_state");
+        progression_service.refresh_runtime_state();
     }
 
     private void _unlock_fixture_core_skill_level_cap(
         UnitProgress unit_progress,
         UnitSkillProgress skill_progress,
-        GodotObject skill_def,
+        SkillDef skill_def,
         int target_level
     )
     {
         if (unit_progress == null || skill_progress == null || skill_def == null)
             return;
-        int non_core_max_level = Mathf.Max(skill_def.Get("non_core_max_level").AsInt32(), 0);
+        int non_core_max_level = Mathf.Max(skill_def.non_core_max_level, 0);
         if (non_core_max_level <= 0 || target_level <= non_core_max_level)
             return;
         skill_progress.is_level_trigger_active = false;
@@ -760,19 +751,16 @@ public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCh
         int target_level
     )
     {
-        var skill_def = _dict_obj(_skill_defs, skill_id);
+        var skill_def = _dict_obj<SkillDef>(_skill_defs, skill_id);
         var unit_progress = _unit_progress(member_state);
         var skill_progress = unit_progress?.get_skill_progress(skill_id);
         if (skill_def == null || skill_progress == null)
             return;
         if (skill_progress.core_max_growth_claimed)
             return;
-        if (target_level < skill_def.Get("max_level").AsInt32())
+        if (target_level < skill_def.max_level)
             return;
-        var growth = _safe_dict(
-            skill_def.Get("attribute_growth_progress").AsGodotDictionary(),
-            null
-        );
+        var growth = skill_def.attribute_growth_progress ?? new Godot.Collections.Dictionary();
         if (growth.Count == 0)
         {
             skill_progress.core_max_growth_claimed = true;
@@ -829,8 +817,8 @@ public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCh
         );
         member_state.current_hp = attributes.get_attribute_value(AttributeService.HP_MAX);
         var ps = new ProgressionService();
-        ps.Call("setup", member_state.progression, _skill_defs, _profession_defs);
-        ps.Call("refresh_runtime_state");
+        ps.setup(member_state.progression, _skill_defs, _profession_defs);
+        ps.refresh_runtime_state();
     }
 
     private void _apply_profession_granted_skills(
@@ -843,32 +831,24 @@ public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCh
         var unit_progress = _unit_progress(member_state);
         if (unit_progress == null || (string)profession_id == "" || profession_progress == null)
             return;
-        var profession_def = _dict_obj(_profession_defs, profession_id);
+        var profession_def = _dict_obj<ProfessionDef>(_profession_defs, profession_id);
         if (profession_def == null)
             return;
         for (int target_rank = 1; target_rank <= rank; target_rank++)
         {
-            var granted_skills = profession_def
-                .Call("get_granted_skills_for_rank", target_rank)
-                .AsGodotArray();
+            var granted_skills = profession_def.get_granted_skills_for_rank(target_rank);
             if (granted_skills == null)
                 continue;
-            foreach (var gsV in granted_skills)
+            foreach (ProfessionGrantedSkill granted_skill in granted_skills)
             {
-                var granted_skill = gsV.AsGodotObject();
-                if (
-                    granted_skill == null
-                    || (string)granted_skill.Get("skill_id").AsStringName() == ""
-                )
+                if (granted_skill == null || (string)granted_skill.skill_id == "")
                     continue;
-                profession_progress.add_granted_skill(granted_skill.Get("skill_id").AsStringName());
-                var sp = unit_progress.get_skill_progress(
-                    granted_skill.Get("skill_id").AsStringName()
-                );
+                profession_progress.add_granted_skill(granted_skill.skill_id);
+                var sp = unit_progress.get_skill_progress(granted_skill.skill_id);
                 if (sp == null)
                 {
                     sp = new UnitSkillProgress();
-                    sp.skill_id = granted_skill.Get("skill_id").AsStringName();
+                    sp.skill_id = granted_skill.skill_id;
                 }
                 sp.is_learned = true;
                 if ((string)sp.profession_granted_by == "")
@@ -889,11 +869,11 @@ public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCh
         var attributes = _unit_base_attributes(member_state);
         if (attributes == null)
             return 0;
-        var profession_def = _dict_obj(_profession_defs, profession_id);
+        var profession_def = _dict_obj<ProfessionDef>(_profession_defs, profession_id);
         if (profession_def == null)
             return 0;
         int constitution = attributes.get_attribute_value(UnitBaseAttributes.CONSTITUTION());
-        int hit_die_sides = Mathf.Max(profession_def.Get("hit_die_sides").AsInt32(), 1);
+        int hit_die_sides = Mathf.Max(profession_def.hit_die_sides, 1);
         int total = 0;
         for (int ri = 0; ri < Mathf.Max(rank, 0); ri++)
         {
@@ -946,21 +926,19 @@ public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCh
     {
         if (equipment_state == null || (string)item_id == "")
             return false;
-        var item_def = _dict_obj(_item_defs, item_id);
-        if (item_def == null || !item_def.Get("is_equipment").AsBool())
+        var item_def = _dict_obj<ItemDef>(_item_defs, item_id);
+        if (item_def == null || !item_def.is_equipment())
             return false;
-        if (require_weapon && !item_def.Get("is_weapon").AsBool())
+        if (require_weapon && !item_def.is_weapon())
             return false;
-        if (require_armor && !item_def.Get("is_armor").AsBool())
+        if (require_armor && !item_def.is_armor())
             return false;
-        var slot_ids = item_def.Call("get_equipment_slot_ids").AsGodotArray();
-        if (slot_ids == null || !_array_contains_str(slot_ids, entry_slot_id))
+        var slot_ids = item_def.get_equipment_slot_ids();
+        if (slot_ids == null || !slot_ids.Contains(entry_slot_id))
             return false;
-        var occupied_slots = item_def
-            .Call("get_final_occupied_slot_ids", entry_slot_id)
-            .AsGodotArray();
+        var occupied_slots = item_def.get_final_occupied_slot_ids(entry_slot_id);
         if (occupied_slots == null)
-            occupied_slots = new Godot.Collections.Array();
+            occupied_slots = new Godot.Collections.Array<StringName>();
         var occupied_sn = new Godot.Collections.Array<StringName>();
         foreach (var os in occupied_slots)
             occupied_sn.Add(ProgressionDataUtils.to_string_name(os));
@@ -1055,16 +1033,13 @@ public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCh
         }
     }
 
-    private int _calculate_mastery_for_level(GodotObject skill_def, int target_level)
+    private int _calculate_mastery_for_level(SkillDef skill_def, int target_level)
     {
-        if (skill_def == null || !skill_def.HasMethod("get_mastery_required_for_level"))
+        if (skill_def == null)
             return 0;
         int total = 0;
         for (int level = 0; level < target_level; level++)
-            total += Mathf.Max(
-                skill_def.Call("get_mastery_required_for_level", level).AsInt32(),
-                0
-            );
+            total += Mathf.Max(skill_def.get_mastery_required_for_level(level), 0);
         return total;
     }
 
@@ -1153,11 +1128,12 @@ public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCh
         return src[key].AsGodotDictionary() ?? new Godot.Collections.Dictionary();
     }
 
-    private static GodotObject _dict_obj(Godot.Collections.Dictionary d, StringName key)
+    private static T _dict_obj<T>(Godot.Collections.Dictionary d, StringName key)
+        where T : GodotObject
     {
         if (d == null || !d.ContainsKey(key))
             return null;
-        return d[key].AsGodotObject();
+        return d[key].AsGodotObject() as T;
     }
 
     private static int _d_int(Godot.Collections.Dictionary d, string key, int fallback) =>

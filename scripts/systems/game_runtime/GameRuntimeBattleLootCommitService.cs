@@ -6,20 +6,20 @@ using GArray = Godot.Collections.Array;
 [GlobalClass]
 public partial class GameRuntimeBattleLootCommitService : RefCounted
 {
-    private WeakReference<GodotObject> _runtimeRef;
+    private WeakReference<GameRuntimeFacade> _runtimeRef;
 
-    private GodotObject _runtime
+    private GameRuntimeFacade _runtime
     {
         get => ResolveWeakRef(_runtimeRef);
-        set => _runtimeRef = value != null ? new WeakReference<GodotObject>(value) : null;
+        set => _runtimeRef = value != null ? new WeakReference<GameRuntimeFacade>(value) : null;
     }
 
-    public void Setup(GodotObject runtime)
+    public void Setup(GameRuntimeFacade runtime)
     {
         _runtime = runtime;
     }
 
-    public void setup(GodotObject runtime)
+    public void setup(GameRuntimeFacade runtime)
     {
         Setup(runtime);
     }
@@ -156,9 +156,9 @@ public partial class GameRuntimeBattleLootCommitService : RefCounted
         if (battleResolutionResult.winner_faction_id != "player")
             return BuildLootCommitResult(true, "", "", 0, new GArray(), 0);
 
-        var partyState = _runtime.Get("_party_state").AsGodotObject();
-        var partyWarehouseService = _runtime.Get("_party_warehouse_service").AsGodotObject();
-        var gameSession = _runtime.Get("_game_session").AsGodotObject();
+        var partyState = _runtime._party_state;
+        var partyWarehouseService = _runtime._party_warehouse_service;
+        var gameSession = _runtime._game_session;
         if (partyState == null || partyWarehouseService == null || gameSession == null)
             return BuildLootCommitResult(
                 false,
@@ -169,25 +169,17 @@ public partial class GameRuntimeBattleLootCommitService : RefCounted
                 0
             );
 
-        var itemDefs = gameSession.Call("get_item_defs").AsGodotDictionary();
-        _runtime.Call(
-            "_setup_party_warehouse_service",
-            partyWarehouseService,
-            partyState,
-            itemDefs
-        );
+        var itemDefs = gameSession.get_item_defs();
+        _runtime._setup_party_warehouse_service(partyWarehouseService, partyState, itemDefs);
 
-        var warehouseState = partyState.Get("warehouse_state").AsGodotObject();
-        GodotObject warehouseStateBefore = null;
+        var warehouseState = partyState.warehouse_state;
+        WarehouseState warehouseStateBefore = null;
         if (warehouseState != null)
-            warehouseStateBefore = warehouseState.Call("duplicate_state").AsGodotObject();
+            warehouseStateBefore = warehouseState.duplicate_state();
 
         var fateRunFlagsBefore = new Dictionary();
-        if (partyState != null && partyState.HasMethod("get_fate_run_flags"))
-            fateRunFlagsBefore = partyState
-                .Call("get_fate_run_flags")
-                .AsGodotDictionary()
-                .Duplicate(true);
+        if (partyState != null)
+            fateRunFlagsBefore = partyState.capture_fate_run_flags().Duplicate(true);
 
         var overflowEntries = new GArray();
         var committedItemCount = 0;
@@ -212,10 +204,9 @@ public partial class GameRuntimeBattleLootCommitService : RefCounted
                 var instanceCommitResult = CommitEquipmentInstanceLootEntry(lootEntryData);
                 if (!DictionaryBool(instanceCommitResult, "ok", false))
                 {
-                    partyState.Set("warehouse_state", warehouseStateBefore);
-                    partyState.Call("set_fate_run_flags", fateRunFlagsBefore);
-                    _runtime.Call(
-                        "_setup_party_warehouse_service",
+                    partyState.warehouse_state = warehouseStateBefore;
+                    partyState.apply_fate_run_flags(fateRunFlagsBefore);
+                    _runtime._setup_party_warehouse_service(
                         partyWarehouseService,
                         partyState,
                         itemDefs
@@ -257,10 +248,9 @@ public partial class GameRuntimeBattleLootCommitService : RefCounted
                 var equipmentCommitResult = CommitRandomEquipmentLootEntry(lootEntryData);
                 if (!DictionaryBool(equipmentCommitResult, "ok", false))
                 {
-                    partyState.Set("warehouse_state", warehouseStateBefore);
-                    partyState.Call("set_fate_run_flags", fateRunFlagsBefore);
-                    _runtime.Call(
-                        "_setup_party_warehouse_service",
+                    partyState.warehouse_state = warehouseStateBefore;
+                    partyState.apply_fate_run_flags(fateRunFlagsBefore);
+                    _runtime._setup_party_warehouse_service(
                         partyWarehouseService,
                         partyState,
                         itemDefs
@@ -300,10 +290,9 @@ public partial class GameRuntimeBattleLootCommitService : RefCounted
             var itemCommitResult = CommitFixedItemLootEntry(lootEntryData);
             if (!DictionaryBool(itemCommitResult, "ok", false))
             {
-                partyState.Set("warehouse_state", warehouseStateBefore);
-                partyState.Call("set_fate_run_flags", fateRunFlagsBefore);
-                _runtime.Call(
-                    "_setup_party_warehouse_service",
+                partyState.warehouse_state = warehouseStateBefore;
+                partyState.apply_fate_run_flags(fateRunFlagsBefore);
+                _runtime._setup_party_warehouse_service(
                     partyWarehouseService,
                     partyState,
                     itemDefs
@@ -361,10 +350,8 @@ public partial class GameRuntimeBattleLootCommitService : RefCounted
         var quantity = Mathf.Max(DictionaryInt(lootEntryData, "quantity", 0), 0);
         if (itemId == "" || quantity <= 0)
             return BuildItemCommitResult(true, "", "", 0, new GArray());
-        var partyWarehouseService = _runtime.Get("_party_warehouse_service").AsGodotObject();
-        var addResult = partyWarehouseService
-            .Call("add_item", itemId, quantity)
-            .AsGodotDictionary();
+        var partyWarehouseService = _runtime._party_warehouse_service;
+        var addResult = partyWarehouseService.add_item(itemId, quantity);
         if (!DictionaryBool(addResult, "item_found", false))
             return BuildItemCommitResult(
                 false,
@@ -393,9 +380,9 @@ public partial class GameRuntimeBattleLootCommitService : RefCounted
         var dropLuck = Mathf.Clamp(DictionaryInt(lootEntryData, "drop_luck", 0), -6, 5);
         if (itemId == "" || quantity <= 0)
             return BuildItemCommitResult(true, "", "", 0, new GArray());
-        var gameSession = _runtime.Get("_game_session").AsGodotObject();
-        var itemDefs = gameSession.Call("get_item_defs").AsGodotDictionary();
-        var itemDef = itemDefs.ContainsKey(itemId) ? itemDefs[itemId].AsGodotObject() : null;
+        var gameSession = _runtime._game_session;
+        var itemDefs = gameSession.get_item_defs();
+        var itemDef = itemDefs.ContainsKey(itemId) ? itemDefs[itemId].AsGodotObject() as ItemDef : null;
         if (itemDef == null)
             return BuildItemCommitResult(
                 false,
@@ -404,7 +391,7 @@ public partial class GameRuntimeBattleLootCommitService : RefCounted
                 0,
                 new GArray()
             );
-        if (!itemDef.Call("is_equipment").AsBool())
+        if (!itemDef.is_equipment())
             return BuildItemCommitResult(
                 false,
                 "battle_loot_random_equipment_invalid_item",
@@ -412,22 +399,18 @@ public partial class GameRuntimeBattleLootCommitService : RefCounted
                 0,
                 new GArray()
             );
-        var equipmentDropService = _runtime.Get("_equipment_drop_service").AsGodotObject();
-        var rolledInstances = equipmentDropService
-            .Call("roll_item_instances", itemId, quantity, dropLuck)
-            .AsGodotArray();
+        var equipmentDropService = _runtime._equipment_drop_service;
+        var rolledInstances = equipmentDropService.roll_item_instances(itemId, quantity, dropLuck);
         var committedItemCount = 0;
         var overflowQuantity = 0;
         foreach (var rolledInstanceValue in rolledInstances)
         {
             if (rolledInstanceValue.VariantType == Variant.Type.Nil)
                 continue;
-            var rolledInstance = rolledInstanceValue.AsGodotObject();
+            var rolledInstance = rolledInstanceValue.AsGodotObject() as EquipmentInstanceState;
             var rolledItemId = ProgressionDataUtils.to_string_name(rolledInstance.Get("item_id"));
-            var partyWarehouseService = _runtime.Get("_party_warehouse_service").AsGodotObject();
-            var addResult = partyWarehouseService
-                .Call("add_equipment_instance", rolledInstance)
-                .AsGodotDictionary();
+            var partyWarehouseService = _runtime._party_warehouse_service;
+            var addResult = partyWarehouseService.add_equipment_instance(rolledInstance);
             if (!DictionaryBool(addResult, "item_found", false))
                 return BuildItemCommitResult(
                     false,
@@ -490,9 +473,9 @@ public partial class GameRuntimeBattleLootCommitService : RefCounted
                 0,
                 new GArray()
             );
-        var gameSession = _runtime.Get("_game_session").AsGodotObject();
-        var itemDefs = gameSession.Call("get_item_defs").AsGodotDictionary();
-        var itemDef = itemDefs.ContainsKey(itemId) ? itemDefs[itemId].AsGodotObject() : null;
+        var gameSession = _runtime._game_session;
+        var itemDefs = gameSession.get_item_defs();
+        var itemDef = itemDefs.ContainsKey(itemId) ? itemDefs[itemId].AsGodotObject() as ItemDef : null;
         if (itemDef == null)
             return BuildItemCommitResult(
                 false,
@@ -501,7 +484,7 @@ public partial class GameRuntimeBattleLootCommitService : RefCounted
                 0,
                 new GArray()
             );
-        if (!itemDef.Call("is_equipment").AsBool())
+        if (!itemDef.is_equipment())
             return BuildItemCommitResult(
                 false,
                 "battle_loot_random_equipment_invalid_item",
@@ -509,10 +492,8 @@ public partial class GameRuntimeBattleLootCommitService : RefCounted
                 0,
                 new GArray()
             );
-        var partyWarehouseService = _runtime.Get("_party_warehouse_service").AsGodotObject();
-        var addResult = partyWarehouseService
-            .Call("add_equipment_instance", equipmentInstance)
-            .AsGodotDictionary();
+        var partyWarehouseService = _runtime._party_warehouse_service;
+        var addResult = partyWarehouseService.add_equipment_instance(equipmentInstance);
         if (DictionaryInt(addResult, "remaining_quantity", 0) > 0)
             return BuildItemCommitResult(
                 true,
@@ -622,7 +603,7 @@ public partial class GameRuntimeBattleLootCommitService : RefCounted
 
     private int GetRegularBattleCalamityShardCountThisChapter()
     {
-        var partyState = _runtime.Get("_party_state").AsGodotObject();
+        var partyState = _runtime._party_state;
         if (partyState == null)
             return 0;
         var shardCount = 0;
@@ -633,10 +614,7 @@ public partial class GameRuntimeBattleLootCommitService : RefCounted
         )
         {
             var flagId = BuildRegularBattleCalamityShardFlagId(slotIndex);
-            if (
-                partyState.HasMethod("get_fate_run_flag")
-                && partyState.Call("get_fate_run_flag", flagId, false).AsBool()
-            )
+            if (partyState.get_fate_run_flag(flagId, false))
                 shardCount++;
         }
         return shardCount;
@@ -644,7 +622,7 @@ public partial class GameRuntimeBattleLootCommitService : RefCounted
 
     private void MarkRegularBattleCalamityShardsCommitted(int quantity)
     {
-        var partyState = _runtime.Get("_party_state").AsGodotObject();
+        var partyState = _runtime._party_state;
         if (partyState == null || quantity <= 0)
             return;
         var remainingToMark = Mathf.Min(quantity, GetRemainingRegularBattleCalamityShardCap());
@@ -657,13 +635,9 @@ public partial class GameRuntimeBattleLootCommitService : RefCounted
         )
         {
             var flagId = BuildRegularBattleCalamityShardFlagId(slotIndex);
-            if (
-                partyState.HasMethod("get_fate_run_flag")
-                && partyState.Call("get_fate_run_flag", flagId, false).AsBool()
-            )
+            if (partyState.get_fate_run_flag(flagId, false))
                 continue;
-            if (partyState.HasMethod("set_fate_run_flag"))
-                partyState.Call("set_fate_run_flag", flagId, true);
+            partyState.set_fate_run_flag(flagId, true);
             remainingToMark--;
             if (remainingToMark <= 0)
                 return;
@@ -672,18 +646,15 @@ public partial class GameRuntimeBattleLootCommitService : RefCounted
 
     private void ClearRegularBattleCalamityShardFlagsInternal()
     {
-        var partyState = _runtime.Get("_party_state").AsGodotObject();
-        if (partyState == null || !partyState.HasMethod("clear_fate_run_flag"))
+        var partyState = _runtime._party_state;
+        if (partyState == null)
             return;
         for (
             int slotIndex = 0;
             slotIndex < BattleLootConstants.ORDINARY_BATTLE_CALAMITY_SHARD_CHAPTER_CAP();
             slotIndex++
         )
-            partyState.Call(
-                "clear_fate_run_flag",
-                BuildRegularBattleCalamityShardFlagId(slotIndex)
-            );
+            partyState.clear_fate_run_flag(BuildRegularBattleCalamityShardFlagId(slotIndex));
     }
 
     private StringName BuildRegularBattleCalamityShardFlagId(int slotIndex)
@@ -805,14 +776,14 @@ public partial class GameRuntimeBattleLootCommitService : RefCounted
     {
         if (_runtime == null)
             return factionId;
-        return _runtime.Call("_format_faction_label", factionId).AsString();
+        return _runtime._format_faction_label(factionId);
     }
 
     private string GetItemDisplayName(StringName itemId)
     {
         if (_runtime == null)
             return itemId.ToString();
-        return _runtime.Call("_get_item_display_name", itemId).AsString();
+        return _runtime._get_item_display_name(itemId);
     }
 
     private static Dictionary BuildLootCommitResult(
@@ -908,11 +879,11 @@ public partial class GameRuntimeBattleLootCommitService : RefCounted
         return true;
     }
 
-    private static GodotObject ResolveWeakRef(WeakReference<GodotObject> weakRef)
+    private static GameRuntimeFacade ResolveWeakRef(WeakReference<GameRuntimeFacade> weakRef)
     {
         if (
             weakRef == null
-            || !weakRef.TryGetTarget(out GodotObject target)
+            || !weakRef.TryGetTarget(out GameRuntimeFacade target)
             || !GodotObject.IsInstanceValid(target)
         )
             return null;

@@ -6,11 +6,11 @@ public partial class FixedCriticalHitResolver : FixedHitResolver
     public FixedCriticalHitResolver()
         : base(NaturalHitRoll) { }
 
-    public new GDictionary resolve_attack_metadata(
+    public override AttackResolutionMetadata resolve_attack_metadata(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
-        GDictionary attack_check,
-        GDictionary attack_context
+        AttackCheckInput attack_check,
+        AttackContext attack_context
     )
     {
         return BuildFixedAttackMetadata(
@@ -47,7 +47,7 @@ public partial class FixedCriticalHitResolver : FixedHitResolver
     )
     {
         if (battle_state != null)
-            battle_state.attack_roll_nonce = Mathf.Max((int)battle_state.attack_roll_nonce, 0) + 1;
+            battle_state.next_attack_roll_nonce();
         return Mathf.Max(min_value, max_value);
     }
 }

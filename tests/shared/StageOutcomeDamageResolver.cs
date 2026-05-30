@@ -17,8 +17,8 @@ public partial class StageOutcomeDamageResolver : BattleDamageResolver
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         Godot.Collections.Array effect_defs,
-        GDictionary attack_check,
-        GDictionary attack_context = null
+        AttackCheckInput attack_check,
+        AttackContext attack_context = null
     )
     {
         bool success = call_count < stage_successes.Count && stage_successes[call_count];

@@ -563,8 +563,8 @@ public partial class QuestProgressService : RefCounted
 
     private int GetWorldStep()
     {
-        if (_party_state != null && _party_state.HasMethod("get_world_step"))
-            return _party_state.Call("get_world_step").AsInt32();
+        // PartyState does not track a world step; quest steps are supplied explicitly
+        // by callers, so the parameterless fallbacks resolve to step 0.
         return 0;
     }
 }

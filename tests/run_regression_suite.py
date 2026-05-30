@@ -79,7 +79,8 @@ def main() -> int:
 	tests_root = repo_root / "tests"
 	tests = sorted(
 		get_repo_path(repo_root, path)
-		for path in tests_root.rglob("run_*.gd")
+		for pattern in ("run_*.gd", "run_*.cs")
+		for path in tests_root.rglob(pattern)
 		if path.is_file()
 	)
 	tests = [

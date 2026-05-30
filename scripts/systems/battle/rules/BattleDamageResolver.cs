@@ -57,7 +57,7 @@ public partial class BattleDamageResolver : RefCounted
     private readonly BattleFateEventBus _fate_event_bus = new();
     private readonly BattleReportFormatter _report_formatter = new();
     private readonly TraitTriggerHooks _trait_trigger_hooks = new();
-    private GodotObject _hit_resolver = new BattleHitResolver();
+    private BattleHitResolver _hit_resolver = new();
     private bool _suppress_last_stand_mastery_records;
 
     public static StringName FORTUNE_MARK_TARGET_STAT_ID() => FortuneMarkTargetStatId;
@@ -84,9 +84,14 @@ public partial class BattleDamageResolver : RefCounted
         return records;
     }
 
-    public void set_hit_resolver(GodotObject hit_resolver)
+    public void set_hit_resolver(BattleHitResolver hit_resolver)
     {
         _hit_resolver = hit_resolver ?? new BattleHitResolver();
+    }
+
+    public void set_hit_resolver(GodotObject hit_resolver)
+    {
+        set_hit_resolver(hit_resolver as BattleHitResolver);
     }
 
     public BattleFateEventBus get_fate_event_bus()
@@ -100,44 +105,15 @@ public partial class BattleDamageResolver : RefCounted
         SkillDef skill_def
     )
     {
-        return resolve_skill(
-            source_unit,
-            target_unit,
-            skill_def,
-            new GDictionary(),
-            new GDictionary()
-        );
-    }
-
-    public GDictionary resolve_skill(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
-        SkillDef skill_def,
-        GDictionary attack_check = null,
-        GDictionary attack_context = null
-    )
-    {
         if (source_unit == null || target_unit == null || skill_def?.combat_profile == null)
         {
             return BuildEmptyResult();
-        }
-        GDictionary resolvedAttackContext = DuplicateDictionary(attack_context);
-        resolvedAttackContext["skill_id"] = skill_def.skill_id;
-        if (attack_check != null && attack_check.Count > 0)
-        {
-            return resolve_attack_effects(
-                source_unit,
-                target_unit,
-                ToValueArray(skill_def.combat_profile.effect_defs),
-                attack_check,
-                resolvedAttackContext
-            );
         }
         return resolve_effects(
             source_unit,
             target_unit,
             ToValueArray(skill_def.combat_profile.effect_defs),
-            resolvedAttackContext
+            new GDictionary { ["skill_id"] = skill_def.skill_id }
         );
     }
 
@@ -145,7 +121,7 @@ public partial class BattleDamageResolver : RefCounted
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         GArray effect_defs,
-        GDictionary attack_check
+        AttackCheckInput attack_check
     )
     {
         return resolve_attack_effects(
@@ -153,7 +129,7 @@ public partial class BattleDamageResolver : RefCounted
             target_unit,
             effect_defs,
             attack_check,
-            new GDictionary()
+            new AttackContext()
         );
     }
 
@@ -161,28 +137,28 @@ public partial class BattleDamageResolver : RefCounted
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         GArray effect_defs,
-        GDictionary attack_check,
-        GDictionary attack_context = null
+        AttackCheckInput attack_check,
+        AttackContext attack_context = null
     )
     {
         if (source_unit == null || target_unit == null)
         {
-            return BuildAttackMetadataResult(BuildEmptyResult(), new GDictionary());
+            return BuildAttackMetadataResult(BuildEmptyResult(), new AttackResolutionMetadata());
         }
 
         GArray resolvedEffectDefs = CoerceEffectDefs(effect_defs);
-        GDictionary normalizedAttackContext = attack_context ?? new GDictionary();
-        GDictionary attackMetadata = ResolveAttackMetadata(
+        AttackContext normalizedAttackContext = attack_context ?? new AttackContext();
+        AttackResolutionMetadata attackMetadata = ResolveAttackMetadata(
             source_unit,
             target_unit,
-            attack_check ?? new GDictionary(),
+            attack_check,
             normalizedAttackContext
         );
-        if (TryGet(normalizedAttackContext, "skill_id", out var skillIdValue))
+        if (attackMetadata.SkillId == "" && normalizedAttackContext.SkillId != "")
         {
-            attackMetadata["skill_id"] = ProgressionDataUtils.to_string_name(skillIdValue);
+            attackMetadata.SkillId = normalizedAttackContext.SkillId;
         }
-        if (!GetBool(attackMetadata, "attack_success"))
+        if (!attackMetadata.AttackSuccess)
         {
             GDictionary failedResult = BuildAttackMetadataResult(
                 BuildEmptyResult(),
@@ -213,15 +189,16 @@ public partial class BattleDamageResolver : RefCounted
                 break;
             }
         }
-        attackMetadata["secondary_hit_success"] = _resolve_secondary_hit(
+        attackMetadata.SecondaryHitSuccess = _resolve_secondary_hit(
             source_unit,
             target_unit,
             normalizedAttackContext,
             secondaryHitDcBase
         );
+        GDictionary attackEffectContext = BuildAttackEffectContext(attackMetadata);
 
         GDictionary resolvedResult = BuildAttackMetadataResult(
-            resolve_effects(source_unit, target_unit, resolvedEffectDefs, attackMetadata),
+            resolve_effects(source_unit, target_unit, resolvedEffectDefs, attackEffectContext),
             attackMetadata
         );
         AttachAttackReportEntry(resolvedResult, source_unit, target_unit);
@@ -961,7 +938,7 @@ public partial class BattleDamageResolver : RefCounted
     public bool _resolve_secondary_hit(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
-        GDictionary attack_context,
+        AttackContext attack_context,
         int dc_base = 10
     )
     {
@@ -973,9 +950,11 @@ public partial class BattleDamageResolver : RefCounted
         int conMod = GetUnitBaseAttributeModifier(target_unit, UnitBaseAttributes.CONSTITUTION());
         int dc = dc_base + strMod;
         _hit_resolver ??= new BattleHitResolver();
-        int saveRoll = _hit_resolver
-            .Call("roll_attack_die", 20, false, attack_context ?? new GDictionary())
-            .AsInt32();
+        int saveRoll = _hit_resolver.roll_attack_die(
+            20,
+            false,
+            attack_context ?? new AttackContext()
+        );
         int saveBonus = GetTargetSecondaryHitSaveBonus(target_unit);
         return saveRoll + conMod + saveBonus < dc;
     }
@@ -2881,7 +2860,7 @@ public partial class BattleDamageResolver : RefCounted
         {
             return new GDictionary();
         }
-        GodotObject equipmentView = targetUnit.get_equipment_view();
+        EquipmentState equipmentView = targetUnit.get_equipment_view();
         StringName entrySlotId = DictStringName(selection, "entry_slot_id");
         GodotObject equipmentInstance = GetObject(selection, "equipment_instance");
         if (equipmentView == null || entrySlotId == "" || equipmentInstance == null)
@@ -2891,7 +2870,7 @@ public partial class BattleDamageResolver : RefCounted
         int before = Math.Max(GetInt(equipmentInstance, "current_durability"), 0);
         if (before <= 0)
         {
-            equipmentView.Call("clear_entry_slot", entrySlotId);
+            equipmentView.clear_entry_slot(entrySlotId);
             return new GDictionary();
         }
         int rarity = GetInt(equipmentInstance, "rarity");
@@ -2927,7 +2906,7 @@ public partial class BattleDamageResolver : RefCounted
         @event["durability_after"] = Math.Max(after, 0);
         if (after <= 0)
         {
-            equipmentView.Call("clear_entry_slot", entrySlotId);
+            equipmentView.clear_entry_slot(entrySlotId);
             @event["destroyed"] = true;
         }
         else
@@ -2985,7 +2964,7 @@ public partial class BattleDamageResolver : RefCounted
         {
             return new GDictionary();
         }
-        GodotObject equipmentView = targetUnit.get_equipment_view();
+        EquipmentState equipmentView = targetUnit.get_equipment_view();
         if (equipmentView == null)
         {
             return new GDictionary();
@@ -2998,7 +2977,7 @@ public partial class BattleDamageResolver : RefCounted
         if (overrideSlot != "")
         {
             StringName overrideEntrySlot = ProgressionDataUtils.to_string_name(
-                equipmentView.Call("get_entry_slot_for_slot", overrideSlot)
+                equipmentView.get_entry_slot_for_slot(overrideSlot)
             );
             return BuildEquipmentDurabilitySelection(
                 equipmentView,
@@ -3010,7 +2989,7 @@ public partial class BattleDamageResolver : RefCounted
         GStringNameArray allowedSlots = GetEquipmentDurabilityTargetSlots(effectDef);
         var candidates = new GArray();
         int totalWeight = 0;
-        foreach (var entrySlotValue in equipmentView.Call("get_entry_slot_ids").AsGodotArray())
+        foreach (var entrySlotValue in equipmentView.get_entry_slot_ids())
         {
             StringName entrySlotId = ProgressionDataUtils.to_string_name(entrySlotValue);
             GDictionary selection = BuildEquipmentDurabilitySelection(
@@ -3056,7 +3035,7 @@ public partial class BattleDamageResolver : RefCounted
     }
 
     private static GDictionary BuildEquipmentDurabilitySelection(
-        GodotObject equipmentView,
+        EquipmentState equipmentView,
         StringName entrySlotId,
         StringName slotId
     )
@@ -3066,12 +3045,12 @@ public partial class BattleDamageResolver : RefCounted
         {
             return new GDictionary();
         }
-        GodotObject entry = equipmentView.Call("get_entry", normalizedEntrySlot).AsGodotObject();
-        if (entry == null || (entry.HasMethod("is_empty") && entry.Call("is_empty").AsBool()))
+        EquipmentEntryState entry = equipmentView.get_entry(normalizedEntrySlot);
+        if (entry == null || entry.is_empty())
         {
             return new GDictionary();
         }
-        GodotObject equipmentInstance = entry.Call("get_equipment_instance").AsGodotObject();
+        EquipmentInstanceState equipmentInstance = entry.get_equipment_instance();
         if (equipmentInstance == null || GetInt(equipmentInstance, "current_durability") <= 0)
         {
             return new GDictionary();
@@ -3922,17 +3901,20 @@ public partial class BattleDamageResolver : RefCounted
         };
     }
 
-    private GDictionary ResolveAttackMetadata(
+    private AttackResolutionMetadata ResolveAttackMetadata(
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
-        GDictionary attackCheck,
-        GDictionary attackContext
+        AttackCheckInput attackCheck,
+        AttackContext attackContext
     )
     {
         _hit_resolver ??= new BattleHitResolver();
-        return _hit_resolver
-            .Call("resolve_attack_metadata", sourceUnit, targetUnit, attackCheck, attackContext)
-            .AsGodotDictionary();
+        return _hit_resolver.resolve_attack_metadata(
+            sourceUnit,
+            targetUnit,
+            attackCheck,
+            attackContext
+        );
     }
 
     private GDictionary ResolveSpellControlMetadata(
@@ -3941,40 +3923,108 @@ public partial class BattleDamageResolver : RefCounted
     )
     {
         _hit_resolver ??= new BattleHitResolver();
-        return _hit_resolver
-            .Call("resolve_spell_control_metadata", sourceUnit, attackContext)
-            .AsGodotDictionary();
+        return _hit_resolver.resolve_spell_control_metadata(sourceUnit, attackContext);
     }
 
-    private GDictionary BuildAttackMetadataResult(GDictionary result, GDictionary attackMetadata)
+    private GDictionary BuildAttackMetadataResult(
+        GDictionary result,
+        AttackResolutionMetadata attackMetadata
+    )
     {
         GDictionary merged = DuplicateDictionary(result);
-        merged["attack_resolution"] = DictStringName(attackMetadata, "attack_resolution");
-        merged["attack_success"] = DictBool(attackMetadata, "attack_success");
-        merged["critical_hit"] = DictBool(attackMetadata, "critical_hit");
-        merged["critical_fail"] = DictBool(attackMetadata, "critical_fail");
-        merged["ordinary_miss"] = DictBool(attackMetadata, "ordinary_miss");
+        attackMetadata ??= new AttackResolutionMetadata();
+        merged["attack_resolution"] = attackMetadata.AttackResolution;
+        merged["attack_success"] = attackMetadata.AttackSuccess;
+        merged["critical_hit"] = attackMetadata.CriticalHit;
+        merged["critical_fail"] = attackMetadata.CriticalFail;
+        merged["ordinary_miss"] = attackMetadata.OrdinaryMiss;
         merged["critical_source"] = ResolveCriticalSource(attackMetadata);
-        merged["is_disadvantage"] = DictBool(attackMetadata, "is_disadvantage");
-        merged["hidden_luck_at_birth"] = DictInt(attackMetadata, "hidden_luck_at_birth");
-        merged["faith_luck_bonus"] = DictInt(attackMetadata, "faith_luck_bonus");
-        merged["effective_luck"] = DictInt(attackMetadata, "effective_luck");
-        merged["crit_locked"] = DictBool(attackMetadata, "crit_locked");
-        merged["crit_gate_die"] = DictInt(attackMetadata, "crit_gate_die");
-        merged["crit_gate_roll"] = DictInt(attackMetadata, "crit_gate_roll");
-        merged["hit_roll"] = DictInt(attackMetadata, "hit_roll");
-        merged["fumble_low_end"] = DictInt(attackMetadata, "fumble_low_end");
-        merged["crit_threshold"] = DictInt(attackMetadata, "crit_threshold");
-        merged["required_roll"] = DictInt(attackMetadata, "required_roll", AttackCheckTarget);
-        merged["display_required_roll"] = DictInt(attackMetadata, "display_required_roll");
-        merged["hit_rate_percent"] = DictInt(attackMetadata, "hit_rate_percent");
-        merged["reverse_fate_downgraded"] = DictBool(attackMetadata, "reverse_fate_downgraded");
-        merged["secondary_hit_success"] = DictBool(attackMetadata, "secondary_hit_success");
-        merged["trait_trigger_results"] = GetArray(attackMetadata, "trait_trigger_results");
+        merged["is_disadvantage"] = attackMetadata.IsDisadvantage;
+        merged["hidden_luck_at_birth"] = attackMetadata.HiddenLuckAtBirth;
+        merged["faith_luck_bonus"] = attackMetadata.FaithLuckBonus;
+        merged["effective_luck"] = attackMetadata.EffectiveLuck;
+        merged["crit_locked"] = attackMetadata.CritLocked;
+        merged["crit_gate_die"] = attackMetadata.CritGateDie;
+        merged["crit_gate_roll"] = attackMetadata.CritGateRoll;
+        merged["hit_roll"] = attackMetadata.HitRoll;
+        merged["fumble_low_end"] = attackMetadata.FumbleLowEnd;
+        merged["crit_threshold"] = attackMetadata.CritThreshold;
+        merged["required_roll"] = attackMetadata.RequiredRoll;
+        merged["display_required_roll"] = attackMetadata.DisplayRequiredRoll;
+        merged["hit_rate_percent"] = attackMetadata.HitRatePercent;
+        merged["success_rate_percent"] = attackMetadata.SuccessRatePercent;
+        merged["reverse_fate_downgraded"] = attackMetadata.ReverseFateDowngraded;
+        merged["secondary_hit_success"] = attackMetadata.SecondaryHitSuccess;
+        merged["skill_id"] = attackMetadata.SkillId;
+        merged["trait_trigger_results"] = BuildTraitTriggerResultsArray(attackMetadata);
         merged["fate_event_tags"] = ProgressionDataUtils.string_name_array_to_string_array(
             BuildAttackEventTags(attackMetadata)
         );
         return merged;
+    }
+
+    private GDictionary BuildAttackEffectContext(AttackResolutionMetadata attackMetadata)
+    {
+        attackMetadata ??= new AttackResolutionMetadata();
+        return new GDictionary
+        {
+            ["attack_resolution"] = attackMetadata.AttackResolution,
+            ["attack_success"] = attackMetadata.AttackSuccess,
+            ["critical_hit"] = attackMetadata.CriticalHit,
+            ["critical_fail"] = attackMetadata.CriticalFail,
+            ["ordinary_miss"] = attackMetadata.OrdinaryMiss,
+            ["critical_source"] = ResolveCriticalSource(attackMetadata),
+            ["is_disadvantage"] = attackMetadata.IsDisadvantage,
+            ["hidden_luck_at_birth"] = attackMetadata.HiddenLuckAtBirth,
+            ["faith_luck_bonus"] = attackMetadata.FaithLuckBonus,
+            ["effective_luck"] = attackMetadata.EffectiveLuck,
+            ["crit_locked"] = attackMetadata.CritLocked,
+            ["crit_gate_die"] = attackMetadata.CritGateDie,
+            ["crit_gate_roll"] = attackMetadata.CritGateRoll,
+            ["hit_roll"] = attackMetadata.HitRoll,
+            ["fumble_low_end"] = attackMetadata.FumbleLowEnd,
+            ["crit_threshold"] = attackMetadata.CritThreshold,
+            ["required_roll"] = attackMetadata.RequiredRoll,
+            ["display_required_roll"] = attackMetadata.DisplayRequiredRoll,
+            ["hit_rate_percent"] = attackMetadata.HitRatePercent,
+            ["success_rate_percent"] = attackMetadata.SuccessRatePercent,
+            ["reverse_fate_downgraded"] = attackMetadata.ReverseFateDowngraded,
+            ["secondary_hit_success"] = attackMetadata.SecondaryHitSuccess,
+            ["skill_id"] = attackMetadata.SkillId,
+            ["trait_trigger_results"] = BuildTraitTriggerResultsArray(attackMetadata),
+        };
+    }
+
+    private static GArray BuildTraitTriggerResultsArray(AttackResolutionMetadata attackMetadata)
+    {
+        var results = new GArray();
+        if (attackMetadata?.TraitTriggerResults == null)
+        {
+            return results;
+        }
+        foreach (AttackTraitTriggerResult triggerResult in attackMetadata.TraitTriggerResults)
+        {
+            if (!triggerResult.Triggered)
+            {
+                continue;
+            }
+            results.Add(
+                new GDictionary
+                {
+                    ["triggered"] = triggerResult.Triggered,
+                    ["event"] = triggerResult.Event,
+                    ["trait_id"] = triggerResult.TraitId,
+                    ["effect_type"] = triggerResult.EffectType,
+                    ["original_roll"] = triggerResult.OriginalRoll,
+                    ["reroll_die"] = triggerResult.RerollDie,
+                    ["rerolled_roll"] = triggerResult.RerolledRoll,
+                    ["die_size"] = triggerResult.DieSize,
+                    ["charge_key"] = triggerResult.ChargeKey,
+                    ["charges_remaining"] = triggerResult.ChargesRemaining,
+                }
+            );
+        }
+        return results;
     }
 
     private void AttachAttackReportEntry(
@@ -4001,11 +4051,11 @@ public partial class BattleDamageResolver : RefCounted
     private void DispatchAttackResolutionEvents(
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
-        GDictionary attackMetadata,
-        GDictionary attackContext
+        AttackResolutionMetadata attackMetadata,
+        AttackContext attackContext
     )
     {
-        if (attackMetadata == null || attackMetadata.Count == 0)
+        if (attackMetadata == null)
         {
             return;
         }
@@ -4045,11 +4095,12 @@ public partial class BattleDamageResolver : RefCounted
     private GDictionary BuildAttackEventPayload(
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
-        GDictionary attackMetadata,
-        GDictionary attackContext
+        AttackResolutionMetadata attackMetadata,
+        AttackContext attackContext
     )
     {
-        BattleState battleState = GetObject(attackContext, "battle_state") as BattleState;
+        BattleState battleState = attackContext?.BattleState;
+        attackMetadata ??= new AttackResolutionMetadata();
         return new GDictionary
         {
             ["battle_id"] = battleState != null ? battleState.battle_id : new StringName(""),
@@ -4062,12 +4113,12 @@ public partial class BattleDamageResolver : RefCounted
             ["defender_member_id"] =
                 targetUnit != null ? targetUnit.source_member_id : new StringName(""),
             ["defender_is_elite_or_boss"] = IsEliteOrBoss(targetUnit),
-            ["attack_resolution"] = DictStringName(attackMetadata, "attack_resolution"),
+            ["attack_resolution"] = attackMetadata.AttackResolution,
             ["critical_source"] = ResolveCriticalSource(attackMetadata),
-            ["is_disadvantage"] = DictBool(attackMetadata, "is_disadvantage"),
-            ["crit_gate_die"] = DictInt(attackMetadata, "crit_gate_die"),
-            ["crit_gate_roll"] = DictInt(attackMetadata, "crit_gate_roll"),
-            ["hit_roll"] = DictInt(attackMetadata, "hit_roll"),
+            ["is_disadvantage"] = attackMetadata.IsDisadvantage,
+            ["crit_gate_die"] = attackMetadata.CritGateDie,
+            ["crit_gate_roll"] = attackMetadata.CritGateRoll,
+            ["hit_roll"] = attackMetadata.HitRoll,
             ["luck_snapshot"] = BuildAttackLuckSnapshot(attackMetadata),
         };
     }
@@ -4118,9 +4169,29 @@ public partial class BattleDamageResolver : RefCounted
         };
     }
 
+    private static GDictionary BuildAttackLuckSnapshot(AttackResolutionMetadata attackMetadata)
+    {
+        attackMetadata ??= new AttackResolutionMetadata();
+        return new GDictionary
+        {
+            ["hidden_luck_at_birth"] = attackMetadata.HiddenLuckAtBirth,
+            ["faith_luck_bonus"] = attackMetadata.FaithLuckBonus,
+            ["effective_luck"] = attackMetadata.EffectiveLuck,
+            ["fumble_low_end"] = attackMetadata.FumbleLowEnd,
+            ["crit_threshold"] = attackMetadata.CritThreshold,
+        };
+    }
+
     private static StringName ResolveCriticalSource(GDictionary attackMetadata)
     {
         return !DictBool(attackMetadata, "critical_hit") ? new StringName("")
+            : IsHighThreatCriticalHit(attackMetadata) ? new StringName("high_threat")
+            : new StringName("gate_die");
+    }
+
+    private static StringName ResolveCriticalSource(AttackResolutionMetadata attackMetadata)
+    {
+        return attackMetadata == null || !attackMetadata.CriticalHit ? new StringName("")
             : IsHighThreatCriticalHit(attackMetadata) ? new StringName("high_threat")
             : new StringName("gate_die");
     }
@@ -4129,6 +4200,13 @@ public partial class BattleDamageResolver : RefCounted
     {
         return DictBool(attackMetadata, "critical_hit")
             && DictInt(attackMetadata, "crit_gate_die") == NaturalHitRoll;
+    }
+
+    private static bool IsHighThreatCriticalHit(AttackResolutionMetadata attackMetadata)
+    {
+        return attackMetadata != null
+            && attackMetadata.CriticalHit
+            && attackMetadata.CritGateDie == NaturalHitRoll;
     }
 
     private static bool IsLowHpHardship(BattleUnitState unitState)
@@ -4178,6 +4256,30 @@ public partial class BattleDamageResolver : RefCounted
             DictBool(attackMetadata, "attack_success")
             && DictBool(attackMetadata, "is_disadvantage")
             && !DictBool(attackMetadata, "critical_hit")
+        )
+            tags.Add("hardship_survival");
+        return tags;
+    }
+
+    private static GStringNameArray BuildAttackEventTags(AttackResolutionMetadata attackMetadata)
+    {
+        var tags = new GStringNameArray();
+        if (attackMetadata == null)
+        {
+            return tags;
+        }
+        if (attackMetadata.CriticalFail)
+            tags.Add("critical_fail");
+        if (IsHighThreatCriticalHit(attackMetadata))
+            tags.Add("high_threat_critical_hit");
+        if (attackMetadata.CriticalHit && attackMetadata.IsDisadvantage)
+            tags.Add("critical_success_under_disadvantage");
+        if (attackMetadata.OrdinaryMiss)
+            tags.Add("ordinary_miss");
+        if (
+            attackMetadata.AttackSuccess
+            && attackMetadata.IsDisadvantage
+            && !attackMetadata.CriticalHit
         )
             tags.Add("hardship_survival");
         return tags;

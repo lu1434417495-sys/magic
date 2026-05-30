@@ -98,7 +98,7 @@ public partial class BattleAiUnitSnapshot : RefCounted
 
         snapshot.cooldowns = unitState.cooldowns.Duplicate(true);
 
-        snapshot.ai_blackboard = unitState.ai_blackboard.Duplicate(true);
+        snapshot.ai_blackboard = unitState.ai_blackboard?.ToDictionary() ?? new Godot.Collections.Dictionary();
 
         snapshot.status_ids = _copy_status_ids(unitState.status_effects);
 

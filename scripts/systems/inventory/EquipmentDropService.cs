@@ -3,19 +3,19 @@ using Godot;
 [GlobalClass]
 public partial class EquipmentDropService : RefCounted
 {
-    private GodotObject _rng;
+    private RandomNumberGenerator _rng;
 
     public EquipmentDropService()
         : this(null) { }
 
-    public EquipmentDropService(GodotObject rng)
+    public EquipmentDropService(RandomNumberGenerator rng)
     {
         ConfigureRng(rng);
     }
 
-    private void ConfigureRng(GodotObject rng)
+    private void ConfigureRng(RandomNumberGenerator rng)
     {
-        if (rng != null && rng.HasMethod("randi_range"))
+        if (rng != null)
         {
             _rng = rng;
         }
@@ -29,7 +29,7 @@ public partial class EquipmentDropService : RefCounted
         }
     }
 
-    public void set_rng_for_testing(GodotObject rng)
+    public void set_rng_for_testing(RandomNumberGenerator rng)
     {
         ConfigureRng(rng);
     }
@@ -87,9 +87,9 @@ public partial class EquipmentDropService : RefCounted
 
     private int _roll_3d6()
     {
-        return _rng.Call("randi_range", 1, 6).AsInt32()
-            + _rng.Call("randi_range", 1, 6).AsInt32()
-            + _rng.Call("randi_range", 1, 6).AsInt32();
+        return _rng.RandiRange(1, 6)
+            + _rng.RandiRange(1, 6)
+            + _rng.RandiRange(1, 6);
     }
 
     private static int _resolve_rarity_from_score(int rarityScore)

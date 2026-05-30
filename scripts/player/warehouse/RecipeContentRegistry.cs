@@ -1,7 +1,7 @@
 using Godot;
 
 [GlobalClass]
-public partial class RecipeContentRegistry : RefCounted
+public partial class RecipeContentRegistry : RefCounted, IValidatableRegistry
 {
     private const string RECIPE_CONFIG_DIRECTORY = "res://data/configs/recipes";
 

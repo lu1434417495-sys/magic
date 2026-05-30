@@ -2514,12 +2514,9 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
                 ["display_name"] = questDef.display_name,
                 ["reward_entries"] = questDef.reward_entries.Duplicate(true),
             });
-        var questObj = GdInterop.GetObject(_quest_defs, quest_id);
-        if (questObj?.HasMethod("to_dict") == true)
+        if (GdInterop.GetObject(_quest_defs, quest_id) is QuestDef questDefObj)
         {
-            var callResult = questObj.Call("to_dict");
-            if (callResult.TryAsDictionary(out var callDict))
-                return _normalize_quest_reward_data(callDict);
+            return _normalize_quest_reward_data(questDefObj.to_dict());
         }
         return MissingQuestRewardData();
     }
@@ -2595,12 +2592,9 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             objective_defs = GdInterop.GetArray(questDict2, "objective_defs");
         else
         {
-            var questObj2 = GdInterop.GetObject(_quest_defs, quest_id);
-            if (questObj2?.HasMethod("to_dict") == true)
+            if (GdInterop.GetObject(_quest_defs, quest_id) is QuestDef questDefObj2)
             {
-                var callResult2 = questObj2.Call("to_dict");
-                if (callResult2.TryAsDictionary(out var callDict2))
-                    objective_defs = GdInterop.GetArray(callDict2, "objective_defs");
+                objective_defs = ToUntyped(questDefObj2.objective_defs);
             }
         }
         if (objective_defs == null)

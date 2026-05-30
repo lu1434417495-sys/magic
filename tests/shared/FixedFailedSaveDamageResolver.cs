@@ -22,8 +22,8 @@ public partial class FixedFailedSaveDamageResolver : FixedRollDamageResolver
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         Godot.Collections.Array effect_defs,
-        Dictionary attack_check,
-        Dictionary attack_context = null
+        AttackCheckInput attack_check,
+        AttackContext attack_context = null
     )
     {
         return base.resolve_attack_effects(

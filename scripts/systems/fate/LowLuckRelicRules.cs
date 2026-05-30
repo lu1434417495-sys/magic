@@ -115,11 +115,11 @@ public partial class LowLuckRelicRules : RefCounted
         PATH_TAG_HIDDEN_PATH,
     };
 
-    public static bool snapshot_has_flag(GodotObject attributeSnapshot, StringName attributeId)
+    public static bool snapshot_has_flag(AttributeSnapshot attributeSnapshot, StringName attributeId)
     {
         return attributeSnapshot != null
             && attributeId != ""
-            && attributeSnapshot.Call("get_value", attributeId).AsInt32() > 0;
+            && attributeSnapshot.get_value(attributeId) > 0;
     }
 
     public static bool unit_has_flag(GodotObject unitState, StringName attributeId)
@@ -127,8 +127,12 @@ public partial class LowLuckRelicRules : RefCounted
         if (unitState == null)
             return false;
 
-        var snapshot = unitState.Get("attribute_snapshot").AsGodotObject();
+        if (unitState is BattleUnitState battleUnitState)
+        {
+            return snapshot_has_flag(battleUnitState.attribute_snapshot, attributeId);
+        }
 
+        var snapshot = unitState.Get("attribute_snapshot").AsGodotObject() as AttributeSnapshot;
         return snapshot_has_flag(snapshot, attributeId);
     }
 
@@ -159,7 +163,7 @@ public partial class LowLuckRelicRules : RefCounted
         Godot.Collections.Array pathTagsValue
     )
     {
-        if (!snapshot_has_flag(attributeSnapshot, ATTR_DEAD_ROAD_LANTERN))
+        if (!snapshot_has_flag(attributeSnapshot as AttributeSnapshot, ATTR_DEAD_ROAD_LANTERN))
             return false;
 
         foreach (var pathTag in normalize_path_tags(pathTagsValue))
@@ -184,15 +188,15 @@ public partial class LowLuckRelicRules : RefCounted
         )
             return false;
 
-        var equipmentState = memberState.Get("equipment_state").AsGodotObject();
+        var equipmentState = memberState.Get("equipment_state").AsGodotObject() as EquipmentState;
 
-        if (!equipmentState.HasMethod("get_entry_slot_ids"))
+        if (equipmentState == null)
             return false;
 
-        foreach (var slotIdValue in equipmentState.Call("get_entry_slot_ids").AsGodotArray())
+        foreach (var slotIdValue in equipmentState.get_entry_slot_ids())
         {
             var equippedItemId = ProgressionDataUtils.to_string_name(
-                equipmentState.Call("get_equipped_item_id", slotIdValue)
+                equipmentState.get_equipped_item_id(ProgressionDataUtils.to_string_name(slotIdValue))
             );
 
             if (equippedItemId == itemId)

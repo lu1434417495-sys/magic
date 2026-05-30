@@ -27,11 +27,11 @@ public partial class MisfortuneBlackOmenService : RefCounted
     public static StringName HOOK_DEAD_ROAD_LANTERN_BLACK_OMEN_PATH_VALUE() =>
         HOOK_DEAD_ROAD_LANTERN_BLACK_OMEN_PATH;
 
-    private GodotObject _character_gateway;
+    private CharacterManagementModule _character_gateway;
     private Godot.Collections.Dictionary _item_defs = new();
 
     public void setup(
-        GodotObject characterGateway = null,
+        CharacterManagementModule characterGateway = null,
         Godot.Collections.Dictionary itemDefs = null
     )
     {
@@ -92,7 +92,7 @@ public partial class MisfortuneBlackOmenService : RefCounted
             result["already_marked"] = true;
             return result;
         }
-        _get_unit_base_attributes(memberState).Call("set_attribute_value", DOOM_MARKED_STAT_ID, 1);
+        _get_unit_base_attributes(memberState).set_attribute_value(DOOM_MARKED_STAT_ID, 1);
         result["granted"] = true;
         result["doom_marked"] = 1;
         return result;
@@ -284,20 +284,17 @@ public partial class MisfortuneBlackOmenService : RefCounted
     {
         if (_character_gateway == null || memberId == "")
             return null;
-        if (!_character_gateway.HasMethod("get_member_state"))
-            return null;
-        return _character_gateway.Call("get_member_state", memberId).AsGodotObject()
-            as PartyMemberState;
+        return _character_gateway.get_member_state(memberId);
     }
 
     private int _get_doom_marked_value(PartyMemberState memberState)
     {
         var uba = _get_unit_base_attributes(memberState);
-        return uba?.Call("get_attribute_value", DOOM_MARKED_STAT_ID).AsInt32() ?? 0;
+        return uba?.get_attribute_value(DOOM_MARKED_STAT_ID) ?? 0;
     }
 
-    private static GodotObject _get_unit_base_attributes(PartyMemberState memberState) =>
-        memberState?.progression?.Get("unit_base_attributes").AsGodotObject();
+    private static UnitBaseAttributes _get_unit_base_attributes(PartyMemberState memberState) =>
+        memberState?.progression?.unit_base_attributes;
 
     private Godot.Collections.Dictionary _build_result(
         StringName memberId,

@@ -5,11 +5,11 @@ using Godot;
 public partial class CharacterCreationIdentityOptionService : RefCounted
 {
     public static Godot.Collections.Array<StringName> collect_creation_race_ids(
-        GodotObject content_source
+        ProgressionContentRegistry content_source
     )
     {
         var ids = new Godot.Collections.Array<StringName>();
-        var raceDefs = GetContentBucket(content_source, "get_race_defs", "race_defs", "race");
+        var raceDefs = content_source != null ? content_source.get_race_defs() : new Godot.Collections.Dictionary();
         foreach (var raceId in SortedBucketIds(raceDefs))
         {
             if (collect_subrace_ids_for_race(content_source, raceId).Count > 0)
@@ -19,7 +19,7 @@ public partial class CharacterCreationIdentityOptionService : RefCounted
     }
 
     public static Godot.Collections.Array<StringName> collect_subrace_ids_for_race(
-        GodotObject content_source,
+        ProgressionContentRegistry content_source,
         StringName race_id
     )
     {
@@ -27,16 +27,11 @@ public partial class CharacterCreationIdentityOptionService : RefCounted
         if (race_id == "")
             return ids;
 
-        var raceDef = GetContentDef(content_source, "get_race_defs", "race_defs", "race", race_id);
+        var raceDef = LookupBucketEntry(content_source.get_race_defs(), race_id);
         if (raceDef == null)
             return ids;
 
-        var subraceDefs = GetContentBucket(
-            content_source,
-            "get_subrace_defs",
-            "subrace_defs",
-            "subrace"
-        );
+        var subraceDefs = content_source.get_subrace_defs();
         foreach (var subraceId in DefStringNameArray(raceDef, "subrace_ids"))
         {
             if (subraceId == "" || ids.Contains(subraceId))
@@ -54,7 +49,7 @@ public partial class CharacterCreationIdentityOptionService : RefCounted
     }
 
     public static StringName choose_race_id(
-        GodotObject content_source,
+        ProgressionContentRegistry content_source,
         StringName current_id,
         StringName default_id
     )
@@ -68,7 +63,7 @@ public partial class CharacterCreationIdentityOptionService : RefCounted
     }
 
     public static StringName choose_subrace_id(
-        GodotObject content_source,
+        ProgressionContentRegistry content_source,
         StringName race_id,
         StringName current_id
     )
@@ -77,7 +72,7 @@ public partial class CharacterCreationIdentityOptionService : RefCounted
         if (current_id != "" && candidates.Contains(current_id))
             return current_id;
 
-        var raceDef = GetContentDef(content_source, "get_race_defs", "race_defs", "race", race_id);
+        var raceDef = LookupBucketEntry(content_source.get_race_defs(), race_id);
         var defaultSubraceId = DefStringName(raceDef, "default_subrace_id");
         if (defaultSubraceId != "" && candidates.Contains(defaultSubraceId))
             return defaultSubraceId;
@@ -85,7 +80,7 @@ public partial class CharacterCreationIdentityOptionService : RefCounted
     }
 
     public static bool is_valid_creation_race_subrace_pair(
-        GodotObject content_source,
+        ProgressionContentRegistry content_source,
         StringName race_id,
         StringName subrace_id
     )
@@ -123,40 +118,7 @@ public partial class CharacterCreationIdentityOptionService : RefCounted
         return SortStringNames(ids);
     }
 
-    private static GodotObject GetContentDef(
-        GodotObject contentSource,
-        string methodName,
-        string primaryBucketName,
-        string aliasBucketName,
-        StringName defId
-    )
-    {
-        if (contentSource == null || defId == "")
-            return null;
-        var bucket = GetContentBucket(
-            contentSource,
-            methodName,
-            primaryBucketName,
-            aliasBucketName
-        );
-        return LookupBucketEntry(bucket, defId);
-    }
 
-    private static Godot.Collections.Dictionary GetContentBucket(
-        GodotObject contentSource,
-        string methodName,
-        string primaryBucketName,
-        string aliasBucketName
-    )
-    {
-        if (contentSource != null && contentSource.HasMethod(methodName))
-        {
-            var methodBucket = contentSource.Call(methodName);
-            if (methodBucket.VariantType == Variant.Type.Dictionary)
-                return methodBucket.AsGodotDictionary();
-        }
-        return new Godot.Collections.Dictionary();
-    }
 
     private static GodotObject LookupBucketEntry(Godot.Collections.Dictionary bucket, StringName defId)
     {

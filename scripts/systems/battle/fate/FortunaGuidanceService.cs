@@ -10,7 +10,7 @@ public partial class FortunaGuidanceService : RefCounted
     private static readonly StringName FORTUNE_MARKED_STAT_ID = "fortune_marked";
     private const string CHAPTER_EVENT_FLAG_PREFIX = "fortuna_guidance_chapter_seen:",
         DEVOUT_BATTLE_FLAG_PREFIX = "fortuna_guidance_devout_battle:";
-    private GodotObject _character_gateway;
+    private IBattleRuntimeCharacterGateway _character_gateway;
     private BattleFateEventBus _fate_event_bus;
 
     public static StringName ACHIEVEMENT_GUIDANCE_TRUE_ID() => ACHIEVEMENT_GUIDANCE_TRUE;
@@ -21,7 +21,7 @@ public partial class FortunaGuidanceService : RefCounted
 
     public static StringName ACHIEVEMENT_GUIDANCE_BLESSED_ID() => ACHIEVEMENT_GUIDANCE_BLESSED;
 
-    public void setup(GodotObject characterGateway = null, BattleFateEventBus fateEventBus = null)
+    public void setup(IBattleRuntimeCharacterGateway characterGateway = null, BattleFateEventBus fateEventBus = null)
     {
         _character_gateway = characterGateway;
         bind_fate_event_bus(fateEventBus);
@@ -66,7 +66,7 @@ public partial class FortunaGuidanceService : RefCounted
             if (us == null || us.source_member_id == "")
                 continue;
             var flagId = _build_devout_battle_flag_id(battleId, us.source_member_id);
-            if (!(bool)partyState.Call("has_fate_run_flag", flagId))
+            if (!partyState.has_fate_run_flag(flagId))
                 continue;
             if (
                 playerWon
@@ -74,7 +74,7 @@ public partial class FortunaGuidanceService : RefCounted
                 && _unlock_achievement(us.source_member_id, ACHIEVEMENT_GUIDANCE_DEVOUT)
             )
                 _append_unique_string_name(unlockedIds, ACHIEVEMENT_GUIDANCE_DEVOUT);
-            partyState.Call("clear_fate_run_flag", flagId);
+            partyState.clear_fate_run_flag(flagId);
         }
         return unlockedIds;
     }
@@ -106,11 +106,11 @@ public partial class FortunaGuidanceService : RefCounted
             var flagId = _build_chapter_event_flag_id(mid);
             bool shouldUnlock =
                 !hadPermDeath
-                && (bool)partyState.Call("has_fate_run_flag", flagId)
+                && partyState.has_fate_run_flag(flagId)
                 && _is_fortuna_devotee(_get_member_state(mid));
             if (shouldUnlock && _unlock_achievement(mid, ACHIEVEMENT_GUIDANCE_BLESSED))
                 _append_unique_string_name(unlockedIds, ACHIEVEMENT_GUIDANCE_BLESSED);
-            partyState.Call("clear_fate_run_flag", flagId);
+            partyState.clear_fate_run_flag(flagId);
         }
         return unlockedIds;
     }
@@ -182,7 +182,7 @@ public partial class FortunaGuidanceService : RefCounted
         _mark_chapter_event_seen(mid);
         var ps = _get_party_state();
         if (ps != null)
-            ps.Call("set_fate_run_flag", _build_devout_battle_flag_id(bid, mid), true);
+            ps.set_fate_run_flag(_build_devout_battle_flag_id(bid, mid), true);
     }
 
     private static StringName _resolve_attacker_member_id(Godot.Collections.Dictionary payload) =>
@@ -213,33 +213,25 @@ public partial class FortunaGuidanceService : RefCounted
     {
         var ps = _get_party_state();
         if (ps != null && mid != "")
-            ps.Call("set_fate_run_flag", _build_chapter_event_flag_id(mid), true);
+            ps.set_fate_run_flag(_build_chapter_event_flag_id(mid), true);
     }
 
     private bool _unlock_achievement(StringName mid, StringName achId)
     {
         if (_character_gateway == null || mid == "" || achId == "")
             return false;
-        if (!_character_gateway.HasMethod("unlock_achievement"))
-            return false;
-        return _character_gateway
-            .Call(
-                "unlock_achievement",
-                mid,
-                achId,
-                new Godot.Collections.Dictionary { { "summary_text", _build_summary_text(achId) } }
-            )
-            .AsBool();
+        return (_character_gateway as CharacterManagementModule)?.unlock_achievement(
+            mid,
+            achId,
+            new Godot.Collections.Dictionary { { "summary_text", _build_summary_text(achId) } }
+        ) ?? false;
     }
 
     private static bool _is_fortuna_marked(PartyMemberState ms)
     {
         if (ms?.progression?.Get("unit_base_attributes").AsGodotObject() == null)
             return false;
-        return ms.progression.Get("unit_base_attributes")
-                .AsGodotObject()
-                .Call("get_attribute_value", FORTUNE_MARKED_STAT_ID)
-                .AsInt32() > 0;
+        return ms.progression?.unit_base_attributes?.get_attribute_value(FORTUNE_MARKED_STAT_ID) > 0;
     }
 
     private static bool _is_fortuna_devotee(PartyMemberState ms) =>
@@ -258,15 +250,11 @@ public partial class FortunaGuidanceService : RefCounted
         return "";
     }
 
-    private GodotObject _get_party_state() =>
-        _character_gateway != null && _character_gateway.HasMethod("get_party_state")
-            ? _character_gateway.Call("get_party_state").AsGodotObject()
-            : null;
+    private PartyState _get_party_state() =>
+        _character_gateway?.get_party_state();
 
     private PartyMemberState _get_member_state(StringName mid) =>
-        _character_gateway != null && mid != "" && _character_gateway.HasMethod("get_member_state")
-            ? _character_gateway.Call("get_member_state", mid).AsGodotObject() as PartyMemberState
-            : null;
+        _character_gateway != null && mid != "" ? _character_gateway.get_member_state(mid) : null;
 
     private static StringName _build_chapter_event_flag_id(StringName mid) =>
         ProgressionDataUtils.to_string_name($"{CHAPTER_EVENT_FLAG_PREFIX}{(string)mid}");

@@ -731,16 +731,20 @@ public partial class BattleChargeResolver : RefCounted
                     ExecuteStage,
                     false
                 );
-                GDictionary attackCheck = attackPolicy.build_attack_check(attackContext, 0, 0);
+                AttackCheckInput attackCheck = attackPolicy.build_attack_check(
+                    attackContext,
+                    0,
+                    0
+                );
                 result = DamageResolver.resolve_attack_effects(
                     activeUnit,
                     targetUnit,
                     stageEffects,
                     attackCheck,
-                    new GDictionary
+                    new AttackContext
                     {
-                        ["battle_state"] = State,
-                        ["skill_id"] = skillDef?.skill_id ?? new StringName(""),
+                        BattleState = State,
+                        SkillId = skillDef?.skill_id ?? new StringName(""),
                     }
                 );
                 _skillMasteryService?.RecordTargetResult(

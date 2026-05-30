@@ -290,6 +290,18 @@ public partial class BattleAiDecisionCommitter : RefCounted
             return patch;
         }
 
+        private static void AddBlackboardText(
+            GDictionary blackboardSet,
+            string key,
+            bool hasValue,
+            string value
+        )
+        {
+            if (!hasValue || blackboardSet == null)
+                return;
+            blackboardSet[key] = value ?? "";
+        }
+
         public void ApplyTo(BattleUnitState unitState)
         {
             if (unitState == null)
@@ -304,39 +316,25 @@ public partial class BattleAiDecisionCommitter : RefCounted
             {
                 unitState.ai_state_id = _stateId;
             }
-            SetBlackboard(unitState, "last_brain_id", _hasLastBrainId, _lastBrainId);
-            SetBlackboard(unitState, "last_state_id", _hasLastStateId, _lastStateId);
-            SetBlackboard(unitState, "last_action_id", _hasLastActionId, _lastActionId);
-            SetBlackboard(unitState, "last_reason_text", _hasLastReasonText, _lastReasonText);
-            SetBlackboard(
-                unitState,
-                "last_transition_previous_state_id",
-                _hasLastTransitionPreviousStateId,
-                _lastTransitionPreviousStateId
-            );
-            SetBlackboard(
-                unitState,
-                "last_transition_state_id",
-                _hasLastTransitionStateId,
-                _lastTransitionStateId
-            );
-            SetBlackboard(
-                unitState,
-                "last_transition_rule_id",
-                _hasLastTransitionRuleId,
-                _lastTransitionRuleId
-            );
-            SetBlackboard(
-                unitState,
-                "last_transition_reason",
-                _hasLastTransitionReason,
-                _lastTransitionReason
-            );
+            if (_hasLastBrainId)
+                unitState.ai_blackboard.last_brain_id = new StringName(_lastBrainId);
+            if (_hasLastStateId)
+                unitState.ai_blackboard.last_state_id = new StringName(_lastStateId);
+            if (_hasLastActionId)
+                unitState.ai_blackboard.last_action_id = new StringName(_lastActionId);
+            if (_hasLastReasonText)
+                unitState.ai_blackboard.last_reason_text = new StringName(_lastReasonText);
+            if (_hasLastTransitionPreviousStateId)
+                unitState.ai_blackboard.last_transition_previous_state_id = new StringName(_lastTransitionPreviousStateId);
+            if (_hasLastTransitionStateId)
+                unitState.ai_blackboard.last_transition_state_id = new StringName(_lastTransitionStateId);
+            if (_hasLastTransitionRuleId)
+                unitState.ai_blackboard.last_transition_rule_id = new StringName(_lastTransitionRuleId);
+            if (_hasLastTransitionReason)
+                unitState.ai_blackboard.last_transition_reason = new StringName(_lastTransitionReason);
             if (_hasTurnDecisionCountIncrement)
             {
-                int current = GetBlackboardInt(unitState, "turn_decision_count");
-                unitState.ai_blackboard["turn_decision_count"] =
-                    current + _turnDecisionCountIncrement;
+                unitState.ai_blackboard.turn_decision_count += _turnDecisionCountIncrement;
             }
         }
 
@@ -422,44 +420,6 @@ public partial class BattleAiDecisionCommitter : RefCounted
             }
         }
 
-        private static void AddBlackboardText(
-            GDictionary target,
-            string key,
-            bool hasValue,
-            string value
-        )
-        {
-            if (hasValue)
-            {
-                target[key] = value ?? "";
-            }
-        }
-
-        private static void SetBlackboard(
-            BattleUnitState unitState,
-            string key,
-            bool hasValue,
-            string value
-        )
-        {
-            if (hasValue)
-            {
-                unitState.ai_blackboard[key] = value ?? "";
-            }
-        }
-
-        private static int GetBlackboardInt(BattleUnitState unitState, string key)
-        {
-            if (
-                unitState.ai_blackboard != null
-                && TryGetDictionaryValue(unitState.ai_blackboard, key, out Variant rawValue)
-                && TryAsInt(rawValue, out int value)
-            )
-            {
-                return value;
-            }
-            return 0;
-        }
     }
 
     private static bool _fail(string message)

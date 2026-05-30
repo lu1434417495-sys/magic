@@ -6,23 +6,23 @@ using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 // 翻译自 battle_change_equipment_resolver.gd（2026-05-25，战斗换装 C# 迁移）。
-// runtime 耦合：战斗实体/视图统一按 GodotObject + GdInterop 访问；command 为 C# BattleCommand。
+// runtime 耦合：战斗实体/视图使用 C# runtime state；command 为 C# BattleCommand。
 [GlobalClass]
 public partial class BattleChangeEquipmentResolver : RefCounted
 {
     private const int CHANGE_EQUIPMENT_AP_COST = 2;
 
-    private WeakReference<GodotObject> _runtimeRef;
+    private WeakReference<BattleRuntimeModule> _runtimeRef;
 
-    private GodotObject _runtime
+    private BattleRuntimeModule _runtime
     {
         get => ResolveWeakRef(_runtimeRef);
-        set => _runtimeRef = value != null ? new WeakReference<GodotObject>(value) : null;
+        set => _runtimeRef = value != null ? new WeakReference<BattleRuntimeModule>(value) : null;
     }
 
     public void setup(GodotObject runtime)
     {
-        _runtime = runtime;
+        _runtime = runtime as BattleRuntimeModule;
     }
 
     public void dispose()
@@ -32,12 +32,12 @@ public partial class BattleChangeEquipmentResolver : RefCounted
 
     public void preview_command(GodotObject active_unit, BattleCommand command, GodotObject preview)
     {
-        PreviewChangeEquipmentCommand(active_unit, command, preview);
+        PreviewChangeEquipmentCommand(active_unit as BattleUnitState, command, preview as BattlePreview);
     }
 
     public void handle_command(GodotObject active_unit, BattleCommand command, GodotObject batch)
     {
-        HandleChangeEquipmentCommand(active_unit, command, batch);
+        HandleChangeEquipmentCommand(active_unit as BattleUnitState, command, batch as BattleEventBatch);
     }
 
     public GDictionary build_result(
@@ -57,7 +57,7 @@ public partial class BattleChangeEquipmentResolver : RefCounted
         bool success
     )
     {
-        AppendChangeEquipmentReport(batch, active_unit, result, success);
+        AppendChangeEquipmentReport(batch as BattleEventBatch, active_unit as BattleUnitState, result, success);
     }
 
     public int get_unit_hp_max(GodotObject unit_state)
@@ -71,30 +71,24 @@ public partial class BattleChangeEquipmentResolver : RefCounted
     }
 
     private void PreviewChangeEquipmentCommand(
-        GodotObject activeUnit,
+        BattleUnitState activeUnit,
         BattleCommand command,
-        GodotObject preview
+        BattlePreview preview
     )
     {
+        if (preview == null)
+        {
+            return;
+        }
         GDictionary validation = ValidateChangeEquipmentCommand(activeUnit, command);
         if (!GdInterop.GetBool(validation, "allowed", false))
         {
-            GdInterop
-                .GetArray(preview, "log_lines")
-                .Add(GdInterop.GetString(validation, "message", "换装命令无效。"));
+            preview.log_lines.Add(GdInterop.GetString(validation, "message", "换装命令无效。"));
             return;
         }
 
-        GodotObject equipmentView = activeUnit
-            .Call("get_equipment_view")
-            .AsGodotObject()
-            .Call("duplicate_state")
-            .AsGodotObject();
-        GodotObject backpackView = RuntimeState()
-            .Call("get_party_backpack_view")
-            .AsGodotObject()
-            .Call("duplicate_state")
-            .AsGodotObject();
+        EquipmentState equipmentView = activeUnit.get_equipment_view()?.duplicate_state();
+        WarehouseState backpackView = RuntimeState()?.get_party_backpack_view()?.duplicate_state();
         GDictionary applyResult = ApplyChangeEquipmentToViews(
             command,
             validation,
@@ -103,23 +97,19 @@ public partial class BattleChangeEquipmentResolver : RefCounted
         );
         if (GdInterop.GetBool(applyResult, "allowed", false))
         {
-            preview.Set("allowed", true);
-            GdInterop
-                .GetArray(preview, "log_lines")
-                .Add(GdInterop.GetString(applyResult, "message", "换装可执行。"));
+            preview.allowed = true;
+            preview.log_lines.Add(GdInterop.GetString(applyResult, "message", "换装可执行。"));
         }
         else
         {
-            GdInterop
-                .GetArray(preview, "log_lines")
-                .Add(GdInterop.GetString(applyResult, "message", "换装命令无效。"));
+            preview.log_lines.Add(GdInterop.GetString(applyResult, "message", "换装命令无效。"));
         }
     }
 
     private void HandleChangeEquipmentCommand(
-        GodotObject activeUnit,
+        BattleUnitState activeUnit,
         BattleCommand command,
-        GodotObject batch
+        BattleEventBatch batch
     )
     {
         GDictionary validation = ValidateChangeEquipmentCommand(activeUnit, command);
@@ -129,16 +119,8 @@ public partial class BattleChangeEquipmentResolver : RefCounted
             return;
         }
 
-        GodotObject equipmentView = activeUnit
-            .Call("get_equipment_view")
-            .AsGodotObject()
-            .Call("duplicate_state")
-            .AsGodotObject();
-        GodotObject backpackView = RuntimeState()
-            .Call("get_party_backpack_view")
-            .AsGodotObject()
-            .Call("duplicate_state")
-            .AsGodotObject();
+        EquipmentState equipmentView = activeUnit.get_equipment_view()?.duplicate_state();
+        WarehouseState backpackView = RuntimeState()?.get_party_backpack_view()?.duplicate_state();
         GDictionary applyResult = ApplyChangeEquipmentToViews(
             command,
             validation,
@@ -151,29 +133,24 @@ public partial class BattleChangeEquipmentResolver : RefCounted
             return;
         }
 
-        int apBefore = GdInterop.GetInt(activeUnit, "current_ap");
-        activeUnit.Call("set_equipment_view", equipmentView);
-        RuntimeState().Call("set_party_backpack_view", backpackView);
+        int apBefore = activeUnit.current_ap;
+        activeUnit.set_equipment_view(equipmentView);
+        RuntimeState()?.set_party_backpack_view(backpackView);
         RefreshChangeEquipmentProjection(activeUnit, applyResult);
-        activeUnit.Set(
-            "current_ap",
-            Math.Max(GdInterop.GetInt(activeUnit, "current_ap") - CHANGE_EQUIPMENT_AP_COST, 0)
-        );
+        activeUnit.current_ap = Math.Max(activeUnit.current_ap - CHANGE_EQUIPMENT_AP_COST, 0);
         applyResult["ap_before"] = apBefore;
-        applyResult["ap_after"] = GdInterop.GetInt(activeUnit, "current_ap");
-        _runtime.Call(
-            "_record_action_issued",
+        applyResult["ap_after"] = activeUnit.current_ap;
+        _runtime?._record_action_issued(
             activeUnit,
             BattleCommand.TYPE_CHANGE_EQUIPMENT(),
             CHANGE_EQUIPMENT_AP_COST
         );
-        GdInterop
-            .GetArray(batch, "changed_unit_ids")
-            .Add(GdInterop.GetStringName(activeUnit, "unit_id"));
+        if (batch != null && !batch.changed_unit_ids.Contains(activeUnit.unit_id))
+            batch.changed_unit_ids.Add(activeUnit.unit_id);
         AppendChangeEquipmentReport(batch, activeUnit, applyResult, true);
     }
 
-    private void RefreshChangeEquipmentProjection(GodotObject activeUnit, GDictionary result)
+    private void RefreshChangeEquipmentProjection(BattleUnitState activeUnit, GDictionary result)
     {
         if (activeUnit == null)
         {
@@ -182,14 +159,11 @@ public partial class BattleChangeEquipmentResolver : RefCounted
         int hpBefore = GdInterop.GetInt(activeUnit, "current_hp");
         int hpMaxBefore = GetUnitHpMax(activeUnit);
         if (
-            !GdInterop.IsEmpty(GdInterop.GetStringName(activeUnit, "source_member_id"))
-            && GdInterop.GetObject(_runtime, "_character_gateway") != null
+            !GdInterop.IsEmpty(activeUnit.source_member_id)
+            && _runtime?.GetCharacterGatewayTyped() != null
         )
         {
-            _runtime
-                .Get("_unit_factory")
-                .AsGodotObject()
-                .Call("refresh_equipment_projection", activeUnit);
+            _runtime._unit_factory?.refresh_equipment_projection(activeUnit);
         }
         int hpMaxAfter = GetUnitHpMax(activeUnit);
         bool hpClamped = false;
@@ -245,7 +219,7 @@ public partial class BattleChangeEquipmentResolver : RefCounted
     }
 
     private GDictionary ValidateChangeEquipmentCommand(
-        GodotObject activeUnit,
+        BattleUnitState activeUnit,
         BattleCommand command
     )
     {
@@ -255,7 +229,7 @@ public partial class BattleChangeEquipmentResolver : RefCounted
             "换装命令无效。",
             command
         );
-        GodotObject state = RuntimeState();
+        BattleState state = RuntimeState();
         if (state == null || activeUnit == null || command == null)
         {
             return result;
@@ -274,10 +248,7 @@ public partial class BattleChangeEquipmentResolver : RefCounted
         );
 
         StringName targetUnitId = ResolveChangeEquipmentTargetUnitId(activeUnit, command);
-        if (
-            GdInterop.GetStringName(state, "active_unit_id")
-            != GdInterop.GetStringName(activeUnit, "unit_id")
-        )
+        if (state.active_unit_id != activeUnit.unit_id)
         {
             return WithChangeEquipmentError(
                 result,
@@ -285,7 +256,7 @@ public partial class BattleChangeEquipmentResolver : RefCounted
                 "只能为当前行动单位自己换装。"
             );
         }
-        if (targetUnitId != GdInterop.GetStringName(activeUnit, "unit_id"))
+        if (targetUnitId != activeUnit.unit_id)
         {
             return WithChangeEquipmentError(
                 result,
@@ -293,7 +264,7 @@ public partial class BattleChangeEquipmentResolver : RefCounted
                 "只能为当前行动单位自己换装。"
             );
         }
-        if (GdInterop.GetInt(activeUnit, "current_ap") < CHANGE_EQUIPMENT_AP_COST)
+        if (activeUnit.current_ap < CHANGE_EQUIPMENT_AP_COST)
         {
             return WithChangeEquipmentError(
                 result,
@@ -313,8 +284,8 @@ public partial class BattleChangeEquipmentResolver : RefCounted
             return WithChangeEquipmentError(result, "slot_invalid", $"装备槽无效：{slotId}。");
         }
 
-        GodotObject equipmentView = GdInterop.GetObject(activeUnit, "equipment_view");
-        if (equipmentView == null || !equipmentView.HasMethod("get_equipped_item_id"))
+        EquipmentState equipmentView = activeUnit.get_equipment_view();
+        if (equipmentView == null)
         {
             return WithChangeEquipmentError(
                 result,
@@ -322,8 +293,8 @@ public partial class BattleChangeEquipmentResolver : RefCounted
                 "战斗内装备状态不可用。"
             );
         }
-        GodotObject backpackView = GdInterop.GetObject(state, "party_backpack_view");
-        if (backpackView == null || !backpackView.HasMethod("duplicate_state"))
+        WarehouseState backpackView = state.get_party_backpack_view();
+        if (backpackView == null)
         {
             return WithChangeEquipmentError(
                 result,
@@ -352,11 +323,10 @@ public partial class BattleChangeEquipmentResolver : RefCounted
                     $"战斗背包中找不到装备实例 {instanceId}。"
                 );
             }
-            GodotObject backpackInstance = GdInterop
-                .GetArray(backpackView, "equipment_instances")[backpackIndex]
-                .AsGodotObject();
+            EquipmentInstanceState backpackInstance =
+                backpackView.equipment_instances[backpackIndex];
             StringName resolvedItemId = ProgressionDataUtils.to_string_name(
-                backpackInstance.Get("item_id")
+                backpackInstance.item_id
             );
             StringName commandItemId = ResolveChangeEquipmentItemId(command);
             if (!GdInterop.IsEmpty(commandItemId) && commandItemId != resolvedItemId)
@@ -391,7 +361,7 @@ public partial class BattleChangeEquipmentResolver : RefCounted
         else
         {
             StringName entrySlot = ProgressionDataUtils.to_string_name(
-                equipmentView.Call("get_entry_slot_for_slot", slotId)
+                equipmentView.get_entry_slot_for_slot(slotId)
             );
             if (GdInterop.IsEmpty(entrySlot))
             {
@@ -402,7 +372,7 @@ public partial class BattleChangeEquipmentResolver : RefCounted
                 );
             }
             StringName equippedInstanceId = ProgressionDataUtils.to_string_name(
-                equipmentView.Call("get_equipped_instance_id", slotId)
+                equipmentView.get_equipped_instance_id(slotId)
             );
             StringName commandInstanceId = ResolveChangeEquipmentInstanceId(command);
             if (
@@ -418,12 +388,12 @@ public partial class BattleChangeEquipmentResolver : RefCounted
                 );
             }
             result["item_id"] = ProgressionDataUtils
-                .to_string_name(equipmentView.Call("get_equipped_item_id", slotId))
+                .to_string_name(equipmentView.get_equipped_item_id(slotId))
                 .ToString();
             result["instance_id"] = equippedInstanceId.ToString();
             result["occupied_slot_ids"] = StringifyStringNameArray(
                 ProgressionDataUtils.to_string_name_array(
-                    equipmentView.Call("get_occupied_slot_ids_for_entry", entrySlot)
+                    equipmentView.get_occupied_slot_ids_for_entry(entrySlot)
                 )
             );
         }
@@ -437,8 +407,8 @@ public partial class BattleChangeEquipmentResolver : RefCounted
     private GDictionary ApplyChangeEquipmentToViews(
         BattleCommand command,
         GDictionary validation,
-        GodotObject equipmentView,
-        GodotObject backpackView
+        EquipmentState equipmentView,
+        WarehouseState backpackView
     )
     {
         if (equipmentView == null || backpackView == null)
@@ -476,8 +446,8 @@ public partial class BattleChangeEquipmentResolver : RefCounted
                     $"战斗背包中找不到装备实例 {instanceId}。"
                 );
             }
-            GArray backpackInstances = GdInterop.GetArray(backpackView, "equipment_instances");
-            GodotObject newInstance = backpackInstances[backpackIndex].AsGodotObject();
+            var backpackInstances = backpackView.equipment_instances;
+            EquipmentInstanceState newInstance = backpackInstances[backpackIndex];
             itemId = ProgressionDataUtils.to_string_name(newInstance.Get("item_id"));
             backpackInstances.RemoveAt(backpackIndex);
 
@@ -492,7 +462,7 @@ public partial class BattleChangeEquipmentResolver : RefCounted
             foreach (StringName occupiedSlotId in occupiedSlots)
             {
                 StringName existingEntrySlot = ProgressionDataUtils.to_string_name(
-                    equipmentView.Call("get_entry_slot_for_slot", occupiedSlotId)
+                    equipmentView.get_entry_slot_for_slot(occupiedSlotId)
                 );
                 if (
                     GdInterop.IsEmpty(existingEntrySlot)
@@ -502,9 +472,9 @@ public partial class BattleChangeEquipmentResolver : RefCounted
                     continue;
                 }
                 displacedEntrySlots[existingEntrySlot] = true;
-                GodotObject displacedInstance = equipmentView
-                    .Call("pop_equipped_instance", existingEntrySlot)
-                    .AsGodotObject();
+                EquipmentInstanceState displacedInstance = equipmentView.pop_equipped_instance(
+                    existingEntrySlot
+                );
                 if (displacedInstance != null)
                 {
                     if (
@@ -525,14 +495,14 @@ public partial class BattleChangeEquipmentResolver : RefCounted
                     backpackInstances.Add(displacedInstance);
                 }
             }
-            equipmentView.Call("set_equipped_entry", slotId, itemId, occupiedSlots, newInstance);
+            equipmentView.set_equipped_entry(slotId, itemId, occupiedSlots, newInstance);
             result["item_id"] = itemId.ToString();
             result["instance_id"] = instanceId.ToString();
         }
         else
         {
             StringName entrySlot = ProgressionDataUtils.to_string_name(
-                equipmentView.Call("get_entry_slot_for_slot", slotId)
+                equipmentView.get_entry_slot_for_slot(slotId)
             );
             if (GdInterop.IsEmpty(entrySlot))
             {
@@ -542,9 +512,7 @@ public partial class BattleChangeEquipmentResolver : RefCounted
                     $"{EquipmentRules.get_slot_label(slotId)} 当前没有已装备物品。"
                 );
             }
-            GodotObject removedInstance = equipmentView
-                .Call("pop_equipped_instance", entrySlot)
-                .AsGodotObject();
+            EquipmentInstanceState removedInstance = equipmentView.pop_equipped_instance(entrySlot);
             if (removedInstance == null)
             {
                 return WithChangeEquipmentError(
@@ -567,7 +535,7 @@ public partial class BattleChangeEquipmentResolver : RefCounted
                     $"战斗背包中已存在装备实例 {removedInstanceId}。"
                 );
             }
-            GdInterop.GetArray(backpackView, "equipment_instances").Add(removedInstance);
+            backpackView.equipment_instances.Add(removedInstance);
             result["item_id"] = ProgressionDataUtils
                 .to_string_name(removedInstance.Get("item_id"))
                 .ToString();
@@ -662,8 +630,8 @@ public partial class BattleChangeEquipmentResolver : RefCounted
     }
 
     private void AppendChangeEquipmentReport(
-        GodotObject batch,
-        GodotObject activeUnit,
+        BattleEventBatch batch,
+        BattleUnitState activeUnit,
         GDictionary result,
         bool success
     )
@@ -744,7 +712,7 @@ public partial class BattleChangeEquipmentResolver : RefCounted
             ),
             ["text"] = GdInterop.GetString(result, "message", "换装命令无效。"),
         };
-        _runtime.Call("_append_report_entry_to_batch", batch, reportEntry);
+        _runtime?._append_report_entry_to_batch(batch, reportEntry);
     }
 
     private string BuildChangeEquipmentSuccessMessage(GodotObject activeUnit, GDictionary result)
@@ -796,7 +764,7 @@ public partial class BattleChangeEquipmentResolver : RefCounted
     }
 
     private StringName ResolveChangeEquipmentTargetUnitId(
-        GodotObject activeUnit,
+        BattleUnitState activeUnit,
         BattleCommand command
     )
     {
@@ -810,7 +778,7 @@ public partial class BattleChangeEquipmentResolver : RefCounted
             return explicitTarget;
         }
         return activeUnit != null
-            ? GdInterop.GetStringName(activeUnit, "unit_id")
+            ? activeUnit.unit_id
             : new StringName("");
     }
 
@@ -874,7 +842,7 @@ public partial class BattleChangeEquipmentResolver : RefCounted
         StringName itemId,
         StringName slotId,
         BattleCommand command,
-        GodotObject activeUnit
+        BattleUnitState activeUnit
     )
     {
         StringName normItem = ProgressionDataUtils.to_string_name(itemId);
@@ -887,7 +855,7 @@ public partial class BattleChangeEquipmentResolver : RefCounted
             ["message"] = "",
             ["occupied_slot_ids"] = StringifyStringNameArray(fallbackOccupied),
         };
-        GodotObject itemDef = GetChangeEquipmentItemDef(normItem);
+        ItemDef itemDef = GetChangeEquipmentItemDef(normItem);
         if (itemDef == null)
         {
             if (HasChangeEquipmentItemCatalog())
@@ -898,16 +866,14 @@ public partial class BattleChangeEquipmentResolver : RefCounted
             }
             return result;
         }
-        if (!itemDef.Call("is_equipment").AsBool())
+        if (!itemDef.is_equipment())
         {
             result["allowed"] = false;
             result["error_code"] = "item_not_equipment";
             result["message"] = $"{normItem} 不是可装备物品。";
             return result;
         }
-        GStringNameArray allowedSlots = ProgressionDataUtils.to_string_name_array(
-            itemDef.Call("get_equipment_slot_ids")
-        );
+        GStringNameArray allowedSlots = itemDef.get_equipment_slot_ids();
         if (!allowedSlots.Contains(normSlot))
         {
             result["allowed"] = false;
@@ -926,7 +892,7 @@ public partial class BattleChangeEquipmentResolver : RefCounted
             return requirementRule;
         }
         GStringNameArray occupiedSlots = ProgressionDataUtils.to_string_name_array(
-            itemDef.Call("get_final_occupied_slot_ids", normSlot)
+            itemDef.get_final_occupied_slot_ids(normSlot)
         );
         if (occupiedSlots.Count == 0)
         {
@@ -941,8 +907,8 @@ public partial class BattleChangeEquipmentResolver : RefCounted
     }
 
     private GDictionary ResolveChangeEquipmentRequirementRule(
-        GodotObject activeUnit,
-        GodotObject itemDef,
+        BattleUnitState activeUnit,
+        ItemDef itemDef,
         StringName itemId
     )
     {
@@ -957,16 +923,15 @@ public partial class BattleChangeEquipmentResolver : RefCounted
         {
             return result;
         }
-        GodotObject equipReq = GdInterop.GetObject(itemDef, "equip_requirement");
-        if (equipReq == null || !equipReq.HasMethod("Check"))
+        EquipmentRequirement equipReq = itemDef.equip_requirement as EquipmentRequirement;
+        if (equipReq == null)
         {
             return result;
         }
         string itemLabel = GetChangeEquipmentItemDisplayName(itemDef, itemId);
-        GodotObject characterGateway = GdInterop.GetObject(_runtime, "_character_gateway");
         if (
             activeUnit == null
-            || GdInterop.IsEmpty(GdInterop.GetStringName(activeUnit, "source_member_id"))
+            || GdInterop.IsEmpty(activeUnit.source_member_id)
         )
         {
             result["allowed"] = false;
@@ -974,16 +939,15 @@ public partial class BattleChangeEquipmentResolver : RefCounted
             result["message"] = BuildChangeEquipmentRequirementFailureMessage(itemLabel);
             return result;
         }
-        if (characterGateway == null || !characterGateway.HasMethod("get_member_state"))
+        IBattleRuntimeCharacterGateway characterGateway = _runtime?.GetCharacterGatewayTyped();
+        if (characterGateway == null)
         {
             result["allowed"] = false;
             result["error_code"] = "item_not_equippable";
             result["message"] = BuildChangeEquipmentRequirementFailureMessage(itemLabel);
             return result;
         }
-        GodotObject memberState = characterGateway
-            .Call("get_member_state", GdInterop.GetStringName(activeUnit, "source_member_id"))
-            .AsGodotObject();
+        PartyMemberState memberState = characterGateway.get_member_state(activeUnit.source_member_id);
         if (memberState == null)
         {
             result["allowed"] = false;
@@ -991,11 +955,7 @@ public partial class BattleChangeEquipmentResolver : RefCounted
             result["message"] = BuildChangeEquipmentRequirementFailureMessage(itemLabel);
             return result;
         }
-        var reqResultValue = equipReq.Call("Check", memberState);
-        GDictionary reqResult =
-            reqResultValue.VariantType == Variant.Type.Dictionary
-                ? reqResultValue.AsGodotDictionary()
-                : new GDictionary();
+        GDictionary reqResult = equipReq.Check(memberState) ?? new GDictionary();
         if (GdInterop.GetBool(reqResult, "allowed", true))
         {
             return result;
@@ -1011,19 +971,19 @@ public partial class BattleChangeEquipmentResolver : RefCounted
         return $"当前无法装备 {itemLabel}。";
     }
 
-    private string GetChangeEquipmentItemDisplayName(GodotObject itemDef, StringName itemId)
+    private string GetChangeEquipmentItemDisplayName(ItemDef itemDef, StringName itemId)
     {
-        if (itemDef != null && !string.IsNullOrEmpty(GdInterop.GetString(itemDef, "display_name")))
+        if (itemDef != null && !string.IsNullOrEmpty(itemDef.display_name))
         {
-            return GdInterop.GetString(itemDef, "display_name");
+            return itemDef.display_name;
         }
         return itemId.ToString();
     }
 
-    private GodotObject GetChangeEquipmentItemDef(StringName itemId)
+    private ItemDef GetChangeEquipmentItemDef(StringName itemId)
     {
         StringName normalized = ProgressionDataUtils.to_string_name(itemId);
-        GDictionary defs = GdInterop.GetDictionary(_runtime, "_item_defs");
+        GDictionary defs = _runtime?.get_item_defs();
         if (GdInterop.IsEmpty(normalized) || defs == null || defs.Count == 0)
         {
             return null;
@@ -1034,24 +994,24 @@ public partial class BattleChangeEquipmentResolver : RefCounted
             {
                 continue;
             }
-            return defs[key].AsGodotObject();
+            return defs[key].AsGodotObject() as ItemDef;
         }
         return null;
     }
 
     private bool HasChangeEquipmentItemCatalog()
     {
-        GDictionary itemDefs = GdInterop.GetDictionary(_runtime, "_item_defs");
+        GDictionary itemDefs = _runtime?.get_item_defs();
         return itemDefs != null && itemDefs.Count > 0;
     }
 
     private GDictionary ValidateChangeEquipmentInstanceOwnership(
-        GodotObject equipmentView,
-        GodotObject backpackView
+        EquipmentState equipmentView,
+        WarehouseState backpackView
     )
     {
         var owners = new GDictionary();
-        if (backpackView == null || !backpackView.HasMethod("get_non_empty_instances"))
+        if (backpackView == null)
         {
             return new GDictionary
             {
@@ -1060,16 +1020,13 @@ public partial class BattleChangeEquipmentResolver : RefCounted
                 ["message"] = "战斗内背包状态不可用。",
             };
         }
-        foreach (
-            Variant instanceValue in backpackView.Call("get_non_empty_instances").AsGodotArray()
-        )
+        foreach (EquipmentInstanceState instance in backpackView.get_non_empty_instances())
         {
-            GodotObject instance = instanceValue.AsGodotObject();
             StringName instanceId = ProgressionDataUtils.to_string_name(
-                instance != null ? instance.Get("instance_id") : new Variant()
+                instance != null ? instance.instance_id : new StringName("")
             );
             StringName itemId = ProgressionDataUtils.to_string_name(
-                instance != null ? instance.Get("item_id") : new Variant()
+                instance != null ? instance.item_id : new StringName("")
             );
             GDictionary ownerResult = ClaimChangeEquipmentInstanceOwner(
                 owners,
@@ -1082,7 +1039,7 @@ public partial class BattleChangeEquipmentResolver : RefCounted
                 return ownerResult;
             }
         }
-        if (equipmentView == null || !equipmentView.HasMethod("get_entry_slot_ids"))
+        if (equipmentView == null)
         {
             return new GDictionary
             {
@@ -1091,14 +1048,13 @@ public partial class BattleChangeEquipmentResolver : RefCounted
                 ["message"] = "战斗内装备状态不可用。",
             };
         }
-        foreach (var entrySlotValue in equipmentView.Call("get_entry_slot_ids").AsGodotArray())
+        foreach (StringName entrySlotId in equipmentView.get_entry_slot_ids())
         {
-            StringName entrySlotId = ProgressionDataUtils.to_string_name(entrySlotValue);
             StringName itemId = ProgressionDataUtils.to_string_name(
-                equipmentView.Call("get_equipped_item_id", entrySlotId)
+                equipmentView.get_equipped_item_id(entrySlotId)
             );
             StringName instanceId = ProgressionDataUtils.to_string_name(
-                equipmentView.Call("get_equipped_instance_id", entrySlotId)
+                equipmentView.get_equipped_instance_id(entrySlotId)
             );
             string ownerName = $"equipment:{entrySlotId}";
             GDictionary ownerResult = ClaimChangeEquipmentInstanceOwner(
@@ -1154,7 +1110,7 @@ public partial class BattleChangeEquipmentResolver : RefCounted
         };
     }
 
-    private GDictionary ValidateChangeEquipmentBackpackCapacity(GodotObject backpackView)
+    private GDictionary ValidateChangeEquipmentBackpackCapacity(WarehouseState backpackView)
     {
         int capacity = GetChangeEquipmentBackpackCapacity();
         if (capacity < 0)
@@ -1186,89 +1142,59 @@ public partial class BattleChangeEquipmentResolver : RefCounted
 
     private int GetChangeEquipmentBackpackCapacity()
     {
-        GodotObject characterGateway = GdInterop.GetObject(_runtime, "_character_gateway");
-        if (characterGateway == null || !characterGateway.HasMethod("get_party_state"))
-        {
-            return -1;
-        }
-        GodotObject partyState = characterGateway.Call("get_party_state").AsGodotObject();
+        PartyState partyState = _runtime?.GetCharacterGatewayTyped()?.get_party_state();
         if (partyState == null)
         {
             return -1;
         }
         int totalCapacity = 0;
-        foreach (
-            Variant memberStateValue in GdInterop.GetDictionary(partyState, "member_states").Values
-        )
+        foreach (Variant memberStateValue in partyState.member_states.Values)
         {
-            GodotObject memberState = memberStateValue.AsGodotObject();
-            GodotObject progression =
-                memberState != null ? GdInterop.GetObject(memberState, "progression") : null;
+            PartyMemberState memberState = memberStateValue.AsGodotObject() as PartyMemberState;
+            UnitProgress progression = memberState?.progression;
             if (progression == null)
             {
                 continue;
             }
-            GodotObject unitBaseAttributes = GdInterop.GetObject(
-                progression,
-                "unit_base_attributes"
-            );
+            UnitBaseAttributes unitBaseAttributes = progression.unit_base_attributes;
             if (unitBaseAttributes == null)
             {
                 continue;
             }
             totalCapacity += Math.Max(
-                unitBaseAttributes
-                    .Call("get_attribute_value", new StringName("storage_space"))
-                    .AsInt32(),
+                unitBaseAttributes.get_attribute_value(new StringName("storage_space")),
                 0
             );
         }
         return Math.Max(totalCapacity, 0);
     }
 
-    private int GetChangeEquipmentBackpackUsedSlots(GodotObject backpackView)
+    private int GetChangeEquipmentBackpackUsedSlots(WarehouseState backpackView)
     {
         if (backpackView == null)
         {
             return 0;
         }
-        int stackCount;
-        int instanceCount;
-        if (backpackView.HasMethod("get_non_empty_stacks"))
-        {
-            stackCount = backpackView.Call("get_non_empty_stacks").AsGodotArray().Count;
-        }
-        else
-        {
-            stackCount = GdInterop.GetArray(backpackView, "stacks").Count;
-        }
-        if (backpackView.HasMethod("get_non_empty_instances"))
-        {
-            instanceCount = backpackView.Call("get_non_empty_instances").AsGodotArray().Count;
-        }
-        else
-        {
-            instanceCount = GdInterop.GetArray(backpackView, "equipment_instances").Count;
-        }
-        return stackCount + instanceCount;
+        return backpackView.get_non_empty_stacks().Count
+            + backpackView.get_non_empty_instances().Count;
     }
 
-    private int FindBackpackEquipmentInstanceIndex(GodotObject backpackView, StringName instanceId)
+    private int FindBackpackEquipmentInstanceIndex(WarehouseState backpackView, StringName instanceId)
     {
         StringName normalizedId = ProgressionDataUtils.to_string_name(instanceId);
         if (backpackView == null || GdInterop.IsEmpty(normalizedId))
         {
             return -1;
         }
-        GArray instances = GdInterop.GetArray(backpackView, "equipment_instances");
+        var instances = backpackView.equipment_instances;
         for (int index = 0; index < instances.Count; index++)
         {
-            GodotObject instance = instances[index].AsGodotObject();
+            EquipmentInstanceState instance = instances[index];
             if (instance == null)
             {
                 continue;
             }
-            if (ProgressionDataUtils.to_string_name(instance.Get("instance_id")) == normalizedId)
+            if (ProgressionDataUtils.to_string_name(instance.instance_id) == normalizedId)
             {
                 return index;
             }
@@ -1276,7 +1202,7 @@ public partial class BattleChangeEquipmentResolver : RefCounted
         return -1;
     }
 
-    private bool BackpackHasEquipmentInstance(GodotObject backpackView, StringName instanceId)
+    private bool BackpackHasEquipmentInstance(WarehouseState backpackView, StringName instanceId)
     {
         return FindBackpackEquipmentInstanceIndex(backpackView, instanceId) >= 0;
     }
@@ -1311,16 +1237,17 @@ public partial class BattleChangeEquipmentResolver : RefCounted
         return result;
     }
 
-    private GodotObject RuntimeState()
+    private BattleState RuntimeState()
     {
-        return _runtime != null ? _runtime.Get("_state").AsGodotObject() : null;
+        return _runtime?.get_state();
     }
 
-    private static GodotObject ResolveWeakRef(WeakReference<GodotObject> weakRef)
+    private static T ResolveWeakRef<T>(WeakReference<T> weakRef)
+        where T : GodotObject
     {
         if (
             weakRef == null
-            || !weakRef.TryGetTarget(out GodotObject target)
+            || !weakRef.TryGetTarget(out T target)
             || !GodotObject.IsInstanceValid(target)
         )
         {

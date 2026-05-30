@@ -424,23 +424,21 @@ public partial class SettlementResearchService : RefCounted
         {
             return targets;
         }
-        foreach (var rewardValue in GdInterop.GetArray(partyState, "pending_character_rewards"))
+        foreach (var reward in partyState.pending_character_rewards)
         {
-            GodotObject rewardObject = rewardValue.VariantType == Variant.Type.Object ? rewardValue.AsGodotObject() : null;
-            if (rewardObject == null || GdInterop.GetStringName(rewardObject, "member_id") != memberId)
+            if (reward == null || reward.member_id != memberId)
             {
                 continue;
             }
-            foreach (var entryValue in GdInterop.GetArray(rewardObject, "entries"))
+            foreach (var entry in reward.entries)
             {
-                GodotObject entryObject = entryValue.VariantType == Variant.Type.Object ? entryValue.AsGodotObject() : null;
-                if (entryObject == null || entryObject.Call("is_empty").AsBool())
+                if (entry == null || entry.is_empty())
                 {
                     continue;
                 }
                 targets[_build_reward_target_key(
-                    GdInterop.GetStringName(entryObject, "entry_type"),
-                    GdInterop.GetStringName(entryObject, "target_id"))] = true;
+                    entry.entry_type,
+                    entry.target_id)] = true;
             }
         }
         return targets;

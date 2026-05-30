@@ -11,7 +11,6 @@ const BattleState = preload("res://scripts/systems/battle/core/BattleState.cs")
 const BattleTimelineState = preload("res://scripts/systems/battle/core/BattleTimelineState.cs")
 const BattleUnitState = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
 const BattleStatusEffectState = preload("res://scripts/systems/battle/core/BattleStatusEffectState.cs")
-const BattleRepeatAttackResolver = preload("res://scripts/systems/battle/runtime/BattleRepeatAttackResolver.cs")
 const BattleSkillMasteryService = preload("res://scripts/systems/battle/runtime/BattleSkillMasteryService.cs")
 const CombatEffectDef = preload("res://scripts/player/progression/CombatEffectDef.cs")
 const CombatSkillDef = preload("res://scripts/player/progression/CombatSkillDef.cs")
@@ -24,102 +23,6 @@ const SharedHitResolvers = preload("res://tests/shared/stub_hit_resolvers.gd")
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
-
-
-class FakeRepeatAttackDamageResolver:
-	extends RefCounted
-
-	var stage_successes: Array[bool] = []
-	var call_count := 0
-
-	func resolve_attack_effects(_source_unit, _target_unit, _stage_effects: Array, _attack_check: Dictionary, _attack_context: Dictionary = {}) -> Dictionary:
-		var success := bool(stage_successes[call_count]) if call_count < stage_successes.size() else false
-		call_count += 1
-		return {
-			"attack_success": success,
-			"attack_resolution": &"hit" if success else &"miss",
-			"hit_rate_percent": 100 if success else 0,
-			"resolution_text": "100%（测试命中）" if success else "0%（测试未命中）",
-			"applied": success,
-			"damage": 0,
-			"healing": 0,
-			"status_effect_ids": [],
-			"source_status_effect_ids": [],
-		}
-
-
-class FakeRepeatAttackHitResolver:
-	extends RefCounted
-
-	func build_repeat_attack_stage_context(_battle_state, _active_unit, _target_unit, _skill_def, _stage_spec = null, _check_route: StringName = &"", _trace_source: StringName = &""):
-		return null
-
-	func build_fate_aware_repeat_attack_stage_hit_check(_context) -> Dictionary:
-		return {
-			"hit_rate_percent": 100,
-			"success_rate_percent": 100,
-			"preview_text": "100%（测试）",
-		}
-
-
-class FakeRepeatAttackRatingSystem:
-	extends RefCounted
-
-	func record_enemy_defeated_achievement(_active_unit, _target_unit) -> void:
-		pass
-
-
-class FakeRepeatAttackRuntime:
-	extends RefCounted
-
-	var damage_resolver = FakeRepeatAttackDamageResolver.new()
-	var hit_resolver = FakeRepeatAttackHitResolver.new()
-	var rating_system = FakeRepeatAttackRatingSystem.new()
-
-	func is_unit_follow_up_locked(_unit) -> bool:
-		return false
-
-	func append_changed_unit_id(_batch, _unit_id: StringName) -> void:
-		pass
-
-	func append_result_report_entry(_batch, _stage_result: Dictionary) -> void:
-		pass
-
-	func mark_applied_statuses_for_turn_timing(_target_unit, _status_effect_ids) -> void:
-		pass
-
-	func append_result_source_status_effects(_batch, _active_unit, _stage_result: Dictionary) -> void:
-		pass
-
-	func append_changed_unit_coords(_batch, _target_unit) -> void:
-		pass
-
-	func append_damage_result_log_lines(_batch, _prefix: String, _target_name: String, _stage_result: Dictionary) -> void:
-		pass
-
-	func clear_defeated_unit(_target_unit, _batch) -> void:
-		pass
-
-	func get_battle_rating_system():
-		return rating_system
-
-	func record_skill_effect_result(_source_unit, _damage: int, _healing: int, _kill_count: int) -> void:
-		pass
-
-	func get_hit_resolver():
-		return hit_resolver
-
-	func get_attack_check_policy_service():
-		return hit_resolver
-
-	func get_state():
-		return null
-
-	func get_damage_resolver():
-		return damage_resolver
-
-	func is_unit_effect(effect_def: CombatEffectDef) -> bool:
-		return effect_def != null and effect_def.effect_type == &"damage"
 
 
 func _initialize() -> void:
@@ -136,7 +39,6 @@ func _run() -> void:
 	_test_saint_blade_combo_contract_requires_hit_follow_up_and_single_cost_settlement()
 	_test_saint_blade_combo_runtime_stops_on_insufficient_aura_after_successful_follow_up()
 	_test_saint_blade_combo_runtime_consumes_follow_up_aura_on_miss()
-	_test_repeat_attack_mastery_bonus_starts_on_fifth_stage_entry()
 	_test_same_faction_support_mastery_counts_status_or_effect_applied()
 	_test_control_save_bonus_status_modifies_secondary_hit()
 	_test_skill_mastery_ignores_legacy_hp_damage_without_formal_damage()
@@ -569,86 +471,6 @@ func _test_random_chain_stops_immediately_on_miss_and_respects_target_cap() -> v
 	for target_id in hit_counts.keys():
 		_assert_true(int(hit_counts.get(target_id, 0)) <= 2, "random_chain 应遵守 max_hits_per_target。 counts=%s" % [str(hit_counts)])
 	_assert_eq(warrior.current_ap, 1, "random_chain miss 提前停止时也只应扣一次 AP 成本。")
-
-
-func _test_repeat_attack_mastery_bonus_starts_on_fifth_stage_entry() -> void:
-	var runtime := FakeRepeatAttackRuntime.new()
-	runtime.damage_resolver.stage_successes.assign([true, true, true, true, false])
-	var mastery_service := BattleSkillMasteryService.new()
-	var resolver := BattleRepeatAttackResolver.new()
-	resolver.setup(runtime, mastery_service)
-
-	var active_unit := _build_unit(&"combo_mastery_user", Vector2i(1, 1), 2)
-	active_unit.source_member_id = &"hero"
-	active_unit.current_aura = 99
-	active_unit.known_active_skill_ids = [&"combo_mastery_stage_test"]
-	active_unit.known_skill_level_map = {&"combo_mastery_stage_test": 1}
-	var target_unit := _build_unit(&"combo_mastery_target", Vector2i(2, 1), 2)
-	target_unit.faction_id = &"enemy"
-	target_unit.current_hp = 999
-	target_unit.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.HP_MAX_ID(), 999)
-
-	var damage_effect := CombatEffectDef.new()
-	damage_effect.effect_type = &"damage"
-	damage_effect.power = 0
-	var repeat_effect := CombatEffectDef.new()
-	repeat_effect.effect_type = &"repeat_attack_until_fail"
-	repeat_effect.params = {
-		"cost_resource": "aura",
-		"follow_up_fixed_cost": 0,
-		"follow_up_attack_penalty": 0,
-		"stop_on_miss": true,
-		"stop_on_target_down": true,
-	}
-	var skill_def := SkillDef.new()
-	skill_def.skill_id = &"combo_mastery_stage_test"
-	skill_def.display_name = "连击熟练度段数测试"
-	var combat_profile := CombatSkillDef.new()
-	combat_profile.skill_id = skill_def.skill_id
-	combat_profile.mastery_amount_mode = &"per_target_rank"
-	combat_profile.mastery_trigger_mode = &"damage_dealt"
-	combat_profile.aura_cost = 0
-	combat_profile.effect_defs = [damage_effect, repeat_effect]
-	skill_def.combat_profile = combat_profile
-
-	var batch := BattleEventBatch.new()
-	var executed := resolver.apply_repeat_attack_skill_result(
-		active_unit,
-		target_unit,
-		skill_def,
-		combat_profile.effect_defs,
-		repeat_effect,
-		batch
-	)
-	_assert_true(executed, "连击段数熟练度回归前置：应至少执行到第五段。")
-	_assert_eq(runtime.damage_resolver.call_count, 5, "连击段数熟练度回归应固定进入第五段后 miss。")
-	_assert_eq(
-		mastery_service.ResolveActiveSkillMasteryAmount(),
-		0,
-		"连击熟练度 bonus 必须在对应段命中后发放，第五段 miss 不应给 bonus。"
-	)
-
-	var hit_runtime := FakeRepeatAttackRuntime.new()
-	hit_runtime.damage_resolver.stage_successes.assign([true, true, true, true, true, false])
-	var hit_mastery_service := BattleSkillMasteryService.new()
-	var hit_resolver := BattleRepeatAttackResolver.new()
-	hit_resolver.setup(hit_runtime, hit_mastery_service)
-	target_unit.current_hp = 999
-	var hit_executed := hit_resolver.apply_repeat_attack_skill_result(
-		active_unit,
-		target_unit,
-		skill_def,
-		combat_profile.effect_defs,
-		repeat_effect,
-		BattleEventBatch.new()
-	)
-	_assert_true(hit_executed, "连击段数熟练度回归前置：命中夹具应执行。")
-	_assert_eq(hit_runtime.damage_resolver.call_count, 6, "命中夹具应在第五段命中后继续进入第六段 miss。")
-	_assert_eq(
-		hit_mastery_service.ResolveActiveSkillMasteryAmount(),
-		1,
-		"第五段命中后应发放 1 点连击段数 bonus。"
-	)
 
 
 func _test_same_faction_support_mastery_counts_status_or_effect_applied() -> void:

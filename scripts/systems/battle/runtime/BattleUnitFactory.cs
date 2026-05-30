@@ -6,7 +6,8 @@ public partial class BattleUnitFactory : RefCounted
 {
     private static readonly StringName BASIC_ATTACK_SKILL_ID = "basic_attack";
     private static readonly StringName DEFAULT_ENEMY_MELEE_DAMAGE_TAG = "physical_slash";
-    private GodotObject _runtime;
+    private BattleRuntimeModule _runtime;
+    private GodotObject _runtimeObject;
 
     private static AttributeSnapshot _snap(BattleUnitState us) =>
         us?.attribute_snapshot as AttributeSnapshot;
@@ -26,12 +27,130 @@ public partial class BattleUnitFactory : RefCounted
 
     public void setup(GodotObject runtime)
     {
-        _runtime = runtime;
+        _runtime = runtime as BattleRuntimeModule;
+        _runtimeObject = runtime;
     }
 
     public void dispose()
     {
         _runtime = null;
+        _runtimeObject = null;
+    }
+
+    private IBattleRuntimeCharacterGateway GetCharacterGateway()
+    {
+        if (_runtime != null)
+            return _runtime.GetCharacterGatewayTyped();
+        return GetRuntimeObject("_character_gateway", "character_gateway") as IBattleRuntimeCharacterGateway;
+    }
+
+    private GodotObject GetFallbackCharacterGateway() =>
+        GetRuntimeObject("_character_gateway", "character_gateway");
+
+    private GodotObject GetRuntimeObject(string primaryName, string fallbackName = null)
+    {
+        if (_runtimeObject == null)
+            return null;
+        Variant value = _runtimeObject.Get(primaryName);
+        if (value.VariantType == Variant.Type.Object)
+            return value.AsGodotObject();
+        if (!string.IsNullOrEmpty(fallbackName))
+        {
+            value = _runtimeObject.Get(fallbackName);
+            if (value.VariantType == Variant.Type.Object)
+                return value.AsGodotObject();
+        }
+        return null;
+    }
+
+    private Godot.Collections.Dictionary GetSkillDefs()
+    {
+        if (_runtime != null)
+            return _runtime.get_skill_defs() ?? new Godot.Collections.Dictionary();
+        return GetRuntimeDictionary("_skill_defs", "skill_defs");
+    }
+
+    private Godot.Collections.Dictionary GetItemDefs()
+    {
+        if (_runtime != null)
+            return _runtime.get_item_defs() ?? new Godot.Collections.Dictionary();
+        return GetRuntimeDictionary("_item_defs", "item_defs");
+    }
+
+    private Godot.Collections.Dictionary GetRuntimeDictionary(string primaryName, string fallbackName = null)
+    {
+        if (_runtimeObject == null)
+            return new Godot.Collections.Dictionary();
+        Variant value = _runtimeObject.Get(primaryName);
+        if (value.VariantType == Variant.Type.Dictionary)
+            return value.AsGodotDictionary();
+        if (!string.IsNullOrEmpty(fallbackName))
+        {
+            value = _runtimeObject.Get(fallbackName);
+            if (value.VariantType == Variant.Type.Dictionary)
+                return value.AsGodotDictionary();
+        }
+        return new Godot.Collections.Dictionary();
+    }
+
+    private BattleTerrainGenerator GetTerrainGenerator() =>
+        _runtime?.get_terrain_generator() as BattleTerrainGenerator;
+
+    private PartyMemberState GetMemberState(StringName memberId)
+    {
+        IBattleRuntimeCharacterGateway gateway = GetCharacterGateway();
+        if (gateway != null)
+            return gateway.get_member_state(memberId);
+        GodotObject fallbackGateway = GetFallbackCharacterGateway();
+        if (fallbackGateway == null)
+            return null;
+        Variant memberValue = fallbackGateway.Get("member_state");
+        PartyMemberState memberState =
+            memberValue.VariantType == Variant.Type.Object
+                ? memberValue.AsGodotObject() as PartyMemberState
+                : null;
+        return memberState != null && memberState.member_id == memberId ? memberState : null;
+    }
+
+    private AttributeSnapshot GetMemberAttributeSnapshot(
+        StringName memberId,
+        EquipmentState equipmentView
+    )
+    {
+        IBattleRuntimeCharacterGateway gateway = GetCharacterGateway();
+        if (gateway != null)
+            return gateway.get_member_attribute_snapshot_for_equipment_view(memberId, equipmentView);
+        GodotObject fallbackGateway = GetFallbackCharacterGateway();
+        if (fallbackGateway == null)
+            return null;
+        Variant snapshotValue = fallbackGateway.Get("attribute_snapshot");
+        return snapshotValue.VariantType == Variant.Type.Object
+            ? snapshotValue.AsGodotObject() as AttributeSnapshot
+            : null;
+    }
+
+    private Godot.Collections.Dictionary GetMemberWeaponProjection(
+        StringName memberId,
+        EquipmentState equipmentView
+    )
+    {
+        IBattleRuntimeCharacterGateway gateway = GetCharacterGateway();
+        if (gateway != null)
+            return gateway.get_member_weapon_projection_for_equipment_view(memberId, equipmentView)
+                ?? new Godot.Collections.Dictionary();
+        GodotObject fallbackGateway = GetFallbackCharacterGateway();
+        if (fallbackGateway == null)
+            return new Godot.Collections.Dictionary();
+        Variant fallback = fallbackGateway.Get("weapon_projection");
+        return fallback.VariantType == Variant.Type.Dictionary
+            ? fallback.AsGodotDictionary()
+            : new Godot.Collections.Dictionary();
+    }
+
+    private PassiveSourceContext BuildPassiveSourceContext(StringName memberId, UnitProgress progression)
+    {
+        IBattleRuntimeCharacterGateway gateway = GetCharacterGateway();
+        return gateway?.build_passive_source_context(memberId, progression);
     }
 
     public Godot.Collections.Array build_ally_units(
@@ -69,12 +188,9 @@ public partial class BattleUnitFactory : RefCounted
 
     public void refresh_battle_unit(BattleUnitState us)
     {
-        if (us == null || (string)us.source_member_id == "" || _runtime == null)
+        if (us == null || (string)us.source_member_id == "" || _runtimeObject == null)
             return;
-        var cg = _runtime.Call("get_character_gateway").AsGodotObject();
-        if (cg == null)
-            return;
-        var ms = cg.Call("get_member_state", us.source_member_id).AsGodotObject();
+        PartyMemberState ms = GetMemberState(us.source_member_id);
         if (ms == null)
             return;
         var ev = _ensure_unit_equipment_view(us, ms);
@@ -103,7 +219,7 @@ public partial class BattleUnitFactory : RefCounted
             0,
             BattleUnitState.DEFAULT_MOVE_POINTS_PER_TURN()
         );
-        UnitProgress prog = ms.Get("progression").AsGodotObject() as UnitProgress;
+        UnitProgress prog = ms.progression;
         us.known_active_skill_ids = _collect_known_active_skill_ids(prog);
         us.known_skill_level_map = _collect_known_skill_level_map(prog);
         us.known_skill_lock_hit_bonus_map = _collect_known_skill_lock_hit_bonus_map(prog);
@@ -116,15 +232,12 @@ public partial class BattleUnitFactory : RefCounted
 
     public void refresh_known_skills(BattleUnitState us)
     {
-        if (us == null || (string)us.source_member_id == "" || _runtime == null)
+        if (us == null || (string)us.source_member_id == "" || _runtimeObject == null)
             return;
-        var cg = _runtime.Call("get_character_gateway").AsGodotObject();
-        if (cg == null)
-            return;
-        var ms = cg.Call("get_member_state", us.source_member_id).AsGodotObject();
+        PartyMemberState ms = GetMemberState(us.source_member_id);
         if (ms == null)
             return;
-        var prog = ms.Get("progression").AsGodotObject();
+        UnitProgress prog = ms.progression;
         us.known_active_skill_ids = _collect_known_active_skill_ids(prog);
         us.known_skill_level_map = _collect_known_skill_level_map(prog);
         us.known_skill_lock_hit_bonus_map = _collect_known_skill_lock_hit_bonus_map(prog);
@@ -143,12 +256,9 @@ public partial class BattleUnitFactory : RefCounted
 
     public void refresh_equipment_projection(BattleUnitState us)
     {
-        if (us == null || (string)us.source_member_id == "" || _runtime == null)
+        if (us == null || (string)us.source_member_id == "" || _runtimeObject == null)
             return;
-        var cg = _runtime.Call("get_character_gateway").AsGodotObject();
-        if (cg == null)
-            return;
-        var ms = cg.Call("get_member_state", us.source_member_id).AsGodotObject();
+        PartyMemberState ms = GetMemberState(us.source_member_id);
         if (ms == null)
             return;
         var snap =
@@ -193,7 +303,7 @@ public partial class BattleUnitFactory : RefCounted
                 ? Mathf.Clamp(us.current_aura, 0, auraMax)
                 : Mathf.Max(us.current_aura, 0);
         us.action_threshold = _resolve_action_threshold_from_snapshot(snap);
-        var prog = ms.Get("progression").AsGodotObject();
+        UnitProgress prog = ms.progression;
         us.known_active_skill_ids = _collect_known_active_skill_ids(prog);
         us.known_skill_level_map = _collect_known_skill_level_map(prog);
         us.known_skill_lock_hit_bonus_map = _collect_known_skill_lock_hit_bonus_map(prog);
@@ -231,10 +341,6 @@ public partial class BattleUnitFactory : RefCounted
                 r.Add(BattleUnitState.from_dict(v.AsGodotDictionary()));
             else if (v.AsGodotObject() is BattleUnitState bs)
                 r.Add(bs.clone());
-            else if (v.AsGodotObject()?.HasMethod("to_dict") == true)
-                r.Add(
-                    BattleUnitState.from_dict(v.AsGodotObject().Call("to_dict").AsGodotDictionary())
-                );
             else
                 r.Add(v);
         }
@@ -249,15 +355,11 @@ public partial class BattleUnitFactory : RefCounted
     {
         var tc = ctx.Duplicate(true);
         tc.Remove("map_size");
-        if (_runtime != null)
+        if (_runtimeObject != null)
         {
-            var tg = _runtime.Call("get_terrain_generator").AsGodotObject();
-            if (tg is BattleTerrainGenerator terrainGenerator)
-            {
+            BattleTerrainGenerator terrainGenerator = GetTerrainGenerator();
+            if (terrainGenerator != null)
                 return _atgo(terrainGenerator.generate(enc, seed, tc), tc);
-            }
-            if (tg != null)
-                return _atgo(tg.Call("generate", enc, seed, tc).AsGodotDictionary(), tc);
         }
         return _atgo(new Godot.Collections.Dictionary(), tc);
     }
@@ -287,7 +389,7 @@ public partial class BattleUnitFactory : RefCounted
 
     private BattleUnitState _build_runtime_ally_unit(
         StringName mid,
-        GodotObject ms,
+        PartyMemberState ms,
         int idx,
         Godot.Collections.Dictionary ctx
     )
@@ -296,13 +398,13 @@ public partial class BattleUnitFactory : RefCounted
         us.unit_id = (string)mid != "" ? mid : $"ally_{idx + 1}";
         us.source_member_id = mid;
         us.display_name =
-            ms != null && (string)ms.Get("display_name").AsString() != ""
-                ? ms.Get("display_name").AsString()
+            ms != null && !string.IsNullOrEmpty(ms.display_name)
+                ? ms.display_name
                 : $"队员{idx + 1}";
         us.faction_id = "player";
         us.control_mode =
-            ms != null && (string)ms.Get("control_mode").AsStringName() != ""
-                ? ms.Get("control_mode").AsStringName()
+            ms != null && (string)ms.control_mode != ""
+                ? ms.control_mode
                 : "manual";
         _apply_member_identity_projection(us, ms);
         us.set_equipment_view(_get_member_equipment_state(ms));
@@ -314,11 +416,11 @@ public partial class BattleUnitFactory : RefCounted
         int stamMax = Mathf.Max(snap.get_value(AttributeService.STAMINA_MAX), 0),
             auraMax = Mathf.Max(snap.get_value(AttributeService.AURA_MAX), 0);
         int ap = Mathf.Max(snap.get_value(AttributeService.ACTION_POINTS), 1);
-        us.current_hp = Mathf.Clamp(ms != null ? ms.Get("current_hp").AsInt32() : hpMax, 0, hpMax);
-        us.current_mp = Mathf.Clamp(ms != null ? ms.Get("current_mp").AsInt32() : mpMax, 0, mpMax);
+        us.current_hp = Mathf.Clamp(ms != null ? ms.current_hp : hpMax, 0, hpMax);
+        us.current_mp = Mathf.Clamp(ms != null ? ms.current_mp : mpMax, 0, mpMax);
         us.current_stamina = stamMax;
         us.current_aura = Mathf.Clamp(
-            ms != null ? ms.Get("current_aura").AsInt32() : auraMax,
+            ms != null ? ms.current_aura : auraMax,
             0,
             auraMax
         );
@@ -328,7 +430,7 @@ public partial class BattleUnitFactory : RefCounted
             ? ctx["default_ally_action_threshold"].AsInt32()
             : BattleUnitState.DEFAULT_ACTION_THRESHOLD();
         us.action_threshold = _resolve_action_threshold_from_snapshot(snap, fbAt);
-        var prog = ms?.Get("progression").AsGodotObject();
+        UnitProgress prog = ms?.progression;
         us.known_active_skill_ids = _collect_known_active_skill_ids(prog);
         us.known_skill_level_map = _collect_known_skill_level_map(prog);
         us.known_skill_lock_hit_bonus_map = _collect_known_skill_lock_hit_bonus_map(prog);
@@ -525,9 +627,7 @@ public partial class BattleUnitFactory : RefCounted
         foreach (var p in pre)
             if (_is_valid_enemy_skill(_skill_def_from_runtime(p)))
                 return new Godot.Collections.Array<StringName> { p };
-        var sds =
-            _runtime?.Call("get_skill_defs").AsGodotDictionary()
-            ?? new Godot.Collections.Dictionary();
+        var sds = GetSkillDefs();
         foreach (var sk in ProgressionDataUtils.sorted_string_keys(sds))
         {
             var sid = new StringName(sk);
@@ -583,12 +683,10 @@ public partial class BattleUnitFactory : RefCounted
         var ev = us.get_equipment_view();
         if (ev == null)
             return false;
-        var oid = ev.Call("get_equipped_item_id", EquipmentRules.OFF_HAND()).AsStringName();
+        var oid = ev.get_equipped_item_id(EquipmentRules.OFF_HAND());
         if ((string)oid == "")
             return false;
-        var ids =
-            _runtime?.Call("get_item_defs").AsGodotDictionary()
-            ?? new Godot.Collections.Dictionary();
+        var ids = GetItemDefs();
         var id = ids.ContainsKey(oid) ? ids[oid].AsGodotObject() as ItemDef : null;
         if (id == null)
             return false;
@@ -605,12 +703,12 @@ public partial class BattleUnitFactory : RefCounted
 
     private SkillDef _skill_def_from_runtime(StringName sid)
     {
-        var sds = _runtime?.Call("get_skill_defs").AsGodotDictionary();
+        var sds = GetSkillDefs();
         return sds != null && sds.ContainsKey(sid) ? sds[sid].AsGodotObject() as SkillDef : null;
     }
 
     private AttributeSnapshot _build_member_attribute_snapshot(
-        GodotObject ms,
+        PartyMemberState ms,
         Godot.Collections.Dictionary ctx,
         EquipmentState ev = null
     )
@@ -698,38 +796,24 @@ public partial class BattleUnitFactory : RefCounted
             snap.set_value(AttributeService.ARMOR_CLASS, _resolve_snapshot_armor_class(snap));
             return snap;
         }
-        if (_runtime != null)
-        {
-            var cg = _runtime.Call("get_character_gateway").AsGodotObject();
-            if (cg != null && cg.HasMethod("get_member_attribute_snapshot_for_equipment_view"))
-            {
-                var rs =
-                    cg.Call(
-                            "get_member_attribute_snapshot_for_equipment_view",
-                            ms.Get("member_id").AsStringName(),
-                            ev
-                        )
-                        .AsGodotObject() as AttributeSnapshot;
-                if (rs != null)
-                    return rs;
-            }
-        }
-        var prog = ms.Get("progression").AsGodotObject() as UnitProgress;
+        AttributeSnapshot gatewaySnapshot = GetMemberAttributeSnapshot(ms.member_id, ev);
+        if (gatewaySnapshot != null)
+            return gatewaySnapshot;
+        UnitProgress prog = ms.progression;
         if (prog != null)
         {
             var asvc = new AttributeService();
             asvc.setup(
                 prog,
-                _runtime?.Call("get_skill_defs").AsGodotDictionary()
-                    ?? new Godot.Collections.Dictionary(),
+                GetSkillDefs(),
                 default,
                 new Godot.Collections.Array()
             );
             return asvc.get_snapshot();
         }
         _seed_default_base_attributes(snap, ctx, "default_ally", 10);
-        snap.set_value(AttributeService.HP_MAX, Mathf.Max(ms.Get("current_hp").AsInt32(), 1));
-        snap.set_value(AttributeService.MP_MAX, Mathf.Max(ms.Get("current_mp").AsInt32(), 0));
+        snap.set_value(AttributeService.HP_MAX, Mathf.Max(ms.current_hp, 1));
+        snap.set_value(AttributeService.MP_MAX, Mathf.Max(ms.current_mp, 0));
         snap.set_value(
             AttributeService.STAMINA_MAX,
             Mathf.Max(
@@ -829,31 +913,15 @@ public partial class BattleUnitFactory : RefCounted
     {
         if (us == null)
             return;
-        if ((string)mid == "" || _runtime == null)
+        if ((string)mid == "" || _runtimeObject == null)
         {
             us.clear_weapon_projection();
             return;
         }
-        var cg = _runtime.Call("get_character_gateway").AsGodotObject();
-        if (cg == null)
-        {
-            us.clear_weapon_projection();
-            return;
-        }
-        if (cg.HasMethod("get_member_weapon_projection_for_equipment_view"))
-        {
-            var p = cg.Call("get_member_weapon_projection_for_equipment_view", mid, ev);
-            us.apply_weapon_projection(
-                p.VariantType == Variant.Type.Dictionary
-                    ? p.AsGodotDictionary()
-                    : new Godot.Collections.Dictionary()
-            );
-            return;
-        }
-        us.clear_weapon_projection();
+        us.apply_weapon_projection(GetMemberWeaponProjection(mid, ev));
     }
 
-    private static void _apply_member_identity_projection(BattleUnitState us, GodotObject ms)
+    private static void _apply_member_identity_projection(BattleUnitState us, PartyMemberState ms)
     {
         if (us == null)
             return;
@@ -863,7 +931,7 @@ public partial class BattleUnitFactory : RefCounted
             us.versatility_pick = "";
             return;
         }
-        var pc = ProgressionDataUtils.to_string_name(ms.Get("body_size_category"));
+        var pc = ProgressionDataUtils.to_string_name(ms.body_size_category);
         if (!us.set_body_size_category(pc))
         {
             throw new InvalidOperationException(
@@ -871,10 +939,10 @@ public partial class BattleUnitFactory : RefCounted
                 $"合法值: tiny, small, medium, large, huge, gargantuan, boss"
             );
         }
-        us.versatility_pick = ProgressionDataUtils.to_string_name(ms.Get("versatility_pick"));
+        us.versatility_pick = ProgressionDataUtils.to_string_name(ms.versatility_pick);
     }
 
-    private EquipmentState _ensure_unit_equipment_view(BattleUnitState us, GodotObject ms)
+    private EquipmentState _ensure_unit_equipment_view(BattleUnitState us, PartyMemberState ms)
     {
         if (us == null)
             return new EquipmentState();
@@ -883,7 +951,7 @@ public partial class BattleUnitFactory : RefCounted
         return us.get_equipment_view();
     }
 
-    private static EquipmentState _get_member_equipment_state(GodotObject ms)
+    private static EquipmentState _get_member_equipment_state(PartyMemberState ms)
     {
         if (ms == null)
             return new EquipmentState();
@@ -951,7 +1019,7 @@ public partial class BattleUnitFactory : RefCounted
             us.current_stamina = sc;
     }
 
-    private void _sync_unlocked_resources_from_progression(BattleUnitState us, GodotObject prog)
+    private void _sync_unlocked_resources_from_progression(BattleUnitState us, UnitProgress prog)
     {
         if (us == null)
             return;
@@ -962,10 +1030,9 @@ public partial class BattleUnitFactory : RefCounted
             );
             return;
         }
-        if (prog.HasMethod("sync_default_combat_resource_unlocks"))
-            prog.Call("sync_default_combat_resource_unlocks");
+        prog.sync_default_combat_resource_unlocks();
         var rids = new Godot.Collections.Array<StringName>();
-        foreach (var rv in prog.Get("unlocked_combat_resource_ids").AsGodotArray())
+        foreach (var rv in prog.unlocked_combat_resource_ids)
             rids.Add(ProgressionDataUtils.to_string_name(rv));
         us.set_unlocked_combat_resource_ids(rids);
     }
@@ -1004,9 +1071,9 @@ public partial class BattleUnitFactory : RefCounted
 
     private bool _runtime_has_skill(StringName sid)
     {
-        if ((string)sid == "" || _runtime == null)
+        if ((string)sid == "")
             return false;
-        var sds = _runtime.Call("get_skill_defs").AsGodotDictionary();
+        var sds = GetSkillDefs();
         return sds != null && sds.ContainsKey(sid);
     }
 
@@ -1027,23 +1094,19 @@ public partial class BattleUnitFactory : RefCounted
         return f;
     }
 
-    private Godot.Collections.Array<StringName> _collect_known_active_skill_ids(GodotObject prog)
+    private Godot.Collections.Array<StringName> _collect_known_active_skill_ids(UnitProgress prog)
     {
         var r = new Godot.Collections.Array<StringName>();
         if (prog == null)
             return r;
-        foreach (
-            var sk in ProgressionDataUtils.sorted_string_keys(
-                prog.Get("skills").AsGodotDictionary()
-            )
-        )
+        foreach (var sk in ProgressionDataUtils.sorted_string_keys(prog.skills))
         {
             var sid = new StringName(sk);
-            var sp = prog.Call("get_skill_progress", sid);
-            if (sp.VariantType == Variant.Type.Nil)
+            UnitSkillProgress sp = prog.get_skill_progress(sid);
+            if (sp == null)
                 continue;
             var sd = _skill_def_from_runtime(sid);
-            if (sd == null || !sp.AsGodotObject().Get("is_learned").AsBool())
+            if (sd == null || !sp.is_learned)
                 continue;
             if (sd.skill_type != "active" || !sd.can_use_in_combat())
                 continue;
@@ -1052,53 +1115,40 @@ public partial class BattleUnitFactory : RefCounted
         return r;
     }
 
-    private Godot.Collections.Dictionary _collect_known_skill_level_map(GodotObject prog)
+    private Godot.Collections.Dictionary _collect_known_skill_level_map(UnitProgress prog)
     {
         var r = new Godot.Collections.Dictionary();
         if (prog == null)
             return r;
-        foreach (
-            var sk in ProgressionDataUtils.sorted_string_keys(
-                prog.Get("skills").AsGodotDictionary()
-            )
-        )
+        foreach (var sk in ProgressionDataUtils.sorted_string_keys(prog.skills))
         {
             var sid = new StringName(sk);
-            var sp = prog.Call("get_skill_progress", sid);
-            if (sp.VariantType == Variant.Type.Nil)
+            UnitSkillProgress sp = prog.get_skill_progress(sid);
+            if (sp == null)
                 continue;
             var sd = _skill_def_from_runtime(sid);
-            if (sd == null || !sp.AsGodotObject().Get("is_learned").AsBool())
+            if (sd == null || !sp.is_learned)
                 continue;
             if (sd.skill_type != "active")
                 continue;
-            r[sid] = sp.AsGodotObject().Get("skill_level").AsInt32();
+            r[sid] = sp.skill_level;
         }
         return r;
     }
 
-    private Godot.Collections.Dictionary _collect_known_skill_lock_hit_bonus_map(GodotObject prog)
+    private Godot.Collections.Dictionary _collect_known_skill_lock_hit_bonus_map(UnitProgress prog)
     {
         var r = new Godot.Collections.Dictionary();
         if (prog == null)
             return r;
-        foreach (
-            var sk in ProgressionDataUtils.sorted_string_keys(
-                prog.Get("skills").AsGodotDictionary()
-            )
-        )
+        foreach (var sk in ProgressionDataUtils.sorted_string_keys(prog.skills))
         {
             var sid = new StringName(sk);
-            var sp = prog.Call("get_skill_progress", sid).AsGodotObject();
+            UnitSkillProgress sp = prog.get_skill_progress(sid);
             var sd = _skill_def_from_runtime(sid);
-            if (
-                sp == null
-                || sd == null
-                || !sp.Get("is_learned").AsBool()
-                || !sp.Get("is_level_trigger_locked").AsBool()
-            )
+            if (sp == null || sd == null || !sp.is_learned || !sp.is_level_trigger_locked)
                 continue;
-            int b = sp.Get("bonus_to_hit_from_lock").AsInt32();
+            int b = sp.bonus_to_hit_from_lock;
             if (b <= 0)
                 continue;
             r[sid] = b;
@@ -1108,38 +1158,26 @@ public partial class BattleUnitFactory : RefCounted
 
     private void _sync_passive_battle_statuses(
         BattleUnitState us,
-        GodotObject prog,
-        GodotObject ms = null
+        UnitProgress prog,
+        PartyMemberState ms = null
     )
     {
         if (us == null)
             return;
         PassiveSourceContext ctx = null;
-        var cg = _runtime?.Call("get_character_gateway").AsGodotObject();
-        if (
-            cg != null
-            && (string)us.source_member_id != ""
-            && cg.HasMethod("build_passive_source_context")
-        )
-            ctx =
-                cg.Call("build_passive_source_context", us.source_member_id, prog).AsGodotObject()
-                as PassiveSourceContext;
+        if ((string)us.source_member_id != "")
+            ctx = BuildPassiveSourceContext(us.source_member_id, prog);
         if (ctx == null)
         {
             ctx = new PassiveSourceContext
             {
-                member_state = ms as PartyMemberState,
-                unit_progress = prog as UnitProgress,
+                member_state = ms,
+                unit_progress = prog,
             };
             if (ctx.unit_progress != null)
                 ctx.skill_progress_by_id = ctx.unit_progress.skills;
         }
-        PassiveStatusOrchestrator.apply_to_unit(
-            us,
-            ctx,
-            _runtime?.Call("get_skill_defs").AsGodotDictionary()
-                ?? new Godot.Collections.Dictionary()
-        );
+        PassiveStatusOrchestrator.apply_to_unit(us, ctx, GetSkillDefs());
     }
 
     private static Godot.Collections.Array<StringName> _extract_movement_tags(object rawTags)

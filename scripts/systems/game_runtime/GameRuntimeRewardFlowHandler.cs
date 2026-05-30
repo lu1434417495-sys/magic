@@ -9,20 +9,20 @@ public partial class GameRuntimeRewardFlowHandler : RefCounted
     private static readonly string InvalidPromotionChoiceMessage =
         "晋升提交无效，当前选择仍需确认。";
 
-    private WeakReference<GodotObject> _runtimeRef;
+    private WeakReference<GameRuntimeFacade> _runtimeRef;
 
-    private GodotObject _runtime
+    private GameRuntimeFacade _runtime
     {
         get => ResolveWeakRef(_runtimeRef);
-        set => _runtimeRef = value != null ? new WeakReference<GodotObject>(value) : null;
+        set => _runtimeRef = value != null ? new WeakReference<GameRuntimeFacade>(value) : null;
     }
 
-    public void Setup(GodotObject runtime)
+    public void Setup(GameRuntimeFacade runtime)
     {
         _runtime = runtime;
     }
 
-    public void setup(GodotObject runtime) => Setup(runtime);
+    public void setup(GameRuntimeFacade runtime) => Setup(runtime);
 
     public new void Dispose()
     {
@@ -430,11 +430,10 @@ public partial class GameRuntimeRewardFlowHandler : RefCounted
         var partyState = GetPartyState();
         if (partyState == null)
             return false;
-        var pendingRewards = partyState.Get("pending_character_rewards").AsGodotArray();
-        if (pendingRewards.Count == 0)
+        if (partyState.pending_character_rewards.Count == 0)
             return false;
 
-        SetActiveReward(partyState.Call("get_next_pending_character_reward").AsGodotObject());
+        SetActiveReward(partyState.get_next_pending_character_reward());
         if (GetActiveReward() == null)
             return false;
         SetActiveModalId("reward");
@@ -455,14 +454,14 @@ public partial class GameRuntimeRewardFlowHandler : RefCounted
     {
         if (!HasRuntime())
             return new Dictionary { ["ok"] = true, ["message"] = message };
-        return _runtime.Call("build_command_ok", message).AsGodotDictionary();
+        return _runtime.build_command_ok(message);
     }
 
     private Dictionary CommandError(string message)
     {
         if (!HasRuntime())
             return new Dictionary { ["ok"] = false, ["message"] = message };
-        return _runtime.Call("build_command_error", message).AsGodotDictionary();
+        return _runtime.build_command_error(message);
     }
 
     private void RejectInvalidPromotionChoice()
@@ -549,116 +548,113 @@ public partial class GameRuntimeRewardFlowHandler : RefCounted
     {
         if (!HasRuntime())
             return new Dictionary();
-        return _runtime.Call("get_pending_promotion_prompt").AsGodotDictionary();
+        return _runtime.get_pending_promotion_prompt();
     }
 
     private Dictionary GetPendingWorldPromotionPrompt()
     {
         if (!HasRuntime())
             return new Dictionary();
-        return _runtime.Call("get_pending_world_promotion_prompt_state").AsGodotDictionary();
+        return _runtime.get_pending_world_promotion_prompt_state();
     }
 
     private PendingCharacterReward GetActiveReward()
     {
         if (!HasRuntime())
             return null;
-        var result = _runtime.Call("get_active_reward_state");
-        if (result.VariantType == Variant.Type.Nil)
-            return null;
-        return result.As<PendingCharacterReward>();
+        return _runtime.get_active_reward_state();
     }
 
     private string GetActiveModalId()
     {
         if (!HasRuntime())
             return "";
-        return _runtime.Call("get_active_modal_id").AsString();
+        return _runtime.get_active_modal_id();
     }
 
     private void SetActiveModalId(string modalId)
     {
         if (HasRuntime())
-            _runtime.Call("set_runtime_active_modal_id", modalId);
+            _runtime.set_runtime_active_modal_id(modalId);
     }
 
     private void UpdateStatus(string message)
     {
         if (HasRuntime())
-            _runtime.Call("update_status", message);
+            _runtime.update_status(message);
     }
 
     private bool IsBattleActive()
     {
         if (!HasRuntime())
             return false;
-        return _runtime.Call("is_battle_active").AsBool();
+        return _runtime.is_battle_active();
     }
 
     private void ClearActiveCharacterInfoContext()
     {
         if (HasRuntime())
-            _runtime.Call("clear_active_character_info_context");
+            _runtime.clear_active_character_info_context();
     }
 
     private void CloseSettlementModal()
     {
         if (HasRuntime())
-            _runtime.Call("close_settlement_modal");
+            _runtime.close_settlement_modal();
     }
 
     private void CloseContractBoardModal()
     {
         if (HasRuntime())
-            _runtime.Call("close_contract_board_modal");
+            _runtime.close_contract_board_modal();
     }
 
     private void CloseShopModal()
     {
         if (HasRuntime())
-            _runtime.Call("close_shop_modal");
+            _runtime.close_shop_modal();
     }
 
     private void CloseForgeModal()
     {
         if (HasRuntime())
-            _runtime.Call("close_forge_modal");
+            _runtime.close_forge_modal();
     }
 
     private void CloseStagecoachModal()
     {
         if (HasRuntime())
-            _runtime.Call("close_stagecoach_modal");
+            _runtime.close_stagecoach_modal();
     }
 
     private void ClosePartyManagementModal()
     {
         if (HasRuntime())
-            _runtime.Call("close_party_management_modal");
+            _runtime.close_party_management_modal();
     }
 
     private void ClosePartyWarehouseModal()
     {
         if (HasRuntime())
-            _runtime.Call("close_party_warehouse_modal");
+            _runtime.close_party_warehouse_modal();
     }
 
     private void CancelSubmapEntryPrompt()
     {
         if (HasRuntime())
-            _runtime.Call("command_cancel_submap_entry");
+            _runtime.command_cancel_submap_entry();
     }
 
     private void ClearPendingPromotionPrompt()
     {
         if (HasRuntime())
-            _runtime.Call("clear_pending_promotion_prompt");
+            _runtime.clear_pending_promotion_prompt();
     }
 
     private void ClearPendingWorldPromotionPrompt()
     {
         if (HasRuntime())
-            _runtime.Call("clear_pending_world_promotion_prompt_state");
+            _runtime.clear_pending_world_promotion_prompt_state();
     }
 
     private BattleEventBatch SubmitBattlePromotionChoice(
@@ -669,15 +665,13 @@ public partial class GameRuntimeRewardFlowHandler : RefCounted
     {
         if (!HasRuntime())
             return null;
-        return _runtime
-            .Call("submit_battle_promotion_choice", memberId, professionId, selection)
-            .As<BattleEventBatch>();
+        return _runtime.submit_battle_promotion_choice(memberId, professionId, selection);
     }
 
     private void ApplyBattleBatch(BattleEventBatch batch)
     {
         if (HasRuntime() && batch != null)
-            _runtime.Call("apply_battle_batch", batch);
+            _runtime.apply_battle_batch(batch);
     }
 
     private CharacterProgressionDelta PromoteProfession(
@@ -688,22 +682,20 @@ public partial class GameRuntimeRewardFlowHandler : RefCounted
     {
         if (!HasRuntime())
             return null;
-        return _runtime
-            .Call("promote_profession", memberId, professionId, selection)
-            .As<CharacterProgressionDelta>();
+        return _runtime.promote_profession(memberId, professionId, selection);
     }
 
     private void SyncPartyStateFromCharacterManagement()
     {
         if (HasRuntime())
-            _runtime.Call("sync_party_state_from_character_management");
+            _runtime.sync_party_state_from_character_management();
     }
 
     private Error PersistPartyState()
     {
         if (!HasRuntime())
             return Error.Unavailable;
-        return (Error)_runtime.Call("persist_party_state").AsInt32();
+        return (Error)_runtime.persist_party_state();
     }
 
     private Dictionary BuildRuntimePromotionPrompt(
@@ -713,28 +705,26 @@ public partial class GameRuntimeRewardFlowHandler : RefCounted
     {
         if (!HasRuntime())
             return new Dictionary();
-        return _runtime
-            .Call("build_runtime_promotion_prompt", delta, selectionHint)
-            .AsGodotDictionary();
+        return _runtime.build_runtime_promotion_prompt(delta, selectionHint);
     }
 
     private void SetPendingWorldPromotionPrompt(Dictionary prompt)
     {
         if (HasRuntime())
-            _runtime.Call("set_pending_world_promotion_prompt_state", prompt);
+            _runtime.set_pending_world_promotion_prompt_state(prompt);
     }
 
     private string GetMemberDisplayName(StringName memberId)
     {
         if (!HasRuntime())
             return memberId.ToString();
-        return _runtime.Call("get_member_display_name", memberId).AsString();
+        return _runtime.get_member_display_name(memberId);
     }
 
     private void ClearActiveReward()
     {
         if (HasRuntime())
-            _runtime.Call("clear_active_reward_state");
+            _runtime.clear_active_reward_state();
     }
 
     private CharacterProgressionDelta ApplyPendingCharacterRewardToParty(
@@ -743,28 +733,26 @@ public partial class GameRuntimeRewardFlowHandler : RefCounted
     {
         if (!HasRuntime())
             return null;
-        return _runtime
-            .Call("apply_pending_character_reward_to_party", reward)
-            .As<CharacterProgressionDelta>();
+        return _runtime.apply_pending_character_reward_to_party(reward);
     }
 
     private void EnqueueCharacterRewards(Godot.Collections.Array rewardOptions)
     {
         if (HasRuntime())
-            _runtime.Call("enqueue_character_rewards", rewardOptions);
+            _runtime.enqueue_character_rewards(rewardOptions);
     }
 
-    private GodotObject GetPartyState()
+    private PartyState GetPartyState()
     {
         if (!HasRuntime())
             return null;
-        return _runtime.Call("get_party_state").AsGodotObject();
+        return _runtime.get_party_state();
     }
 
-    private void SetActiveReward(GodotObject reward)
+    private void SetActiveReward(PendingCharacterReward reward)
     {
         if (HasRuntime())
-            _runtime.Call("set_active_reward_state", reward);
+            _runtime.set_active_reward_state(reward);
     }
 
     private static StringName DictionaryStringName(Dictionary dictionary, string key)
@@ -806,13 +794,9 @@ public partial class GameRuntimeRewardFlowHandler : RefCounted
         return true;
     }
 
-    private static GodotObject ResolveWeakRef(WeakReference<GodotObject> weakRef)
+    private static GameRuntimeFacade ResolveWeakRef(WeakReference<GameRuntimeFacade> weakRef)
     {
-        if (
-            weakRef == null
-            || !weakRef.TryGetTarget(out GodotObject target)
-            || !GodotObject.IsInstanceValid(target)
-        )
+        if (weakRef == null || !weakRef.TryGetTarget(out GameRuntimeFacade target))
             return null;
         return target;
     }

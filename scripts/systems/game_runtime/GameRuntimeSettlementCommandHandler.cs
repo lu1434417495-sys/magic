@@ -413,7 +413,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             return _command_error("当前不存在队伍数据。");
         }
         int travelCost = GdInterop.GetInt(destination, "travel_cost", 0);
-        if (!partyState.Call("spend_gold", travelCost).AsBool())
+        if (!partyState.spend_gold(travelCost))
         {
             return _command_error("金币不足，无法启程。");
         }
@@ -1109,10 +1109,9 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
                 rewards.Add(rewardData);
             }
         }
-        if (_runtime != null && _runtime.HasMethod("resolve_low_luck_settlement_event_rewards"))
+        if (Runtime != null)
         {
-            object lowLuckResultValue = _runtime.Call(
-                "resolve_low_luck_settlement_event_rewards",
+            object lowLuckResultValue = Runtime.resolve_low_luck_settlement_event_rewards(
                 new GDictionary
                 {
                     ["action_id"] = action_id,
@@ -1235,7 +1234,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         {
             return _build_settlement_service_result(false, "当前不存在队伍数据。");
         }
-        if (!partyState.Call("spend_gold", REST_FULL_COST).AsBool())
+        if (!partyState.spend_gold(REST_FULL_COST))
         {
             return _build_settlement_service_result(false, "金币不足，无法在旅店整备。");
         }
@@ -1292,7 +1291,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         {
             return _build_settlement_service_result(false, "当前不存在队伍数据。");
         }
-        if (gold_cost > 0 && !partyState.Call("spend_gold", gold_cost).AsBool())
+        if (gold_cost > 0 && !partyState.spend_gold(gold_cost))
         {
             return _build_settlement_service_result(false, "金币不足，无法购买情报。");
         }
@@ -1780,11 +1779,11 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         {
             return "active";
         }
-        if (partyState.Call("has_claimable_quest", quest_id).AsBool())
+        if (partyState.has_claimable_quest(quest_id))
         {
             return "claimable";
         }
-        if (partyState.Call("has_completed_quest", quest_id).AsBool())
+        if (partyState.has_completed_quest(quest_id))
         {
             if (GdInterop.GetBool(quest_data, "is_repeatable", false))
             {
@@ -2255,23 +2254,21 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             {
                 continue;
             }
-            GodotObject attributeSnapshot = _get_member_attribute_snapshot(memberId);
+            AttributeSnapshot attributeSnapshot = _get_member_attribute_snapshot(memberId);
             int hpMax =
                 attributeSnapshot != null
-                    ? attributeSnapshot.Call("get_value", new StringName("hp_max")).AsInt32()
+                    ? attributeSnapshot.get_value(new StringName("hp_max"))
                     : Math.Max(GdInterop.GetInt(memberState, "current_hp"), 1);
             int mpMax =
                 attributeSnapshot != null
-                    ? attributeSnapshot.Call("get_value", new StringName("mp_max")).AsInt32()
+                    ? attributeSnapshot.get_value(new StringName("mp_max"))
                     : Math.Max(GdInterop.GetInt(memberState, "current_mp"), 0);
             int oldHp = GdInterop.GetInt(memberState, "current_hp");
             int oldMp = GdInterop.GetInt(memberState, "current_mp");
             double recoveryMultiplier = 1.0;
             if (
                 attributeSnapshot != null
-                && attributeSnapshot
-                    .Call("get_value", LowLuckRelicRules.ATTR_BLOOD_DEBT_SHAWL)
-                    .AsInt32() > 0
+                && attributeSnapshot.get_value(LowLuckRelicRules.ATTR_BLOOD_DEBT_SHAWL) > 0
             )
             {
                 recoveryMultiplier = LowLuckRelicRules.BLOOD_DEBT_RECOVERY_MULTIPLIER;
@@ -2295,12 +2292,10 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
 
     public GArray _reveal_world_fog(Vector2I center, int reveal_range)
     {
-        GodotObject fogSystem = _get_fog_system();
+        WorldMapFogSystem fogSystem = _get_fog_system();
         GArray revealedCoords =
             fogSystem != null
-                ? fogSystem
-                    .Call("reveal_diamond", center, reveal_range, _get_player_faction_id())
-                    .AsGodotArray()
+                ? new GArray(fogSystem.reveal_diamond(center, reveal_range, _get_player_faction_id()))
                 : new GArray();
         if (revealedCoords.Count != 0)
         {
@@ -2393,10 +2388,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         {
             return;
         }
-        if (_runtime.HasMethod("handle_misfortune_forge_result"))
-        {
-            _runtime.Call("handle_misfortune_forge_result", member_id, result);
-        }
+        Runtime?.handle_misfortune_forge_result(member_id, result);
     }
 
     public GDictionary _build_settlement_service_result(
@@ -2499,7 +2491,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         {
             return;
         }
-        _runtime.Call("apply_quest_progress_events_to_party", event_options, "settlement");
+        Runtime.apply_quest_progress_events_to_party(event_options, "settlement");
     }
 
     public GDictArray _duplicate_dictionary_array(GArray value)
@@ -2599,14 +2591,14 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
 
     public bool _is_battle_active()
     {
-        return _has_runtime() && _runtime.Call("is_battle_active").AsBool();
+        return _has_runtime() && Runtime.is_battle_active();
     }
 
     public void _update_status(string message)
     {
         if (_has_runtime())
         {
-            _runtime.Call("update_status", message);
+            Runtime.update_status(message);
         }
     }
 
@@ -2619,7 +2611,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
     {
         if (_has_runtime())
         {
-            _runtime.Call("set_active_settlement_id", settlement_id);
+            Runtime.set_active_settlement_id(settlement_id);
         }
     }
 
@@ -2627,7 +2619,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
     {
         if (_has_runtime())
         {
-            _runtime.Call("set_settlement_feedback_text", feedback_text);
+            Runtime.set_settlement_feedback_text(feedback_text);
         }
     }
 
@@ -2638,9 +2630,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
 
     public GDictionary _get_selected_settlement()
     {
-        return _has_runtime()
-            ? _runtime.Call("get_selected_settlement").AsGodotDictionary()
-            : new GDictionary();
+        return _has_runtime() ? Runtime.get_selected_settlement() : new GDictionary();
     }
 
     public PartyState _get_party_state()
@@ -2655,36 +2645,28 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
 
     public GDictionary _get_settlement_record(string settlement_id)
     {
-        return _has_runtime()
-            ? _runtime.Call("get_settlement_record", settlement_id).AsGodotDictionary()
-            : new GDictionary();
+        return _has_runtime() ? Runtime.get_settlement_record(settlement_id) : new GDictionary();
     }
 
     public GArray _get_all_settlement_records()
     {
-        return _has_runtime()
-            ? _runtime.Call("get_all_settlement_records").AsGodotArray()
-            : new GArray();
+        return _has_runtime() ? Runtime.get_all_settlement_records() : new GArray();
     }
 
     public GDictionary _get_settlement_state(string settlement_id)
     {
-        return _has_runtime()
-            ? _runtime.Call("get_settlement_state", settlement_id).AsGodotDictionary()
-            : new GDictionary();
+        return _has_runtime() ? Runtime.get_settlement_state(settlement_id) : new GDictionary();
     }
 
     public bool _set_active_settlement_state(string settlement_id, GDictionary settlement_state)
     {
         return _has_runtime()
-            && _runtime
-                .Call("set_active_settlement_state", settlement_id, settlement_state)
-                .AsBool();
+            && Runtime.set_active_settlement_state(settlement_id, settlement_state);
     }
 
     public PartyWarehouseService _get_party_warehouse_service()
     {
-        return _has_runtime() ? _runtime.Call("get_party_warehouse_service").AsGodotObject() as PartyWarehouseService : null;
+        return _has_runtime() ? Runtime.get_party_warehouse_service() : null;
     }
 
     public GDictionary _get_item_defs()
@@ -2693,10 +2675,8 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         {
             return new GDictionary();
         }
-        GodotObject gameSession = _runtime.Call("get_game_session").AsGodotObject();
-        return gameSession != null
-            ? gameSession.Call("get_item_defs").AsGodotDictionary()
-            : new GDictionary();
+        GameSession gameSession = Runtime.get_game_session();
+        return gameSession != null ? gameSession.get_item_defs() : new GDictionary();
     }
 
     public string _get_item_display_name(StringName item_id)
@@ -2710,10 +2690,8 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         {
             return new GDictionary();
         }
-        GodotObject gameSession = _runtime.Call("get_game_session").AsGodotObject();
-        return gameSession != null
-            ? gameSession.Call("get_recipe_defs").AsGodotDictionary()
-            : new GDictionary();
+        GameSession gameSession = Runtime.get_game_session();
+        return gameSession != null ? gameSession.get_recipe_defs() : new GDictionary();
     }
 
     public GDictionary _get_quest_defs()
@@ -2722,10 +2700,8 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         {
             return new GDictionary();
         }
-        GodotObject gameSession = _runtime.Call("get_game_session").AsGodotObject();
-        return gameSession != null
-            ? gameSession.Call("get_quest_defs").AsGodotDictionary()
-            : new GDictionary();
+        GameSession gameSession = Runtime.get_game_session();
+        return gameSession != null ? gameSession.get_quest_defs() : new GDictionary();
     }
 
     public bool _is_forge_modal_submission(GDictionary payload)
@@ -2794,7 +2770,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         GDictionary commandResult;
         if (stateId == "claimable")
         {
-            commandResult = _runtime.Call("command_claim_quest", questId).AsGodotDictionary();
+            commandResult = Runtime.command_claim_quest(questId);
         }
         else if (stateId == "active")
         {
@@ -2807,24 +2783,18 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
                 || _quest_has_submit_item_objective(questData)
             )
             {
-                commandResult = _runtime
-                    .Call("command_submit_quest_item", questId, submitItemObjectiveId)
-                    .AsGodotDictionary();
+                commandResult = Runtime.command_submit_quest_item(questId, submitItemObjectiveId);
             }
             else
             {
                 bool allowReaccept = GdInterop.GetBool(questData, "is_repeatable", false);
-                commandResult = _runtime
-                    .Call("command_accept_quest", questId, allowReaccept)
-                    .AsGodotDictionary();
+                commandResult = Runtime.command_accept_quest(questId, allowReaccept);
             }
         }
         else
         {
             bool allowReaccept = GdInterop.GetBool(questData, "is_repeatable", false);
-            commandResult = _runtime
-                .Call("command_accept_quest", questId, allowReaccept)
-                .AsGodotDictionary();
+            commandResult = Runtime.command_accept_quest(questId, allowReaccept);
         }
         string message = GdInterop.GetString(commandResult, "message", "任务处理失败。");
         _set_active_settlement_id(settlement_id);
@@ -3188,11 +3158,9 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             : "锻造";
     }
 
-    public GodotObject _get_member_attribute_snapshot(StringName member_id)
+    public AttributeSnapshot _get_member_attribute_snapshot(StringName member_id)
     {
-        return _has_runtime()
-            ? _runtime.Call("get_member_attribute_snapshot", member_id).AsGodotObject()
-            : null;
+        return _has_runtime() ? Runtime.get_member_attribute_snapshot(member_id) : null;
     }
 
     public string _get_member_display_name(StringName member_id)
@@ -3204,7 +3172,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
     {
         if (_has_runtime())
         {
-            _runtime.Call("open_party_warehouse_window", entry_label);
+            Runtime.open_party_warehouse_window(entry_label);
         }
     }
 
@@ -3212,7 +3180,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
     {
         if (_has_runtime())
         {
-            _runtime.Call("enqueue_pending_character_rewards", reward_options);
+            Runtime.enqueue_pending_character_rewards(reward_options);
         }
     }
 
@@ -3226,7 +3194,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         detail_id ??= new StringName("");
         if (_has_runtime())
         {
-            _runtime.Call("record_member_achievement_event", member_id, event_id, value, detail_id);
+            Runtime.record_member_achievement_event(member_id, event_id, value, detail_id);
         }
     }
 
@@ -3234,39 +3202,33 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
     {
         if (_has_runtime())
         {
-            _runtime.Call("sync_party_state_from_character_management");
+            Runtime.sync_party_state_from_character_management();
         }
     }
 
     public int _persist_party_state()
     {
-        return _has_runtime()
-            ? _runtime.Call("persist_party_state").AsInt32()
-            : (int)Error.Unavailable;
+        return _has_runtime() ? Runtime.persist_party_state() : (int)Error.Unavailable;
     }
 
     public int _persist_world_data()
     {
-        return _has_runtime()
-            ? _runtime.Call("persist_world_data").AsInt32()
-            : (int)Error.Unavailable;
+        return _has_runtime() ? Runtime.persist_world_data() : (int)Error.Unavailable;
     }
 
     public int _persist_player_coord()
     {
-        return _has_runtime()
-            ? _runtime.Call("persist_player_coord").AsInt32()
-            : (int)Error.Unavailable;
+        return _has_runtime() ? Runtime.persist_player_coord() : (int)Error.Unavailable;
     }
 
-    public GodotObject _get_fog_system()
+    public WorldMapFogSystem _get_fog_system()
     {
-        return _has_runtime() ? _runtime.Call("get_fog_system").AsGodotObject() : null;
+        return _has_runtime() ? Runtime.get_fog_system() : null;
     }
 
     public bool _is_settlement_visible_to_player(GDictionary settlement)
     {
-        GodotObject fogSystem = _get_fog_system();
+        WorldMapFogSystem fogSystem = _get_fog_system();
         if (fogSystem == null)
         {
             return false;
@@ -3280,7 +3242,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         {
             for (int x = 0; x < width; x++)
             {
-                if (fogSystem.Call("is_visible", origin + new Vector2I(x, y), factionId).AsBool())
+                if (fogSystem.is_visible(origin + new Vector2I(x, y), factionId))
                 {
                     return true;
                 }
@@ -3298,7 +3260,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
     {
         if (_has_runtime())
         {
-            _runtime.Call("advance_world_time_by_steps", delta_steps);
+            Runtime.advance_world_time_by_steps(delta_steps);
         }
     }
 
@@ -3306,20 +3268,20 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
     {
         if (_has_runtime())
         {
-            _runtime.Call("refresh_world_visibility");
+            Runtime.refresh_world_visibility();
         }
     }
 
     public int _get_world_step()
     {
-        return _has_runtime() ? _runtime.Call("get_world_step").AsInt32() : 0;
+        return _has_runtime() ? Runtime.get_world_step() : 0;
     }
 
     public void _set_player_coord(Vector2I coord)
     {
         if (_has_runtime())
         {
-            _runtime.Call("set_player_coord", coord);
+            Runtime.set_player_coord(coord);
         }
     }
 
@@ -3327,7 +3289,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
     {
         if (_has_runtime())
         {
-            _runtime.Call("set_selected_coord", coord);
+            Runtime.set_selected_coord(coord);
         }
     }
 
@@ -3335,7 +3297,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
     {
         if (_has_runtime())
         {
-            _runtime.Call("clear_settlement_entry_context", reset_selected);
+            Runtime.clear_settlement_entry_context(reset_selected);
         }
     }
 
@@ -3348,20 +3310,20 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
     {
         if (_has_runtime())
         {
-            _runtime.Call("set_runtime_active_modal_id", modal_id);
+            Runtime.set_runtime_active_modal_id(modal_id);
         }
     }
 
     public bool _present_pending_reward_if_ready()
     {
-        return _has_runtime() && _runtime.Call("present_pending_reward_if_ready").AsBool();
+        return _has_runtime() && Runtime.present_pending_reward_if_ready();
     }
 
     public void _set_active_shop_context(GDictionary context)
     {
         if (_has_runtime())
         {
-            _runtime.Call("set_active_shop_context", context);
+            Runtime.set_active_shop_context(context);
         }
     }
 
@@ -3369,7 +3331,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
     {
         if (_has_runtime())
         {
-            _runtime.Call("set_active_contract_board_context", context);
+            Runtime.set_active_contract_board_context(context);
         }
     }
 
@@ -3377,7 +3339,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
     {
         if (_has_runtime())
         {
-            _runtime.Call("set_active_forge_context", context);
+            Runtime.set_active_forge_context(context);
         }
     }
 
@@ -3385,7 +3347,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
     {
         if (_has_runtime())
         {
-            _runtime.Call("clear_active_shop_context");
+            Runtime.clear_active_shop_context();
         }
     }
 
@@ -3393,7 +3355,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
     {
         if (_has_runtime())
         {
-            _runtime.Call("clear_active_contract_board_context");
+            Runtime.clear_active_contract_board_context();
         }
     }
 
@@ -3401,36 +3363,30 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
     {
         if (_has_runtime())
         {
-            _runtime.Call("clear_active_forge_context");
+            Runtime.clear_active_forge_context();
         }
     }
 
     public GDictionary _get_active_shop_context()
     {
-        return _has_runtime()
-            ? _runtime.Call("get_active_shop_context").AsGodotDictionary()
-            : new GDictionary();
+        return _has_runtime() ? Runtime.get_active_shop_context() : new GDictionary();
     }
 
     public GDictionary _get_active_contract_board_context()
     {
-        return _has_runtime()
-            ? _runtime.Call("get_active_contract_board_context").AsGodotDictionary()
-            : new GDictionary();
+        return _has_runtime() ? Runtime.get_active_contract_board_context() : new GDictionary();
     }
 
     public GDictionary _get_active_forge_context()
     {
-        return _has_runtime()
-            ? _runtime.Call("get_active_forge_context").AsGodotDictionary()
-            : new GDictionary();
+        return _has_runtime() ? Runtime.get_active_forge_context() : new GDictionary();
     }
 
     public void _set_active_stagecoach_context(GDictionary context)
     {
         if (_has_runtime())
         {
-            _runtime.Call("set_active_stagecoach_context", context);
+            Runtime.set_active_stagecoach_context(context);
         }
     }
 
@@ -3438,15 +3394,13 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
     {
         if (_has_runtime())
         {
-            _runtime.Call("clear_active_stagecoach_context");
+            Runtime.clear_active_stagecoach_context();
         }
     }
 
     public GDictionary _get_active_stagecoach_context()
     {
-        return _has_runtime()
-            ? _runtime.Call("get_active_stagecoach_context").AsGodotDictionary()
-            : new GDictionary();
+        return _has_runtime() ? Runtime.get_active_stagecoach_context() : new GDictionary();
     }
 
     private static IEnumerable<GDictionary> Dictionaries(GArray values)

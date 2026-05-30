@@ -26,22 +26,22 @@ public partial class BattleRepeatAttackResolver : RefCounted
     private WeakReference<GodotObject> _runtimeRef;
     private WeakReference<GodotObject> _masteryRecorderRef;
 
-    private GodotObject _runtime
+    private BattleRuntimeModule _runtime
     {
-        get => ResolveWeakRef(_runtimeRef);
+        get => ResolveWeakRef(_runtimeRef) as BattleRuntimeModule;
         set => _runtimeRef = value != null ? new WeakReference<GodotObject>(value) : null;
     }
 
-    private GodotObject _masteryRecorder
+    private BattleSkillMasteryService _masteryRecorder
     {
-        get => ResolveWeakRef(_masteryRecorderRef);
+        get => ResolveWeakRef(_masteryRecorderRef) as BattleSkillMasteryService;
         set => _masteryRecorderRef = value != null ? new WeakReference<GodotObject>(value) : null;
     }
 
     public void setup(GodotObject runtime, GodotObject mastery_recorder = null)
     {
-        _runtime = runtime;
-        _masteryRecorder = mastery_recorder;
+        _runtime = runtime as BattleRuntimeModule;
+        _masteryRecorder = mastery_recorder as BattleSkillMasteryService;
     }
 
     public void dispose()
@@ -82,7 +82,7 @@ public partial class BattleRepeatAttackResolver : RefCounted
             if (
                 stageIndex > 0
                 && _runtime != null
-                && _runtime.Call("is_unit_follow_up_locked", active_unit).AsBool()
+                && _runtime.is_unit_follow_up_locked(active_unit)
             )
             {
                 AppendLog(batch, $"{DisplayName(active_unit)} 受折手封印影响，无法继续追击。");
@@ -163,8 +163,7 @@ public partial class BattleRepeatAttackResolver : RefCounted
             anyAttackSucceeded = true;
             if (_masteryRecorder != null)
             {
-                _masteryRecorder.Call(
-                    "RecordTargetResult",
+                _masteryRecorder.RecordTargetResult(
                     active_unit,
                     target_unit,
                     skill_def,
@@ -174,13 +173,7 @@ public partial class BattleRepeatAttackResolver : RefCounted
                 if (stageIndex >= 4)
                 {
                     int bonusBase = (int)Mathf.Pow(2, stageIndex - 4);
-                    _masteryRecorder.Call(
-                        "RecordBonus",
-                        active_unit,
-                        target_unit,
-                        skill_def,
-                        bonusBase
-                    );
+                    _masteryRecorder.RecordBonus(active_unit, target_unit, skill_def, bonusBase);
                 }
             }
 
@@ -200,8 +193,7 @@ public partial class BattleRepeatAttackResolver : RefCounted
             int healing = GdInterop.GetInt(stageResult, "healing", 0);
             totalDamage += damage;
             totalHealing += healing;
-            _runtime.Call(
-                "append_damage_result_log_lines",
+            _runtime?.append_damage_result_log_lines(
                 batch,
                 $"{DisplayName(active_unit)} 的 {DisplayName(skill_def)} 第 {stageIndex + 1} 段，倍率 x{_format_runtime_multiplier(stageDamageMultiplier)}，{costResourceAbbr} 消耗 {stageResourceCost}，{stageResolutionText}",
                 DisplayName(target_unit),
@@ -225,8 +217,7 @@ public partial class BattleRepeatAttackResolver : RefCounted
             if (!target_unit.is_alive)
             {
                 totalKillCount += 1;
-                _runtime.Call(
-                    "handle_unit_defeated_by_runtime_effect",
+                _runtime?.handle_unit_defeated_by_runtime_effect(
                     target_unit,
                     active_unit,
                     batch,
@@ -241,8 +232,7 @@ public partial class BattleRepeatAttackResolver : RefCounted
 
             if (damage > 0 || healing > 0 || !target_unit.is_alive)
             {
-                _runtime.Call(
-                    "record_battle_contribution_result",
+                _runtime?.record_battle_contribution_result(
                     active_unit,
                     target_unit,
                     damage,
@@ -375,7 +365,7 @@ public partial class BattleRepeatAttackResolver : RefCounted
         {
             return DEFAULT_REPEAT_ATTACK_PREVIEW_STAGE_COUNT;
         }
-        if (active_unit.Call("has_status_effect", STATUS_CROWN_BREAK_BROKEN_HAND).AsBool())
+        if (active_unit.has_status_effect(STATUS_CROWN_BREAK_BROKEN_HAND))
         {
             return 1;
         }
@@ -507,13 +497,9 @@ public partial class BattleRepeatAttackResolver : RefCounted
         GCombatEffectArray stage_effects
     )
     {
-        GodotObject battleState = _has_runtime()
-            ? _runtime.Call("get_state").AsGodotObject()
-            : null;
-        GodotObject attackPolicy =
-            _has_runtime() && _runtime.HasMethod("get_attack_check_policy_service")
-                ? _runtime.Call("get_attack_check_policy_service").AsGodotObject()
-                : null;
+        BattleRuntimeModule runtime = _runtime as BattleRuntimeModule;
+        BattleState battleState = runtime?.get_state();
+        BattleAttackCheckPolicyService attackPolicy = runtime?.get_attack_check_policy_service();
         if (attackPolicy == null)
         {
             return new GDictionary
@@ -531,8 +517,7 @@ public partial class BattleRepeatAttackResolver : RefCounted
             0,
             true
         );
-        var attackContext = attackPolicy.Call(
-            "build_repeat_attack_stage_context",
+        BattleAttackCheckPolicyContext attackContext = attackPolicy.build_repeat_attack_stage_context(
             battleState,
             active_unit,
             target_unit,
@@ -541,41 +526,25 @@ public partial class BattleRepeatAttackResolver : RefCounted
             new StringName("repeat_attack_stage_check"),
             new StringName("execute")
         );
-        var attackCheckValue = attackPolicy.Call(
-            "build_fate_aware_repeat_attack_stage_hit_check",
-            attackContext
-        );
-        GDictionary attackCheck =
-            attackCheckValue.VariantType == Variant.Type.Dictionary
-                ? attackCheckValue.AsGodotDictionary()
-                : new GDictionary();
-        GodotObject damageResolver = _has_runtime()
-            ? _runtime.Call("get_damage_resolver").AsGodotObject()
-            : null;
-        int attackSuccessRatePercent = GdInterop.GetInt(attackCheck, "success_rate_percent", 0);
+        AttackCheckInput attackCheck =
+            attackPolicy.build_fate_aware_repeat_attack_stage_hit_check(attackContext);
+        BattleDamageResolver damageResolver = runtime?.get_damage_resolver();
+        int attackSuccessRatePercent = attackCheck.SuccessRatePercent;
         GDictionary result;
         if (damageResolver != null)
         {
-            var attackContextData = new GDictionary
+            var attackResolutionContext = new AttackContext
             {
-                ["battle_state"] = battleState,
-                ["skill_id"] =
-                    skill_def != null
-                        ? GdInterop.GetStringName(skill_def, "skill_id")
-                        : new StringName(""),
+                BattleState = battleState,
+                SkillId = skill_def != null ? skill_def.skill_id : new StringName(""),
             };
-            var resultValue = damageResolver.Call(
-                "resolve_attack_effects",
+            result = damageResolver.resolve_attack_effects(
                 active_unit,
                 target_unit,
                 ToUntypedArray(stage_effects),
                 attackCheck,
-                attackContextData
+                attackResolutionContext
             );
-            result =
-                resultValue.VariantType == Variant.Type.Dictionary
-                    ? resultValue.AsGodotDictionary()
-                    : new GDictionary();
         }
         else
         {
@@ -596,12 +565,14 @@ public partial class BattleRepeatAttackResolver : RefCounted
     }
 
     public string _format_repeat_attack_stage_resolution_text(
-        GDictionary attack_check,
+        AttackCheckInput attack_check,
         GDictionary attack_result
     )
     {
-        int successRate = GdInterop.GetInt(attack_check, "success_rate_percent", 0);
-        string previewText = GdInterop.GetString(attack_check, "preview_text", $"{successRate}%");
+        int successRate = attack_check.SuccessRatePercent;
+        string previewText = string.IsNullOrEmpty(attack_check.PreviewText)
+            ? $"{successRate}%"
+            : attack_check.PreviewText;
         StringName attackResolution = GdInterop.GetStringName(
             attack_result,
             "attack_resolution",
@@ -682,15 +653,12 @@ public partial class BattleRepeatAttackResolver : RefCounted
             return new GDictionary();
         }
         int skillLevel;
-        if (_runtime != null && _runtime.HasMethod("_get_unit_skill_level"))
+        if (_runtime != null)
         {
-            skillLevel = _runtime
-                .Call(
-                    "_get_unit_skill_level",
-                    active_unit,
-                    GdInterop.GetStringName(skill_def, "skill_id")
-                )
-                .AsInt32();
+            skillLevel = _runtime._get_unit_skill_level(
+                active_unit,
+                GdInterop.GetStringName(skill_def, "skill_id")
+            );
         }
         else
         {
@@ -932,14 +900,8 @@ public partial class BattleRepeatAttackResolver : RefCounted
 
     private static GDictionary GetEffectiveResourceCosts(GodotObject combatProfile, int skillLevel)
     {
-        if (combatProfile == null || !combatProfile.HasMethod("get_effective_resource_costs"))
-        {
-            return new GDictionary();
-        }
-        var costs = combatProfile.Call("get_effective_resource_costs", skillLevel);
-        return costs.VariantType == Variant.Type.Dictionary
-            ? costs.AsGodotDictionary()
-            : new GDictionary();
+        return (combatProfile as CombatSkillDef)?.get_effective_resource_costs(skillLevel)
+            ?? new GDictionary();
     }
 
     private static StringName GetCostResource(GodotObject repeatAttackEffect)

@@ -166,7 +166,7 @@ public partial class BattleRuntimeModule : RefCounted
         _repeat_attack_resolver.setup(this, _skill_mastery_service);
         _skill_mastery_service.clear();
         _fate_runtime.setup(
-            _character_gateway,
+            _characterGateway,
             get_fate_event_bus(),
             this,
             _find_unit_by_member_id
@@ -1371,7 +1371,7 @@ public partial class BattleRuntimeModule : RefCounted
             _ai_service.setup(_enemy_ai_brains, _damage_resolver);
         if (_fate_runtime != null)
             _fate_runtime.setup(
-                _character_gateway,
+                _characterGateway,
                 get_fate_event_bus(),
                 this,
                 _find_unit_by_member_id
@@ -4287,7 +4287,7 @@ public partial class BattleRuntimeModule : RefCounted
     public BattleResolutionResult _build_battle_resolution_result() =>
         _loot_resolver.BuildBattleResolutionResult();
 
-    public GDictionary _roll_hit_rate(int hit_rate_percent) =>
+    public AttackRollResult _roll_hit_rate(int hit_rate_percent) =>
         _hit_resolver.roll_hit_rate(_state, hit_rate_percent);
 
     private void BindDamageResolver()

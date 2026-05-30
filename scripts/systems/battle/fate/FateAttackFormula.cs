@@ -37,22 +37,22 @@ public partial class FateAttackFormula : RefCounted
     public static int RollDieWithDisadvantageRule(
         int dieSize,
         bool isDisadvantage,
-        GodotObject rng = null
+        RandomNumberGenerator rng = null
     )
     {
         int normalizedDieSize = Mathf.Max(dieSize, 1);
         var resolvedRng = _ResolveRng(rng);
-        int firstRoll = (int)resolvedRng.Call("randi_range", 1, normalizedDieSize);
+        int firstRoll = resolvedRng.RandiRange(1, normalizedDieSize);
         if (!isDisadvantage)
             return firstRoll;
-        int secondRoll = (int)resolvedRng.Call("randi_range", 1, normalizedDieSize);
+        int secondRoll = resolvedRng.RandiRange(1, normalizedDieSize);
         return Mathf.Min(firstRoll, secondRoll);
     }
 
     public static int roll_die_with_disadvantage_rule(
         int dieSize,
         bool isDisadvantage,
-        GodotObject rng = null
+        RandomNumberGenerator rng = null
     )
     {
         return RollDieWithDisadvantageRule(dieSize, isDisadvantage, rng);
@@ -73,9 +73,9 @@ public partial class FateAttackFormula : RefCounted
         return CalcCritThreshold(hiddenLuckAtBirth, faithLuckBonus);
     }
 
-    private static GodotObject _ResolveRng(GodotObject rng)
+    private static RandomNumberGenerator _ResolveRng(RandomNumberGenerator rng)
     {
-        if (rng != null && rng.HasMethod("randi_range"))
+        if (rng != null)
             return rng;
         var fallbackRng = new RandomNumberGenerator();
         fallbackRng.Randomize();

@@ -16,7 +16,7 @@ public partial class FateRuntimeModule : RefCounted
     private static readonly StringName DoomSentenceSkillId = "doom_sentence";
     private static readonly StringName BlackCrownSealSkillId = "black_crown_seal";
 
-    private GodotObject _characterGateway;
+    private IBattleRuntimeCharacterGateway _characterGateway;
     private GodotObject _battleRuntimeGateway;
     private Func<StringName, BattleUnitState> _unitByMemberIdResolver;
     private FortuneService _fortuneService = new();
@@ -26,7 +26,7 @@ public partial class FateRuntimeModule : RefCounted
     private MisfortuneService _misfortuneService = new();
 
     public void setup(
-        GodotObject character_gateway = null,
+        IBattleRuntimeCharacterGateway character_gateway = null,
         BattleFateEventBus fate_event_bus = null,
         GodotObject battle_runtime_gateway = null,
         Func<StringName, BattleUnitState> unit_by_member_id_resolver = null

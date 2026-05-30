@@ -1,7 +1,7 @@
 using Godot;
 
 [GlobalClass]
-public partial class BattleSpecialProfileRegistry : RefCounted
+public partial class BattleSpecialProfileRegistry : RefCounted, IValidatableRegistry
 {
     private const string ManifestDirectory = "res://data/configs/skill_special_profiles/manifests";
 

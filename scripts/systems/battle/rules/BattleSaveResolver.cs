@@ -745,8 +745,7 @@ public partial class BattleSaveResolver : RefCounted
         {
             return 0;
         }
-        var value = attributeSnapshot.Call("get_value", attributeId);
-        return value.VariantType == Variant.Type.Nil ? 0 : value.AsInt32();
+        return (attributeSnapshot as AttributeSnapshot)?.get_value(attributeId) ?? 0;
     }
 
     private static StringName GetBaseAttributeModifierId(StringName attributeId)

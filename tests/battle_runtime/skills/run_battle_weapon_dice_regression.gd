@@ -99,18 +99,16 @@ func _test_physical_damage_does_not_add_weapon_dice_by_default() -> void:
 
 func _test_critical_hit_rolls_extra_weapon_and_skill_dice_once() -> void:
 	var resolver = SharedDamageResolvers.build_fixed_roll_damage_resolver([2, 5, 3, 4], [20])
-	resolver.set_hit_resolver(SharedHitResolvers.FixedCriticalHitResolver.new())
 	var source := _build_unit(&"critical_weapon_user")
 	_apply_weapon(source, 1, 6, 2)
 	var target := _build_unit(&"critical_weapon_target")
 	var effect := _build_damage_effect(7, true, 1, 4, 3)
 
-	var result: Dictionary = resolver.resolve_attack_effects(
+	var result: Dictionary = resolver.resolve_effects(
 		source,
 		target,
 		[effect],
-		{"required_roll": 1, "display_required_roll": 1},
-		{}
+		{"critical_hit": true}
 	)
 	var event := _first_damage_event(result)
 	_assert_true(bool(result.get("critical_hit", false)), "测试前置：攻击应被判定为暴击。")

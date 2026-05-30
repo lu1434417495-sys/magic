@@ -9,40 +9,39 @@ public partial class FixedMissResolver : BattleHitResolver
     private static readonly StringName AttackResolutionMiss = "miss";
     private static readonly StringName RollDispositionNaturalAutoMiss = "natural_1_auto_miss";
 
-    public new GDictionary resolve_attack_metadata(
+    public override AttackResolutionMetadata resolve_attack_metadata(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
-        GDictionary attack_check,
-        GDictionary attack_context
+        AttackCheckInput attack_check,
+        AttackContext attack_context
     )
     {
-        int requiredRoll = GetInt(attack_check, "required_roll", NaturalHitRoll);
-        return new GDictionary
+        int requiredRoll = attack_check.RequiredRoll != 0 ? attack_check.RequiredRoll : NaturalHitRoll;
+        return new AttackResolutionMetadata
         {
-            ["attack_resolution"] = AttackResolutionMiss,
-            ["attack_success"] = false,
-            ["critical_hit"] = false,
-            ["critical_fail"] = false,
-            ["ordinary_miss"] = true,
-            ["is_disadvantage"] = GetBool(attack_context, "is_disadvantage", false),
-            ["hidden_luck_at_birth"] = 0,
-            ["faith_luck_bonus"] = 0,
-            ["effective_luck"] = 0,
-            ["crit_locked"] = false,
-            ["crit_gate_die"] = 20,
-            ["crit_gate_roll"] = 0,
-            ["hit_roll"] = NaturalMissRoll,
-            ["fumble_low_end"] = 1,
-            ["crit_threshold"] = NaturalHitRoll,
-            ["required_roll"] = requiredRoll,
-            ["display_required_roll"] = GetInt(
-                attack_check,
-                "display_required_roll",
-                Math.Clamp(requiredRoll, 2, NaturalHitRoll)
-            ),
-            ["hit_rate_percent"] = 0,
-            ["success_rate_percent"] = 0,
-            ["trait_trigger_results"] = new Godot.Collections.Array(),
+            AttackResolution = AttackResolutionMiss,
+            AttackSuccess = false,
+            CriticalHit = false,
+            CriticalFail = false,
+            OrdinaryMiss = true,
+            IsDisadvantage = attack_context?.IsDisadvantage ?? false,
+            HiddenLuckAtBirth = 0,
+            FaithLuckBonus = 0,
+            EffectiveLuck = 0,
+            CritLocked = false,
+            CritGateDie = 20,
+            CritGateRoll = 0,
+            HitRoll = NaturalMissRoll,
+            FumbleLowEnd = 1,
+            CritThreshold = NaturalHitRoll,
+            RequiredRoll = requiredRoll,
+            DisplayRequiredRoll =
+                attack_check.DisplayRequiredRoll != 0
+                    ? attack_check.DisplayRequiredRoll
+                    : Math.Clamp(requiredRoll, 2, NaturalHitRoll),
+            HitRatePercent = 0,
+            SuccessRatePercent = 0,
+            SkillId = attack_context?.SkillId ?? new StringName(""),
         };
     }
 
@@ -63,22 +62,36 @@ public partial class FixedMissResolver : BattleHitResolver
         };
     }
 
-    public new GDictionary roll_attack_check(BattleState battle_state, GDictionary attack_check)
+    public override AttackRollResult roll_attack_check(
+        BattleState battle_state,
+        AttackCheckInput attack_check
+    )
     {
         if (battle_state != null)
-            battle_state.attack_roll_nonce = Math.Max((int)battle_state.attack_roll_nonce, 0) + 1;
-        GDictionary result = attack_check?.Duplicate(true) ?? new GDictionary();
-        result["roll"] = NaturalMissRoll;
-        result["roll_disposition"] = RollDispositionNaturalAutoMiss;
-        result["success"] = false;
-        result["hit_rate_percent"] = 0;
-        result["success_rate_percent"] = 0;
-        result["preview_text"] = "0%（测试固定未命中）";
-        result["resolution_text"] = "0%（测试固定未命中），d20=1";
-        return result;
+            battle_state.next_attack_roll_nonce();
+        return new AttackRollResult(
+            roll: NaturalMissRoll,
+            rollDisposition: RollDispositionNaturalAutoMiss,
+            success: false,
+            resolutionText: "0%（测试固定未命中），d20=1",
+            attackRollNonce: battle_state != null ? battle_state.attack_roll_nonce.ToString() : ""
+        );
     }
 
-    public new int roll_attack_die(int die_size, bool is_disadvantage, GDictionary attack_context)
+    public override int roll_attack_die(
+        int die_size,
+        bool is_disadvantage,
+        GDictionary attack_context
+    )
+    {
+        return Math.Clamp(NaturalMissRoll, 1, Math.Max(die_size, 1));
+    }
+
+    public override int roll_attack_die(
+        int die_size,
+        bool is_disadvantage,
+        AttackContext attack_context
+    )
     {
         return Math.Clamp(NaturalMissRoll, 1, Math.Max(die_size, 1));
     }
@@ -90,7 +103,7 @@ public partial class FixedMissResolver : BattleHitResolver
     )
     {
         if (battle_state != null)
-            battle_state.attack_roll_nonce = Math.Max((int)battle_state.attack_roll_nonce, 0) + 1;
+            battle_state.next_attack_roll_nonce();
         return Math.Min(min_value, max_value);
     }
 

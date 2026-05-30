@@ -55,6 +55,47 @@ public partial class TraitTriggerHooks : RefCounted
         return DispatchFirst(unit_state, TriggerOnNaturalOne, context ?? new GDictionary());
     }
 
+    public AttackTraitTriggerResult on_natural_one_typed(
+        BattleUnitState unit_state,
+        int roll,
+        int die_size
+    )
+    {
+        foreach (StringName traitId in GetUnitTraitIds(unit_state))
+        {
+            string methodName = TraitTriggerContentRules.get_dispatch_method_name(
+                traitId,
+                TriggerOnNaturalOne
+            );
+            if (methodName != "_handle_halfling_luck")
+            {
+                continue;
+            }
+            AttackTraitTriggerResult result = _handle_halfling_luck_typed(
+                unit_state,
+                roll,
+                die_size
+            );
+            if (!result.Triggered)
+            {
+                continue;
+            }
+            return new AttackTraitTriggerResult(
+                triggered: result.Triggered,
+                @event: TriggerOnNaturalOne,
+                traitId: traitId,
+                effectType: result.EffectType,
+                originalRoll: result.OriginalRoll,
+                rerollDie: result.RerollDie,
+                rerolledRoll: result.RerolledRoll,
+                dieSize: result.DieSize,
+                chargeKey: result.ChargeKey,
+                chargesRemaining: result.ChargesRemaining
+            );
+        }
+        return new AttackTraitTriggerResult(@event: TriggerOnNaturalOne);
+    }
+
     public GDictionary on_crit(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
@@ -226,6 +267,33 @@ public partial class TraitTriggerHooks : RefCounted
             ["charge_key"] = chargeKey,
             ["charges_remaining"] = GetCharge(unitState, chargeKey, true),
         };
+    }
+
+    public AttackTraitTriggerResult _handle_halfling_luck_typed(
+        BattleUnitState unitState,
+        int roll,
+        int dieSize
+    )
+    {
+        if (roll != 1)
+        {
+            return new AttackTraitTriggerResult(@event: TriggerOnNaturalOne);
+        }
+        StringName chargeKey = GetTraitChargeKey(TraitHalflingLuck);
+        if (!ConsumeCharge(unitState, chargeKey, true, 1))
+        {
+            return new AttackTraitTriggerResult(@event: TriggerOnNaturalOne);
+        }
+        return new AttackTraitTriggerResult(
+            triggered: true,
+            @event: TriggerOnNaturalOne,
+            effectType: TraitHalflingLuck,
+            originalRoll: roll,
+            rerollDie: true,
+            dieSize: Math.Max(dieSize, 1),
+            chargeKey: chargeKey,
+            chargesRemaining: GetCharge(unitState, chargeKey, true)
+        );
     }
 
     public GDictionary _handle_savage_attacks(BattleUnitState unitState, GDictionary context)

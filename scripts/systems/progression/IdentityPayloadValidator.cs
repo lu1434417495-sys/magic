@@ -6,10 +6,10 @@ public partial class IdentityPayloadValidator : RefCounted
 {
     public static Godot.Collections.Array<string> validate_party_identity_for_content_source(
         PartyState party_state,
-        GodotObject content_source
+        ProgressionContentRegistry content_source
     )
     {
-        return ValidatePartyIdentity(party_state, IdentityContentSourceRef.FromObject(content_source));
+        return ValidatePartyIdentity(party_state, IdentityContentSourceRef.FromRegistry(content_source));
     }
 
     public static Godot.Collections.Array<string> validate_party_identity(
@@ -51,12 +51,12 @@ public partial class IdentityPayloadValidator : RefCounted
 
     public static Godot.Collections.Array<string> validate_member_identity_for_content_source(
         PartyMemberState member_state,
-        GodotObject content_source
+        ProgressionContentRegistry content_source
     )
     {
         return ValidateMemberIdentity(
             member_state,
-            IdentityContentSourceRef.FromObject(content_source)
+            IdentityContentSourceRef.FromRegistry(content_source)
         );
     }
 
@@ -117,12 +117,12 @@ public partial class IdentityPayloadValidator : RefCounted
 
     public static StringName resolve_body_size_category_for_content_source(
         PartyMemberState member_state,
-        GodotObject content_source
+        ProgressionContentRegistry content_source
     )
     {
         return ResolveBodySizeCategoryForMember(
             member_state,
-            IdentityContentSourceRef.FromObject(content_source)
+            IdentityContentSourceRef.FromRegistry(content_source)
         );
     }
 
@@ -188,12 +188,12 @@ public partial class IdentityPayloadValidator : RefCounted
 
     public static bool refresh_member_body_size_from_content_source(
         PartyMemberState member_state,
-        GodotObject content_source
+        ProgressionContentRegistry content_source
     )
     {
         return RefreshMemberBodySizeFromIdentity(
             member_state,
-            IdentityContentSourceRef.FromObject(content_source)
+            IdentityContentSourceRef.FromRegistry(content_source)
         );
     }
 
@@ -486,24 +486,24 @@ public partial class IdentityPayloadValidator : RefCounted
     private readonly struct IdentityContentSourceRef
     {
         private readonly GDictionary _dictionary;
-        private readonly GodotObject _object;
+        private readonly ProgressionContentRegistry _registry;
 
-        private IdentityContentSourceRef(GDictionary dictionary, GodotObject @object)
+        private IdentityContentSourceRef(GDictionary dictionary, ProgressionContentRegistry registry)
         {
             _dictionary = dictionary;
-            _object = @object;
+            _registry = registry;
         }
 
-        internal bool HasSource => _dictionary != null || _object != null;
+        internal bool HasSource => _dictionary != null || _registry != null;
 
         internal static IdentityContentSourceRef FromDictionary(GDictionary dictionary)
         {
             return dictionary != null ? new IdentityContentSourceRef(dictionary, null) : new();
         }
 
-        internal static IdentityContentSourceRef FromObject(GodotObject @object)
+        internal static IdentityContentSourceRef FromRegistry(ProgressionContentRegistry registry)
         {
-            return @object != null ? new IdentityContentSourceRef(null, @object) : new();
+            return registry != null ? new IdentityContentSourceRef(null, registry) : new();
         }
 
         internal GodotObject GetContentDef(
@@ -539,11 +539,20 @@ public partial class IdentityPayloadValidator : RefCounted
                         return aliasBucket.AsGodotDictionary();
                 }
             }
-            if (_object != null && _object.HasMethod(methodName))
+            if (_registry != null)
             {
-                var methodBucket = _object.Call(methodName);
-                if (methodBucket.VariantType == Variant.Type.Dictionary)
-                    return methodBucket.AsGodotDictionary();
+                GDictionary result = methodName switch
+                {
+                    "get_race_defs" => _registry.get_race_defs(),
+                    "get_subrace_defs" => _registry.get_subrace_defs(),
+                    "get_bloodline_defs" => _registry.get_bloodline_defs(),
+                    "get_bloodline_stage_defs" => _registry.get_bloodline_stage_defs(),
+                    "get_ascension_defs" => _registry.get_ascension_defs(),
+                    "get_ascension_stage_defs" => _registry.get_ascension_stage_defs(),
+                    _ => null,
+                };
+                if (result != null)
+                    return result;
             }
             return new Godot.Collections.Dictionary();
         }

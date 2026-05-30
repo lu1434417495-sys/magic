@@ -27,12 +27,12 @@ public partial class FixedSuccessOneDamageResolver : FixedHitOneDamageResolver
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         Godot.Collections.Array effect_defs,
-        GDictionary attack_check,
-        GDictionary attack_context = null
+        AttackCheckInput attack_check,
+        AttackContext attack_context = null
     )
     {
-        GDictionary fixedContext = attack_context?.Duplicate(true) ?? new GDictionary();
-        fixedContext["force_hit_no_crit"] = true;
+        AttackContext fixedContext = attack_context ?? new AttackContext();
+        fixedContext.ForceHitNoCrit = true;
         return base.resolve_attack_effects(
             source_unit,
             target_unit,

@@ -110,21 +110,21 @@ public partial class SkillEffectiveMaxLevelRules : RefCounted
             if (professionId == "")
                 return 0;
 
-            var professionProgress = unitProgress
-                .Call("get_profession_progress", professionId)
-                .AsGodotObject();
+            var professionProgress = (unitProgress as UnitProgress)?.get_profession_progress(
+                professionId
+            );
 
             if (professionProgress == null)
                 return 0;
 
-            return Mathf.Max(professionProgress.Get("rank").AsInt32(), 0);
+            return Mathf.Max(professionProgress.rank, 0);
         }
 
-        var unitBaseAttributes = unitProgress.Get("unit_base_attributes").AsGodotObject();
+        var unitBaseAttributes = (unitProgress as UnitProgress)?.unit_base_attributes;
 
         if (unitBaseAttributes == null)
             return 0;
 
-        return Mathf.Max(unitBaseAttributes.Call("get_attribute_value", statId).AsInt32(), 0);
+        return Mathf.Max(unitBaseAttributes.get_attribute_value(statId), 0);
     }
 }

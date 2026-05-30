@@ -4,9 +4,9 @@ using GDictionary = Godot.Collections.Dictionary;
 [GlobalClass]
 public partial class ProgressionSerialization : RefCounted
 {
-    public static GDictionary serialize_unit_progress(GodotObject progress)
+    public static GDictionary serialize_unit_progress(UnitProgress progress)
     {
-        return ToDictionary(progress);
+        return progress?.to_dict() ?? new GDictionary();
     }
 
     public static GodotObject deserialize_unit_progress(GDictionary data)
@@ -76,9 +76,9 @@ public partial class ProgressionSerialization : RefCounted
         return PartyMemberState.from_dict(data);
     }
 
-    public static GDictionary serialize_party_state(GodotObject party_state)
+    public static GDictionary serialize_party_state(PartyState party_state)
     {
-        return ToDictionary(party_state);
+        return party_state?.to_dict() ?? new GDictionary();
     }
 
     public static PartyState deserialize_party_state(GDictionary data)
@@ -120,13 +120,5 @@ public partial class ProgressionSerialization : RefCounted
         return EncounterAnchorData.from_dict(data);
     }
 
-    private static GDictionary ToDictionary(GodotObject value)
-    {
-        if (value == null || !value.HasMethod("to_dict"))
-            return new GDictionary();
-        var result = value.Call("to_dict");
-        return result.VariantType == Variant.Type.Dictionary
-            ? result.AsGodotDictionary()
-            : new GDictionary();
-    }
+
 }

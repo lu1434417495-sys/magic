@@ -29,8 +29,8 @@ public partial class FixedHitMaxDamageResolver : BattleDamageResolver
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         Godot.Collections.Array effect_defs,
-        GDictionary attack_check,
-        GDictionary attack_context = null
+        AttackCheckInput attack_check,
+        AttackContext attack_context = null
     )
     {
         return base.resolve_attack_effects(
@@ -55,7 +55,7 @@ public partial class FixedHitMaxDamageResolver : BattleDamageResolver
     {
         if (battle_state != null)
         {
-            battle_state.attack_roll_nonce = Math.Max((int)battle_state.attack_roll_nonce, 0) + 1;
+            battle_state.next_attack_roll_nonce();
         }
         return Math.Clamp(10, Math.Min(min_value, max_value), Math.Max(min_value, max_value));
     }

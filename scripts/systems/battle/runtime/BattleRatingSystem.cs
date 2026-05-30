@@ -13,19 +13,19 @@ public partial class BattleRatingSystem : RefCounted
     private static readonly StringName BattleWonAchievement = "battle_won";
     private static readonly StringName BattleRatingSourceType = "battle_rating";
 
-    private WeakReference<GodotObject> _runtimeRef;
+    private WeakReference<BattleRuntimeModule> _runtimeRef;
     private BattleSkillMasteryService _mastery_service;
     private readonly BattleContributionLedger _contributionLedger = new();
 
-    private GodotObject _runtime
+    private BattleRuntimeModule _runtime
     {
         get => ResolveWeakRef(_runtimeRef);
-        set => _runtimeRef = value != null ? new WeakReference<GodotObject>(value) : null;
+        set => _runtimeRef = value != null ? new WeakReference<BattleRuntimeModule>(value) : null;
     }
 
     public void setup(GodotObject runtime, BattleSkillMasteryService mastery_service = null)
     {
-        _runtime = runtime;
+        _runtime = runtime as BattleRuntimeModule;
         _mastery_service = mastery_service ?? new BattleSkillMasteryService();
     }
 
@@ -444,37 +444,32 @@ public partial class BattleRatingSystem : RefCounted
 
     private GDictionary GetBattleRatingStats()
     {
-        GodotObject runtime = _runtime;
+        BattleRuntimeModule runtime = _runtime;
         if (runtime == null)
         {
             return new GDictionary();
         }
-        var value = runtime.Call("get_battle_rating_stats");
-        return value.VariantType == Variant.Type.Dictionary
-            ? value.AsGodotDictionary()
-            : new GDictionary();
+        return runtime.get_battle_rating_stats() ?? new GDictionary();
     }
 
     private GArray GetPendingPostBattleCharacterRewards()
     {
-        GodotObject runtime = _runtime;
+        BattleRuntimeModule runtime = _runtime;
         if (runtime == null)
         {
             return new GArray();
         }
-        var value = runtime.Call("get_pending_post_battle_character_rewards");
-        return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : new GArray();
+        return runtime.get_pending_post_battle_character_rewards() ?? new GArray();
     }
 
-    private GodotObject GetState()
+    private BattleState GetState()
     {
-        GodotObject runtime = _runtime;
+        BattleRuntimeModule runtime = _runtime;
         if (runtime == null)
         {
             return null;
         }
-        var value = runtime.Call("get_state");
-        return value.VariantType == Variant.Type.Nil ? null : value.AsGodotObject();
+        return runtime.get_state();
     }
 
     private IBattleRatingCharacterGateway GetCharacterGateway()
@@ -582,11 +577,12 @@ public partial class BattleRatingSystem : RefCounted
         return string.IsNullOrEmpty(trimmed) ? Empty : new StringName(trimmed);
     }
 
-    private static GodotObject ResolveWeakRef(WeakReference<GodotObject> weakRef)
+    private static T ResolveWeakRef<T>(WeakReference<T> weakRef)
+        where T : GodotObject
     {
         if (
             weakRef == null
-            || !weakRef.TryGetTarget(out GodotObject target)
+            || !weakRef.TryGetTarget(out T target)
             || !GodotObject.IsInstanceValid(target)
         )
         {

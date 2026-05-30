@@ -2088,16 +2088,18 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
                 new StringName("execute"),
                 false
             );
-            GDictionary attackCheck =
-                attackPolicy?.build_attack_check(policyContext, 0, 0) ?? new GDictionary();
-            var attackContext = new GDictionary
+            AttackCheckInput attackCheck =
+                attackPolicy != null
+                    ? attackPolicy.build_attack_check(policyContext, 0, 0)
+                    : new AttackCheckInput(invalid: true);
+            var attackContext = new AttackContext
             {
-                ["battle_state"] = RtState(),
-                ["skill_id"] = skill_def?.skill_id ?? new StringName(""),
+                BattleState = RtState(),
+                SkillId = skill_def?.skill_id ?? new StringName(""),
             };
             if (skillResolutionRules?.is_force_hit_no_crit_skill(skill_def) == true)
             {
-                attackContext["force_hit_no_crit"] = true;
+                attackContext.ForceHitNoCrit = true;
             }
             GDictionary result = damageResolver.resolve_attack_effects(
                 active_unit,

@@ -9,20 +9,20 @@ public partial class GameRuntimeQuestCommandHandler : RefCounted
     private static readonly StringName InvalidQuestDisplayNameMessage =
         "任务配置缺少 display_name，当前无法执行命令。";
 
-    private WeakReference<GodotObject> _runtimeRef;
+    private WeakReference<GameRuntimeFacade> _runtimeRef;
 
-    private GodotObject _runtime
+    private GameRuntimeFacade _runtime
     {
         get => ResolveWeakRef(_runtimeRef);
-        set => _runtimeRef = value != null ? new WeakReference<GodotObject>(value) : null;
+        set => _runtimeRef = value != null ? new WeakReference<GameRuntimeFacade>(value) : null;
     }
 
-    public void Setup(GodotObject runtime)
+    public void Setup(GameRuntimeFacade runtime)
     {
         _runtime = runtime;
     }
 
-    public void setup(GodotObject runtime)
+    public void setup(GameRuntimeFacade runtime)
     {
         Setup(runtime);
     }
@@ -70,25 +70,20 @@ public partial class GameRuntimeQuestCommandHandler : RefCounted
         if (string.IsNullOrEmpty(questLabel))
             return InvalidQuestDisplayNameError();
         var partyState = GetPartyState();
-        if (partyState != null && partyState.Call("has_active_quest", questId).AsBool())
+        if (partyState != null && partyState.has_active_quest(questId))
             return CommandError(string.Format("任务《{0}》已在进行中，不能重复接取。", questLabel));
-        if (partyState != null && partyState.Call("has_claimable_quest", questId).AsBool())
+        if (partyState != null && partyState.has_claimable_quest(questId))
             return CommandError(
                 string.Format("任务《{0}》已完成，奖励待领取，当前不可再次接取。", questLabel)
             );
-        var hasCompleted =
-            partyState != null && partyState.Call("has_completed_quest", questId).AsBool();
+        var hasCompleted = partyState != null && partyState.has_completed_quest(questId);
         var isRepeatable = GdInterop.GetBool(questData, "is_repeatable");
         var effectiveAllowReaccept = allowReaccept || (hasCompleted && isRepeatable);
         if (hasCompleted && !effectiveAllowReaccept)
             return CommandError(string.Format("任务《{0}》已完成，当前不可再次接取。", questLabel));
-        if (
-            !characterManagement
-                .Call("accept_quest", questId, GetWorldStep(), effectiveAllowReaccept)
-                .AsBool()
-        )
+        if (!characterManagement.accept_quest(questId, GetWorldStep(), effectiveAllowReaccept))
             return CommandError(string.Format("当前无法接取任务《{0}》。", questLabel));
-        SetPartyState(characterManagement.Call("get_party_state").AsGodotObject());
+        SetPartyState(characterManagement.get_party_state());
         var persistError = PersistPartyState();
         var message =
             hasCompleted && effectiveAllowReaccept
@@ -181,9 +176,9 @@ public partial class GameRuntimeQuestCommandHandler : RefCounted
         var questLabel = ResolveQuestLabel(questId, questData);
         if (string.IsNullOrEmpty(questLabel))
             return InvalidQuestDisplayNameError();
-        if (!characterManagement.Call("complete_quest", questId, GetWorldStep()).AsBool())
+        if (!characterManagement.complete_quest(questId, GetWorldStep()))
             return CommandError(string.Format("当前无法完成任务《{0}》。", questLabel));
-        SetPartyState(characterManagement.Call("get_party_state").AsGodotObject());
+        SetPartyState(characterManagement.get_party_state());
         var persistError = PersistPartyState();
         var message = string.Format("已完成任务《{0}》，奖励待领取。", questLabel);
         if (persistError != Error.Ok)
@@ -212,8 +207,7 @@ public partial class GameRuntimeQuestCommandHandler : RefCounted
         if (string.IsNullOrEmpty(questLabel))
             return InvalidQuestDisplayNameError();
         var submitResult = characterManagement
-            .Call("submit_item_objective", questId, objectiveId, GetWorldStep())
-            .AsGodotDictionary();
+            .submit_item_objective(questId, objectiveId, GetWorldStep());
         if (!GdInterop.GetBool(submitResult, "ok"))
         {
             var missingItemId = GdInterop.GetStringName(submitResult, "item_id");
@@ -267,7 +261,7 @@ public partial class GameRuntimeQuestCommandHandler : RefCounted
                     );
             }
         }
-        SetPartyState(characterManagement.Call("get_party_state").AsGodotObject());
+        SetPartyState(characterManagement.get_party_state());
         var itemId = GdInterop.GetStringName(submitResult, "item_id");
         var itemLabel = GetItemDisplayName(itemId);
         var submittedQuantity = Mathf.Max(
@@ -319,8 +313,7 @@ public partial class GameRuntimeQuestCommandHandler : RefCounted
         if (string.IsNullOrEmpty(questLabel))
             return InvalidQuestDisplayNameError();
         var claimResult = characterManagement
-            .Call("claim_quest_reward", questId, GetWorldStep())
-            .AsGodotDictionary();
+            .claim_quest_reward(questId, GetWorldStep());
         if (!GdInterop.GetBool(claimResult, "ok"))
         {
             var errorCode = GdInterop.GetString(claimResult, "error_code");
@@ -401,7 +394,7 @@ public partial class GameRuntimeQuestCommandHandler : RefCounted
                     return CommandError(string.Format("当前无法领取任务《{0}》奖励。", questLabel));
             }
         }
-        SetPartyState(characterManagement.Call("get_party_state").AsGodotObject());
+        SetPartyState(characterManagement.get_party_state());
         var persistError = PersistPartyState();
         var goldDelta = GdInterop.GetInt(claimResult, "gold_delta");
         var rewardSummary = BuildQuestClaimRewardSummaryText(claimResult);
@@ -436,14 +429,14 @@ public partial class GameRuntimeQuestCommandHandler : RefCounted
                 ["message"] = message,
                 ["battle_refresh_mode"] = "",
             };
-        return _runtime.Call("build_command_ok", message).AsGodotDictionary();
+        return _runtime.build_command_ok(message);
     }
 
     private Dictionary CommandError(string message)
     {
         if (!HasRuntime())
             return new Dictionary { ["ok"] = false, ["message"] = message };
-        return _runtime.Call("build_command_error", message).AsGodotDictionary();
+        return _runtime.build_command_error(message);
     }
 
     private Dictionary RuntimeUnavailableError()
@@ -456,44 +449,44 @@ public partial class GameRuntimeQuestCommandHandler : RefCounted
         return CommandError(InvalidQuestDisplayNameMessage);
     }
 
-    private GodotObject GetCharacterManagement()
+    private CharacterManagementModule GetCharacterManagement()
     {
-        return HasRuntime() ? _runtime.Call("get_character_management").AsGodotObject() : null;
+        return HasRuntime() ? _runtime.get_character_management() : null;
     }
 
-    private GodotObject GetPartyState()
+    private PartyState GetPartyState()
     {
-        return HasRuntime() ? _runtime.Call("get_party_state").AsGodotObject() : null;
+        return HasRuntime() ? _runtime.get_party_state() : null;
     }
 
-    private void SetPartyState(GodotObject partyState)
+    private void SetPartyState(PartyState partyState)
     {
         if (HasRuntime())
-            _runtime.Call("set_party_state", partyState);
+            _runtime.set_party_state(partyState);
     }
 
     private int GetWorldStep()
     {
-        return HasRuntime() ? _runtime.Call("get_world_step").AsInt32() : 0;
+        return HasRuntime() ? _runtime.get_world_step() : 0;
     }
 
     private Error PersistPartyState()
     {
         return HasRuntime()
-            ? (Error)_runtime.Call("persist_party_state").AsInt32()
+            ? (Error)_runtime.persist_party_state()
             : Error.Unavailable;
     }
 
     private void UpdateStatus(string message)
     {
         if (HasRuntime())
-            _runtime.Call("update_status", message);
+            _runtime.update_status(message);
     }
 
     private string GetItemDisplayName(StringName itemId)
     {
         return HasRuntime()
-            ? _runtime.Call("get_item_display_name", itemId).AsString()
+            ? _runtime.get_item_display_name(itemId)
             : itemId.ToString();
     }
 
@@ -503,30 +496,28 @@ public partial class GameRuntimeQuestCommandHandler : RefCounted
     )
     {
         return HasRuntime()
-            ? _runtime
-                .Call("apply_quest_progress_events_to_party", eventOptions, sourceDomain)
-                .AsGodotDictionary()
+            ? _runtime.apply_quest_progress_events_to_party(eventOptions, sourceDomain)
             : new Dictionary();
     }
 
     private Dictionary GetQuestDefData(StringName questId)
     {
         return HasRuntime()
-            ? _runtime.Call("_get_quest_def_data", questId).AsGodotDictionary()
+            ? _runtime._get_quest_def_data(questId)
             : new Dictionary();
     }
 
     private string ResolveQuestLabel(StringName questId, Dictionary questData)
     {
         return HasRuntime()
-            ? _runtime.Call("_resolve_quest_label", questId, questData).AsString()
+            ? _runtime._resolve_quest_label(questId, questData)
             : "";
     }
 
     private string BuildQuestClaimRewardSummaryText(Dictionary claimResult)
     {
         return HasRuntime()
-            ? _runtime.Call("_build_quest_claim_reward_summary_text", claimResult).AsString()
+            ? _runtime._build_quest_claim_reward_summary_text(claimResult)
             : "";
     }
 
@@ -535,17 +526,13 @@ public partial class GameRuntimeQuestCommandHandler : RefCounted
     )
     {
         return HasRuntime()
-            ? _runtime.Call("_string_name_array_to_string_array", values).AsGodotArray<String>()
+            ? _runtime._string_name_array_to_string_array(values)
             : new Godot.Collections.Array<String>();
     }
 
-    private static GodotObject ResolveWeakRef(WeakReference<GodotObject> weakRef)
+    private static GameRuntimeFacade ResolveWeakRef(WeakReference<GameRuntimeFacade> weakRef)
     {
-        if (
-            weakRef == null
-            || !weakRef.TryGetTarget(out GodotObject target)
-            || !GodotObject.IsInstanceValid(target)
-        )
+        if (weakRef == null || !weakRef.TryGetTarget(out GameRuntimeFacade target))
             return null;
         return target;
     }

@@ -32,7 +32,7 @@ public partial class SaveSerializer : RefCounted
         GDictionary worldData,
         Vector2I playerCoord,
         string playerFactionId,
-        GodotObject partyState,
+        PartyState partyState,
         int savedAtUnixTime
     )
     {
@@ -985,14 +985,11 @@ public partial class SaveSerializer : RefCounted
         };
     }
 
-    private static GDictionary SerializePartyState(GodotObject partyState)
+    private static GDictionary SerializePartyState(PartyState partyState)
     {
-        if (partyState == null || !partyState.HasMethod("to_dict"))
+        if (partyState == null)
             return new GDictionary();
-        var payload = partyState.Call("to_dict");
-        return payload.VariantType == Variant.Type.Dictionary
-            ? payload.AsGodotDictionary().Duplicate(true)
-            : new GDictionary();
+        return partyState.to_dict().Duplicate(true);
     }
 
     private static bool TryAddRosterMember(
@@ -1049,12 +1046,9 @@ public partial class SaveSerializer : RefCounted
                 result.Add(itemValue.AsGodotDictionary().Duplicate(true));
                 continue;
             }
-            GodotObject itemObject = itemValue.AsGodotObject();
-            if (itemObject != null && itemObject.HasMethod("to_dict"))
+            if (itemValue.AsGodotObject() is EncounterAnchorData anchorData)
             {
-                var payload = itemObject.Call("to_dict");
-                if (payload.VariantType == Variant.Type.Dictionary)
-                    result.Add(payload.AsGodotDictionary().Duplicate(true));
+                result.Add(anchorData.to_dict().Duplicate(true));
             }
         }
         return result;

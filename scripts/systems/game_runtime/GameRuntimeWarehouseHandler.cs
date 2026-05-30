@@ -15,20 +15,20 @@ public partial class GameRuntimeWarehouseHandler : RefCounted
         public StringName SelectedMemberId { get; set; } = "";
     }
 
-    private WeakReference<GodotObject> _runtimeRef;
+    private WeakReference<GameRuntimeFacade> _runtimeRef;
 
-    private GodotObject _runtime
+    private GameRuntimeFacade _runtime
     {
         get => ResolveWeakRef(_runtimeRef);
-        set => _runtimeRef = value != null ? new WeakReference<GodotObject>(value) : null;
+        set => _runtimeRef = value != null ? new WeakReference<GameRuntimeFacade>(value) : null;
     }
 
-    public void Setup(GodotObject runtime)
+    public void Setup(GameRuntimeFacade runtime)
     {
         _runtime = runtime;
     }
 
-    public void setup(GodotObject runtime)
+    public void setup(GameRuntimeFacade runtime)
     {
         Setup(runtime);
     }
@@ -180,9 +180,7 @@ public partial class GameRuntimeWarehouseHandler : RefCounted
 
         var snapshot = CaptureWarehouseTransactionSnapshot();
         var normalizedItemId = ProgressionDataUtils.to_string_name(itemId);
-        var result = GetPartyWarehouseService()
-            .Call("add_item", normalizedItemId, quantity)
-            .AsGodotDictionary();
+        var result = GetPartyWarehouseService().add_item(normalizedItemId, quantity);
         var addedQuantity = DictionaryInt(result, "added_quantity", 0);
         if (addedQuantity <= 0)
             return CommandError(
@@ -289,7 +287,7 @@ public partial class GameRuntimeWarehouseHandler : RefCounted
             return new Dictionary { ["success"] = false, ["message"] = RuntimeUnavailableMessage };
 
         var itemName = GetItemDisplayName(itemId);
-        var totalQuantity = partyWarehouseService.Call("count_item", itemId).AsInt32();
+        var totalQuantity = partyWarehouseService.count_item(itemId);
         if (totalQuantity <= 0)
         {
             var noStockMessage = string.Format("{0} 当前没有可丢弃的库存。", itemName);
@@ -385,9 +383,7 @@ public partial class GameRuntimeWarehouseHandler : RefCounted
         }
 
         var snapshot = CaptureWarehouseTransactionSnapshot();
-        var useResult = partyItemUseService
-            .Call("use_item", itemId, resolvedMemberId, options)
-            .AsGodotDictionary();
+        var useResult = partyItemUseService.use_item(itemId, resolvedMemberId, options);
         if (!DictionaryBool(useResult, "success", false))
         {
             var failureMessage = BuildWarehouseUseFailureMessage(useResult);
@@ -445,26 +441,26 @@ public partial class GameRuntimeWarehouseHandler : RefCounted
         var normalizedMemberId = ProgressionDataUtils.to_string_name(preferredMemberId);
         if (
             normalizedMemberId != ""
-            && partyState.Call("get_member_state", normalizedMemberId).AsGodotObject() != null
+            && partyState.get_member_state(normalizedMemberId) != null
         )
             return normalizedMemberId;
         var selectedMemberId = GetPartySelectedMemberId();
         if (
             selectedMemberId != ""
-            && partyState.Call("get_member_state", selectedMemberId).AsGodotObject() != null
+            && partyState.get_member_state(selectedMemberId) != null
         )
             return selectedMemberId;
         var leaderMemberId = partyState.Get("leader_member_id").AsStringName();
         if (
             leaderMemberId != ""
-            && partyState.Call("get_member_state", leaderMemberId).AsGodotObject() != null
+            && partyState.get_member_state(leaderMemberId) != null
         )
             return leaderMemberId;
         var activeMemberIds = partyState.Get("active_member_ids").AsGodotArray();
         foreach (var memberId in activeMemberIds)
         {
             if (
-                partyState.Call("get_member_state", memberId.AsStringName()).AsGodotObject() != null
+                partyState.get_member_state(memberId.AsStringName()) != null
             )
                 return memberId.AsStringName();
         }
@@ -472,7 +468,7 @@ public partial class GameRuntimeWarehouseHandler : RefCounted
         foreach (var memberId in reserveMemberIds)
         {
             if (
-                partyState.Call("get_member_state", memberId.AsStringName()).AsGodotObject() != null
+                partyState.get_member_state(memberId.AsStringName()) != null
             )
                 return memberId.AsStringName();
         }
@@ -493,7 +489,7 @@ public partial class GameRuntimeWarehouseHandler : RefCounted
             var id = memberId.AsStringName();
             if (id == "" || seenMemberIds.ContainsKey(id))
                 continue;
-            if (partyState.Call("get_member_state", id).AsGodotObject() == null)
+            if (partyState.get_member_state(id) == null)
                 continue;
             seenMemberIds[id] = true;
             entries.Add(
@@ -512,7 +508,7 @@ public partial class GameRuntimeWarehouseHandler : RefCounted
             var id = memberId.AsStringName();
             if (id == "" || seenMemberIds.ContainsKey(id))
                 continue;
-            if (partyState.Call("get_member_state", id).AsGodotObject() == null)
+            if (partyState.get_member_state(id) == null)
                 continue;
             seenMemberIds[id] = true;
             entries.Add(
@@ -588,20 +584,13 @@ public partial class GameRuntimeWarehouseHandler : RefCounted
         var partyWarehouseService = GetPartyWarehouseService();
         if (partyWarehouseService != null)
         {
-            totalCapacity = partyWarehouseService.Call("get_total_capacity").AsInt32();
-            usedSlots = partyWarehouseService.Call("get_used_slots").AsInt32();
-            freeSlots = partyWarehouseService.Call("get_free_slots").AsInt32();
-            isOverCapacity = partyWarehouseService.Call("is_over_capacity").AsBool();
+            totalCapacity = partyWarehouseService.get_total_capacity();
+            usedSlots = partyWarehouseService.get_used_slots();
+            freeSlots = partyWarehouseService.get_free_slots();
+            isOverCapacity = partyWarehouseService.is_over_capacity();
 
-            foreach (
-                var entryValue in partyWarehouseService
-                    .Call("get_inventory_entries")
-                    .AsGodotArray()
-            )
+            foreach (var entryData in partyWarehouseService.get_inventory_entries())
             {
-                if (entryValue.VariantType != Variant.Type.Dictionary)
-                    continue;
-                var entryData = entryValue.AsGodotDictionary().Duplicate(true);
                 var grantedSkillId = DictionaryStringName(entryData, "granted_skill_id", "");
                 entryData["granted_skill_name"] = GetSkillDisplayName(grantedSkillId);
                 inventoryEntries.Add(entryData);
@@ -638,21 +627,17 @@ public partial class GameRuntimeWarehouseHandler : RefCounted
     }
 
     private Dictionary RemoveWarehouseItemOrInstance(
-        GodotObject partyWarehouseService,
+        PartyWarehouseService partyWarehouseService,
         StringName itemId,
         int quantity,
         StringName instanceId = default
     )
     {
         var normalizedInstanceId = ProgressionDataUtils.to_string_name(instanceId);
-        GodotObject itemDef = null;
-        if (partyWarehouseService != null && partyWarehouseService.HasMethod("get_item_def"))
-            itemDef = partyWarehouseService.Call("get_item_def", itemId).AsGodotObject();
-        if (itemDef != null && itemDef.Call("is_equipment").AsBool())
-            return partyWarehouseService
-                .Call("remove_equipment_instance", itemId, normalizedInstanceId)
-                .AsGodotDictionary();
-        return partyWarehouseService.Call("remove_item", itemId, quantity).AsGodotDictionary();
+        ItemDef itemDef = partyWarehouseService?.get_item_def(itemId);
+        if (itemDef != null && itemDef.is_equipment())
+            return partyWarehouseService.remove_equipment_instance(itemId, normalizedInstanceId);
+        return partyWarehouseService.remove_item(itemId, quantity);
     }
 
     private string BuildDiscardFailureMessage(StringName itemId, Dictionary result)
@@ -680,7 +665,7 @@ public partial class GameRuntimeWarehouseHandler : RefCounted
     {
         if (!HasRuntime())
             return itemId.ToString();
-        return _runtime.Call("get_item_display_name", itemId).AsString();
+        return _runtime.get_item_display_name(itemId);
     }
 
     private string GetSkillDisplayName(StringName skillId)
@@ -688,7 +673,7 @@ public partial class GameRuntimeWarehouseHandler : RefCounted
         var gameSession = GetGameSession();
         if (gameSession == null)
             return skillId.ToString();
-        var skillDefs = gameSession.Call("get_skill_defs").AsGodotDictionary();
+        var skillDefs = gameSession.get_skill_defs();
         if (skillDefs.ContainsKey(skillId))
         {
             var skillDef = skillDefs[skillId].As<SkillDef>();
@@ -702,7 +687,7 @@ public partial class GameRuntimeWarehouseHandler : RefCounted
     {
         if (!HasRuntime())
             return memberId.ToString();
-        return _runtime.Call("get_member_display_name", memberId).AsString();
+        return _runtime.get_member_display_name(memberId);
     }
 
     private bool HasRuntime()
@@ -719,14 +704,14 @@ public partial class GameRuntimeWarehouseHandler : RefCounted
                 ["message"] = message,
                 ["battle_refresh_mode"] = "",
             };
-        return _runtime.Call("build_command_ok", message).AsGodotDictionary();
+        return _runtime.build_command_ok(message);
     }
 
     private Dictionary CommandError(string message)
     {
         if (!HasRuntime())
             return new Dictionary { ["ok"] = false, ["message"] = message };
-        return _runtime.Call("build_command_error", message).AsGodotDictionary();
+        return _runtime.build_command_error(message);
     }
 
     private Dictionary RuntimeUnavailableError()
@@ -738,69 +723,68 @@ public partial class GameRuntimeWarehouseHandler : RefCounted
     {
         if (!HasRuntime())
             return null;
-        return _runtime.Call("get_party_state").AsGodotObject() as PartyState;
+        return _runtime.get_party_state();
     }
 
     private PartyWarehouseService GetPartyWarehouseService()
     {
         if (!HasRuntime())
             return null;
-        return _runtime.Call("get_party_warehouse_service").AsGodotObject()
-            as PartyWarehouseService;
+        return _runtime.get_party_warehouse_service();
     }
 
-    private GodotObject GetPartyItemUseService()
+    private PartyItemUseService GetPartyItemUseService()
     {
         if (!HasRuntime())
             return null;
-        return _runtime.Call("get_party_item_use_service").AsGodotObject();
+        return _runtime.get_party_item_use_service();
     }
 
     private GameSession GetGameSession()
     {
         if (!HasRuntime())
             return null;
-        return _runtime.Call("get_game_session").AsGodotObject() as GameSession;
+        return _runtime.get_game_session();
     }
 
     private bool IsBattleActive()
     {
         if (!HasRuntime())
             return false;
-        return _runtime.Call("is_battle_active").AsBool();
+        return _runtime.is_battle_active();
     }
 
     private string GetActiveModalId()
     {
         if (!HasRuntime())
             return "";
-        return _runtime.Call("get_active_modal_id").AsString();
+        return _runtime.get_active_modal_id();
     }
 
     private void SetActiveModalId(string modalId)
     {
         if (HasRuntime())
-            _runtime.Call("set_runtime_active_modal_id", modalId);
+            _runtime.set_runtime_active_modal_id(modalId);
     }
 
     private void SetActiveWarehouseEntryLabel(string entryLabel)
     {
         if (HasRuntime())
-            _runtime.Call("set_active_warehouse_entry_label", entryLabel);
+            _runtime.set_active_warehouse_entry_label(entryLabel);
     }
 
     private string GetActiveWarehouseMetaLabel()
     {
         if (!HasRuntime())
             return "";
-        return _runtime.Call("get_active_warehouse_entry_label").AsString();
+        return _runtime.get_active_warehouse_entry_label();
     }
 
     private Error PersistPartyState()
     {
         if (!HasRuntime())
             return Error.Unavailable;
-        return (Error)_runtime.Call("persist_party_state").AsInt32();
+        return (Error)_runtime.persist_party_state();
     }
 
     private WarehouseTransactionSnapshot CaptureWarehouseTransactionSnapshot()
@@ -811,26 +795,26 @@ public partial class GameRuntimeWarehouseHandler : RefCounted
         };
 
         var gameSession = GetGameSession();
-        if (gameSession != null && gameSession.HasMethod("_capture_runtime_state"))
+        if (gameSession != null)
         {
-            var runtimeState = gameSession.Call("_capture_runtime_state");
-            if (runtimeState.VariantType == Variant.Type.Dictionary)
-                snapshot.RuntimeState = runtimeState.AsGodotDictionary().Duplicate(true);
+            var runtimeState = gameSession._capture_runtime_state();
+            if (runtimeState != null)
+                snapshot.RuntimeState = runtimeState.Duplicate(true);
         }
 
         var partyState = GetPartyState();
-        if (partyState != null && partyState.HasMethod("to_dict"))
+        if (partyState != null)
         {
-            var partyPayload = partyState.Call("to_dict");
-            if (partyPayload.VariantType == Variant.Type.Dictionary)
-                snapshot.PartyStatePayload = partyPayload.AsGodotDictionary().Duplicate(true);
+            var partyPayload = partyState.to_dict();
+            if (partyPayload != null)
+                snapshot.PartyStatePayload = partyPayload.Duplicate(true);
         }
 
-        if (gameSession != null && gameSession.HasMethod("get_world_data"))
+        if (gameSession != null)
         {
-            var worldData = gameSession.Call("get_world_data");
-            if (worldData.VariantType == Variant.Type.Dictionary)
-                snapshot.WorldData = worldData.AsGodotDictionary().Duplicate(true);
+            var worldData = gameSession.get_world_data();
+            if (worldData != null)
+                snapshot.WorldData = worldData.Duplicate(true);
         }
 
         return snapshot;
@@ -849,31 +833,25 @@ public partial class GameRuntimeWarehouseHandler : RefCounted
             snapshot.WorldData.Count > 0 ? snapshot.WorldData.Duplicate(true) : new Dictionary();
         var gameSession = GetGameSession();
 
-        if (
-            gameSession != null
-            && gameSession.HasMethod("_restore_runtime_state")
-            && snapshot.RuntimeState.Count > 0
-        )
+        if (gameSession != null && snapshot.RuntimeState.Count > 0)
         {
             var restoredRuntimeState = snapshot.RuntimeState.Duplicate(true);
             restoredRuntimeState["party_state"] = restoredPartyState;
             if (restoredWorldData.Count > 0)
                 restoredRuntimeState["world_data"] = restoredWorldData;
-            gameSession.Call("_restore_runtime_state", restoredRuntimeState);
+            gameSession._restore_runtime_state(restoredRuntimeState);
         }
         else if (gameSession != null)
         {
-            if (gameSession.HasMethod("set_party_state"))
-                gameSession.Call("set_party_state", restoredPartyState);
-            if (restoredWorldData.Count > 0 && gameSession.HasMethod("set_world_data"))
-                gameSession.Call("set_world_data", restoredWorldData);
-            if (gameSession.HasMethod("discard_pending_save"))
-                gameSession.Call("discard_pending_save");
+            gameSession.set_party_state(restoredPartyState);
+            if (restoredWorldData.Count > 0)
+                gameSession.set_world_data(restoredWorldData);
+            gameSession.discard_pending_save();
         }
 
         if (HasRuntime())
         {
-            _runtime.Call("set_party_state", restoredPartyState);
+            _runtime.set_party_state(restoredPartyState);
             SetPartySelectedMemberId(snapshot.SelectedMemberId);
             RestoreWorldDataContext(restoredWorldData);
         }
@@ -886,58 +864,50 @@ public partial class GameRuntimeWarehouseHandler : RefCounted
         if (!HasRuntime() || restoredWorldData == null || restoredWorldData.Count == 0)
             return;
 
-        GodotObject dataContext = null;
-        var dataContextValue = _runtime.Get("_world_map_data_context");
-        if (dataContextValue.VariantType == Variant.Type.Object)
-            dataContext = dataContextValue.AsGodotObject();
-        if (dataContext == null || !dataContext.HasMethod("bind_root_world_data"))
+        var dataContext = _runtime._world_map_data_context;
+        if (dataContext == null)
             return;
 
-        dataContext.Call("bind_root_world_data", restoredWorldData);
-        if (!dataContext.HasMethod("sync_active_world_context"))
-            return;
-        if (!_runtime.HasMethod("get_generation_config") || !_runtime.HasMethod("get_grid_system"))
-            return;
-        dataContext.Call(
-            "sync_active_world_context",
-            _runtime.Call("get_generation_config"),
-            _runtime.Call("get_grid_system"),
-            _runtime.Call("get_player_coord"),
-            _runtime.Call("get_selected_coord")
+        dataContext.bind_root_world_data(restoredWorldData);
+        dataContext.sync_active_world_context(
+            _runtime.get_generation_config(),
+            _runtime.get_grid_system(),
+            _runtime.get_player_coord(),
+            _runtime.get_selected_coord()
         );
     }
 
     private void SetPartySelectedMemberId(StringName memberId)
     {
         if (HasRuntime())
-            _runtime.Call("set_party_selected_member_id", memberId);
+            _runtime.set_party_selected_member_id(memberId);
     }
 
     private StringName GetPartySelectedMemberId()
     {
         if (!HasRuntime())
             return "";
-        return _runtime.Call("get_party_selected_member_id").AsStringName();
+        return _runtime.get_party_selected_member_id();
     }
 
     private bool PresentPendingRewardIfReady()
     {
         if (!HasRuntime())
             return false;
-        return _runtime.Call("present_pending_reward_if_ready").AsBool();
+        return _runtime.present_pending_reward_if_ready();
     }
 
     private void UpdateStatus(string message)
     {
         if (HasRuntime())
-            _runtime.Call("update_status", message);
+            _runtime.update_status(message);
     }
 
     private string GetStatusText()
     {
         if (!HasRuntime())
             return "";
-        return _runtime.Call("get_status_text").AsString();
+        return _runtime.get_status_text();
     }
 
     private static bool DictionaryBool(Dictionary dictionary, string key, bool fallback)
@@ -983,11 +953,11 @@ public partial class GameRuntimeWarehouseHandler : RefCounted
         return dictionary[key].AsGodotDictionary();
     }
 
-    private static GodotObject ResolveWeakRef(WeakReference<GodotObject> weakRef)
+    private static GameRuntimeFacade ResolveWeakRef(WeakReference<GameRuntimeFacade> weakRef)
     {
         if (
             weakRef == null
-            || !weakRef.TryGetTarget(out GodotObject target)
+            || !weakRef.TryGetTarget(out GameRuntimeFacade target)
             || !GodotObject.IsInstanceValid(target)
         )
             return null;

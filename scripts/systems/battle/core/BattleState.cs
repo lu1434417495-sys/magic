@@ -139,6 +139,12 @@ public partial class BattleState : RefCounted
 
     public int get_log_text_byte_size() => _log_text_byte_size;
 
+    public int next_attack_roll_nonce()
+    {
+        attack_roll_nonce = Mathf.Max(attack_roll_nonce, 0) + 1;
+        return attack_roll_nonce;
+    }
+
     public string get_log_budget_summary_text() =>
         $"{log_entries.Count} 条 / {_log_text_byte_size / (1024.0 * 1024.0):F2} MiB";
 

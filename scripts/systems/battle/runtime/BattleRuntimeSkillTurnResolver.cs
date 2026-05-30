@@ -71,15 +71,15 @@ public partial class BattleRuntimeSkillTurnResolver : RefCounted
 
     private WeakReference<GodotObject> _runtimeRef;
 
-    private GodotObject _runtime
+    private BattleRuntimeModule _runtime
     {
-        get => ResolveWeakRef(_runtimeRef);
+        get => ResolveWeakRef(_runtimeRef) as BattleRuntimeModule;
         set => _runtimeRef = value != null ? new WeakReference<GodotObject>(value) : null;
     }
 
     public void setup(GodotObject runtime)
     {
-        _runtime = runtime;
+        _runtime = runtime as BattleRuntimeModule;
     }
 
     public void dispose()
@@ -371,7 +371,7 @@ public partial class BattleRuntimeSkillTurnResolver : RefCounted
         }
         if (
             has_status(active_unit, STATUS_BLACK_STAR_BRAND_NORMAL)
-            && _runtime.Call("_skill_grants_guarding", skill_def).AsBool()
+            && _runtime._skill_grants_guarding(skill_def as SkillDef)
         )
         {
             return "黑星烙印封锁了格挡，无法施放该技能。";
@@ -404,10 +404,7 @@ public partial class BattleRuntimeSkillTurnResolver : RefCounted
 
     public bool unit_has_equipped_shield(GodotObject active_unit)
     {
-        GDictionary itemDefs =
-            _runtime != null && _runtime.HasMethod("get_item_defs")
-                ? _runtime.Call("get_item_defs").AsGodotDictionary()
-                : new GDictionary();
+        GDictionary itemDefs = _runtime != null ? _runtime.get_item_defs() : new GDictionary();
         return BattleEquipmentRequirementRules.unit_has_equipped_shield(active_unit, itemDefs);
     }
 
@@ -492,13 +489,11 @@ public partial class BattleRuntimeSkillTurnResolver : RefCounted
         {
             return "";
         }
-        if (_runtime == null || !_runtime.HasMethod("get_misfortune_skill_cast_block_reason"))
+        if (_runtime == null)
         {
             return MisfortuneService.GetSkillSidecarMissingMessage(skillId);
         }
-        return _runtime
-            .Call("get_misfortune_skill_cast_block_reason", active_unit, skillId)
-            .AsString();
+        return _runtime.get_misfortune_skill_cast_block_reason(active_unit as BattleUnitState, skillId);
     }
 
     public bool consume_skill_costs(
@@ -621,9 +616,10 @@ public partial class BattleRuntimeSkillTurnResolver : RefCounted
             );
             return false;
         }
-        GDictionary consumeResult = _runtime
-            .Call("consume_misfortune_skill_cast", active_unit, skillId)
-            .AsGodotDictionary();
+        GDictionary consumeResult = _runtime.consume_misfortune_skill_cast(
+            active_unit as BattleUnitState,
+            skillId
+        );
         if (!GdInterop.GetBool(consumeResult, "ok", false))
         {
             AppendLog(
@@ -726,17 +722,12 @@ public partial class BattleRuntimeSkillTurnResolver : RefCounted
         {
             return new GDictionary();
         }
-        int skillLevel = _runtime
-            .Call(
-                "_get_unit_skill_level",
-                active_unit,
-                GdInterop.GetStringName(skill_def, "skill_id")
-            )
-            .AsInt32();
-        var costs = combatProfile.Call("get_effective_resource_costs", skillLevel);
-        return costs.VariantType == Variant.Type.Dictionary
-            ? costs.AsGodotDictionary()
-            : new GDictionary();
+        int skillLevel = _runtime._get_unit_skill_level(
+            active_unit as BattleUnitState,
+            GdInterop.GetStringName(skill_def, "skill_id")
+        );
+        return (combatProfile as CombatSkillDef)?.get_effective_resource_costs(skillLevel)
+            ?? new GDictionary();
     }
 
     public string get_locked_combat_resource_block_reason(
@@ -878,9 +869,8 @@ public partial class BattleRuntimeSkillTurnResolver : RefCounted
         }
         else if (optionId == BLACK_CONTRACT_PUSH_OPTION_ACTION)
         {
-            _runtime.Call(
-                "_set_runtime_status_effect",
-                active_unit,
+            _runtime._set_runtime_status_effect(
+                active_unit as BattleUnitState,
                 STATUS_STAGGERED,
                 DOOM_SHIFT_SELF_DEBUFF_DURATION_TU,
                 GdInterop.GetStringName(active_unit, "unit_id"),
@@ -892,9 +882,8 @@ public partial class BattleRuntimeSkillTurnResolver : RefCounted
                 $"{DisplayName(active_unit)} 透支了下一回合的行动力，换取这次黑契推进。"
             );
         }
-        _runtime.Call(
-            "_append_changed_unit_id",
-            batch,
+        _runtime._append_changed_unit_id(
+            batch as BattleEventBatch,
             GdInterop.GetStringName(active_unit, "unit_id")
         );
         return true;
@@ -987,9 +976,8 @@ public partial class BattleRuntimeSkillTurnResolver : RefCounted
         }
         if (changed)
         {
-            _runtime.Call(
-                "_append_changed_unit_id",
-                batch,
+            _runtime._append_changed_unit_id(
+                batch as BattleEventBatch,
                 GdInterop.GetStringName(unit_state, "unit_id")
             );
         }
@@ -1076,9 +1064,8 @@ public partial class BattleRuntimeSkillTurnResolver : RefCounted
         }
         if (changed)
         {
-            _runtime.Call(
-                "_append_changed_unit_id",
-                batch,
+            _runtime._append_changed_unit_id(
+                batch as BattleEventBatch,
                 GdInterop.GetStringName(unit_state, "unit_id")
             );
         }
@@ -1133,7 +1120,7 @@ public partial class BattleRuntimeSkillTurnResolver : RefCounted
                 changed = true;
             }
             int tickLimitTu = currentTu;
-            if (statusEntry.Call("has_duration").AsBool())
+            if (statusEntry.has_duration())
             {
                 tickLimitTu = Math.Min(
                     tickLimitTu,
@@ -1174,7 +1161,7 @@ public partial class BattleRuntimeSkillTurnResolver : RefCounted
             }
             if (GdInterop.GetBool(unit_state, "is_alive"))
             {
-                unit_state.Call("set_status_effect", statusEntry);
+                (unit_state as BattleUnitState)?.set_status_effect(statusEntry);
             }
         }
         return new GDictionary
@@ -1224,7 +1211,7 @@ public partial class BattleRuntimeSkillTurnResolver : RefCounted
             }
             if (GdInterop.GetBool(durationResult, "changed", false))
             {
-                unit_state.Call("set_status_effect", statusEntry);
+                (unit_state as BattleUnitState)?.set_status_effect(statusEntry);
                 changed = true;
             }
         }
@@ -1323,45 +1310,35 @@ public partial class BattleRuntimeSkillTurnResolver : RefCounted
         }
         GArray previousCoords = GdInterop.GetArray(unit_state, "occupied_coords").Duplicate();
         StringName currentCategory = GdInterop.GetStringName(unit_state, "body_size_category");
-        GodotObject runtime = _runtime;
-        GodotObject gridService =
-            runtime != null && runtime.HasMethod("get_grid_service")
-                ? runtime.Call("get_grid_service").AsGodotObject()
-                : null;
-        GodotObject state =
-            runtime != null && runtime.HasMethod("get_state")
-                ? runtime.Call("get_state").AsGodotObject()
-                : null;
+        BattleRuntimeModule runtime = _runtime;
+        BattleGridService gridService = runtime?.get_grid_service();
+        GodotObject state = runtime?.get_state();
+        var typedUnit = unit_state as BattleUnitState;
         if (gridService != null && state != null)
         {
-            gridService.Call("clear_unit_occupancy", state, unit_state);
+            gridService.clear_unit_occupancy(state, typedUnit);
         }
-        unit_state.Call("set_body_size_category", previousCategory);
+        typedUnit?.set_body_size_category(previousCategory);
         if (gridService != null && state != null)
         {
             if (
-                !gridService
-                    .Call(
-                        "can_place_unit",
-                        state,
-                        unit_state,
-                        GdInterop.GetVector2I(unit_state, "coord"),
-                        true
-                    )
-                    .AsBool()
+                !gridService.can_place_unit(
+                    state,
+                    typedUnit,
+                    GdInterop.GetVector2I(unit_state, "coord"),
+                    true
+                )
             )
             {
-                unit_state.Call("set_body_size_category", currentCategory);
-                gridService.Call(
-                    "set_occupants",
+                typedUnit?.set_body_size_category(currentCategory);
+                gridService.set_occupants(
                     state,
                     previousCoords,
                     GdInterop.GetStringName(unit_state, "unit_id")
                 );
                 return false;
             }
-            gridService.Call(
-                "set_occupants",
+            gridService.set_occupants(
                 state,
                 GdInterop.GetArray(unit_state, "occupied_coords"),
                 GdInterop.GetStringName(unit_state, "unit_id")
@@ -1369,11 +1346,10 @@ public partial class BattleRuntimeSkillTurnResolver : RefCounted
         }
         if (runtime != null && batch != null)
         {
-            runtime.Call("_append_changed_coords", batch, previousCoords);
-            runtime.Call("_append_changed_unit_coords", batch, unit_state);
-            runtime.Call(
-                "_append_changed_unit_id",
-                batch,
+            runtime._append_changed_coords(batch as BattleEventBatch, previousCoords);
+            runtime._append_changed_unit_coords(batch as BattleEventBatch, typedUnit);
+            runtime._append_changed_unit_id(
+                batch as BattleEventBatch,
                 GdInterop.GetStringName(unit_state, "unit_id")
             );
         }
@@ -1490,9 +1466,10 @@ public partial class BattleRuntimeSkillTurnResolver : RefCounted
         }
         GodotObject bestUnit = null;
         int bestDistance = 999999;
-        int effectiveRange = _runtime
-            .Call("_get_effective_skill_range", unit_state, skill_def)
-            .AsInt32();
+        int effectiveRange = _runtime._get_effective_skill_range(
+            unit_state as BattleUnitState,
+            skill_def as SkillDef
+        );
         foreach (var unitValue in GdInterop.GetDictionary(state, "units").Values)
         {
             GodotObject candidate = unitValue.AsGodotObject();
@@ -1505,10 +1482,10 @@ public partial class BattleRuntimeSkillTurnResolver : RefCounted
             {
                 continue;
             }
-            int distance = GdInterop
-                .GetObject(_runtime, "_grid_service")
-                .Call("get_distance_between_units", unit_state, candidate)
-                .AsInt32();
+            int distance = _runtime.get_grid_service().get_distance_between_units(
+                unit_state as BattleUnitState,
+                candidate as BattleUnitState
+            );
             if (distance > effectiveRange)
             {
                 continue;
@@ -1528,12 +1505,11 @@ public partial class BattleRuntimeSkillTurnResolver : RefCounted
         {
             return;
         }
-        _runtime.Call(
-            "_append_changed_unit_id",
-            batch,
+        _runtime._append_changed_unit_id(
+            batch as BattleEventBatch,
             GdInterop.GetStringName(unit_state, "unit_id")
         );
-        _runtime.Call("_append_changed_unit_coords", batch, unit_state);
+        _runtime._append_changed_unit_coords(batch as BattleEventBatch, unit_state as BattleUnitState);
     }
 
     public void _append_log(GodotObject batch, string line)
@@ -1554,9 +1530,8 @@ public partial class BattleRuntimeSkillTurnResolver : RefCounted
         EraseStatusEffect(unit_state, status_id);
         if (batch != null)
         {
-            _runtime.Call(
-                "_append_changed_unit_id",
-                batch,
+            _runtime._append_changed_unit_id(
+                batch as BattleEventBatch,
                 GdInterop.GetStringName(unit_state, "unit_id")
             );
         }
@@ -1749,22 +1724,22 @@ public partial class BattleRuntimeSkillTurnResolver : RefCounted
 
     private static bool HasCombatResourceUnlocked(GodotObject unit, StringName resourceId)
     {
-        return unit.Call("has_combat_resource_unlocked", resourceId).AsBool();
+        return (unit as BattleUnitState)?.has_combat_resource_unlocked(resourceId) ?? false;
     }
 
     private static bool HasStatus(GodotObject unit, StringName statusId)
     {
-        return unit.Call("has_status_effect", statusId).AsBool();
+        return (unit as BattleUnitState)?.has_status_effect(statusId) ?? false;
     }
 
     private static BattleStatusEffectState GetStatusEffect(GodotObject unit, StringName statusId)
     {
-        return unit.Call("get_status_effect", statusId).AsGodotObject() as BattleStatusEffectState;
+        return (unit as BattleUnitState)?.get_status_effect(statusId);
     }
 
     private static void EraseStatusEffect(GodotObject unit, StringName statusId)
     {
-        unit.Call("erase_status_effect", statusId);
+        (unit as BattleUnitState)?.erase_status_effect(statusId);
     }
 
     private static void AppendLog(GodotObject batch, string line)

@@ -785,7 +785,7 @@ public partial class GameRuntimeFacade : RefCounted
     public void open_party_warehouse_window(string entry_label) =>
         _warehouse_handler?.open_party_warehouse_window(entry_label);
 
-    public GodotObject submit_battle_promotion_choice(
+    public BattleEventBatch submit_battle_promotion_choice(
         StringName member_id,
         StringName profession_id,
         GDictionary selection
@@ -3024,13 +3024,13 @@ public partial class GameRuntimeFacade : RefCounted
         var labels = _string_name_array_to_string_array(values);
         var strings = new string[labels.Count];
         for (int i = 0; i < labels.Count; i++)
-            strings[i] = labels[i].AsString();
+            strings[i] = labels[i];
         return string.Join("、", strings);
     }
 
-    public GArray _string_name_array_to_string_array(GArray values)
+    public Godot.Collections.Array<string> _string_name_array_to_string_array(GArray values)
     {
-        var labels = new GArray();
+        var labels = new Godot.Collections.Array<string>();
         foreach (StringName value in ProgressionDataUtils.to_string_name_array(values))
             labels.Add(value.ToString());
         return labels;
@@ -3605,7 +3605,7 @@ public partial class GameRuntimeFacade : RefCounted
     public bool _ensure_submap_generated(string submap_id) =>
         _world_map_data_context.ensure_submap_generated(submap_id);
 
-    public GodotObject _load_submap_generation_config(string submap_id) =>
+    public WorldMapGenerationConfig _load_submap_generation_config(string submap_id) =>
         _world_map_data_context.load_submap_generation_config(submap_id);
 
     public GDictionary _get_mounted_submap_entry(string submap_id) =>

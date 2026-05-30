@@ -6,7 +6,7 @@ using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 [GlobalClass]
-public partial class ProgressionContentRegistry : RefCounted
+public partial class ProgressionContentRegistry : RefCounted, IValidatableRegistry
 {
     private static readonly StringName HpMax = "hp_max";
     private static readonly StringName SkillTypeActive = "active";

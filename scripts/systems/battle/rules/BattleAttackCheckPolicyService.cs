@@ -95,7 +95,7 @@ public partial class BattleAttackCheckPolicyService : RefCounted
         return context;
     }
 
-    public GDictionary build_attack_check(
+    public AttackCheckInput build_attack_check(
         BattleAttackCheckPolicyContext context,
         int flat_bonus,
         int flat_penalty
@@ -103,7 +103,7 @@ public partial class BattleAttackCheckPolicyService : RefCounted
     {
         if (_hitResolver == null || context == null)
         {
-            return new GDictionary();
+            return new AttackCheckInput(invalid: true);
         }
         if (IsEmpty(context.roll_kind))
         {
@@ -111,15 +111,13 @@ public partial class BattleAttackCheckPolicyService : RefCounted
         }
 
         BattleAttackRollModifierBundle modifierBundle = build_modifier_bundle(context);
-        GDictionary attackCheck = _hitResolver.build_skill_attack_check(
+        return _hitResolver.build_skill_attack_check(
             context.attacker,
             context.target,
             context.skill_def,
             flat_bonus + modifierBundle.total_bonus,
             flat_penalty + modifierBundle.total_penalty
         );
-        AppendModifierBundlePayload(attackCheck, modifierBundle);
-        return attackCheck;
     }
 
     public GDictionary build_attack_preview(BattleAttackCheckPolicyContext context)
@@ -158,27 +156,26 @@ public partial class BattleAttackCheckPolicyService : RefCounted
             );
         }
 
-        GDictionary attackCheck = build_attack_check(context, 0, 0);
-        GDictionary resolvedCheck = _hitResolver._build_fate_aware_attack_check_preview(
+        AttackCheckInput attackCheck = build_attack_check(context, 0, 0);
+        AttackCheckInput resolvedCheck = _hitResolver._build_fate_aware_attack_check_preview(
             context.battle_state,
             context.attacker,
             context.target,
             attackCheck
         );
-        int successRate = GdInterop.GetInt(resolvedCheck, "success_rate_percent", 0);
-        int baseHitRate = GdInterop.GetInt(resolvedCheck, "base_hit_rate_percent", successRate);
-        string previewText = GdInterop.GetString(resolvedCheck, "preview_text", "");
+        int successRate = resolvedCheck.SuccessRatePercent;
+        int baseHitRate = resolvedCheck.BaseHitRatePercent;
+        string previewText = resolvedCheck.PreviewText;
 
         var preview = new GDictionary
         {
             ["summary_text"] = $"预计命中率 {previewText}",
-            ["stage_checks"] = new GDictArray { (GDictionary)resolvedCheck.Duplicate(true) },
             ["stage_hit_rates"] = new GIntArray { successRate },
             ["stage_success_rates"] = new GIntArray { successRate },
             ["stage_base_hit_rates"] = new GIntArray { baseHitRate },
             ["stage_required_rolls"] = new GIntArray
             {
-                GdInterop.GetInt(resolvedCheck, "display_required_roll", 20),
+                resolvedCheck.DisplayRequiredRoll,
             },
             ["stage_preview_texts"] = new GStringArray { previewText },
             ["hit_rate_percent"] = successRate,
@@ -211,7 +208,7 @@ public partial class BattleAttackCheckPolicyService : RefCounted
             Mathf.Max(stage_specs.Count, 1),
             RepeatAttackPreviewStageGuard
         );
-        var stageChecks = new GDictArray();
+        var summaryChecks = new List<AttackCheckInput>();
         var stageHitRates = new GIntArray();
         var stageSuccessRates = new GIntArray();
         var stageBaseHitRates = new GIntArray();
@@ -232,19 +229,15 @@ public partial class BattleAttackCheckPolicyService : RefCounted
                 stageSpec,
                 ROUTE_REPEAT_ATTACK_PREVIEW
             );
-            GDictionary attackCheck = build_fate_aware_repeat_attack_stage_hit_check(stageContext);
-            int stageSuccessRate = GdInterop.GetInt(attackCheck, "success_rate_percent", 0);
-            stageChecks.Add((GDictionary)attackCheck.Duplicate(true));
+            AttackCheckInput attackCheck = build_fate_aware_repeat_attack_stage_hit_check(stageContext);
+            summaryChecks.Add(attackCheck);
+            int stageSuccessRate = attackCheck.SuccessRatePercent;
             stageHitRates.Add(stageSuccessRate);
             stageSuccessRates.Add(stageSuccessRate);
-            stageBaseHitRates.Add(GdInterop.GetInt(attackCheck, "base_hit_rate_percent", 0));
-            stageRequiredRolls.Add(GdInterop.GetInt(attackCheck, "display_required_roll", 20));
-            stagePreviewTexts.Add(GdInterop.GetString(attackCheck, "preview_text", ""));
-            foreach (
-                GDictionary entry in GdInterop.ReadDictionaryItems(
-                    GdInterop.GetArray(attackCheck, "attack_roll_modifier_breakdown")
-                )
-            )
+            stageBaseHitRates.Add(attackCheck.BaseHitRatePercent);
+            stageRequiredRolls.Add(attackCheck.DisplayRequiredRoll);
+            stagePreviewTexts.Add(attackCheck.PreviewText);
+            foreach (GDictionary entry in build_modifier_bundle(stageContext).get_breakdown_payload())
             {
                 combinedBreakdown.Add((GDictionary)entry.Duplicate(true));
             }
@@ -252,8 +245,7 @@ public partial class BattleAttackCheckPolicyService : RefCounted
 
         var preview = new GDictionary
         {
-            ["summary_text"] = _hitResolver._format_repeat_attack_preview_summary(stageChecks),
-            ["stage_checks"] = stageChecks,
+            ["summary_text"] = _hitResolver._format_repeat_attack_preview_summary(summaryChecks),
             ["stage_hit_rates"] = stageHitRates,
             ["stage_success_rates"] = stageSuccessRates,
             ["stage_base_hit_rates"] = stageBaseHitRates,
@@ -301,37 +293,35 @@ public partial class BattleAttackCheckPolicyService : RefCounted
         return context;
     }
 
-    public GDictionary build_repeat_attack_stage_hit_check(BattleAttackCheckPolicyContext context)
+    public AttackCheckInput build_repeat_attack_stage_hit_check(BattleAttackCheckPolicyContext context)
     {
         if (_hitResolver == null || context == null || context.repeat_stage_spec == null)
         {
-            return new GDictionary();
+            return new AttackCheckInput(invalid: true);
         }
 
         context.roll_kind = ROLL_KIND_REPEAT_WEAPON_STAGE;
         BattleRepeatAttackStageSpec resolvedStageSpec = context.repeat_stage_spec;
         BattleAttackRollModifierBundle modifierBundle = build_modifier_bundle(context);
-        GDictionary attackCheck = _hitResolver.build_skill_attack_check(
+        return _hitResolver.build_skill_attack_check(
             context.attacker,
             context.target,
             context.skill_def,
             resolvedStageSpec.stage_base_attack_bonus + modifierBundle.total_bonus,
             resolvedStageSpec.resolve_stage_attack_penalty() + modifierBundle.total_penalty
         );
-        AppendModifierBundlePayload(attackCheck, modifierBundle);
-        return attackCheck;
     }
 
-    public GDictionary build_fate_aware_repeat_attack_stage_hit_check(
+    public AttackCheckInput build_fate_aware_repeat_attack_stage_hit_check(
         BattleAttackCheckPolicyContext context
     )
     {
         if (_hitResolver == null || context == null || context.repeat_stage_spec == null)
         {
-            return new GDictionary();
+            return new AttackCheckInput(invalid: true);
         }
         context.repeat_stage_spec.fate_aware = true;
-        GDictionary baseAttackCheck = build_repeat_attack_stage_hit_check(context);
+        AttackCheckInput baseAttackCheck = build_repeat_attack_stage_hit_check(context);
         return _hitResolver._build_fate_aware_attack_check_preview(
             context.battle_state,
             context.attacker,
@@ -340,11 +330,11 @@ public partial class BattleAttackCheckPolicyService : RefCounted
         );
     }
 
-    public GDictionary roll_attack_check(BattleState battle_state, GDictionary attack_check)
+    public AttackRollResult roll_attack_check(BattleState battle_state, AttackCheckInput attack_check)
     {
         return _hitResolver != null
             ? _hitResolver.roll_attack_check(battle_state, attack_check)
-            : new GDictionary();
+            : new AttackRollResult();
     }
 
     public GSpecArray _resolve_stacked_specs(GSpecArray candidates)

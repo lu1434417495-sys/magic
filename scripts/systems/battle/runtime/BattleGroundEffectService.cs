@@ -49,7 +49,7 @@ public partial class BattleGroundEffectService : RefCounted
 
     public void _append_result_report_entry(GodotObject batch, GDictionary result)
     {
-        _runtime?.Call("_append_result_report_entry", batch, result);
+        Runtime?._append_result_report_entry(batch as BattleEventBatch, result);
     }
 
     public void mark_applied_statuses_for_turn_timing(
@@ -57,9 +57,8 @@ public partial class BattleGroundEffectService : RefCounted
         GArray status_effect_ids
     )
     {
-        _runtime?.Call(
-            "mark_applied_statuses_for_turn_timing",
-            target_unit,
+        Runtime?.mark_applied_statuses_for_turn_timing(
+            target_unit as BattleUnitState,
             status_effect_ids ?? new GArray()
         );
     }
@@ -70,7 +69,11 @@ public partial class BattleGroundEffectService : RefCounted
         GDictionary result
     )
     {
-        _runtime?.Call("append_result_source_status_effects", batch, source_unit, result);
+        Runtime?.append_result_source_status_effects(
+            batch as BattleEventBatch,
+            source_unit as BattleUnitState,
+            result
+        );
     }
 
     public void _record_effect_metrics(
@@ -81,10 +84,9 @@ public partial class BattleGroundEffectService : RefCounted
         int kill_count
     )
     {
-        _runtime?.Call(
-            "_record_effect_metrics",
-            source_unit,
-            target_unit,
+        Runtime?._record_effect_metrics(
+            source_unit as BattleUnitState,
+            target_unit as BattleUnitState,
             damage,
             healing,
             kill_count
@@ -93,7 +95,7 @@ public partial class BattleGroundEffectService : RefCounted
 
     public void _record_unit_defeated(GodotObject unit_state)
     {
-        _runtime?.Call("_record_unit_defeated", unit_state);
+        Runtime?._record_unit_defeated(unit_state as BattleUnitState);
     }
 
     public void append_damage_result_log_lines(
@@ -103,9 +105,8 @@ public partial class BattleGroundEffectService : RefCounted
         GDictionary result
     )
     {
-        _runtime?.Call(
-            "append_damage_result_log_lines",
-            batch,
+        Runtime?.append_damage_result_log_lines(
+            batch as BattleEventBatch,
             subject_label,
             target_display_name,
             result
@@ -120,9 +121,11 @@ public partial class BattleGroundEffectService : RefCounted
     {
         return _runtime == null
             ? ""
-            : _runtime
-                .Call("_build_skill_log_subject_label", source_unit, skill_def, cast_variant)
-                .AsString();
+            : Runtime._build_skill_log_subject_label(
+                source_unit as BattleUnitState,
+                skill_def as SkillDef,
+                cast_variant as CombatCastVariantDef
+            );
     }
 
     public void _apply_on_kill_gain_resources_effects(
@@ -133,25 +136,27 @@ public partial class BattleGroundEffectService : RefCounted
         GodotObject batch
     )
     {
-        _runtime?.Call(
-            "_apply_on_kill_gain_resources_effects",
-            source_unit,
-            defeated_unit,
-            skill_def,
+        Runtime?._apply_on_kill_gain_resources_effects(
+            source_unit as BattleUnitState,
+            defeated_unit as BattleUnitState,
+            skill_def as SkillDef,
             ToCombatEffectDefArray(effect_defs),
-            batch
+            batch as BattleEventBatch
         );
     }
 
     public bool _is_crown_break_target_eligible(GodotObject active_unit, GodotObject target_unit)
     {
         return _runtime != null
-            && _runtime.Call("_is_crown_break_target_eligible", active_unit, target_unit).AsBool();
+            && Runtime._is_crown_break_target_eligible(
+                active_unit as BattleUnitState,
+                target_unit as BattleUnitState
+            );
     }
 
     public bool _is_crown_break_skill(StringName skill_id)
     {
-        return _runtime != null && _runtime.Call("_is_crown_break_skill", skill_id).AsBool();
+        return _runtime != null && Runtime._is_crown_break_skill(skill_id);
     }
 
     public void _record_vajra_body_mastery_from_incoming_damage(
@@ -162,13 +167,12 @@ public partial class BattleGroundEffectService : RefCounted
         GodotObject batch = null
     )
     {
-        _runtime?.Call(
-            "_record_vajra_body_mastery_from_incoming_damage",
-            source_unit,
-            target_unit,
-            skill_def,
+        Runtime?._record_vajra_body_mastery_from_incoming_damage(
+            source_unit as BattleUnitState,
+            target_unit as BattleUnitState,
+            skill_def as SkillDef,
             result,
-            batch
+            batch as BattleEventBatch
         );
     }
 
@@ -176,7 +180,9 @@ public partial class BattleGroundEffectService : RefCounted
     {
         return _runtime == null
             ? new GArray()
-            : ToArray(_runtime.Call("_collect_units_in_coords", effect_coords));
+            : ToArray(
+                Runtime._collect_units_in_coords(new Godot.Collections.Array<Vector2I>(effect_coords))
+            );
     }
 
     public GDictionary _apply_unit_shield_effects(
@@ -192,11 +198,10 @@ public partial class BattleGroundEffectService : RefCounted
             return new GDictionary();
         }
         return ToDictionary(
-            _runtime.Call(
-                "_apply_unit_shield_effects",
-                source_unit,
-                target_unit,
-                skill_def,
+            Runtime._apply_unit_shield_effects(
+                source_unit as BattleUnitState,
+                target_unit as BattleUnitState,
+                skill_def as SkillDef,
                 ToCombatEffectDefArray(effect_defs),
                 shield_roll_context ?? new GDictionary()
             )
@@ -207,7 +212,9 @@ public partial class BattleGroundEffectService : RefCounted
     {
         return _runtime == null
             ? Empty
-            : ToStringName(_runtime.Call("_resolve_effect_target_filter", skill_def, effect_def));
+            : ToStringName(
+                Runtime._resolve_effect_target_filter(skill_def as SkillDef, effect_def as CombatEffectDef)
+            );
     }
 
     public bool _is_unit_valid_for_effect(
@@ -217,84 +224,88 @@ public partial class BattleGroundEffectService : RefCounted
     )
     {
         return _runtime != null
-            && _runtime
-                .Call("_is_unit_valid_for_effect", source_unit, target_unit, target_team_filter)
-                .AsBool();
+            && Runtime._is_unit_valid_for_effect(
+                source_unit as BattleUnitState,
+                target_unit as BattleUnitState,
+                target_team_filter
+            );
     }
 
     public void _flush_last_stand_mastery_records(GodotObject batch)
     {
-        _runtime?.Call("_flush_last_stand_mastery_records", batch);
+        Runtime?._flush_last_stand_mastery_records(batch as BattleEventBatch);
     }
 
     public void _append_changed_coord(GodotObject batch, Vector2I coord)
     {
-        _runtime?.Call("_append_changed_coord", batch, coord);
+        Runtime?._append_changed_coord(batch as BattleEventBatch, coord);
     }
 
     public void _append_changed_coords(GodotObject batch, GArray coords)
     {
-        _runtime?.Call("_append_changed_coords", batch, coords);
+        Runtime?._append_changed_coords(batch as BattleEventBatch, coords);
     }
 
     public void _append_changed_unit_id(GodotObject batch, StringName unit_id)
     {
-        _runtime?.Call("_append_changed_unit_id", batch, unit_id);
+        Runtime?._append_changed_unit_id(batch as BattleEventBatch, unit_id);
     }
 
     public void _append_changed_unit_coords(GodotObject batch, GodotObject unit_state)
     {
-        _runtime?.Call("_append_changed_unit_coords", batch, unit_state);
+        Runtime?._append_changed_unit_coords(batch as BattleEventBatch, unit_state as BattleUnitState);
     }
 
     public void _collect_defeated_unit_loot(GodotObject unit_state, GodotObject killer_unit = null)
     {
-        _runtime?.Call("_collect_defeated_unit_loot", unit_state, killer_unit);
+        Runtime?._collect_defeated_unit_loot(unit_state as BattleUnitState, killer_unit as BattleUnitState);
     }
 
     public void _clear_defeated_unit(GodotObject unit_state, GodotObject batch = null)
     {
-        _runtime?.Call("_clear_defeated_unit", unit_state, batch);
+        Runtime?._clear_defeated_unit(unit_state as BattleUnitState, batch as BattleEventBatch);
     }
 
     public GArray _sort_coords(GArray target_coords)
     {
         return _runtime == null
             ? new GArray()
-            : ToArray(_runtime.Call("_sort_coords", target_coords));
+            : ToArray(Runtime._sort_coords(target_coords));
     }
 
     public int _get_unit_skill_level(GodotObject unit_state, StringName skill_id)
     {
         return _runtime == null
             ? 0
-            : _runtime.Call("_get_unit_skill_level", unit_state, skill_id).AsInt32();
+            : Runtime._get_unit_skill_level(unit_state as BattleUnitState, skill_id);
     }
 
     public string _get_skill_cast_block_reason(GodotObject active_unit, GodotObject skill_def)
     {
         return _runtime == null
             ? ""
-            : _runtime.Call("_get_skill_cast_block_reason", active_unit, skill_def).AsString();
+            : Runtime._get_skill_cast_block_reason(active_unit as BattleUnitState, skill_def as SkillDef);
     }
 
     public GDictionary _get_effective_skill_costs(GodotObject active_unit, GodotObject skill_def)
     {
         return _runtime == null
             ? new GDictionary()
-            : ToDictionary(_runtime.Call("_get_effective_skill_costs", active_unit, skill_def));
+            : ToDictionary(
+                Runtime._get_effective_skill_costs(active_unit as BattleUnitState, skill_def as SkillDef)
+            );
     }
 
     public int _get_effective_skill_range(GodotObject active_unit, GodotObject skill_def)
     {
         return _runtime == null
             ? 0
-            : _runtime.Call("_get_effective_skill_range", active_unit, skill_def).AsInt32();
+            : Runtime._get_effective_skill_range(active_unit as BattleUnitState, skill_def as SkillDef);
     }
 
     public bool _is_movement_blocked(GodotObject unit_state)
     {
-        return _runtime != null && _runtime.Call("_is_movement_blocked", unit_state).AsBool();
+        return _runtime != null && Runtime._is_movement_blocked(unit_state as BattleUnitState);
     }
 
     public GDictionary _resolve_ground_spell_control_after_cost(
@@ -1464,37 +1475,37 @@ public partial class BattleGroundEffectService : RefCounted
         if (_should_resolve_ground_effects_as_attack(effect_defs))
         {
             GArray attackEffectDefs = _dedupe_effect_defs_by_instance(effect_defs);
-            GodotObject attackPolicy = _runtime
-                .Call("get_attack_check_policy_service")
-                .AsGodotObject();
-            var attackContext = attackPolicy.Call(
-                "build_attack_context",
+            BattleRuntimeModule runtime = _runtime as BattleRuntimeModule;
+            BattleAttackCheckPolicyService attackPolicy =
+                runtime?.get_attack_check_policy_service();
+            BattleDamageResolver damageResolver = runtime?.get_damage_resolver();
+            BattleUnitState sourceUnit = source_unit as BattleUnitState;
+            BattleUnitState targetUnit = target_unit as BattleUnitState;
+            SkillDef skillDef = skill_def as SkillDef;
+            if (attackPolicy == null || damageResolver == null)
+            {
+                return new GDictionary();
+            }
+            BattleAttackCheckPolicyContext attackContext = attackPolicy.build_attack_context(
                 State,
-                source_unit,
-                target_unit,
-                skill_def,
+                sourceUnit,
+                targetUnit,
+                skillDef,
                 new StringName("skill_attack_check"),
                 new StringName("execute"),
                 false
             );
-            var attackCheck = attackPolicy.Call("build_attack_check", attackContext, 0, 0);
-            return ToDictionary(
-                GetRuntimeObject("_damage_resolver")
-                    .Call(
-                        "resolve_attack_effects",
-                        source_unit,
-                        target_unit,
-                        attackEffectDefs,
-                        attackCheck,
-                        new GDictionary
-                        {
-                            ["battle_state"] = State,
-                            ["skill_id"] =
-                                skill_def != null
-                                    ? GdInterop.GetStringName(skill_def, "skill_id")
-                                    : Empty,
-                        }
-                    )
+            AttackCheckInput attackCheck = attackPolicy.build_attack_check(attackContext, 0, 0);
+            return damageResolver.resolve_attack_effects(
+                sourceUnit,
+                targetUnit,
+                attackEffectDefs,
+                attackCheck,
+                new AttackContext
+                {
+                    BattleState = State,
+                    SkillId = skillDef != null ? skillDef.skill_id : Empty,
+                }
             );
         }
         return ToDictionary(

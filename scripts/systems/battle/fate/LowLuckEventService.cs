@@ -33,7 +33,7 @@ public partial class LowLuckEventService : RefCounted
         "赌坊",
     };
 
-    private GodotObject _characterGateway = null;
+    private IBattleRuntimeCharacterGateway _characterGateway = null;
     private BattleFateEventBus _fateEventBus = null;
     private readonly GDictionary _hardshipSurvivalByBattleId = new();
     private readonly GDictionary _criticalFailByBattleId = new();
@@ -54,14 +54,14 @@ public partial class LowLuckEventService : RefCounted
 
     public static string META_FLAG_PREFIX() => MetaFlagPrefix;
 
-    public void Setup(GodotObject characterGateway, GodotObject fateEventBusObj)
+    public void Setup(IBattleRuntimeCharacterGateway characterGateway, GodotObject fateEventBusObj)
     {
         _characterGateway = characterGateway;
         BindFateEventBus(fateEventBusObj);
     }
 
     public void setup(
-        GodotObject character_gateway = null,
+        IBattleRuntimeCharacterGateway character_gateway = null,
         BattleFateEventBus fate_event_bus = null
     )
     {
@@ -454,23 +454,16 @@ public partial class LowLuckEventService : RefCounted
     {
         if (_characterGateway == null || memberId == "")
             return new GDictionary();
-        if (!_characterGateway.HasMethod("build_pending_character_reward"))
-            return new GDictionary();
-        var reward = _characterGateway
-            .Call(
-                "build_pending_character_reward",
-                memberId,
-                _BuildRewardId(eventId, memberId),
-                SourceTypeStoryEvent,
-                eventId,
-                sourceLabel,
-                entryOptions,
-                summaryText
-            )
-            .AsGodotObject();
-        if (reward == null || !reward.HasMethod("to_dict"))
-            return new GDictionary();
-        return reward.Call("to_dict").AsGodotDictionary();
+        var reward = (_characterGateway as CharacterManagementModule)?.build_pending_character_reward(
+            memberId,
+            _BuildRewardId(eventId, memberId),
+            SourceTypeStoryEvent,
+            eventId,
+            sourceLabel,
+            entryOptions,
+            summaryText
+        );
+        return reward?.to_dict() ?? new GDictionary();
     }
 
     private GDictionary _BuildFixedItemLootEntry(
@@ -549,7 +542,7 @@ public partial class LowLuckEventService : RefCounted
             return "";
         foreach (var memberId in _BuildOrderedMemberIds(partyState))
         {
-            var memberState = partyState.Call("get_member_state", memberId).As<PartyMemberState>();
+            var memberState = partyState.get_member_state(memberId);
             if (memberState == null || memberState.is_dead)
                 continue;
             if (memberState.get_hidden_luck_at_birth() <= LowLuckThreshold)
@@ -682,7 +675,7 @@ public partial class LowLuckEventService : RefCounted
             return "";
         foreach (var memberId in _BuildOrderedMemberIds(partyState))
         {
-            var memberState = partyState.Call("get_member_state", memberId).As<PartyMemberState>();
+            var memberState = partyState.get_member_state(memberId);
             if (memberState == null || memberState.get_hidden_luck_at_birth() > LowLuckThreshold)
                 continue;
             if (!_IsBattleMemberAlive(battleState, memberId))
@@ -715,7 +708,7 @@ public partial class LowLuckEventService : RefCounted
     {
         if (_characterGateway == null || !_characterGateway.HasMethod("get_party_state"))
             return null;
-        return _characterGateway.Call("get_party_state").AsGodotObject();
+        return _characterGateway.get_party_state();
     }
 
     private PartyMemberState _GetMemberState(StringName memberId)
@@ -726,7 +719,7 @@ public partial class LowLuckEventService : RefCounted
             || !_characterGateway.HasMethod("get_member_state")
         )
             return null;
-        return _characterGateway.Call("get_member_state", memberId).As<PartyMemberState>();
+        return _characterGateway.get_member_state(memberId);
     }
 
     private bool _MarkMetaFlagIfFirst(StringName flagId)
@@ -734,9 +727,9 @@ public partial class LowLuckEventService : RefCounted
         var partyState = _GetPartyState();
         if (partyState == null || flagId == "")
             return false;
-        if (partyState.Call("has_meta_flag", flagId).AsBool())
+        if (partyState.has_meta_flag(flagId))
             return false;
-        partyState.Call("set_meta_flag", flagId, true);
+        partyState.set_meta_flag(flagId, true);
         return true;
     }
 
@@ -745,7 +738,7 @@ public partial class LowLuckEventService : RefCounted
         var partyState = _GetPartyState();
         if (partyState == null || flagId == "")
             return;
-        partyState.Call("clear_meta_flag", flagId);
+        partyState.clear_meta_flag(flagId);
     }
 
     private StringName _BuildEventMetaFlagId(StringName eventId, StringName memberId = null)

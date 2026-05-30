@@ -5,20 +5,20 @@ using Godot.Collections;
 [GlobalClass]
 public partial class GameRuntimeBattleWritebackService : RefCounted
 {
-    private WeakReference<GodotObject> _runtimeRef;
+    private WeakReference<GameRuntimeFacade> _runtimeRef;
 
-    private GodotObject _runtime
+    private GameRuntimeFacade _runtime
     {
         get => ResolveWeakRef(_runtimeRef);
-        set => _runtimeRef = value != null ? new WeakReference<GodotObject>(value) : null;
+        set => _runtimeRef = value != null ? new WeakReference<GameRuntimeFacade>(value) : null;
     }
 
-    public void Setup(GodotObject runtime)
+    public void Setup(GameRuntimeFacade runtime)
     {
         _runtime = runtime;
     }
 
-    public void setup(GodotObject runtime)
+    public void setup(GameRuntimeFacade runtime)
     {
         Setup(runtime);
     }
@@ -35,7 +35,7 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
 
     public Dictionary CommitBattleLocalViewsToPartyState(
         BattleState battleState,
-        GodotObject partyState
+        PartyState partyState
     )
     {
         return CommitBattleLocalViewsToPartyStateInternal(battleState, partyState);
@@ -43,7 +43,7 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
 
     public Dictionary commit_battle_local_views_to_party_state(
         BattleState battleState,
-        GodotObject partyState
+        PartyState partyState
     )
     {
         return CommitBattleLocalViewsToPartyState(battleState, partyState);
@@ -69,12 +69,12 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
 
     private Dictionary CommitBattleLocalViewsToPartyStateInternal(
         BattleState battleState,
-        GodotObject partyState
+        PartyState partyState
     )
     {
         if (battleState == null)
             return BuildBattleLocalWritebackFailure("battle_local_writeback_missing_battle_state");
-        if (partyState == null || !partyState.HasMethod("to_dict"))
+        if (partyState == null)
             return BuildBattleLocalWritebackFailure("battle_local_writeback_missing_party_state");
 
         var candidateParty = ClonePartyStateForBattleWriteback(partyState);
@@ -82,14 +82,14 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
             return BuildBattleLocalWritebackFailure("battle_local_writeback_invalid_party_state");
 
         var backpackView = battleState.get_party_backpack_view();
-        if (backpackView == null || !backpackView.HasMethod("duplicate_state"))
+        if (backpackView == null)
             return BuildBattleLocalWritebackFailure("battle_local_writeback_invalid_backpack_view");
 
-        var warehouseState = backpackView.Call("duplicate_state").AsGodotObject();
+        WarehouseState warehouseState = backpackView.duplicate_state();
         if (warehouseState == null)
             return BuildBattleLocalWritebackFailure("battle_local_writeback_invalid_backpack_view");
 
-        candidateParty.Set("warehouse_state", warehouseState);
+        candidateParty.warehouse_state = warehouseState;
 
         var committedMemberIds = new Dictionary();
         foreach (var allyUnitId in battleState.ally_unit_ids)
@@ -111,7 +111,7 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
                     new Dictionary { ["member_id"] = memberId.ToString() }
                 );
 
-            var memberState = candidateParty.Call("get_member_state", memberId).AsGodotObject();
+            PartyMemberState memberState = candidateParty.get_member_state(memberId);
             if (memberState == null)
                 return BuildBattleLocalWritebackFailure(
                     "battle_local_writeback_member_not_found",
@@ -133,7 +133,7 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
                 );
 
             var equipmentView = unitState.equipment_view;
-            if (equipmentView == null || !equipmentView.HasMethod("duplicate_state"))
+            if (equipmentView == null)
                 return BuildBattleLocalWritebackFailure(
                     "battle_local_writeback_invalid_equipment_view",
                     new Dictionary
@@ -143,7 +143,7 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
                     }
                 );
 
-            var equipmentCopy = equipmentView.Call("duplicate_state").AsGodotObject();
+            EquipmentState equipmentCopy = equipmentView.duplicate_state();
             if (equipmentCopy == null)
                 return BuildBattleLocalWritebackFailure(
                     "battle_local_writeback_invalid_equipment_view",
@@ -154,7 +154,7 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
                     }
                 );
 
-            memberState.Set("equipment_state", equipmentCopy);
+            memberState.equipment_state = equipmentCopy;
             committedMemberIds[memberId] = true;
         }
 
@@ -162,7 +162,7 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
         if (!DictionaryBool(validationResult, "ok", false))
             return validationResult;
 
-        _runtime.Set("_party_state", candidateParty);
+        _runtime.set_party_state(candidateParty);
         SyncRuntimePartyServicesAfterBattleLocalWriteback();
 
         return new Dictionary
@@ -175,33 +175,28 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
         };
     }
 
-    private GodotObject ClonePartyStateForBattleWriteback(GodotObject partyState)
+    private PartyState ClonePartyStateForBattleWriteback(PartyState partyState)
     {
-        if (partyState == null || !partyState.HasMethod("to_dict"))
+        if (partyState == null)
             return null;
-        var partyPayload = partyState.Call("to_dict");
-        if (partyPayload.VariantType != Variant.Type.Dictionary)
-            return null;
-        return PartyState.from_dict(partyPayload.AsGodotDictionary());
+        return PartyState.from_dict(partyState.to_dict());
     }
 
-    private Dictionary ValidateBattleLocalCandidatePartyState(GodotObject candidateParty)
+    private Dictionary ValidateBattleLocalCandidatePartyState(PartyState candidateParty)
     {
-        var warehouseState = candidateParty.Get("warehouse_state").AsGodotObject();
+        var warehouseState = candidateParty?.warehouse_state;
         if (candidateParty == null || warehouseState == null)
             return BuildBattleLocalWritebackFailure(
                 "battle_local_writeback_invalid_candidate_party"
             );
 
         var instanceOwnerById = new Dictionary();
-        var nonEmptyInstances = warehouseState.Call("get_non_empty_instances").AsGodotArray();
-        foreach (var instance in nonEmptyInstances)
+        foreach (EquipmentInstanceState instanceObj in warehouseState.get_non_empty_instances())
         {
-            var instanceObj = instance.AsGodotObject();
             if (instanceObj == null)
                 continue;
-            var instanceId = ProgressionDataUtils.to_string_name(instanceObj.Get("instance_id"));
-            var itemId = ProgressionDataUtils.to_string_name(instanceObj.Get("item_id"));
+            var instanceId = ProgressionDataUtils.to_string_name(instanceObj.instance_id);
+            var itemId = ProgressionDataUtils.to_string_name(instanceObj.item_id);
             var registerResult = RegisterBattleLocalInstanceOwner(
                 instanceOwnerById,
                 instanceId,
@@ -212,26 +207,24 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
                 return registerResult;
         }
 
-        var memberStates = candidateParty.Get("member_states").AsGodotDictionary();
-        foreach (var memberIdStr in ProgressionDataUtils.sorted_string_keys(memberStates))
+        foreach (var memberIdStr in ProgressionDataUtils.sorted_string_keys(candidateParty.member_states))
         {
             var memberId = (StringName)memberIdStr;
-            var memberState = candidateParty.Call("get_member_state", memberId).AsGodotObject();
+            PartyMemberState memberState = candidateParty.get_member_state(memberId);
             if (memberState == null)
                 continue;
 
-            var equipmentState = memberState.Get("equipment_state").AsGodotObject();
-            if (equipmentState == null || !equipmentState.HasMethod("get_entry_slot_ids"))
+            EquipmentState equipmentState = memberState.equipment_state;
+            if (equipmentState == null)
                 return BuildBattleLocalWritebackFailure(
                     "battle_local_writeback_invalid_equipment_state",
                     new Dictionary { ["member_id"] = memberId.ToString() }
                 );
 
-            var entrySlotIds = equipmentState.Call("get_entry_slot_ids").AsGodotArray();
-            foreach (var entrySlotId in entrySlotIds)
+            foreach (StringName entrySlotId in equipmentState.get_entry_slot_ids())
             {
                 var itemId = ProgressionDataUtils.to_string_name(
-                    equipmentState.Call("get_equipped_item_id", entrySlotId)
+                    equipmentState.get_equipped_item_id(entrySlotId)
                 );
                 if (itemId == "")
                     return BuildBattleLocalWritebackFailure(
@@ -244,7 +237,7 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
                     );
 
                 var instanceId = ProgressionDataUtils.to_string_name(
-                    equipmentState.Call("get_equipped_instance_id", entrySlotId)
+                    equipmentState.get_equipped_instance_id(entrySlotId)
                 );
                 if (instanceId == "")
                     continue;
@@ -263,7 +256,7 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
 
         var itemDefs = GetRuntimeItemDefs();
         var capacityService = new PartyWarehouseService();
-        capacityService.setup(candidateParty as PartyState, itemDefs);
+        capacityService.setup(candidateParty, itemDefs);
         var usedSlots = capacityService.get_used_slots();
         var capacity = capacityService.get_total_capacity();
 
@@ -320,30 +313,24 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
     private void SyncRuntimePartyServicesAfterBattleLocalWriteback()
     {
         var itemDefs = GetRuntimeItemDefs();
-        var partyState = _runtime.Get("_party_state").AsGodotObject();
+        PartyState partyState = _runtime?.get_party_state();
 
-        var characterManagement = _runtime.Get("_character_management").AsGodotObject();
+        CharacterManagementModule characterManagement = _runtime?.get_character_management();
         if (characterManagement != null)
-            characterManagement.Call("set_party_state", partyState);
+            characterManagement.set_party_state(partyState);
 
-        var partyWarehouseService = _runtime.Get("_party_warehouse_service").AsGodotObject();
+        PartyWarehouseService partyWarehouseService = _runtime?.get_party_warehouse_service();
         if (partyWarehouseService != null)
-            _runtime.Call(
-                "_setup_party_warehouse_service",
-                partyWarehouseService,
-                partyState,
-                itemDefs
-            );
+            _runtime._setup_party_warehouse_service(partyWarehouseService, partyState, itemDefs);
 
-        var partyItemUseService = _runtime.Get("_party_item_use_service").AsGodotObject();
+        PartyItemUseService partyItemUseService = _runtime?.get_party_item_use_service();
         if (partyItemUseService != null)
         {
             var skillDefs = new Dictionary();
-            var gameSession = _runtime.Get("_game_session").AsGodotObject();
+            GameSession gameSession = _runtime?.get_game_session();
             if (gameSession != null)
-                skillDefs = gameSession.Call("get_skill_defs").AsGodotDictionary();
-            partyItemUseService.Call(
-                "setup",
+                skillDefs = gameSession.get_skill_defs();
+            partyItemUseService.setup(
                 partyState,
                 itemDefs,
                 skillDefs,
@@ -352,12 +339,11 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
             );
         }
 
-        var partyEquipmentService = _runtime.Get("_party_equipment_service").AsGodotObject();
+        PartyEquipmentService partyEquipmentService = _runtime?.get_party_equipment_service();
         if (partyEquipmentService != null)
         {
-            var allocator = _runtime.Call("_get_equipment_instance_id_allocator");
-            partyEquipmentService.Call(
-                "setup",
+            var allocator = _runtime._get_equipment_instance_id_allocator();
+            partyEquipmentService.setup(
                 partyState,
                 itemDefs,
                 partyWarehouseService,
@@ -368,9 +354,9 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
 
     private Dictionary GetRuntimeItemDefs()
     {
-        var gameSession = _runtime != null ? _runtime.Get("_game_session").AsGodotObject() : null;
+        GameSession gameSession = _runtime?.get_game_session();
         if (gameSession != null)
-            return gameSession.Call("get_item_defs").AsGodotDictionary();
+            return gameSession.get_item_defs();
         return new Dictionary();
     }
 
@@ -410,13 +396,12 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
             "战斗结算发生内部不变量错误：battle-local 队伍状态写回不可能失败但失败了（{0}）。",
             errorCode
         );
-        _runtime.Call("_update_status", statusMessage);
-        _runtime.Call(
-            "_log_runtime_event",
+        _runtime.update_status(statusMessage);
+        _runtime._log_runtime_event(
             "error",
             "battle",
             "battle.local_writeback_inoption_failed",
-            _runtime.Get("_current_status_message").AsString(),
+            _runtime.get_status_text(),
             new Dictionary
             {
                 ["battle"] = battleSummary,
@@ -462,13 +447,9 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
             : new Dictionary();
     }
 
-    private static GodotObject ResolveWeakRef(WeakReference<GodotObject> weakRef)
+    private static GameRuntimeFacade ResolveWeakRef(WeakReference<GameRuntimeFacade> weakRef)
     {
-        if (
-            weakRef == null
-            || !weakRef.TryGetTarget(out GodotObject target)
-            || !GodotObject.IsInstanceValid(target)
-        )
+        if (weakRef == null || !weakRef.TryGetTarget(out GameRuntimeFacade target))
             return null;
         return target;
     }
