@@ -29,21 +29,21 @@ public partial class BattleAiScoreService
             return HasSuccessRatePercent ? Math.Max(SuccessRatePercent, 0) : 100;
         }
 
-        public static HitRatePreviewEstimate FromDictionary(GDictionary hitPreview)
+        public static HitRatePreviewEstimate FromPreviewData(AttackPreviewData hitPreview)
         {
             var result = new HitRatePreviewEstimate();
-            if (hitPreview == null || hitPreview.Count == 0)
+            if (hitPreview == null || hitPreview.IsEmpty)
             {
                 return result;
             }
-            foreach (var hitRateValue in DictArray(hitPreview, "stage_success_rates", new GArray()))
+            foreach (int rate in hitPreview.StageSuccessRates)
             {
-                result.StageSuccessRates.Add(hitRateValue.AsInt32());
+                result.StageSuccessRates.Add(rate);
             }
-            if (HasKey(hitPreview, "success_rate_percent"))
+            if (hitPreview.SuccessRatePercent > 0)
             {
                 result.HasSuccessRatePercent = true;
-                result.SuccessRatePercent = DictInt(hitPreview, "success_rate_percent", 100);
+                result.SuccessRatePercent = hitPreview.SuccessRatePercent;
             }
             return result;
         }
@@ -425,19 +425,14 @@ public partial class BattleAiScoreService
     {
         if (preview is BattlePreview typedPreview)
         {
-            return ResolveEstimatedHitRatePercent(typedPreview);
+            return ResolveEstimatedHitRatePercent(typedPreview?.hit_preview);
         }
-        return ResolveEstimatedHitRatePercent(GetDictionary(preview, "hit_preview"));
+        return 100;
     }
 
-    private static int ResolveEstimatedHitRatePercent(BattlePreview preview)
+    private static int ResolveEstimatedHitRatePercent(AttackPreviewData hitPreview)
     {
-        return ResolveEstimatedHitRatePercent(preview?.hit_preview);
-    }
-
-    private static int ResolveEstimatedHitRatePercent(GDictionary hitPreview)
-    {
-        return HitRatePreviewEstimate.FromDictionary(hitPreview).ResolveEstimatedPercent();
+        return HitRatePreviewEstimate.FromPreviewData(hitPreview).ResolveEstimatedPercent();
     }
 
     private void PopulateResourceCostMetrics(

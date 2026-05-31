@@ -13,7 +13,7 @@ public partial class BattleSimRunner : RefCounted
     private BattleSimOverrideApplier _overrideApplier = new();
     private BattleSimReportBuilder _reportBuilder = new();
     private BattleSimContentProvider _contentProvider = new();
-    private BattleSimTerrainGenerator _terrainGenerator = new();
+    private BattleTerrainGenerator _terrainGenerator = new();
     private BattleSimExecutionLoop _executionLoop = new();
     private BattleSimTraceSummaryBuilder _traceSummaryBuilder = new();
 
@@ -23,11 +23,11 @@ public partial class BattleSimRunner : RefCounted
 
     public void Setup(
         BattleSimContentProvider contentProvider = null,
-        BattleSimTerrainGenerator terrainGenerator = null
+        BattleTerrainGenerator terrainGenerator = null
     )
     {
         _contentProvider = contentProvider ?? new BattleSimContentProvider();
-        _terrainGenerator = terrainGenerator ?? new BattleSimTerrainGenerator();
+        _terrainGenerator = terrainGenerator ?? new BattleTerrainGenerator();
     }
 
     public void SetProgressLoggingEnabled(bool enabled)

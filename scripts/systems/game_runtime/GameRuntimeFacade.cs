@@ -172,7 +172,7 @@ public partial class GameRuntimeFacade : RefCounted
             _party_warehouse_service,
             _get_equipment_instance_id_allocator()
         );
-        _battle_runtime.SetupTyped(
+        _battle_runtime.setup(
             _character_management,
             _game_session.get_skill_defs(),
             _game_session.get_enemy_templates(),
@@ -881,11 +881,11 @@ public partial class GameRuntimeFacade : RefCounted
                 source_domain,
                 $"{source_domain}.quest_progress",
                 _format_quest_progress_summary(summary),
-                new GDictionary
+                Json.Stringify(new GDictionary
                 {
                     ["runtime"] = _build_runtime_log_state(),
                     ["quest_progress_summary"] = _quest_progress_summary_to_string_dict(summary),
-                }
+                })
             );
         }
         return summary;
@@ -989,12 +989,12 @@ public partial class GameRuntimeFacade : RefCounted
             "battle",
             "battle.start_loading",
             $"遭遇 {encounterName}，战斗地图生成中。",
-            new GDictionary
+            Json.Stringify(new GDictionary
             {
                 ["encounter_id"] = encounter_anchor.entity_id.ToString(),
                 ["encounter_name"] = encounterName,
                 ["runtime"] = _build_runtime_log_state(),
-            }
+            })
         );
         return _try_complete_pending_battle_start() ? "started" : "pending";
     }
@@ -1017,12 +1017,12 @@ public partial class GameRuntimeFacade : RefCounted
             "battle",
             "battle.start_failed",
             "遭遇战生成失败。",
-            new GDictionary
+            Json.Stringify(new GDictionary
             {
                 ["encounter_id"] = failedEncounterId,
                 ["encounter_name"] = failedEncounterName,
                 ["runtime"] = _build_runtime_log_state(),
-            }
+            })
         );
     }
 
@@ -1052,7 +1052,7 @@ public partial class GameRuntimeFacade : RefCounted
             "battle",
             "battle.start_prepared",
             "战斗地图已载入，请确认开始战斗。",
-            new GDictionary { ["runtime"] = _build_runtime_log_state() }
+            Json.Stringify(new GDictionary { ["runtime"] = _build_runtime_log_state() })
         );
     }
 
@@ -1169,13 +1169,13 @@ public partial class GameRuntimeFacade : RefCounted
                     "battle",
                     "battle.resolve_failed.loot_commit",
                     _current_status_message,
-                    new GDictionary
+                    Json.Stringify(new GDictionary
                     {
                         ["battle"] = battleSummary,
                         ["winner_faction_id"] = winnerFactionId,
                         ["loot_commit_error_code"] = GdInterop.GetString(lootCommitResult, "error_code"),
                         ["loot_commit_blocked_item_id"] = GdInterop.GetString(lootCommitResult, "blocked_item_id"),
-                    }
+                    })
                 );
                 return false;
             }
@@ -1212,12 +1212,12 @@ public partial class GameRuntimeFacade : RefCounted
                     "battle",
                     "battle.resolve_failed.party_persist",
                     _current_status_message,
-                    new GDictionary
+                    Json.Stringify(new GDictionary
                     {
                         ["battle"] = battleSummary,
                         ["winner_faction_id"] = winnerFactionId,
                         ["party_persist_error"] = partyPersistError,
-                    }
+                    })
                 );
                 return false;
             }
@@ -1242,12 +1242,12 @@ public partial class GameRuntimeFacade : RefCounted
                     "battle",
                     "battle.resolve_failed.world_persist",
                     _current_status_message,
-                    new GDictionary
+                    Json.Stringify(new GDictionary
                     {
                         ["battle"] = battleSummary,
                         ["winner_faction_id"] = winnerFactionId,
                         ["world_persist_error"] = worldPersistError,
-                    }
+                    })
                 );
                 return false;
             }
@@ -1282,12 +1282,12 @@ public partial class GameRuntimeFacade : RefCounted
                     "battle",
                     "battle.resolve_failed.flush",
                     _current_status_message,
-                    new GDictionary
+                    Json.Stringify(new GDictionary
                     {
                         ["battle"] = battleSummary,
                         ["winner_faction_id"] = winnerFactionId,
                         ["flush_error"] = flushError,
-                    }
+                    })
                 );
                 return false;
             }
@@ -2336,21 +2336,21 @@ public partial class GameRuntimeFacade : RefCounted
     public GDictionary _build_runtime_log_state() => _command_logger.BuildRuntimeLogState();
 
     public void _log_runtime_event(string level, string domain, string event_id, string message) =>
-        _log_runtime_event(level, domain, event_id, message, new GDictionary());
+        _command_logger.LogRuntimeEvent(level, domain, event_id, message, "");
 
     public void _log_runtime_event(
         string level,
         string domain,
         string event_id,
         string message,
-        GDictionary context
+        string context
     ) =>
         _command_logger.LogRuntimeEvent(
             level,
             domain,
             event_id,
             message,
-            context ?? new GDictionary()
+            context ?? ""
         );
 
     public void _log_battle_batch_entries(BattleEventBatch batch) =>
@@ -2468,17 +2468,17 @@ public partial class GameRuntimeFacade : RefCounted
 
     public void _advance_world_time_by_steps(int delta_steps)
     {
-        var advanceResult = _world_time_system.advance(
+        WorldTimeAdvanceResult advanceResult = _world_time_system.AdvanceWorldData(
             _world_map_data_context.active_world_data,
             delta_steps
         );
         _wild_encounter_growth_system.apply_step_advance(
             _world_map_data_context.active_world_data,
-            GdInterop.GetInt(advanceResult, "old_step"),
-            GdInterop.GetInt(advanceResult, "new_step"),
+            advanceResult.old_step,
+            advanceResult.new_step,
             _wild_encounter_rosters
         );
-        int daysElapsed = GdInterop.GetInt(advanceResult, "days_elapsed");
+        int daysElapsed = advanceResult.days_elapsed;
         if (daysElapsed > 0 && _character_management != null)
         {
             var practiceGrowthResult = _character_management.apply_daily_practice_growth(
@@ -3178,7 +3178,7 @@ public partial class GameRuntimeFacade : RefCounted
             "save",
             "runtime.dispose.commit_failed",
             "运行时释放前保存 pending 状态失败。",
-            new GDictionary { ["commit_error"] = commitError }
+            Json.Stringify(new GDictionary { ["commit_error"] = commitError })
         );
     }
 
@@ -3671,7 +3671,7 @@ public partial class GameRuntimeFacade : RefCounted
         return result;
     }
 
-    private GDictionary BuildBattleResolvedLogContext(
+    private string BuildBattleResolvedLogContext(
         GDictionary battleSummary,
         string winnerFactionId,
         GArray resolvedPendingRewards,
@@ -3687,7 +3687,7 @@ public partial class GameRuntimeFacade : RefCounted
         int flushError
     )
     {
-        return new GDictionary
+        return Json.Stringify(new GDictionary
         {
             ["battle"] = battleSummary,
             ["winner_faction_id"] = winnerFactionId,
@@ -3719,6 +3719,6 @@ public partial class GameRuntimeFacade : RefCounted
             ["party_persist_error"] = partyPersistError,
             ["world_persist_error"] = worldPersistError,
             ["flush_error"] = flushError,
-        };
+        });
     }
 }

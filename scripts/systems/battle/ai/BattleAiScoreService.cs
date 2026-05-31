@@ -513,7 +513,7 @@ public partial class BattleAiScoreService : RefCounted
         {
             return;
         }
-        scoreInput.estimated_hit_rate_percent = ResolveEstimatedHitRatePercent(scoreInput.preview);
+        scoreInput.estimated_hit_rate_percent = ResolveEstimatedHitRatePercent(scoreInput.preview?.hit_preview);
         BattleState state = ContextState(context);
         BattleUnitState actor = ContextUnitState(context);
         if (state == null || actor == null)

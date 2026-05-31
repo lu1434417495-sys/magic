@@ -13,7 +13,7 @@ public partial class BattlePreview : RefCounted
         new();
     public Vector2I resolved_anchor_coord { get; set; } = new Vector2I(-1, -1);
     public int move_cost { get; set; } = 0;
-    public GDictionary hit_preview { get; set; } = new();
+    public AttackPreviewData hit_preview { get; set; }
     public GDictionary damage_preview { get; set; } = new();
     public BattleSpecialProfileGateResult special_profile_gate_result { get; set; }
     public BattleSpecialProfilePreviewFacts special_profile_preview_facts { get; set; }

@@ -93,8 +93,7 @@ public partial class BattleUnitFactory : RefCounted
         return new Godot.Collections.Dictionary();
     }
 
-    private BattleTerrainGenerator GetTerrainGenerator() =>
-        _runtime?.get_terrain_generator() as BattleTerrainGenerator;
+    private BattleTerrainGenerator GetTerrainGenerator() => _runtime?.get_terrain_generator();
 
     private PartyMemberState GetMemberState(StringName memberId)
     {

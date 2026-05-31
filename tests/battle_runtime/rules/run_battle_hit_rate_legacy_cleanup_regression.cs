@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using GIntArray = Godot.Collections.Array<int>;
@@ -77,14 +78,14 @@ public partial class run_battle_hit_rate_legacy_cleanup_regression : SceneTree
     {
         var resolver = new BattleRepeatAttackResolver();
         var legacyOnlyCheck = new AttackCheckInput(hitRatePercent: 87, requiredRoll: 4);
-        string legacyText = resolver._format_repeat_attack_stage_resolution_text(
+        string legacyText = resolver.FormatRepeatAttackStageResolutionText(
             legacyOnlyCheck,
-            new GDictionary
+            new AttackEffectResolutionResult
             {
-                ["attack_success"] = false,
-                ["attack_resolution"] = "miss",
-                ["hit_rate_percent"] = 87,
-                ["resolution_text"] = "legacy 87%",
+                AttackSuccess = false,
+                AttackResolution = AttackResolutionKind.Miss,
+                HitRatePercent = 87,
+                ResolutionText = "legacy 87%",
             }
         );
         AssertTrue(
@@ -97,13 +98,13 @@ public partial class run_battle_hit_rate_legacy_cleanup_regression : SceneTree
             successRatePercent: 42,
             requiredRoll: 4
         );
-        string formalText = resolver._format_repeat_attack_stage_resolution_text(
+        string formalText = resolver.FormatRepeatAttackStageResolutionText(
             formalCheck,
-            new GDictionary
+            new AttackEffectResolutionResult
             {
-                ["attack_success"] = false,
-                ["attack_resolution"] = "miss",
-                ["hit_rate_percent"] = 87,
+                AttackSuccess = false,
+                AttackResolution = AttackResolutionKind.Miss,
+                HitRatePercent = 87,
             }
         );
         AssertEq(
@@ -117,22 +118,15 @@ public partial class run_battle_hit_rate_legacy_cleanup_regression : SceneTree
     {
         var adapter = new BattleHudAdapter();
         AssertEq(
-            adapter._build_selected_skill_hit_badge_text(new GDictionary { ["hit_rate_percent"] = 87 }),
+            adapter._build_selected_skill_hit_badge_text(new AttackPreviewData { HitRatePercent = 87 }),
             "",
             "HUD hit badge must ignore legacy-only hit_rate_percent."
         );
-        AssertEq(
-            adapter._build_selected_skill_hit_badge_text(
-                new GDictionary { ["stage_hit_rates"] = new GIntArray { 87 } }
-            ),
-            "",
-            "HUD hit badge must ignore legacy-only stage_hit_rates."
-        );
         string formalBadge = adapter._build_selected_skill_hit_badge_text(
-            new GDictionary
+            new AttackPreviewData
             {
-                ["success_rate_percent"] = 42,
-                ["hit_rate_percent"] = 87,
+                SuccessRatePercent = 42,
+                HitRatePercent = 87,
             }
         );
         AssertTrue(
@@ -140,7 +134,10 @@ public partial class run_battle_hit_rate_legacy_cleanup_regression : SceneTree
             "HUD hit badge must use formal success_rate_percent."
         );
         string formalStageBadge = adapter._build_selected_skill_hit_badge_text(
-            new GDictionary { ["stage_success_rates"] = new GIntArray { 43 } }
+            new AttackPreviewData
+            {
+                Stages = new List<AttackPreviewStage> { new AttackPreviewStage(0, 43, 0, 0, 0, "") },
+            }
         );
         AssertTrue(
             formalStageBadge.Contains("43%"),
@@ -153,25 +150,18 @@ public partial class run_battle_hit_rate_legacy_cleanup_regression : SceneTree
         var scoreService = new BattleAiScoreService();
         AssertEq(
             scoreService._resolve_estimated_hit_rate_percent(
-                BuildPreview(new GDictionary { ["hit_rate_percent"] = 87 })
+                BuildPreview(new AttackPreviewData { HitRatePercent = 87 })
             ),
             100,
             "AI score estimated_hit_rate_percent must ignore legacy-only hit_rate_percent."
         );
         AssertEq(
             scoreService._resolve_estimated_hit_rate_percent(
-                BuildPreview(new GDictionary { ["stage_hit_rates"] = new GIntArray { 87 } })
-            ),
-            100,
-            "AI score estimated_hit_rate_percent must ignore legacy-only stage_hit_rates."
-        );
-        AssertEq(
-            scoreService._resolve_estimated_hit_rate_percent(
                 BuildPreview(
-                    new GDictionary
+                    new AttackPreviewData
                     {
-                        ["success_rate_percent"] = 42,
-                        ["hit_rate_percent"] = 87,
+                        SuccessRatePercent = 42,
+                        HitRatePercent = 87,
                     }
                 )
             ),
@@ -181,10 +171,14 @@ public partial class run_battle_hit_rate_legacy_cleanup_regression : SceneTree
         AssertEq(
             scoreService._resolve_estimated_hit_rate_percent(
                 BuildPreview(
-                    new GDictionary
+                    new AttackPreviewData
                     {
-                        ["stage_success_rates"] = new GIntArray { 40, 60 },
-                        ["stage_hit_rates"] = new GIntArray { 87 },
+                        Stages = new List<AttackPreviewStage>
+                        {
+                            new AttackPreviewStage(0, 40, 0, 0, 0, ""),
+                            new AttackPreviewStage(0, 60, 0, 0, 0, ""),
+                        },
+                        HitRatePercent = 87,
                     }
                 )
             ),
@@ -193,7 +187,7 @@ public partial class run_battle_hit_rate_legacy_cleanup_regression : SceneTree
         );
     }
 
-    private static BattlePreview BuildPreview(GDictionary hitPreview)
+    private static BattlePreview BuildPreview(AttackPreviewData hitPreview)
     {
         return new BattlePreview { hit_preview = hitPreview };
     }

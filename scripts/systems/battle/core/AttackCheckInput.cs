@@ -26,12 +26,6 @@ public readonly struct AttackCheckInput
     public readonly int CritGateDie;
     public readonly bool ForceHitNoCrit;
 
-    public readonly int ApCost;
-    public readonly int AuraCost;
-    public readonly int MpCost;
-    public readonly int StaminaCost;
-    public readonly StringName CostResource;
-
     public readonly StringName SkillId;
     public readonly int FollowUpAttackPenalty;
     public readonly bool ExponentialPenalty;
@@ -63,11 +57,6 @@ public readonly struct AttackCheckInput
         bool critLocked = false,
         int critGateDie = 0,
         bool forceHitNoCrit = false,
-        int apCost = 0,
-        int auraCost = 0,
-        int mpCost = 0,
-        int staminaCost = 0,
-        StringName costResource = null,
         StringName skillId = null,
         int followUpAttackPenalty = 0,
         bool exponentialPenalty = false,
@@ -98,11 +87,6 @@ public readonly struct AttackCheckInput
         CritLocked = critLocked;
         CritGateDie = critGateDie;
         ForceHitNoCrit = forceHitNoCrit;
-        ApCost = apCost;
-        AuraCost = auraCost;
-        MpCost = mpCost;
-        StaminaCost = staminaCost;
-        CostResource = costResource ?? new StringName("");
         SkillId = skillId ?? new StringName("");
         FollowUpAttackPenalty = followUpAttackPenalty;
         ExponentialPenalty = exponentialPenalty;

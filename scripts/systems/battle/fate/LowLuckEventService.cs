@@ -536,7 +536,7 @@ public partial class LowLuckEventService : RefCounted
         _criticalFailByBattleId.Remove(battleId);
     }
 
-    private StringName _FindFirstLowLuckMemberId(GodotObject partyState)
+    private StringName _FindFirstLowLuckMemberId(PartyState partyState)
     {
         if (partyState == null)
             return "";
@@ -551,7 +551,7 @@ public partial class LowLuckEventService : RefCounted
         return "";
     }
 
-    private List<StringName> _BuildOrderedMemberIds(GodotObject partyState)
+    private List<StringName> _BuildOrderedMemberIds(PartyState partyState)
     {
         var orderedMemberIds = new List<StringName>();
         if (partyState == null)
@@ -704,20 +704,14 @@ public partial class LowLuckEventService : RefCounted
         return false;
     }
 
-    private GodotObject _GetPartyState()
+    private PartyState _GetPartyState()
     {
-        if (_characterGateway == null || !_characterGateway.HasMethod("get_party_state"))
-            return null;
-        return _characterGateway.get_party_state();
+        return _characterGateway?.get_party_state();
     }
 
     private PartyMemberState _GetMemberState(StringName memberId)
     {
-        if (
-            _characterGateway == null
-            || memberId == ""
-            || !_characterGateway.HasMethod("get_member_state")
-        )
+        if (_characterGateway == null || memberId == "")
             return null;
         return _characterGateway.get_member_state(memberId);
     }

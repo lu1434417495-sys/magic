@@ -257,9 +257,47 @@ public partial class run_meteor_swarm_terrain_modifier_regression : SceneTree
             coord = coord,
             is_alive = true,
         };
-        BattleRuntimeTestHelpers.seed_base_attributes_and_derive_ac(unit);
+        SeedBaseAttributesAndDeriveAc(unit);
         unit.refresh_footprint();
         return unit;
+    }
+
+    private static void SeedBaseAttributesAndDeriveAc(BattleUnitState unit)
+    {
+        if (unit == null)
+            return;
+        SeedAttributeSnapshotBaseAttributesAndAc(unit.attribute_snapshot);
+    }
+
+    private static void SeedAttributeSnapshotBaseAttributesAndAc(AttributeSnapshot snapshot)
+    {
+        if (snapshot == null)
+            return;
+        foreach (
+            StringName attributeId in new Godot.Collections.Array<StringName>
+            {
+                UnitBaseAttributes.STRENGTH(),
+                UnitBaseAttributes.AGILITY(),
+                UnitBaseAttributes.CONSTITUTION(),
+                UnitBaseAttributes.PERCEPTION(),
+                UnitBaseAttributes.INTELLIGENCE(),
+                UnitBaseAttributes.WILLPOWER(),
+            }
+        )
+        {
+            if (!snapshot.has_value(attributeId))
+                snapshot.set_value(attributeId, 10);
+        }
+        if (!snapshot.has_value(AttributeService.ARMOR_CLASS_ID()))
+        {
+            int agilityModifier = AttributeSnapshot.calculate_score_modifier(
+                snapshot.get_value(UnitBaseAttributes.AGILITY())
+            );
+            snapshot.set_value(
+                AttributeService.ARMOR_CLASS_ID(),
+                Mathf.Clamp(AttributeService.BASE_ARMOR_CLASS_VALUE() + agilityModifier, 1, 99)
+            );
+        }
     }
 
     private static CombatEffectDef BuildDustEffect(StringName effectId)

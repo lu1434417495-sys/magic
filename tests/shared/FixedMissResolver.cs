@@ -45,9 +45,9 @@ public partial class FixedMissResolver : BattleHitResolver
         };
     }
 
-    public new GDictionary resolve_spell_control_metadata(
+    public override GDictionary resolve_spell_control_metadata(
         BattleUnitState source_unit,
-        GDictionary attack_context
+        AttackContext attack_context
     )
     {
         return new GDictionary
@@ -76,15 +76,6 @@ public partial class FixedMissResolver : BattleHitResolver
             resolutionText: "0%（测试固定未命中），d20=1",
             attackRollNonce: battle_state != null ? battle_state.attack_roll_nonce.ToString() : ""
         );
-    }
-
-    public override int roll_attack_die(
-        int die_size,
-        bool is_disadvantage,
-        GDictionary attack_context
-    )
-    {
-        return Math.Clamp(NaturalMissRoll, 1, Math.Max(die_size, 1));
     }
 
     public override int roll_attack_die(

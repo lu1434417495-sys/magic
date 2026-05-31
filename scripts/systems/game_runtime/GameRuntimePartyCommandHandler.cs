@@ -106,7 +106,7 @@ public partial class GameRuntimePartyCommandHandler : RefCounted
             return CommandError(string.Format("未找到队伍成员 {0}。", memberId));
         var activeMemberIds = partyState.active_member_ids;
         var reserveMemberIds = partyState.reserve_member_ids;
-        if (!activeMemberIds.Contains(memberId) && !reserveMemberIds.Contains(memberId))
+        if (!HasMemberId(activeMemberIds, memberId) && !HasMemberId(reserveMemberIds, memberId))
             return CommandError(
                 string.Format("{0} 当前不在队伍编成中。", GetMemberDisplayName(memberId))
             );
@@ -125,7 +125,7 @@ public partial class GameRuntimePartyCommandHandler : RefCounted
         if (partyState == null)
             return CommandError("当前不存在队伍数据。");
         var activeMemberIds = partyState.active_member_ids;
-        if (!activeMemberIds.Contains(memberId))
+        if (!HasMemberId(activeMemberIds, memberId))
             return CommandError("只有上阵成员才能成为队长。");
         OnPartyLeaderChangeRequested(memberId);
         SetPartySelectedMemberId(memberId);
@@ -140,17 +140,18 @@ public partial class GameRuntimePartyCommandHandler : RefCounted
         if (partyState == null)
             return CommandError("当前不存在队伍数据。");
         var reserveMemberIds = partyState.reserve_member_ids;
-        if (!reserveMemberIds.Contains(memberId))
+        if (!HasMemberId(reserveMemberIds, memberId))
             return CommandError(
                 string.Format("{0} 当前不在替补列表中。", GetMemberDisplayName(memberId))
             );
         var activeMemberIds = partyState.active_member_ids;
         if (activeMemberIds.Count >= 4)
             return CommandError("上阵人数已达到上限。");
-        var activeIds = ProgressionDataUtils.to_string_name_array(activeMemberIds);
-        var reserveIds = ProgressionDataUtils.to_string_name_array(reserveMemberIds);
-        reserveIds.Remove(memberId);
-        activeIds.Add(memberId);
+        var activeIds = NormalizeMemberIds(activeMemberIds);
+        var reserveIds = NormalizeMemberIds(reserveMemberIds);
+        reserveIds = WithoutMemberId(reserveIds, memberId);
+        if (!HasMemberId(activeIds, memberId))
+            activeIds.Add(memberId);
         OnPartyRosterChangeRequested(activeIds, reserveIds);
         SetPartySelectedMemberId(memberId);
         return CommandOk();
@@ -164,7 +165,7 @@ public partial class GameRuntimePartyCommandHandler : RefCounted
         if (partyState == null)
             return CommandError("当前不存在队伍数据。");
         var activeMemberIds = partyState.active_member_ids;
-        if (!activeMemberIds.Contains(memberId))
+        if (!HasMemberId(activeMemberIds, memberId))
             return CommandError(
                 string.Format("{0} 当前不在上阵列表中。", GetMemberDisplayName(memberId))
             );
@@ -172,10 +173,11 @@ public partial class GameRuntimePartyCommandHandler : RefCounted
             return CommandError("主角必须保持上阵，不能移至替补。");
         if (activeMemberIds.Count <= 1)
             return CommandError("队伍至少需要保留一名上阵成员。");
-        var activeIds = ProgressionDataUtils.to_string_name_array(activeMemberIds);
-        var reserveIds = ProgressionDataUtils.to_string_name_array(partyState.reserve_member_ids);
-        activeIds.Remove(memberId);
-        reserveIds.Add(memberId);
+        var activeIds = NormalizeMemberIds(activeMemberIds);
+        var reserveIds = NormalizeMemberIds(partyState.reserve_member_ids);
+        activeIds = WithoutMemberId(activeIds, memberId);
+        if (!HasMemberId(reserveIds, memberId))
+            reserveIds.Add(memberId);
         OnPartyRosterChangeRequested(activeIds, reserveIds);
         SetPartySelectedMemberId(memberId);
         return CommandOk();
@@ -340,10 +342,15 @@ public partial class GameRuntimePartyCommandHandler : RefCounted
             UpdateStatus(rosterError);
             return;
         }
-        partyState.active_member_ids = activeMemberIds.Duplicate();
-        partyState.reserve_member_ids = reserveMemberIds.Duplicate();
-        if (!activeMemberIds.Contains(partyState.leader_member_id) && activeMemberIds.Count > 0)
-            partyState.leader_member_id = activeMemberIds[0];
+        var normalizedActiveMemberIds = NormalizeMemberIds(activeMemberIds);
+        var normalizedReserveMemberIds = NormalizeMemberIds(reserveMemberIds);
+        partyState.active_member_ids = normalizedActiveMemberIds;
+        partyState.reserve_member_ids = normalizedReserveMemberIds;
+        if (
+            !HasMemberId(normalizedActiveMemberIds, partyState.leader_member_id)
+            && normalizedActiveMemberIds.Count > 0
+        )
+            partyState.leader_member_id = normalizedActiveMemberIds[0];
         ApplyPartyStateToRuntime("队伍编成已更新。");
     }
 
@@ -412,9 +419,57 @@ public partial class GameRuntimePartyCommandHandler : RefCounted
         var memberId = GetMainCharacterMemberId(partyState);
         if (memberId == "")
             return "";
-        if (reserveMemberIds.Contains(memberId) || !activeMemberIds.Contains(memberId))
+        if (HasMemberId(reserveMemberIds, memberId) || !HasMemberId(activeMemberIds, memberId))
             return "主角必须保持上阵，不能移至替补。";
         return "";
+    }
+
+    private static bool HasMemberId(Array<StringName> memberIds, StringName memberId)
+    {
+        var normalizedMemberId = ProgressionDataUtils.to_string_name(memberId);
+        if (memberIds == null || normalizedMemberId == "")
+            return false;
+        foreach (var rawMemberId in memberIds)
+        {
+            if (
+                ProgressionDataUtils.to_string_name(rawMemberId).ToString()
+                == normalizedMemberId.ToString()
+            )
+                return true;
+        }
+        return false;
+    }
+
+    private static Array<StringName> NormalizeMemberIds(Array<StringName> memberIds)
+    {
+        var result = new Array<StringName>();
+        if (memberIds == null)
+            return result;
+        foreach (var rawMemberId in memberIds)
+        {
+            var memberId = ProgressionDataUtils.to_string_name(rawMemberId);
+            if (memberId != "" && !HasMemberId(result, memberId))
+                result.Add(memberId);
+        }
+        return result;
+    }
+
+    private static Array<StringName> WithoutMemberId(
+        Array<StringName> memberIds,
+        StringName memberId
+    )
+    {
+        var result = new Array<StringName>();
+        var normalizedMemberId = ProgressionDataUtils.to_string_name(memberId);
+        if (memberIds == null)
+            return result;
+        foreach (var rawMemberId in memberIds)
+        {
+            var currentMemberId = ProgressionDataUtils.to_string_name(rawMemberId);
+            if (currentMemberId != "" && currentMemberId.ToString() != normalizedMemberId.ToString())
+                result.Add(currentMemberId);
+        }
+        return result;
     }
 
     private string GetMemberDisplayName(StringName memberId)

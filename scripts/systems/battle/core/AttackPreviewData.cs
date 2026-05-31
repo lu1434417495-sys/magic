@@ -1,0 +1,124 @@
+using System.Collections.Generic;
+using Godot;
+using GIntArray = Godot.Collections.Array<int>;
+using GStringArray = Godot.Collections.Array<string>;
+
+/// <summary>
+/// 单阶段命中预览数据。
+/// </summary>
+public readonly record struct AttackPreviewStage
+{
+	public readonly int HitRatePercent;
+	public readonly int SuccessRatePercent;
+	public readonly int BaseHitRatePercent;
+	public readonly int RequiredRoll;
+	public readonly int DisplayRequiredRoll;
+	public readonly string PreviewText;
+
+	public AttackPreviewStage(
+		int hitRatePercent,
+		int successRatePercent,
+		int baseHitRatePercent,
+		int requiredRoll,
+		int displayRequiredRoll,
+		string previewText
+	)
+	{
+		HitRatePercent = hitRatePercent;
+		SuccessRatePercent = successRatePercent;
+		BaseHitRatePercent = baseHitRatePercent;
+		RequiredRoll = requiredRoll;
+		DisplayRequiredRoll = displayRequiredRoll;
+		PreviewText = previewText;
+	}
+}
+
+/// <summary>
+/// 攻击命中预览的强类型表示。
+/// 替代原 GDictionary 承载的 build_skill_attack_preview /
+/// build_repeat_attack_preview / build_force_hit_no_crit_attack_preview 结果。
+/// </summary>
+[GlobalClass]
+public partial class AttackPreviewData : RefCounted
+{
+	public string SummaryText { get; set; } = "";
+
+	public List<AttackPreviewStage> Stages { get; set; } = new();
+
+	public int HitRatePercent { get; set; }
+	public int SuccessRatePercent { get; set; }
+	public int BaseHitRatePercent { get; set; }
+
+	public bool ForceHitNoCrit { get; set; }
+	public bool CritLocked { get; set; }
+
+	// 仅多段攻击有效
+	public int BaseAttackBonus { get; set; }
+	public int FollowUpAttackPenalty { get; set; }
+
+	// BattleAttackCheckPolicyService 追加的 modifier 分解信息
+	public Godot.Collections.Array AttackRollModifierBreakdown { get; set; } = new();
+
+	// Special profile 来源标记（如陨星雨等自定义预览）
+	public string Source { get; set; } = "";
+
+	public bool IsEmpty => Stages.Count == 0 && SuccessRatePercent == 0 && BaseHitRatePercent == 0 && string.IsNullOrEmpty(SummaryText);
+	public int StageCount => Stages.Count;
+
+	// ---- 便捷属性：按字段名返回数组，减少现有调用者的改动量 ----
+
+	public GIntArray StageHitRates
+	{
+		get
+		{
+			var result = new GIntArray();
+			foreach (var stage in Stages)
+				result.Add(stage.HitRatePercent);
+			return result;
+		}
+	}
+
+	public GIntArray StageSuccessRates
+	{
+		get
+		{
+			var result = new GIntArray();
+			foreach (var stage in Stages)
+				result.Add(stage.SuccessRatePercent);
+			return result;
+		}
+	}
+
+	public GIntArray StageBaseHitRates
+	{
+		get
+		{
+			var result = new GIntArray();
+			foreach (var stage in Stages)
+				result.Add(stage.BaseHitRatePercent);
+			return result;
+		}
+	}
+
+	public GIntArray StageRequiredRolls
+	{
+		get
+		{
+			var result = new GIntArray();
+			foreach (var stage in Stages)
+				result.Add(stage.DisplayRequiredRoll);
+			return result;
+		}
+	}
+
+	public GStringArray StagePreviewTexts
+	{
+		get
+		{
+			var result = new GStringArray();
+			foreach (var stage in Stages)
+				result.Add(stage.PreviewText);
+			return result;
+		}
+	}
+}

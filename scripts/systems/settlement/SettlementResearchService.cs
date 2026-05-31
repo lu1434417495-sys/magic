@@ -205,15 +205,15 @@ public partial class SettlementResearchService : RefCounted
     {
         var result = new SettlementServiceResult
         {
-            success = success,
-            message = message,
-            persist_party_state = persistPartyState,
-            gold_delta = goldDelta,
-            pending_character_rewards = DuplicateDictionaryArrayUntyped(pendingCharacterRewards ?? new GArray()),
-            quest_progress_events = DuplicateDictionaryArrayUntyped(questProgressEvents ?? new GArray()),
-            service_side_effects = serviceSideEffects != null ? (GDictionary)serviceSideEffects.Duplicate(true) : new GDictionary(),
+            Success = success,
+            Message = message,
+            PersistPartyState = persistPartyState,
+            GoldDelta = goldDelta,
         };
-        return result.to_dictionary();
+        result.SetPendingCharacterRewardPayloads(DuplicateDictionaryArrayUntyped(pendingCharacterRewards ?? new GArray()));
+        result.SetQuestProgressEventPayloads(DuplicateDictionaryArrayUntyped(questProgressEvents ?? new GArray()));
+        result.SetServiceSideEffects(serviceSideEffects);
+        return result.ToDictionary();
     }
 
     private string _validate_execution_schema(GDictionary settlement, GDictionary payload)

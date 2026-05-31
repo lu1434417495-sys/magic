@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using Godot;
 using GArray = Godot.Collections.Array;
@@ -13,14 +14,7 @@ public partial class BattleRepeatAttackResolver : RefCounted
     public const int DEFAULT_REPEAT_ATTACK_PREVIEW_STAGE_COUNT = 3;
     public static readonly StringName STATUS_CROWN_BREAK_BROKEN_HAND = "crown_break_broken_hand";
 
-    private static readonly StringName ResourceMp = "mp";
-    private static readonly StringName ResourceStamina = "stamina";
-    private static readonly StringName ResourceAp = "ap";
-    private static readonly StringName ResourceAura = "aura";
     private static readonly StringName DamageEffect = "damage";
-    private static readonly StringName CriticalHit = "critical_hit";
-    private static readonly StringName CriticalFail = "critical_fail";
-    private static readonly StringName Miss = "miss";
     private static readonly string PreResistanceStage = "pre_resistance";
 
     private WeakReference<GodotObject> _runtimeRef;
@@ -89,23 +83,20 @@ public partial class BattleRepeatAttackResolver : RefCounted
                 break;
             }
 
-            int stageResourceCost = _get_repeat_attack_stage_cost(
+            BattleRepeatAttackStageSpec stageSpec = BuildRuntimeStageSpec(
                 active_unit,
                 skill_def,
                 repeat_attack_effect,
-                stageIndex
+                stageIndex,
+                0,
+                true
             );
-            string costResourceLabel = _resolve_repeat_attack_resource_label(repeat_attack_effect);
-            string costResourceAbbr = _resolve_repeat_attack_resource_abbr(repeat_attack_effect);
+            int stageResourceCost = _get_repeat_attack_stage_cost(stageSpec);
+            string costResourceLabel = _resolve_repeat_attack_resource_label(stageSpec);
+            string costResourceAbbr = _resolve_repeat_attack_resource_abbr(stageSpec);
             if (stageIndex > 0)
             {
-                if (
-                    !_can_pay_repeat_attack_stage_cost(
-                        active_unit,
-                        repeat_attack_effect,
-                        stageResourceCost
-                    )
-                )
+                if (!_can_pay_repeat_attack_stage_cost(active_unit, stageSpec))
                 {
                     AppendLog(
                         batch,
@@ -113,11 +104,7 @@ public partial class BattleRepeatAttackResolver : RefCounted
                     );
                     break;
                 }
-                _consume_repeat_attack_stage_cost(
-                    active_unit,
-                    repeat_attack_effect,
-                    stageResourceCost
-                );
+                _consume_repeat_attack_stage_cost(active_unit, stageSpec);
                 (_runtime as BattleRuntimeModule)?.append_changed_unit_id(batch, active_unit.unit_id);
             }
 
@@ -130,28 +117,27 @@ public partial class BattleRepeatAttackResolver : RefCounted
                 repeat_attack_effect,
                 stageDamageMultiplier
             );
-            GDictionary stageResult = _resolve_repeat_attack_stage_result(
+            AttackEffectResolutionResult stageResult = ResolveRepeatAttackStageResult(
                 active_unit,
                 target_unit,
                 skill_def,
                 repeat_attack_effect,
+                stageSpec,
                 stageIndex,
                 stageEffects
             );
 
-            int stageSuccessRate = GdInterop.GetInt(stageResult, "success_rate_percent", 0);
-            string stageResolutionText = GdInterop.GetString(
-                stageResult,
-                "resolution_text",
-                $"{stageSuccessRate}%"
-            );
-            if (!GdInterop.GetBool(stageResult, "attack_success", false))
+            int stageSuccessRate = stageResult.SuccessRatePercent;
+            string stageResolutionText = string.IsNullOrEmpty(stageResult.ResolutionText)
+                ? $"{stageSuccessRate}%"
+                : stageResult.ResolutionText;
+            if (!stageResult.AttackSuccess)
             {
                 AppendLog(
                     batch,
                     $"{DisplayName(active_unit)} 的 {DisplayName(skill_def)} 第 {stageIndex + 1} 段未命中 {DisplayName(target_unit)}，{stageResolutionText}，{costResourceAbbr} 消耗 {stageResourceCost}。"
                 );
-                (_runtime as BattleRuntimeModule)?._append_result_report_entry(batch, stageResult);
+                _runtime?.append_result_report_entry(batch, stageResult);
                 if (_should_stop_repeat_attack_on_miss(repeat_attack_effect))
                 {
                     break;
@@ -179,9 +165,9 @@ public partial class BattleRepeatAttackResolver : RefCounted
 
             (_runtime as BattleRuntimeModule)?.mark_applied_statuses_for_turn_timing(
                 target_unit,
-                GetArrayOrEmpty(stageResult, "status_effect_ids")
+                stageResult.StatusEffectIds
             );
-            (_runtime as BattleRuntimeModule)?.append_result_source_status_effects(
+            _runtime?.append_result_source_status_effects(
                 batch,
                 active_unit,
                 stageResult
@@ -189,8 +175,8 @@ public partial class BattleRepeatAttackResolver : RefCounted
             (_runtime as BattleRuntimeModule)?.append_changed_unit_id(batch, target_unit.unit_id);
             (_runtime as BattleRuntimeModule)?._append_changed_unit_coords(batch, target_unit);
 
-            int damage = GdInterop.GetInt(stageResult, "damage", 0);
-            int healing = GdInterop.GetInt(stageResult, "healing", 0);
+            int damage = stageResult.Damage;
+            int healing = stageResult.Healing;
             totalDamage += damage;
             totalHealing += healing;
             _runtime?.append_damage_result_log_lines(
@@ -199,7 +185,7 @@ public partial class BattleRepeatAttackResolver : RefCounted
                 DisplayName(target_unit),
                 stageResult
             );
-            (_runtime as BattleRuntimeModule)?._append_result_report_entry(batch, stageResult);
+            _runtime?.append_result_report_entry(batch, stageResult);
 
             if (healing > 0)
             {
@@ -209,7 +195,7 @@ public partial class BattleRepeatAttackResolver : RefCounted
                 );
             }
 
-            foreach (var statusId in GetArrayOrEmpty(stageResult, "status_effect_ids"))
+            foreach (var statusId in stageResult.StatusEffectIds ?? new Godot.Collections.Array<StringName>())
             {
                 AppendLog(batch, $"{DisplayName(target_unit)} 获得状态 {statusId}。");
             }
@@ -288,6 +274,36 @@ public partial class BattleRepeatAttackResolver : RefCounted
         return stagedEffects;
     }
 
+    private BattleRepeatAttackStageSpec BuildRuntimeStageSpec(
+        BattleUnitState active_unit,
+        SkillDef skill_def,
+        CombatEffectDef repeat_attack_effect,
+        int stage_index,
+        int stage_count,
+        bool fate_aware
+    )
+    {
+        int skillLevel =
+            _runtime != null
+                ? _runtime._get_unit_skill_level(
+                    active_unit,
+                    skill_def?.skill_id ?? new StringName("")
+                )
+                : _resolve_static_skill_level(active_unit, skill_def);
+        BattleRepeatAttackStageSpec spec =
+            BattleRepeatAttackStageSpec.from_repeat_attack_effect(
+                repeat_attack_effect,
+                stage_index,
+                stage_count,
+                skillLevel,
+                fate_aware
+            );
+        spec = spec.with_base_resource_cost(
+            _get_repeat_attack_base_resource_cost(active_unit, skill_def, spec.cost_resource_kind)
+        );
+        return spec;
+    }
+
     public static BattleRepeatAttackStageSpec build_stage_spec_from_repeat_attack_effect(
         GodotObject active_unit,
         GodotObject skill_def,
@@ -298,16 +314,22 @@ public partial class BattleRepeatAttackResolver : RefCounted
     )
     {
         int skillLevel = _resolve_static_skill_level(active_unit, skill_def);
-        return BattleRepeatAttackStageSpec.from_repeat_attack_effect(
+        BattleRepeatAttackStageSpec spec = BattleRepeatAttackStageSpec.from_repeat_attack_effect(
             repeat_attack_effect as CombatEffectDef,
             stage_index,
             stage_count,
             skillLevel,
             fate_aware
         );
+        GodotObject combatProfile = GdInterop.GetObject(skill_def, "combat_profile");
+        GDictionary effectiveCosts = GetEffectiveResourceCosts(combatProfile, skillLevel);
+        spec = spec.with_base_resource_cost(
+            _get_repeat_attack_preview_base_cost(skill_def, spec.cost_resource_kind, effectiveCosts)
+        );
+        return spec;
     }
 
-    public static Godot.Collections.Array<BattleRepeatAttackStageSpec> build_stage_specs_from_repeat_attack_effect(
+    public static List<BattleRepeatAttackStageSpec> build_stage_specs_from_repeat_attack_effect(
         GodotObject active_unit,
         GodotObject skill_def,
         GodotObject repeat_attack_effect,
@@ -315,7 +337,7 @@ public partial class BattleRepeatAttackResolver : RefCounted
         bool fate_aware
     )
     {
-        var specs = new Godot.Collections.Array<BattleRepeatAttackStageSpec>();
+        var specs = new List<BattleRepeatAttackStageSpec>();
         if (active_unit == null || skill_def == null || repeat_attack_effect == null)
         {
             return specs;
@@ -365,34 +387,29 @@ public partial class BattleRepeatAttackResolver : RefCounted
         {
             return DEFAULT_REPEAT_ATTACK_PREVIEW_STAGE_COUNT;
         }
-        if (active_unit.has_status_effect(STATUS_CROWN_BREAK_BROKEN_HAND))
+        if ((active_unit as BattleUnitState)?.has_status_effect(STATUS_CROWN_BREAK_BROKEN_HAND) == true)
         {
             return 1;
         }
 
-        GDictionary parameters = GdInterop.GetDictionary(repeat_attack_effect, "params");
-        StringName costResource = GdInterop.GetStringName(
-            parameters,
-            "cost_resource",
-            ResourceAura
-        );
-        int skillLevel = _resolve_static_skill_level(active_unit, skill_def);
-        GDictionary effectiveCosts = GetEffectiveResourceCosts(combatProfile, skillLevel);
-        int baseCost = _get_repeat_attack_preview_base_cost(
+        BattleRepeatAttackStageSpec firstStageSpec = build_stage_spec_from_repeat_attack_effect(
+            active_unit,
             skill_def,
-            costResource,
-            effectiveCosts
+            repeat_attack_effect,
+            0,
+            0,
+            false
         );
+        int baseCost = firstStageSpec.base_resource_cost;
         if (baseCost <= 0)
         {
             return REPEAT_ATTACK_STAGE_GUARD;
         }
 
-        double followUpCostMultiplier = Math.Max(
-            GdInterop.GetFloat(parameters, "follow_up_cost_multiplier", 1.0),
-            1.0
+        int remainingResource = _get_unit_resource_value(
+            active_unit,
+            firstStageSpec.cost_resource_kind
         );
-        int remainingResource = _get_unit_resource_value(active_unit, costResource);
         if (remainingResource < baseCost)
         {
             return 1;
@@ -401,10 +418,7 @@ public partial class BattleRepeatAttackResolver : RefCounted
         int stages = 1;
         while (stages < REPEAT_ATTACK_STAGE_GUARD)
         {
-            int nextStageCost = Math.Max(
-                (int)Math.Round(baseCost * Math.Pow(followUpCostMultiplier, stages)),
-                0
-            );
+            int nextStageCost = firstStageSpec.resolve_resource_cost_for_stage(stages);
             if (nextStageCost > 0 && remainingResource < nextStageCost)
             {
                 break;
@@ -427,7 +441,7 @@ public partial class BattleRepeatAttackResolver : RefCounted
 
     public static int _get_repeat_attack_preview_base_cost(
         GodotObject skill_def,
-        StringName cost_resource,
+        CombatResourceKind cost_resource_kind,
         GDictionary effective_costs
     )
     {
@@ -436,63 +450,41 @@ public partial class BattleRepeatAttackResolver : RefCounted
         {
             return 0;
         }
-        if (cost_resource == ResourceMp)
+        string costField = CombatResourceKindUtils.ToEffectiveCostField(cost_resource_kind);
+        if (string.IsNullOrEmpty(costField))
         {
-            return GdInterop.GetInt(
-                effective_costs,
-                "mp_cost",
-                GdInterop.GetInt(combatProfile, "mp_cost")
-            );
-        }
-        if (cost_resource == ResourceStamina)
-        {
-            return GdInterop.GetInt(
-                effective_costs,
-                "stamina_cost",
-                GdInterop.GetInt(combatProfile, "stamina_cost")
-            );
-        }
-        if (cost_resource == ResourceAp)
-        {
-            return GdInterop.GetInt(
-                effective_costs,
-                "ap_cost",
-                GdInterop.GetInt(combatProfile, "ap_cost")
-            );
+            return 0;
         }
         return GdInterop.GetInt(
             effective_costs,
-            "aura_cost",
-            GdInterop.GetInt(combatProfile, "aura_cost")
+            costField,
+            GdInterop.GetInt(combatProfile, costField)
         );
     }
 
-    public static int _get_unit_resource_value(GodotObject active_unit, StringName cost_resource)
+    public static int _get_unit_resource_value(
+        GodotObject active_unit,
+        CombatResourceKind cost_resource_kind
+    )
     {
         if (active_unit == null)
         {
             return 0;
         }
-        if (cost_resource == ResourceMp)
+        string currentField = CombatResourceKindUtils.ToCurrentUnitField(cost_resource_kind);
+        if (string.IsNullOrEmpty(currentField))
         {
-            return GdInterop.GetInt(active_unit, "current_mp");
+            return 0;
         }
-        if (cost_resource == ResourceStamina)
-        {
-            return GdInterop.GetInt(active_unit, "current_stamina");
-        }
-        if (cost_resource == ResourceAp)
-        {
-            return GdInterop.GetInt(active_unit, "current_ap");
-        }
-        return GdInterop.GetInt(active_unit, "current_aura");
+        return GdInterop.GetInt(active_unit, currentField);
     }
 
-    public GDictionary _resolve_repeat_attack_stage_result(
+    private AttackEffectResolutionResult ResolveRepeatAttackStageResult(
         BattleUnitState active_unit,
         BattleUnitState target_unit,
         SkillDef skill_def,
         CombatEffectDef repeat_attack_effect,
+        BattleRepeatAttackStageSpec stage_spec,
         int stage_index,
         GCombatEffectArray stage_effects
     )
@@ -502,21 +494,18 @@ public partial class BattleRepeatAttackResolver : RefCounted
         BattleAttackCheckPolicyService attackPolicy = runtime?.get_attack_check_policy_service();
         if (attackPolicy == null)
         {
-            return new GDictionary
+            return new AttackEffectResolutionResult
             {
-                ["applied"] = false,
-                ["blocked_reason"] = "attack_policy_unavailable",
+                Applied = false,
+                BlockedReason = "attack_policy_unavailable",
+                StatusEffectIds = new Godot.Collections.Array<StringName>(),
+                RemovedStatusEffectIds = new Godot.Collections.Array<StringName>(),
+                SourceStatusEffectIds = new Godot.Collections.Array<StringName>(),
+                TerrainEffectIds = new Godot.Collections.Array<StringName>(),
             };
         }
 
-        BattleRepeatAttackStageSpec stageSpec = build_stage_spec_from_repeat_attack_effect(
-            active_unit,
-            skill_def,
-            repeat_attack_effect,
-            stage_index,
-            0,
-            true
-        );
+        BattleRepeatAttackStageSpec stageSpec = stage_spec;
         BattleAttackCheckPolicyContext attackContext = attackPolicy.build_repeat_attack_stage_context(
             battleState,
             active_unit,
@@ -530,7 +519,7 @@ public partial class BattleRepeatAttackResolver : RefCounted
             attackPolicy.build_fate_aware_repeat_attack_stage_hit_check(attackContext);
         BattleDamageResolver damageResolver = runtime?.get_damage_resolver();
         int attackSuccessRatePercent = attackCheck.SuccessRatePercent;
-        GDictionary result;
+        GDictionary legacyResult;
         if (damageResolver != null)
         {
             var attackResolutionContext = new AttackContext
@@ -538,7 +527,7 @@ public partial class BattleRepeatAttackResolver : RefCounted
                 BattleState = battleState,
                 SkillId = skill_def != null ? skill_def.skill_id : new StringName(""),
             };
-            result = damageResolver.resolve_attack_effects(
+            legacyResult = damageResolver.resolve_attack_effects(
                 active_unit,
                 target_unit,
                 ToUntypedArray(stage_effects),
@@ -548,56 +537,56 @@ public partial class BattleRepeatAttackResolver : RefCounted
         }
         else
         {
-            result = new GDictionary
+            legacyResult = new GDictionary
             {
                 ["attack_success"] = false,
                 ["hit_rate_percent"] = attackSuccessRatePercent,
                 ["success_rate_percent"] = attackSuccessRatePercent,
             };
         }
-        result["hit_rate_percent"] = attackSuccessRatePercent;
-        result["success_rate_percent"] = attackSuccessRatePercent;
-        result["resolution_text"] = _format_repeat_attack_stage_resolution_text(
+        legacyResult["hit_rate_percent"] = attackSuccessRatePercent;
+        legacyResult["success_rate_percent"] = attackSuccessRatePercent;
+        AttackEffectResolutionResult result =
+            AttackEffectResolutionResultReader.ReadLegacyResolverResult(legacyResult, attackCheck);
+        result.HitRatePercent = attackSuccessRatePercent;
+        result.SuccessRatePercent = attackSuccessRatePercent;
+        result.ResolutionText = FormatRepeatAttackStageResolutionText(
             attackCheck,
             result
         );
         return result;
     }
 
-    public string _format_repeat_attack_stage_resolution_text(
+    internal string FormatRepeatAttackStageResolutionText(
         AttackCheckInput attack_check,
-        GDictionary attack_result
+        AttackEffectResolutionResult attack_result
     )
     {
         int successRate = attack_check.SuccessRatePercent;
         string previewText = string.IsNullOrEmpty(attack_check.PreviewText)
             ? $"{successRate}%"
             : attack_check.PreviewText;
-        StringName attackResolution = GdInterop.GetStringName(
-            attack_result,
-            "attack_resolution",
-            ""
-        );
-        int hitRoll = GdInterop.GetInt(attack_result, "hit_roll", 0);
+        AttackResolutionKind attackResolution = attack_result.AttackResolution;
+        int hitRoll = attack_result.HitRoll;
         if (hitRoll > 0)
         {
-            if (attackResolution == CriticalHit)
+            if (attackResolution == AttackResolutionKind.CriticalHit)
             {
                 return $"{previewText}，d20={hitRoll}（大成功）";
             }
-            if (attackResolution == CriticalFail)
+            if (attackResolution == AttackResolutionKind.CriticalFail)
             {
                 return $"{previewText}，d20={hitRoll}（大失败）";
             }
-            if (attackResolution == Miss)
+            if (attackResolution == AttackResolutionKind.Miss)
             {
                 return $"{previewText}，d20={hitRoll}（未命中）";
             }
             return $"{previewText}，d20={hitRoll}";
         }
 
-        int critGateDie = GdInterop.GetInt(attack_result, "crit_gate_die", 0);
-        int critGateRoll = GdInterop.GetInt(attack_result, "crit_gate_roll", 0);
+        int critGateDie = attack_result.CritGateDie;
+        int critGateRoll = attack_result.CritGateRoll;
         if (critGateDie > 0 && critGateRoll > 0)
         {
             return $"{previewText}，门骰 d{critGateDie}={critGateRoll}";
@@ -605,41 +594,9 @@ public partial class BattleRepeatAttackResolver : RefCounted
         return previewText;
     }
 
-    public int _get_repeat_attack_stage_cost(
-        GodotObject active_unit,
-        GodotObject skill_def,
-        GodotObject repeat_attack_effect,
-        int stage_index
-    )
+    public int _get_repeat_attack_stage_cost(BattleRepeatAttackStageSpec stage_spec)
     {
-        int baseCost = _get_repeat_attack_base_resource_cost(
-            active_unit,
-            skill_def,
-            repeat_attack_effect
-        );
-        if (stage_index <= 0)
-        {
-            return baseCost;
-        }
-        GDictionary parameters = GdInterop.GetDictionary(repeat_attack_effect, "params");
-        int followUpFixedCost = GdInterop.GetInt(parameters, "follow_up_fixed_cost", 0);
-        if (followUpFixedCost > 0)
-        {
-            return Math.Max(followUpFixedCost, 0);
-        }
-        int followUpCostAddition = GdInterop.GetInt(parameters, "follow_up_cost_addition", 0);
-        if (followUpCostAddition > 0)
-        {
-            return Math.Max(baseCost + stage_index * followUpCostAddition, 0);
-        }
-        double followUpCostMultiplier = Math.Max(
-            GdInterop.GetFloat(parameters, "follow_up_cost_multiplier", 1.0),
-            1.0
-        );
-        return Math.Max(
-            (int)Math.Round(baseCost * Math.Pow(followUpCostMultiplier, stage_index)),
-            0
-        );
+        return Math.Max(stage_spec.stage_resource_cost, 0);
     }
 
     public GDictionary _resolve_effective_skill_costs(
@@ -656,7 +613,7 @@ public partial class BattleRepeatAttackResolver : RefCounted
         if (_runtime != null)
         {
             skillLevel = _runtime._get_unit_skill_level(
-                active_unit,
+                active_unit as BattleUnitState,
                 GdInterop.GetStringName(skill_def, "skill_id")
             );
         }
@@ -667,143 +624,81 @@ public partial class BattleRepeatAttackResolver : RefCounted
         return GetEffectiveResourceCosts(combatProfile, skillLevel);
     }
 
-    public string _resolve_repeat_attack_resource_label(GodotObject repeat_attack_effect)
+    public string _resolve_repeat_attack_resource_label(BattleRepeatAttackStageSpec stage_spec)
     {
-        StringName costResource = GetCostResource(repeat_attack_effect);
-        if (costResource == ResourceMp)
-            return "法力";
-        if (costResource == ResourceStamina)
-            return "体力";
-        if (costResource == ResourceAp)
-            return "AP";
-        return "斗气";
+        return CombatResourceKindUtils.ToLabel(stage_spec.cost_resource_kind);
     }
 
-    public string _resolve_repeat_attack_resource_abbr(GodotObject repeat_attack_effect)
+    public string _resolve_repeat_attack_resource_abbr(BattleRepeatAttackStageSpec stage_spec)
     {
-        StringName costResource = GetCostResource(repeat_attack_effect);
-        if (costResource == ResourceMp)
-            return "MP";
-        if (costResource == ResourceStamina)
-            return "ST";
-        if (costResource == ResourceAp)
-            return "AP";
-        return "AU";
+        return CombatResourceKindUtils.ToAbbr(stage_spec.cost_resource_kind);
     }
 
     public int _get_repeat_attack_base_resource_cost(
         GodotObject active_unit,
         GodotObject skill_def,
-        GodotObject repeat_attack_effect
+        CombatResourceKind cost_resource_kind
     )
     {
         GodotObject combatProfile = GdInterop.GetObject(skill_def, "combat_profile");
-        if (skill_def == null || combatProfile == null || repeat_attack_effect == null)
+        if (skill_def == null || combatProfile == null)
         {
             return 0;
         }
-        StringName costResource = GetCostResource(repeat_attack_effect);
         GDictionary effectiveCosts = _resolve_effective_skill_costs(active_unit, skill_def);
-        if (costResource == ResourceMp)
+        string costField = CombatResourceKindUtils.ToEffectiveCostField(cost_resource_kind);
+        if (string.IsNullOrEmpty(costField))
         {
-            return GdInterop.GetInt(
-                effectiveCosts,
-                "mp_cost",
-                GdInterop.GetInt(combatProfile, "mp_cost")
-            );
-        }
-        if (costResource == ResourceStamina)
-        {
-            return GdInterop.GetInt(
-                effectiveCosts,
-                "stamina_cost",
-                GdInterop.GetInt(combatProfile, "stamina_cost")
-            );
-        }
-        if (costResource == ResourceAp)
-        {
-            return GdInterop.GetInt(
-                effectiveCosts,
-                "ap_cost",
-                GdInterop.GetInt(combatProfile, "ap_cost")
-            );
+            return 0;
         }
         return GdInterop.GetInt(
             effectiveCosts,
-            "aura_cost",
-            GdInterop.GetInt(combatProfile, "aura_cost")
+            costField,
+            GdInterop.GetInt(combatProfile, costField)
         );
     }
 
     public bool _can_pay_repeat_attack_stage_cost(
         GodotObject active_unit,
-        GodotObject repeat_attack_effect,
-        int stage_cost
+        BattleRepeatAttackStageSpec stage_spec
     )
     {
-        if (active_unit == null || repeat_attack_effect == null)
+        if (active_unit == null)
         {
             return false;
         }
-        if (stage_cost <= 0)
+        int stageCost = _get_repeat_attack_stage_cost(stage_spec);
+        string currentField = CombatResourceKindUtils.ToCurrentUnitField(stage_spec.cost_resource_kind);
+        if (string.IsNullOrEmpty(currentField))
+        {
+            return stageCost <= 0;
+        }
+        if (stageCost <= 0)
         {
             return true;
         }
-        StringName costResource = GetCostResource(repeat_attack_effect);
-        if (costResource == ResourceMp)
-        {
-            return GdInterop.GetInt(active_unit, "current_mp") >= stage_cost;
-        }
-        if (costResource == ResourceStamina)
-        {
-            return GdInterop.GetInt(active_unit, "current_stamina") >= stage_cost;
-        }
-        if (costResource == ResourceAp)
-        {
-            return GdInterop.GetInt(active_unit, "current_ap") >= stage_cost;
-        }
-        return GdInterop.GetInt(active_unit, "current_aura") >= stage_cost;
+        return GdInterop.GetInt(active_unit, currentField) >= stageCost;
     }
 
     public void _consume_repeat_attack_stage_cost(
         GodotObject active_unit,
-        GodotObject repeat_attack_effect,
-        int stage_cost
+        BattleRepeatAttackStageSpec stage_spec
     )
     {
-        if (active_unit == null || repeat_attack_effect == null || stage_cost <= 0)
+        int stageCost = _get_repeat_attack_stage_cost(stage_spec);
+        if (active_unit == null || stageCost <= 0)
         {
             return;
         }
-        StringName costResource = GetCostResource(repeat_attack_effect);
-        if (costResource == ResourceMp)
+        string currentField = CombatResourceKindUtils.ToCurrentUnitField(stage_spec.cost_resource_kind);
+        if (string.IsNullOrEmpty(currentField))
         {
-            active_unit.Set(
-                "current_mp",
-                Math.Max(GdInterop.GetInt(active_unit, "current_mp") - stage_cost, 0)
-            );
+            return;
         }
-        else if (costResource == ResourceStamina)
-        {
-            active_unit.Set(
-                "current_stamina",
-                Math.Max(GdInterop.GetInt(active_unit, "current_stamina") - stage_cost, 0)
-            );
-        }
-        else if (costResource == ResourceAp)
-        {
-            active_unit.Set(
-                "current_ap",
-                Math.Max(GdInterop.GetInt(active_unit, "current_ap") - stage_cost, 0)
-            );
-        }
-        else
-        {
-            active_unit.Set(
-                "current_aura",
-                Math.Max(GdInterop.GetInt(active_unit, "current_aura") - stage_cost, 0)
-            );
-        }
+        active_unit.Set(
+            currentField,
+            Math.Max(GdInterop.GetInt(active_unit, currentField) - stageCost, 0)
+        );
     }
 
     public bool _should_stop_repeat_attack_on_miss(GodotObject repeat_attack_effect)
@@ -902,20 +797,6 @@ public partial class BattleRepeatAttackResolver : RefCounted
     {
         return (combatProfile as CombatSkillDef)?.get_effective_resource_costs(skillLevel)
             ?? new GDictionary();
-    }
-
-    private static StringName GetCostResource(GodotObject repeatAttackEffect)
-    {
-        return GdInterop.GetStringName(
-            GdInterop.GetDictionary(repeatAttackEffect, "params"),
-            "cost_resource",
-            ResourceAura
-        );
-    }
-
-    private static GArray GetArrayOrEmpty(GDictionary source, string key)
-    {
-        return GdInterop.GetArray(source, key);
     }
 
     private static GArray ToUntypedArray(GCombatEffectArray values)

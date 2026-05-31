@@ -1,0 +1,213 @@
+{
+  "quests": [
+    {
+      "quest_id": "bounty_wolf_pack",
+      "display_name": "狼群悬赏",
+      "description": "商道附近的荒狼群又聚集起来了。清理它们，赏金归你。",
+      "provider_interaction_id": "service_bounty_registry",
+      "tags": ["bounty", "repeatable", "main_world"],
+      "accept_requirements": [],
+      "objective_defs": [
+        {
+          "objective_id": "defeat_wolves",
+          "objective_type": "defeat_enemy",
+          "target_id": "wolf_pack",
+          "target_value": 5
+        }
+      ],
+      "reward_entries": [
+        {
+          "reward_type": "gold",
+          "amount": 100
+        },
+        {
+          "reward_type": "item",
+          "item_id": "beast_hide",
+          "quantity": 2
+        }
+      ],
+      "is_repeatable": true
+    },
+    {
+      "quest_id": "bounty_mist_harrier",
+      "display_name": "迷雾猎手",
+      "description": "迷雾突袭者在边境神出鬼没。它们的速度很快，但赏金更高。",
+      "provider_interaction_id": "service_bounty_registry",
+      "tags": ["bounty", "repeatable", "main_world"],
+      "accept_requirements": [],
+      "objective_defs": [
+        {
+          "objective_id": "defeat_harriers",
+          "objective_type": "defeat_enemy",
+          "target_id": "mist_harrier",
+          "target_value": 3
+        }
+      ],
+      "reward_entries": [
+        {
+          "reward_type": "gold",
+          "amount": 250
+        }
+      ],
+      "is_repeatable": true
+    },
+    {
+      "quest_id": "bounty_wolf_alpha",
+      "display_name": "阿尔法猎杀",
+      "description": "一只狼群首领正在统合周边的荒狼。在它壮大之前除掉它。",
+      "provider_interaction_id": "service_bounty_registry",
+      "tags": ["bounty", "repeatable", "main_world"],
+      "accept_requirements": [],
+      "objective_defs": [
+        {
+          "objective_id": "defeat_alpha",
+          "objective_type": "defeat_enemy",
+          "target_id": "wolf_alpha",
+          "target_value": 1
+        }
+      ],
+      "reward_entries": [
+        {
+          "reward_type": "gold",
+          "amount": 300
+        },
+        {
+          "reward_type": "item",
+          "item_id": "beast_hide",
+          "quantity": 5
+        }
+      ],
+      "is_repeatable": true
+    },
+    {
+      "quest_id": "bounty_mist_beast",
+      "display_name": "迷雾兽猎杀",
+      "description": "迷雾兽是裂隙渗出后最常见的威胁。它们笨重，但皮糙肉厚。",
+      "provider_interaction_id": "service_bounty_registry",
+      "tags": ["bounty", "repeatable", "ashen_intersection"],
+      "accept_requirements": [],
+      "objective_defs": [
+        {
+          "objective_id": "defeat_mist_beasts",
+          "objective_type": "defeat_enemy",
+          "target_id": "mist_beast",
+          "target_value": 2
+        }
+      ],
+      "reward_entries": [
+        {
+          "reward_type": "gold",
+          "amount": 400
+        }
+      ],
+      "is_repeatable": true
+    },
+    {
+      "quest_id": "bounty_mist_weaver",
+      "display_name": "编织者悬赏",
+      "description": "迷雾编织者的法术能扭曲小范围的现实。悬赏很高，因为很少有人能活着回来。",
+      "provider_interaction_id": "service_bounty_registry",
+      "tags": ["bounty", "repeatable", "ashen_intersection"],
+      "accept_requirements": [],
+      "objective_defs": [
+        {
+          "objective_id": "defeat_weavers",
+          "objective_type": "defeat_enemy",
+          "target_id": "mist_weaver",
+          "target_value": 2
+        }
+      ],
+      "reward_entries": [
+        {
+          "reward_type": "gold",
+          "amount": 500
+        },
+        {
+          "reward_type": "item",
+          "item_id": "calamity_shard",
+          "quantity": 1
+        }
+      ],
+      "is_repeatable": true
+    },
+    {
+      "quest_id": "bounty_wolf_vanguard",
+      "display_name": "先锋清剿",
+      "description": "狼先锋是荒狼群中最具攻击性的个体。它们总是冲在最前面。",
+      "provider_interaction_id": "service_bounty_registry",
+      "tags": ["bounty", "repeatable", "main_world"],
+      "accept_requirements": [],
+      "objective_defs": [
+        {
+          "objective_id": "defeat_vanguards",
+          "objective_type": "defeat_enemy",
+          "target_id": "wolf_vanguard",
+          "target_value": 4
+        }
+      ],
+      "reward_entries": [
+        {
+          "reward_type": "gold",
+          "amount": 350
+        },
+        {
+          "reward_type": "item",
+          "item_id": "iron_ore",
+          "quantity": 3
+        }
+      ],
+      "is_repeatable": true
+    },
+    {
+      "quest_id": "bounty_wolf_shaman",
+      "display_name": "萨满猎杀",
+      "description": "狼萨满会用奇怪的仪式强化其他荒狼。优先解决它们，战斗会轻松很多。",
+      "provider_interaction_id": "service_bounty_registry",
+      "tags": ["bounty", "repeatable", "main_world"],
+      "accept_requirements": [],
+      "objective_defs": [
+        {
+          "objective_id": "defeat_shamans",
+          "objective_type": "defeat_enemy",
+          "target_id": "wolf_shaman",
+          "target_value": 2
+        }
+      ],
+      "reward_entries": [
+        {
+          "reward_type": "gold",
+          "amount": 450
+        }
+      ],
+      "is_repeatable": true
+    },
+    {
+      "quest_id": "bounty_wolf_raider",
+      "display_name": "骑兵清剿",
+      "description": "狼骑兵的机动性让它们成为商队最大的噩梦。悬赏不限量。",
+      "provider_interaction_id": "service_bounty_registry",
+      "tags": ["bounty", "repeatable", "main_world"],
+      "accept_requirements": [],
+      "objective_defs": [
+        {
+          "objective_id": "defeat_raiders",
+          "objective_type": "defeat_enemy",
+          "target_id": "wolf_raider",
+          "target_value": 6
+        }
+      ],
+      "reward_entries": [
+        {
+          "reward_type": "gold",
+          "amount": 300
+        },
+        {
+          "reward_type": "item",
+          "item_id": "bandit_insignia",
+          "quantity": 2
+        }
+      ],
+      "is_repeatable": true
+    }
+  ]
+}

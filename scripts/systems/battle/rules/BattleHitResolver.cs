@@ -83,8 +83,8 @@ public partial class BattleHitResolver : RefCounted
             if (levelStagesMap.Count != 0 && active_unit != null && skill_def != null)
             {
                 int skillLevel = GdInterop.GetInt(
-                    GdInterop.GetDictionary(active_unit, "known_skill_level_map"),
-                    GdInterop.GetStringName(skill_def, "skill_id"),
+                    active_unit.known_skill_level_map,
+                    skill_def.skill_id,
                     0
                 );
                 int bestLevel = -1;
@@ -145,7 +145,7 @@ public partial class BattleHitResolver : RefCounted
         );
     }
 
-    public GDictionary build_repeat_attack_preview(
+    public AttackPreviewData build_repeat_attack_preview(
         BattleState battle_state,
         BattleUnitState active_unit,
         BattleUnitState target_unit,
@@ -161,7 +161,7 @@ public partial class BattleHitResolver : RefCounted
             || repeat_attack_effect == null
         )
         {
-            return new GDictionary();
+            return new AttackPreviewData();
         }
 
         int resolvedStageCount = preview_stage_count;
@@ -178,11 +178,7 @@ public partial class BattleHitResolver : RefCounted
             REPEAT_ATTACK_PREVIEW_STAGE_GUARD
         );
         var stageChecks = new List<AttackCheckInput>();
-        var stageHitRates = new GIntArray();
-        var stageSuccessRates = new GIntArray();
-        var stageBaseHitRates = new GIntArray();
-        var stageRequiredRolls = new GIntArray();
-        var stagePreviewTexts = new Godot.Collections.Array<string>();
+        var stages = new List<AttackPreviewStage>();
         for (int stageIndex = 0; stageIndex < normalizedStageCount; stageIndex++)
         {
             AttackCheckInput attackCheck = build_fate_aware_repeat_attack_stage_hit_check(
@@ -195,34 +191,47 @@ public partial class BattleHitResolver : RefCounted
             );
             int stageSuccessRate = attackCheck.SuccessRatePercent;
             stageChecks.Add(attackCheck);
-            stageHitRates.Add(stageSuccessRate);
-            stageSuccessRates.Add(stageSuccessRate);
-            stageBaseHitRates.Add(attackCheck.BaseHitRatePercent);
-            stageRequiredRolls.Add(attackCheck.DisplayRequiredRoll);
-            stagePreviewTexts.Add(attackCheck.PreviewText);
+            stages.Add(
+                new AttackPreviewStage(
+                    hitRatePercent: stageSuccessRate,
+                    successRatePercent: stageSuccessRate,
+                    baseHitRatePercent: attackCheck.BaseHitRatePercent,
+                    requiredRoll: attackCheck.RequiredRoll,
+                    displayRequiredRoll: attackCheck.DisplayRequiredRoll,
+                    previewText: attackCheck.PreviewText
+                )
+            );
         }
         GDictionary effectParams = GdInterop.GetDictionary(repeat_attack_effect, "params");
-        return new GDictionary
+        int avgSuccessRate = 0;
+        int avgBaseHitRate = 0;
+        if (stageChecks.Count > 0)
         {
-            ["summary_text"] = _format_repeat_attack_preview_summary(stageChecks),
-            ["stage_hit_rates"] = stageHitRates,
-            ["stage_success_rates"] = stageSuccessRates,
-            ["stage_base_hit_rates"] = stageBaseHitRates,
-            ["stage_required_rolls"] = stageRequiredRolls,
-            ["stage_preview_texts"] = stagePreviewTexts,
-            ["hit_rate_percent"] = Mathf.RoundToInt((float)_average_ints(stageSuccessRates)),
-            ["success_rate_percent"] = Mathf.RoundToInt((float)_average_ints(stageSuccessRates)),
-            ["base_hit_rate_percent"] = Mathf.RoundToInt((float)_average_ints(stageBaseHitRates)),
-            ["base_attack_bonus"] =
-                effectParams != null ? GdInterop.GetInt(effectParams, "base_attack_bonus", 0) : 0,
-            ["follow_up_attack_penalty"] =
-                effectParams != null
-                    ? GdInterop.GetInt(effectParams, "follow_up_attack_penalty", 0)
-                    : 0,
+            var successRates = new GIntArray();
+            var baseHitRates = new GIntArray();
+            foreach (var check in stageChecks)
+            {
+                successRates.Add(check.SuccessRatePercent);
+                baseHitRates.Add(check.BaseHitRatePercent);
+            }
+            avgSuccessRate = Mathf.RoundToInt((float)_average_ints(successRates));
+            avgBaseHitRate = Mathf.RoundToInt((float)_average_ints(baseHitRates));
+        }
+        return new AttackPreviewData
+        {
+            SummaryText = _format_repeat_attack_preview_summary(stageChecks),
+            Stages = stages,
+            HitRatePercent = avgSuccessRate,
+            SuccessRatePercent = avgSuccessRate,
+            BaseHitRatePercent = avgBaseHitRate,
+            BaseAttackBonus = effectParams != null ? GdInterop.GetInt(effectParams, "base_attack_bonus", 0) : 0,
+            FollowUpAttackPenalty = effectParams != null
+                ? GdInterop.GetInt(effectParams, "follow_up_attack_penalty", 0)
+                : 0,
         };
     }
 
-    public GDictionary build_skill_attack_preview(
+    public AttackPreviewData build_skill_attack_preview(
         BattleState battle_state,
         BattleUnitState active_unit,
         BattleUnitState target_unit,
@@ -232,7 +241,7 @@ public partial class BattleHitResolver : RefCounted
     {
         if (active_unit == null || target_unit == null || skill_def == null)
         {
-            return new GDictionary();
+            return new AttackPreviewData();
         }
         if (force_hit_no_crit)
         {
@@ -247,39 +256,48 @@ public partial class BattleHitResolver : RefCounted
         int successRate = attackCheck.SuccessRatePercent;
         int baseHitRate = attackCheck.BaseHitRatePercent;
         string previewText = attackCheck.PreviewText;
-        return new GDictionary
+        return new AttackPreviewData
         {
-            ["summary_text"] = $"预计命中率 {previewText}",
-            ["stage_hit_rates"] = new GIntArray { successRate },
-            ["stage_success_rates"] = new GIntArray { successRate },
-            ["stage_base_hit_rates"] = new GIntArray { baseHitRate },
-            ["stage_required_rolls"] = new GIntArray
+            SummaryText = $"预计命中率 {previewText}",
+            Stages = new List<AttackPreviewStage>
             {
-                attackCheck.DisplayRequiredRoll,
+                new AttackPreviewStage(
+                    hitRatePercent: successRate,
+                    successRatePercent: successRate,
+                    baseHitRatePercent: baseHitRate,
+                    requiredRoll: attackCheck.RequiredRoll,
+                    displayRequiredRoll: attackCheck.DisplayRequiredRoll,
+                    previewText: previewText
+                ),
             },
-            ["stage_preview_texts"] = new Godot.Collections.Array<string> { previewText },
-            ["hit_rate_percent"] = successRate,
-            ["success_rate_percent"] = successRate,
-            ["base_hit_rate_percent"] = baseHitRate,
+            HitRatePercent = successRate,
+            SuccessRatePercent = successRate,
+            BaseHitRatePercent = baseHitRate,
         };
     }
 
-    public GDictionary build_force_hit_no_crit_attack_preview()
+    public AttackPreviewData build_force_hit_no_crit_attack_preview()
     {
         string previewText = "100%（必定命中；禁暴击）";
-        return new GDictionary
+        return new AttackPreviewData
         {
-            ["summary_text"] = $"预计命中率 {previewText}",
-            ["stage_hit_rates"] = new GIntArray { 100 },
-            ["stage_success_rates"] = new GIntArray { 100 },
-            ["stage_base_hit_rates"] = new GIntArray { 100 },
-            ["stage_required_rolls"] = new GIntArray { NATURAL_MISS_ROLL },
-            ["stage_preview_texts"] = new Godot.Collections.Array<string> { previewText },
-            ["hit_rate_percent"] = 100,
-            ["success_rate_percent"] = 100,
-            ["base_hit_rate_percent"] = 100,
-            ["force_hit_no_crit"] = true,
-            ["crit_locked"] = true,
+            SummaryText = $"预计命中率 {previewText}",
+            Stages = new List<AttackPreviewStage>
+            {
+                new AttackPreviewStage(
+                    hitRatePercent: 100,
+                    successRatePercent: 100,
+                    baseHitRatePercent: 100,
+                    requiredRoll: NATURAL_MISS_ROLL,
+                    displayRequiredRoll: NATURAL_MISS_ROLL,
+                    previewText: previewText
+                ),
+            },
+            HitRatePercent = 100,
+            SuccessRatePercent = 100,
+            BaseHitRatePercent = 100,
+            ForceHitNoCrit = true,
+            CritLocked = true,
         };
     }
 
@@ -324,27 +342,23 @@ public partial class BattleHitResolver : RefCounted
         int skillLevel = 0;
         if (active_unit != null && skill_def != null)
         {
-            GDictionary knownSkillLevelMap = GdInterop.GetDictionary(
-                active_unit,
-                "known_skill_level_map"
-            );
-            StringName skillId = GdInterop.GetStringName(skill_def, "skill_id");
+            GDictionary knownSkillLevelMap = active_unit.known_skill_level_map;
+            StringName skillId = skill_def.skill_id;
             if (knownSkillLevelMap.ContainsKey(skillId))
             {
                 skillLevel = GdInterop.GetInt(knownSkillLevelMap, skillId, 0);
             }
-            else if (GdInterop.GetArray(active_unit, "known_active_skill_ids").Contains(skillId))
+            else if (active_unit.known_active_skill_ids.Contains(skillId))
             {
                 skillLevel = 1;
             }
         }
-        GodotObject combatProfile =
-            skill_def != null ? GdInterop.GetObject(skill_def, "combat_profile") : null;
+        GodotObject combatProfile = skill_def?.combat_profile;
         int skillAttackBonus =
             (combatProfile as CombatSkillDef)?.get_effective_attack_roll_bonus(skillLevel) ?? 0;
         int lockedSkillHitBonus = _get_skill_lock_hit_bonus(
             active_unit,
-            skill_def != null ? GdInterop.GetStringName(skill_def, "skill_id") : new StringName("")
+            skill_def?.skill_id ?? new StringName("")
         );
         int statusAttackBonusDelta = _get_attacker_status_attack_bonus_delta(active_unit);
         int situationalAttackBonus = flat_bonus + Math.Max(statusAttackBonusDelta, 0);
@@ -495,9 +509,7 @@ public partial class BattleHitResolver : RefCounted
             return 0;
         }
         int penalty = 0;
-        foreach (
-            Variant statusIdValue in GdInterop.GetDictionary(active_unit, "status_effects").Keys
-        )
+        foreach (Variant statusIdValue in active_unit.status_effects.Keys)
         {
             StringName statusId = ProgressionDataUtils.to_string_name(statusIdValue);
             var statusEntry = active_unit.get_status_effect(statusId);
@@ -528,9 +540,7 @@ public partial class BattleHitResolver : RefCounted
         {
             return false;
         }
-        foreach (
-            Variant statusIdValue in GdInterop.GetDictionary(unit_state, "status_effects").Keys
-        )
+        foreach (Variant statusIdValue in unit_state.status_effects.Keys)
         {
             StringName statusId = ProgressionDataUtils.to_string_name(statusIdValue);
             var statusEntry = unit_state.get_status_effect(statusId);
@@ -750,15 +760,15 @@ public partial class BattleHitResolver : RefCounted
         return metadata;
     }
 
-    public GDictionary resolve_spell_control_metadata(
+    public virtual GDictionary resolve_spell_control_metadata(
         BattleUnitState source_unit,
-        GDictionary attack_context
+        AttackContext attack_context
     )
     {
         int hiddenLuckAtBirth = _get_hidden_luck_at_birth(source_unit);
         int faithLuckBonus = _get_faith_luck_bonus(source_unit);
         int effectiveLuck = _get_effective_luck(source_unit);
-        bool isDisadvantage = GdInterop.GetBool(attack_context, "is_disadvantage", false);
+        bool isDisadvantage = attack_context?.IsDisadvantage ?? false;
         int lockedSkillHitBonus = _get_skill_lock_hit_bonus_from_context(
             source_unit,
             attack_context
@@ -805,14 +815,14 @@ public partial class BattleHitResolver : RefCounted
 
         int hitRoll = _roll_attack_die(NATURAL_HIT_ROLL, isDisadvantage, attack_context);
         metadata["hit_roll"] = hitRoll;
-        GDictionary naturalOneTraitResult = _resolve_natural_one_trait_reroll(
+        AttackTraitTriggerResult naturalOneTraitResult = _resolve_natural_one_trait_reroll(
             source_unit,
             hitRoll,
             attack_context
         );
-        if (GdInterop.GetBool(naturalOneTraitResult, "triggered", false))
+        if (naturalOneTraitResult.Triggered)
         {
-            hitRoll = GdInterop.GetInt(naturalOneTraitResult, "rerolled_roll", hitRoll);
+            hitRoll = naturalOneTraitResult.RerolledRoll;
             metadata["hit_roll"] = hitRoll;
             _append_trait_trigger_result(metadata, naturalOneTraitResult);
         }
@@ -860,7 +870,7 @@ public partial class BattleHitResolver : RefCounted
         }
         return Math.Max(
             GdInterop.GetInt(
-                GdInterop.GetDictionary(unit_state, "known_skill_lock_hit_bonus_map"),
+                unit_state.known_skill_lock_hit_bonus_map,
                 skill_id,
                 0
             ),
@@ -870,22 +880,14 @@ public partial class BattleHitResolver : RefCounted
 
     public int _get_skill_lock_hit_bonus_from_context(
         BattleUnitState unit_state,
-        GDictionary context
+        AttackContext context
     )
     {
         if (context == null)
         {
             return 0;
         }
-        return _get_skill_lock_hit_bonus(
-            unit_state,
-            ProgressionDataUtils.to_string_name(context.GetValueOrDefault("skill_id", ""))
-        );
-    }
-
-    public virtual int roll_attack_die(int die_size, bool is_disadvantage, GDictionary attack_context)
-    {
-        return _roll_attack_die(die_size, is_disadvantage, attack_context);
+        return _get_skill_lock_hit_bonus(unit_state, context.SkillId);
     }
 
     public virtual int roll_attack_die(
@@ -937,36 +939,6 @@ public partial class BattleHitResolver : RefCounted
         return TrueRandomSeedService.randi_range(NATURAL_MISS_ROLL, NATURAL_HIT_ROLL);
     }
 
-    public GDictionary _resolve_natural_one_trait_reroll(
-        BattleUnitState source_unit,
-        int hit_roll,
-        GDictionary attack_context
-    )
-    {
-        if (_trait_trigger_hooks == null)
-        {
-            return new GDictionary();
-        }
-        GDictionary hookResult = _trait_trigger_hooks.on_natural_one(
-            source_unit,
-            new GDictionary
-            {
-                ["roll"] = hit_roll,
-                ["die_size"] = NATURAL_HIT_ROLL,
-                ["battle_state"] = attack_context.GetValueOrDefault("battle_state", default),
-            }
-        );
-        if (!GdInterop.GetBool(hookResult, "triggered", false))
-        {
-            return hookResult;
-        }
-        if (GdInterop.GetBool(hookResult, "reroll_die", false))
-        {
-            hookResult["rerolled_roll"] = _roll_attack_die(NATURAL_HIT_ROLL, false, attack_context);
-        }
-        return hookResult;
-    }
-
     public AttackTraitTriggerResult _resolve_natural_one_trait_reroll(
         BattleUnitState source_unit,
         int hit_roll,
@@ -1008,24 +980,6 @@ public partial class BattleHitResolver : RefCounted
     public bool _resolve_attack_disadvantage(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
-        GDictionary attack_context
-    )
-    {
-        if (attack_context.ContainsKey("is_disadvantage"))
-        {
-            return GdInterop.GetBool(attack_context, "is_disadvantage", false);
-        }
-        var battleState = GdInterop.GetObject(attack_context, "battle_state") as BattleState;
-        if (battleState == null)
-        {
-            return false;
-        }
-        return battleState.is_attack_disadvantage(source_unit, target_unit);
-    }
-
-    public bool _resolve_attack_disadvantage(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
         AttackContext attack_context
     )
     {
@@ -1045,19 +999,6 @@ public partial class BattleHitResolver : RefCounted
         return battleState.is_attack_disadvantage(source_unit, target_unit);
     }
 
-    public int _roll_attack_die(int die_size, bool is_disadvantage, GDictionary attack_context)
-    {
-        var battleState = GdInterop.GetObject(attack_context, "battle_state") as BattleState;
-        int normalizedDieSize = Math.Max(die_size, 1);
-        int firstRoll = _roll_attack_die_once(normalizedDieSize, attack_context, battleState);
-        if (!is_disadvantage)
-        {
-            return firstRoll;
-        }
-        int secondRoll = _roll_attack_die_once(normalizedDieSize, attack_context, battleState);
-        return Math.Min(firstRoll, secondRoll);
-    }
-
     public int _roll_attack_die(int die_size, bool is_disadvantage, AttackContext attack_context)
     {
         int normalizedDieSize = Math.Max(die_size, 1);
@@ -1069,24 +1010,6 @@ public partial class BattleHitResolver : RefCounted
         }
         int secondRoll = _roll_attack_die_once(normalizedDieSize, attack_context, battleState);
         return Math.Min(firstRoll, secondRoll);
-    }
-
-    public int _roll_attack_die_once(
-        int die_size,
-        GDictionary attack_context,
-        BattleState battle_state
-    )
-    {
-        int overrideRoll = _consume_attack_roll_override(attack_context, die_size);
-        if (overrideRoll > 0)
-        {
-            if (battle_state != null)
-            {
-                battle_state.next_attack_roll_nonce();
-            }
-            return overrideRoll;
-        }
-        return _roll_true_random_attack_range(1, die_size, battle_state);
     }
 
     public int _roll_attack_die_once(
@@ -1104,33 +1027,6 @@ public partial class BattleHitResolver : RefCounted
             return overrideRoll;
         }
         return _roll_true_random_attack_range(1, die_size, battle_state);
-    }
-
-    public int _consume_attack_roll_override(GDictionary attack_context, int die_size)
-    {
-        if (attack_context == null)
-        {
-            return 0;
-        }
-        int normalizedDieSize = Math.Max(die_size, 1);
-        if (attack_context.ContainsKey("attack_roll_overrides"))
-        {
-            GArray overrideValues = GdInterop.GetArray(attack_context, "attack_roll_overrides");
-            if (overrideValues.Count != 0)
-            {
-                var rawValue = overrideValues[0];
-                overrideValues.RemoveAt(0);
-                attack_context["attack_roll_overrides"] = overrideValues;
-                return Math.Clamp(rawValue.AsInt32(), 1, normalizedDieSize);
-            }
-        }
-        if (attack_context.ContainsKey("attack_roll_override"))
-        {
-            var rawSingle = attack_context["attack_roll_override"];
-            attack_context.Remove("attack_roll_override");
-            return Math.Clamp(rawSingle.AsInt32(), 1, normalizedDieSize);
-        }
-        return 0;
     }
 
     public int _roll_true_random_attack_range(
@@ -1206,20 +1102,28 @@ public partial class BattleHitResolver : RefCounted
         unit_state.set_status_effect(statusEntry);
     }
 
-    public void _append_trait_trigger_result(GDictionary target, GDictionary trigger_result)
+    public void _append_trait_trigger_result(GDictionary target, AttackTraitTriggerResult trigger_result)
     {
-        if (
-            target == null
-            || trigger_result == null
-            || !GdInterop.GetBool(trigger_result, "triggered", false)
-        )
+        if (target == null || !trigger_result.Triggered)
         {
             return;
         }
         GArray results = (GArray)GdInterop
             .GetArray(target, "trait_trigger_results")
             .Duplicate(true);
-        results.Add(trigger_result.Duplicate(true));
+        results.Add(new GDictionary
+        {
+            ["triggered"] = trigger_result.Triggered,
+            ["event"] = trigger_result.Event,
+            ["trait_id"] = trigger_result.TraitId,
+            ["effect_type"] = trigger_result.EffectType,
+            ["original_roll"] = trigger_result.OriginalRoll,
+            ["reroll_die"] = trigger_result.RerollDie,
+            ["rerolled_roll"] = trigger_result.RerolledRoll,
+            ["die_size"] = trigger_result.DieSize,
+            ["charge_key"] = trigger_result.ChargeKey,
+            ["charges_remaining"] = trigger_result.ChargesRemaining,
+        });
         target["trait_trigger_results"] = results;
     }
 
@@ -1229,8 +1133,7 @@ public partial class BattleHitResolver : RefCounted
         CombatEffectDef repeat_attack_effect
     )
     {
-        GodotObject combatProfile =
-            skill_def != null ? GdInterop.GetObject(skill_def, "combat_profile") : null;
+        GodotObject combatProfile = skill_def?.combat_profile;
         if (
             active_unit == null
             || skill_def == null
@@ -1245,19 +1148,36 @@ public partial class BattleHitResolver : RefCounted
             return 1;
         }
 
-        GDictionary parameters = GdInterop.GetDictionary(repeat_attack_effect, "params");
-        StringName costResource = GdInterop.GetStringName(parameters, "cost_resource", "aura");
-        int baseCost = _get_repeat_attack_preview_base_cost(skill_def, costResource);
+        int skillLevel = 0;
+        if (
+            active_unit.known_skill_level_map != null
+            && skill_def != null
+            && active_unit.known_skill_level_map.ContainsKey(skill_def.skill_id)
+        )
+        {
+            skillLevel = GdInterop.GetInt(active_unit.known_skill_level_map, skill_def.skill_id, 0);
+        }
+        BattleRepeatAttackStageSpec firstStageSpec =
+            BattleRepeatAttackStageSpec.from_repeat_attack_effect(
+                repeat_attack_effect,
+                0,
+                0,
+                skillLevel,
+                true
+            );
+        firstStageSpec = firstStageSpec.with_base_resource_cost(
+            _get_repeat_attack_preview_base_cost(skill_def, firstStageSpec.cost_resource_kind)
+        );
+        int baseCost = firstStageSpec.base_resource_cost;
         if (baseCost <= 0)
         {
             return REPEAT_ATTACK_PREVIEW_STAGE_GUARD;
         }
 
-        double followUpCostMultiplier = Math.Max(
-            GdInterop.GetFloat(parameters, "follow_up_cost_multiplier", 1.0),
-            1.0
+        int remainingResource = _get_unit_resource_value(
+            active_unit,
+            firstStageSpec.cost_resource_kind
         );
-        int remainingResource = _get_unit_resource_value(active_unit, costResource);
         if (remainingResource < baseCost)
         {
             return 1;
@@ -1267,10 +1187,7 @@ public partial class BattleHitResolver : RefCounted
         int stages = 1;
         while (stages < REPEAT_ATTACK_PREVIEW_STAGE_GUARD)
         {
-            int nextStageCost = Math.Max(
-                (int)Math.Round(baseCost * Math.Pow(followUpCostMultiplier, stages)),
-                0
-            );
+            int nextStageCost = firstStageSpec.resolve_resource_cost_for_stage(stages);
             if (nextStageCost > 0 && remainingResource < nextStageCost)
             {
                 break;
@@ -1281,39 +1198,37 @@ public partial class BattleHitResolver : RefCounted
         return stages;
     }
 
-    public int _get_repeat_attack_preview_base_cost(SkillDef skill_def, StringName cost_resource)
+    public int _get_repeat_attack_preview_base_cost(
+        SkillDef skill_def,
+        CombatResourceKind cost_resource_kind
+    )
     {
-        GodotObject combatProfile = GdInterop.GetObject(skill_def, "combat_profile");
-        if (cost_resource == "mp")
+        CombatSkillDef combatProfile = skill_def?.combat_profile;
+        if (combatProfile == null)
+            return 0;
+        return cost_resource_kind switch
         {
-            return GdInterop.GetInt(combatProfile, "mp_cost");
-        }
-        if (cost_resource == "stamina")
-        {
-            return GdInterop.GetInt(combatProfile, "stamina_cost");
-        }
-        if (cost_resource == "ap")
-        {
-            return GdInterop.GetInt(combatProfile, "ap_cost");
-        }
-        return GdInterop.GetInt(combatProfile, "aura_cost");
+            CombatResourceKind.Ap => combatProfile.ap_cost,
+            CombatResourceKind.Aura => combatProfile.aura_cost,
+            CombatResourceKind.Mp => combatProfile.mp_cost,
+            CombatResourceKind.Stamina => combatProfile.stamina_cost,
+            _ => 0,
+        };
     }
 
-    public int _get_unit_resource_value(BattleUnitState active_unit, StringName cost_resource)
+    public int _get_unit_resource_value(
+        BattleUnitState active_unit,
+        CombatResourceKind cost_resource_kind
+    )
     {
-        if (cost_resource == "mp")
+        return cost_resource_kind switch
         {
-            return GdInterop.GetInt(active_unit, "current_mp");
-        }
-        if (cost_resource == "stamina")
-        {
-            return GdInterop.GetInt(active_unit, "current_stamina");
-        }
-        if (cost_resource == "ap")
-        {
-            return GdInterop.GetInt(active_unit, "current_ap");
-        }
-        return GdInterop.GetInt(active_unit, "current_aura");
+            CombatResourceKind.Ap => active_unit?.current_ap ?? 0,
+            CombatResourceKind.Aura => active_unit?.current_aura ?? 0,
+            CombatResourceKind.Mp => active_unit?.current_mp ?? 0,
+            CombatResourceKind.Stamina => active_unit?.current_stamina ?? 0,
+            _ => 0,
+        };
     }
 
     public string _format_repeat_attack_preview_summary(List<AttackCheckInput> stage_checks)
@@ -1747,11 +1662,6 @@ public partial class BattleHitResolver : RefCounted
             critLocked: critLocked ?? source.CritLocked,
             critGateDie: critGateDie ?? source.CritGateDie,
             forceHitNoCrit: source.ForceHitNoCrit,
-            apCost: source.ApCost,
-            auraCost: source.AuraCost,
-            mpCost: source.MpCost,
-            staminaCost: source.StaminaCost,
-            costResource: source.CostResource,
             skillId: source.SkillId,
             followUpAttackPenalty: source.FollowUpAttackPenalty,
             exponentialPenalty: source.ExponentialPenalty,

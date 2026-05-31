@@ -384,6 +384,112 @@ public partial class BattleReportFormatter : RefCounted
         AppendDamageResultLogLines(batch, subjectLabel, targetDisplayName, result);
     }
 
+    internal void append_damage_result_log_lines(
+        BattleEventBatch batch,
+        string subjectLabel,
+        string targetDisplayName,
+        AttackEffectResolutionResult result
+    )
+    {
+        AppendDamageResultLogLines(batch, subjectLabel, targetDisplayName, result);
+    }
+
+    internal void AppendDamageResultLogLines(
+        BattleEventBatch batch,
+        string subjectLabel,
+        string targetDisplayName,
+        AttackEffectResolutionResult result
+    )
+    {
+        if (batch == null)
+            return;
+        if (result.ExecuteOutcome == ExecuteOutcomeKind.Resisted)
+        {
+            batch.log_lines.Add("目标抵抗死亡律令。");
+            return;
+        }
+        if (!result.HasDamageEvent)
+            return;
+        int damage = result.Damage;
+        int shieldAbsorbed = result.ShieldAbsorbed;
+        int fixedMitigationTotal = result.FixedMitigationTotal;
+        if (damage > 0)
+        {
+            string damageLine =
+                $"{subjectLabel} 对 {targetDisplayName} 造成 {damage} 点伤害{FormatDamageTierLogSuffix(result)}";
+            batch.log_lines.Add($"{damageLine}。");
+            if (result.ExecuteOutcome == ExecuteOutcomeKind.FailedSaveFatal)
+            {
+                batch.log_lines.Add("死亡律令生效 / 无视免死效果。");
+                if (result.BypassShield)
+                    batch.log_lines.Add("死亡律令穿透护盾。");
+            }
+            if (fixedMitigationTotal > 0)
+            {
+                string fixedSourceText = result.FixedMitigationSourceText;
+                if (string.IsNullOrEmpty(fixedSourceText))
+                    fixedSourceText = string.IsNullOrEmpty(result.AbsorbReasonText)
+                        ? "防护"
+                        : result.AbsorbReasonText;
+                batch.log_lines.Add(
+                    $"{targetDisplayName} 的 {fixedSourceText} 吸收了 {fixedMitigationTotal} 点伤害。"
+                );
+            }
+            if (shieldAbsorbed > 0)
+                batch.log_lines.Add($"{targetDisplayName} 的护盾吸收了 {shieldAbsorbed} 点伤害。");
+        }
+        else
+        {
+            if (result.AnyImmune)
+            {
+                string immuneSourceText = AttackEffectResolutionResultReader.JoinLabels(
+                    result.ImmuneSourceLabels
+                );
+                if (string.IsNullOrEmpty(immuneSourceText))
+                    batch.log_lines.Add(
+                        $"{subjectLabel} 命中 {targetDisplayName}，但其免疫该伤害。"
+                    );
+                else
+                    batch.log_lines.Add(
+                        $"{subjectLabel} 命中 {targetDisplayName}，但其因 {immuneSourceText} 免疫该伤害。"
+                    );
+            }
+            else if (shieldAbsorbed > 0)
+                batch.log_lines.Add(
+                    $"{subjectLabel} 命中 {targetDisplayName}，但被护盾吸收了 {shieldAbsorbed} 点伤害。"
+                );
+            else
+                batch.log_lines.Add(
+                    $"{subjectLabel} 命中 {targetDisplayName}，但被 {(string.IsNullOrEmpty(result.AbsorbReasonText) ? "防护" : result.AbsorbReasonText)} 完全吸收。"
+                );
+        }
+        if (result.ShieldBroken)
+            batch.log_lines.Add($"{targetDisplayName} 的护盾被击碎。");
+    }
+
+    private string FormatDamageTierLogSuffix(AttackEffectResolutionResult result)
+    {
+        if (result.AnyDouble)
+        {
+            string doubleSourceText = AttackEffectResolutionResultReader.JoinLabels(
+                result.DoubleSourceLabels
+            );
+            if (!string.IsNullOrEmpty(doubleSourceText))
+                return $"（因 {doubleSourceText} 触发易伤）";
+            return "（触发易伤）";
+        }
+        if (result.AnyHalf)
+        {
+            string halfSourceText = AttackEffectResolutionResultReader.JoinLabels(
+                result.HalfSourceLabels
+            );
+            if (!string.IsNullOrEmpty(halfSourceText))
+                return $"（因 {halfSourceText} 减半后结算）";
+            return "（减半后结算）";
+        }
+        return "";
+    }
+
     private bool _DamageResultHasBypassShieldEvent(Dictionary result)
     {
         var damageEvents = result.GetValueOrDefault("damage_events", new Godot.Collections.Array())

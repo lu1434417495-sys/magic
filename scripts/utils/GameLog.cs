@@ -60,7 +60,7 @@ public static class GameLog
         string message,
         string eventId = null,
         string domain = null,
-        GDictionary context = null
+        string context = null
     )
     {
         Write(GameLogLevel.Error, eventId, domain, message, context);
@@ -70,7 +70,7 @@ public static class GameLog
         string message,
         string eventId = null,
         string domain = null,
-        GDictionary context = null
+        string context = null
     )
     {
         Write(GameLogLevel.Warning, eventId, domain, message, context);
@@ -80,7 +80,7 @@ public static class GameLog
         string message,
         string eventId = null,
         string domain = null,
-        GDictionary context = null
+        string context = null
     )
     {
         Write(GameLogLevel.Info, eventId, domain, message, context);
@@ -90,7 +90,7 @@ public static class GameLog
         string message,
         string eventId = null,
         string domain = null,
-        GDictionary context = null
+        string context = null
     )
     {
         if (!IsDebugEnabled)
@@ -103,7 +103,7 @@ public static class GameLog
         string eventId,
         string domain,
         string message,
-        GDictionary context
+        string context
     )
     {
         string resolvedDomain = string.IsNullOrEmpty(domain) ? "runtime" : domain;

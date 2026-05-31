@@ -16,8 +16,8 @@ public partial class BattleSimOverrideApplier : RefCounted
         var cloned_enemy_ai_brains = _duplicate_resource_dict(enemy_ai_brains);
 
         GodotObject ai_score_profile =
-            profile?.ai_score_profile != null
-                ? profile.ai_score_profile.Duplicate(true)
+            profile?.ai_score_profile is Resource aiScoreProfile
+                ? aiScoreProfile.Duplicate(true)
                 : new BattleAiScoreProfile();
 
         var errors = new Godot.Collections.Array<string>();

@@ -1,6 +1,6 @@
 using System;
+using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
 // 翻译自 world_map_grid_system.gd（2026-05-25，世界系统 C# 迁移）。
@@ -10,8 +10,9 @@ public partial class WorldMapGridSystem : RefCounted
 {
     private Vector2I _world_size_cells = Vector2I.Zero;
     private Vector2I _chunk_size = Vector2I.One;
-    private GDictionary _occupied_cells = new();
-    private GDictionary _footprints = new();
+    private readonly Dictionary<Vector2I, WorldMapOccupantState> _occupiedCells = new();
+    private readonly Dictionary<string, WorldMapFootprintState> _footprintsByEntityId =
+        new(StringComparer.Ordinal);
 
     public void setup(Vector2I world_size_in_chunks, Vector2I chunk_size)
     {
@@ -24,8 +25,8 @@ public partial class WorldMapGridSystem : RefCounted
             normalizedWorldSize.X * _chunk_size.X,
             normalizedWorldSize.Y * _chunk_size.Y
         );
-        _occupied_cells.Clear();
-        _footprints.Clear();
+        _occupiedCells.Clear();
+        _footprintsByEntityId.Clear();
     }
 
     public Vector2I get_world_size_cells()
@@ -49,8 +50,8 @@ public partial class WorldMapGridSystem : RefCounted
         WorldMapOccupantState occupantState = GetOccupantState(coord);
         if (occupantState != null)
         {
-            cell.occupant_id = occupantState.occupant_id;
-            cell.footprint_root_id = occupantState.footprint_root_id;
+            cell.occupant_id = occupantState.OccupantId;
+            cell.footprint_root_id = occupantState.FootprintRootId;
         }
         return cell;
     }
@@ -75,7 +76,7 @@ public partial class WorldMapGridSystem : RefCounted
             return "";
         }
         WorldMapOccupantState occupantState = GetOccupantState(coord);
-        return occupantState != null ? occupantState.footprint_root_id : "";
+        return occupantState != null ? occupantState.FootprintRootId : "";
     }
 
     public bool can_place_footprint(Vector2I origin, Vector2I size)
@@ -94,7 +95,7 @@ public partial class WorldMapGridSystem : RefCounted
                 {
                     return false;
                 }
-                if (_occupied_cells.ContainsKey(coord))
+                if (_occupiedCells.ContainsKey(coord))
                 {
                     return false;
                 }
@@ -118,7 +119,7 @@ public partial class WorldMapGridSystem : RefCounted
         {
             if (previousFootprint != null)
             {
-                WriteFootprintCells(entity_id, previousFootprint.origin, previousFootprint.size);
+                WriteFootprintCells(entity_id, previousFootprint.Origin, previousFootprint.Size);
             }
             return false;
         }
@@ -128,26 +129,31 @@ public partial class WorldMapGridSystem : RefCounted
 
     public void clear_footprint(string entity_id)
     {
+        if (string.IsNullOrEmpty(entity_id))
+        {
+            return;
+        }
+
         WorldMapFootprintState footprint = GetFootprintState(entity_id);
         if (footprint == null)
         {
             return;
         }
 
-        for (int y = 0; y < footprint.size.Y; y++)
+        for (int y = 0; y < footprint.Size.Y; y++)
         {
-            for (int x = 0; x < footprint.size.X; x++)
+            for (int x = 0; x < footprint.Size.X; x++)
             {
-                Vector2I coord = footprint.origin + new Vector2I(x, y);
+                Vector2I coord = footprint.Origin + new Vector2I(x, y);
                 WorldMapOccupantState occupantState = GetOccupantState(coord);
-                if (occupantState != null && occupantState.footprint_root_id == entity_id)
+                if (occupantState != null && occupantState.FootprintRootId == entity_id)
                 {
-                    _occupied_cells.Remove(coord);
+                    _occupiedCells.Remove(coord);
                 }
             }
         }
 
-        _footprints.Remove(entity_id);
+        _footprintsByEntityId.Remove(entity_id);
     }
 
     public GVector2IArray get_neighbors_4(Vector2I coord)
@@ -178,81 +184,35 @@ public partial class WorldMapGridSystem : RefCounted
 
     private WorldMapOccupantState GetOccupantState(Vector2I coord)
     {
-        GdInterop.TryGet(_occupied_cells, coord, out var occupantValue);
-        if (occupantValue.TryAsObject(out WorldMapOccupantState occupantObject))
-        {
-            if (occupantObject.is_empty())
-            {
-                _occupied_cells.Remove(coord);
-                return null;
-            }
-            return occupantObject;
-        }
-        if (occupantValue.TryAsDictionary(out GDictionary occupantDict))
-        {
-            if (
-                !occupantDict.ContainsKey("occupant_id")
-                || !occupantDict.ContainsKey("footprint_root_id")
-            )
-            {
-                _occupied_cells.Remove(coord);
-                return null;
-            }
-            WorldMapOccupantState occupantState = WorldMapOccupantState.create(
-                GdInterop.GetString(occupantDict, "occupant_id"),
-                GdInterop.GetString(occupantDict, "footprint_root_id")
-            );
-            if (occupantState.is_empty())
-            {
-                _occupied_cells.Remove(coord);
-                return null;
-            }
-            _occupied_cells[coord] = occupantState;
-            return occupantState;
-        }
-        return null;
+        return _occupiedCells.TryGetValue(coord, out WorldMapOccupantState occupantState)
+            ? occupantState
+            : null;
     }
 
     private WorldMapFootprintState GetFootprintState(string entityId)
     {
-        GdInterop.TryGet(_footprints, entityId, out var footprintValue);
-        if (footprintValue.TryAsObject(out WorldMapFootprintState footprintObject))
-            return footprintObject;
-        if (footprintValue.TryAsDictionary(out GDictionary footprintDict))
+        if (string.IsNullOrEmpty(entityId))
         {
-            if (
-                !GdInterop.HasVector2I(footprintDict, "origin")
-                || !GdInterop.HasVector2I(footprintDict, "size")
-            )
-            {
-                _footprints.Remove(entityId);
-                return null;
-            }
-            WorldMapFootprintState footprintState = WorldMapFootprintState.create(
-                GdInterop.GetVector2I(footprintDict, "origin"),
-                GdInterop.GetVector2I(footprintDict, "size")
-            );
-            if (footprintState.is_empty())
-            {
-                _footprints.Remove(entityId);
-                return null;
-            }
-            _footprints[entityId] = footprintState;
-            return footprintState;
+            return null;
         }
-        return null;
+
+        if (!_footprintsByEntityId.TryGetValue(entityId, out WorldMapFootprintState footprint))
+        {
+            return null;
+        }
+        return footprint;
     }
 
     private void WriteFootprintCells(string entityId, Vector2I origin, Vector2I size)
     {
-        _footprints[entityId] = WorldMapFootprintState.create(origin, size);
+        _footprintsByEntityId[entityId] = new WorldMapFootprintState(origin, size);
 
         for (int y = 0; y < size.Y; y++)
         {
             for (int x = 0; x < size.X; x++)
             {
                 Vector2I coord = origin + new Vector2I(x, y);
-                _occupied_cells[coord] = WorldMapOccupantState.create(entityId, entityId);
+                _occupiedCells[coord] = new WorldMapOccupantState(entityId, entityId);
             }
         }
     }

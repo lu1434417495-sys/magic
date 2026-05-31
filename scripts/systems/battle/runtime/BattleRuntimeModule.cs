@@ -54,10 +54,10 @@ public partial class BattleRuntimeModule : RefCounted
     public GDictionary _item_defs = new();
     public GDictionary _enemy_templates = new();
     public GDictionary _enemy_ai_brains = new();
-    public GodotObject _encounter_builder = new EncounterRosterBuilder();
+    public EncounterRosterBuilder _encounter_builder = new EncounterRosterBuilder();
     public BattleState _state;
     public BattleGridService _grid_service = new();
-    public GodotObject _terrain_generator = new BattleTerrainGenerator();
+    public BattleTerrainGenerator _terrain_generator = new BattleTerrainGenerator();
     public BattleDamageResolver _damage_resolver = new();
     public BattleHitResolver _hit_resolver = new();
     public BattleAiService _ai_service = new();
@@ -114,15 +114,15 @@ public partial class BattleRuntimeModule : RefCounted
     public GDictionary _last_start_failure = new();
     public GDictionary calamity_by_member_id = new();
 
-    public void SetupTyped(
+    public void setup(
         IBattleRuntimeCharacterGateway character_gateway = null,
         GDictionary skill_defs = null,
         GDictionary enemy_templates = null,
         GDictionary enemy_ai_brains = null,
-        GodotObject encounter_builder = null,
+        EncounterRosterBuilder encounter_builder = null,
         EquipmentDropService equipment_drop_service = null,
         GDictionary item_defs = null,
-        GodotObject terrain_generator = null,
+        BattleTerrainGenerator terrain_generator = null,
         Func<StringName> equipment_instance_id_allocator = null,
         GDictionary battle_special_profile_registry_snapshot = null
     )
@@ -185,38 +185,6 @@ public partial class BattleRuntimeModule : RefCounted
         _setup_special_profile_runtime();
     }
 
-    public void setup(
-        GodotObject character_gateway,
-        GDictionary skill_defs = null,
-        GDictionary enemy_templates = null,
-        GDictionary enemy_ai_brains = null,
-        GodotObject encounter_builder = null,
-        EquipmentDropService equipment_drop_service = null,
-        GDictionary item_defs = null,
-        GodotObject terrain_generator = null,
-        Callable equipment_instance_id_allocator = default,
-        GDictionary battle_special_profile_registry_snapshot = null
-    )
-    {
-        Func<StringName> allocator = null;
-        if (!equipment_instance_id_allocator.Equals(default(Callable)))
-        {
-            allocator = () => equipment_instance_id_allocator.Call().AsStringName();
-        }
-        SetupTyped(
-            character_gateway as IBattleRuntimeCharacterGateway,
-            skill_defs,
-            enemy_templates,
-            enemy_ai_brains,
-            encounter_builder,
-            equipment_drop_service,
-            item_defs,
-            terrain_generator,
-            allocator,
-            battle_special_profile_registry_snapshot
-        );
-    }
-
     public void _setup_special_profile_runtime()
     {
         _special_profile_gate ??= new BattleSpecialProfileGate();
@@ -271,8 +239,8 @@ public partial class BattleRuntimeModule : RefCounted
         );
         if (hasExplicitEnemyUnits)
             enemyUnits = _unit_factory.build_enemy_units(encounter_anchor, enemyBuildContext);
-        else if (_encounter_builder is EncounterRosterBuilder encounterBuilder)
-            enemyUnits = encounterBuilder.build_enemy_units(encounter_anchor, enemyBuildContext);
+        else if (_encounter_builder != null)
+            enemyUnits = _encounter_builder.build_enemy_units(encounter_anchor, enemyBuildContext);
 
         if (
             !_validate_battle_units_for_start(allyUnits, "ally")
@@ -1086,6 +1054,18 @@ public partial class BattleRuntimeModule : RefCounted
             _append_report_entry_to_batch(batch, reportEntry);
     }
 
+    internal void append_result_report_entry(
+        BattleEventBatch batch,
+        AttackEffectResolutionResult result
+    )
+    {
+        if (batch == null || !result.HasReportEntry)
+            return;
+        GDictionary reportEntry = BattleReportEntryPayload.BuildGodotPayload(result.ReportEntry);
+        if (reportEntry.Count > 0)
+            _append_report_entry_to_batch(batch, reportEntry);
+    }
+
     public void _append_report_entry_to_batch(BattleEventBatch batch, GDictionary report_entry)
     {
         if (batch == null || report_entry == null || report_entry.Count == 0)
@@ -1412,7 +1392,7 @@ public partial class BattleRuntimeModule : RefCounted
         _special_profile_commit_adapter?.setup(this, _skill_outcome_committer);
     }
 
-    public GodotObject get_terrain_generator() => _terrain_generator;
+    public BattleTerrainGenerator get_terrain_generator() => _terrain_generator;
 
     public GDictionary get_skill_defs() => _skill_defs;
 
@@ -1714,6 +1694,9 @@ public partial class BattleRuntimeModule : RefCounted
     public void append_result_report_entry(BattleEventBatch batch, GDictionary result) =>
         _append_result_report_entry(batch, result);
 
+    public void append_report_entry(BattleEventBatch batch, GDictionary report_entry) =>
+        _append_report_entry_to_batch(batch, report_entry);
+
     public void clear_defeated_unit(BattleUnitState unit_state, BattleEventBatch batch = null) =>
         _clear_defeated_unit(unit_state, batch);
 
@@ -1731,6 +1714,16 @@ public partial class BattleRuntimeModule : RefCounted
     {
         _initialize_applied_status_timeline_ticks(target_unit, status_effect_ids);
         _fate_runtime?.handle_applied_statuses(target_unit, status_effect_ids ?? new GArray());
+    }
+
+    internal void mark_applied_statuses_for_turn_timing(
+        BattleUnitState target_unit,
+        GStringNameArray status_effect_ids
+    )
+    {
+        GStringNameArray normalizedStatusIds = NormalizeStatusIdArray(status_effect_ids);
+        _initialize_applied_status_timeline_ticks(target_unit, ToUntypedStatusIdArray(normalizedStatusIds));
+        _fate_runtime?.handle_applied_statuses(target_unit, ToUntypedStatusIdArray(normalizedStatusIds));
     }
 
     public void _initialize_applied_status_timeline_ticks(
@@ -1761,6 +1754,19 @@ public partial class BattleRuntimeModule : RefCounted
     {
         GStringNameArray normalized = new();
         foreach (var statusIdValue in statusEffectIds ?? new GArray())
+        {
+            StringName statusId = ProgressionDataUtils.to_string_name(statusIdValue);
+            if (statusId == "" || normalized.Contains(statusId))
+                continue;
+            normalized.Add(statusId);
+        }
+        return normalized;
+    }
+
+    private static GStringNameArray NormalizeStatusIdArray(GStringNameArray statusEffectIds)
+    {
+        GStringNameArray normalized = new();
+        foreach (StringName statusIdValue in statusEffectIds ?? new GStringNameArray())
         {
             StringName statusId = ProgressionDataUtils.to_string_name(statusIdValue);
             if (statusId == "" || normalized.Contains(statusId))
@@ -1880,6 +1886,23 @@ public partial class BattleRuntimeModule : RefCounted
         if (sourceStatusIds.Count == 0)
             return;
         mark_applied_statuses_for_turn_timing(source_unit, ToUntypedStatusIdArray(sourceStatusIds));
+        _append_changed_unit_id(batch, source_unit.unit_id);
+        foreach (StringName statusId in sourceStatusIds)
+            batch.log_lines.Add($"{source_unit.display_name} 获得状态 {statusId}。");
+    }
+
+    internal void append_result_source_status_effects(
+        BattleEventBatch batch,
+        BattleUnitState source_unit,
+        AttackEffectResolutionResult result
+    )
+    {
+        if (source_unit == null)
+            return;
+        GStringNameArray sourceStatusIds = NormalizeStatusIdArray(result.SourceStatusEffectIds);
+        if (sourceStatusIds.Count == 0)
+            return;
+        mark_applied_statuses_for_turn_timing(source_unit, sourceStatusIds);
         _append_changed_unit_id(batch, source_unit.unit_id);
         foreach (StringName statusId in sourceStatusIds)
             batch.log_lines.Add($"{source_unit.display_name} 获得状态 {statusId}。");
@@ -2474,7 +2497,7 @@ public partial class BattleRuntimeModule : RefCounted
         );
     }
 
-    public GDictionary _build_unit_skill_hit_preview(
+    public AttackPreviewData _build_unit_skill_hit_preview(
         BattleUnitState active_unit,
         GArray target_units,
         SkillDef skill_def,
@@ -2527,6 +2550,22 @@ public partial class BattleRuntimeModule : RefCounted
         string subject_label,
         string target_display_name,
         GDictionary result
+    )
+    {
+        _ensure_sidecars_ready();
+        _skill_orchestrator.append_damage_result_log_lines(
+            batch,
+            subject_label,
+            target_display_name,
+            result
+        );
+    }
+
+    internal void append_damage_result_log_lines(
+        BattleEventBatch batch,
+        string subject_label,
+        string target_display_name,
+        AttackEffectResolutionResult result
     )
     {
         _ensure_sidecars_ready();

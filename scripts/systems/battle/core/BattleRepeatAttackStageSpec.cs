@@ -1,18 +1,62 @@
+using System;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class BattleRepeatAttackStageSpec : RefCounted
+public readonly struct BattleRepeatAttackStageSpec
 {
-    public int stage_index { get; set; }
-    public int stage_count { get; set; }
-    public int skill_level { get; set; }
-    public int stage_base_attack_bonus { get; set; }
-    public int follow_up_attack_penalty { get; set; }
-    public int penalty_free_stages { get; set; }
-    public bool exponential_penalty { get; set; }
-    public bool fate_aware { get; set; }
-    public StringName stage_label { get; set; } = "";
+    public readonly int stage_index;
+    public readonly int stage_count;
+    public readonly int skill_level;
+    public readonly int stage_base_attack_bonus;
+    public readonly int follow_up_attack_penalty;
+    public readonly int penalty_free_stages;
+    public readonly bool exponential_penalty;
+    public readonly CombatResourceKind cost_resource_kind;
+    public readonly int base_resource_cost;
+    public readonly int stage_resource_cost;
+    public readonly int follow_up_fixed_cost;
+    public readonly int follow_up_cost_addition;
+    public readonly double follow_up_cost_multiplier;
+    public readonly bool fate_aware;
+    public readonly StringName stage_label;
+
+    private BattleRepeatAttackStageSpec(
+        int stageIndex,
+        int stageCount,
+        int skillLevel,
+        int stageBaseAttackBonus,
+        int followUpAttackPenalty,
+        int penaltyFreeStages,
+        bool exponentialPenalty,
+        CombatResourceKind costResourceKind,
+        int baseResourceCost,
+        int stageResourceCost,
+        int followUpFixedCost,
+        int followUpCostAddition,
+        double followUpCostMultiplier,
+        bool fateAware,
+        StringName stageLabel
+    )
+    {
+        stage_index = Mathf.Max(stageIndex, 0);
+        stage_count = Mathf.Max(stageCount, 0);
+        skill_level = Mathf.Max(skillLevel, 0);
+        stage_base_attack_bonus = stageBaseAttackBonus;
+        follow_up_attack_penalty = Mathf.Max(followUpAttackPenalty, 0);
+        penalty_free_stages = Mathf.Max(penaltyFreeStages, 0);
+        exponential_penalty = exponentialPenalty;
+        cost_resource_kind =
+            costResourceKind == CombatResourceKind.None
+                ? CombatResourceKind.Aura
+                : costResourceKind;
+        base_resource_cost = Mathf.Max(baseResourceCost, 0);
+        stage_resource_cost = Mathf.Max(stageResourceCost, 0);
+        follow_up_fixed_cost = Mathf.Max(followUpFixedCost, 0);
+        follow_up_cost_addition = Mathf.Max(followUpCostAddition, 0);
+        follow_up_cost_multiplier = Math.Max(followUpCostMultiplier, 1.0);
+        fate_aware = fateAware;
+        stage_label = stageLabel ?? new StringName("");
+    }
 
     public static BattleRepeatAttackStageSpec from_repeat_attack_effect(
         CombatEffectDef repeat_attack_effect,
@@ -22,29 +66,49 @@ public partial class BattleRepeatAttackStageSpec : RefCounted
         bool fate_aware_value = false
     )
     {
-        var spec = new BattleRepeatAttackStageSpec
-        {
-            stage_index = Mathf.Max(stage_index_value, 0),
-            stage_count = Mathf.Max(stage_count_value, 0),
-            skill_level = Mathf.Max(skill_level_value, 0),
-            fate_aware = fate_aware_value,
-        };
-        spec.stage_label = new StringName($"repeat_stage_{spec.stage_index}");
-
+        int stageIndex = Mathf.Max(stage_index_value, 0);
         GDictionary parameters = repeat_attack_effect?.@params ?? new GDictionary();
         if (repeat_attack_effect == null || parameters == null || parameters.Count == 0)
         {
-            return spec;
+            return new BattleRepeatAttackStageSpec(
+                stageIndex,
+                stage_count_value,
+                skill_level_value,
+                0,
+                0,
+                0,
+                false,
+                CombatResourceKind.Aura,
+                0,
+                0,
+                0,
+                0,
+                1.0,
+                fate_aware_value,
+                new StringName($"repeat_stage_{stageIndex}")
+            );
         }
 
-        spec.stage_base_attack_bonus = GdInterop.GetInt(parameters, "base_attack_bonus", 0);
-        spec.follow_up_attack_penalty = Mathf.Max(
+        return new BattleRepeatAttackStageSpec(
+            stageIndex,
+            stage_count_value,
+            skill_level_value,
+            GdInterop.GetInt(parameters, "base_attack_bonus", 0),
             GdInterop.GetInt(parameters, "follow_up_attack_penalty", 0),
-            0
+            ResolvePenaltyFreeStages(parameters, skill_level_value),
+            GdInterop.GetBool(parameters, "exponential_penalty", false),
+            CombatResourceKindUtils.FromStringName(
+                GdInterop.GetStringName(parameters, "cost_resource", "aura"),
+                CombatResourceKind.Aura
+            ),
+            0,
+            0,
+            GdInterop.GetInt(parameters, "follow_up_fixed_cost", 0),
+            GdInterop.GetInt(parameters, "follow_up_cost_addition", 0),
+            GdInterop.GetFloat(parameters, "follow_up_cost_multiplier", 1.0),
+            fate_aware_value,
+            new StringName($"repeat_stage_{stageIndex}")
         );
-        spec.exponential_penalty = GdInterop.GetBool(parameters, "exponential_penalty", false);
-        spec.penalty_free_stages = ResolvePenaltyFreeStages(parameters, spec.skill_level);
-        return spec;
     }
 
     public int resolve_stage_attack_penalty()
@@ -58,6 +122,79 @@ public partial class BattleRepeatAttackStageSpec : RefCounted
             return (int)Mathf.Pow(2, stage_index) * follow_up_attack_penalty;
         }
         return Mathf.Max(stage_index, 0) * follow_up_attack_penalty;
+    }
+
+    public BattleRepeatAttackStageSpec with_base_resource_cost(int value)
+    {
+        int normalizedBaseCost = Mathf.Max(value, 0);
+        return new BattleRepeatAttackStageSpec(
+            stage_index,
+            stage_count,
+            skill_level,
+            stage_base_attack_bonus,
+            follow_up_attack_penalty,
+            penalty_free_stages,
+            exponential_penalty,
+            cost_resource_kind,
+            normalizedBaseCost,
+            resolve_resource_cost_for_stage(stage_index, normalizedBaseCost),
+            follow_up_fixed_cost,
+            follow_up_cost_addition,
+            follow_up_cost_multiplier,
+            fate_aware,
+            stage_label
+        );
+    }
+
+    public BattleRepeatAttackStageSpec with_fate_aware(bool value)
+    {
+        return new BattleRepeatAttackStageSpec(
+            stage_index,
+            stage_count,
+            skill_level,
+            stage_base_attack_bonus,
+            follow_up_attack_penalty,
+            penalty_free_stages,
+            exponential_penalty,
+            cost_resource_kind,
+            base_resource_cost,
+            stage_resource_cost,
+            follow_up_fixed_cost,
+            follow_up_cost_addition,
+            follow_up_cost_multiplier,
+            value,
+            stage_label
+        );
+    }
+
+    public int resolve_resource_cost_for_stage(int stage_index_value)
+    {
+        return resolve_resource_cost_for_stage(stage_index_value, base_resource_cost);
+    }
+
+    private int resolve_resource_cost_for_stage(int stage_index_value, int base_cost)
+    {
+        int normalizedStageIndex = Mathf.Max(stage_index_value, 0);
+        int normalizedBaseCost = Mathf.Max(base_cost, 0);
+        if (normalizedStageIndex <= 0)
+        {
+            return normalizedBaseCost;
+        }
+        if (follow_up_fixed_cost > 0)
+        {
+            return follow_up_fixed_cost;
+        }
+        if (follow_up_cost_addition > 0)
+        {
+            return Mathf.Max(normalizedBaseCost + normalizedStageIndex * follow_up_cost_addition, 0);
+        }
+        return Mathf.Max(
+            (int)Math.Round(
+                normalizedBaseCost
+                * Math.Pow(follow_up_cost_multiplier, normalizedStageIndex)
+            ),
+            0
+        );
     }
 
     private static int ResolvePenaltyFreeStages(GDictionary parameters, int skillLevel)

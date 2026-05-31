@@ -7,8 +7,8 @@ public partial class SettlementServiceContext : RefCounted
     public Godot.Collections.Dictionary facility_record = new();
     public Godot.Collections.Dictionary npc_record = new();
     public PartyState party_state;
-    public GodotObject warehouse_service;
-    public GodotObject character_management;
+    public PartyWarehouseService warehouse_service;
+    public CharacterManagementModule character_management;
     public int world_step;
     public StringName member_id = "";
     public Godot.Collections.Dictionary payload = new();

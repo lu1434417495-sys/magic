@@ -120,10 +120,10 @@ public partial class run_battle_hit_resolver_bab_regression : SceneTree
 
         GDictionary metadata = resolver.resolve_spell_control_metadata(
             source,
-            new GDictionary
+            new AttackContext
             {
-                ["skill_id"] = new StringName("locked_spell"),
-                ["attack_roll_override"] = 4,
+                SkillId = new StringName("locked_spell"),
+                AttackRollOverride = 4,
             }
         );
         AssertEq(DictInt(metadata, "locked_skill_hit_bonus", -1), 2, "法术检定元数据应记录锁定技能加值。");

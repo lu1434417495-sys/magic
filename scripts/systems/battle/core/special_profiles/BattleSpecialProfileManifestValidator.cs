@@ -598,10 +598,15 @@ public partial class BattleSpecialProfileManifestValidator : RefCounted
             || lower.Contains("/benchmarks/")
         )
             return false;
-        if (lower.EndsWith("benchmark.gd") || lower.EndsWith("analysis.gd"))
+        if (
+            lower.EndsWith("benchmark.gd")
+            || lower.EndsWith("analysis.gd")
+            || lower.EndsWith("benchmark.cs")
+            || lower.EndsWith("analysis.cs")
+        )
             return false;
         string fileName = lower.Contains("/") ? lower.Substring(lower.LastIndexOf('/') + 1) : lower;
-        return fileName.StartsWith("run_") && lower.EndsWith(".gd");
+        return fileName.StartsWith("run_") && (lower.EndsWith(".gd") || lower.EndsWith(".cs"));
     }
 
 }

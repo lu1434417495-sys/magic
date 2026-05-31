@@ -55,7 +55,7 @@ public partial class MisfortuneGuidanceService : RefCounted
 
     public void bind_battle_runtime_gateway(GodotObject battle_runtime_gateway = null)
     {
-        BindBattleRuntimeGateway(battle_runtime_gateway);
+        BindBattleRuntimeGateway(battle_runtime_gateway as BattleRuntimeModule);
     }
 
     public new void Dispose()
@@ -317,15 +317,13 @@ public partial class MisfortuneGuidanceService : RefCounted
         var tags = itemDef.get_tags();
         foreach (var tag in tags)
         {
-            var tagStr = tag.AsStringName();
-            if (tagStr == "dark" || tagStr == "misfortune" || tagStr == "doom")
+            if (tag == "dark" || tag == "misfortune" || tag == "doom")
                 return true;
         }
         var groups = itemDef.get_crafting_groups();
         foreach (var group in groups)
         {
-            var groupStr = group.AsStringName();
-            if (groupStr == "misfortune" || groupStr == "dark")
+            if (group == "misfortune" || group == "dark")
                 return true;
         }
         return false;
@@ -415,20 +413,14 @@ public partial class MisfortuneGuidanceService : RefCounted
         return "";
     }
 
-    private GodotObject GetPartyState()
+    private PartyState GetPartyState()
     {
-        if (_characterGateway == null || !_characterGateway.HasMethod("get_party_state"))
-            return null;
-        return _characterGateway.get_party_state();
+        return _characterGateway?.get_party_state();
     }
 
     private PartyMemberState GetMemberState(StringName memberId)
     {
-        if (
-            _characterGateway == null
-            || memberId == ""
-            || !_characterGateway.HasMethod("get_member_state")
-        )
+        if (_characterGateway == null || memberId == "")
             return null;
         return _characterGateway.get_member_state(memberId);
     }
@@ -437,9 +429,7 @@ public partial class MisfortuneGuidanceService : RefCounted
     {
         if (memberState == null || memberState.progression == null)
             return false;
-        var unitBaseAttributes = memberState
-            .progression.Get("unit_base_attributes")
-            .AsGodotObject();
+        var unitBaseAttributes = memberState.progression.unit_base_attributes;
         if (unitBaseAttributes == null)
             return false;
         return unitBaseAttributes.get_attribute_value(DoomMarkedStatId) > 0;
@@ -449,9 +439,7 @@ public partial class MisfortuneGuidanceService : RefCounted
     {
         if (memberState == null || memberState.progression == null)
             return false;
-        var unitBaseAttributes = memberState
-            .progression.Get("unit_base_attributes")
-            .AsGodotObject();
+        var unitBaseAttributes = memberState.progression.unit_base_attributes;
         if (unitBaseAttributes == null)
             return false;
         return unitBaseAttributes.get_attribute_value(DoomAuthorityStatId) > 0;

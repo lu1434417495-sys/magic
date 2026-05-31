@@ -3010,8 +3010,8 @@ func _test_ai_skill_score_input_uses_fate_aware_repeat_attack_success_rate() -> 
 	_assert_true(score_input != null, "AI fate-aware 命中率回归应构造出合法 score input。")
 	if score_input == null:
 		return
-	_assert_eq(preview.hit_preview.get("stage_base_hit_rates", []), [10], "AI 回归前置：preview 应保留 raw 命中率。")
-	_assert_eq(preview.hit_preview.get("stage_success_rates", []), [15], "AI 回归前置：preview 应把高位大成功自动命中并入正式成功率。")
+	_assert_eq(preview.hit_preview.stage_base_hit_rates, [10], "AI 回归前置：preview 应保留 raw 命中率。")
+	_assert_eq(preview.hit_preview.stage_success_rates, [15], "AI 回归前置：preview 应把高位大成功自动命中并入正式成功率。")
 	_assert_eq(score_input.estimated_hit_rate_percent, 15, "AI 评分应消费 fate-aware repeat_attack 成功率，而不是 raw hit rate。")
 
 

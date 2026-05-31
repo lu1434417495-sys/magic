@@ -53,7 +53,7 @@
   - `tests/progression/fate/run_misfortune_guidance_regression.gd`
   - `tests/progression/fate/run_misfortune_black_omen_regression.gd`
   - `tests/progression/fate/run_fortune_service_regression.gd`
-  - `tests/progression/fate/run_party_state_fate_regression.gd`
+  - `tests/progression/fate/run_party_state_fate_regression.cs`
   - `tests/world_map/ui/run_character_info_window_fate_regression.gd`
 
 ## 当前非事实
@@ -263,7 +263,7 @@
 - `godot --headless --script tests/progression/fate/run_misfortune_guidance_regression.gd`
 - `godot --headless --script tests/progression/fate/run_misfortune_black_omen_regression.gd`
 - `godot --headless --script tests/progression/fate/run_fortune_service_regression.gd`
-- `godot --headless --script tests/progression/fate/run_party_state_fate_regression.gd`
+- `godot --headless --script tests/progression/fate/run_party_state_fate_regression.cs`
 - `godot --headless --script tests/world_map/ui/run_character_info_window_fate_regression.gd`
 
 ### 当前覆盖

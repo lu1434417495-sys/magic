@@ -12,7 +12,7 @@ public interface IGameLogSink
         string eventId,
         string domain,
         string message,
-        GDictionary context
+        string context
     );
 }
 
@@ -26,7 +26,7 @@ public class ConsoleLogSink : IGameLogSink
         string eventId,
         string domain,
         string message,
-        GDictionary context
+        string context
     )
     {
         // GameLog.Write 已负责 Console 输出，本 Sink 空置以避免重复打印
@@ -43,7 +43,7 @@ public class GodotEditorLogSink : IGameLogSink
         string eventId,
         string domain,
         string message,
-        GDictionary context
+        string context
     )
     {
         switch (level)
@@ -80,7 +80,7 @@ public class GameSessionLogSink : IGameLogSink
         string eventId,
         string domain,
         string message,
-        GDictionary context
+        string context
     )
     {
         if (_sessionRef == null || !_sessionRef.TryGetTarget(out var session))

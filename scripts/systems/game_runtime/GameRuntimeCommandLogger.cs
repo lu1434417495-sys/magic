@@ -51,10 +51,10 @@ public partial class GameRuntimeCommandLogger : RefCounted
         string domain,
         string eventId,
         string message,
-        Dictionary context = null
+        string context = ""
     )
     {
-        LogRuntimeEventInternal(level, domain, eventId, message, context ?? new Dictionary());
+        LogRuntimeEventInternal(level, domain, eventId, message, context);
     }
 
     public void LogBattleBatchEntries(BattleEventBatch batch)
@@ -168,7 +168,7 @@ public partial class GameRuntimeCommandLogger : RefCounted
             ? message
             : (ok ? "命令成功。" : "命令失败。");
 
-        LogRuntimeEventInternal(eventLevel, eventDomain, eventId, eventMessage, logContext);
+        LogRuntimeEventInternal(eventLevel, eventDomain, eventId, eventMessage, Json.Stringify(logContext));
         scope["logged"] = true;
         _runtime._active_command_log_scope = scope;
     }
@@ -184,8 +184,8 @@ public partial class GameRuntimeCommandLogger : RefCounted
             ["map_id"] = worldMapContext != null ? worldMapContext.active_map_id : "",
             ["map_display_name"] =
                 worldMapContext != null ? worldMapContext.active_map_display_name : "",
-            ["player_coord"] = _runtime._player_coord,
-            ["selected_coord"] = _runtime._selected_coord,
+            ["player_coord"] = _runtime._player_coord.ToString(),
+            ["selected_coord"] = _runtime._selected_coord.ToString(),
             ["active_modal_id"] = _runtime._active_modal_id,
             ["battle_active"] = _runtime._is_battle_active(),
         };
@@ -201,7 +201,7 @@ public partial class GameRuntimeCommandLogger : RefCounted
         string domain,
         string eventId,
         string message,
-        Dictionary context
+        string context
     )
     {
         var gameSession = _runtime._game_session;
@@ -219,6 +219,7 @@ public partial class GameRuntimeCommandLogger : RefCounted
 
         var baseContext = BuildBattleBatchLogContextInternal(batch);
         baseContext["runtime"] = BuildRuntimeLogStateInternal();
+        string contextStr = Json.Stringify(baseContext);
         foreach (string logLine in batch.log_lines)
         {
             LogRuntimeEventInternal(
@@ -226,7 +227,7 @@ public partial class GameRuntimeCommandLogger : RefCounted
                 "battle",
                 "battle.log",
                 logLine,
-                baseContext
+                contextStr
             );
         }
     }
@@ -266,7 +267,7 @@ public partial class GameRuntimeCommandLogger : RefCounted
             ["winner_faction_id"] = battleState.winner_faction_id.ToString(),
             ["active_unit_id"] = battleState.active_unit_id.ToString(),
             ["active_unit_name"] = _runtime._get_battle_active_unit_name(),
-            ["selected_coord"] = _runtime._battle_selected_coord,
+            ["selected_coord"] = _runtime._battle_selected_coord.ToString(),
             ["selected_skill_id"] = _runtime._selected_battle_skill_id.ToString(),
             ["selected_skill_variant_id"] = _runtime._selected_battle_skill_variant_id.ToString(),
             ["selected_target_coord_count"] = _runtime._queued_battle_skill_target_coords.Count,

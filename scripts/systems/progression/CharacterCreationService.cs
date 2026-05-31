@@ -59,12 +59,12 @@ public partial class CharacterCreationService : RefCounted
     public static PartyMemberState create_member_from_character_creation_payload_for_content_source(
         StringName memberId,
         Godot.Collections.Dictionary payload,
-        GodotObject progressionContentSource,
+        ProgressionContentRegistry progressionContentSource,
         Godot.Collections.Dictionary options = null
     ) => CreateMemberFromCharacterCreationPayload(
         memberId,
         payload,
-        ProgressionContentSourceRef.FromObject(progressionContentSource),
+        ProgressionContentSourceRef.FromRegistry(progressionContentSource),
         options
     );
 
@@ -118,12 +118,12 @@ public partial class CharacterCreationService : RefCounted
     public static bool apply_character_creation_payload_to_member_for_content_source(
         PartyMemberState memberState,
         Godot.Collections.Dictionary payload,
-        GodotObject progressionContentSource,
+        ProgressionContentRegistry progressionContentSource,
         Godot.Collections.Dictionary options = null
     ) => ApplyCharacterCreationPayloadToMember(
         memberState,
         payload,
-        ProgressionContentSourceRef.FromObject(progressionContentSource),
+        ProgressionContentSourceRef.FromRegistry(progressionContentSource),
         options
     );
 

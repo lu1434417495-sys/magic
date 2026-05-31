@@ -51,7 +51,7 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
 
         var contentProvider = new BattleSimContentProvider();
         var overrideApplier = new BattleSimOverrideApplier();
-        var terrainGenerator = new BattleSimTerrainGenerator();
+        var terrainGenerator = new BattleTerrainGenerator();
         var progressionRegistry = new ProgressionContentRegistry();
         var itemRegistry = new ItemContentRegistry();
 
@@ -245,7 +245,7 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
         BattleSimScenarioDef scenario,
         GDictionary overrides,
         BattleSimContentProvider contentProvider,
-        BattleSimTerrainGenerator terrainGenerator,
+        BattleTerrainGenerator terrainGenerator,
         BattleSimFormalCombatFixture fixture,
         long seed,
         bool traceAi,
@@ -261,7 +261,7 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
         {
             bool useFormalTerrain = scenario != null && scenario.use_formal_terrain_generation;
             PrintProgress($"[Progress] run seed={seed} runtime setup start");
-            runtime.SetupTyped(
+            runtime.setup(
                 fixture,
                 GetDict(overrides, "skill_defs"),
                 contentProvider.get_enemy_templates(),

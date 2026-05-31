@@ -24,40 +24,38 @@ public partial class WorldTimeSystem : RefCounted
 
     public GDictionary advance(GDictionary world_data, int delta_steps)
     {
-        int oldStep = get_world_step(world_data);
+        return AdvanceWorldData(world_data, delta_steps).ToDictionary();
+    }
+
+    internal WorldTimeAdvanceResult AdvanceWorldData(GDictionary worldData, int deltaSteps)
+    {
+        WorldTimeAdvanceResult result = AdvanceWorldStep(get_world_step(worldData), deltaSteps);
+        if (result.IsValid && worldData != null)
+        {
+            worldData["world_step"] = result.new_step;
+        }
+        return result;
+    }
+
+    internal static WorldTimeAdvanceResult AdvanceWorldStep(int oldStep, int deltaSteps)
+    {
         if (oldStep < 0)
         {
-            return new GDictionary
-            {
-                ["old_step"] = -1,
-                ["new_step"] = -1,
-                ["old_day"] = -1,
-                ["new_day"] = -1,
-                ["changed"] = false,
-                ["day_changed"] = false,
-                ["days_elapsed"] = 0,
-                ["error_code"] = "invalid_world_step",
-            };
+            return WorldTimeAdvanceResult.Invalid("invalid_world_step");
         }
 
         int oldDay = step_to_day(oldStep);
-        int nextStep = oldStep + Mathf.Max(delta_steps, 0);
+        int nextStep = oldStep + Mathf.Max(deltaSteps, 0);
         int newDay = step_to_day(nextStep);
-        if (world_data != null)
-        {
-            world_data["world_step"] = nextStep;
-        }
-
-        return new GDictionary
-        {
-            ["old_step"] = oldStep,
-            ["new_step"] = nextStep,
-            ["old_day"] = oldDay,
-            ["new_day"] = newDay,
-            ["changed"] = nextStep != oldStep,
-            ["day_changed"] = newDay != oldDay,
-            ["days_elapsed"] = newDay - oldDay,
-        };
+        return new WorldTimeAdvanceResult(
+            oldStep,
+            nextStep,
+            oldDay,
+            newDay,
+            nextStep != oldStep,
+            newDay != oldDay,
+            newDay - oldDay
+        );
     }
 
     private static bool HasValidWorldStep(GDictionary worldData)
@@ -66,7 +64,75 @@ public partial class WorldTimeSystem : RefCounted
         {
             return false;
         }
-        return GdInterop.HasInt(worldData, "world_step")
-            && GdInterop.GetInt(worldData, "world_step") >= 0;
+        return worldData["world_step"].VariantType == Variant.Type.Int
+            && worldData["world_step"].AsInt32() >= 0;
+    }
+}
+
+internal sealed class WorldTimeAdvanceResult
+{
+    public readonly int old_step;
+    public readonly int new_step;
+    public readonly int old_day;
+    public readonly int new_day;
+    public readonly bool changed;
+    public readonly bool day_changed;
+    public readonly int days_elapsed;
+    public readonly string error_code;
+
+    public bool IsValid => string.IsNullOrEmpty(error_code);
+
+    public WorldTimeAdvanceResult(
+        int oldStep,
+        int newStep,
+        int oldDay,
+        int newDay,
+        bool changed,
+        bool dayChanged,
+        int daysElapsed,
+        string errorCode = ""
+    )
+    {
+        old_step = oldStep;
+        new_step = newStep;
+        old_day = oldDay;
+        new_day = newDay;
+        this.changed = changed;
+        day_changed = dayChanged;
+        days_elapsed = daysElapsed;
+        error_code = errorCode ?? "";
+    }
+
+    public static WorldTimeAdvanceResult Invalid(string errorCode)
+    {
+        return new WorldTimeAdvanceResult(
+            -1,
+            -1,
+            -1,
+            -1,
+            false,
+            false,
+            0,
+            errorCode
+        );
+    }
+
+    public GDictionary ToDictionary()
+    {
+        var result = new GDictionary
+        {
+            ["old_step"] = old_step,
+            ["new_step"] = new_step,
+            ["old_day"] = old_day,
+            ["new_day"] = new_day,
+            ["changed"] = changed,
+            ["day_changed"] = day_changed,
+            ["days_elapsed"] = days_elapsed,
+        };
+        if (!IsValid)
+        {
+            result["error_code"] = error_code;
+        }
+        return result;
     }
 }

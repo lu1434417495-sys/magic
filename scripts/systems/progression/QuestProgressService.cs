@@ -446,14 +446,13 @@ public partial class QuestProgressService : RefCounted
                 : new GArray();
         }
 
-        GodotObject questDefObject = questDef.AsGodotObject();
-        if (questDefObject == null)
+        if (questDef.AsGodotObject() is not QuestDef questDefObject)
             return new GArray();
 
-        var objectiveDefsValue = questDefObject.Get("objective_defs");
-        return objectiveDefsValue.VariantType == Variant.Type.Array
-            ? objectiveDefsValue.AsGodotArray()
-            : new GArray();
+        var result = new GArray();
+        foreach (var entry in questDefObject.objective_defs)
+            result.Add(entry);
+        return result;
     }
 
     private Godot.Collections.Array<GDictionary> FindMatchingActiveObjectives(GDictionary eventData)

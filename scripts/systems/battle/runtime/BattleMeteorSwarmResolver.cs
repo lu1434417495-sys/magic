@@ -96,14 +96,12 @@ public partial class BattleMeteorSwarmResolver : RefCounted
         preview.target_coords = facts.target_coords.Duplicate();
         preview.target_unit_ids = facts.target_unit_ids.Duplicate();
         preview.special_profile_preview_facts = facts;
-        preview.hit_preview =
-            new GDictionary
-            {
-                ["summary_text"] =
-                    $"陨星雨影响 {facts.impact_count} 格、预计波及 {facts.expected_target_count} 个单位。",
-                ["modifier_breakdown"] = facts.attack_roll_modifier_breakdown.Duplicate(true),
-                ["source"] = "special_profile_preview_facts",
-            };
+        preview.hit_preview = new AttackPreviewData
+        {
+            SummaryText = $"陨星雨影响 {facts.impact_count} 格、预计波及 {facts.expected_target_count} 个单位。",
+            Source = "special_profile_preview_facts",
+            AttackRollModifierBreakdown = (GArray)facts.attack_roll_modifier_breakdown.Duplicate(true),
+        };
         preview.log_lines.Add(
             $"可施放陨星雨：影响 {facts.impact_count} 格，预计波及 {facts.expected_target_count} 个单位。"
         );

@@ -1,6 +1,6 @@
 # 当前 Godot 项目的上下文装载单元
 
-更新日期：`2026-05-30`
+更新日期：`2026-05-31`
 
 ## 使用规则
 
@@ -126,8 +126,9 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
 - 文件：
   - `scripts/systems/world/WorldMapGridSystem.cs`
   - `scripts/systems/world/WorldMapFogSystem.cs`
-  - `scripts/utils/world_map_cell_data.gd`
-  - `scripts/utils/vision_source_data.gd`
+  - `scripts/systems/world/WorldMapFogFactionState.cs`
+  - `scripts/utils/WorldMapCellData.cs`
+  - `scripts/utils/VisionSourceData.cs`
 - 负责：世界网格、坐标、迷雾、视野来源。
 - 适合：world move 判定、迷雾刷新、地图 cell 数据。
 - 邻接单元：CU-04、CU-06、CU-07。
@@ -157,8 +158,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scripts/systems/world/WorldTimeSystem.cs`
   - `scripts/systems/game_runtime/WorldMapRuntimeProxy.cs`
   - `scripts/systems/game_runtime/WorldMapSystem.cs`
-  - `scripts/systems/settlement/*.gd`
-  - `scripts/systems/settlement/SettlementServiceResult.cs`
+  - `scripts/systems/settlement/*.cs`
   - `scripts/ui/RuntimeLogDock.cs`
   - `scripts/ui/SubmapEntryWindow.cs`
   - `scripts/utils/TrueRandomSeedService.cs`
@@ -401,6 +401,8 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scripts/systems/battle/core/AttackContext.cs`
   - `scripts/systems/battle/core/AttackTraitTriggerResult.cs`
   - `scripts/systems/battle/core/AttackResolutionMetadata.cs`
+  - `scripts/systems/battle/core/AttackEffectResolutionResult.cs`
+  - `scripts/systems/battle/core/CombatResourceKind.cs`
   - `scripts/systems/battle/core/BattleRepeatAttackStageSpec.cs`
   - `scripts/systems/battle/core/BattleAttackCheckPolicyContext.cs`
   - `scripts/systems/battle/terrain/BattleTerrainRules.cs`
@@ -467,7 +469,7 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `scripts/player/warehouse/WeaponDamageDiceDef.cs`
 - 负责：BattleState 数据模型、terrain/edge/grid 规则、伤害/即死/死亡链、命中/豁免/状态语义、状态数值倍率、AI 评分、只读 candidate request/query/evaluator 管线、AI fail-loud/runtime fault 策略、AI state transition resolver、decision state patch/提交边界、runtime action plan 与技能 affordance 分类。
 - 适合：战斗规则、伤害、即死判定、死亡来源优先级、命中、AI 评分、AI 状态转移、AI 行动生成、只读 AI candidate 管线、AI runtime fault/fail-loud 处理、AI 决策提交、terrain effect、状态语义、武器射程规则。
-- 关系提示：AI damage scoring 必须通过 `BattleDamageResolver.preview_damage_sequence()` 读取正式伤害、save 分支、护盾吸收与稳定击杀口径；不要回退到 `BattleDamagePreviewRangeService.cs` 的范围估算。C# 内部闭环优先通过 `BattleTypedEnums.cs` 把 Godot 边界 `StringName` 解析成 enum，再进入评分、范围、目标过滤等 typed 分支；跨 GDScript/Resource/存档的 ID 字段仍保持 `StringName`。敌方 AI brain 的 C# `states` / `transition_rules` 属性不要按 `get_states()` / `get_transition_rules()` 方法调用；GDScript 边界优先读 `get_resolved_states()` 或原始属性。AI action 的 `.gd` 文件作为 C# action wrapper 的按路径加载实现脚本使用，不再声明同名 `class_name`。AI preview / score / candidate / move-cost 回调是 C# delegate 闭环，不要恢复 `Callable` provider 桥。地面范围技能同时存在实际威胁距离与 AI 站位距离合同：`BattleRangeService.get_effective_skill_threat_range()` 对齐 `battle_grid_service.get_area_coords()` 的最远可命中格，`get_effective_skill_distance_contract_range()` 供 `UseGroundSkillAction` 等站位合同使用。死亡律令 / execute 的分支合同由 `BattleExecutionRules.build_execute_plan()` 产出，`BattleDamageResolver` 只负责按 plan 执行 save、裂魂状态、穿盾即死与死亡来源标记。战斗评分不再消费 source-only 聚合伤害；正式路径应通过逐目标 `BattleContributionEvent` 快照进入 `BattleContributionLedger`，再由 `BattleRatingSystem` 归约正向评分、友伤、治疗敌方和友方击倒字段。`BattleBarrierService` 持有 `BarrierContentRegistry` 的运行时实例并负责释放；屏障运行时路径不要绕回 `GodotObject.Get` / `.Call()` 读取 `BattleRuntimeModule`。`BattleMovementService` 的移动执行、路径和 move-cost 热路径应保持 `BattleRuntimeModule` / `BattleGridService` / delegate 强类型闭环，不要恢复 `Callable` 或 grid `.Call()`。`BattleGroundEffectService` 与 `BattleMovementService` 的屏障交互调用应直接走 `BattleLayeredBarrierService` 强类型方法，不要恢复 `Resolve*Barrier*` 的 Godot `.Call()`；地面落点验证需要 cell 信息时优先用 `BattleGridService` 的 primitive 查询，避免把大量 `BattleCellState` wrapper 带出 grid 服务。
+- 关系提示：AI damage scoring 必须通过 `BattleDamageResolver.preview_damage_sequence()` 读取正式伤害、save 分支、护盾吸收与稳定击杀口径；不要回退到 `BattleDamagePreviewRangeService.cs` 的范围估算。C# 内部闭环优先通过 `BattleTypedEnums.cs` 把 Godot 边界 `StringName` 解析成 enum，再进入评分、范围、目标过滤等 typed 分支；跨 GDScript/Resource/存档的 ID 字段仍保持 `StringName`。攻击命中输入、投掷结果、攻击 metadata 与重复攻击 stage 结果在 C# 闭环内分别使用 `AttackCheckInput`、`AttackRollResult`、`AttackResolutionMetadata`、`AttackEffectResolutionResult`；不要在这些边界恢复字典 payload，旧 resolver 字典只允许在尚未改造的 Godot/report 入口被一次性读取。重复攻击 stage spec 是 C# 值类型，资源类型与每段资源消耗归属 `BattleRepeatAttackStageSpec.cost_resource_kind` / `stage_resource_cost`，不要放回 `AttackCheckInput` 或改回 `RefCounted` payload。敌方 AI brain 的 C# `states` / `transition_rules` 属性不要按 `get_states()` / `get_transition_rules()` 方法调用；GDScript 边界优先读 `get_resolved_states()` 或原始属性。AI action 的 `.gd` 文件作为 C# action wrapper 的按路径加载实现脚本使用，不再声明同名 `class_name`。AI preview / score / candidate / move-cost 回调是 C# delegate 闭环，不要恢复 `Callable` provider 桥。地面范围技能同时存在实际威胁距离与 AI 站位距离合同：`BattleRangeService.get_effective_skill_threat_range()` 对齐 `battle_grid_service.get_area_coords()` 的最远可命中格，`get_effective_skill_distance_contract_range()` 供 `UseGroundSkillAction` 等站位合同使用。死亡律令 / execute 的分支合同由 `BattleExecutionRules.build_execute_plan()` 产出，`BattleDamageResolver` 只负责按 plan 执行 save、裂魂状态、穿盾即死与死亡来源标记。战斗评分不再消费 source-only 聚合伤害；正式路径应通过逐目标 `BattleContributionEvent` 快照进入 `BattleContributionLedger`，再由 `BattleRatingSystem` 归约正向评分、友伤、治疗敌方和友方击倒字段。`BattleBarrierService` 持有 `BarrierContentRegistry` 的运行时实例并负责释放；屏障运行时路径不要绕回 `GodotObject.Get` / `.Call()` 读取 `BattleRuntimeModule`。`BattleMovementService` 的移动执行、路径和 move-cost 热路径应保持 `BattleRuntimeModule` / `BattleGridService` / delegate 强类型闭环，不要恢复 `Callable` 或 grid `.Call()`。`BattleGroundEffectService` 与 `BattleMovementService` 的屏障交互调用应直接走 `BattleLayeredBarrierService` 强类型方法，不要恢复 `Resolve*Barrier*` 的 Godot `.Call()`；地面落点验证需要 cell 信息时优先用 `BattleGridService` 的 primitive 查询，避免把大量 `BattleCellState` wrapper 带出 grid 服务。
 - 邻接单元：CU-13、CU-15、CU-17、CU-18、CU-20。
 - 不带：战斗流程 sidecar，除非规则改动需要执行链验证。
 
@@ -517,8 +519,10 @@ HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRun
   - `tests/battle_runtime/**/run_*.cs`
   - `tests/progression/**/*.gd`
   - `tests/runtime/**/*.gd`
+  - `tests/runtime/**/*.cs`
   - `tests/text_runtime/**/*.gd`
   - `tests/world_map/**/*.gd`
+  - `tests/world_map/**/*.cs`
   - `tests/battle_runtime/benchmarks/profile_seeds*.json`
   - `scripts/dev_tools/*.gd`
   - `tools/build_battle_sim_analysis_packet.py`

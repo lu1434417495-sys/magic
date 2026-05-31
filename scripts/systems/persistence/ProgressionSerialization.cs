@@ -9,7 +9,7 @@ public partial class ProgressionSerialization : RefCounted
         return progress?.to_dict() ?? new GDictionary();
     }
 
-    public static GodotObject deserialize_unit_progress(GDictionary data)
+    public static UnitProgress deserialize_unit_progress(GDictionary data)
     {
         return UnitProgress.from_dict(data);
     }

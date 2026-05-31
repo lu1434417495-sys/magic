@@ -40,7 +40,7 @@ public partial class WildEncounterGrowthSystem : RefCounted
                 continue;
             }
 
-            var interval = Mathf.Max(roster.Get("growth_step_interval").AsInt32(), 1);
+            var interval = Mathf.Max(roster.growth_step_interval, 1);
             var relativeOldStep = Mathf.Max(old_step - encounter.suppressed_until_step, 0);
             var relativeNewStep = Mathf.Max(new_step - encounter.suppressed_until_step, 0);
             var oldCycles = relativeOldStep / interval;
@@ -51,11 +51,7 @@ public partial class WildEncounterGrowthSystem : RefCounted
                 continue;
             }
 
-            var maxStage = encounter.growth_stage;
-            if (roster is WildEncounterRosterDef rosterDef)
-            {
-                maxStage = rosterDef.get_max_stage();
-            }
+            var maxStage = roster.get_max_stage();
             var nextStage = Mathf.Min(encounter.growth_stage + stageGain, maxStage);
             if (nextStage == encounter.growth_stage)
             {
@@ -91,12 +87,12 @@ public partial class WildEncounterGrowthSystem : RefCounted
             return false;
         }
 
-        var initialStage = Mathf.Max(roster.Get("initial_stage").AsInt32(), 0);
+        var initialStage = Mathf.Max(roster.initial_stage, 0);
         encounter_anchor.growth_stage = Mathf.Max(encounter_anchor.growth_stage - 1, initialStage);
         encounter_anchor.suppressed_until_step = Mathf.Max(
             encounter_anchor.suppressed_until_step,
             Mathf.Max(world_step, 0)
-                + Mathf.Max(roster.Get("suppression_steps_on_victory").AsInt32(), 0)
+                + Mathf.Max(roster.suppression_steps_on_victory, 0)
         );
         return true;
     }
@@ -111,7 +107,7 @@ public partial class WildEncounterGrowthSystem : RefCounted
         return anchors.VariantType == Variant.Type.Array ? anchors.AsGodotArray() : new GArray();
     }
 
-    private static GodotObject GetRoster(
+    private static WildEncounterRosterDef GetRoster(
         GDictionary encounterRosters,
         StringName encounterProfileId
     )
@@ -120,6 +116,6 @@ public partial class WildEncounterGrowthSystem : RefCounted
         {
             return null;
         }
-        return encounterRosters[encounterProfileId].AsGodotObject();
+        return encounterRosters[encounterProfileId].AsGodotObject() as WildEncounterRosterDef;
     }
 }

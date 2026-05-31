@@ -539,13 +539,13 @@ func _test_repeat_attack_hud_preview_matches_runtime_resolver() -> void:
 	command.target_unit_id = defender.unit_id
 	command.target_coord = defender.coord
 	var preview := runtime.preview_command(command)
-	var hit_preview_text := String(preview.hit_preview.get("summary_text", ""))
+	var hit_preview_text := String(preview.hit_preview.summary_text)
 	_assert_true(preview != null and not preview.hit_preview.is_empty(), "repeat_attack 预览应暴露共享的命中摘要。")
 	_assert_true(hit_preview_text.begins_with("预计命中率 "), "repeat_attack 预览摘要应使用统一的 resolver 文案前缀。")
 	_assert_true(hit_preview_text.contains("需 "), "repeat_attack 预览摘要应暴露 required roll。")
-	_assert_eq((preview.hit_preview.get("stage_hit_rates", []) as Array).size(), 2, "repeat_attack 预览应按当前 Aura 只展示可支付的最大段数。")
-	var stage_required_rolls := preview.hit_preview.get("stage_required_rolls", []) as Array
-	var stage_preview_texts := preview.hit_preview.get("stage_preview_texts", []) as Array
+	_assert_eq((preview.hit_preview.stage_hit_rates as Array).size(), 2, "repeat_attack 预览应按当前 Aura 只展示可支付的最大段数。")
+	var stage_required_rolls := preview.hit_preview.stage_required_rolls as Array
+	var stage_preview_texts := preview.hit_preview.stage_preview_texts as Array
 	_assert_eq(stage_required_rolls.size(), 2, "repeat_attack 预览应按当前 Aura 上限暴露每段 required roll。")
 	_assert_eq(stage_preview_texts.size(), 2, "repeat_attack 预览应按当前 Aura 上限输出 resolver 阶段摘要。")
 	for stage_preview_text in stage_preview_texts:
@@ -573,7 +573,7 @@ func _test_repeat_attack_hud_preview_matches_runtime_resolver() -> void:
 	)
 	_assert_eq(
 		snapshot.get("selected_skill_hit_stage_rates", []),
-		preview.hit_preview.get("stage_hit_rates", []),
+		preview.hit_preview.stage_hit_rates,
 		"HUD snapshot 应复用 runtime preview 的阶段命中率数组。"
 	)
 	_assert_true(String(snapshot.get("skill_subtitle", "")).contains(hit_preview_text), "HUD 副标题应显示 resolver 命中摘要。")
@@ -630,10 +630,10 @@ func _test_single_hit_hud_preview_matches_runtime_resolver() -> void:
 	command.target_unit_id = defender.unit_id
 	command.target_coord = defender.coord
 	var preview := runtime.preview_command(command)
-	var hit_preview_text := String(preview.hit_preview.get("summary_text", ""))
+	var hit_preview_text := String(preview.hit_preview.summary_text)
 	_assert_true(preview != null and not preview.hit_preview.is_empty(), "普通单段技能 runtime preview 应暴露命中摘要。")
 	_assert_true(hit_preview_text.begins_with("预计命中率 "), "普通单段技能命中预览摘要应使用统一 resolver 文案前缀。")
-	_assert_eq((preview.hit_preview.get("stage_hit_rates", []) as Array).size(), 1, "普通单段技能命中预览应暴露单段命中率。")
+	_assert_eq((preview.hit_preview.stage_hit_rates as Array).size(), 1, "普通单段技能命中预览应暴露单段命中率。")
 
 	var adapter = _build_hud_adapter()
 	var snapshot = adapter.build_snapshot(
@@ -657,7 +657,7 @@ func _test_single_hit_hud_preview_matches_runtime_resolver() -> void:
 	)
 	_assert_eq(
 		snapshot.get("selected_skill_hit_stage_rates", []),
-		preview.hit_preview.get("stage_hit_rates", []),
+		preview.hit_preview.stage_hit_rates,
 		"HUD snapshot 应保留普通单段技能的阶段命中率数组。"
 	)
 	_assert_true(String(snapshot.get("skill_subtitle", "")).contains(hit_preview_text), "普通单段技能 HUD 副标题应显示 resolver 命中摘要。")
@@ -1244,10 +1244,10 @@ func _test_repeat_attack_hud_preview_uses_fate_aware_success_rate() -> void:
 	command.target_unit_id = defender.unit_id
 	command.target_coord = defender.coord
 	var preview := runtime.preview_command(command)
-	var stage_hit_rates := preview.hit_preview.get("stage_hit_rates", []) as Array
-	var stage_base_hit_rates := preview.hit_preview.get("stage_base_hit_rates", []) as Array
-	var stage_preview_texts := preview.hit_preview.get("stage_preview_texts", []) as Array
-	var hit_preview_text := String(preview.hit_preview.get("summary_text", ""))
+	var stage_hit_rates := preview.hit_preview.stage_hit_rates as Array
+	var stage_base_hit_rates := preview.hit_preview.stage_base_hit_rates as Array
+	var stage_preview_texts := preview.hit_preview.stage_preview_texts as Array
+	var hit_preview_text := String(preview.hit_preview.summary_text)
 	_assert_true(preview != null and not preview.hit_preview.is_empty(), "命中预览应暴露 resolver 结果。")
 	_assert_eq(stage_base_hit_rates.size(), stage_hit_rates.size(), "命中预览应保留与最终成功率对齐的 raw 命中率数组。")
 	_assert_eq(stage_preview_texts.size(), stage_hit_rates.size(), "命中预览应保留与最终成功率对齐的阶段文案数组。")

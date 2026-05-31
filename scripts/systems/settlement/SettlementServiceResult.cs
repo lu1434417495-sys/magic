@@ -1,9 +1,9 @@
+using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class SettlementServiceResult : RefCounted
+public sealed class SettlementServiceResult
 {
     private static readonly string[] RequiredSerializedFields =
     {
@@ -95,72 +95,84 @@ public partial class SettlementServiceResult : RefCounted
     private static readonly StringName QuestProgressEventComplete = "complete";
     private static readonly StringName QuestProgressEventProgress = "progress";
 
-    public bool success;
-    public string message = "";
-    public bool persist_party_state;
-    public bool persist_world_data;
-    public bool persist_player_coord;
-    public GDictionary inventory_delta = new();
-    public int gold_delta;
-    public GArray pending_character_rewards = new();
-    public GArray quest_progress_events = new();
-    public GDictionary service_side_effects = new();
+    private GDictionary _inventoryDelta = new();
+    private readonly List<GDictionary> _pendingCharacterRewards = new();
+    private readonly List<GDictionary> _questProgressEvents = new();
+    private GDictionary _serviceSideEffects = new();
 
-    public SettlementServiceResult set_pending_character_rewards(GArray rewards)
+    public bool Success { get; set; }
+    public string Message { get; set; } = "";
+    public bool PersistPartyState { get; set; }
+    public bool PersistWorldData { get; set; }
+    public bool PersistPlayerCoord { get; set; }
+    public int GoldDelta { get; set; }
+    public GDictionary InventoryDelta => DuplicateDictionary(_inventoryDelta);
+    public IReadOnlyList<GDictionary> PendingCharacterRewards => _pendingCharacterRewards;
+    public IReadOnlyList<GDictionary> QuestProgressEvents => _questProgressEvents;
+    public GDictionary ServiceSideEffects => DuplicateDictionary(_serviceSideEffects);
+
+    public SettlementServiceResult SetInventoryDelta(GDictionary value)
     {
-        pending_character_rewards = DuplicateDictionaryArray(rewards);
+        _inventoryDelta = DuplicateDictionary(value);
         return this;
     }
 
-    public SettlementServiceResult set_service_side_effects(GDictionary effects)
+    public SettlementServiceResult SetPendingCharacterRewardPayloads(GArray rewards)
     {
-        service_side_effects = DuplicateDictionary(effects);
+        ReplaceDictionaryList(_pendingCharacterRewards, rewards);
         return this;
     }
 
-    public GDictionary to_dictionary()
+    public SettlementServiceResult SetQuestProgressEventPayloads(GArray events)
+    {
+        ReplaceDictionaryList(_questProgressEvents, events);
+        return this;
+    }
+
+    public SettlementServiceResult SetServiceSideEffects(GDictionary effects)
+    {
+        _serviceSideEffects = DuplicateDictionary(effects);
+        return this;
+    }
+
+    public GDictionary ToDictionary()
     {
         return new GDictionary
         {
-            ["success"] = success,
-            ["message"] = message,
-            ["persist_party_state"] = persist_party_state,
-            ["persist_world_data"] = persist_world_data,
-            ["persist_player_coord"] = persist_player_coord,
-            ["inventory_delta"] = DuplicateDictionary(inventory_delta),
-            ["gold_delta"] = gold_delta,
-            ["pending_character_rewards"] = DuplicateDictionaryArray(pending_character_rewards),
-            ["quest_progress_events"] = DuplicateDictionaryArray(quest_progress_events),
-            ["service_side_effects"] = DuplicateDictionary(service_side_effects),
+            ["success"] = Success,
+            ["message"] = Message,
+            ["persist_party_state"] = PersistPartyState,
+            ["persist_world_data"] = PersistWorldData,
+            ["persist_player_coord"] = PersistPlayerCoord,
+            ["inventory_delta"] = DuplicateDictionary(_inventoryDelta),
+            ["gold_delta"] = GoldDelta,
+            ["pending_character_rewards"] = DuplicateDictionaryArray(_pendingCharacterRewards),
+            ["quest_progress_events"] = DuplicateDictionaryArray(_questProgressEvents),
+            ["service_side_effects"] = DuplicateDictionary(_serviceSideEffects),
         };
     }
 
-    public SettlementServiceResult from_dictionary(GDictionary payload)
+    public static SettlementServiceResult FromDictionary(GDictionary payload)
     {
-        if (payload == null)
-            return null;
-        if (!HasValidSerializedPayload(payload))
+        if (payload == null || !HasValidSerializedPayload(payload))
         {
             return null;
         }
 
-        success = payload["success"].AsBool();
-        message = payload["message"].AsString();
-        persist_party_state = payload["persist_party_state"].AsBool();
-        persist_world_data = payload["persist_world_data"].AsBool();
-        persist_player_coord = payload["persist_player_coord"].AsBool();
-        inventory_delta = DuplicateDictionary(payload["inventory_delta"].AsGodotDictionary());
-        gold_delta = payload["gold_delta"].AsInt32();
-        pending_character_rewards = DuplicateDictionaryArray(
-            payload["pending_character_rewards"].AsGodotArray()
-        );
-        quest_progress_events = DuplicateDictionaryArray(
-            payload["quest_progress_events"].AsGodotArray()
-        );
-        service_side_effects = DuplicateDictionary(
-            payload["service_side_effects"].AsGodotDictionary()
-        );
-        return this;
+        var result = new SettlementServiceResult
+        {
+            Success = payload["success"].AsBool(),
+            Message = payload["message"].AsString(),
+            PersistPartyState = payload["persist_party_state"].AsBool(),
+            PersistWorldData = payload["persist_world_data"].AsBool(),
+            PersistPlayerCoord = payload["persist_player_coord"].AsBool(),
+            GoldDelta = payload["gold_delta"].AsInt32(),
+        };
+        result.SetInventoryDelta(payload["inventory_delta"].AsGodotDictionary());
+        result.SetPendingCharacterRewardPayloads(payload["pending_character_rewards"].AsGodotArray());
+        result.SetQuestProgressEventPayloads(payload["quest_progress_events"].AsGodotArray());
+        result.SetServiceSideEffects(payload["service_side_effects"].AsGodotDictionary());
+        return result;
     }
 
     private static bool HasValidSerializedPayload(GDictionary payload)
@@ -214,8 +226,8 @@ public partial class SettlementServiceResult : RefCounted
         {
             return false;
         }
-        var expectedLookup = new System.Collections.Generic.HashSet<string>(expectedFields);
-        var seenLookup = new System.Collections.Generic.HashSet<string>();
+        var expectedLookup = new HashSet<string>(expectedFields, System.StringComparer.Ordinal);
+        var seenLookup = new HashSet<string>(System.StringComparer.Ordinal);
         foreach (object keyValue in payload.Keys)
         {
             if (!TryAsString(keyValue, out string key))
@@ -233,8 +245,8 @@ public partial class SettlementServiceResult : RefCounted
 
     private static bool HasAllowedFields(GDictionary payload, string[] allowedFields)
     {
-        var allowedLookup = new System.Collections.Generic.HashSet<string>(allowedFields);
-        var seenLookup = new System.Collections.Generic.HashSet<string>();
+        var allowedLookup = new HashSet<string>(allowedFields, System.StringComparer.Ordinal);
+        var seenLookup = new HashSet<string>(System.StringComparer.Ordinal);
         foreach (object keyValue in payload.Keys)
         {
             if (!TryAsString(keyValue, out string key))
@@ -290,12 +302,7 @@ public partial class SettlementServiceResult : RefCounted
             {
                 return false;
             }
-            if (
-                !HasExactFields(
-                    rewardEntryData,
-                    PendingCharacterRewardEntryFields
-                )
-            )
+            if (!HasExactFields(rewardEntryData, PendingCharacterRewardEntryFields))
             {
                 return false;
             }
@@ -447,21 +454,34 @@ public partial class SettlementServiceResult : RefCounted
         return value?.Duplicate(true) ?? new GDictionary();
     }
 
-    private static GArray DuplicateDictionaryArray(GArray value)
+    private static GArray DuplicateDictionaryArray(IEnumerable<GDictionary> values)
     {
         var result = new GArray();
-        if (value == null)
+        if (values == null)
         {
             return result;
         }
-        foreach (GDictionary entryData in Dictionaries(value))
+        foreach (GDictionary entryData in values)
         {
-            result.Add(entryData.Duplicate(true));
+            result.Add(DuplicateDictionary(entryData));
         }
         return result;
     }
 
-    private static System.Collections.Generic.IEnumerable<GDictionary> Dictionaries(GArray values)
+    private static void ReplaceDictionaryList(List<GDictionary> target, GArray values)
+    {
+        target.Clear();
+        if (values == null)
+        {
+            return;
+        }
+        foreach (GDictionary entryData in Dictionaries(values))
+        {
+            target.Add(DuplicateDictionary(entryData));
+        }
+    }
+
+    private static IEnumerable<GDictionary> Dictionaries(GArray values)
     {
         if (values == null)
         {

@@ -15,5 +15,6 @@ public partial class BattleAttackCheckPolicyContext : RefCounted
     public bool force_hit_no_crit { get; set; }
     public Vector2I source_coord { get; set; } = new(-1, -1);
     public Vector2I target_coord { get; set; } = new(-1, -1);
-    public BattleRepeatAttackStageSpec repeat_stage_spec { get; set; }
+    public BattleRepeatAttackStageSpec repeat_stage_spec;
+    public bool has_repeat_stage_spec;
 }

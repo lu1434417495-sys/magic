@@ -37,9 +37,9 @@ public partial class FixedHitResolver : BattleHitResolver
         );
     }
 
-    public new GDictionary resolve_spell_control_metadata(
+    public override GDictionary resolve_spell_control_metadata(
         BattleUnitState source_unit,
-        GDictionary attack_context
+        AttackContext attack_context
     )
     {
         StringName attackResolution = AttackResolutionHit;
@@ -99,15 +99,6 @@ public partial class FixedHitResolver : BattleHitResolver
                 naturalTwentyAutoHit: false
             )
         );
-    }
-
-    public override int roll_attack_die(
-        int die_size,
-        bool is_disadvantage,
-        GDictionary attack_context
-    )
-    {
-        return Math.Clamp(fixed_roll, 1, Math.Max(die_size, 1));
     }
 
     public override int roll_attack_die(

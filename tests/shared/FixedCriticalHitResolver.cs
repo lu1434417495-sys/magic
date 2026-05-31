@@ -23,9 +23,9 @@ public partial class FixedCriticalHitResolver : FixedHitResolver
         );
     }
 
-    public new GDictionary resolve_spell_control_metadata(
+    public override GDictionary resolve_spell_control_metadata(
         BattleUnitState source_unit,
-        GDictionary attack_context
+        AttackContext attack_context
     )
     {
         return new GDictionary

@@ -1,30 +1,36 @@
+using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class WorldMapFogFactionState : RefCounted
+public sealed class WorldMapFogFactionState
 {
-    public GDictionary visible_now = new();
-    public GDictionary explored = new();
+    private readonly HashSet<Vector2I> _visibleNow = new();
+    private readonly HashSet<Vector2I> _explored = new();
 
-    public void clear_visible()
+    public IEnumerable<Vector2I> ExploredCoords => _explored;
+
+    public void ClearVisible()
     {
-        visible_now.Clear();
+        _visibleNow.Clear();
     }
 
-    public void mark_visible(Vector2I coord)
+    public void MarkVisible(Vector2I coord)
     {
-        visible_now[coord] = true;
-        explored[coord] = true;
+        _visibleNow.Add(coord);
+        _explored.Add(coord);
     }
 
-    public bool is_visible(Vector2I coord)
+    public void MarkExplored(Vector2I coord)
     {
-        return visible_now.ContainsKey(coord);
+        _explored.Add(coord);
     }
 
-    public bool is_explored(Vector2I coord)
+    public bool IsVisible(Vector2I coord)
     {
-        return explored.ContainsKey(coord);
+        return _visibleNow.Contains(coord);
+    }
+
+    public bool IsExplored(Vector2I coord)
+    {
+        return _explored.Contains(coord);
     }
 }

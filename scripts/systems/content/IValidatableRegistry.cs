@@ -1,6 +1,6 @@
 using Godot;
 
-internal interface IValidatableRegistry
+public interface IValidatableRegistry
 {
     Godot.Collections.Array<string> validate();
 }

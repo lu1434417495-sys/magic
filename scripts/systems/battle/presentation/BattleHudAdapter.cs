@@ -4,6 +4,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GCombatEffectArray = Godot.Collections.Array<CombatEffectDef>;
 using GDictionary = Godot.Collections.Dictionary;
+using GIntArray = Godot.Collections.Array<int>;
 using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
@@ -87,7 +88,7 @@ public partial class BattleHudAdapter : RefCounted
             selected_skill_id,
             selectedTargetCount
         );
-        GDictionary hitPreview = BuildSelectedSkillHitPreview(
+        AttackPreviewData hitPreview = BuildSelectedSkillHitPreview(
             battle_state,
             activeUnit,
             selected_coord,
@@ -147,11 +148,11 @@ public partial class BattleHudAdapter : RefCounted
             ),
             ["skill_slots"] = BuildSkillSlots(activeUnit, selected_skill_id),
             ["tile_text"] = BuildTileText(selected_coord, selectedCell, selectedUnit),
-            ["selected_skill_hit_preview_text"] = DictString(hitPreview, "summary_text"),
-            ["selected_skill_hit_preview_payload"] = hitPreview.Duplicate(true),
+            ["selected_skill_hit_preview_text"] = hitPreview?.SummaryText ?? "",
+            ["selected_skill_hit_preview_payload"] = hitPreview ?? new Variant(),
             ["selected_skill_hit_badge_text"] = BuildSelectedSkillHitBadgeText(hitPreview),
-            ["selected_skill_hit_stage_rates"] = DictArray(hitPreview, "stage_success_rates")
-                .Duplicate(true),
+            ["selected_skill_hit_stage_rates"] = hitPreview?.StageSuccessRates?.Duplicate(true)
+                ?? new GIntArray(),
             ["selected_skill_damage_preview_text"] = DictString(damagePreview, "summary_text"),
             ["selected_skill_damage_min"] = DictInt(damagePreview, "min_damage"),
             ["selected_skill_damage_max"] = DictInt(damagePreview, "max_damage"),
@@ -233,7 +234,7 @@ public partial class BattleHudAdapter : RefCounted
             targetUnitIds,
             selected_skill_variant_id
         );
-        GDictionary hitPreview = BuildSelectedSkillHitPreview(
+        AttackPreviewData hitPreview = BuildSelectedSkillHitPreview(
             battle_state,
             activeUnit,
             hover_coord,
@@ -262,8 +263,8 @@ public partial class BattleHudAdapter : RefCounted
             selected_skill_variant_id
         );
 
-        result["hit_preview"] = hitPreview.Duplicate(true);
-        result["hit_stage_rates"] = DictArray(hitPreview, "stage_success_rates").Duplicate(true);
+        result["hit_preview"] = hitPreview ?? new Variant();
+        result["hit_stage_rates"] = hitPreview?.StageSuccessRates?.Duplicate(true) ?? new GIntArray();
         result["hit_badge_text"] = BuildSelectedSkillHitBadgeText(hitPreview);
         result["fate_badges"] = DictArray(fatePreview, "badges").Duplicate(true);
         result["damage_min"] = DictInt(damagePreview, "min_damage");
@@ -272,7 +273,7 @@ public partial class BattleHudAdapter : RefCounted
         return result;
     }
 
-    public string _build_selected_skill_hit_badge_text(GDictionary hit_preview)
+    public string _build_selected_skill_hit_badge_text(AttackPreviewData hit_preview)
     {
         return BuildSelectedSkillHitBadgeText(hit_preview);
     }
@@ -612,7 +613,7 @@ public partial class BattleHudAdapter : RefCounted
         int selectedCount,
         int requiredCount,
         GDictionary selectionInfo,
-        GDictionary hitPreview,
+        AttackPreviewData hitPreview,
         GDictionary damagePreview
     )
     {
@@ -639,7 +640,7 @@ public partial class BattleHudAdapter : RefCounted
         }
 
         var previewParts = new List<string>();
-        string hitPreviewText = DictString(hitPreview, "summary_text");
+        string hitPreviewText = hitPreview?.SummaryText ?? "";
         if (!string.IsNullOrEmpty(hitPreviewText))
             previewParts.Add(hitPreviewText);
         string damagePreviewText = DictString(damagePreview, "summary_text");
@@ -1491,7 +1492,7 @@ public partial class BattleHudAdapter : RefCounted
         return _runtime.preview_battle_command(command);
     }
 
-    private GDictionary BuildSelectedSkillHitPreview(
+    private AttackPreviewData BuildSelectedSkillHitPreview(
         BattleState battleState,
         BattleUnitState activeUnit,
         Vector2I selectedCoord,
@@ -1503,7 +1504,7 @@ public partial class BattleHudAdapter : RefCounted
     )
     {
         if (battleState == null || activeUnit == null || IsEmpty(selectedSkillId))
-            return new GDictionary();
+            return null;
 
         _attackCheckPolicyService.setup(null, _hitResolver, null);
         if (selectedSkillPreview?.special_profile_preview_facts != null)
@@ -1511,44 +1512,25 @@ public partial class BattleHudAdapter : RefCounted
             BattleSpecialProfilePreviewFacts facts =
                 selectedSkillPreview.special_profile_preview_facts;
             GDictionary factsPayload = facts.to_dict();
-            string summaryText = DictString(selectedSkillPreview.hit_preview, "summary_text");
+            string summaryText = selectedSkillPreview.hit_preview?.SummaryText;
             if (string.IsNullOrEmpty(summaryText))
             {
                 summaryText =
                     $"陨星雨影响 {DictInt(factsPayload, "impact_count", selectedSkillPreview.target_coords.Count)} 格、预计波及 {DictInt(factsPayload, "expected_target_count", selectedSkillPreview.target_unit_ids.Count)} 个单位。";
             }
-            return new GDictionary
+            return new AttackPreviewData
             {
-                ["summary_text"] = summaryText,
-                ["modifier_breakdown"] = facts.attack_roll_modifier_breakdown.Duplicate(true),
-                ["source"] = "special_profile_preview_facts",
-                ["special_profile_preview_facts"] = factsPayload.Duplicate(true),
-                ["impact_count"] = DictInt(
-                    factsPayload,
-                    "impact_count",
-                    selectedSkillPreview.target_coords.Count
-                ),
-                ["target_count"] = DictInt(
-                    factsPayload,
-                    "expected_target_count",
-                    selectedSkillPreview.target_unit_ids.Count
-                ),
-                ["terrain_summary"] = facts.terrain_summary.Duplicate(true),
-                ["friendly_fire_numeric_summary"] = facts.get_friendly_fire_numeric_summary(),
-                ["target_numeric_summary"] = DictArray(factsPayload, "target_numeric_summary")
-                    .Duplicate(true),
-                ["friendly_fire_risk_percent"] = DictInt(
-                    factsPayload,
-                    "friendly_fire_risk_percent"
-                ),
+                SummaryText = summaryText,
+                Source = "special_profile_preview_facts",
+                AttackRollModifierBreakdown = (GArray)facts.attack_roll_modifier_breakdown.Duplicate(true),
             };
         }
-        if (selectedSkillPreview != null && selectedSkillPreview.hit_preview.Count > 0)
-            return selectedSkillPreview.hit_preview.Duplicate(true);
+        if (selectedSkillPreview != null && selectedSkillPreview.hit_preview != null && !selectedSkillPreview.hit_preview.IsEmpty)
+            return selectedSkillPreview.hit_preview;
 
         SkillDef skillDef = GetSkillDef(GetSkillDefs(), selectedSkillId);
         if (skillDef?.combat_profile == null)
-            return new GDictionary();
+            return null;
         BattleUnitState targetUnit = ResolveSelectedSkillPreviewTargetUnit(
             battleState,
             activeUnit,
@@ -1558,7 +1540,7 @@ public partial class BattleHudAdapter : RefCounted
             skillDef
         );
         if (targetUnit == null)
-            return new GDictionary();
+            return null;
         GStringNameArray previewTargetUnitIds = BuildSelectedSkillPreviewTargetUnitIds(
             selectedSkillTargetUnitIds,
             targetUnit,
@@ -1572,7 +1554,7 @@ public partial class BattleHudAdapter : RefCounted
             targetUnit
         );
         if (!DictBool(resolutionPolicy, "routes_to_unit_targeting"))
-            return new GDictionary();
+            return null;
 
         GCombatEffectArray effectDefs = CollectCombatEffectDefs(
             DictArray(resolutionPolicy, "effect_defs")
@@ -1582,7 +1564,7 @@ public partial class BattleHudAdapter : RefCounted
         if (repeatAttackEffect == null)
         {
             if (!DictBool(resolutionPolicy, "uses_fate_attack"))
-                return new GDictionary();
+                return null;
             BattleAttackCheckPolicyContext attackContext =
                 _attackCheckPolicyService.build_attack_context(
                     battleState,
@@ -1596,7 +1578,7 @@ public partial class BattleHudAdapter : RefCounted
             return _attackCheckPolicyService.build_attack_preview(attackContext);
         }
 
-        Godot.Collections.Array<BattleRepeatAttackStageSpec> stageSpecs =
+        List<BattleRepeatAttackStageSpec> stageSpecs =
             BattleRepeatAttackResolver.build_stage_specs_from_repeat_attack_effect(
                 activeUnit,
                 skillDef,
@@ -1610,7 +1592,7 @@ public partial class BattleHudAdapter : RefCounted
                 activeUnit,
                 targetUnit,
                 skillDef,
-                null,
+                default,
                 "repeat_attack_preview",
                 "hud_preview"
             );
@@ -1904,13 +1886,13 @@ public partial class BattleHudAdapter : RefCounted
     }
 
     private static string BuildSelectedSkillPreviewTooltip(
-        GDictionary hitPreview,
+        AttackPreviewData hitPreview,
         GDictionary fatePreview,
         GDictionary damagePreview
     )
     {
         var sections = new List<string>();
-        string hitText = DictString(hitPreview, "summary_text");
+        string hitText = hitPreview?.SummaryText ?? "";
         if (!string.IsNullOrEmpty(hitText))
             sections.Add(hitText);
         string damageText = DictString(damagePreview, "summary_text");
@@ -1922,18 +1904,14 @@ public partial class BattleHudAdapter : RefCounted
         return string.Join("\n\n", sections);
     }
 
-    private static string BuildSelectedSkillHitBadgeText(GDictionary hitPreview)
+    private static string BuildSelectedSkillHitBadgeText(AttackPreviewData hitPreview)
     {
-        if (hitPreview == null || hitPreview.Count == 0)
+        if (hitPreview == null)
             return "";
-        int successRate = DictInt(hitPreview, "success_rate_percent", -1);
-        if (successRate < 0)
-        {
-            GArray stageRates = DictArray(hitPreview, "stage_success_rates");
-            if (stageRates.Count > 0)
-                successRate = stageRates[0].AsInt32();
-        }
-        if (successRate < 0)
+        int successRate = hitPreview.SuccessRatePercent;
+        if (successRate <= 0 && hitPreview.StageSuccessRates.Count > 0)
+            successRate = hitPreview.StageSuccessRates[0];
+        if (successRate <= 0)
             return "";
         return $"命中 {Mathf.Clamp(successRate, 0, 100)}%";
     }

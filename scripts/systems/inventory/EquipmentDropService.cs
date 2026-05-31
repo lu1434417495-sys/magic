@@ -1,9 +1,11 @@
+using System;
 using Godot;
 
 [GlobalClass]
 public partial class EquipmentDropService : RefCounted
 {
     private RandomNumberGenerator _rng;
+    private Func<int, int, int> _rollRange;
 
     public EquipmentDropService()
         : this(null) { }
@@ -27,11 +29,18 @@ public partial class EquipmentDropService : RefCounted
 
             _rng = fallbackRng;
         }
+
+        _rollRange = _rng.RandiRange;
     }
 
     public void set_rng_for_testing(RandomNumberGenerator rng)
     {
         ConfigureRng(rng);
+    }
+
+    internal void SetRollRangeForTesting(Func<int, int, int> rollRange)
+    {
+        _rollRange = rollRange ?? _rng.RandiRange;
     }
 
     public Godot.Collections.Array roll_drops(StringName dropTableId, int dropLuck)
@@ -87,9 +96,7 @@ public partial class EquipmentDropService : RefCounted
 
     private int _roll_3d6()
     {
-        return _rng.RandiRange(1, 6)
-            + _rng.RandiRange(1, 6)
-            + _rng.RandiRange(1, 6);
+        return _rollRange(1, 6) + _rollRange(1, 6) + _rollRange(1, 6);
     }
 
     private static int _resolve_rarity_from_score(int rarityScore)

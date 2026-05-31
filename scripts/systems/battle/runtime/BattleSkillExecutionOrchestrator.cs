@@ -975,11 +975,9 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
                     preview.log_lines.Add(
                         $"{active_unit.display_name} 可对 {targetUnit.display_name} 使用 {skillLabel}。"
                     );
-                    if (preview.hit_preview.Count != 0)
+                    if (preview.hit_preview != null && !preview.hit_preview.IsEmpty)
                     {
-                        preview.log_lines.Add(
-                            GdInterop.GetString(preview.hit_preview, "summary_text", "")
-                        );
+                        preview.log_lines.Add(preview.hit_preview.SummaryText);
                     }
                     _append_damage_preview_line(preview);
                     AiTraceRecorder.exit("preview:unit_skill.log_lines");
@@ -1001,11 +999,9 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
             preview.log_lines.Add(
                 $"{active_unit.display_name} 可对 {preview.target_unit_ids.Count} 个单位使用 {skillLabel}。"
             );
-            if (preview.hit_preview.Count != 0)
+            if (preview.hit_preview != null && !preview.hit_preview.IsEmpty)
             {
-                preview.log_lines.Add(
-                    GdInterop.GetString(preview.hit_preview, "summary_text", "")
-                );
+                preview.log_lines.Add(preview.hit_preview.SummaryText);
             }
             _append_damage_preview_line(preview);
             AiTraceRecorder.exit("preview:unit_skill.log_lines");
@@ -1150,7 +1146,7 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
         AiTraceRecorder.exit("preview:ground_skill.log_lines");
     }
 
-    public GDictionary _build_unit_skill_hit_preview(
+    public AttackPreviewData _build_unit_skill_hit_preview(
         BattleUnitState active_unit,
         GArray target_units,
         SkillDef skill_def,
@@ -1159,12 +1155,12 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
     {
         if (active_unit == null || skill_def == null || target_units.Count != 1)
         {
-            return new GDictionary();
+            return null;
         }
         var targetUnit = target_units[0].AsGodotObject() as BattleUnitState;
         if (targetUnit == null)
         {
-            return new GDictionary();
+            return null;
         }
         GCombatEffectArray effectDefs = _collect_unit_skill_effect_defs(
             skill_def,
@@ -1178,7 +1174,7 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
         BattleSkillResolutionRules skillResolutionRules = Runtime?._skill_resolution_rules;
         if (attackPolicy == null || skillResolutionRules == null)
         {
-            return new GDictionary();
+            return null;
         }
         if (repeatAttackEffect == null)
         {
@@ -1191,7 +1187,7 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
                     )
             )
             {
-                return new GDictionary();
+                return null;
             }
             BattleAttackCheckPolicyContext attackContext = attackPolicy.build_attack_context(
                 Runtime?._state,
@@ -1204,7 +1200,7 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
             );
             return attackPolicy.build_attack_preview(attackContext);
         }
-        Godot.Collections.Array<BattleRepeatAttackStageSpec> stageSpecs =
+        List<BattleRepeatAttackStageSpec> stageSpecs =
             BattleRepeatAttackResolver.build_stage_specs_from_repeat_attack_effect(
             active_unit,
             skill_def,
@@ -1275,6 +1271,21 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
         string subject_label,
         string target_display_name,
         GDictionary result
+    )
+    {
+        Runtime?._report_formatter.append_damage_result_log_lines(
+            batch,
+            subject_label,
+            target_display_name,
+            result
+        );
+    }
+
+    internal void append_damage_result_log_lines(
+        BattleEventBatch batch,
+        string subject_label,
+        string target_display_name,
+        AttackEffectResolutionResult result
     )
     {
         Runtime?._report_formatter.append_damage_result_log_lines(

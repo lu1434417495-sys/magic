@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictArray = Godot.Collections.Array<Godot.Collections.Dictionary>;
@@ -1664,7 +1665,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         var questIds = new List<StringName>();
         foreach (object questKeyValue in questDefs.Keys)
         {
-            if (!TryAsStringName(questKeyValue, out StringName questKey))
+            if (!TryAsStrictStringNameKey(questKeyValue, out StringName questKey))
             {
                 continue;
             }
@@ -2295,7 +2296,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         WorldMapFogSystem fogSystem = _get_fog_system();
         GArray revealedCoords =
             fogSystem != null
-                ? new GArray(fogSystem.reveal_diamond(center, reveal_range, _get_player_faction_id()))
+                ? new GArray(fogSystem.reveal_diamond(center, reveal_range, _get_player_faction_id()).Select(v => Variant.From(v)))
                 : new GArray();
         if (revealedCoords.Count != 0)
         {
@@ -2410,22 +2411,22 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         service_side_effects ??= new GDictionary();
         var result = new SettlementServiceResult
         {
-            success = success,
-            message = message,
-            persist_party_state = persist_party_state,
-            persist_world_data = persist_world_data,
-            persist_player_coord = persist_player_coord,
-            gold_delta = gold_delta,
-            inventory_delta = (GDictionary)inventory_delta.Duplicate(true),
-            pending_character_rewards = ToUntypedDictArray(
-                _duplicate_dictionary_array(ToUntypedDictArray(pending_character_rewards))
-            ),
-            quest_progress_events = ToUntypedDictArray(
-                _duplicate_dictionary_array(ToUntypedDictArray(quest_progress_events))
-            ),
-            service_side_effects = (GDictionary)service_side_effects.Duplicate(true),
+            Success = success,
+            Message = message,
+            PersistPartyState = persist_party_state,
+            PersistWorldData = persist_world_data,
+            PersistPlayerCoord = persist_player_coord,
+            GoldDelta = gold_delta,
         };
-        return result.to_dictionary();
+        result.SetInventoryDelta(inventory_delta);
+        result.SetPendingCharacterRewardPayloads(
+            ToUntypedDictArray(_duplicate_dictionary_array(ToUntypedDictArray(pending_character_rewards)))
+        );
+        result.SetQuestProgressEventPayloads(
+            ToUntypedDictArray(_duplicate_dictionary_array(ToUntypedDictArray(quest_progress_events)))
+        );
+        result.SetServiceSideEffects(service_side_effects);
+        return result.ToDictionary();
     }
 
     public GArray _result_pending_character_rewards(GDictionary result)
@@ -2816,7 +2817,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         {
             foreach (object valueKey in questDefs.Keys)
             {
-                if (!TryAsStringName(valueKey, out StringName typedKey))
+                if (!TryAsStrictStringNameKey(valueKey, out StringName typedKey))
                     continue;
                 if (typedKey == quest_id)
                 {
@@ -3473,6 +3474,22 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         }
         if (rawValue is Variant variant && variant.TryAsStringName(out value))
             return true;
+        value = "";
+        return false;
+    }
+
+    private static bool TryAsStrictStringNameKey(object rawValue, out StringName value)
+    {
+        if (rawValue is StringName stringName)
+        {
+            value = stringName;
+            return true;
+        }
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.StringName)
+        {
+            value = variant.AsStringName();
+            return true;
+        }
         value = "";
         return false;
     }

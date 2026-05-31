@@ -3923,7 +3923,18 @@ public partial class BattleDamageResolver : RefCounted
     )
     {
         _hit_resolver ??= new BattleHitResolver();
-        return _hit_resolver.resolve_spell_control_metadata(sourceUnit, attackContext);
+        var ctx = new AttackContext();
+        if (attackContext != null)
+        {
+            ctx.BattleState = GdInterop.GetObject(attackContext, "battle_state") as BattleState;
+            ctx.SkillId = GdInterop.GetStringName(attackContext, "skill_id", new StringName(""));
+            if (attackContext.ContainsKey("is_disadvantage"))
+            {
+                ctx.HasIsDisadvantage = true;
+                ctx.IsDisadvantage = GdInterop.GetBool(attackContext, "is_disadvantage", false);
+            }
+        }
+        return _hit_resolver.resolve_spell_control_metadata(sourceUnit, ctx);
     }
 
     private GDictionary BuildAttackMetadataResult(

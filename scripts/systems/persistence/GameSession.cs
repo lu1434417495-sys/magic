@@ -248,13 +248,13 @@ public partial class GameSession : Node
             _log_session_info(
                 "session.save.create.ok",
                 "已创建新存档。",
-                new GDictionary
+                Json.Stringify(new GDictionary
                 {
                     ["save_id"] = _active_save_id,
                     ["generation_config_path"] = generation_config_path,
                     ["preset_id"] = preset_id.ToString(),
                     ["preset_name"] = preset_name,
-                }
+                })
             );
         }
         else
@@ -331,12 +331,12 @@ public partial class GameSession : Node
             _log_session_info(
                 "session.save.load.ok",
                 "已加载存档。",
-                new GDictionary
+                Json.Stringify(new GDictionary
                 {
                     ["save_id"] = save_id,
                     ["save_path"] = savePath,
                     ["generation_config_path"] = generationConfigPath,
-                }
+                })
             );
         }
         else
@@ -390,7 +390,7 @@ public partial class GameSession : Node
         string domain,
         string event_id,
         string message,
-        GDictionary context = null
+        string context = ""
     )
     {
         return _log_service != null
@@ -399,14 +399,14 @@ public partial class GameSession : Node
                 domain,
                 event_id,
                 message,
-                context ?? new GDictionary()
+                context
             )
             : new GDictionary();
     }
 
     public GDictionary log_event(string level, string domain, string event_id, string message)
     {
-        return log_event(level, domain, event_id, message, new GDictionary());
+        return log_event(level, domain, event_id, message, "");
     }
 
     public WorldMapGenerationConfig get_generation_config() => _generation_config;
@@ -818,7 +818,7 @@ public partial class GameSession : Node
         _log_session_info(
             "session.runtime.unload.ok",
             "已卸载当前运行中世界。",
-            new GDictionary { ["save_id"] = unloadedSaveId }
+            Json.Stringify(new GDictionary { ["save_id"] = unloadedSaveId })
         );
     }
 
@@ -839,11 +839,11 @@ public partial class GameSession : Node
             _log_session_info(
                 "session.save.autoload.skip_bad_candidate",
                 $"自动载入跳过坏存档 {candidateSaveId}。",
-                new GDictionary
+                Json.Stringify(new GDictionary
                 {
                     ["save_id"] = candidateSaveId,
                     ["generation_config_path"] = generation_config_path,
-                }
+                })
             );
         }
         return attemptedCandidate ? false : false;
@@ -1125,7 +1125,7 @@ public partial class GameSession : Node
             _push_session_error(
                 "session.config.load_failed",
                 $"GameSession failed to load config from {generation_config_path}",
-                new GDictionary { ["generation_config_path"] = generation_config_path }
+                Json.Stringify(new GDictionary { ["generation_config_path"] = generation_config_path })
             );
             return null;
         }
@@ -2689,11 +2689,11 @@ public partial class GameSession : Node
         _push_session_error(
             "session.content.validation_blocked",
             "GameSession blocked formal runtime entry because content validation failed.",
-            new GDictionary
+            Json.Stringify(new GDictionary
             {
                 ["operation_id"] = operation_id.ToString(),
                 ["error_count"] = errorCount,
-            }
+            })
         );
         return (int)Error.InvalidData;
     }
@@ -2761,20 +2761,20 @@ public partial class GameSession : Node
 
     public void _log_session_info(string event_id, string message)
     {
-        log_event("info", "session", event_id, message, new GDictionary());
+        log_event("info", "session", event_id, message, "");
     }
 
-    public void _log_session_info(string event_id, string message, GDictionary context)
+    public void _log_session_info(string event_id, string message, string context)
     {
         GameLog.Info(message, event_id, "session", context);
     }
 
     public void _push_session_error(string event_id, string message)
     {
-        _push_session_error(event_id, message, new GDictionary());
+        _push_session_error(event_id, message, "");
     }
 
-    public void _push_session_error(string event_id, string message, GDictionary context)
+    public void _push_session_error(string event_id, string message, string context)
     {
         GameLog.Error(message, event_id, "session", context);
     }

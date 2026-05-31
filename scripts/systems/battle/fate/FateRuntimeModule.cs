@@ -17,7 +17,7 @@ public partial class FateRuntimeModule : RefCounted
     private static readonly StringName BlackCrownSealSkillId = "black_crown_seal";
 
     private IBattleRuntimeCharacterGateway _characterGateway;
-    private GodotObject _battleRuntimeGateway;
+    private BattleRuntimeModule _battleRuntimeGateway;
     private Func<StringName, BattleUnitState> _unitByMemberIdResolver;
     private FortuneService _fortuneService = new();
     private FortunaGuidanceService _fortunaGuidanceService = new();
@@ -33,7 +33,7 @@ public partial class FateRuntimeModule : RefCounted
     )
     {
         _characterGateway = character_gateway;
-        _battleRuntimeGateway = battle_runtime_gateway;
+        _battleRuntimeGateway = battle_runtime_gateway as BattleRuntimeModule;
         _unitByMemberIdResolver = unit_by_member_id_resolver;
 
         // Guidance must see the pre-mark state before FortuneService mutates fortune_marked on the same bus event.
@@ -229,7 +229,7 @@ public partial class FateRuntimeModule : RefCounted
 
     public void set_fortune_confirmation_rng_for_testing(GodotObject rng = null)
     {
-        _fortuneService?.set_confirmation_rng_for_testing(rng);
+        _fortuneService?.set_confirmation_rng_for_testing(rng as RandomNumberGenerator);
     }
 
     private GodotObject ResolveUnitByMemberId(StringName memberId)

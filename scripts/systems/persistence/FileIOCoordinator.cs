@@ -11,7 +11,7 @@ public partial class FileIOCoordinator : RefCounted
         int compression_mode,
         string error_event_prefix,
         string label,
-        Action<string, string, GDictionary> error_sink = null
+        Action<string, string, string> error_sink = null
     )
     {
         string tempPath = $"{virtual_path}.tmp";
@@ -33,7 +33,7 @@ public partial class FileIOCoordinator : RefCounted
                 error_sink,
                 $"{error_event_prefix}.open_failed",
                 $"Failed to open {label} file {tempPath}. Error: {(int)openError}",
-                new GDictionary { ["path"] = tempPath, ["open_error"] = (int)openError }
+                Json.Stringify(new GDictionary { ["path"] = tempPath, ["open_error"] = (int)openError })
             );
             return (int)openError;
         }
@@ -48,7 +48,7 @@ public partial class FileIOCoordinator : RefCounted
                 error_sink,
                 $"{error_event_prefix}.write_failed",
                 $"Failed to write {label} file {tempPath}. Error: {(int)writeError}",
-                new GDictionary { ["path"] = tempPath, ["write_error"] = (int)writeError }
+                Json.Stringify(new GDictionary { ["path"] = tempPath, ["write_error"] = (int)writeError })
             );
             return (int)writeError;
         }
@@ -67,7 +67,7 @@ public partial class FileIOCoordinator : RefCounted
         string target_path,
         string error_event_prefix,
         string label,
-        Action<string, string, GDictionary> error_sink = null
+        Action<string, string, string> error_sink = null
     )
     {
         string backupPath = $"{target_path}.bak";
@@ -89,12 +89,12 @@ public partial class FileIOCoordinator : RefCounted
                     error_sink,
                     $"{error_event_prefix}.backup_failed",
                     $"Failed to prepare existing {label} file {target_path} for replacement. Error: {backupError}",
-                    new GDictionary
+                    Json.Stringify(new GDictionary
                     {
                         ["target_path"] = target_path,
                         ["backup_path"] = backupPath,
                         ["backup_error"] = backupError,
-                    }
+                    })
                 );
                 return backupError;
             }
@@ -112,12 +112,12 @@ public partial class FileIOCoordinator : RefCounted
                 error_sink,
                 $"{error_event_prefix}.replace_failed",
                 $"Failed to replace {label} file {target_path}. Error: {replaceError}",
-                new GDictionary
+                Json.Stringify(new GDictionary
                 {
                     ["source_path"] = source_path,
                     ["target_path"] = target_path,
                     ["replace_error"] = replaceError,
-                }
+                })
             );
             return replaceError;
         }
@@ -142,7 +142,7 @@ public partial class FileIOCoordinator : RefCounted
         int compression_mode,
         string error_event_prefix,
         string label,
-        Action<string, string, GDictionary> error_sink = null
+        Action<string, string, string> error_sink = null
     )
     {
         string tempPath = $"{target_path}.tmp";
@@ -177,7 +177,7 @@ public partial class FileIOCoordinator : RefCounted
                 error_sink,
                 $"{error_event_prefix}.backup_invalid",
                 $"Failed to recover {label} file {target_path} because backup {backupPath} is invalid.",
-                new GDictionary { ["target_path"] = target_path, ["backup_path"] = backupPath }
+                Json.Stringify(new GDictionary { ["target_path"] = target_path, ["backup_path"] = backupPath })
             );
             return (int)Error.InvalidData;
         }
@@ -189,12 +189,12 @@ public partial class FileIOCoordinator : RefCounted
                 error_sink,
                 $"{error_event_prefix}.backup_restore_failed",
                 $"Failed to restore {label} file {target_path} from backup {backupPath}. Error: {restoreError}",
-                new GDictionary
+                Json.Stringify(new GDictionary
                 {
                     ["target_path"] = target_path,
                     ["backup_path"] = backupPath,
                     ["restore_error"] = restoreError,
-                }
+                })
             );
             return restoreError;
         }
@@ -252,7 +252,7 @@ public partial class FileIOCoordinator : RefCounted
 
     public static int remove_directory_recursive(
         string virtual_path,
-        Action<string, string, GDictionary> error_sink = null
+        Action<string, string, string> error_sink = null
     )
     {
         string absolutePath = ProjectSettings.GlobalizePath(virtual_path);
@@ -269,7 +269,7 @@ public partial class FileIOCoordinator : RefCounted
                 error_sink,
                 "session.cleanup.open_directory_failed",
                 $"Failed to open directory {virtual_path} for cleanup. Error: {(int)openError}",
-                new GDictionary { ["virtual_path"] = virtual_path, ["open_error"] = (int)openError }
+                Json.Stringify(new GDictionary { ["virtual_path"] = virtual_path, ["open_error"] = (int)openError })
             );
             return (int)openError;
         }
@@ -281,7 +281,7 @@ public partial class FileIOCoordinator : RefCounted
                 error_sink,
                 "session.cleanup.list_directory_failed",
                 $"Failed to list directory {virtual_path} for cleanup. Error: {(int)listError}",
-                new GDictionary { ["virtual_path"] = virtual_path, ["list_error"] = (int)listError }
+                Json.Stringify(new GDictionary { ["virtual_path"] = virtual_path, ["list_error"] = (int)listError })
             );
             return (int)listError;
         }
@@ -325,10 +325,10 @@ public partial class FileIOCoordinator : RefCounted
     }
 
     private static void PushError(
-        Action<string, string, GDictionary> errorSink,
+        Action<string, string, string> errorSink,
         string eventId,
         string message,
-        GDictionary context
+        string context
     )
     {
         errorSink?.Invoke(eventId, message, context);

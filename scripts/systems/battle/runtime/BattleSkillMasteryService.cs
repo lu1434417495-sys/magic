@@ -1,5 +1,6 @@
 using Godot;
 using GArray = Godot.Collections.Array;
+using GCombatEffectArray = Godot.Collections.Array<CombatEffectDef>;
 using GDictionary = Godot.Collections.Dictionary;
 
 [GlobalClass]
@@ -54,6 +55,35 @@ public partial class BattleSkillMasteryService : RefCounted
                 ["target_unit_id"] = targetUnit.unit_id,
                 ["amount"] = amount,
                 ["critical_hit"] = result.GetValueOrDefault("critical_hit", false).AsBool(),
+                ["skill_damage_dice_is_max"] = _ResultHasSkillDamageDieEvent(result),
+                ["weapon_damage_dice_is_max"] = _ResultHasWeaponDiceMaxEvent(result),
+            }
+        );
+    }
+
+    internal void RecordTargetResult(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        SkillDef skillDef,
+        AttackEffectResolutionResult result,
+        GCombatEffectArray effectDefs = null
+    )
+    {
+        if (sourceUnit == null || targetUnit == null)
+            return;
+        if (sourceUnit.source_member_id == "")
+            return;
+        if (!_IsSkillMasteryQualifyingResult(result, skillDef))
+            return;
+        int amount = _ResolveSkillMasteryTargetAmount(sourceUnit, targetUnit, skillDef);
+        if (amount <= 0)
+            return;
+        _resolutionEvents.Add(
+            new GDictionary
+            {
+                ["target_unit_id"] = targetUnit.unit_id,
+                ["amount"] = amount,
+                ["critical_hit"] = result.CriticalHit,
                 ["skill_damage_dice_is_max"] = _ResultHasSkillDamageDieEvent(result),
                 ["weapon_damage_dice_is_max"] = _ResultHasWeaponDiceMaxEvent(result),
             }
@@ -374,6 +404,38 @@ public partial class BattleSkillMasteryService : RefCounted
         }
     }
 
+    private bool _IsSkillMasteryQualifyingResult(
+        AttackEffectResolutionResult result,
+        SkillDef skillDef
+    )
+    {
+        var triggerMode = _GetSkillMasteryTriggerMode(skillDef);
+        switch ((string)triggerMode)
+        {
+            case "weapon_attack_quality":
+                return result.AttackSuccess
+                    && (result.CriticalHit || _ResultHasWeaponDiceMaxEvent(result));
+            case "damage_dealt":
+                return _ResultHasEffectiveDamageOrAbsorb(result);
+            case "status_applied":
+                return _ResultHasStatusApplied(result);
+            case "effect_applied":
+                return result.Applied;
+            case "incoming_physical_hit":
+                return false;
+            case "secondary_hit":
+                return result.SecondaryHitSuccess;
+            case "skill_damage_dice_max":
+                if (!_ResultHasEffectiveDamageOrAbsorb(result))
+                    return false;
+                return _ResultHasSkillDamageDieEvent(result);
+            default:
+                if (!_ResultHasEffectiveDamageOrAbsorb(result))
+                    return false;
+                return _ResultHasSkillDamageDieEvent(result);
+        }
+    }
+
     private StringName _GetSkillMasteryTriggerMode(SkillDef skillDef)
     {
         if (skillDef == null || skillDef.combat_profile == null)
@@ -406,11 +468,21 @@ public partial class BattleSkillMasteryService : RefCounted
             || result.GetValueOrDefault("shield_absorbed", 0).AsInt32() > 0;
     }
 
+    private bool _ResultHasEffectiveDamageOrAbsorb(AttackEffectResolutionResult result)
+    {
+        return result.Damage > 0 || result.ShieldAbsorbed > 0;
+    }
+
     private bool _ResultHasStatusApplied(GDictionary result)
     {
         var statusEffectIds = result.GetValueOrDefault("status_effect_ids", new GArray());
         return statusEffectIds.VariantType == Variant.Type.Array
             && statusEffectIds.AsGodotArray().Count > 0;
+    }
+
+    private bool _ResultHasStatusApplied(AttackEffectResolutionResult result)
+    {
+        return result.StatusEffectIds != null && result.StatusEffectIds.Count > 0;
     }
 
     private bool _ResultHasSkillDamageDieEvent(GDictionary result)
@@ -434,6 +506,18 @@ public partial class BattleSkillMasteryService : RefCounted
         return false;
     }
 
+    private bool _ResultHasSkillDamageDieEvent(AttackEffectResolutionResult result)
+    {
+        if (result.SkillDamageDiceIsMax)
+            return true;
+        foreach (DamageEventResult damageEvent in result.DamageEvents ?? System.Array.Empty<DamageEventResult>())
+        {
+            if (damageEvent.SkillDamageDiceIsMax)
+                return true;
+        }
+        return false;
+    }
+
     private bool _ResultHasWeaponDiceMaxEvent(GDictionary result)
     {
         var damageEvents = result.GetValueOrDefault("damage_events", new GArray());
@@ -449,6 +533,20 @@ public partial class BattleSkillMasteryService : RefCounted
                 && ProgressionDataUtils.to_string_name(
                     evt.GetValueOrDefault("weapon_damage_dice_is_max_reason", "")
                 ) == "weapon_dice_max"
+            )
+                return true;
+        }
+        return false;
+    }
+
+    private bool _ResultHasWeaponDiceMaxEvent(AttackEffectResolutionResult result)
+    {
+        foreach (DamageEventResult damageEvent in result.DamageEvents ?? System.Array.Empty<DamageEventResult>())
+        {
+            if (
+                damageEvent.WeaponDamageDiceIsMax
+                && damageEvent.WeaponDamageDiceIsMaxReason
+                    == DamageDiceMaxReasonKind.WeaponDiceMax
             )
                 return true;
         }

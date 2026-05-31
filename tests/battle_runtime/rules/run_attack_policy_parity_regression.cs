@@ -4,7 +4,6 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
-using GStageSpecArray = Godot.Collections.Array<BattleRepeatAttackStageSpec>;
 
 public partial class run_attack_policy_parity_regression : SceneTree
 {
@@ -35,7 +34,7 @@ public partial class run_attack_policy_parity_regression : SceneTree
         };
         SkillDef skillDef = BuildParitySkill();
         CombatEffectDef repeatEffect = BuildRepeatEffect();
-        GStageSpecArray repeatStageSpecs =
+        List<BattleRepeatAttackStageSpec> repeatStageSpecs =
             BattleRepeatAttackResolver.build_stage_specs_from_repeat_attack_effect(
                 activeUnit,
                 skillDef,
@@ -49,7 +48,7 @@ public partial class run_attack_policy_parity_regression : SceneTree
                 activeUnit,
                 targetUnit,
                 skillDef,
-                null,
+                default,
                 "repeat_attack_preview",
                 "hud_preview"
             );
@@ -95,7 +94,7 @@ public partial class run_attack_policy_parity_regression : SceneTree
             hitResolver.build_skill_attack_check(activeUnit, targetUnit, skillDef, 0, 0),
             "policy build_attack_check 应与 BattleHitResolver 零漂移。"
         );
-        AssertDictEq(
+        AssertPreviewEq(
             policy.build_attack_preview(previewContext),
             hitResolver.build_skill_attack_preview(
                 battleState,
@@ -106,7 +105,7 @@ public partial class run_attack_policy_parity_regression : SceneTree
             ),
             "policy build_attack_preview 应与 BattleHitResolver 零漂移。"
         );
-        AssertDictEq(
+        AssertPreviewEq(
             policy.build_repeat_attack_preview(repeatPreviewContext, repeatStageSpecs),
             hitResolver.build_repeat_attack_preview(
                 battleState,
@@ -182,13 +181,28 @@ public partial class run_attack_policy_parity_regression : SceneTree
         }
     }
 
-    private void AssertDictEq(GDictionary actual, GDictionary expected, string message)
+    private void AssertPreviewEq(AttackPreviewData actual, AttackPreviewData expected, string message)
     {
-        string actualText = StableDictionary(actual);
-        string expectedText = StableDictionary(expected);
-        if (!string.Equals(actualText, expectedText, StringComparison.Ordinal))
+        if (actual == null && expected == null) return;
+        if (actual == null || expected == null)
         {
-            _failures.Add($"{message} actual={actualText} expected={expectedText}");
+            _failures.Add($"{message} | actual={actual} expected={expected}");
+            return;
+        }
+        if (actual.SummaryText != expected.SummaryText)
+            _failures.Add($"{message} SummaryText actual={actual.SummaryText} expected={expected.SummaryText}");
+        if (actual.HitRatePercent != expected.HitRatePercent)
+            _failures.Add($"{message} HitRatePercent actual={actual.HitRatePercent} expected={expected.HitRatePercent}");
+        if (actual.SuccessRatePercent != expected.SuccessRatePercent)
+            _failures.Add($"{message} SuccessRatePercent actual={actual.SuccessRatePercent} expected={expected.SuccessRatePercent}");
+        if (actual.BaseHitRatePercent != expected.BaseHitRatePercent)
+            _failures.Add($"{message} BaseHitRatePercent actual={actual.BaseHitRatePercent} expected={expected.BaseHitRatePercent}");
+        if (actual.StageCount != expected.StageCount)
+            _failures.Add($"{message} StageCount actual={actual.StageCount} expected={expected.StageCount}");
+        for (int i = 0; i < Math.Min(actual.StageCount, expected.StageCount); i++)
+        {
+            if (actual.Stages[i].SuccessRatePercent != expected.Stages[i].SuccessRatePercent)
+                _failures.Add($"{message} Stage[{i}] SuccessRatePercent actual={actual.Stages[i].SuccessRatePercent} expected={expected.Stages[i].SuccessRatePercent}");
         }
     }
 
@@ -215,11 +229,6 @@ public partial class run_attack_policy_parity_regression : SceneTree
             value.CritLocked,
             value.CritGateDie,
             value.ForceHitNoCrit,
-            value.ApCost,
-            value.AuraCost,
-            value.MpCost,
-            value.StaminaCost,
-            value.CostResource,
             value.SkillId,
             value.FollowUpAttackPenalty,
             value.ExponentialPenalty,

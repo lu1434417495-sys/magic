@@ -713,14 +713,14 @@ public partial class SettlementForgeService : RefCounted
     {
         var result = new SettlementServiceResult
         {
-            success = success,
-            message = message,
-            persist_party_state = persistPartyState,
-            inventory_delta = inventoryDelta != null ? (GDictionary)inventoryDelta.Duplicate(true) : new GDictionary(),
-            quest_progress_events = DuplicateDictionaryArrayUntyped(questProgressEvents ?? new GArray()),
-            service_side_effects = serviceSideEffects != null ? (GDictionary)serviceSideEffects.Duplicate(true) : new GDictionary(),
+            Success = success,
+            Message = message,
+            PersistPartyState = persistPartyState,
         };
-        return result.to_dictionary();
+        result.SetInventoryDelta(inventoryDelta);
+        result.SetQuestProgressEventPayloads(DuplicateDictionaryArrayUntyped(questProgressEvents ?? new GArray()));
+        result.SetServiceSideEffects(serviceSideEffects);
+        return result.ToDictionary();
     }
 
     private static GArray DuplicateDictionaryArrayUntyped(GArray value)

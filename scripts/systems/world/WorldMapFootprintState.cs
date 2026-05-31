@@ -1,18 +1,13 @@
 using Godot;
 
-[GlobalClass]
-public partial class WorldMapFootprintState : RefCounted
+public sealed class WorldMapFootprintState
 {
-    public Vector2I origin = Vector2I.Zero;
-    public Vector2I size = Vector2I.Zero;
+    public readonly Vector2I Origin;
+    public readonly Vector2I Size;
 
-    public static WorldMapFootprintState create(Vector2I next_origin, Vector2I next_size)
+    public WorldMapFootprintState(Vector2I origin, Vector2I size)
     {
-        var state = new WorldMapFootprintState();
-        state.origin = next_origin;
-        state.size = next_size;
-        return state;
+        Origin = origin;
+        Size = size;
     }
-
-    public bool is_empty() => size.X <= 0 || size.Y <= 0;
 }

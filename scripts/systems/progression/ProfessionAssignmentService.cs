@@ -311,18 +311,10 @@ public partial class ProfessionAssignmentService : RefCounted
             return 0;
 
         int rankTotal = 0;
-        foreach (
-            Variant rawProfessionProgress in GdInterop
-                .GetDictionary(_unit_progress, "professions")
-                .Values
-        )
+        foreach (Variant rawPP in _unit_progress.professions.Values)
         {
-            GodotObject professionProgress =
-                rawProfessionProgress.VariantType == Variant.Type.Object
-                    ? rawProfessionProgress.AsGodotObject()
-                    : null;
-            if (professionProgress != null)
-                rankTotal += GdInterop.GetInt(professionProgress, "rank");
+            if (rawPP.AsGodotObject() is UnitProfessionProgress pp)
+                rankTotal += pp.rank;
         }
         return rankTotal;
     }

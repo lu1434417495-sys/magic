@@ -402,13 +402,13 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
             "battle",
             "battle.local_writeback_inoption_failed",
             _runtime.get_status_text(),
-            new Dictionary
+            Json.Stringify(new Dictionary
             {
                 ["battle"] = battleSummary,
                 ["winner_faction_id"] = winnerFactionId,
                 ["error_code"] = errorCode,
                 ["details"] = details,
-            }
+            })
         );
         System.Diagnostics.Debug.Assert(false, message);
     }

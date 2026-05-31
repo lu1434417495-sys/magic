@@ -44,7 +44,7 @@ public partial class BattleSkillOutcomeCommitter : RefCounted
             {
                 continue;
             }
-            _runtime.append_result_report_entry(batch, reportEntry);
+            _runtime.append_report_entry(batch, reportEntry);
         }
 
         CommitStatusTurnTiming(outcome);

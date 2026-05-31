@@ -27,19 +27,19 @@ public partial class CharacterCreationIdentityOptionService : RefCounted
         if (race_id == "")
             return ids;
 
-        var raceDef = LookupBucketEntry(content_source.get_race_defs(), race_id);
+        var raceDef = LookupBucketEntry<RaceDef>(content_source.get_race_defs(), race_id);
         if (raceDef == null)
             return ids;
 
         var subraceDefs = content_source.get_subrace_defs();
-        foreach (var subraceId in DefStringNameArray(raceDef, "subrace_ids"))
+        foreach (var subraceId in raceDef.subrace_ids)
         {
             if (subraceId == "" || ids.Contains(subraceId))
                 continue;
-            var subraceDef = LookupBucketEntry(subraceDefs, subraceId);
+            var subraceDef = LookupBucketEntry<SubraceDef>(subraceDefs, subraceId);
             if (subraceDef == null)
                 continue;
-            if (DefStringName(subraceDef, "parent_race_id") != race_id)
+            if (subraceDef.parent_race_id != race_id)
                 continue;
             if (!is_valid_creation_race_subrace_pair(content_source, race_id, subraceId))
                 continue;
@@ -72,8 +72,8 @@ public partial class CharacterCreationIdentityOptionService : RefCounted
         if (current_id != "" && candidates.Contains(current_id))
             return current_id;
 
-        var raceDef = LookupBucketEntry(content_source.get_race_defs(), race_id);
-        var defaultSubraceId = DefStringName(raceDef, "default_subrace_id");
+        var raceDef = LookupBucketEntry<RaceDef>(content_source.get_race_defs(), race_id);
+        var defaultSubraceId = raceDef?.default_subrace_id ?? new StringName("");
         if (defaultSubraceId != "" && candidates.Contains(defaultSubraceId))
             return defaultSubraceId;
         return candidates.Count > 0 ? candidates[0] : new StringName("");
@@ -120,54 +120,16 @@ public partial class CharacterCreationIdentityOptionService : RefCounted
 
 
 
-    private static GodotObject LookupBucketEntry(Godot.Collections.Dictionary bucket, StringName defId)
+    private static T LookupBucketEntry<T>(Godot.Collections.Dictionary bucket, StringName defId)
+        where T : GodotObject
     {
         if (bucket == null || defId == "")
             return null;
-        if (TryGetObject(bucket, defId, out var stringNameValue))
-            return stringNameValue;
-        var textId = (string)defId;
-        if (TryGetObject(bucket, textId, out var stringValue))
-            return stringValue;
+        if (TryGetObject(bucket, defId, out var v1) && v1 is T t1)
+            return t1;
+        if (TryGetObject(bucket, (string)defId, out var v2) && v2 is T t2)
+            return t2;
         return null;
-    }
-
-    private static StringName DefStringName(GodotObject def, string propertyName)
-    {
-        if (def == null)
-            return new StringName("");
-        var value = def.Get(propertyName);
-        return value.VariantType switch
-        {
-            Variant.Type.StringName => value.AsStringName(),
-            Variant.Type.String => new StringName(value.AsString()),
-            _ => new StringName(""),
-        };
-    }
-
-    private static Godot.Collections.Array<StringName> DefStringNameArray(
-        GodotObject def,
-        string propertyName
-    )
-    {
-        var result = new Godot.Collections.Array<StringName>();
-        if (def == null)
-            return result;
-        var value = def.Get(propertyName);
-        if (value.VariantType != Variant.Type.Array)
-            return result;
-        foreach (var item in value.AsGodotArray())
-        {
-            var parsed = item.VariantType switch
-            {
-                Variant.Type.StringName => item.AsStringName(),
-                Variant.Type.String => new StringName(item.AsString()),
-                _ => new StringName(""),
-            };
-            if (parsed != "")
-                result.Add(parsed);
-        }
-        return result;
     }
 
     private static Godot.Collections.Array<StringName> SortStringNames(

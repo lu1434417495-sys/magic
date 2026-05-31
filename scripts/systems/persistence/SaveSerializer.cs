@@ -80,7 +80,7 @@ public partial class SaveSerializer : RefCounted
     public GDictionary decode_payload(
         GDictionary payload,
         string generationConfigPath,
-        GodotObject generationConfig,
+        WorldMapGenerationConfig generationConfig,
         GDictionary saveMeta
     )
     {
@@ -976,7 +976,7 @@ public partial class SaveSerializer : RefCounted
             : new GDictionary();
     }
 
-    public GDictionary serialize(GDictionary worldData, GodotObject partyState)
+    public GDictionary serialize(GDictionary worldData, PartyState partyState)
     {
         return new GDictionary
         {
@@ -1019,8 +1019,7 @@ public partial class SaveSerializer : RefCounted
             return result;
         foreach (var anchorValue in anchorValues)
         {
-            GodotObject anchorObject = anchorValue.AsGodotObject();
-            if (anchorObject is EncounterAnchorData)
+            if (anchorValue.AsGodotObject() is EncounterAnchorData anchorObject)
             {
                 result.Add(anchorObject);
                 continue;

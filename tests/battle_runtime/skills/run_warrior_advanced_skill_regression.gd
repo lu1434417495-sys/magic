@@ -322,10 +322,10 @@ func _test_saint_blade_combo_runtime_consumes_follow_up_aura_on_miss() -> void:
 	var hp_before := enemy.current_hp
 	var command := _build_unit_skill_command(warrior.unit_id, &"saint_blade_combo", enemy)
 	var preview := runtime.preview_command(command)
-	var stage_preview_texts := preview.hit_preview.get("stage_preview_texts", []) as Array
+	var stage_preview_texts := preview.hit_preview.stage_preview_texts as Array
 	_assert_eq(stage_preview_texts.size(), 2, "圣剑连斩预览应按当前 Aura 暴露可支付的 shared resolver 文案。")
 	_assert_eq(
-		preview.hit_preview.get("stage_required_rolls", []),
+		preview.hit_preview.stage_required_rolls,
 		[2, 2],
 		"命中预览应按当前 Aura 上限把 100 命中/0 闪避夹具换算为 d20 required roll。"
 	)

@@ -46,7 +46,7 @@ public partial class PendingProfessionChoice : RefCounted
     public static PendingProfessionChoice from_dict(Godot.Collections.Dictionary data)
     {
         if (
-            !_hfs(
+            !HasExactFields(
                 data,
                 new Godot.Collections.Array<string>
                 {
@@ -71,19 +71,21 @@ public partial class PendingProfessionChoice : RefCounted
             return null;
         if (data["assignable_skill_candidate_ids"].VariantType != Variant.Type.Array)
             return null;
-        var tsi = _pusna(data["trigger_skill_ids"].AsGodotArray());
+        var tsi = ParseUniqueStringNameArray(data["trigger_skill_ids"].AsGodotArray());
         if (tsi == null)
             return null;
-        var cpi = _pusna(data["candidate_profession_ids"].AsGodotArray());
+        var cpi = ParseUniqueStringNameArray(data["candidate_profession_ids"].AsGodotArray());
         if (cpi == null)
             return null;
-        var trm = _pnim(data["target_rank_map"].AsGodotDictionary());
+        var trm = ParseStringNameIntMap(data["target_rank_map"].AsGodotDictionary());
         if (trm == null)
             return null;
-        var qsi = _pusna(data["qualifier_skill_pool_ids"].AsGodotArray());
+        var qsi = ParseUniqueStringNameArray(data["qualifier_skill_pool_ids"].AsGodotArray());
         if (qsi == null)
             return null;
-        var asi = _pusna(data["assignable_skill_candidate_ids"].AsGodotArray());
+        var asi = ParseUniqueStringNameArray(
+            data["assignable_skill_candidate_ids"].AsGodotArray()
+        );
         if (asi == null)
             return null;
         if (
@@ -108,50 +110,57 @@ public partial class PendingProfessionChoice : RefCounted
         };
     }
 
-    private static bool _hfs(Godot.Collections.Dictionary d, Godot.Collections.Array<string> f)
+    private static bool HasExactFields(
+        Godot.Collections.Dictionary data,
+        Godot.Collections.Array<string> fields
+    )
     {
-        if (d.Count != f.Count)
+        if (data.Count != fields.Count)
             return false;
-        foreach (string n in f)
-            if (!d.ContainsKey(n))
+        foreach (string fieldName in fields)
+            if (!data.ContainsKey(fieldName))
                 return false;
         return true;
     }
 
-    private static Godot.Collections.Array<StringName> _pusna(Godot.Collections.Array a)
+    private static Godot.Collections.Array<StringName> ParseUniqueStringNameArray(
+        Godot.Collections.Array values
+    )
     {
-        var r = new Godot.Collections.Array<StringName>();
-        var s = new Godot.Collections.Dictionary();
-        foreach (var v in a)
+        var results = new Godot.Collections.Array<StringName>();
+        var seen = new Godot.Collections.Dictionary();
+        foreach (var rawValue in values)
         {
-            var p = _psn(v);
-            if (p == null || s.ContainsKey(p))
+            var parsed = ParseRequiredStringName(rawValue);
+            if (parsed == null || seen.ContainsKey(parsed))
                 return null;
-            s[p] = true;
-            r.Add(p);
+            seen[parsed] = true;
+            results.Add(parsed);
         }
-        return r;
+        return results;
     }
 
-    private static Godot.Collections.Dictionary _pnim(Godot.Collections.Dictionary v)
+    private static Godot.Collections.Dictionary ParseStringNameIntMap(
+        Godot.Collections.Dictionary values
+    )
     {
-        var p = new Godot.Collections.Dictionary();
-        var s = new Godot.Collections.Dictionary();
-        foreach (var rk in v.Keys)
+        var parsedValues = new Godot.Collections.Dictionary();
+        var seen = new Godot.Collections.Dictionary();
+        foreach (var rawKey in values.Keys)
         {
-            var pk = _psn(rk);
-            if (pk == null || s.ContainsKey(pk))
+            var parsedKey = ParseRequiredStringName(rawKey);
+            if (parsedKey == null || seen.ContainsKey(parsedKey))
                 return null;
-            var rv = v[rk];
-            if (rv.VariantType != Variant.Type.Int || rv.AsInt32() < 0)
+            var rawValue = values[rawKey];
+            if (rawValue.VariantType != Variant.Type.Int || rawValue.AsInt32() < 0)
                 return null;
-            s[pk] = true;
-            p[pk] = rv.AsInt32();
+            seen[parsedKey] = true;
+            parsedValues[parsedKey] = rawValue.AsInt32();
         }
-        return p;
+        return parsedValues;
     }
 
-    private static StringName _psn(object rawValue)
+    private static StringName ParseRequiredStringName(object rawValue)
     {
         if (rawValue is Variant value)
         {
@@ -164,6 +173,6 @@ public partial class PendingProfessionChoice : RefCounted
             return null;
         }
         var p = ProgressionDataUtils.to_string_name(rawValue);
-        return (string)p == "" ? null : (StringName?)p;
+        return (string)p == "" ? null : p;
     }
 }

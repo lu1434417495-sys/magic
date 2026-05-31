@@ -524,6 +524,19 @@ public partial class IdentityPayloadValidator : RefCounted
             string aliasBucketName
         )
         {
+            if (_registry != null)
+            {
+                return methodName switch
+                {
+                    "get_race_defs" => _registry.get_race_defs(),
+                    "get_subrace_defs" => _registry.get_subrace_defs(),
+                    "get_bloodline_defs" => _registry.get_bloodline_defs(),
+                    "get_bloodline_stage_defs" => _registry.get_bloodline_stage_defs(),
+                    "get_ascension_defs" => _registry.get_ascension_defs(),
+                    "get_ascension_stage_defs" => _registry.get_ascension_stage_defs(),
+                    _ => new Godot.Collections.Dictionary(),
+                };
+            }
             if (_dictionary != null)
             {
                 if (_dictionary.ContainsKey(primaryBucketName))
@@ -538,21 +551,6 @@ public partial class IdentityPayloadValidator : RefCounted
                     if (aliasBucket.VariantType == Variant.Type.Dictionary)
                         return aliasBucket.AsGodotDictionary();
                 }
-            }
-            if (_registry != null)
-            {
-                GDictionary result = methodName switch
-                {
-                    "get_race_defs" => _registry.get_race_defs(),
-                    "get_subrace_defs" => _registry.get_subrace_defs(),
-                    "get_bloodline_defs" => _registry.get_bloodline_defs(),
-                    "get_bloodline_stage_defs" => _registry.get_bloodline_stage_defs(),
-                    "get_ascension_defs" => _registry.get_ascension_defs(),
-                    "get_ascension_stage_defs" => _registry.get_ascension_stage_defs(),
-                    _ => null,
-                };
-                if (result != null)
-                    return result;
             }
             return new Godot.Collections.Dictionary();
         }

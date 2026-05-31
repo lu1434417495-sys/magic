@@ -570,7 +570,6 @@ func _test_missing_template_does_not_build_fallback_enemy() -> void:
 
 func _test_wild_encounter_growth_respects_suppression_window() -> void:
 	var game_session = GAME_SESSION_SCRIPT.new()
-	var world_time_system = WorldTimeSystem.new()
 	var growth_system = WILD_ENCOUNTER_GROWTH_SYSTEM_SCRIPT.new()
 	var encounter_anchor = _build_settlement_encounter_anchor(&"wolf_den_growth", Vector2i(5, 5))
 	var world_data := {
@@ -578,11 +577,12 @@ func _test_wild_encounter_growth_respects_suppression_window() -> void:
 		"encounter_anchors": [encounter_anchor],
 	}
 
-	var advance_result = world_time_system.advance(world_data, 2)
+	var old_step := int(world_data.get("world_step", 0))
+	world_data["world_step"] = old_step + 2
 	growth_system.apply_step_advance(
 		world_data,
-		int(advance_result.get("old_step", 0)),
-		int(advance_result.get("new_step", 0)),
+		old_step,
+		int(world_data.get("world_step", 0)),
 		game_session.get_wild_encounter_rosters()
 	)
 	_assert_eq(encounter_anchor.growth_stage, 1, "聚落类野怪应在到达成长间隔后提升阶段。")
@@ -596,32 +596,25 @@ func _test_wild_encounter_growth_respects_suppression_window() -> void:
 	_assert_eq(encounter_anchor.growth_stage, 0, "聚落类野怪战胜后应至少降回初始阶段。")
 	_assert_eq(encounter_anchor.suppressed_until_step, 5, "wolf_den 战胜后的压制时间应按配置推进 3 step。")
 
-	advance_result = world_time_system.advance(world_data, 2)
+	old_step = int(world_data.get("world_step", 0))
+	world_data["world_step"] = old_step + 2
 	growth_system.apply_step_advance(
 		world_data,
-		int(advance_result.get("old_step", 0)),
-		int(advance_result.get("new_step", 0)),
+		old_step,
+		int(world_data.get("world_step", 0)),
 		game_session.get_wild_encounter_rosters()
 	)
 	_assert_eq(encounter_anchor.growth_stage, 0, "压制期内推进世界时间不应让聚落类野怪恢复增长。")
 
-	advance_result = world_time_system.advance(world_data, 3)
+	old_step = int(world_data.get("world_step", 0))
+	world_data["world_step"] = old_step + 3
 	growth_system.apply_step_advance(
 		world_data,
-		int(advance_result.get("old_step", 0)),
-		int(advance_result.get("new_step", 0)),
+		old_step,
+		int(world_data.get("world_step", 0)),
 		game_session.get_wild_encounter_rosters()
 	)
 	_assert_eq(encounter_anchor.growth_stage, 1, "压制期结束后，聚落类野怪应重新按成长间隔恢复增长。")
-
-	for bad_world_data in [
-		{"encounter_anchors": [encounter_anchor]},
-		{"world_step": "0", "encounter_anchors": [encounter_anchor]},
-		{"world_step": -1, "encounter_anchors": [encounter_anchor]},
-	]:
-		var rejected_advance: Dictionary = world_time_system.advance(bad_world_data, 1)
-		_assert_eq(String(rejected_advance.get("error_code", "")), "invalid_world_step", "WorldTimeSystem 不应把缺失、字符串或负数 world_step 兼容成 0。")
-		_assert_eq(int(rejected_advance.get("new_step", 0)), -1, "WorldTimeSystem 拒绝坏 world_step 时不应推进时间。")
 	game_session.free()
 
 

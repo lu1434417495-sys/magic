@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
-using VT = Godot.Variant.Type;
 
 [GlobalClass]
 public partial class GameLogService : RefCounted
@@ -16,7 +15,7 @@ public partial class GameLogService : RefCounted
     public const int DEFAULT_TAIL_LIMIT = 50;
     public const bool DEFAULT_FILE_OUTPUT_ENABLED = false;
 
-    private readonly List<GDictionary> _entries = new();
+    private readonly List<GameLogEntry> _entries = new();
     private int _maxEntries = DEFAULT_BUFFER_LIMIT;
     private int _nextSeq = 1;
     private string _sessionLogVirtualPath = "";
@@ -40,21 +39,20 @@ public partial class GameLogService : RefCounted
         string domain,
         string event_id,
         string message,
-        GDictionary context = null
+        string context = ""
     )
     {
         long timestampMs = (long)(Time.GetUnixTimeFromSystem() * 1000.0);
-        var entry = new GDictionary
-        {
-            ["seq"] = _nextSeq,
-            ["time_unix_ms"] = timestampMs,
-            ["time_text"] = FormatUnixTimeMs(timestampMs),
-            ["level"] = string.IsNullOrEmpty(level) ? "info" : level,
-            ["domain"] = string.IsNullOrEmpty(domain) ? "runtime" : domain,
-            ["event_id"] = event_id ?? "",
-            ["message"] = message ?? "",
-            ["context"] = GdInterop.ToVariant(NormalizeValue(context ?? new GDictionary())),
-        };
+        GameLogEntry entry = new(
+            _nextSeq,
+            timestampMs,
+            FormatUnixTimeMs(timestampMs),
+            string.IsNullOrEmpty(level) ? "info" : level,
+            string.IsNullOrEmpty(domain) ? "runtime" : domain,
+            event_id ?? "",
+            message ?? "",
+            context ?? ""
+        );
         _nextSeq += 1;
         _entries.Add(entry);
         if (_entries.Count > _maxEntries)
@@ -62,7 +60,7 @@ public partial class GameLogService : RefCounted
             _entries.RemoveAt(0);
         }
         AppendToFile(entry);
-        GDictionary emittedEntry = DuplicateDictionary(entry);
+        GDictionary emittedEntry = entry.ToDictionary();
         EmitSignal(SignalName.EntryAdded, emittedEntry);
         return DuplicateDictionary(entry);
     }
@@ -74,7 +72,7 @@ public partial class GameLogService : RefCounted
         var result = new GArray();
         for (int index = startIndex; index < _entries.Count; index++)
         {
-            result.Add(DuplicateDictionary(_entries[index]));
+            result.Add(_entries[index].ToDictionary());
         }
         return result;
     }
@@ -186,7 +184,7 @@ public partial class GameLogService : RefCounted
         _writeEnabled = true;
     }
 
-    private void AppendToFile(GDictionary entry)
+    private void AppendToFile(GameLogEntry entry)
     {
         if (!_writeEnabled || string.IsNullOrEmpty(_sessionLogVirtualPath))
         {
@@ -201,7 +199,7 @@ public partial class GameLogService : RefCounted
             return;
         }
         file.SeekEnd();
-        file.StoreLine(Json.Stringify(entry));
+        file.StoreLine(Json.Stringify(entry.ToDictionary()));
     }
 
     private void DisableFileWrite(string message)
@@ -230,85 +228,9 @@ public partial class GameLogService : RefCounted
         );
     }
 
-    private static object NormalizeValue(object rawValue)
+    private static GDictionary DuplicateDictionary(GameLogEntry value)
     {
-        if (rawValue is GDictionary rawDictionary)
-        {
-            var normalizedDict = new GDictionary();
-            foreach (var key in rawDictionary.Keys)
-                normalizedDict[key.ToString()] = GdInterop.ToVariant(NormalizeValue(rawDictionary[key]));
-            return normalizedDict;
-        }
-        if (rawValue is GArray rawArray)
-        {
-            var normalizedArray = new GArray();
-            foreach (var entry in rawArray)
-                normalizedArray.Add(GdInterop.ToVariant(NormalizeValue(entry)));
-            return normalizedArray;
-        }
-        if (rawValue is not Variant value)
-        {
-            return rawValue;
-        }
-
-        switch (value.VariantType)
-        {
-            case Variant.Type.Nil:
-                return null;
-            case Variant.Type.Bool:
-                return value.AsBool();
-            case Variant.Type.Int:
-                return value.AsInt64();
-            case Variant.Type.Float:
-                return value.AsDouble();
-            case Variant.Type.String:
-                return value.AsString();
-            case Variant.Type.StringName:
-                return value.AsStringName().ToString();
-            case Variant.Type.Vector2I:
-            {
-                Vector2I coord = value.AsVector2I();
-                return new GDictionary { ["x"] = coord.X, ["y"] = coord.Y };
-            }
-            case Variant.Type.Vector2:
-            {
-                Vector2 coord = value.AsVector2();
-                return new GDictionary { ["x"] = coord.X, ["y"] = coord.Y };
-            }
-            case Variant.Type.Dictionary:
-            {
-                var normalizedDict = new GDictionary();
-                foreach (var key in value.AsGodotDictionary().Keys)
-                {
-                    normalizedDict[key.ToString()] = GdInterop.ToVariant(NormalizeValue(value.AsGodotDictionary()[key]));
-                }
-                return normalizedDict;
-            }
-            case Variant.Type.Array:
-            {
-                var normalizedArray = new GArray();
-                foreach (var entry in value.AsGodotArray())
-                {
-                    normalizedArray.Add(GdInterop.ToVariant(NormalizeValue(entry)));
-                }
-                return normalizedArray;
-            }
-            case Variant.Type.Object:
-            {
-                GodotObject obj = value.AsGodotObject();
-                if (obj == null)
-                {
-                    return null;
-                }
-                if (obj.HasMethod("to_dict"))
-                {
-                    return NormalizeValue(obj.Call("to_dict"));
-                }
-                return obj.ToString();
-            }
-            default:
-                return value;
-        }
+        return value?.ToDictionary() ?? new GDictionary();
     }
 
     private static GDictionary DuplicateDictionary(GDictionary value)
@@ -325,5 +247,53 @@ public partial class GameLogService : RefCounted
     {
         long result = value % modulus;
         return result < 0 ? result + modulus : result;
+    }
+
+    private sealed class GameLogEntry
+    {
+        public GameLogEntry(
+            int seq,
+            long timeUnixMs,
+            string timeText,
+            string level,
+            string domain,
+            string eventId,
+            string message,
+            string context
+        )
+        {
+            Seq = seq;
+            TimeUnixMs = timeUnixMs;
+            TimeText = timeText ?? "";
+            Level = level ?? "";
+            Domain = domain ?? "";
+            EventId = eventId ?? "";
+            Message = message ?? "";
+            Context = context ?? "";
+        }
+
+        public int Seq { get; }
+        public long TimeUnixMs { get; }
+        public string TimeText { get; }
+        public string Level { get; }
+        public string Domain { get; }
+        public string EventId { get; }
+        public string Message { get; }
+        public string Context { get; }
+
+        public GDictionary ToDictionary()
+        {
+            return new GDictionary
+            {
+                ["seq"] = Seq,
+                ["time_unix_ms"] = TimeUnixMs,
+                ["time_text"] = TimeText,
+                ["level"] = Level,
+                ["domain"] = Domain,
+                ["event_id"] = EventId,
+                ["message"] = Message,
+                ["context"] = Context,
+            };
+        }
     }
 }

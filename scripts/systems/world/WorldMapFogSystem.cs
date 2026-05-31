@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -23,8 +24,10 @@ public partial class WorldMapFogSystem : RefCounted
     public static int PERSISTENT_STATE_VERSION_ID() => PERSISTENT_STATE_VERSION;
 
     private Vector2I _world_size_cells = Vector2I.Zero;
-    private GDictionary _states_by_faction = new();
-    private GDictionary _revealed_by_faction = new();
+    private readonly Dictionary<string, WorldMapFogFactionState> _statesByFaction =
+        new(StringComparer.Ordinal);
+    private readonly Dictionary<string, HashSet<Vector2I>> _revealedByFaction =
+        new(StringComparer.Ordinal);
 
     public void setup(Vector2I world_size_cells)
     {
@@ -34,8 +37,8 @@ public partial class WorldMapFogSystem : RefCounted
     public void setup(Vector2I world_size_cells, GDictionary persistent_state)
     {
         _world_size_cells = world_size_cells;
-        _states_by_faction.Clear();
-        _revealed_by_faction.Clear();
+        _statesByFaction.Clear();
+        _revealedByFaction.Clear();
         if (persistent_state != null && persistent_state.Count > 0)
         {
             load_persistent_state(persistent_state);
@@ -47,7 +50,7 @@ public partial class WorldMapFogSystem : RefCounted
     public void rebuild_visibility_for_faction(string faction_id, GArray sources)
     {
         WorldMapFogFactionState factionState = GetOrCreateState(faction_id);
-        factionState.clear_visible();
+        factionState.ClearVisible();
         if (sources == null)
         {
             return;
@@ -55,13 +58,13 @@ public partial class WorldMapFogSystem : RefCounted
 
         foreach (var sourceValue in sources)
         {
-            GodotObject source = sourceValue.AsGodotObject();
-            if (source == null || source.Get("faction_id").ToString() != faction_id)
+            VisionSourceData source = sourceValue.AsGodotObject() as VisionSourceData;
+            if (source == null || source.faction_id != faction_id)
             {
                 continue;
             }
-            int range = source.Get("range").AsInt32();
-            Vector2I center = source.Get("center").AsVector2I();
+            int range = source.range;
+            Vector2I center = source.center;
             for (int offsetY = -range; offsetY <= range; offsetY += 1)
             {
                 for (int offsetX = -range; offsetX <= range; offsetX += 1)
@@ -73,7 +76,7 @@ public partial class WorldMapFogSystem : RefCounted
                     Vector2I coord = center + new Vector2I(offsetX, offsetY);
                     if (IsInsideWorld(coord))
                     {
-                        factionState.mark_visible(coord);
+                        factionState.MarkVisible(coord);
                     }
                 }
             }
@@ -84,7 +87,7 @@ public partial class WorldMapFogSystem : RefCounted
     {
         if (IsInsideWorld(coord))
         {
-            GetOrCreateState(faction_id).explored[coord] = true;
+            GetOrCreateState(faction_id).MarkExplored(coord);
         }
     }
 
@@ -97,7 +100,7 @@ public partial class WorldMapFogSystem : RefCounted
         var revealedCoords = new Godot.Collections.Array<Vector2I>();
         int radius = Math.Max(reveal_range, 0);
         WorldMapFogFactionState factionState = GetOrCreateState(faction_id);
-        GDictionary revealedState = GetRevealedState(faction_id);
+        HashSet<Vector2I> revealedState = GetRevealedState(faction_id);
         for (int offsetY = -radius; offsetY <= radius; offsetY += 1)
         {
             for (int offsetX = -radius; offsetX <= radius; offsetX += 1)
@@ -111,8 +114,8 @@ public partial class WorldMapFogSystem : RefCounted
                 {
                     continue;
                 }
-                factionState.explored[coord] = true;
-                revealedState[coord] = true;
+                factionState.MarkExplored(coord);
+                revealedState.Add(coord);
                 revealedCoords.Add(coord);
             }
         }
@@ -120,12 +123,12 @@ public partial class WorldMapFogSystem : RefCounted
     }
 
     public bool is_visible(Vector2I coord, string faction_id) =>
-        GetOrCreateState(faction_id).is_visible(coord);
+        GetOrCreateState(faction_id).IsVisible(coord);
 
     public bool is_explored(Vector2I coord, string faction_id)
     {
-        return GetOrCreateState(faction_id).is_explored(coord)
-            || GetRevealedState(faction_id).ContainsKey(coord);
+        return GetOrCreateState(faction_id).IsExplored(coord)
+            || GetRevealedState(faction_id).Contains(coord);
     }
 
     public int get_fog_state(Vector2I coord, string faction_id)
@@ -146,7 +149,7 @@ public partial class WorldMapFogSystem : RefCounted
         {
             factions[factionId] = new GDictionary
             {
-                ["explored"] = SerializeCoordKeys(GetOrCreateState(factionId).explored),
+                ["explored"] = SerializeCoordKeys(GetOrCreateState(factionId).ExploredCoords),
                 ["revealed"] = SerializeCoordKeys(GetRevealedState(factionId)),
             };
         }
@@ -155,15 +158,15 @@ public partial class WorldMapFogSystem : RefCounted
 
     public bool load_persistent_state(GDictionary persistent_state)
     {
-        _states_by_faction.Clear();
-        _revealed_by_faction.Clear();
+        _statesByFaction.Clear();
+        _revealedByFaction.Clear();
         if (persistent_state == null || persistent_state.Count == 0)
         {
             return true;
         }
         if (
             !persistent_state.ContainsKey("version")
-            || !GdInterop.HasInt(persistent_state, "version")
+            || persistent_state["version"].VariantType != Variant.Type.Int
         )
         {
             GameLog.Error("Invalid world fog state: version must be an int.", "world.fog.invalid_version", "world");
@@ -180,15 +183,15 @@ public partial class WorldMapFogSystem : RefCounted
         }
         if (
             !persistent_state.ContainsKey("factions")
-            || !GdInterop.HasDictionary(persistent_state, "factions")
+            || persistent_state["factions"].VariantType != Variant.Type.Dictionary
         )
         {
             GameLog.Error("Invalid world fog state: factions must be a Dictionary.", "world.fog.invalid_factions", "world");
             return false;
         }
 
-        var nextStates = new GDictionary();
-        var nextRevealed = new GDictionary();
+        var nextStates = new Dictionary<string, WorldMapFogFactionState>(StringComparer.Ordinal);
+        var nextRevealed = new Dictionary<string, HashSet<Vector2I>>(StringComparer.Ordinal);
         GDictionary factions = persistent_state["factions"].AsGodotDictionary();
         foreach (var factionKey in factions.Keys)
         {
@@ -221,9 +224,9 @@ public partial class WorldMapFogSystem : RefCounted
                 );
                 return false;
             }
-            GDictionary exploredResult = ParseCoordArray(factionPayload, "explored");
-            GDictionary revealedResult = ParseCoordArray(factionPayload, "revealed");
-            if (!exploredResult["ok"].AsBool() || !revealedResult["ok"].AsBool())
+            CoordParseResult exploredResult = ParseCoordArray(factionPayload, "explored");
+            CoordParseResult revealedResult = ParseCoordArray(factionPayload, "revealed");
+            if (!exploredResult.Ok || !revealedResult.Ok)
             {
                 GameLog.Error(
                     "Invalid world fog state: explored/revealed must contain current coordinate payloads.",
@@ -234,91 +237,83 @@ public partial class WorldMapFogSystem : RefCounted
             }
 
             var factionState = new WorldMapFogFactionState();
-            foreach (var coordValue in exploredResult["coords"].AsGodotArray())
+            foreach (Vector2I coord in exploredResult.Coords)
             {
-                factionState.explored[coordValue.AsVector2I()] = true;
+                factionState.MarkExplored(coord);
             }
-            var revealedState = new GDictionary();
-            foreach (var coordValue in revealedResult["coords"].AsGodotArray())
+            var revealedState = new HashSet<Vector2I>();
+            foreach (Vector2I coord in revealedResult.Coords)
             {
-                Vector2I coord = coordValue.AsVector2I();
-                factionState.explored[coord] = true;
-                revealedState[coord] = true;
+                factionState.MarkExplored(coord);
+                revealedState.Add(coord);
             }
             nextStates[factionId] = factionState;
             nextRevealed[factionId] = revealedState;
         }
-        _states_by_faction = nextStates;
-        _revealed_by_faction = nextRevealed;
+        _statesByFaction.Clear();
+        foreach (var entry in nextStates)
+        {
+            _statesByFaction[entry.Key] = entry.Value;
+        }
+        _revealedByFaction.Clear();
+        foreach (var entry in nextRevealed)
+        {
+            _revealedByFaction[entry.Key] = entry.Value;
+        }
         return true;
     }
 
     private WorldMapFogFactionState GetOrCreateState(string factionId)
     {
-        string normalized = string.IsNullOrWhiteSpace(factionId)
-            ? "neutral"
-            : factionId.StripEdges();
-        GdInterop.TryGet(_states_by_faction, normalized, out var existing);
-        if (existing.TryAsObject(out WorldMapFogFactionState state))
+        string normalized = NormalizeFactionId(factionId);
+        if (_statesByFaction.TryGetValue(normalized, out WorldMapFogFactionState state))
         {
             return state;
         }
         state = new WorldMapFogFactionState();
-        _states_by_faction[normalized] = state;
+        _statesByFaction[normalized] = state;
         return state;
     }
 
-    private GDictionary GetRevealedState(string factionId)
+    private HashSet<Vector2I> GetRevealedState(string factionId)
     {
-        string normalized = string.IsNullOrWhiteSpace(factionId)
-            ? "neutral"
-            : factionId.StripEdges();
-        GdInterop.TryGet(_revealed_by_faction, normalized, out var existing);
-        if (existing.TryAsDictionary(out GDictionary existingDict))
+        string normalized = NormalizeFactionId(factionId);
+        if (_revealedByFaction.TryGetValue(normalized, out HashSet<Vector2I> state))
         {
-            return existingDict;
+            return state;
         }
-        var state = new GDictionary();
-        _revealed_by_faction[normalized] = state;
+        state = new HashSet<Vector2I>();
+        _revealedByFaction[normalized] = state;
         return state;
     }
 
-    private Godot.Collections.Array<string> CollectFactionIds()
+    private List<string> CollectFactionIds()
     {
-        var factionIds = new Godot.Collections.Array<string>();
-        foreach (var factionKey in _states_by_faction.Keys)
+        var factionIds = new HashSet<string>(StringComparer.Ordinal);
+        foreach (string factionId in _statesByFaction.Keys)
         {
-            string factionId = factionKey.ToString().StripEdges();
-            if (!string.IsNullOrEmpty(factionId) && !factionIds.Contains(factionId))
-            {
-                factionIds.Add(factionId);
-            }
+            factionIds.Add(factionId);
         }
-        foreach (var factionKey in _revealed_by_faction.Keys)
+        foreach (string factionId in _revealedByFaction.Keys)
         {
-            string factionId = factionKey.ToString().StripEdges();
-            if (!string.IsNullOrEmpty(factionId) && !factionIds.Contains(factionId))
-            {
-                factionIds.Add(factionId);
-            }
+            factionIds.Add(factionId);
         }
-        return factionIds;
+        var orderedIds = new List<string>(factionIds);
+        orderedIds.Sort(StringComparer.Ordinal);
+        return orderedIds;
     }
 
-    private GArray SerializeCoordKeys(GDictionary coordSet)
+    private GArray SerializeCoordKeys(IEnumerable<Vector2I> coordSet)
     {
-        var coords = new Godot.Collections.Array<Vector2I>();
-        foreach (var coordValue in coordSet.Keys)
+        var coords = new List<Vector2I>();
+        foreach (Vector2I coord in coordSet)
         {
-            if (
-                coordValue.VariantType == Variant.Type.Vector2I
-                && IsInsideWorld(coordValue.AsVector2I())
-            )
+            if (IsInsideWorld(coord))
             {
-                coords.Add(coordValue.AsVector2I());
+                coords.Add(coord);
             }
         }
-        coords.Sort();
+        coords.Sort(CompareCoords);
         var serialized = new GArray();
         foreach (Vector2I coord in coords)
         {
@@ -327,45 +322,57 @@ public partial class WorldMapFogSystem : RefCounted
         return serialized;
     }
 
-    private GDictionary ParseCoordArray(GDictionary payload, string key)
+    private CoordParseResult ParseCoordArray(GDictionary payload, string key)
     {
-        var coords = new Godot.Collections.Array<Vector2I>();
+        var coords = new List<Vector2I>();
+        var seen = new HashSet<Vector2I>();
         if (payload == null || !payload.ContainsKey(key))
         {
-            return new GDictionary { ["ok"] = false, ["coords"] = coords };
+            return CoordParseResult.Fail();
         }
-        if (!GdInterop.HasArray(payload, key))
+        if (payload[key].VariantType != Variant.Type.Array)
         {
-            return new GDictionary { ["ok"] = false, ["coords"] = coords };
+            return CoordParseResult.Fail();
         }
-        foreach (var coordValue in GdInterop.GetArray(payload, key))
+        foreach (var coordValue in payload[key].AsGodotArray())
         {
             if (!coordValue.TryAsDictionary(out GDictionary coordPayload))
             {
-                return new GDictionary { ["ok"] = false, ["coords"] = coords };
+                return CoordParseResult.Fail();
             }
             if (!coordPayload.ContainsKey("x") || !coordPayload.ContainsKey("y"))
             {
-                return new GDictionary { ["ok"] = false, ["coords"] = coords };
+                return CoordParseResult.Fail();
             }
             if (
-                !GdInterop.HasInt(coordPayload, "x")
-                || !GdInterop.HasInt(coordPayload, "y")
+                coordPayload["x"].VariantType != Variant.Type.Int
+                || coordPayload["y"].VariantType != Variant.Type.Int
             )
             {
-                return new GDictionary { ["ok"] = false, ["coords"] = coords };
+                return CoordParseResult.Fail();
             }
             Vector2I coord = new(coordPayload["x"].AsInt32(), coordPayload["y"].AsInt32());
             if (!IsInsideWorld(coord))
             {
-                return new GDictionary { ["ok"] = false, ["coords"] = coords };
+                return CoordParseResult.Fail();
             }
-            if (!coords.Contains(coord))
+            if (seen.Add(coord))
             {
                 coords.Add(coord);
             }
         }
-        return new GDictionary { ["ok"] = true, ["coords"] = coords };
+        return CoordParseResult.Success(coords);
+    }
+
+    private static string NormalizeFactionId(string factionId)
+    {
+        return string.IsNullOrWhiteSpace(factionId) ? "neutral" : factionId.StripEdges();
+    }
+
+    private static int CompareCoords(Vector2I left, Vector2I right)
+    {
+        int xCompare = left.X.CompareTo(right.X);
+        return xCompare != 0 ? xCompare : left.Y.CompareTo(right.Y);
     }
 
     private bool IsInsideWorld(Vector2I coord)
@@ -374,5 +381,22 @@ public partial class WorldMapFogSystem : RefCounted
             && coord.Y >= 0
             && coord.X < _world_size_cells.X
             && coord.Y < _world_size_cells.Y;
+    }
+
+    private readonly struct CoordParseResult
+    {
+        public readonly bool Ok;
+        public readonly List<Vector2I> Coords;
+
+        private CoordParseResult(bool ok, List<Vector2I> coords)
+        {
+            Ok = ok;
+            Coords = coords;
+        }
+
+        public static CoordParseResult Success(List<Vector2I> coords) =>
+            new(true, coords ?? new List<Vector2I>());
+
+        public static CoordParseResult Fail() => new(false, new List<Vector2I>());
     }
 }
