@@ -186,6 +186,35 @@ public partial class AttributeService : RefCounted
     private AttributeSnapshot _cached_snapshot;
     private bool _snapshot_dirty = true;
 
+    private readonly record struct AttributePermanentChangeSource(
+        StringName SourceType,
+        StringName SourceId,
+        bool AllowProtectedCustomStatWrite
+    )
+    {
+        public static AttributePermanentChangeSource FromDictionary(GDictionary sourceContext)
+        {
+            if (sourceContext == null)
+                return default;
+            return new AttributePermanentChangeSource(
+                GetDictStringName(sourceContext, "source_type"),
+                GetDictStringName(sourceContext, "source_id"),
+                ReadProtectedWriteFlag(sourceContext)
+            );
+        }
+
+        private static bool ReadProtectedWriteFlag(GDictionary sourceContext)
+        {
+            return TryGetDictValue(
+                    sourceContext,
+                    PROTECTED_CUSTOM_STAT_WRITE_FLAG,
+                    out object rawValue
+                )
+                && TryAsStrictBool(rawValue, out bool value)
+                && value;
+        }
+    }
+
     public AttributeService()
     {
         _derived_rules = BuildDefaultRules();
@@ -400,15 +429,27 @@ public partial class AttributeService : RefCounted
         GDictionary source_context
     )
     {
+        return ApplyPermanentAttributeChange(
+            attribute_id,
+            delta,
+            AttributePermanentChangeSource.FromDictionary(source_context)
+        );
+    }
+
+    private bool ApplyPermanentAttributeChange(
+        StringName attribute_id,
+        int delta,
+        AttributePermanentChangeSource sourceContext
+    )
+    {
         var unitBaseAttributes = GetUnitBaseAttributes();
         if (unitBaseAttributes == null)
             return false;
 
-        source_context ??= new GDictionary();
-        if (IsProtectedCustomStat(attribute_id) && !CanWriteProtectedCustomStat(source_context))
+        if (IsProtectedCustomStat(attribute_id) && !CanWriteProtectedCustomStat(sourceContext))
         {
             GameLog.Warning(
-                BuildProtectedCustomStatRejectionMessage(attribute_id, delta, source_context),
+                BuildProtectedCustomStatRejectionMessage(attribute_id, delta, sourceContext),
                 "attribute.protected_stat_rejected",
                 "attribute"
             );
@@ -460,25 +501,22 @@ public partial class AttributeService : RefCounted
             || PROTECTED_CUSTOM_STAT_KEYS.Contains(attributeId);
     }
 
-    private static bool CanWriteProtectedCustomStat(GDictionary sourceContext)
+    private static bool CanWriteProtectedCustomStat(AttributePermanentChangeSource sourceContext)
     {
-        var sourceType = GetDictStringName(sourceContext, "source_type");
-        if (sourceType == PROTECTED_CUSTOM_STAT_SOURCE_CHARACTER_CREATION)
+        if (sourceContext.SourceType == PROTECTED_CUSTOM_STAT_SOURCE_CHARACTER_CREATION)
             return true;
-        if (sourceType != PROTECTED_CUSTOM_STAT_SOURCE_STORY_SCRIPT)
+        if (sourceContext.SourceType != PROTECTED_CUSTOM_STAT_SOURCE_STORY_SCRIPT)
             return false;
-        return GetDictBool(sourceContext, PROTECTED_CUSTOM_STAT_WRITE_FLAG, false);
+        return sourceContext.AllowProtectedCustomStatWrite;
     }
 
     private static string BuildProtectedCustomStatRejectionMessage(
         StringName attributeId,
         int delta,
-        GDictionary sourceContext
+        AttributePermanentChangeSource sourceContext
     )
     {
-        var sourceType = GetDictStringName(sourceContext, "source_type");
-        var sourceId = GetDictStringName(sourceContext, "source_id");
-        return $"AttributeService: reject protected custom stat write {(string)attributeId} delta={delta} source_type={(string)sourceType} source_id={(string)sourceId}.";
+        return $"AttributeService: reject protected custom stat write {(string)attributeId} delta={delta} source_type={(string)sourceContext.SourceType} source_id={(string)sourceContext.SourceId}.";
     }
 
     private static GDictionary IndexSkillDefs(GDictionary skillDefs)
@@ -489,7 +527,14 @@ public partial class AttributeService : RefCounted
 
         foreach (object key in skillDefs.Keys)
         {
-            GdInterop.TryGet(skillDefs, key, out Variant _skillV);
+            if (
+                !TryGetDictValue(
+                    skillDefs,
+                    ProgressionDataUtils.to_string_name(key),
+                    out object _skillV
+                )
+            )
+                continue;
             if (!TryAsObject(_skillV, out SkillDef skillDef))
                 continue;
             var indexedId =
@@ -507,7 +552,14 @@ public partial class AttributeService : RefCounted
 
         foreach (object key in professionDefs.Keys)
         {
-            GdInterop.TryGet(professionDefs, key, out Variant _profV);
+            if (
+                !TryGetDictValue(
+                    professionDefs,
+                    ProgressionDataUtils.to_string_name(key),
+                    out object _profV
+                )
+            )
+                continue;
             if (!TryAsObject(_profV, out ProfessionDef professionDef))
                 continue;
             var indexedId =
@@ -538,7 +590,6 @@ public partial class AttributeService : RefCounted
         AppendSubraceModifierEntries(entries);
         AppendAgeModifierEntries(entries);
         AppendBloodlineModifierEntries(entries);
-        AppendAscensionModifierEntries(entries);
         AppendAscensionStageModifierEntries(entries);
         AppendStageAdvancementModifierEntries(entries);
         AppendVersatilityModifierEntries(entries);
@@ -613,20 +664,6 @@ public partial class AttributeService : RefCounted
                 _context.bloodline_stage_def.attribute_modifiers,
                 "bloodline",
                 _context.bloodline_stage_def.stage_id,
-                1
-            );
-    }
-
-    private void AppendAscensionModifierEntries(GArray entries)
-    {
-        if (_context?.ascension_def == null)
-            return;
-        if (TryAsArray(_context.ascension_def.Get("attribute_modifiers"), out GArray modifiers))
-            AppendModifierEntries(
-                entries,
-                modifiers,
-                "ascension",
-                _context.ascension_def.ascension_id,
                 1
             );
     }
@@ -1097,15 +1134,6 @@ public partial class AttributeService : RefCounted
         return _unit_progress.get_skill_progress(skillId);
     }
 
-    private static GDictionary GetDictionaryProperty(GodotObject source, string propertyName)
-    {
-        if (source == null)
-            return new GDictionary();
-        return TryAsDictionary(source.Get(propertyName), out GDictionary value)
-            ? value
-            : new GDictionary();
-    }
-
     private static int GetDictInt(GDictionary data, string key, int fallback)
     {
         if (data == null)
@@ -1127,15 +1155,6 @@ public partial class AttributeService : RefCounted
     private static int GetDictInt(Dictionary<StringName, int> data, StringName key, int fallback)
     {
         return data.TryGetValue(key, out var value) ? value : fallback;
-    }
-
-    private static bool GetDictBool(GDictionary data, StringName key, bool fallback)
-    {
-        if (data == null || key == null)
-            return fallback;
-        return TryGetDictValue(data, key, out object value) && TryAsBool(value, out bool parsed)
-            ? parsed
-            : fallback;
     }
 
     private static StringName GetDictStringName(
@@ -1270,7 +1289,7 @@ public partial class AttributeService : RefCounted
         return false;
     }
 
-    private static bool TryAsBool(object rawValue, out bool value)
+    private static bool TryAsStrictBool(object rawValue, out bool value)
     {
         if (rawValue is Variant variant && variant.VariantType == Variant.Type.Bool)
         {

@@ -56,8 +56,6 @@ public partial class SettlementShopService : RefCounted
     );
 
     private sealed record ShopStockEntry(string ItemId, ItemDef ItemDef, int Quantity, int UnitPrice);
-    private sealed record SellInventoryEntry(string ItemId, ItemDef ItemDef, int TotalQuantity, string InstanceId);
-
     private static readonly ShopDefinition[] ShopDefs =
     {
         new(
@@ -182,6 +180,24 @@ public partial class SettlementShopService : RefCounted
         GodotObject warehouseService,
         int currentGold)
     {
+        return BuildWindowDataTyped(
+            interactionScriptId,
+            settlementRecord,
+            settlementState,
+            itemDefs,
+            warehouseService as PartyWarehouseService,
+            currentGold
+        );
+    }
+
+    public GDictionary BuildWindowDataTyped(
+        string interactionScriptId,
+        GDictionary settlementRecord,
+        GDictionary settlementState,
+        GDictionary itemDefs,
+        PartyWarehouseService warehouse,
+        int currentGold)
+    {
         ShopDefinition shopDef = ResolveShopDef(interactionScriptId);
         if (shopDef == null)
         {
@@ -200,49 +216,69 @@ public partial class SettlementShopService : RefCounted
             }
 
             bool canBuy = stockEntry.Quantity > 0 && currentGold >= stockEntry.UnitPrice;
+            string stockText = stockEntry.Quantity <= 0 ? "售罄" : $"库存 {stockEntry.Quantity}";
+            string description = stockEntry.ItemDef?.description ?? "";
             buyEntries.Add(new GDictionary
             {
                 { "item_id", stockEntry.ItemId },
+                { "entry_id", $"buy:{stockEntry.ItemId}" },
                 { "display_name", GetItemDisplayName(stockEntry.ItemDef, stockEntry.ItemId) },
-                { "description", stockEntry.ItemDef?.description ?? "" },
+                { "description", description },
                 { "icon", stockEntry.ItemDef?.icon ?? "" },
                 { "quantity", stockEntry.Quantity },
                 { "unit_price", stockEntry.UnitPrice },
-                { "stock_text", stockEntry.Quantity <= 0 ? "售罄" : $"库存 {stockEntry.Quantity}" },
+                { "stock_text", stockText },
                 { "can_buy", canBuy },
+                { "state_label", canBuy ? "状态：可购" : "状态：不可购" },
+                { "cost_label", $"单价 {stockEntry.UnitPrice} 金" },
+                { "summary_text", stockText },
+                { "details_text", description },
+                { "is_enabled", canBuy },
                 { "disabled_reason", canBuy ? "" : stockEntry.Quantity <= 0 ? "库存不足" : "金币不足" },
+                { "shop_action", "buy" },
             });
         }
 
         var sellEntries = new GDictionaryArray();
-        if (warehouseService is PartyWarehouseService warehouse)
+        if (warehouse != null)
         {
-            foreach (GDictionary entryData in warehouse.get_inventory_entries())
+            foreach (WarehouseInventoryEntry entryData in warehouse.GetInventoryEntriesTyped())
             {
-                SellInventoryEntry sellSource = ParseSellInventoryEntry(entryData, itemDefs);
-                if (sellSource == null || sellSource.ItemDef == null || !sellSource.ItemDef.sellable)
+                ItemDef itemDef = entryData.ItemDef ?? GetItemDef(itemDefs, entryData.ItemId.ToString());
+                if (itemDef == null || !itemDef.sellable)
                 {
                     continue;
                 }
 
-                int unitPrice = ResolveSellPrice(sellSource.ItemDef);
+                int unitPrice = ResolveSellPrice(itemDef);
                 if (unitPrice <= 0)
                 {
                     continue;
                 }
 
+                string itemId = entryData.ItemId.ToString();
+                string instanceId = entryData.InstanceId.ToString();
+                int totalQuantity = entryData.HasEquipmentInstance ? 1 : entryData.TotalQuantity;
+                string stockText = BuildSellStockText(totalQuantity, instanceId);
                 sellEntries.Add(new GDictionary
                 {
-                    { "item_id", sellSource.ItemId },
-                    { "instance_id", sellSource.InstanceId },
-                    { "display_name", GetItemDisplayName(sellSource.ItemDef, sellSource.ItemId) },
-                    { "description", sellSource.ItemDef.description },
-                    { "icon", sellSource.ItemDef.icon },
-                    { "quantity", sellSource.TotalQuantity },
+                    { "item_id", itemId },
+                    { "entry_id", !string.IsNullOrEmpty(instanceId) ? $"sell:{itemId}:{instanceId}" : $"sell:{itemId}" },
+                    { "instance_id", instanceId },
+                    { "display_name", GetItemDisplayName(itemDef, itemId) },
+                    { "description", itemDef.description },
+                    { "icon", itemDef.icon },
+                    { "quantity", totalQuantity },
                     { "unit_price", unitPrice },
-                    { "stock_text", BuildSellStockText(sellSource.TotalQuantity, sellSource.InstanceId) },
+                    { "stock_text", stockText },
                     { "can_sell", true },
+                    { "state_label", "状态：可售" },
+                    { "cost_label", $"回收 {unitPrice} 金" },
+                    { "summary_text", stockText },
+                    { "details_text", itemDef.description },
+                    { "is_enabled", true },
                     { "disabled_reason", "" },
+                    { "shop_action", "sell" },
                 });
             }
         }
@@ -288,17 +324,39 @@ public partial class SettlementShopService : RefCounted
         int quantity,
         StringName instanceId = default)
     {
+        return BuyTyped(
+            interactionScriptId,
+            settlementRecord,
+            settlementState,
+            itemDefs,
+            warehouseService as PartyWarehouseService,
+            partyState as PartyState,
+            itemId,
+            quantity,
+            instanceId
+        ).ToDictionary();
+    }
+
+    public SettlementShopTradeResult BuyTyped(
+        string interactionScriptId,
+        GDictionary settlementRecord,
+        GDictionary settlementState,
+        GDictionary itemDefs,
+        PartyWarehouseService warehouse,
+        PartyState party,
+        StringName itemId,
+        int quantity,
+        StringName instanceId = default)
+    {
         ShopDefinition shopDef = ResolveShopDef(interactionScriptId);
         if (shopDef == null)
         {
             return BuildFail("当前据点没有可交易的商店。");
         }
-        if (warehouseService == null || partyState == null)
+        if (warehouse == null || party == null)
         {
             return BuildFail("商店服务尚未准备完成。");
         }
-        var warehouse = (PartyWarehouseService)warehouseService;
-        var party = (PartyState)partyState;
 
         int requestedQuantity = Mathf.Max(quantity, 0);
         if (requestedQuantity <= 0)
@@ -346,14 +404,13 @@ public partial class SettlementShopService : RefCounted
         ConsumeShopStock(shopState, normalizedItemId, addedQuantity, itemDefs);
         string feedback = $"购入 {addedQuantity} 件 {normalizedItemId}，花费 {spendCost} 金。";
         settlementState["shop_feedback_text"] = feedback;
-        return new GDictionary
-        {
-            { "success", true },
-            { "message", feedback },
-            { "gold_delta", -spendCost },
-            { "item_id", normalizedItemId },
-            { "quantity", addedQuantity },
-        };
+        return new SettlementShopTradeResult(
+            true,
+            feedback,
+            -spendCost,
+            normalizedItemId,
+            addedQuantity
+        );
     }
 
     public GDictionary sell(
@@ -367,17 +424,39 @@ public partial class SettlementShopService : RefCounted
         int quantity,
         StringName instanceId = default)
     {
+        return SellTyped(
+            interactionScriptId,
+            settlementRecord,
+            settlementState,
+            itemDefs,
+            warehouseService as PartyWarehouseService,
+            partyState as PartyState,
+            itemId,
+            quantity,
+            instanceId
+        ).ToDictionary();
+    }
+
+    public SettlementShopTradeResult SellTyped(
+        string interactionScriptId,
+        GDictionary settlementRecord,
+        GDictionary settlementState,
+        GDictionary itemDefs,
+        PartyWarehouseService warehouse,
+        PartyState party,
+        StringName itemId,
+        int quantity,
+        StringName instanceId = default)
+    {
         ShopDefinition shopDef = ResolveShopDef(interactionScriptId);
         if (shopDef == null)
         {
             return BuildFail("当前据点没有可交易的商店。");
         }
-        if (warehouseService == null || partyState == null)
+        if (warehouse == null || party == null)
         {
             return BuildFail("商店服务尚未准备完成。");
         }
-        var warehouse = (PartyWarehouseService)warehouseService;
-        var party = (PartyState)partyState;
 
         int requestedQuantity = Mathf.Max(quantity, 0);
         if (requestedQuantity <= 0)
@@ -441,15 +520,14 @@ public partial class SettlementShopService : RefCounted
 
         string feedback = $"售出 {removedQuantity} 件 {GetItemDisplayName(itemDef, normalizedItemId)}，获得 {totalGain} 金。";
         settlementState["shop_feedback_text"] = feedback;
-        return new GDictionary
-        {
-            { "success", true },
-            { "message", feedback },
-            { "gold_delta", totalGain },
-            { "item_id", normalizedItemId },
-            { "instance_id", normalizedInstanceId },
-            { "quantity", removedQuantity },
-        };
+        return new SettlementShopTradeResult(
+            true,
+            feedback,
+            totalGain,
+            normalizedItemId,
+            removedQuantity,
+            normalizedInstanceId
+        );
     }
 
     public GDictionary get_shop_def(string interactionScriptId)
@@ -710,31 +788,6 @@ public partial class SettlementShopService : RefCounted
         ItemDef itemDef = GetItemDef(itemDefs, itemId);
         return itemDef != null
             ? new ShopStockEntry(itemId, itemDef, quantity, unitPrice)
-            : null;
-    }
-
-    private static SellInventoryEntry ParseSellInventoryEntry(GDictionary entryData, GDictionary itemDefs)
-    {
-        if (!TryGetStrictInt(entryData, "total_quantity", out int totalQuantity)
-            || totalQuantity <= 0
-            || !HasNonEmptyId(entryData, "item_id"))
-        {
-            return null;
-        }
-
-        string instanceId = "";
-        if (TryGetValue(entryData, "instance_id", out object instanceIdValue))
-        {
-            if (!TryAsIdString(instanceIdValue, out instanceId))
-            {
-                return null;
-            }
-        }
-
-        string itemId = NormalizeId(entryData, "item_id");
-        ItemDef itemDef = GetItemDef(itemDefs, itemId);
-        return itemDef != null
-            ? new SellInventoryEntry(itemId, itemDef, string.IsNullOrEmpty(instanceId) ? totalQuantity : 1, instanceId)
             : null;
     }
 
@@ -1121,12 +1174,5 @@ public partial class SettlementShopService : RefCounted
             || rawValue is Variant variant && variant.VariantType == Variant.Type.Nil;
     }
 
-    private static GDictionary BuildFail(string message)
-    {
-        return new GDictionary
-        {
-            { "success", false },
-            { "message", message },
-        };
-    }
+    private static SettlementShopTradeResult BuildFail(string message) => new(false, message);
 }

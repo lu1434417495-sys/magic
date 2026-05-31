@@ -6,7 +6,7 @@ using GDictionary = Godot.Collections.Dictionary;
 public partial class BattleAiScoreInput : RefCounted
 {
     public BattleCommand command { get; set; }
-    public GodotObject skill_def { get; set; }
+    public SkillDef skill_def { get; set; }
     public BattlePreview preview { get; set; }
     public StringName action_kind { get; set; } = "skill";
     public string action_label { get; set; } = "";
@@ -215,7 +215,7 @@ public partial class BattleAiScoreInput : RefCounted
         }
         else if (skill_def != null)
         {
-            resolved_skill_id = skill_def.Get("skill_id").ToString();
+            resolved_skill_id = skill_def.skill_id.ToString();
         }
 
         string resolved_command_unit_id = "";

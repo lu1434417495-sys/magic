@@ -46,31 +46,22 @@ public partial class WeaponDice : RefCounted
         return FromValues(count, sides, bonus);
     }
 
-    public static WeaponDice from_resource(GodotObject dice_resource)
+    public static WeaponDice from_resource(WeaponDamageDiceDef dice_resource)
     {
         if (dice_resource == null)
         {
             return new WeaponDice();
         }
-        return from_dict(
-            new GDictionary
-            {
-                ["dice_count"] = GetObjectInt(dice_resource, "dice_count"),
-                ["dice_sides"] = GetObjectInt(dice_resource, "dice_sides"),
-                ["flat_bonus"] = GetObjectInt(dice_resource, "flat_bonus"),
-            }
+        return FromValues(
+            dice_resource.get_dice_count(),
+            dice_resource.get_dice_sides(),
+            dice_resource.flat_bonus
         );
     }
 
     private static int GetInt(GDictionary values, string key)
     {
         return values.ContainsKey(key) ? values[key].AsInt32() : 0;
-    }
-
-    private static int GetObjectInt(GodotObject source, string property)
-    {
-        var value = source.Get(property);
-        return value.VariantType == Variant.Type.Nil ? 0 : value.AsInt32();
     }
 
     private static WeaponDice FromValues(int count, int sides, int bonus)

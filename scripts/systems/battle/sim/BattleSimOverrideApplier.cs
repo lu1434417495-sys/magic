@@ -288,7 +288,7 @@ public partial class BattleSimOverrideApplier : RefCounted
         string full_path
     )
     {
-        var target = GdInterop.GetValueOrDefault(null, "", raw_target);
+        var target = ToVariant(raw_target);
         if (target.VariantType == Variant.Type.Nil || index >= segments.Length)
             return "Battle sim override path "
                 + full_path
@@ -322,11 +322,7 @@ public partial class BattleSimOverrideApplier : RefCounted
 
             if (is_last)
             {
-                arr[array_index] = GdInterop.GetValueOrDefault(
-                    null,
-                    "",
-                    _coerce_value(arr[array_index], value)
-                );
+                arr[array_index] = ToVariant(_coerce_value(arr[array_index], value));
 
                 return "";
             }
@@ -346,13 +342,11 @@ public partial class BattleSimOverrideApplier : RefCounted
                     + " references missing dictionary key "
                     + segment
                     + ".";
-            var resolved_key_variant = GdInterop.GetValueOrDefault(null, "", resolved_key);
+            var resolved_key_variant = ToVariant(resolved_key);
 
             if (is_last)
             {
-                dict[resolved_key_variant] = GdInterop.GetValueOrDefault(
-                    null,
-                    "",
+                dict[resolved_key_variant] = ToVariant(
                     _coerce_value(dict.GetValueOrDefault(resolved_key_variant), value)
                 );
 
@@ -385,7 +379,7 @@ public partial class BattleSimOverrideApplier : RefCounted
 
             obj.Set(
                 segment,
-                GdInterop.GetValueOrDefault(null, "", _coerce_value(current_value, value))
+                ToVariant(_coerce_value(current_value, value))
             );
 
             return "";
@@ -423,8 +417,8 @@ public partial class BattleSimOverrideApplier : RefCounted
 
     private object _coerce_value(object raw_current_value, object raw_value)
     {
-        var current_value = GdInterop.GetValueOrDefault(null, "", raw_current_value);
-        var value = GdInterop.GetValueOrDefault(null, "", raw_value);
+        var current_value = ToVariant(raw_current_value);
+        var value = ToVariant(raw_value);
 
         if (current_value.VariantType == Variant.Type.StringName)
             return ProgressionDataUtils.to_string_name(value);
@@ -453,4 +447,22 @@ public partial class BattleSimOverrideApplier : RefCounted
 
         return value;
     }
+
+    private static Variant ToVariant(object value) =>
+        value switch
+        {
+            Variant variant => variant,
+            string text => text,
+            StringName stringName => stringName,
+            int intValue => intValue,
+            long longValue => longValue,
+            bool boolValue => boolValue,
+            float floatValue => floatValue,
+            double doubleValue => doubleValue,
+            Vector2I coord => coord,
+            Godot.Collections.Array array => array,
+            GDictionary dictionary => dictionary,
+            GodotObject godotObject => godotObject,
+            _ => default,
+        };
 }

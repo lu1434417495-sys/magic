@@ -202,22 +202,36 @@ public partial class DisplaySettingsWindow : Control
 
     private static string DictString(GDictionary dict, string key, string defaultValue)
     {
-        if (dict == null || !dict.ContainsKey(key))
+        if (!TryRead(dict, key, out Variant value))
             return defaultValue;
-        return dict[key].AsString();
+        return value.VariantType switch
+        {
+            Variant.Type.String => value.AsString(),
+            Variant.Type.StringName => value.AsStringName().ToString(),
+            _ => defaultValue,
+        };
     }
 
     private static bool DictBool(GDictionary dict, string key, bool defaultValue)
     {
-        if (dict == null || !dict.ContainsKey(key))
+        if (!TryRead(dict, key, out Variant value) || value.VariantType != Variant.Type.Bool)
             return defaultValue;
-        return dict[key].AsBool();
+        return value.AsBool();
     }
 
     private static Vector2I DictVector2I(GDictionary dict, string key, Vector2I defaultValue)
     {
-        if (dict == null || !dict.ContainsKey(key))
+        if (!TryRead(dict, key, out Variant value) || value.VariantType != Variant.Type.Vector2I)
             return defaultValue;
-        return GdInterop.GetVector2I(dict, key, defaultValue);
+        return value.AsVector2I();
+    }
+
+    private static bool TryRead(GDictionary dict, string key, out Variant value)
+    {
+        value = default;
+        if (dict == null || !dict.ContainsKey(key))
+            return false;
+        value = dict[key];
+        return value.VariantType != Variant.Type.Nil;
     }
 }

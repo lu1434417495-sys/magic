@@ -39,38 +39,69 @@ public partial class AscensionTraitResolver : RefCounted
 
     private static void _apply_identity_def_projection(
         BattleUnitState unitState,
-        GodotObject identityDef,
+        BloodlineDef identityDef,
         Godot.Collections.Array<StringName> traitTarget
     )
     {
         if (identityDef == null)
             return;
 
-        _append_unique_string_names(traitTarget, _get_array_property(identityDef, "trait_ids"));
-
-        _append_unique_string_names(
-            unitState.vision_tags,
-            _get_array_property(identityDef, "vision_tags")
-        );
-
-        _append_unique_string_names(
-            unitState.proficiency_tags,
-            _get_array_property(identityDef, "proficiency_tags")
-        );
-
-        _append_unique_string_names(
-            unitState.save_advantage_tags,
-            _get_array_property(identityDef, "save_advantage_tags")
-        );
-
-        _merge_damage_resistances(
-            unitState.damage_resistances,
-            _get_dictionary_property(identityDef, "damage_resistances")
-        );
+        _append_unique_string_names(traitTarget, V(identityDef.trait_ids));
 
         _initialize_racial_skill_charges(
             unitState,
-            _get_array_property(identityDef, "racial_granted_skills")
+            V(identityDef.racial_granted_skills)
+        );
+    }
+
+    private static void _apply_identity_def_projection(
+        BattleUnitState unitState,
+        BloodlineStageDef identityDef,
+        Godot.Collections.Array<StringName> traitTarget
+    )
+    {
+        if (identityDef == null)
+            return;
+
+        _append_unique_string_names(traitTarget, V(identityDef.trait_ids));
+
+        _initialize_racial_skill_charges(
+            unitState,
+            V(identityDef.racial_granted_skills)
+        );
+    }
+
+    private static void _apply_identity_def_projection(
+        BattleUnitState unitState,
+        AscensionDef identityDef,
+        Godot.Collections.Array<StringName> traitTarget
+    )
+    {
+        if (identityDef == null)
+            return;
+
+        _append_unique_string_names(traitTarget, V(identityDef.trait_ids));
+
+        _initialize_racial_skill_charges(
+            unitState,
+            V(identityDef.racial_granted_skills)
+        );
+    }
+
+    private static void _apply_identity_def_projection(
+        BattleUnitState unitState,
+        AscensionStageDef identityDef,
+        Godot.Collections.Array<StringName> traitTarget
+    )
+    {
+        if (identityDef == null)
+            return;
+
+        _append_unique_string_names(traitTarget, V(identityDef.trait_ids));
+
+        _initialize_racial_skill_charges(
+            unitState,
+            V(identityDef.racial_granted_skills)
         );
     }
 
@@ -102,11 +133,14 @@ public partial class AscensionTraitResolver : RefCounted
                 if (!unitState.per_turn_charges.ContainsKey(chargeKey))
                     unitState.per_turn_charges[chargeKey] = chargeCount;
                 else
+                {
+                    int currentChargeCount = unitState.per_turn_charges[chargeKey].AsInt32();
                     unitState.per_turn_charges[chargeKey] = Mathf.Clamp(
-                        unitState.per_turn_charges.GetValueOrDefault(chargeKey, 0).AsInt32(),
+                        currentChargeCount,
                         0,
                         chargeCount
                     );
+                }
             }
         }
     }
@@ -127,51 +161,13 @@ public partial class AscensionTraitResolver : RefCounted
         }
     }
 
-    private static void _merge_damage_resistances(
-        Godot.Collections.Dictionary target,
-        Godot.Collections.Dictionary values
-    )
+    private static Godot.Collections.Array V<[MustBeVariant] T>(Godot.Collections.Array<T> values)
     {
-        foreach (var rawKey in values.Keys)
-        {
-            var damageTag = ProgressionDataUtils.to_string_name(rawKey);
-
-            var mitigationTier = ProgressionDataUtils.to_string_name(values[rawKey]);
-
-            if (damageTag == "" || mitigationTier == "")
-                continue;
-
-            target[damageTag] = mitigationTier;
-        }
-    }
-
-    private static Godot.Collections.Array _get_array_property(
-        GodotObject source,
-        string propertyName
-    )
-    {
-        if (source == null)
-            return new Godot.Collections.Array();
-
-        var rawValue = source.Get(propertyName);
-
-        return rawValue.VariantType == Variant.Type.Array
-            ? rawValue.AsGodotArray()
-            : new Godot.Collections.Array();
-    }
-
-    private static Godot.Collections.Dictionary _get_dictionary_property(
-        GodotObject source,
-        string propertyName
-    )
-    {
-        if (source == null)
-            return new Godot.Collections.Dictionary();
-
-        var rawValue = source.Get(propertyName);
-
-        return rawValue.VariantType == Variant.Type.Dictionary
-            ? rawValue.AsGodotDictionary()
-            : new Godot.Collections.Dictionary();
+        var result = new Godot.Collections.Array();
+        if (values == null)
+            return result;
+        foreach (T value in values)
+            result.Add(Variant.From(value));
+        return result;
     }
 }

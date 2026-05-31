@@ -106,18 +106,20 @@ public partial class FateRuntimeModule : RefCounted
         return _misfortuneService.GetSkillCastBlockReason(unit_state as BattleUnitState, skill_id);
     }
 
-    public GDictionary consume_misfortune_skill_cast(GodotObject unit_state, StringName skill_id)
+    public MisfortuneSkillCastResult consume_misfortune_skill_cast_result(
+        BattleUnitState unit_state,
+        StringName skill_id
+    )
     {
         if (_misfortuneService == null)
         {
-            return new GDictionary
-            {
-                ["ok"] = false,
-                ["message"] = GetSkillSidecarMissingMessage(skill_id),
-            };
+            return MisfortuneSkillCastResult.Failure(GetSkillSidecarMissingMessage(skill_id));
         }
-        return _misfortuneService.ConsumeSkillCast(unit_state as BattleUnitState, skill_id);
+        return _misfortuneService.ConsumeSkillCastResult(unit_state, skill_id);
     }
+
+    public GDictionary consume_misfortune_skill_cast(GodotObject unit_state, StringName skill_id) =>
+        consume_misfortune_skill_cast_result(unit_state as BattleUnitState, skill_id).ToDictionary();
 
     public GDictionary handle_misfortune_trigger(StringName reason_id, GDictionary payload = null)
     {
@@ -139,7 +141,7 @@ public partial class FateRuntimeModule : RefCounted
             new GDictionary
             {
                 ["unit_state"] = unitState,
-                ["phase_id"] = GdInterop.IsEmpty(phase_id) ? new StringName("") : phase_id,
+                ["phase_id"] = IsEmpty(phase_id) ? new StringName("") : phase_id,
             }
         );
         return result;
@@ -214,6 +216,21 @@ public partial class FateRuntimeModule : RefCounted
         );
     }
 
+    public Godot.Collections.Array<StringName> HandleMisfortuneForgeResult(
+        StringName member_id,
+        SettlementServiceResult result,
+        GDictionary item_defs = null
+    )
+    {
+        if (_misfortuneGuidanceService == null)
+            return new Godot.Collections.Array<StringName>();
+        return _misfortuneGuidanceService.HandleForgeResult(
+            member_id,
+            result,
+            item_defs ?? new GDictionary()
+        );
+    }
+
     public GDictionary resolve_low_luck_settlement_event_rewards(GDictionary context)
     {
         if (_lowLuckEventService == null)
@@ -235,7 +252,7 @@ public partial class FateRuntimeModule : RefCounted
     private GodotObject ResolveUnitByMemberId(StringName memberId)
     {
         StringName normalizedMemberId = ProgressionDataUtils.to_string_name(memberId);
-        if (GdInterop.IsEmpty(normalizedMemberId) || _unitByMemberIdResolver == null)
+        if (IsEmpty(normalizedMemberId) || _unitByMemberIdResolver == null)
             return null;
         return _unitByMemberIdResolver.Invoke(normalizedMemberId);
     }
@@ -252,7 +269,7 @@ public partial class FateRuntimeModule : RefCounted
         )
             return;
 
-        GArray extraLootEntries = GdInterop.GetArray(lowLuckEventResult, "loot_entries");
+        GArray extraLootEntries = ReadArray(lowLuckEventResult, "loot_entries");
         if (extraLootEntries.Count > 0)
         {
             GArray mergedLootEntries = battleResolutionResult.loot_entries.Duplicate(true);
@@ -262,7 +279,7 @@ public partial class FateRuntimeModule : RefCounted
             battleResolutionResult.set_loot_entries(mergedLootEntries);
         }
 
-        GArray extraRewards = GdInterop.GetArray(lowLuckEventResult, "pending_character_rewards");
+        GArray extraRewards = ReadArray(lowLuckEventResult, "pending_character_rewards");
         if (extraRewards.Count > 0)
         {
             GArray mergedRewards = battleResolutionResult.get_pending_character_rewards_copy();
@@ -285,5 +302,28 @@ public partial class FateRuntimeModule : RefCounted
         if (normalizedSkillId == BlackCrownSealSkillId)
             return "黑冠封印的 battle sidecar 未初始化。";
         return "Misfortune battle sidecar 未初始化。";
+    }
+
+    private static bool IsEmpty(StringName value)
+    {
+        return value == null || value == "";
+    }
+
+    private static GArray ReadArray(GDictionary data, string key)
+    {
+        var value = ReadValue(data, key);
+        return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : new GArray();
+    }
+
+    private static Variant ReadValue(GDictionary data, string key)
+    {
+        if (data == null)
+            return default;
+        if (data.ContainsKey(key))
+            return data[key];
+        var stringNameKey = new StringName(key);
+        if (data.ContainsKey(stringNameKey))
+            return data[stringNameKey];
+        return default;
     }
 }

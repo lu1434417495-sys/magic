@@ -356,11 +356,11 @@ public partial class BattleMovementService : RefCounted
 
         Vector2I previousAnchor = active_unit.coord;
         GVector2IArray previousCoords = CloneCoords(active_unit.occupied_coords);
-        GDictionary executionResult = _move_unit_along_validated_path_result(active_unit, anchorPath, targetCoord, batch);
-        if (GdInterop.GetBool(executionResult, "executed", false))
+        BattleValidatedMoveExecutionResult executionResult =
+            MoveUnitAlongValidatedPathTyped(active_unit, anchorPath, targetCoord, batch);
+        if (executionResult.Executed)
         {
-            GArray executedPath = GdInterop.GetArray(executionResult, "executed_path");
-            moveCost = _get_move_path_cost(active_unit, executedPath);
+            moveCost = _get_move_path_cost(active_unit, ToUntypedArray(executionResult.ExecutedPath));
             active_unit.current_move_points = Math.Max(active_unit.current_move_points - moveCost, 0);
             _record_action_issued(active_unit, BattleCommand.TYPE_MOVE());
             if (batch != null)
@@ -377,7 +377,7 @@ public partial class BattleMovementService : RefCounted
             AppendLog(
                 batch,
                 $"{active_unit.display_name} 从 ({previousAnchor.X}, {previousAnchor.Y}) 移动到 ({active_unit.coord.X}, {active_unit.coord.Y})，移动距离消耗 {moveCost} 点，剩余移动力 {active_unit.current_move_points} 点并锁定。{terrainName}。");
-            if (GdInterop.GetBool(executionResult, "stopped_by_barrier", false))
+            if (executionResult.StoppedByBarrier)
             {
                 AppendLog(batch, $"{active_unit.display_name} 的移动被屏障拦下，停在当前可达位置。");
             }
@@ -390,18 +390,20 @@ public partial class BattleMovementService : RefCounted
 
     public bool _move_unit_along_validated_path(BattleUnitState active_unit, GArray anchor_path, Vector2I target_coord, BattleEventBatch batch)
     {
-        return GdInterop.GetBool(_move_unit_along_validated_path_result(active_unit, anchor_path, target_coord, batch), "reached_target", false);
+        return MoveUnitAlongValidatedPathTyped(
+            active_unit,
+            anchor_path,
+            target_coord,
+            batch
+        ).ReachedTarget;
     }
 
-    public GDictionary _move_unit_along_validated_path_result(BattleUnitState active_unit, GArray anchor_path, Vector2I target_coord, BattleEventBatch batch)
+    public GDictionary _move_unit_along_validated_path_result(BattleUnitState active_unit, GArray anchor_path, Vector2I target_coord, BattleEventBatch batch) =>
+        MoveUnitAlongValidatedPathTyped(active_unit, anchor_path, target_coord, batch).ToDictionary();
+
+    public BattleValidatedMoveExecutionResult MoveUnitAlongValidatedPathTyped(BattleUnitState active_unit, GArray anchor_path, Vector2I target_coord, BattleEventBatch batch)
     {
-        var result = new GDictionary
-        {
-            ["executed"] = false,
-            ["reached_target"] = false,
-            ["stopped_by_barrier"] = false,
-            ["executed_path"] = new GArray(),
-        };
+        var result = new BattleValidatedMoveExecutionResult();
         if (active_unit == null || anchor_path == null || anchor_path.Count == 0)
         {
             return result;
@@ -413,13 +415,13 @@ public partial class BattleMovementService : RefCounted
             return result;
         }
 
-        var executedPath = new GArray { active_unit.coord };
-        result["executed_path"] = executedPath;
+        GVector2IArray executedPath = result.ExecutedPath;
+        executedPath.Add(active_unit.coord);
         if (path.Count == 1)
         {
             bool reachedCurrentTarget = active_unit.coord == target_coord;
-            result["executed"] = reachedCurrentTarget;
-            result["reached_target"] = reachedCurrentTarget;
+            result.Executed = reachedCurrentTarget;
+            result.ReachedTarget = reachedCurrentTarget;
             return result;
         }
 
@@ -439,18 +441,23 @@ public partial class BattleMovementService : RefCounted
                 return result;
             }
 
-            GDictionary barrierResult = new();
+            BattleBarrierInteractionResult barrierResult = new(false, false);
             BattleLayeredBarrierService layeredBarrierService = LayeredBarrierService;
             if (layeredBarrierService != null)
             {
-                barrierResult = layeredBarrierService.ResolveUnitBoundaryCrossing(active_unit, active_unit.coord, nextCoord, batch);
+                barrierResult = layeredBarrierService.ResolveUnitBoundaryCrossingResult(
+                    active_unit,
+                    active_unit.coord,
+                    nextCoord,
+                    batch
+                );
             }
-            if (GdInterop.GetBool(barrierResult, "blocked", false) || !active_unit.is_alive || active_unit.coord != path[pathIndex - 1])
+            if (barrierResult.Blocked || !active_unit.is_alive || active_unit.coord != path[pathIndex - 1])
             {
-                result["executed"] = GdInterop.GetBool(result, "executed", false)
-                    || GdInterop.GetBool(barrierResult, "applied", false)
+                result.Executed = result.Executed
+                    || barrierResult.Applied
                     || executedPath.Count > 1;
-                result["stopped_by_barrier"] = GdInterop.GetBool(barrierResult, "blocked", false);
+                result.StoppedByBarrier = barrierResult.Blocked;
                 return result;
             }
 
@@ -459,11 +466,11 @@ public partial class BattleMovementService : RefCounted
                 AppendLog(batch, $"{active_unit.display_name} 的移动路径第 {pathIndex} 步执行失败。");
                 return result;
             }
-            result["executed"] = true;
+            result.Executed = true;
             executedPath.Add(active_unit.coord);
         }
 
-        result["reached_target"] = active_unit.coord == target_coord;
+        result.ReachedTarget = active_unit.coord == target_coord;
         return result;
     }
 

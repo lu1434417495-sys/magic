@@ -257,7 +257,7 @@ public partial class run_trait_trigger_regression : SceneTree
         };
         if (addWeaponDice)
         {
-            effect.@params = new GDictionary { ["add_weapon_dice"] = true };
+            effect.add_weapon_dice = true;
         }
         return effect;
     }

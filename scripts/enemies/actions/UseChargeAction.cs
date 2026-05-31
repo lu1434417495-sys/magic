@@ -286,12 +286,10 @@ public partial class UseChargeAction : EnemyAiAction
         if (chargeEffect == null)
             return 0;
 
-        int maxDistance = Mathf.Max(GdInterop.GetInt(chargeEffect.@params, "base_distance", 3), 0);
+        int maxDistance = Mathf.Max(ReadInt(chargeEffect.@params, "base_distance", 3), 0);
         int skillLevel = _get_skill_level(
             unitState,
-            ProgressionDataUtils.to_string_name(
-                chargeEffect.@params.GetValueOrDefault("skill_id", new StringName("charge"))
-            )
+            ReadStringName(chargeEffect.@params, "skill_id", "charge")
         );
         foreach (ChargeDistanceBreakpoint breakpoint in ReadDistanceBreakpoints(chargeEffect))
         {
@@ -306,7 +304,7 @@ public partial class UseChargeAction : EnemyAiAction
     )
     {
         var result = new List<ChargeDistanceBreakpoint>();
-        Godot.Collections.Dictionary distanceByLevel = GdInterop.GetDictionary(
+        Godot.Collections.Dictionary distanceByLevel = ReadDictionary(
             chargeEffect?.@params,
             "distance_by_level"
         );
@@ -314,7 +312,7 @@ public partial class UseChargeAction : EnemyAiAction
         {
             if (!TryReadLevelBreakpoint(rawKey, out int levelBreakpoint))
                 continue;
-            int distance = GdInterop.GetInt(distanceByLevel, rawKey, -1);
+            int distance = ReadInt(distanceByLevel, rawKey, -1);
             if (distance < 0)
                 continue;
             result.Add(new ChargeDistanceBreakpoint(levelBreakpoint, distance));
@@ -428,5 +426,68 @@ public partial class UseChargeAction : EnemyAiAction
         if (minimum_charge_move_distance < 1)
             e.Add($"UseChargeAction {action_id} minimum_charge_move_distance must be >= 1.");
         return e;
+    }
+
+    private static Godot.Collections.Dictionary ReadDictionary(
+        Godot.Collections.Dictionary data,
+        string key
+    )
+    {
+        var value = ReadValue(data, key);
+        return value.VariantType == Variant.Type.Dictionary
+            ? value.AsGodotDictionary()
+            : new Godot.Collections.Dictionary();
+    }
+
+    private static int ReadInt(Godot.Collections.Dictionary data, object key, int fallback = 0)
+    {
+        var value = ReadValue(data, key);
+        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+    }
+
+    private static StringName ReadStringName(
+        Godot.Collections.Dictionary data,
+        string key,
+        StringName fallback = default
+    )
+    {
+        var value = ReadValue(data, key);
+        if (value.VariantType == Variant.Type.StringName)
+            return value.AsStringName();
+        if (value.VariantType == Variant.Type.String)
+            return new StringName(value.AsString());
+        return fallback ?? new StringName("");
+    }
+
+    private static Variant ReadValue(Godot.Collections.Dictionary data, object key)
+    {
+        if (data == null || key == null)
+            return default;
+        Variant variantKey = key switch
+        {
+            Variant valueKey => valueKey,
+            StringName stringNameKey => stringNameKey,
+            string stringKey => stringKey,
+            int intKey => intKey,
+            long longKey => longKey,
+            _ => default,
+        };
+        if (variantKey.VariantType == Variant.Type.Nil)
+            return default;
+        if (data.ContainsKey(variantKey))
+            return data[variantKey];
+        if (variantKey.VariantType == Variant.Type.String)
+        {
+            var stringNameKey = new StringName(variantKey.AsString());
+            if (data.ContainsKey(stringNameKey))
+                return data[stringNameKey];
+        }
+        else if (variantKey.VariantType == Variant.Type.StringName)
+        {
+            string stringKey = variantKey.AsStringName().ToString();
+            if (data.ContainsKey(stringKey))
+                return data[stringKey];
+        }
+        return default;
     }
 }

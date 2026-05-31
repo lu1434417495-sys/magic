@@ -16,19 +16,33 @@ public partial class BattleChargeResolver : RefCounted
     private static readonly StringName ExecuteStage = "execute";
     private const string TrapEffectPrefix = "trap_";
 
-    private WeakReference<GodotObject> _runtimeRef;
+    private readonly record struct ChargePathStepAoeParameters(
+        bool AllowRepeatHitsAcrossSteps,
+        bool ResolveAsWeaponAttack
+    )
+    {
+        public static ChargePathStepAoeParameters FromEffect(CombatEffectDef effectDef)
+        {
+            return new ChargePathStepAoeParameters(
+                effectDef?.allow_repeat_hits_across_steps ?? false,
+                effectDef?.resolve_as_weapon_attack ?? false
+            );
+        }
+    }
+
+    private WeakReference<BattleRuntimeModule> _runtimeRef;
     private BattleSkillMasteryService _skillMasteryService;
 
     private BattleRuntimeModule Runtime
     {
-        get => ResolveWeakRef(_runtimeRef) as BattleRuntimeModule;
-        set => _runtimeRef = value != null ? new WeakReference<GodotObject>(value) : null;
+        get => ResolveWeakRef(_runtimeRef);
+        set => _runtimeRef = value != null ? new WeakReference<BattleRuntimeModule>(value) : null;
     }
 
-    public void setup(GodotObject runtime, GodotObject skill_mastery_service)
+    public void setup(BattleRuntimeModule runtime, BattleSkillMasteryService skill_mastery_service)
     {
-        Runtime = runtime as BattleRuntimeModule;
-        _skillMasteryService = skill_mastery_service as BattleSkillMasteryService;
+        Runtime = runtime;
+        _skillMasteryService = skill_mastery_service;
     }
 
     public void dispose()
@@ -45,6 +59,23 @@ public partial class BattleChargeResolver : RefCounted
         BattleEventBatch batch
     )
     {
+        return handle_charge_skill_command_result(
+            active_unit,
+            skill_def,
+            cast_variant,
+            BattleGroundSkillValidationResult.FromDictionary(validation),
+            batch
+        );
+    }
+
+    public bool handle_charge_skill_command_result(
+        BattleUnitState active_unit,
+        SkillDef skill_def,
+        CombatCastVariantDef cast_variant,
+        BattleGroundSkillValidationResult validation,
+        BattleEventBatch batch
+    )
+    {
         if (
             !HasRuntime()
             || active_unit == null
@@ -56,9 +87,8 @@ public partial class BattleChargeResolver : RefCounted
             return false;
         }
 
-        GDictionary validationData = validation ?? new GDictionary();
-        Vector2I direction = GdInterop.GetVector2I(validationData, "direction", Vector2I.Zero);
-        int requestedDistance = GdInterop.GetInt(validationData, "distance", 0);
+        Vector2I direction = validation.Direction;
+        int requestedDistance = validation.Distance;
         if (direction == Vector2I.Zero || requestedDistance <= 0)
         {
             return false;
@@ -123,8 +153,9 @@ public partial class BattleChargeResolver : RefCounted
                 pathStepHitCount += stepAoeResult.HitCount;
                 foreach ((StringName unitId, int count) in stepAoeResult.UnitHitCounts)
                 {
+                    totalUnitHitCounts.TryGetValue(unitId, out int existingCount);
                     totalUnitHitCounts[unitId] =
-                        totalUnitHitCounts.GetValueOrDefault(unitId) + count;
+                        existingCount + count;
                 }
             }
 
@@ -139,7 +170,7 @@ public partial class BattleChargeResolver : RefCounted
                 CombatEffectDef chargeEffect = get_charge_effect_def(cast_variant);
                 int trapImmunityLevel =
                     chargeEffect != null
-                        ? GdInterop.GetInt(chargeEffect.@params, "trap_immunity_level", 999)
+                        ? GetInt(chargeEffect.@params, "trap_immunity_level", 999)
                         : 999;
                 AppendChangedCoord(chargeBatch, trapCoord);
                 if (skillLevel >= trapImmunityLevel)
@@ -205,7 +236,24 @@ public partial class BattleChargeResolver : RefCounted
         GDictionary base_result
     )
     {
-        GDictionary result = base_result != null ? base_result.Duplicate(true) : new GDictionary();
+        return validate_charge_command_result(
+                active_unit,
+                skill_def,
+                cast_variant,
+                normalized_coords,
+                BattleGroundSkillValidationResult.FromDictionary(base_result)
+            )
+            .ToDictionary();
+    }
+
+    public BattleGroundSkillValidationResult validate_charge_command_result(
+        BattleUnitState active_unit,
+        SkillDef skill_def,
+        CombatCastVariantDef cast_variant,
+        GVector2IArray normalized_coords,
+        BattleGroundSkillValidationResult base_result
+    )
+    {
         if (
             !HasRuntime()
             || active_unit == null
@@ -215,50 +263,43 @@ public partial class BattleChargeResolver : RefCounted
             || normalized_coords.Count == 0
         )
         {
-            return result;
+            return base_result;
         }
 
         Vector2I targetCoord = normalized_coords[0];
         if (!GridService.is_inside(State, targetCoord))
         {
-            result["message"] = "目标地格超出战场范围。";
-            return result;
+            return base_result with { Message = "目标地格超出战场范围。" };
         }
 
         ChargeTargetInfo targetInfo = ResolveChargeTarget(active_unit, targetCoord);
         if (!targetInfo.Valid)
         {
-            result["message"] = "冲锋只能选择当前单位同一行或同一列的目标地格。";
-            return result;
+            return base_result with { Message = "冲锋只能选择当前单位同一行或同一列的目标地格。" };
         }
 
         int maxDistance = GetChargeMaxDistance(active_unit, cast_variant);
         int chargeDistance = targetInfo.Distance;
         if (chargeDistance > maxDistance)
         {
-            result["message"] = $"目标地格超出当前冲锋距离 {maxDistance}。";
-            return result;
+            return base_result with { Message = $"目标地格超出当前冲锋距离 {maxDistance}。" };
         }
 
         Vector2I chargeDirection = targetInfo.Direction;
-        result["allowed"] = true;
-        result["message"] = "可施放；若途中受阻会在当前可达位置停下。";
-        result["target_coords"] = new GVector2IArray { targetCoord };
-        result["preview_coords"] = BuildChargePreviewCoords(
-            active_unit,
+        return BattleGroundSkillValidationResult.AllowedResult(
+            "可施放；若途中受阻会在当前可达位置停下。",
+            new[] { targetCoord },
+            ToVector2IList(BuildChargePreviewCoords(active_unit, chargeDirection, chargeDistance)),
             chargeDirection,
-            chargeDistance
+            chargeDistance,
+            ResolvePreviewChargeAnchor(
+                active_unit,
+                skill_def,
+                cast_variant,
+                chargeDirection,
+                chargeDistance
+            )
         );
-        result["direction"] = chargeDirection;
-        result["distance"] = chargeDistance;
-        result["resolved_anchor_coord"] = ResolvePreviewChargeAnchor(
-            active_unit,
-            skill_def,
-            cast_variant,
-            chargeDirection,
-            chargeDistance
-        );
-        return result;
     }
 
     public GVector2IArray build_charge_step_aoe_preview_coords(
@@ -369,16 +410,14 @@ public partial class BattleChargeResolver : RefCounted
         }
 
         GDictionary parameters = pathStepAoeEffect.@params ?? new GDictionary();
-        StringName statusId = ProgressionDataUtils.to_string_name(
-            parameters.GetValueOrDefault("repeat_hit_status_id", "")
-        );
-        if (GdInterop.IsEmpty(statusId))
+        StringName statusId = GetStringName(parameters, "repeat_hit_status_id");
+        if (IsEmpty(statusId))
         {
             return;
         }
 
         int minSkillLevel = Math.Max(
-            GdInterop.GetInt(parameters, "repeat_hit_status_min_skill_level", 0),
+            GetInt(parameters, "repeat_hit_status_min_skill_level"),
             0
         );
         int skillLevel = HasRuntime() ? GetUnitSkillLevel(activeUnit, skillDef.skill_id) : 0;
@@ -388,11 +427,11 @@ public partial class BattleChargeResolver : RefCounted
         }
 
         int hitThreshold = Math.Max(
-            GdInterop.GetInt(parameters, "repeat_hit_status_threshold", 1),
+            GetInt(parameters, "repeat_hit_status_threshold", 1),
             1
         );
-        int statusPower = Math.Max(GdInterop.GetInt(parameters, "repeat_hit_status_power", 1), 1);
-        int statusDurationTu = GdInterop.GetInt(parameters, "repeat_hit_status_duration_tu", 0);
+        int statusPower = Math.Max(GetInt(parameters, "repeat_hit_status_power", 1), 1);
+        int statusDurationTu = GetInt(parameters, "repeat_hit_status_duration_tu");
         if (statusDurationTu <= 0)
         {
             return;
@@ -400,22 +439,25 @@ public partial class BattleChargeResolver : RefCounted
 
         GDictionary extraStatusParams = new();
         if (
-            GdInterop.TryGet(parameters, "repeat_hit_status_params", out Variant rawExtraParams)
+            TryGetValue(parameters, "repeat_hit_status_params", out Variant rawExtraParams)
             && rawExtraParams.VariantType == Variant.Type.Dictionary
         )
         {
             extraStatusParams = rawExtraParams.AsGodotDictionary().Duplicate(true);
         }
 
-        GDictionary units = State?.units ?? new GDictionary();
         foreach ((StringName unitId, int hitCount) in totalUnitHitCounts)
         {
             if (hitCount < hitThreshold)
             {
                 continue;
             }
-            BattleUnitState targetUnit = GdInterop.GetObject(units, unitId) as BattleUnitState;
-            if (targetUnit == null || !targetUnit.is_alive)
+            if (
+                State == null
+                || !State.TryGetUnitTyped(unitId, out BattleUnitState targetUnit)
+                || targetUnit == null
+                || !targetUnit.is_alive
+            )
             {
                 continue;
             }
@@ -428,7 +470,7 @@ public partial class BattleChargeResolver : RefCounted
                 duration_tu = statusDurationTu,
                 @params = extraStatusParams.Duplicate(true),
             };
-            BattleStatusEffectState statusEntry = BattleStatusSemanticTable.merge_status(
+            BattleStatusEffectState statusEntry = BattleStatusSemanticTable.merge_status_typed(
                 statusEffect,
                 activeUnit.unit_id,
                 targetUnit.get_status_effect(statusId)
@@ -467,9 +509,7 @@ public partial class BattleChargeResolver : RefCounted
             return "";
         }
 
-        string template = GdInterop
-            .GetString(parameters, "repeat_hit_status_log_template", "")
-            .StripEdges();
+        string template = GetString(parameters, "repeat_hit_status_log_template", "").StripEdges();
         if (string.IsNullOrEmpty(template))
         {
             return $"{targetUnit.display_name} 被 {skillDef.display_name} 连续命中 {hitCount} 次，受到 {statusId}。";
@@ -488,8 +528,7 @@ public partial class BattleChargeResolver : RefCounted
         {
             return "路径攻击";
         }
-        string label = GdInterop
-            .GetString(pathStepAoeEffect.@params, "path_step_log_label", "路径攻击")
+        string label = GetString(pathStepAoeEffect.@params, "path_step_log_label", "路径攻击")
             .StripEdges();
         return string.IsNullOrEmpty(label) ? "路径攻击" : label;
     }
@@ -649,7 +688,7 @@ public partial class BattleChargeResolver : RefCounted
         clonedState.enemy_unit_ids = new Godot.Collections.Array<StringName>(state.enemy_unit_ids);
         clonedState.timeline =
             state.timeline != null
-                ? BattleTimelineState.from_dict(state.timeline.to_dict())
+                ? state.timeline.duplicate_state()
                 : new BattleTimelineState();
         clonedState.active_unit_id = state.active_unit_id;
         clonedState.winner_faction_id = state.winner_faction_id;
@@ -679,11 +718,8 @@ public partial class BattleChargeResolver : RefCounted
             return new PathStepResult(false);
         }
 
-        bool allowRepeatHits = GdInterop.GetBool(
-            pathStepAoeEffect.@params,
-            "allow_repeat_hits_across_steps",
-            false
-        );
+        ChargePathStepAoeParameters pathStepParameters =
+            ChargePathStepAoeParameters.FromEffect(pathStepAoeEffect);
         GVector2IArray effectCoords = BuildChargeStepEffectCoords(activeUnit, pathStepAoeEffect);
         int hitCount = 0;
         int totalDamage = 0;
@@ -705,20 +741,19 @@ public partial class BattleChargeResolver : RefCounted
             {
                 continue;
             }
-            if (!allowRepeatHits && seenUnitIds.Contains(targetUnit.unit_id))
+            if (
+                !pathStepParameters.AllowRepeatHitsAcrossSteps
+                && seenUnitIds.Contains(targetUnit.unit_id)
+            )
             {
                 continue;
             }
             seenUnitIds.Add(targetUnit.unit_id);
 
-            bool resolveAsWeaponAttack = GdInterop.GetBool(
-                stageEffect.@params,
-                "resolve_as_weapon_attack",
-                false
-            );
             GDictionary result;
+            AttackCheckInput attackCheck = new(skillId: skillDef?.skill_id ?? new StringName(""));
             var stageEffects = new GArray { stageEffect };
-            if (resolveAsWeaponAttack)
+            if (pathStepParameters.ResolveAsWeaponAttack)
             {
                 BattleAttackCheckPolicyService attackPolicy =
                     Runtime.get_attack_check_policy_service();
@@ -731,7 +766,7 @@ public partial class BattleChargeResolver : RefCounted
                     ExecuteStage,
                     false
                 );
-                AttackCheckInput attackCheck = attackPolicy.build_attack_check(
+                attackCheck = attackPolicy.build_attack_check(
                     attackContext,
                     0,
                     0
@@ -747,13 +782,6 @@ public partial class BattleChargeResolver : RefCounted
                         SkillId = skillDef?.skill_id ?? new StringName(""),
                     }
                 );
-                _skillMasteryService?.RecordTargetResult(
-                    activeUnit,
-                    targetUnit,
-                    skillDef,
-                    result,
-                    stageEffects
-                );
             }
             else
             {
@@ -764,32 +792,44 @@ public partial class BattleChargeResolver : RefCounted
                     new GDictionary { ["skill_id"] = skillDef?.skill_id ?? new StringName("") }
                 );
             }
+            AttackEffectResolutionResult stageResult =
+                AttackEffectResolutionResultReader.ReadLegacyResolverResult(result, attackCheck);
+            if (pathStepParameters.ResolveAsWeaponAttack)
+            {
+                _skillMasteryService?.RecordTargetResult(
+                    activeUnit,
+                    targetUnit,
+                    skillDef,
+                    stageResult
+                );
+            }
 
             MarkAppliedStatusesForTurnTiming(
                 targetUnit,
-                GdInterop.GetArray(result, "status_effect_ids")
+                stageResult.StatusEffectIds
             );
-            AppendResultSourceStatusEffects(batch, activeUnit, result);
-            if (!GdInterop.GetBool(result, "applied", false))
+            AppendResultSourceStatusEffects(batch, activeUnit, stageResult);
+            if (!stageResult.Applied)
             {
                 continue;
             }
 
             hitCount += 1;
+            unitHitCounts.TryGetValue(targetUnit.unit_id, out int existingHitCount);
             unitHitCounts[targetUnit.unit_id] =
-                unitHitCounts.GetValueOrDefault(targetUnit.unit_id) + 1;
+                existingHitCount + 1;
             AppendChangedUnitId(batch, targetUnit.unit_id);
             AppendChangedUnitCoords(batch, targetUnit);
 
-            int damage = GdInterop.GetInt(result, "damage", 0);
-            int healing = GdInterop.GetInt(result, "healing", 0);
+            int damage = stageResult.Damage;
+            int healing = stageResult.Healing;
             totalDamage += damage;
             totalHealing += healing;
             Runtime.append_damage_result_log_lines(
                 batch,
                 $"{activeUnit.display_name} 的 {skillDef.display_name} {pathStepResultLabel}",
                 targetUnit.display_name,
-                result
+                stageResult
             );
             if (healing > 0)
             {
@@ -805,7 +845,7 @@ public partial class BattleChargeResolver : RefCounted
                     activeUnit,
                     batch,
                     $"{targetUnit.display_name} 被击倒。",
-                    new GDictionary { ["record_enemy_defeated_achievement"] = true }
+                    new BattleDefeatHandlingOptions(recordEnemyDefeatedAchievement: true)
                 );
             }
         }
@@ -864,10 +904,8 @@ public partial class BattleChargeResolver : RefCounted
             return new GVector2IArray();
         }
 
-        StringName stepShape = ProgressionDataUtils.to_string_name(
-            pathStepAoeEffect.@params.GetValueOrDefault("step_shape", "diamond")
-        );
-        int stepRadius = Math.Max(GdInterop.GetInt(pathStepAoeEffect.@params, "step_radius", 1), 0);
+        StringName stepShape = GetStringName(pathStepAoeEffect.@params, "step_shape", "diamond");
+        int stepRadius = Math.Max(GetInt(pathStepAoeEffect.@params, "step_radius", 1), 0);
         var coordSet = new HashSet<Vector2I>();
         var effectCoords = new List<Vector2I>();
         foreach (
@@ -1233,8 +1271,13 @@ public partial class BattleChargeResolver : RefCounted
                 envResult = DamageResolver.resolve_fall_damage(blocker, 1);
                 envDamageLabel = "撞向障碍物";
             }
-            int envDamage = GdInterop.GetInt(envResult, "damage", 0);
-            int envShield = GdInterop.GetInt(envResult, "shield_absorbed", 0);
+            AttackEffectResolutionResult envDamageResult =
+                AttackEffectResolutionResultReader.ReadLegacyResolverResult(
+                    envResult,
+                    new AttackCheckInput()
+                );
+            int envDamage = envDamageResult.Damage;
+            int envShield = envDamageResult.ShieldAbsorbed;
             if (envDamage > 0 || envShield > 0)
             {
                 if (envDamage > 0)
@@ -1255,7 +1298,7 @@ public partial class BattleChargeResolver : RefCounted
                         $"{activeUnit.display_name} 的冲锋将 {blocker.display_name} {envDamageLabel}，但被护盾吸收了 {envShield} 点碰撞伤害。"
                     );
                 }
-                if (GdInterop.GetBool(envResult, "shield_broken", false))
+                if (envDamageResult.ShieldBroken)
                 {
                     batch.log_lines.Add($"{blocker.display_name} 的护盾被击碎。");
                 }
@@ -1267,7 +1310,7 @@ public partial class BattleChargeResolver : RefCounted
                         activeUnit,
                         batch,
                         $"{blocker.display_name} 被击倒。",
-                        new GDictionary { ["record_enemy_defeated_achievement"] = true }
+                        new BattleDefeatHandlingOptions(recordEnemyDefeatedAchievement: true)
                     );
                 }
             }
@@ -1287,8 +1330,13 @@ public partial class BattleChargeResolver : RefCounted
     )
     {
         GDictionary fallResult = DamageResolver.resolve_fall_damage(blocker, fallLayers);
-        int fallDamage = GdInterop.GetInt(fallResult, "damage", 0);
-        int shieldAbsorbed = GdInterop.GetInt(fallResult, "shield_absorbed", 0);
+        AttackEffectResolutionResult fallDamageResult =
+            AttackEffectResolutionResultReader.ReadLegacyResolverResult(
+                fallResult,
+                new AttackCheckInput()
+            );
+        int fallDamage = fallDamageResult.Damage;
+        int shieldAbsorbed = fallDamageResult.ShieldAbsorbed;
         if (fallDamage <= 0 && shieldAbsorbed <= 0)
         {
             return;
@@ -1312,7 +1360,7 @@ public partial class BattleChargeResolver : RefCounted
                 $"{activeUnit.display_name} 的{pushLabel}使 {blocker.display_name} 跌落 {fallLayers} 层，但被护盾吸收了 {shieldAbsorbed} 点{damageLabel}伤害。"
             );
         }
-        if (GdInterop.GetBool(fallResult, "shield_broken", false))
+        if (fallDamageResult.ShieldBroken)
         {
             batch.log_lines.Add($"{blocker.display_name} 的护盾被击碎。");
         }
@@ -1324,7 +1372,7 @@ public partial class BattleChargeResolver : RefCounted
                 activeUnit,
                 batch,
                 $"{blocker.display_name} 被击倒。",
-                new GDictionary { ["record_enemy_defeated_achievement"] = true }
+                new BattleDefeatHandlingOptions(recordEnemyDefeatedAchievement: true)
             );
         }
     }
@@ -1569,12 +1617,10 @@ public partial class BattleChargeResolver : RefCounted
             return 0;
         }
 
-        StringName skillId = ProgressionDataUtils.to_string_name(
-            chargeEffect.@params.GetValueOrDefault("skill_id", new StringName("charge"))
-        );
+        StringName skillId = GetStringName(chargeEffect.@params, "skill_id", "charge");
         int skillLevel = GetUnitSkillLevel(activeUnit, skillId);
-        int maxDistance = Math.Max(GdInterop.GetInt(chargeEffect.@params, "base_distance", 3), 0);
-        GDictionary distanceByLevel = GdInterop.GetDictionary(
+        int maxDistance = Math.Max(GetInt(chargeEffect.@params, "base_distance", 3), 0);
+        GDictionary distanceByLevel = GetDict(
             chargeEffect.@params,
             "distance_by_level"
         );
@@ -1588,7 +1634,7 @@ public partial class BattleChargeResolver : RefCounted
             {
                 maxDistance = Math.Max(
                     maxDistance,
-                    GdInterop.GetInt(distanceByLevel, breakpointKey, maxDistance)
+                    GetInt(distanceByLevel, breakpointKey, maxDistance)
                 );
             }
         }
@@ -1665,12 +1711,28 @@ public partial class BattleChargeResolver : RefCounted
                 arrayStatusEffectIds
             );
         }
+        else if (statusEffectIds is Godot.Collections.Array<StringName> typedStatusEffectIds)
+        {
+            Runtime?.mark_applied_statuses_for_turn_timing(
+                targetUnit,
+                ToUntypedStringNameArray(typedStatusEffectIds)
+            );
+        }
     }
 
     private void AppendResultSourceStatusEffects(
         BattleEventBatch batch,
         BattleUnitState sourceUnit,
         GDictionary result
+    )
+    {
+        Runtime?.append_result_source_status_effects(batch, sourceUnit, result);
+    }
+
+    private void AppendResultSourceStatusEffects(
+        BattleEventBatch batch,
+        BattleUnitState sourceUnit,
+        AttackEffectResolutionResult result
     )
     {
         Runtime?.append_result_source_status_effects(batch, sourceUnit, result);
@@ -1725,7 +1787,7 @@ public partial class BattleChargeResolver : RefCounted
 
     private static void AppendChangedUnitId(BattleEventBatch batch, StringName unitId)
     {
-        if (batch == null || GdInterop.IsEmpty(unitId) || batch.changed_unit_ids.Contains(unitId))
+        if (batch == null || IsEmpty(unitId) || batch.changed_unit_ids.Contains(unitId))
         {
             return;
         }
@@ -1772,11 +1834,146 @@ public partial class BattleChargeResolver : RefCounted
         return result;
     }
 
-    private static GodotObject ResolveWeakRef(WeakReference<GodotObject> weakRef)
+    private static GDictionary GetDict(GDictionary source, object key)
+    {
+        return TryGetValue(source, key, out Variant value)
+            && value.VariantType == Variant.Type.Dictionary
+            ? value.AsGodotDictionary()
+            : new GDictionary();
+    }
+
+    private static int GetInt(GDictionary source, object key, int fallback = 0)
+    {
+        if (!TryGetValue(source, key, out Variant value))
+        {
+            return fallback;
+        }
+        return value.VariantType switch
+        {
+            Variant.Type.Int => value.AsInt32(),
+            Variant.Type.Float => (int)value.AsDouble(),
+            Variant.Type.Bool => value.AsBool() ? 1 : 0,
+            Variant.Type.String => int.TryParse(value.AsString(), out int parsed)
+                ? parsed
+                : fallback,
+            Variant.Type.StringName
+                => int.TryParse(value.AsStringName().ToString(), out int parsed)
+                    ? parsed
+                    : fallback,
+            _ => fallback,
+        };
+    }
+
+    private static string GetString(GDictionary source, object key, string fallback = "")
+    {
+        if (!TryGetValue(source, key, out Variant value))
+        {
+            return fallback;
+        }
+        return value.VariantType switch
+        {
+            Variant.Type.String => value.AsString(),
+            Variant.Type.StringName => value.AsStringName().ToString(),
+            Variant.Type.Int => value.AsInt32().ToString(),
+            Variant.Type.Float => value.AsDouble().ToString(
+                System.Globalization.CultureInfo.InvariantCulture
+            ),
+            Variant.Type.Bool => value.AsBool() ? "True" : "False",
+            _ => fallback,
+        };
+    }
+
+    private static StringName GetStringName(GDictionary source, object key, StringName fallback = default)
+    {
+        if (!TryGetValue(source, key, out Variant value))
+        {
+            return fallback;
+        }
+        StringName result = ProgressionDataUtils.to_string_name(value);
+        return result != "" ? result : fallback;
+    }
+
+    private static Vector2I GetVector2I(GDictionary source, object key, Vector2I fallback)
+    {
+        return TryGetValue(source, key, out Variant value)
+            && value.VariantType == Variant.Type.Vector2I
+            ? value.AsVector2I()
+            : fallback;
+    }
+
+    private static List<Vector2I> ToVector2IList(GVector2IArray values)
+    {
+        var result = new List<Vector2I>();
+        foreach (Vector2I coord in values ?? new GVector2IArray())
+        {
+            result.Add(coord);
+        }
+        return result;
+    }
+
+    private static bool TryGetValue(GDictionary source, object key, out Variant value)
+    {
+        if (source == null)
+        {
+            value = default;
+            return false;
+        }
+        Variant variantKey = ToVariantKey(key);
+        if (source.ContainsKey(variantKey))
+        {
+            value = source[variantKey];
+            return true;
+        }
+        if (key is StringName stringNameKey)
+        {
+            string keyText = stringNameKey.ToString();
+            if (source.ContainsKey(keyText))
+            {
+                value = source[keyText];
+                return true;
+            }
+        }
+        else if (key is string stringKey)
+        {
+            var stringName = new StringName(stringKey);
+            if (source.ContainsKey(stringName))
+            {
+                value = source[stringName];
+                return true;
+            }
+        }
+        value = default;
+        return false;
+    }
+
+    private static Variant ToVariantKey(object key)
+    {
+        return key switch
+        {
+            Variant variant => variant,
+            StringName stringName => Variant.From(stringName),
+            string text => Variant.From(text),
+            int intValue => Variant.From(intValue),
+            long longValue => Variant.From(longValue),
+            float floatValue => Variant.From(floatValue),
+            double doubleValue => Variant.From(doubleValue),
+            bool boolValue => Variant.From(boolValue),
+            Vector2I coord => Variant.From(coord),
+            _ => Variant.From(key?.ToString() ?? ""),
+        };
+    }
+
+    private static bool IsEmpty(StringName value)
+    {
+        return value == null || string.IsNullOrEmpty(value.ToString());
+    }
+
+    private static T ResolveWeakRef<T>(WeakReference<T> weakRef)
+        where T : GodotObject
     {
         if (
             weakRef == null
-            || !weakRef.TryGetTarget(out GodotObject target)
+            || !weakRef.TryGetTarget(out T target)
             || !GodotObject.IsInstanceValid(target)
         )
         {

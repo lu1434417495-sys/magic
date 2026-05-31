@@ -634,9 +634,9 @@ public partial class WorldMapSpawnSystem : RefCounted
     {
         var services = new GArray();
         bool hasPartyWarehouseService = false;
-        foreach (GDictionary facility in GdInterop.ReadDictionaryItems(facilities))
+        foreach (GDictionary facility in ReadDictionaryItems(facilities))
         {
-            foreach (GDictionary npc in GdInterop.ReadDictionaryItems(GetArray(facility, "service_npcs")))
+            foreach (GDictionary npc in ReadDictionaryItems(GetArray(facility, "service_npcs")))
             {
                 string interactionScriptId = GetString(npc, "interaction_script_id");
                 if (interactionScriptId == "party_warehouse")
@@ -685,7 +685,7 @@ public partial class WorldMapSpawnSystem : RefCounted
     private static GArray CollectServiceNpcs(GArray facilities)
     {
         var serviceNpcs = new GArray();
-        foreach (GDictionary facility in GdInterop.ReadDictionaryItems(facilities))
+        foreach (GDictionary facility in ReadDictionaryItems(facilities))
         {
             foreach (var npcValue in GetArray(facility, "service_npcs"))
                 serviceNpcs.Add(npcValue);
@@ -824,7 +824,7 @@ public partial class WorldMapSpawnSystem : RefCounted
         var worldNpcs = new GArray();
         string[] npcNames = { "巡路信使", "驿站商人", "边地向导", "地图学者", "补给联络员" };
         int nameIndex = 0;
-        foreach (GDictionary settlement in GdInterop.ReadDictionaryItems(settlements))
+        foreach (GDictionary settlement in ReadDictionaryItems(settlements))
         {
             Vector2I origin = GetVector2I(settlement, "origin", Vector2I.Zero);
             Vector2I footprintSize = GetVector2I(settlement, "footprint_size", Vector2I.One);
@@ -851,7 +851,7 @@ public partial class WorldMapSpawnSystem : RefCounted
     private GArray GenerateEncounterAnchors(GArray settlements, Vector2I playerStartCoord)
     {
         var settlementCells = new List<Vector2I>();
-        foreach (GDictionary settlement in GdInterop.ReadDictionaryItems(settlements))
+        foreach (GDictionary settlement in ReadDictionaryItems(settlements))
         {
             Vector2I origin = GetVector2I(settlement, "origin", Vector2I.Zero);
             Vector2I footprintSize = GetVector2I(settlement, "footprint_size", Vector2I.One);
@@ -1491,12 +1491,12 @@ public partial class WorldMapSpawnSystem : RefCounted
 
     private static GDictionary FindPlayerStartSettlement(GArray settlements)
     {
-        foreach (GDictionary settlement in GdInterop.ReadDictionaryItems(settlements))
+        foreach (GDictionary settlement in ReadDictionaryItems(settlements))
         {
-            if (GetBool(settlement, "is_player_start"))
+            if (ReadExactBool(settlement, "is_player_start"))
                 return settlement;
         }
-        foreach (GDictionary settlement in GdInterop.ReadDictionaryItems(settlements))
+        foreach (GDictionary settlement in ReadDictionaryItems(settlements))
         {
             if (GetInt(settlement, "tier", -1) == SettlementConfig.TIER_VILLAGE())
                 return settlement;
@@ -1552,7 +1552,7 @@ public partial class WorldMapSpawnSystem : RefCounted
         Vector2 candidateCenter =
             new Vector2(candidateOrigin.X, candidateOrigin.Y)
             + new Vector2(candidateSize.X, candidateSize.Y) * 0.5f;
-        foreach (GDictionary settlement in GdInterop.ReadDictionaryItems(existingSettlements))
+        foreach (GDictionary settlement in ReadDictionaryItems(existingSettlements))
         {
             Vector2I otherOrigin = GetVector2I(settlement, "origin", Vector2I.Zero);
             Vector2I otherSize = GetVector2I(settlement, "footprint_size", Vector2I.One);
@@ -1636,31 +1636,54 @@ public partial class WorldMapSpawnSystem : RefCounted
 
     private static string GetString(GDictionary dictionary, string key, string fallback = "")
     {
-        return GdInterop.GetString(dictionary, key, fallback);
+        if (dictionary == null || string.IsNullOrEmpty(key) || !dictionary.ContainsKey(key))
+            return fallback;
+        Variant value = dictionary[key];
+        if (value.VariantType == Variant.Type.String || value.VariantType == Variant.Type.StringName)
+            return value.ToString();
+        return fallback;
     }
 
     private static int GetInt(GDictionary dictionary, string key, int fallback = 0)
     {
-        return GdInterop.GetInt(dictionary, key, fallback);
+        if (dictionary == null || string.IsNullOrEmpty(key) || !dictionary.ContainsKey(key))
+            return fallback;
+        Variant value = dictionary[key];
+        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
     }
 
-    private static bool GetBool(GDictionary dictionary, string key, bool fallback = false)
+    private static bool ReadExactBool(GDictionary dictionary, string key, bool fallback = false)
     {
-        return GdInterop.GetBool(dictionary, key, fallback);
+        if (dictionary == null || string.IsNullOrEmpty(key) || !dictionary.ContainsKey(key))
+            return fallback;
+        Variant value = dictionary[key];
+        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
     }
 
     private static Vector2I GetVector2I(GDictionary dictionary, string key, Vector2I fallback)
     {
-        if (
-            dictionary != null
-            && GdInterop.HasVector2I(dictionary, key)
-        )
-            return GdInterop.GetVector2I(dictionary, key);
-        return fallback;
+        if (dictionary == null || string.IsNullOrEmpty(key) || !dictionary.ContainsKey(key))
+            return fallback;
+        Variant value = dictionary[key];
+        return value.VariantType == Variant.Type.Vector2I ? value.AsVector2I() : fallback;
     }
 
     private static GArray GetArray(GDictionary dictionary, string key)
     {
-        return GdInterop.GetArray(dictionary, key);
+        if (dictionary == null || string.IsNullOrEmpty(key) || !dictionary.ContainsKey(key))
+            return new GArray();
+        Variant value = dictionary[key];
+        return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : new GArray();
+    }
+
+    private static IEnumerable<GDictionary> ReadDictionaryItems(GArray values)
+    {
+        if (values == null)
+            yield break;
+        foreach (Variant value in values)
+        {
+            if (value.VariantType == Variant.Type.Dictionary)
+                yield return value.AsGodotDictionary();
+        }
     }
 }

@@ -10,11 +10,11 @@ effect_type = &"dispel_magic"
 power = 1
 max_skill_level = 0
 effect_target_team_filter = &"any"
+remove_harmful_from_allies = true
+remove_beneficial_from_enemies = true
 params = {
 "breaks_barrier_layer": "violet",
-"max_status_removed": 1,
-"remove_beneficial_from_enemies": true,
-"remove_harmful_from_allies": true
+"max_status_removed": 1
 }
 
 [sub_resource type="Resource" id="Dispel_l1"]
@@ -24,11 +24,11 @@ power = 1
 min_skill_level = 1
 max_skill_level = 2
 effect_target_team_filter = &"any"
+remove_harmful_from_allies = true
+remove_beneficial_from_enemies = true
 params = {
 "breaks_barrier_layer": "violet",
-"max_status_removed": 1,
-"remove_beneficial_from_enemies": true,
-"remove_harmful_from_allies": true
+"max_status_removed": 1
 }
 
 [sub_resource type="Resource" id="Dispel_l3"]
@@ -38,11 +38,11 @@ power = 2
 min_skill_level = 3
 max_skill_level = 4
 effect_target_team_filter = &"any"
+remove_harmful_from_allies = true
+remove_beneficial_from_enemies = true
 params = {
 "breaks_barrier_layer": "violet",
-"max_status_removed": 2,
-"remove_beneficial_from_enemies": true,
-"remove_harmful_from_allies": true
+"max_status_removed": 2
 }
 
 [sub_resource type="Resource" id="Dispel_l5"]
@@ -52,11 +52,11 @@ power = 3
 min_skill_level = 5
 max_skill_level = 6
 effect_target_team_filter = &"any"
+remove_harmful_from_allies = true
+remove_beneficial_from_enemies = true
 params = {
 "breaks_barrier_layer": "violet",
-"max_status_removed": 3,
-"remove_beneficial_from_enemies": true,
-"remove_harmful_from_allies": true
+"max_status_removed": 3
 }
 
 [sub_resource type="Resource" id="Dispel_l7"]
@@ -65,11 +65,11 @@ effect_type = &"dispel_magic"
 power = 4
 min_skill_level = 7
 effect_target_team_filter = &"any"
+remove_harmful_from_allies = true
+remove_beneficial_from_enemies = true
 params = {
 "breaks_barrier_layer": "violet",
-"max_status_removed": 4,
-"remove_beneficial_from_enemies": true,
-"remove_harmful_from_allies": true
+"max_status_removed": 4
 }
 
 [sub_resource type="Resource" id="Combat"]

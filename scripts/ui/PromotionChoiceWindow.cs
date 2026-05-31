@@ -69,7 +69,7 @@ public partial class PromotionChoiceWindow : Control
         _memberName = DictString(prompt_data, "member_name", "成员");
         _choices.Clear();
 
-        foreach (GDictionary choice in GdInterop.ReadDictionaryItems(DictArray(prompt_data, "choices")))
+        foreach (GDictionary choice in ReadDictionaryItems(DictArray(prompt_data, "choices")))
         {
             _choices.Add((GDictionary)choice.Duplicate(true));
         }
@@ -248,24 +248,29 @@ public partial class PromotionChoiceWindow : Control
 
     private static GArray DictArray(GDictionary dict, string key)
     {
-        if (dict == null || !dict.ContainsKey(key))
+        if (!TryRead(dict, key, out Variant value) || value.VariantType != Variant.Type.Array)
             return new GArray();
-        return GdInterop.GetArray(dict, key);
+        return value.AsGodotArray();
     }
 
     private static GDictionary DictDictionaryDuplicate(GDictionary dict, string key)
     {
-        if (dict == null || !dict.ContainsKey(key))
+        if (!TryRead(dict, key, out Variant value) || value.VariantType != Variant.Type.Dictionary)
             return new GDictionary();
-        GDictionary value = GdInterop.GetDictionary(dict, key);
-        return value.Count > 0 ? (GDictionary)value.Duplicate(true) : new GDictionary();
+        GDictionary dictionary = value.AsGodotDictionary();
+        return dictionary.Count > 0 ? (GDictionary)dictionary.Duplicate(true) : new GDictionary();
     }
 
     private static StringName DictStringName(GDictionary dict, string key)
     {
-        if (dict == null || !dict.ContainsKey(key))
+        if (!TryRead(dict, key, out Variant value))
             return "";
-        return ProgressionDataUtils.to_string_name(dict[key]);
+        return value.VariantType switch
+        {
+            Variant.Type.StringName => value.AsStringName(),
+            Variant.Type.String => new StringName(value.AsString()),
+            _ => new StringName(""),
+        };
     }
 
     private static Godot.Collections.Array<StringName> DictStringNameArray(
@@ -285,8 +290,33 @@ public partial class PromotionChoiceWindow : Control
 
     private static string DictString(GDictionary dict, string key, string defaultValue)
     {
-        if (dict == null || !dict.ContainsKey(key))
+        if (!TryRead(dict, key, out Variant value))
             return defaultValue;
-        return dict[key].AsString();
+        return value.VariantType switch
+        {
+            Variant.Type.String => value.AsString(),
+            Variant.Type.StringName => value.AsStringName().ToString(),
+            _ => defaultValue,
+        };
+    }
+
+    private static IEnumerable<GDictionary> ReadDictionaryItems(GArray items)
+    {
+        if (items == null)
+            yield break;
+        foreach (Variant item in items)
+        {
+            if (item.VariantType == Variant.Type.Dictionary)
+                yield return item.AsGodotDictionary();
+        }
+    }
+
+    private static bool TryRead(GDictionary dict, string key, out Variant value)
+    {
+        value = default;
+        if (dict == null || !dict.ContainsKey(key))
+            return false;
+        value = dict[key];
+        return value.VariantType != Variant.Type.Nil;
     }
 }

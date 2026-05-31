@@ -126,7 +126,7 @@ public partial class BattleSimUnitSpec : Resource
         StringName default_control_mode = default
     )
     {
-        if (GdInterop.IsEmpty(default_control_mode))
+        if (IsEmpty(default_control_mode))
         {
             default_control_mode = "manual";
         }
@@ -136,8 +136,8 @@ public partial class BattleSimUnitSpec : Resource
             unit_id = unit_id,
             source_member_id = source_member_id,
             display_name = !string.IsNullOrEmpty(display_name) ? display_name : unit_id.ToString(),
-            faction_id = !GdInterop.IsEmpty(faction_id) ? faction_id : default_faction_id,
-            control_mode = !GdInterop.IsEmpty(control_mode) ? control_mode : default_control_mode,
+            faction_id = !IsEmpty(faction_id) ? faction_id : default_faction_id,
+            control_mode = !IsEmpty(control_mode) ? control_mode : default_control_mode,
             ai_brain_id = ai_brain_id,
             ai_state_id = ai_state_id,
         };
@@ -187,7 +187,7 @@ public partial class BattleSimUnitSpec : Resource
         foreach (var rawSkillId in skill_ids)
         {
             StringName skillId = ProgressionDataUtils.to_string_name(rawSkillId);
-            if (GdInterop.IsEmpty(skillId))
+            if (IsEmpty(skillId))
             {
                 continue;
             }
@@ -197,7 +197,7 @@ public partial class BattleSimUnitSpec : Resource
         foreach (var rawTag in movement_tags)
         {
             StringName tag = ProgressionDataUtils.to_string_name(rawTag);
-            if (GdInterop.IsEmpty(tag) || unitState.movement_tags.Contains(tag))
+            if (IsEmpty(tag) || unitState.movement_tags.Contains(tag))
             {
                 continue;
             }
@@ -205,8 +205,8 @@ public partial class BattleSimUnitSpec : Resource
         }
         foreach (GDictionary statusEntry in status_effects)
         {
-            StringName statusId = GdInterop.GetStringName(statusEntry, "status_id");
-            if (GdInterop.IsEmpty(statusId))
+            StringName statusId = ReadStringName(statusEntry, "status_id");
+            if (IsEmpty(statusId))
             {
                 continue;
             }
@@ -354,7 +354,7 @@ public partial class BattleSimUnitSpec : Resource
             SetSnapshotValue(
                 unitState.attribute_snapshot,
                 attributeId,
-                GdInterop.GetInt(attribute_overrides, attributeKey)
+                ReadInt(attribute_overrides, attributeKey, 0)
             );
         }
     }
@@ -374,7 +374,7 @@ public partial class BattleSimUnitSpec : Resource
 
     private int GetBaseAttributeValue(StringName attributeId, int defaultValue)
     {
-        if (GdInterop.TryGet(base_attributes, attributeId, out Variant value))
+        if (TryRead(base_attributes, attributeId, out Variant value) && value.VariantType == Variant.Type.Int)
         {
             return value.AsInt32();
         }
@@ -383,21 +383,27 @@ public partial class BattleSimUnitSpec : Resource
 
     private bool HasAttributeOverride(StringName attributeId)
     {
-        return GdInterop.TryGet(attribute_overrides, attributeId, out _);
+        return TryRead(attribute_overrides, attributeId, out _);
     }
 
     private int GetAttributeOverride(StringName attributeId, int defaultValue)
     {
-        return GdInterop.GetInt(attribute_overrides, attributeId, defaultValue);
+        return ReadInt(attribute_overrides, attributeId, defaultValue);
     }
 
     private int GetSkillLevel(StringName skillId)
     {
-        if (GdInterop.TryGet(skill_level_map, skillId.ToString(), out Variant stringKeyValue))
+        if (
+            TryRead(skill_level_map, skillId.ToString(), out Variant stringKeyValue)
+            && stringKeyValue.VariantType == Variant.Type.Int
+        )
         {
             return stringKeyValue.AsInt32();
         }
-        if (GdInterop.TryGet(skill_level_map, skillId, out Variant stringNameKeyValue))
+        if (
+            TryRead(skill_level_map, skillId, out Variant stringNameKeyValue)
+            && stringNameKeyValue.VariantType == Variant.Type.Int
+        )
         {
             return stringNameKeyValue.AsInt32();
         }
@@ -429,5 +435,69 @@ public partial class BattleSimUnitSpec : Resource
             return 0;
         }
         return snapshot.get_value(attributeId);
+    }
+
+    private static bool TryRead(GDictionary source, object key, out Variant value)
+    {
+        value = default;
+        if (source == null || key == null)
+            return false;
+        Variant variantKey = key switch
+        {
+            Variant valueKey => valueKey,
+            string stringKey => stringKey,
+            StringName stringNameKey => stringNameKey,
+            _ => default,
+        };
+        if (variantKey.VariantType == Variant.Type.Nil)
+            return false;
+        if (source.ContainsKey(variantKey))
+        {
+            value = source[variantKey];
+            return value.VariantType != Variant.Type.Nil;
+        }
+        if (variantKey.VariantType == Variant.Type.String)
+        {
+            StringName stringNameKey = new(variantKey.AsString());
+            if (source.ContainsKey(stringNameKey))
+            {
+                value = source[stringNameKey];
+                return value.VariantType != Variant.Type.Nil;
+            }
+        }
+        else if (variantKey.VariantType == Variant.Type.StringName)
+        {
+            string stringKey = variantKey.AsStringName().ToString();
+            if (source.ContainsKey(stringKey))
+            {
+                value = source[stringKey];
+                return value.VariantType != Variant.Type.Nil;
+            }
+        }
+        return false;
+    }
+
+    private static int ReadInt(GDictionary source, object key, int fallback)
+    {
+        return TryRead(source, key, out Variant value) && value.VariantType == Variant.Type.Int
+            ? value.AsInt32()
+            : fallback;
+    }
+
+    private static StringName ReadStringName(GDictionary source, object key)
+    {
+        if (!TryRead(source, key, out Variant value))
+            return "";
+        return value.VariantType switch
+        {
+            Variant.Type.StringName => value.AsStringName(),
+            Variant.Type.String => new StringName(value.AsString()),
+            _ => new StringName(""),
+        };
+    }
+
+    private static bool IsEmpty(StringName value)
+    {
+        return value == null || value.ToString().Length == 0;
     }
 }

@@ -64,60 +64,23 @@ public partial class BattleHitResolver : RefCounted
         int stage_index
     )
     {
-        int stagePenalty = 0;
-        int baseAttackBonus = 0;
-        GDictionary effectParams =
-            repeat_attack_effect != null
-                ? GdInterop.GetDictionary(repeat_attack_effect, "params")
-                : null;
-        if (repeat_attack_effect != null && effectParams != null)
-        {
-            baseAttackBonus = GdInterop.GetInt(effectParams, "base_attack_bonus", 0);
-            int penaltyValue = GdInterop.GetInt(effectParams, "follow_up_attack_penalty", 0);
-
-            int penaltyFreeStages = 0;
-            GDictionary levelStagesMap = GdInterop.GetDictionary(
-                effectParams,
-                "penalty_free_stages_by_level"
+        int skillLevel =
+            active_unit != null && skill_def != null
+                ? GetInt(active_unit.known_skill_level_map, skill_def.skill_id, 0)
+                : 0;
+        BattleRepeatAttackStageSpec stageSpec =
+            BattleRepeatAttackStageSpec.from_repeat_attack_effect(
+                repeat_attack_effect,
+                stage_index,
+                0,
+                skillLevel
             );
-            if (levelStagesMap.Count != 0 && active_unit != null && skill_def != null)
-            {
-                int skillLevel = GdInterop.GetInt(
-                    active_unit.known_skill_level_map,
-                    skill_def.skill_id,
-                    0
-                );
-                int bestLevel = -1;
-                foreach (var levelKey in levelStagesMap.Keys)
-                {
-                    int levelVal = (int)levelKey.AsDouble();
-                    if (levelVal <= skillLevel && levelVal > bestLevel)
-                    {
-                        bestLevel = levelVal;
-                        penaltyFreeStages = GdInterop.GetInt(levelStagesMap, levelKey, 0);
-                    }
-                }
-            }
-
-            if (stage_index < penaltyFreeStages)
-            {
-                stagePenalty = 0;
-            }
-            else if (GdInterop.GetBool(effectParams, "exponential_penalty", false))
-            {
-                stagePenalty = (int)Math.Pow(2, stage_index) * penaltyValue;
-            }
-            else
-            {
-                stagePenalty = Math.Max(stage_index, 0) * penaltyValue;
-            }
-        }
         return build_skill_attack_check(
             active_unit,
             target_unit,
             skill_def,
-            baseAttackBonus,
-            stagePenalty
+            stageSpec.stage_base_attack_bonus,
+            stageSpec.resolve_stage_attack_penalty()
         );
     }
 
@@ -202,7 +165,7 @@ public partial class BattleHitResolver : RefCounted
                 )
             );
         }
-        GDictionary effectParams = GdInterop.GetDictionary(repeat_attack_effect, "params");
+        GDictionary effectParams = repeat_attack_effect?.@params ?? new GDictionary();
         int avgSuccessRate = 0;
         int avgBaseHitRate = 0;
         if (stageChecks.Count > 0)
@@ -224,9 +187,9 @@ public partial class BattleHitResolver : RefCounted
             HitRatePercent = avgSuccessRate,
             SuccessRatePercent = avgSuccessRate,
             BaseHitRatePercent = avgBaseHitRate,
-            BaseAttackBonus = effectParams != null ? GdInterop.GetInt(effectParams, "base_attack_bonus", 0) : 0,
+            BaseAttackBonus = effectParams != null ? GetInt(effectParams, "base_attack_bonus", 0) : 0,
             FollowUpAttackPenalty = effectParams != null
-                ? GdInterop.GetInt(effectParams, "follow_up_attack_penalty", 0)
+                ? GetInt(effectParams, "follow_up_attack_penalty", 0)
                 : 0,
         };
     }
@@ -344,16 +307,16 @@ public partial class BattleHitResolver : RefCounted
         {
             GDictionary knownSkillLevelMap = active_unit.known_skill_level_map;
             StringName skillId = skill_def.skill_id;
-            if (knownSkillLevelMap.ContainsKey(skillId))
+            if (TryGetValue(knownSkillLevelMap, skillId, out Variant skillLevelValue))
             {
-                skillLevel = GdInterop.GetInt(knownSkillLevelMap, skillId, 0);
+                skillLevel = ToInt(skillLevelValue, 0);
             }
             else if (active_unit.known_active_skill_ids.Contains(skillId))
             {
                 skillLevel = 1;
             }
         }
-        GodotObject combatProfile = skill_def?.combat_profile;
+        CombatSkillDef combatProfile = skill_def?.combat_profile;
         int skillAttackBonus =
             (combatProfile as CombatSkillDef)?.get_effective_attack_roll_bonus(skillLevel) ?? 0;
         int lockedSkillHitBonus = _get_skill_lock_hit_bonus(
@@ -536,7 +499,7 @@ public partial class BattleHitResolver : RefCounted
 
     public bool _unit_has_status_bool_param(BattleUnitState unit_state, StringName param_key)
     {
-        if (unit_state == null || GdInterop.IsEmpty(param_key))
+        if (unit_state == null || IsEmpty(param_key))
         {
             return false;
         }
@@ -562,11 +525,13 @@ public partial class BattleHitResolver : RefCounted
         bool fallback = false
     )
     {
-        if (@params == null || GdInterop.IsEmpty(param_key))
+        if (@params == null || IsEmpty(param_key))
         {
             return fallback;
         }
-        return GdInterop.TryGet(@params, param_key, out var value) ? value.AsBool() : fallback;
+        if (!TryGetValue(@params, param_key, out Variant value))
+            return fallback;
+        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
     }
 
     public virtual AttackRollResult roll_attack_check(BattleState battle_state, AttackCheckInput attack_check)
@@ -829,7 +794,7 @@ public partial class BattleHitResolver : RefCounted
 
         int effectiveHitRoll = hitRoll + lockedSkillHitBonus;
         metadata["effective_hit_roll"] = effectiveHitRoll;
-        if (effectiveHitRoll <= GdInterop.GetInt(metadata, "fumble_low_end", 1))
+        if (effectiveHitRoll <= GetInt(metadata, "fumble_low_end", 1))
         {
             if (_try_apply_reverse_fate_amulet(source_unit))
             {
@@ -849,7 +814,7 @@ public partial class BattleHitResolver : RefCounted
                 effectiveHitRoll,
                 critLocked,
                 critGateDie,
-                GdInterop.GetInt(metadata, "crit_threshold", NATURAL_HIT_ROLL)
+                GetInt(metadata, "crit_threshold", NATURAL_HIT_ROLL)
             )
         )
         {
@@ -864,12 +829,12 @@ public partial class BattleHitResolver : RefCounted
 
     public int _get_skill_lock_hit_bonus(BattleUnitState unit_state, StringName skill_id)
     {
-        if (unit_state == null || GdInterop.IsEmpty(skill_id))
+        if (unit_state == null || IsEmpty(skill_id))
         {
             return 0;
         }
         return Math.Max(
-            GdInterop.GetInt(
+            GetInt(
                 unit_state.known_skill_lock_hit_bonus_map,
                 skill_id,
                 0
@@ -915,7 +880,7 @@ public partial class BattleHitResolver : RefCounted
             ? format_attack_check_preview(attack_check)
             : attack_check.PreviewText;
         int roll = attack_result.Roll;
-        StringName rollDisposition = GdInterop.IsEmpty(attack_result.RollDisposition)
+        StringName rollDisposition = IsEmpty(attack_result.RollDisposition)
             ? _resolve_attack_roll_disposition_for_check(roll, attack_check)
             : attack_result.RollDisposition;
         if (rollDisposition == ROLL_DISPOSITION_NATURAL_AUTO_MISS)
@@ -1057,12 +1022,12 @@ public partial class BattleHitResolver : RefCounted
         {
             return false;
         }
-        GDictionary aiBlackboard = GdInterop.GetDictionary(source_unit, "ai_blackboard");
-        if (GdInterop.GetBool(aiBlackboard, LowLuckRelicRules.BATTLE_FLAG_REVERSE_FATE_USED, false))
+        BattleAiBlackboard aiBlackboard = source_unit.ai_blackboard;
+        if (aiBlackboard == null || aiBlackboard.low_luck_reverse_fate_used)
         {
             return false;
         }
-        aiBlackboard[LowLuckRelicRules.BATTLE_FLAG_REVERSE_FATE_USED] = true;
+        aiBlackboard.low_luck_reverse_fate_used = true;
         _apply_runtime_status(
             source_unit,
             LowLuckRelicRules.STATUS_REVERSE_FATE_WEAKENED,
@@ -1086,7 +1051,7 @@ public partial class BattleHitResolver : RefCounted
     {
         status_params ??= new GDictionary();
         source_unit_id ??= new StringName("");
-        if (unit_state == null || GdInterop.IsEmpty(status_id))
+        if (unit_state == null || IsEmpty(status_id))
         {
             return;
         }
@@ -1108,9 +1073,7 @@ public partial class BattleHitResolver : RefCounted
         {
             return;
         }
-        GArray results = (GArray)GdInterop
-            .GetArray(target, "trait_trigger_results")
-            .Duplicate(true);
+        GArray results = (GArray)GetArray(target, "trait_trigger_results").Duplicate(true);
         results.Add(new GDictionary
         {
             ["triggered"] = trigger_result.Triggered,
@@ -1133,7 +1096,7 @@ public partial class BattleHitResolver : RefCounted
         CombatEffectDef repeat_attack_effect
     )
     {
-        GodotObject combatProfile = skill_def?.combat_profile;
+        CombatSkillDef combatProfile = skill_def?.combat_profile;
         if (
             active_unit == null
             || skill_def == null
@@ -1152,10 +1115,10 @@ public partial class BattleHitResolver : RefCounted
         if (
             active_unit.known_skill_level_map != null
             && skill_def != null
-            && active_unit.known_skill_level_map.ContainsKey(skill_def.skill_id)
+            && TryGetValue(active_unit.known_skill_level_map, skill_def.skill_id, out Variant skillLevelValue)
         )
         {
-            skillLevel = GdInterop.GetInt(active_unit.known_skill_level_map, skill_def.skill_id, 0);
+            skillLevel = ToInt(skillLevelValue, 0);
         }
         BattleRepeatAttackStageSpec firstStageSpec =
             BattleRepeatAttackStageSpec.from_repeat_attack_effect(
@@ -1626,6 +1589,122 @@ public partial class BattleHitResolver : RefCounted
         int clampedHitRate = Math.Clamp(hit_rate_percent, 0, 100);
         int successfulRolls = (int)Math.Ceiling(clampedHitRate / 5.0);
         return ATTACK_CHECK_TARGET - successfulRolls;
+    }
+
+    private static GDictionary GetDict(GDictionary source, object key)
+    {
+        return TryGetValue(source, key, out Variant value)
+            && value.VariantType == Variant.Type.Dictionary
+            ? value.AsGodotDictionary()
+            : new GDictionary();
+    }
+
+    private static GArray GetArray(GDictionary source, object key)
+    {
+        return TryGetValue(source, key, out Variant value) && value.VariantType == Variant.Type.Array
+            ? value.AsGodotArray()
+            : new GArray();
+    }
+
+    private static int GetInt(GDictionary source, object key, int fallback = 0)
+    {
+        if (!TryGetValue(source, key, out Variant value))
+        {
+            return fallback;
+        }
+        return ToInt(value, fallback);
+    }
+
+    private static int ToInt(object rawValue, int fallback = 0)
+    {
+        if (rawValue is not Variant value)
+        {
+            return rawValue switch
+            {
+                int intValue => intValue,
+                long longValue => (int)longValue,
+                float floatValue => (int)floatValue,
+                double doubleValue => (int)doubleValue,
+                bool boolValue => boolValue ? 1 : 0,
+                StringName stringNameValue
+                    => int.TryParse(stringNameValue.ToString(), out int parsed)
+                        ? parsed
+                        : fallback,
+                string stringValue => int.TryParse(stringValue, out int parsed) ? parsed : fallback,
+                _ => fallback,
+            };
+        }
+        return value.VariantType switch
+        {
+            Variant.Type.Int => value.AsInt32(),
+            Variant.Type.Float => (int)value.AsDouble(),
+            Variant.Type.Bool => value.AsBool() ? 1 : 0,
+            Variant.Type.String => int.TryParse(value.AsString(), out int parsed)
+                ? parsed
+                : fallback,
+            Variant.Type.StringName
+                => int.TryParse(value.AsStringName().ToString(), out int parsed)
+                    ? parsed
+                    : fallback,
+            _ => fallback,
+        };
+    }
+
+    private static bool TryGetValue(GDictionary source, object key, out Variant value)
+    {
+        if (source == null)
+        {
+            value = default;
+            return false;
+        }
+        Variant variantKey = ToVariantKey(key);
+        if (source.ContainsKey(variantKey))
+        {
+            value = source[variantKey];
+            return true;
+        }
+        if (key is StringName stringNameKey)
+        {
+            string keyText = stringNameKey.ToString();
+            if (source.ContainsKey(keyText))
+            {
+                value = source[keyText];
+                return true;
+            }
+        }
+        else if (key is string stringKey)
+        {
+            var stringName = new StringName(stringKey);
+            if (source.ContainsKey(stringName))
+            {
+                value = source[stringName];
+                return true;
+            }
+        }
+        value = default;
+        return false;
+    }
+
+    private static Variant ToVariantKey(object key)
+    {
+        return key switch
+        {
+            Variant variant => variant,
+            StringName stringName => Variant.From(stringName),
+            string text => Variant.From(text),
+            int intValue => Variant.From(intValue),
+            long longValue => Variant.From(longValue),
+            float floatValue => Variant.From(floatValue),
+            double doubleValue => Variant.From(doubleValue),
+            bool boolValue => Variant.From(boolValue),
+            Vector2I coord => Variant.From(coord),
+            _ => Variant.From(key?.ToString() ?? ""),
+        };
+    }
+
+    private static bool IsEmpty(StringName value)
+    {
+        return value == null || string.IsNullOrEmpty(value.ToString());
     }
 
     private static AttackCheckInput CopyAttackCheck(

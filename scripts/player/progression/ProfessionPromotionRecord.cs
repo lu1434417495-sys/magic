@@ -21,6 +21,18 @@ public partial class ProfessionPromotionRecord : RefCounted
     public GDictionary snapshot_unit_base_attributes = new();
     public int timestamp;
 
+    public ProfessionPromotionRecord duplicate_state()
+    {
+        return new ProfessionPromotionRecord
+        {
+            new_rank = new_rank,
+            consumed_skill_ids = new GStringNameArray(consumed_skill_ids),
+            qualifier_skill_ids = new GStringNameArray(qualifier_skill_ids),
+            snapshot_unit_base_attributes = snapshot_unit_base_attributes?.Duplicate(true) ?? new GDictionary(),
+            timestamp = timestamp,
+        };
+    }
+
     public GDictionary to_dict()
     {
         return new GDictionary

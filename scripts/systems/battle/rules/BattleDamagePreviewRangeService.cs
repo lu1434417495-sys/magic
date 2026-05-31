@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -7,7 +8,7 @@ public partial class BattleDamagePreviewRangeService : RefCounted
 {
     private static readonly StringName DamageEffectType = "damage";
 
-    private readonly record struct DiceRange(
+    public readonly record struct DiceRange(
         int DiceCount,
         int DiceSides,
         int DiceBonus,
@@ -23,7 +24,15 @@ public partial class BattleDamagePreviewRangeService : RefCounted
         public static WeaponDice Empty => new(0, 0, 0);
     }
 
-    private readonly record struct DamageEffectRange(
+    private readonly record struct DamagePreviewEffectParameters(bool AddWeaponDice)
+    {
+        public static DamagePreviewEffectParameters FromEffect(CombatEffectDef effectDef)
+        {
+            return new DamagePreviewEffectParameters(effectDef?.add_weapon_dice ?? false);
+        }
+    }
+
+    public readonly record struct DamageEffectRange(
         int EffectIndex,
         int Power,
         bool AddWeaponDice,
@@ -56,12 +65,55 @@ public partial class BattleDamagePreviewRangeService : RefCounted
         }
     }
 
+    public readonly record struct SkillDamagePreview(
+        bool HasDamage,
+        int MinDamage,
+        int MaxDamage,
+        IReadOnlyList<DamageEffectRange> DamageRanges
+    )
+    {
+        public GDictionary ToDictionary()
+        {
+            return new GDictionary
+            {
+                ["has_damage"] = HasDamage,
+                ["min_damage"] = MinDamage,
+                ["max_damage"] = MaxDamage,
+                ["summary_text"] = FormatDamageRangeText(HasDamage, MinDamage, MaxDamage),
+                ["damage_ranges"] = DamageRangesToArray(DamageRanges),
+            };
+        }
+
+        private static GArray DamageRangesToArray(IReadOnlyList<DamageEffectRange> damageRanges)
+        {
+            var result = new GArray();
+            if (damageRanges == null)
+            {
+                return result;
+            }
+            foreach (DamageEffectRange damageRange in damageRanges)
+            {
+                result.Add(damageRange.ToDictionary());
+            }
+            return result;
+        }
+    }
+
     public static GDictionary build_skill_damage_preview(
         GodotObject source_unit,
         GArray effect_defs
     )
     {
-        var damageRanges = new GArray();
+        return build_skill_damage_preview_typed(source_unit as BattleUnitState, effect_defs)
+            .ToDictionary();
+    }
+
+    public static SkillDamagePreview build_skill_damage_preview_typed(
+        BattleUnitState source_unit,
+        GArray effect_defs
+    )
+    {
+        var damageRanges = new List<DamageEffectRange>();
         int minDamage = 0;
         int maxDamage = 0;
 
@@ -69,45 +121,46 @@ public partial class BattleDamagePreviewRangeService : RefCounted
         {
             for (int effectIndex = 0; effectIndex < effect_defs.Count; effectIndex++)
             {
-                GodotObject effectDef = effect_defs[effectIndex].AsGodotObject();
+                CombatEffectDef effectDef = effect_defs[effectIndex].AsGodotObject() as CombatEffectDef;
                 if (
                     effectDef == null
-                    || GdInterop.GetStringName(effectDef, "effect_type") != DamageEffectType
+                    || effectDef.effect_type != DamageEffectType
                 )
                 {
                     continue;
                 }
-                DamageEffectRange effectRange = BuildDamageEffectRange(
-                    source_unit,
-                    effectDef,
-                    effectIndex
-                );
-                damageRanges.Add(effectRange.ToDictionary());
+                DamageEffectRange effectRange = BuildDamageEffectRange(source_unit, effectDef, effectIndex);
+                damageRanges.Add(effectRange);
                 minDamage += effectRange.MinDamage;
                 maxDamage += effectRange.MaxDamage;
             }
         }
 
-        var preview = new GDictionary
-        {
-            ["has_damage"] = damageRanges.Count > 0,
-            ["min_damage"] = minDamage,
-            ["max_damage"] = maxDamage,
-            ["summary_text"] = "",
-            ["damage_ranges"] = damageRanges,
-        };
-        preview["summary_text"] = format_damage_range_text(preview);
-        return preview;
+        return new SkillDamagePreview(
+            damageRanges.Count > 0,
+            minDamage,
+            maxDamage,
+            damageRanges
+        );
     }
 
     public static string format_damage_range_text(GDictionary preview)
     {
-        if (preview == null || preview.Count == 0 || !GdInterop.GetBool(preview, "has_damage"))
+        if (preview == null || preview.Count == 0)
         {
             return "";
         }
-        int minDamage = GdInterop.GetInt(preview, "min_damage");
-        int maxDamage = GdInterop.GetInt(preview, "max_damage", minDamage);
+        int minDamage = ReadInt(preview, "min_damage");
+        int maxDamage = ReadInt(preview, "max_damage", minDamage);
+        return FormatDamageRangeText(ReadPreviewHasDamage(preview), minDamage, maxDamage);
+    }
+
+    private static string FormatDamageRangeText(bool hasDamage, int minDamage, int maxDamage)
+    {
+        if (!hasDamage)
+        {
+            return "";
+        }
         if (minDamage == maxDamage)
         {
             return $"伤害 {minDamage}";
@@ -116,12 +169,12 @@ public partial class BattleDamagePreviewRangeService : RefCounted
     }
 
     private static DamageEffectRange BuildDamageEffectRange(
-        GodotObject sourceUnit,
-        GodotObject effectDef,
+        BattleUnitState sourceUnit,
+        CombatEffectDef effectDef,
         int effectIndex
     )
     {
-        int power = Mathf.Max(GdInterop.GetInt(effectDef, "power"), 0);
+        int power = Mathf.Max(effectDef?.power ?? 0, 0);
         DiceRange skillDiceRange = BuildSkillDiceRange(effectDef);
         bool addWeaponDice = ShouldAddWeaponDice(effectDef);
         DiceRange weaponDiceRange = addWeaponDice
@@ -141,20 +194,20 @@ public partial class BattleDamagePreviewRangeService : RefCounted
         );
     }
 
-    private static DiceRange BuildSkillDiceRange(GodotObject effectDef)
+    private static DiceRange BuildSkillDiceRange(CombatEffectDef effectDef)
     {
-        GDictionary parameters = GdInterop.GetDictionary(effectDef, "params");
+        GDictionary parameters = effectDef?.@params ?? new GDictionary();
         if (parameters.Count == 0)
         {
             return DiceRange.Empty;
         }
-        int diceCount = Mathf.Max(GdInterop.GetInt(parameters, "dice_count"), 0);
-        int diceSides = Mathf.Max(GdInterop.GetInt(parameters, "dice_sides"), 0);
-        int diceBonus = GdInterop.GetInt(parameters, "dice_bonus");
+        int diceCount = Mathf.Max(ReadInt(parameters, "dice_count"), 0);
+        int diceSides = Mathf.Max(ReadInt(parameters, "dice_sides"), 0);
+        int diceBonus = ReadInt(parameters, "dice_bonus");
         return BuildDiceRange(diceCount, diceSides, diceBonus);
     }
 
-    private static DiceRange BuildWeaponDiceRange(GodotObject sourceUnit)
+    private static DiceRange BuildWeaponDiceRange(BattleUnitState sourceUnit)
     {
         WeaponDice dice = GetCurrentWeaponDamageDice(sourceUnit);
         if (dice == WeaponDice.Empty)
@@ -179,29 +232,53 @@ public partial class BattleDamagePreviewRangeService : RefCounted
         );
     }
 
-    private static bool ShouldAddWeaponDice(GodotObject effectDef)
+    private static bool ShouldAddWeaponDice(CombatEffectDef effectDef)
     {
-        GDictionary parameters = GdInterop.GetDictionary(effectDef, "params");
-        return parameters.Count > 0 && GdInterop.GetBool(parameters, "add_weapon_dice");
+        return DamagePreviewEffectParameters.FromEffect(effectDef).AddWeaponDice;
     }
 
-    private static WeaponDice GetCurrentWeaponDamageDice(GodotObject unitState)
+    private static WeaponDice GetCurrentWeaponDamageDice(BattleUnitState unitState)
     {
         if (unitState == null)
         {
             return WeaponDice.Empty;
         }
-        GDictionary dice = GdInterop.GetBool(unitState, "weapon_uses_two_hands")
-            ? GdInterop.GetDictionary(unitState, "weapon_two_handed_dice")
-            : GdInterop.GetDictionary(unitState, "weapon_one_handed_dice");
+        GDictionary dice = unitState.weapon_uses_two_hands
+            ? unitState.weapon_two_handed_dice
+            : unitState.weapon_one_handed_dice;
         if (dice.Count == 0)
         {
             return WeaponDice.Empty;
         }
         return new WeaponDice(
-            Mathf.Max(GdInterop.GetInt(dice, "dice_count"), 0),
-            Mathf.Max(GdInterop.GetInt(dice, "dice_sides"), 0),
-            GdInterop.GetInt(dice, "flat_bonus")
+            Mathf.Max(ReadInt(dice, "dice_count"), 0),
+            Mathf.Max(ReadInt(dice, "dice_sides"), 0),
+            ReadInt(dice, "flat_bonus")
         );
+    }
+
+    private static int ReadInt(GDictionary data, string key, int fallback = 0)
+    {
+        if (data == null || string.IsNullOrEmpty(key) || !data.ContainsKey(key))
+        {
+            return fallback;
+        }
+        Variant value = data[key];
+        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+    }
+
+    private static bool ReadPreviewHasDamage(GDictionary preview)
+    {
+        return ReadFlag(preview, "has_damage");
+    }
+
+    private static bool ReadFlag(GDictionary data, string key)
+    {
+        if (data == null || string.IsNullOrEmpty(key) || !data.ContainsKey(key))
+        {
+            return false;
+        }
+        Variant value = data[key];
+        return value.VariantType == Variant.Type.Bool && value.AsBool();
     }
 }

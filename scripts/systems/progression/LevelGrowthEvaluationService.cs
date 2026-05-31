@@ -14,21 +14,26 @@ public partial class LevelGrowthEvaluationService : RefCounted
     public Godot.Collections.Dictionary set_active_trigger_core_skill(
         PartyMemberState memberState,
         StringName skillId
+    ) => set_active_trigger_core_skill_typed(memberState, skillId).ToDictionary();
+
+    public LevelGrowthTriggerResult set_active_trigger_core_skill_typed(
+        PartyMemberState memberState,
+        StringName skillId
     )
     {
         if (memberState == null || memberState.progression == null)
-            return _fail("invalid_member_state");
+            return LevelGrowthTriggerResult.Fail("invalid_member_state");
         var unitProgress = memberState.progression;
         var skillProgress = unitProgress.get_skill_progress(skillId);
         if (skillProgress == null || !skillProgress.is_learned)
-            return _fail("skill_not_learned");
+            return LevelGrowthTriggerResult.Fail("skill_not_learned");
         if (!skillProgress.is_core)
-            return _fail("skill_not_core");
+            return LevelGrowthTriggerResult.Fail("skill_not_core");
         if (skillProgress.is_level_trigger_locked)
-            return _fail("skill_already_locked");
+            return LevelGrowthTriggerResult.Fail("skill_already_locked");
         var lockedIds = unitProgress.locked_level_trigger_skill_ids;
         if (lockedIds.Contains(skillId))
-            return _fail("skill_already_locked");
+            return LevelGrowthTriggerResult.Fail("skill_already_locked");
 
         var previousActive = unitProgress.active_level_trigger_core_skill_id;
         if (previousActive != "" && previousActive != skillId)
@@ -40,18 +45,18 @@ public partial class LevelGrowthEvaluationService : RefCounted
 
         unitProgress.active_level_trigger_core_skill_id = skillId;
         skillProgress.is_level_trigger_active = true;
-        return new Godot.Collections.Dictionary
-        {
-            { "ok", true },
-            { "skill_id", skillId },
-            { "previous_active", previousActive },
-        };
+        return LevelGrowthTriggerResult.SetSuccess(skillId, previousActive);
     }
 
-    public Godot.Collections.Dictionary clear_active_trigger_core_skill(PartyMemberState memberState)
+    public Godot.Collections.Dictionary clear_active_trigger_core_skill(PartyMemberState memberState) =>
+        clear_active_trigger_core_skill_typed(memberState).ToDictionary();
+
+    public LevelGrowthTriggerResult clear_active_trigger_core_skill_typed(
+        PartyMemberState memberState
+    )
     {
         if (memberState == null || memberState.progression == null)
-            return _fail("invalid_member_state");
+            return LevelGrowthTriggerResult.Fail("invalid_member_state");
         var unitProgress = memberState.progression;
         var currentActive = unitProgress.active_level_trigger_core_skill_id;
         if (currentActive != "")
@@ -61,7 +66,7 @@ public partial class LevelGrowthEvaluationService : RefCounted
                 skillProgress.is_level_trigger_active = false;
         }
         unitProgress.active_level_trigger_core_skill_id = "";
-        return new Godot.Collections.Dictionary { { "ok", true } };
+        return LevelGrowthTriggerResult.ClearSuccess();
     }
 
     public bool has_active_trigger_core_skill(PartyMemberState memberState)
@@ -79,12 +84,10 @@ public partial class LevelGrowthEvaluationService : RefCounted
         var triggerSkillId = unitProgress.active_level_trigger_core_skill_id;
         if (triggerSkillId == "")
             return new Godot.Collections.Dictionary();
-        var skillDef = _skill_defs.ContainsKey(triggerSkillId)
-            ? _skill_defs[triggerSkillId].AsGodotObject()
-            : null;
+        SkillDef skillDef = GetSkillDef(triggerSkillId);
         if (skillDef == null)
             return new Godot.Collections.Dictionary();
-        return skillDef.Get("attribute_growth_progress").AsGodotDictionary().Duplicate();
+        return skillDef.attribute_growth_progress.Duplicate();
     }
 
     public bool is_active_trigger_ready_for_level_up(PartyMemberState memberState)
@@ -96,9 +99,7 @@ public partial class LevelGrowthEvaluationService : RefCounted
         if (triggerSkillId == "")
             return false;
         var skillProgress = unitProgress.get_skill_progress(triggerSkillId);
-        var skillDef = _skill_defs.ContainsKey(triggerSkillId)
-            ? _skill_defs[triggerSkillId].AsGodotObject()
-            : null;
+        SkillDef skillDef = GetSkillDef(triggerSkillId);
         if (skillProgress == null || skillDef == null)
             return false;
         if (!skillProgress.is_learned || !skillProgress.is_core)
@@ -114,21 +115,26 @@ public partial class LevelGrowthEvaluationService : RefCounted
 
     public Godot.Collections.Dictionary apply_level_up(PartyMemberState memberState)
     {
+        return apply_level_up_typed(memberState).ToDictionary();
+    }
+
+    public LevelGrowthTriggerResult apply_level_up_typed(PartyMemberState memberState)
+    {
         if (memberState == null || memberState.progression == null)
-            return _fail("invalid_member_state");
+            return LevelGrowthTriggerResult.Fail("invalid_member_state");
         var unitProgress = memberState.progression;
 
         var triggerSkillId = unitProgress.active_level_trigger_core_skill_id;
         if (triggerSkillId == "")
-            return _fail("no_active_trigger_core_skill");
+            return LevelGrowthTriggerResult.Fail("no_active_trigger_core_skill");
 
         var skillProgress = unitProgress.get_skill_progress(triggerSkillId);
         if (skillProgress == null)
-            return _fail("trigger_skill_not_found");
+            return LevelGrowthTriggerResult.Fail("trigger_skill_not_found");
         if (skillProgress.is_level_trigger_locked)
-            return _fail("trigger_skill_already_locked");
+            return LevelGrowthTriggerResult.Fail("trigger_skill_already_locked");
         if (!is_active_trigger_ready_for_level_up(memberState))
-            return _fail("trigger_skill_not_ready");
+            return LevelGrowthTriggerResult.Fail("trigger_skill_not_ready");
 
         skillProgress.is_level_trigger_active = false;
         skillProgress.is_level_trigger_locked = true;
@@ -138,15 +144,13 @@ public partial class LevelGrowthEvaluationService : RefCounted
         if (!lockedIds.Contains(triggerSkillId))
             lockedIds.Add(triggerSkillId);
 
-        return new Godot.Collections.Dictionary
-        {
-            { "ok", true },
-            { "trigger_core_skill_id", triggerSkillId },
-        };
+        return LevelGrowthTriggerResult.LevelUpSuccess(triggerSkillId);
     }
 
-    private static Godot.Collections.Dictionary _fail(string reason)
+    private SkillDef GetSkillDef(StringName skillId)
     {
-        return new Godot.Collections.Dictionary { { "ok", false }, { "error", reason } };
+        if (skillId == "" || !_skill_defs.ContainsKey(skillId))
+            return null;
+        return _skill_defs[skillId].AsGodotObject() as SkillDef;
     }
 }

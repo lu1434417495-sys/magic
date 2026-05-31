@@ -93,19 +93,19 @@ public readonly struct BattleRepeatAttackStageSpec
             stageIndex,
             stage_count_value,
             skill_level_value,
-            GdInterop.GetInt(parameters, "base_attack_bonus", 0),
-            GdInterop.GetInt(parameters, "follow_up_attack_penalty", 0),
+            ReadInt(parameters, "base_attack_bonus"),
+            ReadInt(parameters, "follow_up_attack_penalty"),
             ResolvePenaltyFreeStages(parameters, skill_level_value),
-            GdInterop.GetBool(parameters, "exponential_penalty", false),
+            ReadBool(parameters, "exponential_penalty"),
             CombatResourceKindUtils.FromStringName(
-                GdInterop.GetStringName(parameters, "cost_resource", "aura"),
+                ReadStringName(parameters, "cost_resource", "aura"),
                 CombatResourceKind.Aura
             ),
             0,
             0,
-            GdInterop.GetInt(parameters, "follow_up_fixed_cost", 0),
-            GdInterop.GetInt(parameters, "follow_up_cost_addition", 0),
-            GdInterop.GetFloat(parameters, "follow_up_cost_multiplier", 1.0),
+            ReadInt(parameters, "follow_up_fixed_cost"),
+            ReadInt(parameters, "follow_up_cost_addition"),
+            ReadFloat(parameters, "follow_up_cost_multiplier", 1.0),
             fate_aware_value,
             new StringName($"repeat_stage_{stageIndex}")
         );
@@ -199,10 +199,7 @@ public readonly struct BattleRepeatAttackStageSpec
 
     private static int ResolvePenaltyFreeStages(GDictionary parameters, int skillLevel)
     {
-        GDictionary levelStagesMap = GdInterop.GetDictionary(
-            parameters,
-            "penalty_free_stages_by_level"
-        );
+        GDictionary levelStagesMap = ReadDictionary(parameters, "penalty_free_stages_by_level");
         if (levelStagesMap.Count == 0)
         {
             return 0;
@@ -216,9 +213,71 @@ public readonly struct BattleRepeatAttackStageSpec
             if (levelValue <= skillLevel && levelValue > bestLevel)
             {
                 bestLevel = levelValue;
-                resolvedStages = GdInterop.GetInt(levelStagesMap, levelKey, 0);
+                resolvedStages = ReadInt(levelStagesMap, levelKey);
             }
         }
         return Mathf.Max(resolvedStages, 0);
+    }
+
+    private static GDictionary ReadDictionary(GDictionary data, string key)
+    {
+        var value = ReadValue(data, key);
+        return value.VariantType == Variant.Type.Dictionary
+            ? value.AsGodotDictionary()
+            : new GDictionary();
+    }
+
+    private static int ReadInt(GDictionary data, string key, int fallback = 0)
+    {
+        var value = ReadValue(data, key);
+        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+    }
+
+    private static int ReadInt(GDictionary data, Variant key, int fallback = 0)
+    {
+        if (data == null || !data.ContainsKey(key))
+            return fallback;
+        var value = data[key];
+        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+    }
+
+    private static double ReadFloat(GDictionary data, string key, double fallback = 0.0)
+    {
+        var value = ReadValue(data, key);
+        if (value.VariantType == Variant.Type.Float || value.VariantType == Variant.Type.Int)
+            return value.AsDouble();
+        return fallback;
+    }
+
+    private static bool ReadBool(GDictionary data, string key, bool fallback = false)
+    {
+        var value = ReadValue(data, key);
+        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
+    }
+
+    private static StringName ReadStringName(
+        GDictionary data,
+        string key,
+        StringName fallback = default
+    )
+    {
+        var value = ReadValue(data, key);
+        if (value.VariantType == Variant.Type.StringName)
+            return value.AsStringName();
+        if (value.VariantType == Variant.Type.String)
+            return new StringName(value.AsString());
+        return fallback ?? new StringName("");
+    }
+
+    private static Variant ReadValue(GDictionary data, string key)
+    {
+        if (data == null)
+            return default;
+        if (data.ContainsKey(key))
+            return data[key];
+        var stringNameKey = new StringName(key);
+        if (data.ContainsKey(stringNameKey))
+            return data[stringNameKey];
+        return default;
     }
 }

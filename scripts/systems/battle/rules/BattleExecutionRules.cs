@@ -76,41 +76,40 @@ public partial class BattleExecutionRules : RefCounted
     )
     {
         GDictionary normalizedParams = @params ?? new GDictionary();
-        int baseValue = Mathf.Max(GdInterop.GetInt(normalizedParams, "threshold_base_value", 0), 0);
-        int anchor = Mathf.Max(GdInterop.GetInt(normalizedParams, "threshold_level_anchor", 17), 0);
+        int baseValue = Mathf.Max(ReadInt(normalizedParams, "threshold_base_value", 0), 0);
+        int anchor = Mathf.Max(ReadInt(normalizedParams, "threshold_level_anchor", 17), 0);
         int bonusPer = Mathf.Max(
-            GdInterop.GetInt(normalizedParams, "threshold_level_bonus_per_delta", 5),
+            ReadInt(normalizedParams, "threshold_level_bonus_per_delta", 5),
             0
         );
-        StringName abilityId = GdInterop.GetStringName(
+        StringName abilityId = ReadStringName(
             normalizedParams,
             "threshold_ability_mod",
             "intelligence_modifier"
         );
         int abilityMultiplier = Mathf.Max(
-            GdInterop.GetInt(normalizedParams, "threshold_ability_mod_multiplier", 5),
+            ReadInt(normalizedParams, "threshold_ability_mod_multiplier", 5),
             0
         );
         int maxHpRatio = Mathf.Max(
-            GdInterop.GetInt(normalizedParams, "threshold_max_hp_ratio_percent", 20),
+            ReadInt(normalizedParams, "threshold_max_hp_ratio_percent", 20),
             0
         );
         int capRatio = Mathf.Max(
-            GdInterop.GetInt(normalizedParams, "threshold_cap_max_hp_ratio_percent", 50),
+            ReadInt(normalizedParams, "threshold_cap_max_hp_ratio_percent", 50),
             0
         );
 
         int skillLevel = 0;
-        StringName skillId = GdInterop.GetStringName(normalizedParams, "skill_id", "");
-        if (!GdInterop.IsEmpty(skillId) && source_unit != null)
+        StringName skillId = ReadStringName(normalizedParams, "skill_id");
+        if (!IsEmpty(skillId) && source_unit is BattleUnitState sourceUnit)
         {
-            GDictionary skillLevels = GdInterop.GetDictionary(source_unit, "known_skill_level_map");
-            skillLevel = GdInterop.GetInt(skillLevels, skillId, 0);
+            skillLevel = ReadInt(sourceUnit.known_skill_level_map, skillId, 0);
         }
         int levelBonus = Mathf.Max(skillLevel - anchor, 0) * bonusPer;
 
         int abilityMod = 0;
-        if (!GdInterop.IsEmpty(abilityId) && source_unit != null)
+        if (!IsEmpty(abilityId) && source_unit != null)
         {
             abilityMod = GetAttributeValue(source_unit, abilityId);
         }
@@ -131,8 +130,9 @@ public partial class BattleExecutionRules : RefCounted
     {
         GDictionary normalizedParams = @params ?? new GDictionary();
         int maxHp = Mathf.Max(GetAttributeValue(target_unit, HpMax), 0);
-        int currentHp =
-            target_unit != null ? Mathf.Max(GdInterop.GetInt(target_unit, "current_hp"), 0) : 0;
+        int currentHp = target_unit is BattleUnitState targetUnit
+            ? Mathf.Max(targetUnit.current_hp, 0)
+            : 0;
         int threshold = resolve_threshold(source_unit, target_unit, normalizedParams);
 
         if (target_unit != null && currentHp <= threshold)
@@ -189,7 +189,7 @@ public partial class BattleExecutionRules : RefCounted
         if (is_boss)
         {
             int ratio = Mathf.Max(
-                GdInterop.GetInt(
+                ReadInt(
                     normalizedParams,
                     "boss_non_lethal_damage_max_hp_ratio_percent",
                     12
@@ -197,7 +197,7 @@ public partial class BattleExecutionRules : RefCounted
                 0
             );
             int floorVal = Mathf.Max(
-                GdInterop.GetInt(normalizedParams, "boss_non_lethal_damage_floor", 25),
+                ReadInt(normalizedParams, "boss_non_lethal_damage_floor", 25),
                 1
             );
             int targetMaxHp = Mathf.Max(GetAttributeValue(target_unit, HpMax), 0);
@@ -205,7 +205,7 @@ public partial class BattleExecutionRules : RefCounted
         }
 
         int nonLethalRatio = Mathf.Max(
-            GdInterop.GetInt(normalizedParams, "non_lethal_damage_ratio_percent", 30),
+            ReadInt(normalizedParams, "non_lethal_damage_ratio_percent", 30),
             0
         );
         int threshold = resolve_threshold(source_unit, target_unit, normalizedParams);
@@ -214,7 +214,7 @@ public partial class BattleExecutionRules : RefCounted
 
     private static SoulFractureParams BuildSoulFractureParams(GDictionary @params)
     {
-        int durationTu = GdInterop.GetInt(@params, "soul_fracture_duration_tu");
+        int durationTu = ReadInt(@params, "soul_fracture_duration_tu");
         if (durationTu <= 0)
         {
             return SoulFractureParams.Empty;
@@ -222,8 +222,8 @@ public partial class BattleExecutionRules : RefCounted
         return new SoulFractureParams(
             true,
             durationTu,
-            GdInterop.GetInt(@params, "heal_multiplier_percent", 100),
-            GdInterop.GetInt(@params, "shield_gain_multiplier_percent", 100)
+            ReadInt(@params, "heal_multiplier_percent", 100),
+            ReadInt(@params, "shield_gain_multiplier_percent", 100)
         );
     }
 
@@ -235,5 +235,95 @@ public partial class BattleExecutionRules : RefCounted
             return 0;
         }
         return attributeSnapshot.get_value(attributeId);
+    }
+
+    private static bool IsEmpty(StringName value) => value == default || value == "";
+
+    private static int ReadInt(GDictionary source, object key, int fallback = 0)
+    {
+        if (!TryReadValue(source, key, out Variant value))
+        {
+            return fallback;
+        }
+        return value.VariantType switch
+        {
+            Variant.Type.Int => value.AsInt32(),
+            Variant.Type.Float => (int)value.AsDouble(),
+            Variant.Type.Bool => value.AsBool() ? 1 : 0,
+            Variant.Type.String => int.TryParse(value.AsString(), out int parsed)
+                ? parsed
+                : fallback,
+            Variant.Type.StringName
+                => int.TryParse(value.AsStringName().ToString(), out int parsed)
+                    ? parsed
+                    : fallback,
+            _ => fallback,
+        };
+    }
+
+    private static StringName ReadStringName(
+        GDictionary source,
+        object key,
+        StringName fallback = default
+    )
+    {
+        if (!TryReadValue(source, key, out Variant value))
+        {
+            return fallback;
+        }
+        StringName parsed = ProgressionDataUtils.to_string_name(value);
+        return IsEmpty(parsed) ? fallback : parsed;
+    }
+
+    private static bool TryReadValue(GDictionary source, object key, out Variant value)
+    {
+        if (source == null)
+        {
+            value = default;
+            return false;
+        }
+        Variant variantKey = ToVariantKey(key);
+        if (source.ContainsKey(variantKey))
+        {
+            value = source[variantKey];
+            return true;
+        }
+        if (key is StringName stringNameKey)
+        {
+            string keyText = stringNameKey.ToString();
+            if (source.ContainsKey(keyText))
+            {
+                value = source[keyText];
+                return true;
+            }
+        }
+        else if (key is string stringKey)
+        {
+            var stringName = new StringName(stringKey);
+            if (source.ContainsKey(stringName))
+            {
+                value = source[stringName];
+                return true;
+            }
+        }
+        value = default;
+        return false;
+    }
+
+    private static Variant ToVariantKey(object key)
+    {
+        return key switch
+        {
+            Variant variant => variant,
+            StringName stringName => Variant.From(stringName),
+            string text => Variant.From(text),
+            int intValue => Variant.From(intValue),
+            long longValue => Variant.From(longValue),
+            float floatValue => Variant.From(floatValue),
+            double doubleValue => Variant.From(doubleValue),
+            bool boolValue => Variant.From(boolValue),
+            Vector2I coord => Variant.From(coord),
+            _ => Variant.From(key?.ToString() ?? ""),
+        };
     }
 }

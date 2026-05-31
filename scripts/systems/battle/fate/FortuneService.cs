@@ -63,18 +63,18 @@ public partial class FortuneService : RefCounted
 
     public bool try_grant_fortune_mark_from_payload(GDictionary payload)
     {
-        StringName attackerMemberId = GetStringName(payload, "attacker_member_id");
-        if (attackerMemberId == "")
+        FortuneMarkPayload markPayload = FortuneMarkPayload.FromDictionary(payload);
+        if (markPayload.AttackerMemberId == "")
             return false;
 
         PartyState partyState = GetPartyState();
         if (partyState == null)
             return false;
-        StringName attemptFlagId = BuildFortuneMarkAttemptFlagId(attackerMemberId);
+        StringName attemptFlagId = BuildFortuneMarkAttemptFlagId(markPayload.AttackerMemberId);
         if (partyState.has_fate_run_flag(attemptFlagId))
             return false;
 
-        PartyMemberState memberState = GetMemberState(attackerMemberId);
+        PartyMemberState memberState = GetMemberState(markPayload.AttackerMemberId);
         UnitBaseAttributes attributes = GetUnitBaseAttributes(memberState);
         if (memberState == null || memberState.progression == null || attributes == null)
             return false;
@@ -83,14 +83,12 @@ public partial class FortuneService : RefCounted
 
         partyState.set_fate_run_flag(attemptFlagId, true);
 
-        int critGateDie = Mathf.Max(GetInt(payload, "crit_gate_die", 0), 1);
-        bool isDisadvantage = GetBool(payload, "is_disadvantage", false);
         int confirmationRoll = FateAttackFormula.roll_die_with_disadvantage_rule(
-            critGateDie,
-            isDisadvantage,
-            ResolveConfirmationRng(payload)
+            markPayload.CritGateDie,
+            markPayload.IsDisadvantage,
+            ResolveConfirmationRng(markPayload)
         );
-        if (confirmationRoll < critGateDie)
+        if (confirmationRoll < markPayload.CritGateDie)
             return false;
 
         attributes.set_attribute_value(FortuneMarkedStatId, 1);
@@ -104,7 +102,7 @@ public partial class FortuneService : RefCounted
         try_grant_fortune_mark_from_payload(payload);
     }
 
-    private RandomNumberGenerator ResolveConfirmationRng(GDictionary payload)
+    private RandomNumberGenerator ResolveConfirmationRng(FortuneMarkPayload payload)
     {
         if (_confirmationRngOverride != null)
             return _confirmationRngOverride;
@@ -113,16 +111,16 @@ public partial class FortuneService : RefCounted
         return rng;
     }
 
-    private static string BuildConfirmationSeedSource(GDictionary payload)
+    private static string BuildConfirmationSeedSource(FortuneMarkPayload payload)
     {
         return string.Format(
             "{0}:{1}:{2}:{3}:{4}:{5}",
-            GetString(payload, "battle_id"),
-            GetString(payload, "attacker_member_id"),
-            GetString(payload, "attacker_id"),
-            GetString(payload, "defender_id"),
-            GetInt(payload, "crit_gate_die", 0),
-            GetBool(payload, "is_disadvantage", false) ? 1 : 0
+            payload.BattleId,
+            payload.AttackerMemberId,
+            payload.AttackerId,
+            payload.DefenderId,
+            payload.CritGateDie,
+            payload.IsDisadvantage ? 1 : 0
         );
     }
 
@@ -171,18 +169,63 @@ public partial class FortuneService : RefCounted
         return value.VariantType == Variant.Type.Nil ? fallback : value.AsInt32();
     }
 
-    private static bool GetBool(GDictionary payload, string key, bool fallback = false)
-    {
-        if (payload == null || !payload.ContainsKey(key))
-            return fallback;
-        var value = payload[key];
-        return value.VariantType == Variant.Type.Nil ? fallback : value.AsBool();
-    }
-
     private static string GetString(GDictionary payload, string key)
     {
         if (payload == null || !payload.ContainsKey(key))
             return "";
         return payload[key].AsString();
+    }
+
+    private readonly struct FortuneMarkPayload
+    {
+        internal readonly string BattleId;
+        internal readonly StringName AttackerMemberId;
+        internal readonly string AttackerId;
+        internal readonly string DefenderId;
+        internal readonly int CritGateDie;
+        internal readonly bool IsDisadvantage;
+
+        private FortuneMarkPayload(
+            string battleId,
+            StringName attackerMemberId,
+            string attackerId,
+            string defenderId,
+            int critGateDie,
+            bool isDisadvantage
+        )
+        {
+            BattleId = battleId ?? "";
+            AttackerMemberId = attackerMemberId;
+            AttackerId = attackerId ?? "";
+            DefenderId = defenderId ?? "";
+            CritGateDie = Mathf.Max(critGateDie, 1);
+            IsDisadvantage = isDisadvantage;
+        }
+
+        internal static FortuneMarkPayload FromDictionary(GDictionary payload)
+        {
+            bool isDisadvantage = false;
+            if (payload != null && payload.ContainsKey("is_disadvantage"))
+            {
+                Variant value = payload["is_disadvantage"];
+                if (value.VariantType == Variant.Type.Bool)
+                    isDisadvantage = value.AsBool();
+            }
+            else if (payload != null && payload.ContainsKey((StringName)"is_disadvantage"))
+            {
+                Variant value = payload[(StringName)"is_disadvantage"];
+                if (value.VariantType == Variant.Type.Bool)
+                    isDisadvantage = value.AsBool();
+            }
+
+            return new FortuneMarkPayload(
+                GetString(payload, "battle_id"),
+                GetStringName(payload, "attacker_member_id"),
+                GetString(payload, "attacker_id"),
+                GetString(payload, "defender_id"),
+                GetInt(payload, "crit_gate_die", 0),
+                isDisadvantage
+            );
+        }
     }
 }

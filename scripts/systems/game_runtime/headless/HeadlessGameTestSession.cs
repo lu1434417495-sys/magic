@@ -66,9 +66,9 @@ public partial class HeadlessGameTestSession : RefCounted
         int createError = Call(
                 _gameSession,
                 "create_new_save",
-                GdInterop.GetString(preset, "generation_config_path"),
+                ReadString(preset, "generation_config_path"),
                 preset_id,
-                GdInterop.GetString(preset, "display_name", "世界")
+                ReadString(preset, "display_name", "世界")
             )
             .AsInt32();
         if (createError != (int)Error.Ok)
@@ -142,31 +142,38 @@ public partial class HeadlessGameTestSession : RefCounted
             return true;
         }
 
-        GDictionary pendingRequest = GetRuntimeDictionary("_pending_battle_generation_request");
-        if (pendingRequest.Count == 0)
+        GameRuntimeFacade runtimeFacade = _runtime as GameRuntimeFacade;
+        if (runtimeFacade == null)
         {
             return false;
         }
 
-        EncounterAnchorData encounterAnchor = pendingRequest.ContainsKey("encounter_anchor")
-            ? pendingRequest["encounter_anchor"].AsGodotObject() as EncounterAnchorData
-            : null;
+        GameRuntimePendingBattleGenerationRequest pendingRequest =
+            runtimeFacade.GetPendingBattleGenerationRequestState();
+        if (pendingRequest == null || pendingRequest.IsEmpty)
+        {
+            return false;
+        }
+
+        EncounterAnchorData encounterAnchor = pendingRequest.EncounterAnchor;
         if (encounterAnchor == null)
         {
             return false;
         }
 
-        GodotObject battleRuntime = CallObject(_runtime, "get_battle_runtime");
+        BattleRuntimeModule battleRuntime = CallObject(_runtime, "get_battle_runtime")
+            as BattleRuntimeModule;
         if (battleRuntime == null)
         {
             return false;
         }
         SyncBattleRuntimeContentCatalogs(battleRuntime);
 
-        int seed = pendingRequest.ContainsKey("seed")
-            ? pendingRequest["seed"].AsInt32()
-            : TrueRandomSeedService.RandiRange(1, int.MaxValue - 1);
-        GDictionary context = GdInterop.GetDictionary(pendingRequest, "context").Duplicate(true);
+        int seed =
+            pendingRequest.Seed != 0
+                ? pendingRequest.Seed
+                : TrueRandomSeedService.RandiRange(1, int.MaxValue - 1);
+        GDictionary context = pendingRequest.CloneContext();
         if (!context.ContainsKey("world_coord"))
         {
             context["world_coord"] = encounterAnchor.world_coord;
@@ -194,9 +201,9 @@ public partial class HeadlessGameTestSession : RefCounted
         }
 
         _activeHeadlessEncounterAnchor = encounterAnchor;
-        _runtime.Set("_pending_battle_generation_request", new GDictionary());
-        Call(_runtime, "refresh_battle_runtime_state");
-        Call(_runtime, "present_battle_start_confirmation");
+        runtimeFacade.ClearPendingBattleGenerationRequest();
+        runtimeFacade.refresh_battle_runtime_state();
+        runtimeFacade.present_battle_start_confirmation();
         return true;
     }
 
@@ -285,7 +292,8 @@ public partial class HeadlessGameTestSession : RefCounted
             return;
         }
 
-        GodotObject battleRuntime = CallObject(_runtime, "get_battle_runtime");
+        BattleRuntimeModule battleRuntime = CallObject(_runtime, "get_battle_runtime")
+            as BattleRuntimeModule;
         if (battleRuntime == null)
         {
             _lastBattleStartDiagnostic = "battle_runtime_missing";
@@ -316,9 +324,10 @@ public partial class HeadlessGameTestSession : RefCounted
             return;
         }
 
-        _runtime.Set("_pending_battle_generation_request", new GDictionary());
-        Call(_runtime, "refresh_battle_runtime_state");
-        Call(_runtime, "present_battle_start_confirmation");
+        GameRuntimeFacade runtimeFacade = _runtime as GameRuntimeFacade;
+        runtimeFacade?.ClearPendingBattleGenerationRequest();
+        runtimeFacade?.refresh_battle_runtime_state();
+        runtimeFacade?.present_battle_start_confirmation();
     }
 
     public GDictionary finish_active_battle(StringName winner_faction_id)
@@ -440,7 +449,7 @@ public partial class HeadlessGameTestSession : RefCounted
             command_type = BattleCommand.TYPE_CHANGE_EQUIPMENT(),
             unit_id = activeUnit.unit_id,
             target_unit_id = ProgressionDataUtils.to_string_name(
-                GdInterop.GetString(options, "target_unit_id", activeUnit.unit_id.ToString())
+                ReadString(options, "target_unit_id", activeUnit.unit_id.ToString())
             ),
             equipment_operation = operation,
             equipment_slot_id = slot_id,
@@ -455,13 +464,13 @@ public partial class HeadlessGameTestSession : RefCounted
                 item_id,
                 instance_id
             );
-            if (!GdInterop.GetBool(resolvedInstance, "ok", false))
+            if (!ResultOk(resolvedInstance))
             {
                 return resolvedInstance;
             }
 
-            command.equipment_instance_id = GdInterop.GetStringName(resolvedInstance, "instance_id");
-            command.equipment_item_id = GdInterop.GetStringName(resolvedInstance, "item_id");
+            command.equipment_instance_id = ReadStringName(resolvedInstance, "instance_id");
+            command.equipment_item_id = ReadStringName(resolvedInstance, "item_id");
             command.equipment_instance = new GDictionary
             {
                 ["instance_id"] = command.equipment_instance_id.ToString(),
@@ -498,7 +507,7 @@ public partial class HeadlessGameTestSession : RefCounted
         {
             return Result(false, "战斗换装命令未产生结果。");
         }
-        return Result(GdInterop.GetBool(report, "ok", false), GdInterop.GetString(report, "text"));
+        return Result(ResultOk(report), ReadString(report, "text"));
     }
 
     public GDictionary build_snapshot()
@@ -672,7 +681,7 @@ public partial class HeadlessGameTestSession : RefCounted
         EncounterAnchorData nearestEncounter = null;
         int nearestDistance = int.MaxValue;
         GDictionary worldData = ToDictionary(Call(_runtime, "get_world_data"));
-        foreach (var encounterValue in GdInterop.GetArray(worldData, "encounter_anchors"))
+        foreach (var encounterValue in ReadArray(worldData, "encounter_anchors"))
         {
             var encounterAnchor = encounterValue.AsGodotObject() as EncounterAnchorData;
             if (encounterAnchor == null || encounterAnchor.is_cleared)
@@ -786,10 +795,10 @@ public partial class HeadlessGameTestSession : RefCounted
             storedState == null
                 ? "stored=null"
                 : $"stored_empty={storedState.is_empty()},stored_units={storedState.units.Count},stored_cells={storedState.cells.Count},stored_terrain={storedState.terrain_profile_id}";
-        return $"seed={seed},terrain={GdInterop.GetString(context, "battle_terrain_profile")}; {returnedSummary}; {storedSummary}";
+        return $"seed={seed},terrain={ReadString(context, "battle_terrain_profile")}; {returnedSummary}; {storedSummary}";
     }
 
-    private void SyncBattleRuntimeContentCatalogs(GodotObject battleRuntime)
+    private void SyncBattleRuntimeContentCatalogs(BattleRuntimeModule battleRuntime)
     {
         if (
             battleRuntime == null
@@ -800,8 +809,8 @@ public partial class HeadlessGameTestSession : RefCounted
             return;
         }
 
-        battleRuntime.Set("_skill_defs", ToDictionary(Call(_gameSession, "get_skill_defs")));
-        battleRuntime.Set("_item_defs", ToDictionary(Call(_gameSession, "get_item_defs")));
+        battleRuntime._skill_defs = ToDictionary(Call(_gameSession, "get_skill_defs"));
+        battleRuntime._item_defs = ToDictionary(Call(_gameSession, "get_item_defs"));
     }
 
     private void PrimeHeadlessBattleLootIfNeeded(StringName winnerFactionId)
@@ -815,13 +824,14 @@ public partial class HeadlessGameTestSession : RefCounted
             return;
         }
 
-        GodotObject battleRuntime = CallObject(_runtime, "get_battle_runtime");
+        BattleRuntimeModule battleRuntime = CallObject(_runtime, "get_battle_runtime")
+            as BattleRuntimeModule;
         if (battleRuntime == null)
         {
             return;
         }
 
-        GArray existingLootEntries = GdInterop.GetArray(battleRuntime, "_active_loot_entries");
+        GArray existingLootEntries = battleRuntime._active_loot_entries;
         if (existingLootEntries.Count > 0)
         {
             return;
@@ -840,7 +850,7 @@ public partial class HeadlessGameTestSession : RefCounted
         {
             return;
         }
-        battleRuntime.Set("_active_loot_entries", previewLootEntries.Duplicate(true));
+        battleRuntime._active_loot_entries = previewLootEntries.Duplicate(true);
     }
 
     private GDictionary ResolveBattleBackpackEquipmentInstance(
@@ -920,15 +930,15 @@ public partial class HeadlessGameTestSession : RefCounted
         for (int index = reportEntries.Count - 1; index >= 0; index--)
         {
             var reportValue = reportEntries[index];
-            if (!GdInterop.TryUnboxToDictionary(reportValue, out GDictionary report))
+            if (!TryUnboxToDictionary(reportValue, out GDictionary report))
             {
                 continue;
             }
 
-            string reportType = GdInterop.GetString(
+            string reportType = ReadString(
                 report,
                 "type",
-                GdInterop.GetString(report, "entry_type")
+                ReadString(report, "entry_type")
             );
             if (reportType == "change_equipment")
             {
@@ -940,8 +950,8 @@ public partial class HeadlessGameTestSession : RefCounted
 
     private void AugmentBattleSnapshot(GDictionary snapshot)
     {
-        GDictionary battleSnapshot = GdInterop.GetDictionary(snapshot, "battle");
-        if (!GdInterop.GetBool(battleSnapshot, "active", false))
+        GDictionary battleSnapshot = ReadDictionary(snapshot, "battle");
+        if (!ReadExactBool(battleSnapshot, "active", false))
         {
             return;
         }
@@ -956,10 +966,10 @@ public partial class HeadlessGameTestSession : RefCounted
         battleSnapshot["party_backpack"] = BuildBattleBackpackSnapshot(
             battleState.get_party_backpack_view()
         );
-        GArray units = GdInterop.GetArray(battleSnapshot, "units");
-        foreach (GDictionary unitSnapshot in GdInterop.ReadDictionaryItems(units))
+        GArray units = ReadArray(battleSnapshot, "units");
+        foreach (GDictionary unitSnapshot in ReadDictionaryItems(units))
         {
-            StringName unitId = GdInterop.GetStringName(unitSnapshot, "unit_id");
+            StringName unitId = ReadStringName(unitSnapshot, "unit_id");
             var unitState = battleState.units.ContainsKey(unitId)
                 ? battleState.units[unitId].AsGodotObject() as BattleUnitState
                 : null;
@@ -1026,20 +1036,17 @@ public partial class HeadlessGameTestSession : RefCounted
         };
     }
 
-    private static GDictArray BuildBattleEquipmentEntries(GodotObject equipmentView)
+    private static GDictArray BuildBattleEquipmentEntries(EquipmentState equipmentView)
     {
         var entries = new GDictArray();
-        if (equipmentView == null || !equipmentView.HasMethod("get_entry_slot_ids"))
+        if (equipmentView == null)
         {
             return entries;
         }
 
-        foreach (
-            Variant entrySlotValue in Call(equipmentView, "get_entry_slot_ids").AsGodotArray()
-        )
+        foreach (StringName entrySlotId in equipmentView.get_entry_slot_ids())
         {
-            StringName entrySlotId = ProgressionDataUtils.to_string_name(entrySlotValue);
-            GodotObject entry = CallObject(equipmentView, "get_entry", entrySlotId);
+            EquipmentEntryState entry = equipmentView.get_entry(entrySlotId);
             if (entry == null)
             {
                 continue;
@@ -1049,11 +1056,9 @@ public partial class HeadlessGameTestSession : RefCounted
                 new GDictionary
                 {
                     ["slot_id"] = entrySlotId.ToString(),
-                    ["item_id"] = GdInterop.GetStringName(entry, "item_id").ToString(),
-                    ["instance_id"] = GdInterop.GetStringName(entry, "instance_id").ToString(),
-                    ["occupied_slot_ids"] = StringNameArrayToStringArray(
-                        GdInterop.GetArray(entry, "occupied_slot_ids")
-                    ),
+                    ["item_id"] = entry.item_id.ToString(),
+                    ["instance_id"] = entry.instance_id.ToString(),
+                    ["occupied_slot_ids"] = StringNameArrayToStringArray(entry.occupied_slot_ids),
                 }
             );
         }
@@ -1072,12 +1077,14 @@ public partial class HeadlessGameTestSession : RefCounted
         );
     }
 
-    private static Godot.Collections.Array<string> StringNameArrayToStringArray(GArray values)
+    private static Godot.Collections.Array<string> StringNameArrayToStringArray(
+        Godot.Collections.Array<StringName> values
+    )
     {
         var result = new Godot.Collections.Array<string>();
         foreach (var value in values)
         {
-            result.Add(ProgressionDataUtils.to_string_name(value).ToString());
+            result.Add(value.ToString());
         }
         return result;
     }
@@ -1092,8 +1099,8 @@ public partial class HeadlessGameTestSession : RefCounted
         sorted.Sort(
             (left, right) =>
                 string.CompareOrdinal(
-                    GdInterop.GetString(left, "instance_id"),
-                    GdInterop.GetString(right, "instance_id")
+                    ReadString(left, "instance_id"),
+                    ReadString(right, "instance_id")
                 )
         );
 
@@ -1105,9 +1112,128 @@ public partial class HeadlessGameTestSession : RefCounted
         return result;
     }
 
+    private static bool TryRead(GDictionary source, object key, out Variant value)
+    {
+        if (source == null || key == null)
+        {
+            value = default;
+            return false;
+        }
+        Variant variantKey = key switch
+        {
+            Variant valueKey => valueKey,
+            string stringKey => stringKey,
+            StringName stringNameKey => stringNameKey,
+            int intKey => intKey,
+            long longKey => longKey,
+            _ => default,
+        };
+        if (source.ContainsKey(variantKey))
+        {
+            value = source[variantKey];
+            return true;
+        }
+        if (variantKey.VariantType == Variant.Type.String)
+        {
+            StringName stringNameKey = new(variantKey.AsString());
+            if (source.ContainsKey(stringNameKey))
+            {
+                value = source[stringNameKey];
+                return true;
+            }
+        }
+        else if (variantKey.VariantType == Variant.Type.StringName)
+        {
+            string stringKey = variantKey.AsStringName().ToString();
+            if (source.ContainsKey(stringKey))
+            {
+                value = source[stringKey];
+                return true;
+            }
+        }
+        value = default;
+        return false;
+    }
+
+    private static string ReadString(GDictionary source, object key, string fallback = "")
+    {
+        if (!TryRead(source, key, out Variant value))
+            return fallback;
+        return value.VariantType switch
+        {
+            Variant.Type.String => value.AsString(),
+            Variant.Type.StringName => value.AsStringName().ToString(),
+            _ => fallback,
+        };
+    }
+
+    private static StringName ReadStringName(
+        GDictionary source,
+        object key,
+        StringName fallback = default
+    )
+    {
+        if (!TryRead(source, key, out Variant value))
+            return fallback ?? new StringName("");
+        return value.VariantType switch
+        {
+            Variant.Type.StringName => value.AsStringName(),
+            Variant.Type.String => new StringName(value.AsString()),
+            _ => fallback ?? new StringName(""),
+        };
+    }
+
+    private static GArray ReadArray(GDictionary source, object key)
+    {
+        if (!TryRead(source, key, out Variant value))
+            return new GArray();
+        return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : new GArray();
+    }
+
+    private static GDictionary ReadDictionary(GDictionary source, object key)
+    {
+        if (!TryRead(source, key, out Variant value))
+            return new GDictionary();
+        return value.VariantType == Variant.Type.Dictionary
+            ? value.AsGodotDictionary()
+            : new GDictionary();
+    }
+
+    private static bool TryUnboxToDictionary(Variant value, out GDictionary dictionary)
+    {
+        if (value.VariantType == Variant.Type.Dictionary)
+        {
+            dictionary = value.AsGodotDictionary();
+            return true;
+        }
+        dictionary = default;
+        return false;
+    }
+
+    private static IEnumerable<GDictionary> ReadDictionaryItems(GArray values)
+    {
+        foreach (Variant value in values ?? new GArray())
+        {
+            if (value.VariantType == Variant.Type.Dictionary)
+                yield return value.AsGodotDictionary();
+        }
+    }
+
     private static GDictionary Result(bool ok, string message)
     {
         return new GDictionary { ["ok"] = ok, ["message"] = message ?? "" };
+    }
+
+    private static bool ResultOk(GDictionary result)
+    {
+        return ReadExactBool(result, "ok", false);
+    }
+
+    private static bool ReadExactBool(GDictionary source, object key, bool fallback)
+    {
+        if (!TryRead(source, key, out Variant value))
+            return fallback;
+        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
     }
 
     private static Variant Call(GodotObject target, StringName method, params object[] args)
@@ -1119,7 +1245,7 @@ public partial class HeadlessGameTestSession : RefCounted
         var values = new Variant[args?.Length ?? 0];
         for (int index = 0; index < values.Length; index++)
         {
-            values[index] = GdInterop.ToVariant(args[index]);
+            values[index] = ToVariant(args[index]);
         }
         return target.Call(method, values);
     }
@@ -1147,15 +1273,6 @@ public partial class HeadlessGameTestSession : RefCounted
             : new GDictionary();
     }
 
-    private GDictionary GetRuntimeDictionary(StringName property)
-    {
-        if (_runtime == null)
-        {
-            return new GDictionary();
-        }
-        return GdInterop.GetDictionary(_runtime, property);
-    }
-
     private static Godot.Collections.Array<GDictionary> ToDictionaryArray(object rawValue)
     {
         var result = new Godot.Collections.Array<GDictionary>();
@@ -1170,8 +1287,29 @@ public partial class HeadlessGameTestSession : RefCounted
             return result;
         }
 
-        foreach (GDictionary entry in GdInterop.ReadDictionaryItems(values))
+        foreach (GDictionary entry in ReadDictionaryItems(values))
             result.Add(entry);
         return result;
+    }
+
+    private static Variant ToVariant(object value)
+    {
+        return value switch
+        {
+            null => default,
+            Variant variantValue => variantValue,
+            bool boolValue => boolValue,
+            int intValue => intValue,
+            long longValue => longValue,
+            float floatValue => floatValue,
+            double doubleValue => doubleValue,
+            string stringValue => stringValue,
+            StringName stringNameValue => stringNameValue,
+            Vector2I vectorValue => vectorValue,
+            GDictionary dictionaryValue => dictionaryValue,
+            GArray arrayValue => arrayValue,
+            GodotObject objectValue => objectValue,
+            _ => value.ToString(),
+        };
     }
 }

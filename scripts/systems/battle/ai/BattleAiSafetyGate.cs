@@ -16,7 +16,7 @@ public partial class BattleAiSafetyGate : RefCounted
         }
 
         StringName intent = score_input.action_intent;
-        if (GdInterop.IsEmpty(intent))
+        if (intent == null || intent.ToString().Length == 0)
         {
             GameLog.Warning(
                 "BattleAiSafetyGate received empty action_intent; allowing candidate for legacy compatibility.",

@@ -14,6 +14,20 @@ public partial class PendingProfessionChoice : RefCounted
     public void set_target_rank(StringName profession_id, int target_rank) =>
         target_rank_map[profession_id] = target_rank;
 
+    public PendingProfessionChoice duplicate_state()
+    {
+        return new PendingProfessionChoice
+        {
+            trigger_skill_ids = new Godot.Collections.Array<StringName>(trigger_skill_ids),
+            candidate_profession_ids = new Godot.Collections.Array<StringName>(candidate_profession_ids),
+            target_rank_map = target_rank_map?.Duplicate(true) ?? new Godot.Collections.Dictionary(),
+            qualifier_skill_pool_ids = new Godot.Collections.Array<StringName>(qualifier_skill_pool_ids),
+            assignable_skill_candidate_ids = new Godot.Collections.Array<StringName>(assignable_skill_candidate_ids),
+            required_qualifier_count = required_qualifier_count,
+            required_assigned_core_count = required_assigned_core_count,
+        };
+    }
+
     public Godot.Collections.Dictionary to_dict() =>
         new()
         {

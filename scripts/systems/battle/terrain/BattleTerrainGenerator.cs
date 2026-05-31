@@ -88,7 +88,7 @@ public partial class BattleTerrainGenerator : RefCounted
             encounterAnchorOrContext,
             context
         );
-        if (GdInterop.IsEmpty(terrainProfileId))
+        if (terrainProfileId == "")
         {
             return new GDictionary();
         }
@@ -145,15 +145,15 @@ public partial class BattleTerrainGenerator : RefCounted
             else
             {
                 GDictionary monster = GetDictionary(encounterContext, "monster");
-                rawProfileId = GdInterop.GetString(monster, "region_tag", "");
+                rawProfileId = ReadString(monster, "region_tag", "");
             }
         }
         else
         {
-            GodotObject encounterAnchor = ContextObject(encounterAnchorOrContext);
+            EncounterAnchorData encounterAnchor = ContextObject(encounterAnchorOrContext);
             if (encounterAnchor != null)
             {
-                rawProfileId = GdInterop.GetString(encounterAnchor, "region_tag", "");
+                rawProfileId = encounterAnchor.region_tag.ToString();
             }
         }
 
@@ -162,7 +162,7 @@ public partial class BattleTerrainGenerator : RefCounted
             rawProfileId = ResolveRegionTagFromContext(encounterAnchorOrContext);
         }
         StringName terrainProfileId = NormalizeTerrainProfileId(rawProfileId);
-        if (GdInterop.IsEmpty(terrainProfileId) && !hasExplicitProfile)
+        if (terrainProfileId == "" && !hasExplicitProfile)
         {
             return PROFILE_DEFAULT;
         }
@@ -204,7 +204,7 @@ public partial class BattleTerrainGenerator : RefCounted
                 component.Add(current);
                 minHeight = Math.Min(
                     minHeight,
-                    GdInterop.GetInt(heights, current, DefaultMaxHeight)
+                    ReadInt(heights, current, DefaultMaxHeight)
                 );
                 foreach (Vector2I offset in FourWayOffsets())
                 {
@@ -887,7 +887,7 @@ public partial class BattleTerrainGenerator : RefCounted
                 continue;
             }
             StringName terrain = cell.base_terrain;
-            counts[terrain] = GdInterop.GetInt(counts, terrain, 0) + 1;
+            counts[terrain] = ReadInt(counts, terrain, 0) + 1;
         }
         return counts;
     }
@@ -908,24 +908,24 @@ public partial class BattleTerrainGenerator : RefCounted
             return rawEncounterContext.Duplicate(true);
         }
 
-        GodotObject encounterAnchor = ContextObject(encounterAnchorOrContext);
+        EncounterAnchorData encounterAnchor = ContextObject(encounterAnchorOrContext);
         var monster = new GDictionary
         {
             ["entity_id"] =
                 encounterAnchor != null
-                    ? GdInterop.GetString(encounterAnchor, "entity_id", "")
+                    ? encounterAnchor.entity_id.ToString()
                     : "",
             ["display_name"] =
                 encounterAnchor != null
-                    ? GdInterop.GetString(encounterAnchor, "display_name", "")
+                    ? encounterAnchor.display_name
                     : "",
             ["faction_id"] =
                 encounterAnchor != null
-                    ? GdInterop.GetString(encounterAnchor, "faction_id", "")
+                    ? encounterAnchor.faction_id.ToString()
                     : "",
             ["region_tag"] =
                 encounterAnchor != null
-                    ? GdInterop.GetString(encounterAnchor, "region_tag", "")
+                    ? encounterAnchor.region_tag.ToString()
                     : "",
         };
         return new GDictionary
@@ -933,7 +933,7 @@ public partial class BattleTerrainGenerator : RefCounted
             ["monster"] = monster,
             ["world_coord"] =
                 context != null && context.ContainsKey("world_coord") ? context["world_coord"]
-                : encounterAnchor != null ? encounterAnchor.Get("world_coord")
+                : encounterAnchor != null ? encounterAnchor.world_coord
                 : Vector2I.Zero,
             ["world_seed"] = seed,
             ["action_points"] =
@@ -986,7 +986,7 @@ public partial class BattleTerrainGenerator : RefCounted
         {
             return configured.AsVector2I();
         }
-        if (GdInterop.GetBool(encounterContext, "battle_test_vertical_slice", false))
+        if (ReadBool(encounterContext, "battle_test_vertical_slice", false))
         {
             return CanyonTestSize;
         }
@@ -996,9 +996,9 @@ public partial class BattleTerrainGenerator : RefCounted
     private static int BuildBattleSeed(GDictionary encounterContext)
     {
         GDictionary monster = GetDictionary(encounterContext, "monster");
-        Vector2I worldCoord = GdInterop.GetVector2I(encounterContext, "world_coord", Vector2I.Zero);
-        int worldSeed = GdInterop.GetInt(encounterContext, "world_seed", 0);
-        string entityId = GdInterop.GetString(monster, "entity_id", "wild");
+        Vector2I worldCoord = ReadVector2I(encounterContext, "world_coord", Vector2I.Zero);
+        int worldSeed = ReadInt(encounterContext, "world_seed", 0);
+        string entityId = ReadString(monster, "entity_id", "wild");
         return worldSeed + StableStringHash(entityId) + worldCoord.X * 92821 + worldCoord.Y * 68917;
     }
 
@@ -1008,12 +1008,12 @@ public partial class BattleTerrainGenerator : RefCounted
         {
             GDictionary monster = GetDictionary(encounterContext, "monster");
             return monster.Count > 0
-                ? GdInterop.GetString(monster, "region_tag", "")
-                : GdInterop.GetString(encounterContext, "region_tag", "");
+                ? ReadString(monster, "region_tag", "")
+                : ReadString(encounterContext, "region_tag", "");
         }
-        GodotObject encounterAnchor = ContextObject(encounterAnchorOrContext);
+        EncounterAnchorData encounterAnchor = ContextObject(encounterAnchorOrContext);
         return encounterAnchor != null
-            ? GdInterop.GetString(encounterAnchor, "region_tag", "")
+            ? encounterAnchor.region_tag.ToString()
             : "";
     }
 
@@ -1052,9 +1052,8 @@ public partial class BattleTerrainGenerator : RefCounted
         else
         {
             string stringKey = key.ToString();
-            if (!source.ContainsKey(stringKey))
+            if (!TryGetDictionaryValue(source, stringKey, out value))
                 return new GDictionary();
-            value = source[stringKey];
         }
         if (value.VariantType != Variant.Type.Dictionary)
         {
@@ -1076,17 +1075,102 @@ public partial class BattleTerrainGenerator : RefCounted
         return null;
     }
 
-    private static GodotObject ContextObject(object rawValue)
+    private static EncounterAnchorData ContextObject(object rawValue)
     {
-        if (rawValue is GodotObject obj)
+        if (rawValue is EncounterAnchorData encounterAnchor)
         {
-            return obj;
+            return encounterAnchor;
         }
         if (rawValue is Variant value && value.VariantType == Variant.Type.Object)
         {
-            return value.AsGodotObject();
+            return value.AsGodotObject() as EncounterAnchorData;
         }
         return null;
+    }
+
+    private static string ReadString(GDictionary data, string key, string fallback = "")
+    {
+        if (!TryGetDictionaryValue(data, key, out Variant value))
+        {
+            return fallback;
+        }
+        if (value.VariantType == Variant.Type.String)
+        {
+            return value.AsString();
+        }
+        if (value.VariantType == Variant.Type.StringName)
+        {
+            return value.AsStringName().ToString();
+        }
+        return fallback;
+    }
+
+    private static int ReadInt(GDictionary data, string key, int fallback = 0)
+    {
+        if (!TryGetDictionaryValue(data, key, out Variant value))
+        {
+            return fallback;
+        }
+        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+    }
+
+    private static int ReadInt(GDictionary data, StringName key, int fallback = 0)
+    {
+        if (data == null || key == "" || !data.ContainsKey(key))
+        {
+            return fallback;
+        }
+        Variant value = data[key];
+        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+    }
+
+    private static int ReadInt(GDictionary data, Vector2I key, int fallback = 0)
+    {
+        if (data == null || !data.ContainsKey(key))
+        {
+            return fallback;
+        }
+        Variant value = data[key];
+        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+    }
+
+    private static bool ReadBool(GDictionary data, string key, bool fallback = false)
+    {
+        if (!TryGetDictionaryValue(data, key, out Variant value))
+        {
+            return fallback;
+        }
+        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
+    }
+
+    private static Vector2I ReadVector2I(GDictionary data, string key, Vector2I fallback)
+    {
+        if (!TryGetDictionaryValue(data, key, out Variant value))
+        {
+            return fallback;
+        }
+        return value.VariantType == Variant.Type.Vector2I ? value.AsVector2I() : fallback;
+    }
+
+    private static bool TryGetDictionaryValue(GDictionary data, string key, out Variant value)
+    {
+        value = default;
+        if (data == null || string.IsNullOrEmpty(key))
+        {
+            return false;
+        }
+        if (data.ContainsKey(key))
+        {
+            value = data[key];
+            return true;
+        }
+        var stringNameKey = new StringName(key);
+        if (data.ContainsKey(stringNameKey))
+        {
+            value = data[stringNameKey];
+            return true;
+        }
+        return false;
     }
 
     private static bool IsInBounds(Vector2I mapSize, Vector2I coord)

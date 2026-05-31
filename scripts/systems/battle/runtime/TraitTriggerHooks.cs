@@ -5,6 +5,43 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
+internal readonly struct TraitDispatchResult
+{
+    internal readonly bool Triggered;
+    internal readonly bool Changed;
+    internal readonly StringName Event;
+    internal readonly GDictionary Payload;
+    internal readonly GArray Results;
+
+    internal TraitDispatchResult(
+        bool triggered = false,
+        bool changed = false,
+        StringName @event = null,
+        GDictionary payload = null,
+        GArray results = null
+    )
+    {
+        Triggered = triggered;
+        Changed = changed;
+        Event = @event ?? new StringName("");
+        Payload = payload ?? new GDictionary();
+        Results = results;
+    }
+
+    internal GDictionary ToDictionary()
+    {
+        GDictionary result = Payload.Duplicate(true);
+        result["triggered"] = Triggered;
+        result["changed"] = Changed;
+        result["event"] = Event;
+        if (Results != null)
+        {
+            result["results"] = Results;
+        }
+        return result;
+    }
+}
+
 [GlobalClass]
 public partial class TraitTriggerHooks : RefCounted
 {
@@ -18,6 +55,25 @@ public partial class TraitTriggerHooks : RefCounted
     private static readonly StringName TraitHalflingLuck = "halfling_luck";
     private static readonly StringName TraitSavageAttacks = "savage_attacks";
     private static readonly StringName TraitRelentlessEndurance = "relentless_endurance";
+
+    private readonly record struct SavageAttacksContext(
+        bool CriticalHit,
+        bool AddWeaponDice,
+        int WeaponAttackRange,
+        int WeaponDiceSides
+    )
+    {
+        public static SavageAttacksContext FromDictionary(GDictionary context)
+        {
+            GDictionary weaponDice = GetDict(context, "weapon_dice");
+            return new SavageAttacksContext(
+                ReadBool(context, "critical_hit"),
+                ReadBool(context, "add_weapon_dice"),
+                GetInt(context, "weapon_attack_range"),
+                Math.Max(GetInt(weaponDice, "dice_sides"), 0)
+            );
+        }
+    }
 
     public static StringName TRIGGER_PASSIVE() => TriggerPassive;
 
@@ -52,7 +108,8 @@ public partial class TraitTriggerHooks : RefCounted
 
     public GDictionary on_natural_one(BattleUnitState unit_state, GDictionary context = null)
     {
-        return DispatchFirst(unit_state, TriggerOnNaturalOne, context ?? new GDictionary());
+        return DispatchFirstResult(unit_state, TriggerOnNaturalOne, context ?? new GDictionary())
+            .ToDictionary();
     }
 
     public AttackTraitTriggerResult on_natural_one_typed(
@@ -104,7 +161,52 @@ public partial class TraitTriggerHooks : RefCounted
     {
         GDictionary eventContext = DuplicateDictionary(context);
         eventContext["target_unit"] = target_unit;
-        return DispatchFirst(source_unit, TriggerOnCrit, eventContext);
+        return DispatchFirstResult(source_unit, TriggerOnCrit, eventContext).ToDictionary();
+    }
+
+    public AttackTraitTriggerResult on_crit_typed(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        bool criticalHit,
+        bool addWeaponDice,
+        int weaponAttackRange,
+        int weaponDiceSides
+    )
+    {
+        var attackContext = new SavageAttacksContext(
+            criticalHit,
+            addWeaponDice,
+            Math.Max(weaponAttackRange, 0),
+            Math.Max(weaponDiceSides, 0)
+        );
+        foreach (StringName traitId in GetUnitTraitIds(sourceUnit))
+        {
+            string methodName = TraitTriggerContentRules.get_dispatch_method_name(
+                traitId,
+                TriggerOnCrit
+            );
+            if (methodName != "_handle_savage_attacks")
+            {
+                continue;
+            }
+            AttackTraitTriggerResult result = HandleSavageAttacksTyped(
+                sourceUnit,
+                attackContext
+            );
+            if (!result.Triggered)
+            {
+                continue;
+            }
+            return new AttackTraitTriggerResult(
+                triggered: true,
+                @event: TriggerOnCrit,
+                traitId: traitId,
+                effectType: result.EffectType,
+                extraWeaponDiceCount: result.ExtraWeaponDiceCount,
+                extraWeaponDiceSides: result.ExtraWeaponDiceSides
+            );
+        }
+        return new AttackTraitTriggerResult(@event: TriggerOnCrit);
     }
 
     public GDictionary on_fatal_damage(
@@ -115,7 +217,48 @@ public partial class TraitTriggerHooks : RefCounted
     {
         GDictionary eventContext = DuplicateDictionary(context);
         eventContext["source_unit"] = source_unit;
-        return DispatchFirst(target_unit, TriggerOnFatalDamage, eventContext);
+        return DispatchFirstResult(target_unit, TriggerOnFatalDamage, eventContext).ToDictionary();
+    }
+
+    public AttackTraitTriggerResult on_fatal_damage_typed(
+        BattleUnitState targetUnit,
+        BattleUnitState sourceUnit,
+        int hpDamage,
+        int projectedHp
+    )
+    {
+        foreach (StringName traitId in GetUnitTraitIds(targetUnit))
+        {
+            string methodName = TraitTriggerContentRules.get_dispatch_method_name(
+                traitId,
+                TriggerOnFatalDamage
+            );
+            if (methodName != "_handle_relentless_endurance")
+            {
+                continue;
+            }
+            AttackTraitTriggerResult result = HandleRelentlessEnduranceTyped(
+                targetUnit,
+                hpDamage,
+                projectedHp
+            );
+            if (!result.Triggered)
+            {
+                continue;
+            }
+            return new AttackTraitTriggerResult(
+                triggered: true,
+                @event: TriggerOnFatalDamage,
+                traitId: traitId,
+                effectType: result.EffectType,
+                chargeKey: result.ChargeKey,
+                chargesRemaining: result.ChargesRemaining,
+                clampToHp: result.ClampToHp,
+                projectedHp: result.ProjectedHp,
+                hpDamage: result.HpDamage
+            );
+        }
+        return new AttackTraitTriggerResult(@event: TriggerOnFatalDamage);
     }
 
     public GDictionary on_battle_start(BattleUnitState unit_state, GDictionary context = null)
@@ -131,21 +274,28 @@ public partial class TraitTriggerHooks : RefCounted
             SetCharge(unit_state, GetTraitChargeKey(TraitRelentlessEndurance), 1, false, true);
             changed = true;
         }
-        GDictionary dispatchResult = DispatchAll(
+        TraitDispatchResult dispatchResult = DispatchAllResult(
             unit_state,
             TriggerOnBattleStart,
             context ?? new GDictionary()
         );
-        return new GDictionary
-        {
-            ["triggered"] = GdInterop.GetBool(dispatchResult, "triggered"),
-            ["changed"] = changed || GdInterop.GetBool(dispatchResult, "changed"),
-            ["event"] = TriggerOnBattleStart,
-            ["results"] = GdInterop.GetArray(dispatchResult, "results"),
-        };
+        return new TraitDispatchResult(
+            dispatchResult.Triggered,
+            changed || dispatchResult.Changed,
+            TriggerOnBattleStart,
+            results: dispatchResult.Results
+        ).ToDictionary();
     }
 
     public GDictionary on_turn_start(BattleUnitState unit_state, GDictionary context = null)
+    {
+        return OnTurnStartResult(unit_state, context).ToDictionary();
+    }
+
+    internal TraitDispatchResult OnTurnStartResult(
+        BattleUnitState unit_state,
+        GDictionary context = null
+    )
     {
         bool changed = false;
         if (UnitHasTrait(unit_state, TraitHalflingLuck))
@@ -153,21 +303,29 @@ public partial class TraitTriggerHooks : RefCounted
             SetCharge(unit_state, GetTraitChargeKey(TraitHalflingLuck), 1, true, true);
             changed = true;
         }
-        GDictionary dispatchResult = DispatchAll(
+        TraitDispatchResult dispatchResult = DispatchAllResult(
             unit_state,
             TriggerOnTurnStart,
             context ?? new GDictionary()
         );
-        return new GDictionary
-        {
-            ["triggered"] = GdInterop.GetBool(dispatchResult, "triggered"),
-            ["changed"] = changed || GdInterop.GetBool(dispatchResult, "changed"),
-            ["event"] = TriggerOnTurnStart,
-            ["results"] = GdInterop.GetArray(dispatchResult, "results"),
-        };
+        return new TraitDispatchResult(
+            dispatchResult.Triggered,
+            changed || dispatchResult.Changed,
+            TriggerOnTurnStart,
+            results: dispatchResult.Results
+        );
     }
 
     private GDictionary DispatchFirst(
+        BattleUnitState unitState,
+        StringName triggerType,
+        GDictionary context
+    )
+    {
+        return DispatchFirstResult(unitState, triggerType, context).ToDictionary();
+    }
+
+    private TraitDispatchResult DispatchFirstResult(
         BattleUnitState unitState,
         StringName triggerType,
         GDictionary context
@@ -183,19 +341,34 @@ public partial class TraitTriggerHooks : RefCounted
             {
                 continue;
             }
-            GDictionary result = DispatchHandler(methodName, unitState, context);
-            if (!GdInterop.GetBool(result, "triggered"))
+            TraitDispatchResult result = DispatchHandlerResult(methodName, unitState, context);
+            if (!result.Triggered)
             {
                 continue;
             }
-            result["trait_id"] = traitId;
-            result["event"] = triggerType;
-            return result;
+            GDictionary payload = result.Payload.Duplicate(true);
+            payload["trait_id"] = traitId;
+            return new TraitDispatchResult(
+                true,
+                result.Changed,
+                triggerType,
+                payload,
+                result.Results
+            );
         }
-        return BuildEmptyResult(triggerType);
+        return BuildEmptyDispatchResult(triggerType);
     }
 
     private GDictionary DispatchAll(
+        BattleUnitState unitState,
+        StringName triggerType,
+        GDictionary context
+    )
+    {
+        return DispatchAllResult(unitState, triggerType, context).ToDictionary();
+    }
+
+    private TraitDispatchResult DispatchAllResult(
         BattleUnitState unitState,
         StringName triggerType,
         GDictionary context
@@ -212,22 +385,23 @@ public partial class TraitTriggerHooks : RefCounted
             {
                 continue;
             }
-            GDictionary result = DispatchHandler(methodName, unitState, context);
-            if (!GdInterop.GetBool(result, "triggered"))
+            TraitDispatchResult result = DispatchHandlerResult(methodName, unitState, context);
+            if (!result.Triggered)
             {
                 continue;
             }
-            result["trait_id"] = traitId;
-            result["event"] = triggerType;
-            results.Add(result);
+            GDictionary payload = result.Payload.Duplicate(true);
+            payload["trait_id"] = traitId;
+            payload["event"] = triggerType;
+            payload["triggered"] = true;
+            results.Add(payload);
         }
-        return new GDictionary
-        {
-            ["triggered"] = results.Count > 0,
-            ["changed"] = results.Count > 0,
-            ["event"] = triggerType,
-            ["results"] = results,
-        };
+        return new TraitDispatchResult(
+            results.Count > 0,
+            results.Count > 0,
+            triggerType,
+            results: results
+        );
     }
 
     private GDictionary DispatchHandler(
@@ -236,37 +410,58 @@ public partial class TraitTriggerHooks : RefCounted
         GDictionary context
     )
     {
+        return DispatchHandlerResult(methodName, unitState, context).ToDictionary();
+    }
+
+    private TraitDispatchResult DispatchHandlerResult(
+        string methodName,
+        BattleUnitState unitState,
+        GDictionary context
+    )
+    {
         return methodName switch
         {
-            "_handle_halfling_luck" => _handle_halfling_luck(unitState, context),
-            "_handle_savage_attacks" => _handle_savage_attacks(unitState, context),
-            "_handle_relentless_endurance" => _handle_relentless_endurance(unitState, context),
-            _ => BuildEmptyResult(new StringName("")),
+            "_handle_halfling_luck" => HandleHalflingLuckResult(unitState, context),
+            "_handle_savage_attacks" => HandleSavageAttacksResult(unitState, context),
+            "_handle_relentless_endurance" => HandleRelentlessEnduranceResult(unitState, context),
+            _ => BuildEmptyDispatchResult(new StringName("")),
         };
     }
 
     public GDictionary _handle_halfling_luck(BattleUnitState unitState, GDictionary context)
     {
-        int roll = GdInterop.GetInt(context, "roll");
+        return HandleHalflingLuckResult(unitState, context).ToDictionary();
+    }
+
+    private TraitDispatchResult HandleHalflingLuckResult(
+        BattleUnitState unitState,
+        GDictionary context
+    )
+    {
+        int roll = GetInt(context, "roll");
         if (roll != 1)
         {
-            return BuildEmptyResult(TriggerOnNaturalOne);
+            return BuildEmptyDispatchResult(TriggerOnNaturalOne);
         }
         StringName chargeKey = GetTraitChargeKey(TraitHalflingLuck);
         if (!ConsumeCharge(unitState, chargeKey, true, 1))
         {
-            return BuildEmptyResult(TriggerOnNaturalOne);
+            return BuildEmptyDispatchResult(TriggerOnNaturalOne);
         }
-        return new GDictionary
-        {
-            ["triggered"] = true,
-            ["effect_type"] = TraitHalflingLuck,
-            ["original_roll"] = roll,
-            ["reroll_die"] = true,
-            ["die_size"] = Math.Max(GdInterop.GetInt(context, "die_size", 20), 1),
-            ["charge_key"] = chargeKey,
-            ["charges_remaining"] = GetCharge(unitState, chargeKey, true),
-        };
+        return new TraitDispatchResult(
+            true,
+            true,
+            TriggerOnNaturalOne,
+            new GDictionary
+            {
+                ["effect_type"] = TraitHalflingLuck,
+                ["original_roll"] = roll,
+                ["reroll_die"] = true,
+                ["die_size"] = Math.Max(GetInt(context, "die_size", 20), 1),
+                ["charge_key"] = chargeKey,
+                ["charges_remaining"] = GetCharge(unitState, chargeKey, true),
+            }
+        );
     }
 
     public AttackTraitTriggerResult _handle_halfling_luck_typed(
@@ -298,58 +493,123 @@ public partial class TraitTriggerHooks : RefCounted
 
     public GDictionary _handle_savage_attacks(BattleUnitState unitState, GDictionary context)
     {
-        if (
-            !GdInterop.GetBool(context, "critical_hit")
-            || !GdInterop.GetBool(context, "add_weapon_dice")
-        )
+        return HandleSavageAttacksResult(unitState, context).ToDictionary();
+    }
+
+    private TraitDispatchResult HandleSavageAttacksResult(
+        BattleUnitState unitState,
+        GDictionary context
+    )
+    {
+        SavageAttacksContext attackContext = SavageAttacksContext.FromDictionary(context);
+        AttackTraitTriggerResult typedResult = HandleSavageAttacksTyped(unitState, attackContext);
+        if (!typedResult.Triggered)
         {
-            return BuildEmptyResult(TriggerOnCrit);
+            return BuildEmptyDispatchResult(TriggerOnCrit);
         }
-        if (GdInterop.GetInt(context, "weapon_attack_range") > 1)
+        return new TraitDispatchResult(
+            true,
+            true,
+            TriggerOnCrit,
+            new GDictionary
+            {
+                ["effect_type"] = typedResult.EffectType,
+                ["extra_weapon_dice_count"] = typedResult.ExtraWeaponDiceCount,
+                ["extra_weapon_dice_sides"] = typedResult.ExtraWeaponDiceSides,
+            }
+        );
+    }
+
+    private AttackTraitTriggerResult HandleSavageAttacksTyped(
+        BattleUnitState unitState,
+        SavageAttacksContext attackContext
+    )
+    {
+        if (!attackContext.CriticalHit || !attackContext.AddWeaponDice)
         {
-            return BuildEmptyResult(TriggerOnCrit);
+            return new AttackTraitTriggerResult(@event: TriggerOnCrit);
         }
-        GDictionary weaponDice = GdInterop.GetDictionary(context, "weapon_dice");
-        int diceSides = Math.Max(GdInterop.GetInt(weaponDice, "dice_sides"), 0);
-        if (diceSides <= 0)
+        if (attackContext.WeaponAttackRange > 1)
         {
-            return BuildEmptyResult(TriggerOnCrit);
+            return new AttackTraitTriggerResult(@event: TriggerOnCrit);
         }
-        return new GDictionary
+        if (attackContext.WeaponDiceSides <= 0)
         {
-            ["triggered"] = true,
-            ["effect_type"] = TraitSavageAttacks,
-            ["extra_weapon_dice_count"] = 1,
-            ["extra_weapon_dice_sides"] = diceSides,
-        };
+            return new AttackTraitTriggerResult(@event: TriggerOnCrit);
+        }
+        return new AttackTraitTriggerResult(
+            triggered: true,
+            @event: TriggerOnCrit,
+            effectType: TraitSavageAttacks,
+            extraWeaponDiceCount: 1,
+            extraWeaponDiceSides: attackContext.WeaponDiceSides
+        );
     }
 
     public GDictionary _handle_relentless_endurance(BattleUnitState unitState, GDictionary context)
     {
+        return HandleRelentlessEnduranceResult(unitState, context).ToDictionary();
+    }
+
+    private TraitDispatchResult HandleRelentlessEnduranceResult(
+        BattleUnitState unitState,
+        GDictionary context
+    )
+    {
+        AttackTraitTriggerResult typedResult = HandleRelentlessEnduranceTyped(
+            unitState,
+            GetInt(context, "hp_damage"),
+            unitState != null ? GetInt(context, "projected_hp", unitState.current_hp) : 0
+        );
+        if (!typedResult.Triggered)
+        {
+            return BuildEmptyDispatchResult(TriggerOnFatalDamage);
+        }
+        return new TraitDispatchResult(
+            true,
+            true,
+            TriggerOnFatalDamage,
+            new GDictionary
+            {
+                ["effect_type"] = typedResult.EffectType,
+                ["clamp_to_hp"] = typedResult.ClampToHp,
+                ["projected_hp"] = typedResult.ProjectedHp,
+                ["hp_damage"] = typedResult.HpDamage,
+                ["charge_key"] = typedResult.ChargeKey,
+                ["charges_remaining"] = typedResult.ChargesRemaining,
+            }
+        );
+    }
+
+    private AttackTraitTriggerResult HandleRelentlessEnduranceTyped(
+        BattleUnitState unitState,
+        int hpDamage,
+        int projectedHp
+    )
+    {
         if (unitState == null)
         {
-            return BuildEmptyResult(TriggerOnFatalDamage);
+            return new AttackTraitTriggerResult(@event: TriggerOnFatalDamage);
         }
-        int projectedHp = GdInterop.GetInt(context, "projected_hp", unitState.current_hp);
         if (projectedHp > 0)
         {
-            return BuildEmptyResult(TriggerOnFatalDamage);
+            return new AttackTraitTriggerResult(@event: TriggerOnFatalDamage);
         }
         StringName chargeKey = GetTraitChargeKey(TraitRelentlessEndurance);
         if (!ConsumeCharge(unitState, chargeKey, false, 1))
         {
-            return BuildEmptyResult(TriggerOnFatalDamage);
+            return new AttackTraitTriggerResult(@event: TriggerOnFatalDamage);
         }
-        return new GDictionary
-        {
-            ["triggered"] = true,
-            ["effect_type"] = TraitRelentlessEndurance,
-            ["clamp_to_hp"] = 1,
-            ["projected_hp"] = projectedHp,
-            ["hp_damage"] = GdInterop.GetInt(context, "hp_damage"),
-            ["charge_key"] = chargeKey,
-            ["charges_remaining"] = GetCharge(unitState, chargeKey, false),
-        };
+        return new AttackTraitTriggerResult(
+            triggered: true,
+            @event: TriggerOnFatalDamage,
+            effectType: TraitRelentlessEndurance,
+            chargeKey: chargeKey,
+            chargesRemaining: GetCharge(unitState, chargeKey, false),
+            clampToHp: 1,
+            projectedHp: projectedHp,
+            hpDamage: Math.Max(hpDamage, 0)
+        );
     }
 
     private static GStringNameArray GetUnitTraitIds(BattleUnitState unitState)
@@ -386,7 +646,7 @@ public partial class TraitTriggerHooks : RefCounted
 
     private static StringName GetTraitChargeKey(StringName traitId)
     {
-        return new StringName($"trait_{traitId}");
+        return ProgressionDataUtils.to_string_name(traitId);
     }
 
     private static void SetCharge(
@@ -402,9 +662,10 @@ public partial class TraitTriggerHooks : RefCounted
             return;
         }
         GDictionary charges = perTurn ? unitState.per_turn_charges : unitState.per_battle_charges;
-        if (force || !charges.ContainsKey(chargeKey))
+        Variant key = Variant.From(chargeKey);
+        if (force || !charges.ContainsKey(key))
         {
-            charges[chargeKey] = Math.Max(value, 0);
+            charges[key] = Math.Max(value, 0);
         }
     }
 
@@ -420,16 +681,17 @@ public partial class TraitTriggerHooks : RefCounted
             return false;
         }
         GDictionary charges = perTurn ? unitState.per_turn_charges : unitState.per_battle_charges;
-        if (!charges.ContainsKey(chargeKey))
+        Variant key = Variant.From(chargeKey);
+        if (!charges.ContainsKey(key))
         {
-            charges[chargeKey] = Math.Max(defaultValue, 0);
+            charges[key] = Math.Max(defaultValue, 0);
         }
-        int remaining = Math.Max(GdInterop.GetInt(charges, chargeKey), 0);
+        int remaining = Math.Max(GetInt(charges, chargeKey), 0);
         if (remaining <= 0)
         {
             return false;
         }
-        charges[chargeKey] = remaining - 1;
+        charges[key] = remaining - 1;
         return true;
     }
 
@@ -440,16 +702,118 @@ public partial class TraitTriggerHooks : RefCounted
             return 0;
         }
         GDictionary charges = perTurn ? unitState.per_turn_charges : unitState.per_battle_charges;
-        return Math.Max(GdInterop.GetInt(charges, chargeKey), 0);
+        return Math.Max(GetInt(charges, chargeKey), 0);
     }
 
     private static GDictionary BuildEmptyResult(StringName triggerType)
     {
-        return new GDictionary { ["triggered"] = false, ["event"] = triggerType };
+        return BuildEmptyDispatchResult(triggerType).ToDictionary();
+    }
+
+    private static TraitDispatchResult BuildEmptyDispatchResult(StringName triggerType)
+    {
+        return new TraitDispatchResult(false, false, triggerType);
     }
 
     private static GDictionary DuplicateDictionary(GDictionary value)
     {
         return value?.Duplicate(true) ?? new GDictionary();
+    }
+
+    private static GDictionary GetDict(GDictionary source, object key)
+    {
+        return TryGetValue(source, key, out Variant value)
+            && value.VariantType == Variant.Type.Dictionary
+            ? value.AsGodotDictionary()
+            : new GDictionary();
+    }
+
+    private static GArray GetArray(GDictionary source, object key)
+    {
+        return TryGetValue(source, key, out Variant value)
+            && value.VariantType == Variant.Type.Array
+            ? value.AsGodotArray()
+            : new GArray();
+    }
+
+    private static int GetInt(GDictionary source, object key, int fallback = 0)
+    {
+        if (!TryGetValue(source, key, out Variant value))
+            return fallback;
+        return value.VariantType switch
+        {
+            Variant.Type.Int => value.AsInt32(),
+            Variant.Type.Float => (int)value.AsDouble(),
+            Variant.Type.Bool => value.AsBool() ? 1 : 0,
+            Variant.Type.String => int.TryParse(value.AsString(), out int parsed)
+                ? parsed
+                : fallback,
+            Variant.Type.StringName
+                => int.TryParse(value.AsStringName().ToString(), out int parsed)
+                    ? parsed
+                    : fallback,
+            _ => fallback,
+        };
+    }
+
+    private static bool ReadBool(GDictionary source, object key, bool fallback = false)
+    {
+        if (!TryGetValue(source, key, out Variant value))
+        {
+            return fallback;
+        }
+        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
+    }
+
+    private static bool TryGetValue(GDictionary source, object key, out Variant value)
+    {
+        if (source == null)
+        {
+            value = default;
+            return false;
+        }
+        Variant variantKey = ToVariantKey(key);
+        if (source.ContainsKey(variantKey))
+        {
+            value = source[variantKey];
+            return true;
+        }
+        if (key is StringName stringNameKey)
+        {
+            string keyText = stringNameKey.ToString();
+            if (source.ContainsKey(keyText))
+            {
+                value = source[keyText];
+                return true;
+            }
+        }
+        else if (key is string stringKey)
+        {
+            var stringName = new StringName(stringKey);
+            if (source.ContainsKey(stringName))
+            {
+                value = source[stringName];
+                return true;
+            }
+        }
+        value = default;
+        return false;
+    }
+
+    private static Variant ToVariantKey(object key)
+    {
+        return key switch
+        {
+            Variant variant => variant,
+            StringName stringName => Variant.From(stringName),
+            string text => Variant.From(text),
+            int intValue => Variant.From(intValue),
+            long longValue => Variant.From(longValue),
+            float floatValue => Variant.From(floatValue),
+            double doubleValue => Variant.From(doubleValue),
+            bool boolValue => Variant.From(boolValue),
+            Vector2I coord => Variant.From(coord),
+            _ => Variant.From(key?.ToString() ?? ""),
+        };
     }
 }

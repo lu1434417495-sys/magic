@@ -14,7 +14,10 @@ public partial class WarehouseStackState : RefCounted
 
     public bool is_empty() => (string)item_id == "" || quantity <= 0;
 
-    public WarehouseStackState duplicate_state() => from_dict(to_dict());
+    public WarehouseStackState duplicate_state()
+    {
+        return new WarehouseStackState { item_id = item_id, quantity = Mathf.Max(quantity, 0) };
+    }
 
     public Godot.Collections.Dictionary to_dict() =>
         new() { { "item_id", (string)item_id }, { "quantity", Mathf.Max(quantity, 0) } };

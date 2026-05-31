@@ -317,11 +317,11 @@ public partial class CharacterInfoWindow : Control
                     return new List<CharacterInfoSection>();
                 if (
                     !sectionData.ContainsKey("entries")
-                    || !GdInterop.HasArray(sectionData, "entries")
+                    || !HasArray(sectionData, "entries")
                 )
                     return new List<CharacterInfoSection>();
                 List<CharacterInfoEntry> entries = NormalizeSectionEntries(
-                    GdInterop.GetArray(sectionData, "entries")
+                    ReadArray(sectionData, "entries")
                 );
                 if (entries.Count == 0)
                     return new List<CharacterInfoSection>();
@@ -401,13 +401,13 @@ public partial class CharacterInfoWindow : Control
             if (!HasBool(fateData, "has_misfortune"))
                 return null;
 
-            int hiddenLuckAtBirth = fateData["hidden_luck_at_birth"].AsInt32();
-            int faithLuckBonus = fateData["faith_luck_bonus"].AsInt32();
-            int effectiveLuck = fateData["effective_luck"].AsInt32();
-            int fortuneMarked = fateData["fortune_marked"].AsInt32();
-            int doomMarked = fateData["doom_marked"].AsInt32();
-            int doomAuthority = fateData["doom_authority"].AsInt32();
-            bool hasMisfortune = fateData["has_misfortune"].AsBool();
+            int hiddenLuckAtBirth = ReadInt(fateData, "hidden_luck_at_birth");
+            int faithLuckBonus = ReadInt(fateData, "faith_luck_bonus");
+            int effectiveLuck = ReadInt(fateData, "effective_luck");
+            int fortuneMarked = ReadInt(fateData, "fortune_marked");
+            int doomMarked = ReadInt(fateData, "doom_marked");
+            int doomAuthority = ReadInt(fateData, "doom_authority");
+            bool hasMisfortune = ReadBool(fateData, "has_misfortune");
             int expectedEffectiveLuck = Mathf.Clamp(
                 hiddenLuckAtBirth + faithLuckBonus,
                 UnitBaseAttributes.EFFECTIVE_LUCK_MIN(),
@@ -467,31 +467,77 @@ public partial class CharacterInfoWindow : Control
 
         private static bool HasString(GDictionary data, string key)
         {
-            return GdInterop.HasString(data, key);
+            return
+                TryRead(data, key, out Variant value)
+                && (value.VariantType == Variant.Type.String || value.VariantType == Variant.Type.StringName);
         }
 
         private static GArray ReadArray(GDictionary data, string key)
         {
-            if (data == null || !data.ContainsKey(key))
-                return new GArray();
-            return GdInterop.GetArray(data, key);
+            return TryRead(data, key, out Variant value) && value.VariantType == Variant.Type.Array
+                ? value.AsGodotArray()
+                : new GArray();
         }
 
         private static GDictionary ReadDictionary(GDictionary data, string key)
         {
-            if (data == null || !data.ContainsKey(key))
-                return new GDictionary();
-            return GdInterop.GetDictionary(data, key);
+            return
+                TryRead(data, key, out Variant value)
+                && value.VariantType == Variant.Type.Dictionary
+                ? value.AsGodotDictionary()
+                : new GDictionary();
         }
 
         private static bool HasInt(GDictionary data, string key)
         {
-            return GdInterop.HasInt(data, key);
+            return TryRead(data, key, out Variant value) && value.VariantType == Variant.Type.Int;
         }
 
         private static bool HasBool(GDictionary data, string key)
         {
-            return GdInterop.HasBool(data, key);
+            return TryRead(data, key, out Variant value) && value.VariantType == Variant.Type.Bool;
+        }
+
+        private static bool HasArray(GDictionary data, string key)
+        {
+            return TryRead(data, key, out Variant value) && value.VariantType == Variant.Type.Array;
+        }
+
+        private static int ReadInt(GDictionary data, string key)
+        {
+            return TryRead(data, key, out Variant value) && value.VariantType == Variant.Type.Int
+                ? value.AsInt32()
+                : 0;
+        }
+
+        private static bool ReadBool(GDictionary data, string key)
+        {
+            return
+                TryRead(data, key, out Variant value)
+                && value.VariantType == Variant.Type.Bool
+                && value.AsBool();
+        }
+
+        private static bool TryRead(GDictionary data, string key, out Variant value)
+        {
+            if (data == null)
+            {
+                value = default;
+                return false;
+            }
+            if (data.ContainsKey(key))
+            {
+                value = data[key];
+                return true;
+            }
+            StringName stringNameKey = new(key);
+            if (data.ContainsKey(stringNameKey))
+            {
+                value = data[stringNameKey];
+                return true;
+            }
+            value = default;
+            return false;
         }
 
         private static string FormatSignedNumber(int value)

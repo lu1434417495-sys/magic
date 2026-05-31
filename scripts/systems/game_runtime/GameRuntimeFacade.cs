@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -14,6 +15,39 @@ public partial class GameRuntimeFacade : RefCounted
     private const int MaxCommandWorldMoveCount = 256;
     private const string PartyWarehouseInteractionId = "party_warehouse";
     private const string BattleLoadingModalId = "battle_loading";
+
+    private sealed class RuntimeCommandResult
+    {
+        public bool Ok { get; private set; }
+        public string Message { get; private set; } = "";
+        public string BattleRefreshMode { get; private set; } = "";
+
+        public static RuntimeCommandResult Success(
+            string message = "",
+            string battleRefreshMode = ""
+        )
+        {
+            return new RuntimeCommandResult
+            {
+                Ok = true,
+                Message = message ?? "",
+                BattleRefreshMode = battleRefreshMode ?? "",
+            };
+        }
+
+        public static RuntimeCommandResult Failure(string message)
+        {
+            return new RuntimeCommandResult { Ok = false, Message = message ?? "" };
+        }
+
+        public GDictionary ToDictionary()
+        {
+            var result = new GDictionary { ["ok"] = Ok, ["message"] = Message };
+            if (Ok)
+                result["battle_refresh_mode"] = BattleRefreshMode;
+            return result;
+        }
+    }
 
     public WorldMapGenerationConfig _generation_config;
     public GameSession _game_session;
@@ -36,9 +70,9 @@ public partial class GameRuntimeFacade : RefCounted
     public Vector2I _settlement_entry_target_coord = new(-1, -1);
     public string _player_faction_id = "player";
     public WorldMapDataContext _world_map_data_context = new();
-    public GDictionary _pending_submap_prompt = new();
+    private readonly GameRuntimePendingSubmapPrompt _pending_submap_prompt = new();
     public GDictionary _pending_battle_start_prompt = new();
-    public GDictionary _pending_battle_generation_request = new();
+    private readonly GameRuntimePendingBattleGenerationRequest _pending_battle_generation_request = new();
     public PartyState _party_state;
     public BattleState _battle_state;
     public int _battle_auto_tick_remainder_msec;
@@ -224,7 +258,7 @@ public partial class GameRuntimeFacade : RefCounted
         {
             _activate_game_over(_build_main_character_game_over_context());
             _update_status(
-                GdInterop.GetString(_active_game_over_context, "description", "主角已阵亡，本次旅程结束。")
+                DictString(_active_game_over_context, "description", "主角已阵亡，本次旅程结束。")
             );
             return;
         }
@@ -235,10 +269,7 @@ public partial class GameRuntimeFacade : RefCounted
             );
             return;
         }
-        string startSettlementName = GdInterop.GetString(
-            _world_map_data_context.active_world_data,
-            "player_start_settlement_name"
-        );
+        string startSettlementName = _world_map_data_context.get_player_start_settlement_name();
         _update_status(
             startSettlementName.Length == 0
                 ? "大地图已载入。方向键/WASD 可按住持续移动，点击可见据点或按 Enter 打开据点窗口，按 P 打开队伍管理，右键人物可查看信息。"
@@ -331,7 +362,7 @@ public partial class GameRuntimeFacade : RefCounted
     public string get_submap_return_hint_text() =>
         _world_map_data_context.get_submap_return_hint_text();
 
-    public GDictionary get_pending_submap_prompt() => _pending_submap_prompt.Duplicate(true);
+    public GDictionary get_pending_submap_prompt() => _pending_submap_prompt.ToDictionary();
 
     public GDictionary get_pending_battle_start_prompt() =>
         _pending_battle_start_prompt.Duplicate(true);
@@ -369,26 +400,20 @@ public partial class GameRuntimeFacade : RefCounted
         int maxEntries = Math.Max(limit, 0);
         if (maxEntries <= 0)
             return entries;
-        GArray anchorsArray = GdInterop.GetArray(_world_map_data_context.active_world_data, "encounter_anchors");
+        foreach (EncounterAnchorData encounter in _world_map_data_context.GetActiveEncounterAnchors(includeCleared: false))
         {
-            foreach (var encounterValue in anchorsArray)
-            {
-                var encounter = encounterValue.AsGodotObject() as EncounterAnchorData;
-                if (encounter == null || encounter.is_cleared)
-                    continue;
-                var delta = encounter.world_coord - _player_coord;
-                entries.Add(
-                    new GDictionary
-                    {
-                        ["entity_id"] = encounter.entity_id.ToString(),
-                        ["display_name"] = encounter.display_name,
-                        ["coord"] = CoordDict(encounter.world_coord),
-                        ["distance"] = Math.Abs(delta.X) + Math.Abs(delta.Y),
-                        ["encounter_kind"] = encounter.encounter_kind.ToString(),
-                        ["growth_stage"] = encounter.growth_stage,
-                    }
-                );
-            }
+            var delta = encounter.world_coord - _player_coord;
+            entries.Add(
+                new GDictionary
+                {
+                    ["entity_id"] = encounter.entity_id.ToString(),
+                    ["display_name"] = encounter.display_name,
+                    ["coord"] = CoordDict(encounter.world_coord),
+                    ["distance"] = Math.Abs(delta.X) + Math.Abs(delta.Y),
+                    ["encounter_kind"] = encounter.encounter_kind.ToString(),
+                    ["growth_stage"] = encounter.growth_stage,
+                }
+            );
         }
         SortDictionaryArray(entries, "distance", "entity_id");
         ResizeArray(entries, maxEntries);
@@ -403,23 +428,19 @@ public partial class GameRuntimeFacade : RefCounted
         int maxEntries = Math.Max(limit, 0);
         if (maxEntries <= 0)
             return entries;
-        foreach (GDictionary worldEvent in GdInterop.ReadDictionaryItems(
-            GdInterop.GetArray(_world_map_data_context.active_world_data, "world_events")
-        ))
+        foreach (WorldMapEventData worldEvent in _world_map_data_context.GetDiscoveredWorldEvents())
         {
-            if (!GdInterop.GetBool(worldEvent, "is_discovered"))
-                continue;
-            var eventCoord = GdInterop.GetVector2I(worldEvent, "world_coord");
+            var eventCoord = worldEvent.WorldCoord;
             var delta = eventCoord - _player_coord;
             entries.Add(
                 new GDictionary
                 {
-                    ["event_id"] = GdInterop.GetString(worldEvent, "event_id"),
-                    ["display_name"] = GdInterop.GetString(worldEvent, "display_name"),
+                    ["event_id"] = worldEvent.EventId.ToString(),
+                    ["display_name"] = worldEvent.DisplayName,
                     ["coord"] = CoordDict(eventCoord),
                     ["distance"] = Math.Abs(delta.X) + Math.Abs(delta.Y),
-                    ["event_type"] = GdInterop.GetString(worldEvent, "event_type"),
-                    ["target_submap_id"] = GdInterop.GetString(worldEvent, "target_submap_id"),
+                    ["event_type"] = worldEvent.EventType.ToString(),
+                    ["target_submap_id"] = worldEvent.TargetSubmapId.ToString(),
                 }
             );
         }
@@ -813,13 +834,14 @@ public partial class GameRuntimeFacade : RefCounted
                 ["ok"] = false,
                 ["error"] = "character_management_unavailable",
             };
-        var result = _character_management.set_active_level_trigger_core_skill(member_id, skill_id);
-        if (GdInterop.GetBool(result, "ok"))
+        LevelGrowthTriggerResult result =
+            _character_management.SetActiveLevelTriggerCoreSkillTyped(member_id, skill_id);
+        if (result.Ok)
         {
             _party_state = _character_management.get_party_state();
             _persist_party_state();
         }
-        return result;
+        return result.ToDictionary();
     }
 
     public GDictionary clear_active_level_trigger_core_skill(StringName member_id)
@@ -830,13 +852,14 @@ public partial class GameRuntimeFacade : RefCounted
                 ["ok"] = false,
                 ["error"] = "character_management_unavailable",
             };
-        var result = _character_management.clear_active_level_trigger_core_skill(member_id);
-        if (GdInterop.GetBool(result, "ok"))
+        LevelGrowthTriggerResult result =
+            _character_management.ClearActiveLevelTriggerCoreSkillTyped(member_id);
+        if (result.Ok)
         {
             _party_state = _character_management.get_party_state();
             _persist_party_state();
         }
-        return result;
+        return result.ToDictionary();
     }
 
     public CharacterProgressionDelta apply_pending_character_reward_to_party(
@@ -974,12 +997,7 @@ public partial class GameRuntimeFacade : RefCounted
     {
         if (encounter_anchor == null || _battle_runtime == null)
             return "failed";
-        _pending_battle_generation_request = new GDictionary
-        {
-            ["encounter_anchor"] = encounter_anchor,
-            ["seed"] = seed,
-            ["context"] = (context ?? new GDictionary()).Duplicate(true),
-        };
+        _pending_battle_generation_request.Set(encounter_anchor, seed, context);
         _pending_battle_start_prompt.Clear();
         _active_modal_id = BattleLoadingModalId;
         string encounterName = _resolve_battle_encounter_display_name(encounter_anchor);
@@ -1058,14 +1076,13 @@ public partial class GameRuntimeFacade : RefCounted
 
     public bool _try_complete_pending_battle_start()
     {
-        if (_pending_battle_generation_request.Count == 0 || _battle_runtime == null)
+        if (_pending_battle_generation_request.IsEmpty || _battle_runtime == null)
             return false;
-        var encounterAnchor =
-            GdInterop.GetObject(_pending_battle_generation_request, "encounter_anchor") as EncounterAnchorData;
+        var encounterAnchor = _pending_battle_generation_request.EncounterAnchor;
         if (encounterAnchor == null)
             return false;
-        int seed = GdInterop.GetInt(_pending_battle_generation_request, "seed");
-        var context = GdInterop.GetDictionary(_pending_battle_generation_request, "context").Duplicate(true);
+        int seed = _pending_battle_generation_request.Seed;
+        var context = _pending_battle_generation_request.CloneContext();
         var runtimeState = _battle_runtime.start_battle(encounterAnchor, seed, context);
         if (runtimeState == null || runtimeState.is_empty())
             return false;
@@ -1108,14 +1125,15 @@ public partial class GameRuntimeFacade : RefCounted
         var guidanceUnlocks = new GStringNameArray();
         var misfortuneGuidanceUnlocks = new GStringNameArray();
         var lowLuckEventResult = new GDictionary();
-        var writebackResult = _commit_battle_local_views_to_party_state(
+        var writebackResult = CommitBattleLocalViewsToPartyStateTyped(
             _battle_state,
             _party_state
         );
-        if (!GdInterop.GetBool(writebackResult, "ok"))
+        if (!writebackResult.Ok)
         {
+            GDictionary writebackPayload = writebackResult.ToDictionary();
             _report_battle_local_writeback_inoption_failure(
-                writebackResult,
+                writebackPayload,
                 battleSummary,
                 winnerFactionId
             );
@@ -1130,12 +1148,12 @@ public partial class GameRuntimeFacade : RefCounted
         if (fateResolution.Count > 0)
         {
             guidanceUnlocks = ProgressionDataUtils.to_string_name_array(
-                GdInterop.GetArray(fateResolution, "fortuna_guidance_unlocks")
+                DictArray(fateResolution, "fortuna_guidance_unlocks")
             );
             misfortuneGuidanceUnlocks = ProgressionDataUtils.to_string_name_array(
-                GdInterop.GetArray(fateResolution, "misfortune_guidance_unlocks")
+                DictArray(fateResolution, "misfortune_guidance_unlocks")
             );
-            lowLuckEventResult = GdInterop.GetDictionary(fateResolution, "low_luck_event_result");
+            lowLuckEventResult = DictDictionary(fateResolution, "low_luck_event_result");
         }
 
         var resolvedPendingRewards = battle_resolution_result.get_pending_character_rewards_copy();
@@ -1145,7 +1163,7 @@ public partial class GameRuntimeFacade : RefCounted
         bool mainCharacterDead =
             _is_main_character_dead() || _is_main_character_dead_in_battle_state();
         var questSummary = new GDictionary();
-        var lootCommitResult = new GDictionary();
+        var lootCommitResult = GameRuntimeBattleLootCommitService.BattleLootCommitResult.Success();
         int partyPersistError = (int)Error.Ok;
         int worldPersistError = (int)Error.Ok;
         int flushError = (int)Error.Ok;
@@ -1153,11 +1171,11 @@ public partial class GameRuntimeFacade : RefCounted
 
         if (!mainCharacterDead)
         {
-            lootCommitResult = _commit_battle_loot_to_shared_warehouse(battle_resolution_result);
-            if (!GdInterop.GetBool(lootCommitResult, "ok"))
+            lootCommitResult = CommitBattleLootToSharedWarehouseTyped(battle_resolution_result);
+            if (!lootCommitResult.Ok)
             {
                 _update_status(
-                    _build_battle_resolution_status_message(
+                    BuildBattleResolutionStatusMessageTyped(
                         battleName,
                         winnerFactionId,
                         lootCommitResult,
@@ -1173,15 +1191,15 @@ public partial class GameRuntimeFacade : RefCounted
                     {
                         ["battle"] = battleSummary,
                         ["winner_faction_id"] = winnerFactionId,
-                        ["loot_commit_error_code"] = GdInterop.GetString(lootCommitResult, "error_code"),
-                        ["loot_commit_blocked_item_id"] = GdInterop.GetString(lootCommitResult, "blocked_item_id"),
+                        ["loot_commit_error_code"] = lootCommitResult.ErrorCode,
+                        ["loot_commit_blocked_item_id"] = lootCommitResult.BlockedItemId,
                     })
                 );
                 return false;
             }
         }
 
-        _battle_runtime.end_battle(new GDictionary { ["commit_progression"] = true });
+        _battle_runtime.EndBattle(new BattleEndOptions(commitProgression: true));
         _party_state = _character_management.get_party_state();
         if (!mainCharacterDead)
         {
@@ -1200,7 +1218,7 @@ public partial class GameRuntimeFacade : RefCounted
             if (partyPersistError != (int)Error.Ok)
             {
                 _update_status(
-                    _build_battle_resolution_status_message(
+                    BuildBattleResolutionStatusMessageTyped(
                         battleName,
                         winnerFactionId,
                         lootCommitResult,
@@ -1230,7 +1248,7 @@ public partial class GameRuntimeFacade : RefCounted
             {
                 _world_map_data_context.bind_root_world_data(worldDataBefore);
                 _update_status(
-                    _build_battle_resolution_status_message(
+                    BuildBattleResolutionStatusMessageTyped(
                         battleName,
                         winnerFactionId,
                         lootCommitResult,
@@ -1270,7 +1288,7 @@ public partial class GameRuntimeFacade : RefCounted
             {
                 _game_session.set_battle_save_lock(true);
                 _update_status(
-                    _build_battle_resolution_status_message(
+                    BuildBattleResolutionStatusMessageTyped(
                         battleName,
                         winnerFactionId,
                         lootCommitResult,
@@ -1301,7 +1319,7 @@ public partial class GameRuntimeFacade : RefCounted
         }
         else
         {
-            _last_battle_loot_snapshot = _build_last_battle_loot_snapshot(
+            _last_battle_loot_snapshot = BuildLastBattleLootSnapshotTyped(
                 battleName,
                 winnerFactionId,
                 battle_resolution_result,
@@ -1313,7 +1331,7 @@ public partial class GameRuntimeFacade : RefCounted
         if (mainCharacterDead)
         {
             _update_status(
-                GdInterop.GetString(_active_game_over_context, "description", "主角已阵亡，本次旅程结束。")
+                DictString(_active_game_over_context, "description", "主角已阵亡，本次旅程结束。")
             );
             _log_runtime_event(
                 "info",
@@ -1344,7 +1362,7 @@ public partial class GameRuntimeFacade : RefCounted
             && worldPersistError == (int)Error.Ok
             && flushError == (int)Error.Ok;
         _update_status(
-            _build_battle_resolution_status_message(
+            BuildBattleResolutionStatusMessageTyped(
                 battleName,
                 winnerFactionId,
                 lootCommitResult,
@@ -1405,19 +1423,28 @@ public partial class GameRuntimeFacade : RefCounted
 
     public GStringNameArray handle_misfortune_forge_result(StringName member_id, GDictionary result)
     {
+        return HandleMisfortuneForgeResult(
+            member_id,
+            SettlementServiceResult.FromDictionary(result)
+        );
+    }
+
+    public GStringNameArray HandleMisfortuneForgeResult(
+        StringName member_id,
+        SettlementServiceResult result)
+    {
         var fateRuntime = _battle_runtime?.get_fate_runtime();
         if (
             fateRuntime == null
             || member_id == ""
             || result == null
-            || result.Count == 0
         )
             return new GStringNameArray();
         var itemDefs =
             _game_session != null
                 ? _game_session.get_item_defs()
                 : new GDictionary();
-        var unlockedIds = fateRuntime.handle_misfortune_forge_result(member_id, result, itemDefs);
+        var unlockedIds = fateRuntime.HandleMisfortuneForgeResult(member_id, result, itemDefs);
         if (_character_management != null)
             _party_state = _character_management.get_party_state();
         return unlockedIds;
@@ -1446,6 +1473,18 @@ public partial class GameRuntimeFacade : RefCounted
         );
     }
 
+    internal GameRuntimeBattleWritebackService.BattleLocalWritebackResult CommitBattleLocalViewsToPartyStateTyped(
+        BattleState battleState,
+        PartyState partyState
+    )
+    {
+        _bind_runtime_sidecar_owners();
+        return _battle_writeback_service.CommitBattleLocalViewsToPartyStateTyped(
+            battleState,
+            partyState
+        );
+    }
+
     public void _report_battle_local_writeback_inoption_failure(
         GDictionary writeback_result,
         GDictionary battle_summary,
@@ -1465,8 +1504,16 @@ public partial class GameRuntimeFacade : RefCounted
     )
     {
         _bind_runtime_sidecar_owners();
-        return _battle_loot_commit_service.commit_battle_loot_to_shared_warehouse(
-            battle_resolution_result
+        return CommitBattleLootToSharedWarehouseTyped(battle_resolution_result).ToDictionary();
+    }
+
+    internal GameRuntimeBattleLootCommitService.BattleLootCommitResult CommitBattleLootToSharedWarehouseTyped(
+        BattleResolutionResult battleResolutionResult
+    )
+    {
+        _bind_runtime_sidecar_owners();
+        return _battle_loot_commit_service.CommitBattleLootToSharedWarehouseTyped(
+            battleResolutionResult
         );
     }
 
@@ -1495,6 +1542,19 @@ public partial class GameRuntimeFacade : RefCounted
             persisted_ok
         );
 
+    private string BuildBattleResolutionStatusMessageTyped(
+        string battleName,
+        string winnerFactionId,
+        GameRuntimeBattleLootCommitService.BattleLootCommitResult lootCommitResult,
+        bool persistedOk
+    ) =>
+        _battle_loot_commit_service.BuildBattleResolutionStatusMessageTyped(
+            battleName,
+            winnerFactionId,
+            lootCommitResult,
+            persistedOk
+        );
+
     public GDictionary _build_last_battle_loot_snapshot(
         string battle_name,
         string winner_faction_id,
@@ -1506,6 +1566,19 @@ public partial class GameRuntimeFacade : RefCounted
             winner_faction_id,
             battle_resolution_result,
             loot_commit_result
+        );
+
+    private GDictionary BuildLastBattleLootSnapshotTyped(
+        string battleName,
+        string winnerFactionId,
+        BattleResolutionResult battleResolutionResult,
+        GameRuntimeBattleLootCommitService.BattleLootCommitResult lootCommitResult
+    ) =>
+        _battle_loot_commit_service.BuildLastBattleLootSnapshotTyped(
+            battleName,
+            winnerFactionId,
+            battleResolutionResult,
+            lootCommitResult
         );
 
     public string _format_battle_drop_entries(GArray drop_entry_options) =>
@@ -1611,6 +1684,15 @@ public partial class GameRuntimeFacade : RefCounted
 
     public GDictionary get_settlement_state(string settlement_id) =>
         _world_map_data_context.get_settlement_state(settlement_id);
+
+    public WorldMapSettlementStateData GetSettlementStateData(string settlement_id) =>
+        _world_map_data_context.GetSettlementStateData(settlement_id);
+
+    public bool IsSettlementVisited(string settlement_id) =>
+        _world_map_data_context.IsSettlementVisited(settlement_id);
+
+    public bool MarkSettlementVisited(string settlement_id) =>
+        _world_map_data_context.MarkSettlementVisited(settlement_id);
 
     public GDictionary command_world_move(Vector2I direction) => command_world_move(direction, 1);
 
@@ -2080,11 +2162,11 @@ public partial class GameRuntimeFacade : RefCounted
             "submap",
             new GDictionary
             {
-                ["target_submap_id"] = GdInterop.GetString(_pending_submap_prompt, "target_submap_id"),
+                ["target_submap_id"] = _pending_submap_prompt.TargetSubmapId.ToString(),
             },
             () =>
             {
-                if (_pending_submap_prompt.Count == 0)
+                if (_pending_submap_prompt.IsEmpty)
                     return _command_error("当前没有待确认的子地图入口。");
                 return _confirm_pending_submap_entry();
             }
@@ -2098,13 +2180,15 @@ public partial class GameRuntimeFacade : RefCounted
             "submap",
             new GDictionary
             {
-                ["target_submap_id"] = GdInterop.GetString(_pending_submap_prompt, "target_submap_id"),
+                ["target_submap_id"] = _pending_submap_prompt.TargetSubmapId.ToString(),
             },
             () =>
             {
-                if (_pending_submap_prompt.Count == 0)
+                if (_pending_submap_prompt.IsEmpty)
                     return _command_error("当前没有待确认的子地图入口。");
-                string targetName = GdInterop.GetString(_pending_submap_prompt, "target_display_name", "子地图");
+                string targetName = string.IsNullOrEmpty(_pending_submap_prompt.TargetDisplayName)
+                    ? "子地图"
+                    : _pending_submap_prompt.TargetDisplayName;
                 _pending_submap_prompt.Clear();
                 _active_modal_id = "";
                 _update_status($"已取消进入 {targetName}。");
@@ -2296,24 +2380,32 @@ public partial class GameRuntimeFacade : RefCounted
 
     public GDictionary _command_ok(string message) => _command_ok(message, "");
 
-    public GDictionary _command_ok(string message, string battle_refresh_mode)
+    public GDictionary _command_ok(string message, string battle_refresh_mode) =>
+        FinalizeCommandResult(BuildCommandOkResult(message, battle_refresh_mode));
+
+    public GDictionary _command_error(string message) =>
+        FinalizeCommandResult(BuildCommandErrorResult(message));
+
+    private RuntimeCommandResult BuildCommandOkResult(
+        string message = "",
+        string battleRefreshMode = ""
+    )
     {
         string resolvedMessage = string.IsNullOrEmpty(message) ? _current_status_message : message;
-        var result = new GDictionary
-        {
-            ["ok"] = true,
-            ["message"] = resolvedMessage,
-            ["battle_refresh_mode"] = battle_refresh_mode,
-        };
-        _log_active_command_scope_result(result);
-        return result;
+        return RuntimeCommandResult.Success(resolvedMessage, battleRefreshMode);
     }
 
-    public GDictionary _command_error(string message)
+    private RuntimeCommandResult BuildCommandErrorResult(string message)
     {
-        if (!string.IsNullOrEmpty(message))
-            _update_status(message);
-        var result = new GDictionary { ["ok"] = false, ["message"] = message };
+        string resolvedMessage = message ?? "";
+        if (!string.IsNullOrEmpty(resolvedMessage))
+            _update_status(resolvedMessage);
+        return RuntimeCommandResult.Failure(resolvedMessage);
+    }
+
+    private GDictionary FinalizeCommandResult(RuntimeCommandResult commandResult)
+    {
+        var result = (commandResult ?? RuntimeCommandResult.Failure("")).ToDictionary();
         _log_active_command_scope_result(result);
         return result;
     }
@@ -2377,7 +2469,8 @@ public partial class GameRuntimeFacade : RefCounted
             return;
         }
         var sourceCoord = _player_coord;
-        var previousSettlement = _get_settlement_at(sourceCoord);
+        WorldMapSettlementData previousSettlement =
+            _world_map_data_context.GetSettlementAt(sourceCoord);
         var targetCoord = sourceCoord + direction;
         if (!_grid_system.is_cell_walkable(targetCoord))
         {
@@ -2385,11 +2478,11 @@ public partial class GameRuntimeFacade : RefCounted
             return;
         }
 
-        var targetSettlement = _get_settlement_at(targetCoord);
+        WorldMapSettlementData targetSettlement =
+            _world_map_data_context.GetSettlementAt(targetCoord);
         bool enteredNewSettlement =
-            targetSettlement.Count > 0
-            && GdInterop.GetString(targetSettlement, "settlement_id")
-                != GdInterop.GetString(previousSettlement, "settlement_id");
+            !targetSettlement.IsEmpty
+            && targetSettlement.SettlementId != previousSettlement.SettlementId;
         if (enteredNewSettlement)
         {
             _selected_coord = targetCoord;
@@ -2402,7 +2495,7 @@ public partial class GameRuntimeFacade : RefCounted
                 );
                 if (persistError != (int)Error.Ok)
                     _update_status(
-                        $"已打开 {GdInterop.GetString(targetSettlement, "display_name", "据点")} 的据点窗口，但世界状态持久化失败。"
+                        $"已打开 {targetSettlement.DisplayNameOrFallback("据点")} 的据点窗口，但世界状态持久化失败。"
                     );
                 return;
             }
@@ -2418,17 +2511,17 @@ public partial class GameRuntimeFacade : RefCounted
         _world_map_data_context.refresh_world_event_discovery();
         _refresh_fog();
 
-        var triggeredEvent = _get_triggerable_world_event_at(_player_coord);
-        if (triggeredEvent.Count > 0)
+        var triggeredEvent = GetTriggerableWorldEventAt(_player_coord);
+        if (triggeredEvent != null)
         {
             int playerPersistError = _game_session.set_player_coord(_player_coord);
             int worldPersistError = _game_session.set_world_data(
                 _world_map_data_context.root_world_data
             );
-            _open_world_event_prompt(triggeredEvent);
+            OpenWorldEventPrompt(triggeredEvent);
             if (playerPersistError != (int)Error.Ok || worldPersistError != (int)Error.Ok)
                 _update_status(
-                    $"{GdInterop.GetString(triggeredEvent, "display_name", "事件入口")} 已显现，但当前位置或世界状态持久化失败。"
+                    $"{ResolveWorldEventDisplayName(triggeredEvent, "事件入口")} 已显现，但当前位置或世界状态持久化失败。"
                 );
             return;
         }
@@ -2481,10 +2574,10 @@ public partial class GameRuntimeFacade : RefCounted
         int daysElapsed = advanceResult.days_elapsed;
         if (daysElapsed > 0 && _character_management != null)
         {
-            var practiceGrowthResult = _character_management.apply_daily_practice_growth(
+            var practiceGrowthResult = _character_management.ApplyDailyPracticeGrowthTyped(
                 daysElapsed
             );
-            if (GdInterop.GetBool(practiceGrowthResult, "applied"))
+            if (practiceGrowthResult.Applied)
             {
                 _party_state = _character_management.get_party_state();
                 _persist_party_state();
@@ -2503,7 +2596,7 @@ public partial class GameRuntimeFacade : RefCounted
         {
             _wild_encounter_growth_system.apply_battle_victory(
                 encounterAnchor,
-                GdInterop.GetInt(_world_map_data_context.active_world_data, "world_step"),
+                _world_map_data_context.get_world_step(),
                 _wild_encounter_rosters
             );
             return;
@@ -2553,12 +2646,9 @@ public partial class GameRuntimeFacade : RefCounted
             return;
         if (is_submap_active())
         {
-            var result = _return_from_active_submap();
-            if (
-                !GdInterop.GetBool(result, "ok")
-                && string.IsNullOrEmpty(_current_status_message)
-            )
-                _update_status(GdInterop.GetString(result, "message", "返回主地图失败。"));
+            var result = ReturnFromActiveSubmapTyped();
+            if (!result.Ok && string.IsNullOrEmpty(_current_status_message))
+                _update_status(string.IsNullOrEmpty(result.Message) ? "返回主地图失败。" : result.Message);
             return;
         }
         _selected_coord = coord;
@@ -2602,14 +2692,14 @@ public partial class GameRuntimeFacade : RefCounted
                 _update_status("该格当前不在视野中。");
             return false;
         }
-        var settlement = _get_settlement_at(coord);
-        if (settlement.Count == 0)
+        WorldMapSettlementData settlement = _world_map_data_context.GetSettlementAt(coord);
+        if (settlement.IsEmpty)
         {
             if (announce_failure)
                 _update_status("当前格没有可交互据点。");
             return false;
         }
-        _active_settlement_id = GdInterop.GetString(settlement, "settlement_id");
+        _active_settlement_id = settlement.SettlementId;
         if (
             coord == _player_coord
             || (_settlement_entry_active && _settlement_entry_target_coord == coord)
@@ -2618,47 +2708,29 @@ public partial class GameRuntimeFacade : RefCounted
         _active_settlement_feedback_text = "据点通过窗口交付，不切换到城内地图。";
         _active_modal_id = "settlement";
         _update_status(
-            $"已打开 {GdInterop.GetString(settlement, "display_name", "据点")} 的据点窗口。"
+            $"已打开 {settlement.DisplayNameOrFallback("据点")} 的据点窗口。"
         );
         return true;
     }
 
     public bool _try_open_character_info_at_world_coord(Vector2I coord)
     {
-        var npc = _get_world_npc_at(coord);
-        if (npc.Count == 0)
+        WorldMapNpcData npc = _world_map_data_context.GetWorldNpcAt(coord);
+        if (!npc.HasValidCharacterInfoFields)
             return false;
-        var fields = _normalize_world_npc_character_info_fields(npc);
-        if (fields.Count == 0)
-            return false;
-        string displayName = fields["display_name"].AsString();
-        string factionLabel = _format_faction_label(fields["faction_id"].AsString());
+        string displayName = npc.DisplayName;
+        string factionLabel = _format_faction_label(npc.FactionId);
         _active_character_info_context = new GDictionary
         {
             ["display_name"] = displayName,
             ["meta_label"] = _build_character_info_meta_label("世界 NPC", factionLabel, coord),
-            ["sections"] = _build_world_character_info_sections(npc, coord, factionLabel),
+            ["sections"] = _build_world_character_info_sections(npc.ToDictionary(), coord, factionLabel),
             ["status_label"] = "可见提示单位",
             ["source"] = "world",
         };
         _active_modal_id = "character_info";
         _update_status($"已打开 {displayName} 的人物信息窗。");
         return true;
-    }
-
-    public GDictionary _normalize_world_npc_character_info_fields(GDictionary npc)
-    {
-        var normalized = new GDictionary();
-        foreach (string fieldName in new[] { "display_name", "faction_id" })
-        {
-            if (!GdInterop.HasString(npc, fieldName))
-                return new GDictionary();
-            string value = GdInterop.GetString(npc, fieldName).Trim();
-            if (value.Length == 0)
-                return new GDictionary();
-            normalized[fieldName] = value;
-        }
-        return normalized;
     }
 
     public bool _try_open_character_info_at_battle_coord(Vector2I coord)
@@ -2981,23 +3053,56 @@ public partial class GameRuntimeFacade : RefCounted
         if (_game_session == null || quest_id == "")
             return new GDictionary();
         var questDefs = _game_session.get_quest_defs();
-        GDictionary questData = GdInterop.GetDictionary(questDefs, quest_id);
-        if (questData.Count > 0)
-            return questData.Duplicate(true);
-        if (GdInterop.GetObject<QuestDef>(questDefs, quest_id) is QuestDef questDef)
+        if (!TryGetExactStringNameKey(questDefs, quest_id, out Variant questValue))
+            return new GDictionary();
+        if (questValue.VariantType == Variant.Type.Dictionary)
+            return questValue.AsGodotDictionary().Duplicate(true);
+        if (
+            questValue.VariantType == Variant.Type.Object
+            && questValue.AsGodotObject() is QuestDef questDef
+        )
         {
             return questDef.to_dict().Duplicate(true);
         }
         return new GDictionary();
     }
 
-    public string _resolve_quest_label(StringName quest_id, GDictionary quest_data)
+    public QuestDef _get_quest_def(StringName quest_id)
     {
-        if (
-            !GdInterop.HasString(quest_data, "display_name")
-        )
-            return "";
-        return GdInterop.GetString(quest_data, "display_name").Trim();
+        if (_game_session == null || quest_id == "")
+            return null;
+        var questDefs = _game_session.get_quest_defs();
+        if (!TryGetExactStringNameKey(questDefs, quest_id, out Variant questValue))
+            return null;
+        if (questValue.VariantType == Variant.Type.Object)
+            return questValue.AsGodotObject() as QuestDef;
+        if (questValue.VariantType == Variant.Type.Dictionary)
+            return QuestDef.from_dict(questValue.AsGodotDictionary());
+        return null;
+    }
+
+    private static bool TryGetExactStringNameKey(
+        GDictionary dictionary,
+        StringName key,
+        out Variant value
+    )
+    {
+        if (dictionary == null || key == "")
+        {
+            value = default;
+            return false;
+        }
+        foreach (Variant rawKey in dictionary.Keys)
+        {
+            if (rawKey.VariantType != Variant.Type.StringName)
+                continue;
+            if (rawKey.AsStringName() != key)
+                continue;
+            value = dictionary[rawKey];
+            return true;
+        }
+        value = default;
+        return false;
     }
 
     public GDictionary _quest_progress_summary_to_string_dict(GDictionary summary)
@@ -3038,29 +3143,25 @@ public partial class GameRuntimeFacade : RefCounted
 
     public string _build_quest_claim_reward_summary_text(GDictionary claim_result)
     {
-        var rewardParts = new System.Collections.Generic.List<string>();
-        int goldDelta = GdInterop.GetInt(claim_result, "gold_delta");
+        var rewardParts = new List<string>();
+        int goldDelta = DictInt(claim_result, "gold_delta", 0);
         if (goldDelta > 0)
             rewardParts.Add($"{goldDelta} 金");
-        foreach (GDictionary rewardData in GdInterop.ReadDictionaryItems(
-            DictArray(claim_result, "item_rewards")
-        ))
+        foreach (GDictionary rewardData in ReadDictionaryItems(DictArray(claim_result, "item_rewards")))
         {
-            int quantity = GdInterop.GetInt(rewardData, "quantity");
-            if (
-                quantity <= 0
-                || !GdInterop.HasString(rewardData, "display_name")
-            )
+            int quantity = DictInt(rewardData, "quantity", 0);
+            string label = DictString(rewardData, "display_name", "").Trim();
+            if (quantity <= 0 || label.Length == 0)
                 continue;
-            string label = GdInterop.GetString(rewardData, "display_name").Trim();
-            if (label.Length > 0)
-                rewardParts.Add($"{label} x{quantity}");
+            rewardParts.Add($"{label} x{quantity}");
         }
-        foreach (GDictionary rewardData in GdInterop.ReadDictionaryItems(
-            DictArray(claim_result, "pending_character_rewards")
-        ))
+        foreach (
+            GDictionary rewardData in ReadDictionaryItems(
+                DictArray(claim_result, "pending_character_rewards")
+            )
+        )
         {
-            string memberName = GdInterop.GetString(rewardData, "member_name").Trim();
+            string memberName = DictString(rewardData, "member_name", "").Trim();
             rewardParts.Add(memberName.Length > 0 ? $"{memberName}的角色奖励" : "角色奖励");
         }
         return string.Join("、", rewardParts);
@@ -3220,8 +3321,7 @@ public partial class GameRuntimeFacade : RefCounted
             return false;
         foreach (StringName allyUnitId in _battle_state.ally_unit_ids)
         {
-            var unitState =
-                GdInterop.GetObject(_battle_state.units, allyUnitId) as BattleUnitState;
+            _battle_state.TryGetUnitTyped(allyUnitId, out BattleUnitState unitState);
             if (
                 unitState == null
                 || ProgressionDataUtils.to_string_name(unitState.source_member_id) != memberId
@@ -3258,11 +3358,7 @@ public partial class GameRuntimeFacade : RefCounted
     {
         if (settlement_id.Length == 0)
             return;
-        var settlementState = get_settlement_state(settlement_id);
-        if (GdInterop.GetBool(settlementState, "visited"))
-            return;
-        settlementState["visited"] = true;
-        set_active_settlement_state(settlement_id, settlementState);
+        MarkSettlementVisited(settlement_id);
     }
 
     public void _activate_settlement_entry_context(Vector2I source_coord, Vector2I target_coord)
@@ -3306,8 +3402,14 @@ public partial class GameRuntimeFacade : RefCounted
     {
         SkillDef skillDef = null;
         if (_game_session != null)
-            skillDef =
-                GdInterop.GetObject(_game_session.get_skill_defs(), skill_id) as SkillDef;
+        if (
+            _game_session != null
+            && TryGetDictionaryValue(_game_session.get_skill_defs(), skill_id, out Variant skillValue)
+            && skillValue.VariantType == Variant.Type.Object
+        )
+        {
+            skillDef = skillValue.AsGodotObject() as SkillDef;
+        }
         if (skillDef != null && !string.IsNullOrEmpty(skillDef.display_name))
             return skillDef.display_name;
         return skill_id.ToString();
@@ -3323,10 +3425,10 @@ public partial class GameRuntimeFacade : RefCounted
 
     public string _build_equipment_error_message(GDictionary result, bool is_equip_action)
     {
-        var memberId = GdInterop.GetStringName(result, "member_id");
-        string slotLabel = GdInterop.GetString(result, "slot_label", "装备槽");
-        var itemId = GdInterop.GetStringName(result, "item_id");
-        return GdInterop.GetString(result, "error_code") switch
+        var memberId = DictStringName(result, "member_id");
+        string slotLabel = DictString(result, "slot_label", "装备槽");
+        var itemId = DictStringName(result, "item_id");
+        return DictString(result, "error_code") switch
         {
             "member_not_found" => $"未找到队伍成员 {memberId}。",
             "item_not_found" => $"未找到物品定义 {itemId}。",
@@ -3372,7 +3474,13 @@ public partial class GameRuntimeFacade : RefCounted
     public bool _is_battle_active() => _battle_state != null && !_battle_state.is_empty();
 
     public bool _has_pending_battle_generation_request() =>
-        _pending_battle_generation_request.Count > 0;
+        !_pending_battle_generation_request.IsEmpty;
+
+    internal GameRuntimePendingBattleGenerationRequest GetPendingBattleGenerationRequestState() =>
+        _pending_battle_generation_request;
+
+    internal void ClearPendingBattleGenerationRequest() =>
+        _pending_battle_generation_request.Clear();
 
     public bool _is_adjacent_4(Vector2I from_coord, Vector2I to_coord) =>
         Math.Abs(from_coord.X - to_coord.X) + Math.Abs(from_coord.Y - to_coord.Y) == 1;
@@ -3382,14 +3490,14 @@ public partial class GameRuntimeFacade : RefCounted
     public void _sync_active_world_context()
     {
         _save_active_fog_state_to_world_data();
-        var syncResult = _world_map_data_context.sync_active_world_context(
+        WorldMapContextSyncResult syncResult = _world_map_data_context.SyncActiveWorldContext(
             _generation_config,
             _grid_system,
             _player_coord,
             _selected_coord
         );
-        _player_coord = GdInterop.GetVector2I(syncResult, "player_coord", _player_coord);
-        _selected_coord = GdInterop.GetVector2I(syncResult, "selected_coord", _selected_coord);
+        _player_coord = syncResult.PlayerCoord;
+        _selected_coord = syncResult.SelectedCoord;
         if (_world_map_data_context.active_generation_config != null)
         {
             _fog_system.setup(
@@ -3403,34 +3511,12 @@ public partial class GameRuntimeFacade : RefCounted
         }
     }
 
-    public GDictionary _get_active_world_fog_state()
-    {
-        var activeWorldData = _world_map_data_context.active_world_data;
-        if (activeWorldData.Count == 0)
-            return new GDictionary();
-        return GdInterop.GetDictionary(activeWorldData, WorldMapFogSystem.WORLD_DATA_FOG_STATES_KEY_ID());
-    }
+    public GDictionary _get_active_world_fog_state() =>
+        _world_map_data_context.GetActiveWorldFogState();
 
     public void _save_active_fog_state_to_world_data()
     {
-        if (
-            _world_map_data_context.active_world_data.Count == 0
-            || _world_map_data_context.active_generation_config == null
-            || _fog_system == null
-        )
-            return;
-        _world_map_data_context.active_world_data[
-            WorldMapFogSystem.WORLD_DATA_FOG_STATES_KEY_ID()
-        ] = _fog_system.export_persistent_state();
-        if (_world_map_data_context.is_submap_active())
-        {
-            var submapEntry = _get_mounted_submap_entry(_world_map_data_context.active_map_id);
-            if (submapEntry.Count > 0)
-            {
-                submapEntry["world_data"] = _world_map_data_context.active_world_data;
-                _set_mounted_submap_entry(_world_map_data_context.active_map_id, submapEntry);
-            }
-        }
+        _world_map_data_context.SaveActiveWorldFogState(_fog_system);
     }
 
     public GDictionary _get_world_event_at(Vector2I coord)
@@ -3439,63 +3525,82 @@ public partial class GameRuntimeFacade : RefCounted
         return worldEvent.Count > 0 ? worldEvent.Duplicate(true) : new GDictionary();
     }
 
-    public GDictionary _get_triggerable_world_event_at(Vector2I coord)
+    private WorldMapEventData GetTriggerableWorldEventAt(Vector2I coord)
     {
-        var worldEvent = _get_world_event_at(coord);
-        if (worldEvent.Count == 0)
-            return new GDictionary();
-        if (!GdInterop.GetBool(worldEvent, "is_discovered"))
-            return new GDictionary();
-        if (GdInterop.GetString(worldEvent, "event_type") != "enter_submap")
-            return new GDictionary();
-        if (GdInterop.GetString(worldEvent, "target_submap_id").Length == 0)
-            return new GDictionary();
-        return worldEvent;
+        WorldMapEventData worldEvent = _world_map_data_context.GetWorldEventAt(coord);
+        return worldEvent != null && worldEvent.IsTriggerableSubmapEntry ? worldEvent : null;
     }
 
-    public void _open_world_event_prompt(GDictionary world_event)
+    private void OpenWorldEventPrompt(WorldMapEventData worldEvent)
     {
-        string targetSubmapId = GdInterop.GetString(world_event, "target_submap_id");
+        if (worldEvent == null)
+        {
+            return;
+        }
+        string targetSubmapId = worldEvent.TargetSubmapId.ToString();
         var submapEntry = _get_mounted_submap_entry(targetSubmapId);
         if (submapEntry.Count == 0)
         {
             _update_status($"未找到目标子地图 {targetSubmapId}。");
             return;
         }
-        string targetName = GdInterop.GetString(submapEntry, "display_name", targetSubmapId);
-        string promptTitle = GdInterop.GetString(world_event, "prompt_title", "进入子地图");
+        string targetName = _world_map_data_context.GetMountedSubmapDisplayName(
+            targetSubmapId,
+            targetSubmapId
+        );
+        string promptTitle = string.IsNullOrEmpty(worldEvent.PromptTitle)
+            ? "进入子地图"
+            : worldEvent.PromptTitle;
         if (promptTitle.Length == 0)
             promptTitle = $"进入 {targetName}";
-        string promptText = GdInterop.GetString(world_event, "prompt_text");
+        string promptText = worldEvent.PromptText;
         if (promptText.Length == 0)
             promptText = $"确认后将进入 {targetName}，返回时会回到当前坐标。";
-        _pending_submap_prompt = new GDictionary
-        {
-            ["event_id"] = GdInterop.GetString(world_event, "event_id"),
-            ["source_map_id"] = _world_map_data_context.active_map_id,
-            ["source_coord"] = _player_coord,
-            ["target_submap_id"] = targetSubmapId,
-            ["target_display_name"] = targetName,
-            ["title"] = promptTitle,
-            ["description"] = promptText,
-        };
+        _pending_submap_prompt.Set(
+            worldEvent.EventId,
+            _world_map_data_context.active_map_id,
+            _player_coord,
+            worldEvent.TargetSubmapId,
+            targetName,
+            promptTitle,
+            promptText
+        );
         _active_modal_id = "submap_confirm";
         _update_status(
-            $"已发现 {GdInterop.GetString(world_event, "display_name", targetName)}，确认后可进入。"
+            $"已发现 {ResolveWorldEventDisplayName(worldEvent, targetName)}，确认后可进入。"
         );
     }
 
+    private static string ResolveWorldEventDisplayName(
+        WorldMapEventData worldEvent,
+        string fallback
+    )
+    {
+        if (worldEvent == null || string.IsNullOrEmpty(worldEvent.DisplayName))
+        {
+            return fallback;
+        }
+        return worldEvent.DisplayName;
+    }
+
+    internal GameRuntimePendingSubmapPrompt GetPendingSubmapPromptState() =>
+        _pending_submap_prompt;
+
     public GDictionary _confirm_pending_submap_entry()
     {
-        var prompt = _pending_submap_prompt.Duplicate(true);
-        if (prompt.Count == 0)
-            return _command_error("当前没有待确认的子地图入口。");
-        var result = _enter_submap(
-            GdInterop.GetString(prompt, "target_submap_id"),
-            GdInterop.GetString(prompt, "source_map_id"),
-            GdInterop.GetVector2I(prompt, "source_coord", _player_coord)
+        return FinalizeCommandResult(ConfirmPendingSubmapEntryTyped());
+    }
+
+    private RuntimeCommandResult ConfirmPendingSubmapEntryTyped()
+    {
+        if (_pending_submap_prompt.IsEmpty)
+            return BuildCommandErrorResult("当前没有待确认的子地图入口。");
+        var result = EnterSubmapTyped(
+            _pending_submap_prompt.TargetSubmapId.ToString(),
+            _pending_submap_prompt.SourceMapId,
+            _pending_submap_prompt.SourceCoord
         );
-        if (GdInterop.GetBool(result, "ok"))
+        if (result.Ok)
         {
             _pending_submap_prompt.Clear();
             _active_modal_id = "";
@@ -3505,25 +3610,27 @@ public partial class GameRuntimeFacade : RefCounted
 
     public GDictionary _enter_submap(string submap_id, string source_map_id, Vector2I source_coord)
     {
+        return FinalizeCommandResult(EnterSubmapTyped(submap_id, source_map_id, source_coord));
+    }
+
+    private RuntimeCommandResult EnterSubmapTyped(
+        string submap_id,
+        string source_map_id,
+        Vector2I source_coord
+    )
+    {
         if (_game_session == null)
-            return _command_error("游戏会话不可用，无法进入子地图。");
+            return BuildCommandErrorResult("游戏会话不可用，无法进入子地图。");
         if (submap_id.Length == 0)
-            return _command_error("子地图标识不能为空。");
-        if (!_ensure_submap_generated(submap_id))
-            return _command_error("子地图生成失败。");
-        var submapEntry = _get_mounted_submap_entry(submap_id);
-        if (submapEntry.Count == 0)
-            return _command_error("未找到目标子地图。");
-        var returnStack = DictArray(_world_map_data_context.root_world_data, "submap_return_stack");
-        returnStack.Add(new GDictionary { ["map_id"] = source_map_id, ["coord"] = source_coord });
-        _world_map_data_context.root_world_data["submap_return_stack"] = returnStack;
-        _world_map_data_context.root_world_data["active_submap_id"] = submap_id;
-        var targetWorldData = GdInterop.GetDictionary(submapEntry, "world_data");
-        _player_coord = GdInterop.GetVector2I(
-            submapEntry,
-            "player_coord",
-            GdInterop.GetVector2I(targetWorldData, "player_start_coord")
+            return BuildCommandErrorResult("子地图标识不能为空。");
+        WorldMapSubmapEnterResult enterResult = _world_map_data_context.EnterSubmap(
+            submap_id,
+            source_map_id,
+            source_coord
         );
+        if (!enterResult.Ok)
+            return BuildCommandErrorResult(enterResult.Message);
+        _player_coord = enterResult.PlayerCoord;
         _selected_coord = _player_coord;
         _active_settlement_id = "";
         _active_settlement_feedback_text = "";
@@ -3537,7 +3644,7 @@ public partial class GameRuntimeFacade : RefCounted
         int commitError = (int)Error.Ok;
         if (playerPersistError == (int)Error.Ok && worldPersistError == (int)Error.Ok)
             commitError = _commit_runtime_state("submap_entry");
-        string targetName = GdInterop.GetString(submapEntry, "display_name", submap_id);
+        string targetName = enterResult.TargetDisplayName;
         if (
             playerPersistError != (int)Error.Ok
             || worldPersistError != (int)Error.Ok
@@ -3545,35 +3652,28 @@ public partial class GameRuntimeFacade : RefCounted
         )
         {
             _update_status($"已进入 {targetName}，但世界状态持久化失败。");
-            return _command_error(_current_status_message);
+            return BuildCommandErrorResult(_current_status_message);
         }
         _update_status($"已进入 {targetName}。{get_submap_return_hint_text()}");
-        return _command_ok();
+        return BuildCommandOkResult();
     }
 
     public GDictionary _return_from_active_submap()
     {
+        return FinalizeCommandResult(ReturnFromActiveSubmapTyped());
+    }
+
+    private RuntimeCommandResult ReturnFromActiveSubmapTyped()
+    {
         if (_game_session == null)
-            return _command_error("游戏会话不可用，无法返回主地图。");
+            return BuildCommandErrorResult("游戏会话不可用，无法返回主地图。");
         if (!is_submap_active())
-            return _command_error("当前不在子地图中。");
-        var submapEntry = _get_mounted_submap_entry(_world_map_data_context.active_map_id);
-        if (submapEntry.Count > 0)
-        {
-            submapEntry["player_coord"] = _player_coord;
-            _set_mounted_submap_entry(_world_map_data_context.active_map_id, submapEntry);
-        }
-        var returnStack = DictArray(_world_map_data_context.root_world_data, "submap_return_stack");
-        if (returnStack.Count == 0)
-            return _command_error("当前没有可返回的原坐标。");
-        var returnEntryValue = returnStack[returnStack.Count - 1];
-        returnStack.RemoveAt(returnStack.Count - 1);
-        var returnEntry = GdInterop.TryUnboxToDictionary(returnEntryValue, out var typedReturnEntry)
-            ? typedReturnEntry
-            : new GDictionary();
-        _world_map_data_context.root_world_data["submap_return_stack"] = returnStack;
-        _world_map_data_context.root_world_data["active_submap_id"] = GdInterop.GetString(returnEntry, "map_id");
-        _player_coord = GdInterop.GetVector2I(returnEntry, "coord");
+            return BuildCommandErrorResult("当前不在子地图中。");
+        WorldMapSubmapReturnResult returnResult =
+            _world_map_data_context.ReturnFromActiveSubmap(_player_coord);
+        if (!returnResult.Ok)
+            return BuildCommandErrorResult(returnResult.Message);
+        _player_coord = returnResult.PlayerCoord;
         _selected_coord = _player_coord;
         _active_settlement_id = "";
         _active_settlement_feedback_text = "";
@@ -3596,10 +3696,10 @@ public partial class GameRuntimeFacade : RefCounted
         )
         {
             _update_status("已返回原位置，但世界状态持久化失败。");
-            return _command_error(_current_status_message);
+            return BuildCommandErrorResult(_current_status_message);
         }
         _update_status($"已返回原位置 {_format_coord(_player_coord)}。");
-        return _command_ok();
+        return BuildCommandOkResult();
     }
 
     public bool _ensure_submap_generated(string submap_id) =>
@@ -3616,7 +3716,101 @@ public partial class GameRuntimeFacade : RefCounted
 
     private static GArray DictArray(GDictionary dictionary, object key)
     {
-        return GdInterop.GetArray(dictionary, key);
+        if (!TryGetDictionaryValue(dictionary, key, out Variant value))
+            return new GArray();
+        return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : new GArray();
+    }
+
+    private static GDictionary DictDictionary(GDictionary dictionary, object key)
+    {
+        if (!TryGetDictionaryValue(dictionary, key, out Variant value))
+            return new GDictionary();
+        return value.VariantType == Variant.Type.Dictionary
+            ? value.AsGodotDictionary()
+            : new GDictionary();
+    }
+
+    private static int DictInt(GDictionary dictionary, object key, int fallback = 0)
+    {
+        if (!TryGetDictionaryValue(dictionary, key, out Variant value))
+            return fallback;
+        return value.VariantType == Variant.Type.Nil ? fallback : value.AsInt32();
+    }
+
+    private static string DictString(GDictionary dictionary, object key, string fallback = "")
+    {
+        if (!TryGetDictionaryValue(dictionary, key, out Variant value))
+            return fallback;
+        return value.VariantType == Variant.Type.Nil ? fallback : value.ToString();
+    }
+
+    private static StringName DictStringName(
+        GDictionary dictionary,
+        object key,
+        StringName fallback = default
+    )
+    {
+        if (!TryGetDictionaryValue(dictionary, key, out Variant value))
+            return fallback ?? new StringName("");
+        return ProgressionDataUtils.to_string_name(value);
+    }
+
+    private static IEnumerable<GDictionary> ReadDictionaryItems(GArray values)
+    {
+        if (values == null)
+            yield break;
+        foreach (Variant value in values)
+        {
+            if (value.VariantType == Variant.Type.Dictionary)
+                yield return value.AsGodotDictionary();
+        }
+    }
+
+    private static bool TryGetDictionaryValue(
+        GDictionary dictionary,
+        object key,
+        out Variant value
+    )
+    {
+        if (dictionary == null)
+        {
+            value = default;
+            return false;
+        }
+        Variant variantKey = key switch
+        {
+            Variant valueKey => valueKey,
+            string stringKey => stringKey,
+            StringName stringNameKey => stringNameKey,
+            int intKey => intKey,
+            long longKey => longKey,
+            _ => default,
+        };
+        if (dictionary.ContainsKey(variantKey))
+        {
+            value = dictionary[variantKey];
+            return true;
+        }
+        if (variantKey.VariantType == Variant.Type.String)
+        {
+            StringName stringNameKey = new(variantKey.AsString());
+            if (dictionary.ContainsKey(stringNameKey))
+            {
+                value = dictionary[stringNameKey];
+                return true;
+            }
+        }
+        else if (variantKey.VariantType == Variant.Type.StringName)
+        {
+            string stringKey = variantKey.AsStringName().ToString();
+            if (dictionary.ContainsKey(stringKey))
+            {
+                value = dictionary[stringKey];
+                return true;
+            }
+        }
+        value = default;
+        return false;
     }
 
     private static GDictionary CoordDict(Vector2I coord) =>
@@ -3631,18 +3825,18 @@ public partial class GameRuntimeFacade : RefCounted
     private static void SortDictionaryArray(GArray values, string numericKey, string stringTieKey)
     {
         var list = new System.Collections.Generic.List<GDictionary>();
-        foreach (GDictionary value in GdInterop.ReadDictionaryItems(values))
+        foreach (GDictionary value in ReadDictionaryItems(values))
             list.Add(value);
         list.Sort(
             (left, right) =>
             {
-                int leftValue = GdInterop.GetInt(left, numericKey);
-                int rightValue = GdInterop.GetInt(right, numericKey);
+                int leftValue = DictInt(left, numericKey);
+                int rightValue = DictInt(right, numericKey);
                 if (leftValue != rightValue)
                     return leftValue.CompareTo(rightValue);
                 return string.CompareOrdinal(
-                    GdInterop.GetString(left, stringTieKey),
-                    GdInterop.GetString(right, stringTieKey)
+                    DictString(left, stringTieKey),
+                    DictString(right, stringTieKey)
                 );
             }
         );
@@ -3680,7 +3874,7 @@ public partial class GameRuntimeFacade : RefCounted
         GDictionary lowLuckEventResult,
         GDictionary questSummary,
         BattleResolutionResult battleResolutionResult,
-        GDictionary lootCommitResult,
+        GameRuntimeBattleLootCommitService.BattleLootCommitResult lootCommitResult,
         bool saveSkipped,
         int partyPersistError,
         int worldPersistError,
@@ -3708,12 +3902,12 @@ public partial class GameRuntimeFacade : RefCounted
             ),
             ["loot_entry_count"] = battleResolutionResult.loot_entries.Count,
             ["overflow_entry_count"] = battleResolutionResult.overflow_entries.Count,
-            ["loot_commit_ok"] = GdInterop.GetBool(lootCommitResult, "ok"),
-            ["loot_commit_error_code"] = GdInterop.GetString(lootCommitResult, "error_code"),
-            ["loot_commit_blocked_item_id"] = GdInterop.GetString(lootCommitResult, "blocked_item_id"),
-            ["loot_committed_item_count"] = GdInterop.GetInt(lootCommitResult, "committed_item_count"),
-            ["loot_overflow_entries"] = DictArray(lootCommitResult, "overflow_entries")
-                .Duplicate(true),
+            ["loot_commit_ok"] = lootCommitResult?.Ok ?? false,
+            ["loot_commit_error_code"] = lootCommitResult?.ErrorCode ?? "",
+            ["loot_commit_blocked_item_id"] = lootCommitResult?.BlockedItemId ?? "",
+            ["loot_committed_item_count"] = lootCommitResult?.CommittedItemCount ?? 0,
+            ["loot_overflow_entries"] = lootCommitResult?.OverflowEntries.Duplicate(true)
+                ?? new GArray(),
             ["quest_progress_summary"] = _quest_progress_summary_to_string_dict(questSummary),
             ["save_skipped"] = saveSkipped,
             ["party_persist_error"] = partyPersistError,

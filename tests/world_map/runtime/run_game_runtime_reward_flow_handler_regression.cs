@@ -119,10 +119,18 @@ public partial class run_game_runtime_reward_flow_handler_regression : SceneTree
             AssertEq(runtime._current_status_message, "已关闭队伍管理窗口。", "party close 应刷新正式状态文案。");
 
             runtime._active_modal_id = "submap_confirm";
-            runtime._pending_submap_prompt = new GDictionary { ["target_display_name"] = "古塔" };
+            runtime.GetPendingSubmapPromptState().Set(
+                "",
+                "",
+                Vector2I.Zero,
+                "ancient_tower",
+                "古塔",
+                "",
+                ""
+            );
             GDictionary submapClose = handler.command_close_active_modal();
             AssertTrue(DictBool(submapClose, "ok", false), "submap_confirm modal 应可通过 reward handler 路由取消。");
-            AssertEq(runtime._pending_submap_prompt.Count, 0, "submap_confirm close 后应清空 pending submap prompt。");
+            AssertEq(runtime.get_pending_submap_prompt().Count, 0, "submap_confirm close 后应清空 pending submap prompt。");
             AssertEq(runtime._active_modal_id, "", "submap_confirm close 后应清空 modal。");
             AssertEq(runtime._current_status_message, "已取消进入 古塔。", "submap_confirm close 应刷新正式状态文案。");
 

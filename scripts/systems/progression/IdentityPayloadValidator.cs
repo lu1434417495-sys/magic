@@ -148,13 +148,16 @@ public partial class IdentityPayloadValidator : RefCounted
         var ascensionStageId = memberState.ascension_stage_id;
         if (ascensionStageId != "")
         {
-            var ascensionStageDef = contentSource.GetContentDef(
+            var ascensionStageDef = contentSource.GetContentDef<AscensionStageDef>(
                 "get_ascension_stage_defs",
                 "ascension_stage_defs",
                 "ascension_stage",
                 ascensionStageId
             );
-            var ascensionBodySize = DefStringName(ascensionStageDef, "body_size_category_override");
+            StringName ascensionBodySize =
+                ascensionStageDef != null
+                    ? ascensionStageDef.body_size_category_override
+                    : new StringName("");
             if (
                 ascensionBodySize != ""
                 && BodySizeRules.is_valid_body_size_category(ascensionBodySize)
@@ -163,24 +166,26 @@ public partial class IdentityPayloadValidator : RefCounted
         }
 
         var subraceId = memberState.subrace_id;
-        var subraceDef = contentSource.GetContentDef(
+        var subraceDef = contentSource.GetContentDef<SubraceDef>(
             "get_subrace_defs",
             "subrace_defs",
             "subrace",
             subraceId
         );
-        var subraceBodySize = DefStringName(subraceDef, "body_size_category_override");
+        StringName subraceBodySize =
+            subraceDef != null ? subraceDef.body_size_category_override : new StringName("");
         if (subraceBodySize != "" && BodySizeRules.is_valid_body_size_category(subraceBodySize))
             return subraceBodySize;
 
         var raceId = memberState.race_id;
-        var raceDef = contentSource.GetContentDef(
+        var raceDef = contentSource.GetContentDef<RaceDef>(
             "get_race_defs",
             "race_defs",
             "race",
             raceId
         );
-        var raceBodySize = DefStringName(raceDef, "body_size_category");
+        StringName raceBodySize =
+            raceDef != null ? raceDef.body_size_category : new StringName("");
         if (raceBodySize != "" && BodySizeRules.is_valid_body_size_category(raceBodySize))
             return raceBodySize;
         return "";
@@ -222,7 +227,7 @@ public partial class IdentityPayloadValidator : RefCounted
         return true;
     }
 
-    private static GodotObject ValidateRace(
+    private static RaceDef ValidateRace(
         Godot.Collections.Array<string> errors,
         string label,
         StringName raceId,
@@ -234,13 +239,18 @@ public partial class IdentityPayloadValidator : RefCounted
             errors.Add($"member {label} must have race_id");
             return default;
         }
-        var raceDef = contentSource.GetContentDef("get_race_defs", "race_defs", "race", raceId);
+        var raceDef = contentSource.GetContentDef<RaceDef>(
+            "get_race_defs",
+            "race_defs",
+            "race",
+            raceId
+        );
         if (raceDef == null)
             errors.Add($"member {label} references missing race {(string)raceId}");
         return raceDef;
     }
 
-    private static GodotObject ValidateSubrace(
+    private static SubraceDef ValidateSubrace(
         Godot.Collections.Array<string> errors,
         string label,
         StringName subraceId,
@@ -252,7 +262,7 @@ public partial class IdentityPayloadValidator : RefCounted
             errors.Add($"member {label} must have subrace_id");
             return default;
         }
-        var subraceDef = contentSource.GetContentDef(
+        var subraceDef = contentSource.GetContentDef<SubraceDef>(
             "get_subrace_defs",
             "subrace_defs",
             "subrace",
@@ -268,20 +278,20 @@ public partial class IdentityPayloadValidator : RefCounted
         string label,
         StringName raceId,
         StringName subraceId,
-        GodotObject raceDef,
-        GodotObject subraceDef
+        RaceDef raceDef,
+        SubraceDef subraceDef
     )
     {
         if (raceDef == null || subraceDef == null || raceId == "" || subraceId == "")
             return;
 
-        var parentRaceId = DefStringName(subraceDef, "parent_race_id");
+        var parentRaceId = subraceDef.parent_race_id;
         if (parentRaceId != raceId)
             errors.Add(
                 $"member {label} subrace {(string)subraceId} parent_race_id must be {(string)raceId}, got {(string)parentRaceId}"
             );
 
-        var raceSubraceIds = DefStringNameArray(raceDef, "subrace_ids");
+        var raceSubraceIds = raceDef.subrace_ids ?? new Godot.Collections.Array<StringName>();
         if (!raceSubraceIds.Contains(subraceId))
             errors.Add(
                 $"member {label} race {(string)raceId} must list subrace {(string)subraceId} in subrace_ids"
@@ -306,13 +316,13 @@ public partial class IdentityPayloadValidator : RefCounted
             return;
         }
 
-        var bloodlineDef = contentSource.GetContentDef(
+        var bloodlineDef = contentSource.GetContentDef<BloodlineDef>(
             "get_bloodline_defs",
             "bloodline_defs",
             "bloodline",
             bloodlineId
         );
-        var stageDef = contentSource.GetContentDef(
+        var stageDef = contentSource.GetContentDef<BloodlineStageDef>(
             "get_bloodline_stage_defs",
             "bloodline_stage_defs",
             "bloodline_stage",
@@ -327,10 +337,11 @@ public partial class IdentityPayloadValidator : RefCounted
         if (bloodlineDef == null || stageDef == null)
             return;
 
-        var declaredBloodlineId = DefStringName(bloodlineDef, "bloodline_id");
-        var declaredStageId = DefStringName(stageDef, "stage_id");
-        var stageParentBloodlineId = DefStringName(stageDef, "bloodline_id");
-        var bloodlineStageIds = DefStringNameArray(bloodlineDef, "stage_ids");
+        var declaredBloodlineId = bloodlineDef.bloodline_id;
+        var declaredStageId = stageDef.stage_id;
+        var stageParentBloodlineId = stageDef.bloodline_id;
+        var bloodlineStageIds =
+            bloodlineDef.stage_ids ?? new Godot.Collections.Array<StringName>();
         if (
             declaredBloodlineId != bloodlineId
             || declaredStageId != bloodlineStageId
@@ -363,13 +374,13 @@ public partial class IdentityPayloadValidator : RefCounted
             return;
         }
 
-        var ascensionDef = contentSource.GetContentDef(
+        var ascensionDef = contentSource.GetContentDef<AscensionDef>(
             "get_ascension_defs",
             "ascension_defs",
             "ascension",
             ascensionId
         );
-        var stageDef = contentSource.GetContentDef(
+        var stageDef = contentSource.GetContentDef<AscensionStageDef>(
             "get_ascension_stage_defs",
             "ascension_stage_defs",
             "ascension_stage",
@@ -384,10 +395,11 @@ public partial class IdentityPayloadValidator : RefCounted
         if (ascensionDef == null || stageDef == null)
             return;
 
-        var declaredAscensionId = DefStringName(ascensionDef, "ascension_id");
-        var declaredStageId = DefStringName(stageDef, "stage_id");
-        var stageParentAscensionId = DefStringName(stageDef, "ascension_id");
-        var ascensionStageIds = DefStringNameArray(ascensionDef, "stage_ids");
+        var declaredAscensionId = ascensionDef.ascension_id;
+        var declaredStageId = stageDef.stage_id;
+        var stageParentAscensionId = stageDef.ascension_id;
+        var ascensionStageIds =
+            ascensionDef.stage_ids ?? new Godot.Collections.Array<StringName>();
         if (
             declaredAscensionId != ascensionId
             || declaredStageId != ascensionStageId
@@ -416,22 +428,25 @@ public partial class IdentityPayloadValidator : RefCounted
         StringName subraceId,
         StringName bloodlineId,
         StringName ascensionId,
-        GodotObject ascensionDef
+        AscensionDef ascensionDef
     )
     {
-        var allowedRaceIds = DefStringNameArray(ascensionDef, "allowed_race_ids");
+        var allowedRaceIds =
+            ascensionDef.allowed_race_ids ?? new Godot.Collections.Array<StringName>();
         if (allowedRaceIds.Count > 0 && !allowedRaceIds.Contains(raceId))
             errors.Add(
                 $"member {label} ascension {(string)ascensionId} does not allow race {(string)raceId}"
             );
 
-        var allowedSubraceIds = DefStringNameArray(ascensionDef, "allowed_subrace_ids");
+        var allowedSubraceIds =
+            ascensionDef.allowed_subrace_ids ?? new Godot.Collections.Array<StringName>();
         if (allowedSubraceIds.Count > 0 && !allowedSubraceIds.Contains(subraceId))
             errors.Add(
                 $"member {label} ascension {(string)ascensionId} does not allow subrace {(string)subraceId}"
             );
 
-        var allowedBloodlineIds = DefStringNameArray(ascensionDef, "allowed_bloodline_ids");
+        var allowedBloodlineIds =
+            ascensionDef.allowed_bloodline_ids ?? new Godot.Collections.Array<StringName>();
         if (allowedBloodlineIds.Count > 0 && !allowedBloodlineIds.Contains(bloodlineId))
             errors.Add(
                 $"member {label} ascension {(string)ascensionId} does not allow bloodline {(string)bloodlineId}"
@@ -443,44 +458,6 @@ public partial class IdentityPayloadValidator : RefCounted
         return memberState != null && memberState.member_id != ""
             ? (string)memberState.member_id
             : "<unknown>";
-    }
-
-    private static StringName DefStringName(GodotObject def, string propertyName)
-    {
-        if (def == null)
-            return "";
-        var value = def.Get(propertyName);
-        return value.VariantType switch
-        {
-            Variant.Type.StringName => value.AsStringName(),
-            Variant.Type.String => new StringName(value.AsString()),
-            _ => new StringName(""),
-        };
-    }
-
-    private static Godot.Collections.Array<StringName> DefStringNameArray(
-        GodotObject def,
-        string propertyName
-    )
-    {
-        var result = new Godot.Collections.Array<StringName>();
-        if (def == null)
-            return result;
-        var value = def.Get(propertyName);
-        if (value.VariantType != Variant.Type.Array)
-            return result;
-        foreach (var item in value.AsGodotArray())
-        {
-            var parsed = item.VariantType switch
-            {
-                Variant.Type.StringName => item.AsStringName(),
-                Variant.Type.String => new StringName(item.AsString()),
-                _ => new StringName(""),
-            };
-            if (parsed != "")
-                result.Add(parsed);
-        }
-        return result;
     }
 
     private readonly struct IdentityContentSourceRef
@@ -506,16 +483,19 @@ public partial class IdentityPayloadValidator : RefCounted
             return registry != null ? new IdentityContentSourceRef(null, registry) : new();
         }
 
-        internal GodotObject GetContentDef(
+        internal T GetContentDef<T>(
             string methodName,
             string primaryBucketName,
             string aliasBucketName,
             StringName defId
-        )
+        ) where T : class
         {
             if (defId == "")
                 return null;
-            return LookupBucketEntry(GetContentBucket(methodName, primaryBucketName, aliasBucketName), defId);
+            return LookupBucketEntry<T>(
+                GetContentBucket(methodName, primaryBucketName, aliasBucketName),
+                defId
+            );
         }
 
         private Godot.Collections.Dictionary GetContentBucket(
@@ -555,23 +535,23 @@ public partial class IdentityPayloadValidator : RefCounted
             return new Godot.Collections.Dictionary();
         }
 
-        private static GodotObject LookupBucketEntry(
+        private static T LookupBucketEntry<T>(
             Godot.Collections.Dictionary bucket,
             StringName defId
-        )
+        ) where T : class
         {
             if (bucket == null || defId == "")
                 return null;
             if (bucket.ContainsKey(defId))
             {
-                GodotObject stringNameValue = bucket[defId].AsGodotObject();
+                T stringNameValue = bucket[defId].AsGodotObject() as T;
                 if (stringNameValue != null)
                     return stringNameValue;
             }
             string textId = (string)defId;
             if (bucket.ContainsKey(textId))
             {
-                GodotObject stringValue = bucket[textId].AsGodotObject();
+                T stringValue = bucket[textId].AsGodotObject() as T;
                 if (stringValue != null)
                     return stringValue;
             }

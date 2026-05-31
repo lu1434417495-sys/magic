@@ -9,7 +9,7 @@ script = ExtResource("3_effect")
 effect_type = &"damage"
 power = 8
 damage_tag = &"magic"
-params = { "add_weapon_dice": false }
+add_weapon_dice = false
 
 [sub_resource type="Resource" id="Resource_push"]
 script = ExtResource("3_effect")

@@ -88,7 +88,7 @@ public partial class DisplaySettingsService : RefCounted
         Vector2I resolution = normalized["resolution"].AsVector2I();
         config.SetValue("display", "width", resolution.X);
         config.SetValue("display", "height", resolution.Y);
-        config.SetValue("display", "fullscreen", normalized["fullscreen"].AsBool());
+        config.SetValue("display", "fullscreen", ReadBool(normalized, "fullscreen", false));
         return config.Save(_settings_path);
     }
 
@@ -104,7 +104,7 @@ public partial class DisplaySettingsService : RefCounted
         ApplyContentResolution(targetWindow, resolution);
         targetWindow.Mode = Window.ModeEnum.Windowed;
         targetWindow.Size = resolution;
-        if (normalized["fullscreen"].AsBool())
+        if (ReadBool(normalized, "fullscreen", false))
         {
             targetWindow.Mode = Window.ModeEnum.Fullscreen;
         }
@@ -114,11 +114,17 @@ public partial class DisplaySettingsService : RefCounted
     public GDictionary normalize_settings(GDictionary settings)
     {
         settings ??= new GDictionary();
-        Vector2I resolution = GdInterop.GetVector2I(settings, "resolution", DEFAULT_WINDOWED_RESOLUTION);
+        Vector2I resolution = ReadVector2I(settings, "resolution", DEFAULT_WINDOWED_RESOLUTION);
+        bool fullscreen = false;
+        if (
+            TryRead(settings, "fullscreen", out Variant fullscreenValue)
+            && fullscreenValue.VariantType == Variant.Type.Bool
+        )
+            fullscreen = fullscreenValue.AsBool();
         return new GDictionary
         {
             ["resolution"] = NormalizeResolution(resolution),
-            ["fullscreen"] = GdInterop.GetBool(settings, "fullscreen"),
+            ["fullscreen"] = fullscreen,
         };
     }
 
@@ -137,7 +143,7 @@ public partial class DisplaySettingsService : RefCounted
     public string describe_settings(GDictionary settings)
     {
         GDictionary normalized = normalize_settings(settings);
-        return $"分辨率 {FormatResolutionLabel(normalized["resolution"].AsVector2I())} | 全屏 {(normalized["fullscreen"].AsBool() ? "开启" : "关闭")}";
+        return $"分辨率 {FormatResolutionLabel(normalized["resolution"].AsVector2I())} | 全屏 {(ReadBool(normalized, "fullscreen", false) ? "开启" : "关闭")}";
     }
 
     private static Window ResolveWindow(Window window)
@@ -161,5 +167,41 @@ public partial class DisplaySettingsService : RefCounted
     private static string FormatResolutionLabel(Vector2I resolution)
     {
         return $"{resolution.X} x {resolution.Y}";
+    }
+
+    private static Vector2I ReadVector2I(GDictionary settings, string key, Vector2I fallback)
+    {
+        if (!TryRead(settings, key, out Variant value))
+            return fallback;
+        return value.VariantType == Variant.Type.Vector2I ? value.AsVector2I() : fallback;
+    }
+
+    private static bool ReadBool(GDictionary settings, string key, bool fallback)
+    {
+        if (!TryRead(settings, key, out Variant value))
+            return fallback;
+        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
+    }
+
+    private static bool TryRead(GDictionary settings, string key, out Variant value)
+    {
+        if (settings == null)
+        {
+            value = default;
+            return false;
+        }
+        if (settings.ContainsKey(key))
+        {
+            value = settings[key];
+            return true;
+        }
+        StringName stringNameKey = new(key);
+        if (settings.ContainsKey(stringNameKey))
+        {
+            value = settings[stringNameKey];
+            return true;
+        }
+        value = default;
+        return false;
     }
 }

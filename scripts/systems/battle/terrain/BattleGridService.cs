@@ -6,6 +6,23 @@ using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
+public readonly record struct BattleHeightDeltaResult(
+    bool Changed,
+    int BeforeHeight,
+    int AfterHeight,
+    int AppliedDelta
+)
+{
+    public GDictionary ToDictionary() =>
+        new()
+        {
+            ["changed"] = Changed,
+            ["before_height"] = BeforeHeight,
+            ["after_height"] = AfterHeight,
+            ["applied_delta"] = AppliedDelta,
+        };
+}
+
 [GlobalClass]
 public partial class BattleGridService : RefCounted
 {
@@ -1083,9 +1100,9 @@ public partial class BattleGridService : RefCounted
                 GDictionary directResult = evaluate_move(state, from_coord, to_coord, unit_state);
                 return MovePathResult(
                     false,
-                    GdInterop.GetInt(directResult, "cost", 0),
+                    ReadInt(directResult, "cost", 0),
                     new GVector2IArray(),
-                    GdInterop.GetString(directResult, "message", "该移动不可执行。")
+                    ReadString(directResult, "message", "该移动不可执行。")
                 );
             }
             return MovePathResult(false, 0, new GVector2IArray(), "目标地格当前不可到达。");
@@ -1450,7 +1467,7 @@ public partial class BattleGridService : RefCounted
         return set_edge_feature(state, coord, direction, BattleEdgeFeatureState.make_none());
     }
 
-    public GDictionary apply_height_delta_result(
+    public BattleHeightDeltaResult ApplyHeightDeltaResult(
         GodotObject state,
         Vector2I coord,
         int height_delta
@@ -1459,33 +1476,31 @@ public partial class BattleGridService : RefCounted
         BattleCellState cell = GetCell(state, coord);
         if (cell == null)
         {
-            return new GDictionary
-            {
-                ["changed"] = false,
-                ["before_height"] = 0,
-                ["after_height"] = 0,
-                ["applied_delta"] = 0,
-            };
+            return new BattleHeightDeltaResult(false, 0, 0, 0);
         }
         int beforeHeight = cell.current_height;
         bool changed = set_height_offset(state, coord, cell.height_offset + height_delta);
         int afterHeight = cell.current_height;
-        return new GDictionary
-        {
-            ["changed"] = changed && beforeHeight != afterHeight,
-            ["before_height"] = beforeHeight,
-            ["after_height"] = afterHeight,
-            ["applied_delta"] = afterHeight - beforeHeight,
-        };
+        return new BattleHeightDeltaResult(
+            changed && beforeHeight != afterHeight,
+            beforeHeight,
+            afterHeight,
+            afterHeight - beforeHeight
+        );
+    }
+
+    public GDictionary apply_height_delta_result(
+        GodotObject state,
+        Vector2I coord,
+        int height_delta
+    )
+    {
+        return ApplyHeightDeltaResult(state, coord, height_delta).ToDictionary();
     }
 
     public bool apply_height_delta(GodotObject state, Vector2I coord, int height_delta)
     {
-        return GdInterop.GetBool(
-            apply_height_delta_result(state, coord, height_delta),
-            "changed",
-            false
-        );
+        return ApplyHeightDeltaResult(state, coord, height_delta).Changed;
     }
 
     public void set_occupant(GodotObject state, Vector2I coord, StringName unit_id)
@@ -1661,21 +1676,22 @@ public partial class BattleGridService : RefCounted
 
     public GDictionary compute_jump_params(BattleUnitState unit_state, GodotObject effect_def)
     {
-        if (unit_state == null || effect_def == null)
+        CombatEffectDef effectDef = effect_def as CombatEffectDef;
+        if (unit_state == null || effectDef == null)
         {
             return new GDictionary();
         }
         int jumpStr = _get_jump_effective_str(unit_state);
         double budget =
-            GdInterop.GetInt(effect_def, "jump_base_budget")
-            + GdInterop.GetFloat(effect_def, "jump_str_scale") * jumpStr;
-        double arcRatioRaw = GdInterop.GetFloat(effect_def, "jump_arc_ratio");
+            effectDef.jump_base_budget
+            + effectDef.jump_str_scale * jumpStr;
+        double arcRatioRaw = effectDef.jump_arc_ratio;
         double arcRatio = Math.Clamp(arcRatioRaw, MinJumpArcRatio, 1.0);
-        int rangeMultiplier = Math.Max(GdInterop.GetInt(effect_def, "jump_range_multiplier", 1), 1);
+        int rangeMultiplier = Math.Max(effectDef.jump_range_multiplier, 1);
         int minArc = Math.Max(1, RoundToInt(budget * arcRatio));
         double rangeBudget = Math.Max(0.0, budget * (1.0 - arcRatio));
         int maxRange = Math.Max(1, RoundToInt(rangeBudget * rangeMultiplier));
-        int forcedMoveDistance = GdInterop.GetInt(effect_def, "forced_move_distance");
+        int forcedMoveDistance = effectDef.forced_move_distance;
         if (forcedMoveDistance > 0)
         {
             maxRange = Math.Min(maxRange, forcedMoveDistance);
@@ -1697,12 +1713,12 @@ public partial class BattleGridService : RefCounted
         {
             return 0;
         }
-        int rangeMultiplier = Math.Max(GdInterop.GetInt(parameters, "range_multiplier", 1), 1);
+        int rangeMultiplier = Math.Max(ReadInt(parameters, "range_multiplier", 1), 1);
         double distanceCost = (double)actual_range / rangeMultiplier;
-        double rangeBudget = GdInterop.GetFloat(parameters, "range_budget", 0.0);
+        double rangeBudget = ReadDouble(parameters, "range_budget", 0.0);
         double savedBudget = Math.Max(0.0, rangeBudget - distanceCost);
         int extraArc = RoundToInt(savedBudget * JumpRedistributionFactor);
-        return GdInterop.GetInt(parameters, "min_arc", 0) + extraArc;
+        return ReadInt(parameters, "min_arc", 0) + extraArc;
     }
 
     public bool can_jump_arc(
@@ -1725,7 +1741,7 @@ public partial class BattleGridService : RefCounted
         {
             return false;
         }
-        int maxRange = GdInterop.GetInt(parameters, "max_range", 0);
+        int maxRange = ReadInt(parameters, "max_range", 0);
         int actualRange = get_chebyshev_distance(unit_state.coord, target_coord);
         if (actualRange < 1 || actualRange > maxRange)
         {
@@ -1794,7 +1810,8 @@ public partial class BattleGridService : RefCounted
         {
             return false;
         }
-        int maxRange = GdInterop.GetInt(effect_def, "forced_move_distance");
+        CombatEffectDef effectDef = effect_def as CombatEffectDef;
+        int maxRange = effectDef?.forced_move_distance ?? 0;
         int actualRange = get_chebyshev_distance(unit_state.coord, target_coord);
         if (maxRange > 0 && actualRange > maxRange)
         {
@@ -1908,14 +1925,14 @@ public partial class BattleGridService : RefCounted
                 _ => new GDictionary(),
             };
         }
-        return GdInterop.GetDictionary(src, property);
+        return new GDictionary();
     }
 
     private static Vector2I GetMapSize(GodotObject state)
     {
         return state is BattleState battleState
             ? battleState.map_size
-            : GdInterop.GetVector2I(state, "map_size");
+            : Vector2I.Zero;
     }
 
     private static BattleCellState GetCell(GodotObject state, Vector2I coord)
@@ -1931,10 +1948,11 @@ public partial class BattleGridService : RefCounted
 
     private static BattleUnitState GetUnit(GDictionary units, StringName unitId)
     {
-        if (units == null || !GdInterop.TryGet(units, unitId, out Variant unitValue))
+        if (units == null || unitId == "" || !units.ContainsKey(unitId))
         {
             return null;
         }
+        Variant unitValue = units[unitId];
         return unitValue.AsGodotObject() as BattleUnitState;
     }
 
@@ -2236,6 +2254,49 @@ public partial class BattleGridService : RefCounted
     private static bool IsEmpty(StringName value)
     {
         return value == null || string.IsNullOrEmpty(value.ToString());
+    }
+
+    private static string ReadString(GDictionary data, string key, string fallback = "")
+    {
+        if (data == null || string.IsNullOrEmpty(key) || !data.ContainsKey(key))
+        {
+            return fallback;
+        }
+        Variant value = data[key];
+        if (value.VariantType == Variant.Type.String)
+        {
+            return value.AsString();
+        }
+        if (value.VariantType == Variant.Type.StringName)
+        {
+            return value.AsStringName().ToString();
+        }
+        return fallback;
+    }
+
+    private static int ReadInt(GDictionary data, string key, int fallback = 0)
+    {
+        if (data == null || string.IsNullOrEmpty(key) || !data.ContainsKey(key))
+        {
+            return fallback;
+        }
+        Variant value = data[key];
+        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+    }
+
+    private static double ReadDouble(GDictionary data, string key, double fallback = 0.0)
+    {
+        if (data == null || string.IsNullOrEmpty(key) || !data.ContainsKey(key))
+        {
+            return fallback;
+        }
+        Variant value = data[key];
+        return value.VariantType switch
+        {
+            Variant.Type.Float => value.AsDouble(),
+            Variant.Type.Int => value.AsInt32(),
+            _ => fallback,
+        };
     }
 
     private static int GetArrayInt(GArray values, int index, int fallback = 0)

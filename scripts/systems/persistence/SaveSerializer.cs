@@ -122,7 +122,7 @@ public partial class SaveSerializer : RefCounted
             return ErrorResult();
         if (
             payloadData["save_id"].AsString()
-            != GdInterop.GetString(normalizedRequestedMeta, "save_id")
+            != ReadString(normalizedRequestedMeta, "save_id")
         )
             return ErrorResult();
         if (
@@ -184,17 +184,17 @@ public partial class SaveSerializer : RefCounted
         );
         if (normalizedMeta.Count == 0)
             return ErrorResult();
-        if (GdInterop.GetString(normalizedMeta, "save_id") != payloadData["save_id"].AsString())
+        if (ReadString(normalizedMeta, "save_id") != payloadData["save_id"].AsString())
             return ErrorResult();
         if (
-            GdInterop.GetString(normalizedMeta, "save_id")
-            != GdInterop.GetString(normalizedRequestedMeta, "save_id")
+            ReadString(normalizedMeta, "save_id")
+            != ReadString(normalizedRequestedMeta, "save_id")
         )
             return ErrorResult();
-        if (GdInterop.GetString(normalizedMeta, "generation_config_path") != generationConfigPath)
+        if (ReadString(normalizedMeta, "generation_config_path") != generationConfigPath)
             return ErrorResult();
         if (
-            GdInterop.GetString(normalizedRequestedMeta, "generation_config_path")
+            ReadString(normalizedRequestedMeta, "generation_config_path")
             != generationConfigPath
         )
             return ErrorResult();
@@ -290,10 +290,10 @@ public partial class SaveSerializer : RefCounted
         );
         if (normalizedMeta.Count == 0)
             return new GDictionary();
-        if (GdInterop.GetString(normalizedMeta, "save_id").StripEdges() != saveId)
+        if (ReadString(normalizedMeta, "save_id").StripEdges() != saveId)
             return new GDictionary();
         if (
-            GdInterop.GetString(normalizedMeta, "generation_config_path").StripEdges()
+            ReadString(normalizedMeta, "generation_config_path").StripEdges()
             != generationConfigPath
         )
             return new GDictionary();
@@ -395,7 +395,7 @@ public partial class SaveSerializer : RefCounted
             .to_string_name(worldData["active_submap_id"])
             .ToString();
         normalized["encounter_anchors"] = NormalizeEncounterAnchors(
-            GdInterop.GetArray(worldData, "encounter_anchors")
+            ReadArray(worldData, "encounter_anchors")
         );
         return normalized;
     }
@@ -415,7 +415,7 @@ public partial class SaveSerializer : RefCounted
             .to_string_name(worldData["active_submap_id"])
             .ToString();
         serialized["encounter_anchors"] = SerializeObjectOrDictionaryArray(
-            GdInterop.GetArray(worldData, "encounter_anchors")
+            ReadArray(worldData, "encounter_anchors")
         );
         return serialized;
     }
@@ -440,7 +440,7 @@ public partial class SaveSerializer : RefCounted
         if (!string.IsNullOrEmpty(nestedSchemaError))
             return nestedSchemaError;
         return get_mounted_submaps_validation_error(
-            GdInterop.GetDictionary(worldData, "mounted_submaps")
+            ReadDictionary(worldData, "mounted_submaps")
         );
     }
 
@@ -525,17 +525,17 @@ public partial class SaveSerializer : RefCounted
         if (worldData == null)
             return "Corrupt save world_data: expected Dictionary.";
         string returnStackError = GetSubmapReturnStackValidationError(
-            GdInterop.GetArray(worldData, "submap_return_stack")
+            ReadArray(worldData, "submap_return_stack")
         );
         if (!string.IsNullOrEmpty(returnStackError))
             return returnStackError;
         string settlementError = GetSettlementsValidationError(
-            GdInterop.GetArray(worldData, "settlements")
+            ReadArray(worldData, "settlements")
         );
         if (!string.IsNullOrEmpty(settlementError))
             return settlementError;
         string eventError = GetWorldEventsValidationError(
-            GdInterop.GetArray(worldData, "world_events")
+            ReadArray(worldData, "world_events")
         );
         if (!string.IsNullOrEmpty(eventError))
             return eventError;
@@ -638,7 +638,7 @@ public partial class SaveSerializer : RefCounted
             };
             if (!HasExactKeys(entry, required))
                 return $"Corrupt save mounted_submaps[{keyText}]: fields must exactly match current schema.";
-            string submapId = GdInterop.GetString(entry, "submap_id", keyText);
+            string submapId = ReadString(entry, "submap_id", keyText);
             if (string.IsNullOrEmpty(submapId))
                 return $"Corrupt save mounted_submaps[{keyText}]: submap_id is required.";
             foreach (
@@ -663,7 +663,7 @@ public partial class SaveSerializer : RefCounted
                     : null;
             string worldDataError = get_mounted_submap_world_data_validation_error(
                 submapId,
-                entry["is_generated"].AsBool(),
+                ReadBool(entry, "is_generated", false),
                 mountedWorldData
             );
             if (!string.IsNullOrEmpty(worldDataError))
@@ -714,7 +714,7 @@ public partial class SaveSerializer : RefCounted
         var reserveMemberIds = new Godot.Collections.Array<StringName>();
         foreach (StringName memberId in normalized.reserve_member_ids)
         {
-            if (GdInterop.IsEmpty(memberId) || seenIds.Contains(memberId.ToString()))
+            if (IsEmpty(memberId) || seenIds.Contains(memberId.ToString()))
                 continue;
             PartyMemberState memberState = normalized.get_member_state(memberId);
             if (memberState == null || memberState.is_dead)
@@ -736,7 +736,7 @@ public partial class SaveSerializer : RefCounted
 
         StringName mainCharacterMemberId = normalized.main_character_member_id;
         if (
-            !GdInterop.IsEmpty(mainCharacterMemberId)
+            !IsEmpty(mainCharacterMemberId)
             && normalized.get_member_state(mainCharacterMemberId) != null
         )
         {
@@ -754,7 +754,7 @@ public partial class SaveSerializer : RefCounted
                         StringName demotedMemberId = activeMemberIds[activeMemberIds.Count - 1];
                         activeMemberIds.RemoveAt(activeMemberIds.Count - 1);
                         if (
-                            !GdInterop.IsEmpty(demotedMemberId)
+                            !IsEmpty(demotedMemberId)
                             && demotedMemberId != mainCharacterMemberId
                             && !reserveMemberIds.Contains(demotedMemberId)
                         )
@@ -770,7 +770,7 @@ public partial class SaveSerializer : RefCounted
         if (activeMemberIds.Count == 0 && livingMemberIds.Count > 0)
             activeMemberIds.Add(livingMemberIds[0]);
         if (
-            GdInterop.IsEmpty(normalized.leader_member_id)
+            IsEmpty(normalized.leader_member_id)
             || !activeMemberIds.Contains(normalized.leader_member_id)
         )
             normalized.leader_member_id =
@@ -927,7 +927,7 @@ public partial class SaveSerializer : RefCounted
         if (normalizedMeta.Count == 0)
             return SortSaveMetaEntries(entries ?? new GDictionaryArray());
 
-        string normalizedSaveId = GdInterop.GetString(normalizedMeta, "save_id");
+        string normalizedSaveId = ReadString(normalizedMeta, "save_id");
         List<GDictionary> updatedEntries = new();
         bool replaced = false;
         if (entries != null)
@@ -937,7 +937,7 @@ public partial class SaveSerializer : RefCounted
                 GDictionary normalizedExistingEntry = normalize_save_meta(entry);
                 if (normalizedExistingEntry.Count == 0)
                     continue;
-                if (GdInterop.GetString(normalizedExistingEntry, "save_id") == normalizedSaveId)
+                if (ReadString(normalizedExistingEntry, "save_id") == normalizedSaveId)
                 {
                     updatedEntries.Add(normalizedMeta);
                     replaced = true;
@@ -1000,7 +1000,7 @@ public partial class SaveSerializer : RefCounted
         int maxCount
     )
     {
-        if (GdInterop.IsEmpty(memberId) || seenIds.Contains(memberId.ToString()))
+        if (IsEmpty(memberId) || seenIds.Contains(memberId.ToString()))
             return false;
         PartyMemberState memberState = partyState.get_member_state(memberId);
         if (memberState == null || memberState.is_dead)
@@ -1392,6 +1392,96 @@ public partial class SaveSerializer : RefCounted
         return true;
     }
 
+    private static bool TryRead(GDictionary source, object key, out Variant value)
+    {
+        if (source == null || key == null)
+        {
+            value = default;
+            return false;
+        }
+        Variant variantKey = key switch
+        {
+            Variant valueKey => valueKey,
+            string stringKey => stringKey,
+            StringName stringNameKey => stringNameKey,
+            int intKey => intKey,
+            long longKey => longKey,
+            _ => default,
+        };
+        if (source.ContainsKey(variantKey))
+        {
+            value = source[variantKey];
+            return true;
+        }
+        if (variantKey.VariantType == Variant.Type.String)
+        {
+            StringName stringNameKey = new(variantKey.AsString());
+            if (source.ContainsKey(stringNameKey))
+            {
+                value = source[stringNameKey];
+                return true;
+            }
+        }
+        else if (variantKey.VariantType == Variant.Type.StringName)
+        {
+            string stringKey = variantKey.AsStringName().ToString();
+            if (source.ContainsKey(stringKey))
+            {
+                value = source[stringKey];
+                return true;
+            }
+        }
+        value = default;
+        return false;
+    }
+
+    private static GArray ReadArray(GDictionary source, object key)
+    {
+        if (!TryRead(source, key, out Variant value))
+            return new GArray();
+        return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : new GArray();
+    }
+
+    private static GDictionary ReadDictionary(GDictionary source, object key)
+    {
+        if (!TryRead(source, key, out Variant value))
+            return new GDictionary();
+        return value.VariantType == Variant.Type.Dictionary
+            ? value.AsGodotDictionary()
+            : new GDictionary();
+    }
+
+    private static string ReadString(GDictionary source, object key, string fallback = "")
+    {
+        if (!TryRead(source, key, out Variant value))
+            return fallback;
+        return value.VariantType switch
+        {
+            Variant.Type.String => value.AsString(),
+            Variant.Type.StringName => value.AsStringName().ToString(),
+            _ => fallback,
+        };
+    }
+
+    private static int ReadInt(GDictionary source, object key, int fallback = 0)
+    {
+        if (!TryRead(source, key, out Variant value))
+            return fallback;
+        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+    }
+
+    private static bool ReadBool(GDictionary source, object key, bool fallback = false)
+    {
+        if (!TryRead(source, key, out Variant value))
+            return fallback;
+        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
+    }
+
+    private static bool IsEmpty(StringName value)
+    {
+        return value == null || value.ToString().Length == 0;
+    }
+
     private static GDictionaryArray DuplicateSaveMetaEntries(GDictionaryArray entries)
     {
         GDictionaryArray duplicatedEntries = new();
@@ -1430,18 +1520,18 @@ public partial class SaveSerializer : RefCounted
 
     private static int CompareSaveMetaNewestFirst(GDictionary a, GDictionary b)
     {
-        int updatedA = GdInterop.GetInt(a, "updated_at_unix_time");
-        int updatedB = GdInterop.GetInt(b, "updated_at_unix_time");
+        int updatedA = ReadInt(a, "updated_at_unix_time");
+        int updatedB = ReadInt(b, "updated_at_unix_time");
         if (updatedA != updatedB)
             return updatedB.CompareTo(updatedA);
 
-        int createdA = GdInterop.GetInt(a, "created_at_unix_time");
-        int createdB = GdInterop.GetInt(b, "created_at_unix_time");
+        int createdA = ReadInt(a, "created_at_unix_time");
+        int createdB = ReadInt(b, "created_at_unix_time");
         if (createdA != createdB)
             return createdB.CompareTo(createdA);
 
-        string saveIdA = GdInterop.GetString(a, "save_id");
-        string saveIdB = GdInterop.GetString(b, "save_id");
+        string saveIdA = ReadString(a, "save_id");
+        string saveIdB = ReadString(b, "save_id");
         return -string.CompareOrdinal(saveIdA, saveIdB);
     }
 }

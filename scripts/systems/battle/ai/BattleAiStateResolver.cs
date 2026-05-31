@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using Godot;
-using static GdInterop;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
@@ -57,8 +56,8 @@ public partial class BattleAiStateResolver : RefCounted
             {
                 return Result(
                     previousStateId,
-                    ProgressionDataUtils.to_string_name(rule.Get("target_state_id")),
-                    ProgressionDataUtils.to_string_name(rule.Get("rule_id")),
+                    ProgressionDataUtils.to_string_name(rule.target_state_id),
+                    ProgressionDataUtils.to_string_name(rule.rule_id),
                     "matched_rule",
                     matchedConditions
                 );

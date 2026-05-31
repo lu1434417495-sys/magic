@@ -1321,16 +1321,30 @@ public partial class PartyManagementWindow : Control
 
     private static int DictInt(GDictionary data, string key, int defaultValue)
     {
-        if (data == null || !data.ContainsKey(key))
+        if (!TryRead(data, key, out Variant value) || value.VariantType != Variant.Type.Int)
             return defaultValue;
-        return GdInterop.GetInt(data, key, defaultValue);
+        return value.AsInt32();
     }
 
     private static string DictString(GDictionary data, string key, string defaultValue)
     {
-        if (data == null || !data.ContainsKey(key))
+        if (!TryRead(data, key, out Variant value))
             return defaultValue;
-        return GdInterop.HasString(data, key) ? GdInterop.GetString(data, key) : defaultValue;
+        return value.VariantType switch
+        {
+            Variant.Type.String => value.AsString(),
+            Variant.Type.StringName => value.AsStringName().ToString(),
+            _ => defaultValue,
+        };
+    }
+
+    private static bool TryRead(GDictionary data, string key, out Variant value)
+    {
+        value = default;
+        if (data == null || !data.ContainsKey(key))
+            return false;
+        value = data[key];
+        return value.VariantType != Variant.Type.Nil;
     }
 
     private readonly record struct AchievementProgressPreview(

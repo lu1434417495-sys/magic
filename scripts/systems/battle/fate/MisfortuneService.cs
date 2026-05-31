@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -65,12 +66,12 @@ public partial class MisfortuneService : RefCounted
     private BattleFateEventBus _fateEventBus = null;
     private Func<StringName, BattleUnitState> _unitByMemberIdResolver;
     private GDictionary _calamityByMemberId = new();
-    private GDictionary _reasonFlagsByMemberId = new();
-    private GDictionary _processedAdjacentDefeatUnitIds = new();
-    private GDictionary _misstepToSchemeUsedByMemberId = new();
-    private GDictionary _blackStarBrandFreeUsedByMemberId = new();
-    private GDictionary _blackCrownSealUsedByMemberId = new();
-    private GDictionary _doomSentenceUsedByMemberId = new();
+    private readonly Dictionary<StringName, HashSet<StringName>> _reasonFlagsByMemberId = new();
+    private readonly HashSet<StringName> _processedAdjacentDefeatUnitIds = new();
+    private readonly HashSet<StringName> _misstepToSchemeUsedByMemberId = new();
+    private readonly HashSet<StringName> _blackStarBrandFreeUsedByMemberId = new();
+    private readonly HashSet<StringName> _blackCrownSealUsedByMemberId = new();
+    private readonly HashSet<StringName> _doomSentenceUsedByMemberId = new();
 
     public static StringName BLACK_STAR_BRAND_SKILL_ID_VALUE() => BLACK_STAR_BRAND_SKILL_ID;
 
@@ -260,11 +261,7 @@ public partial class MisfortuneService : RefCounted
         var normalizedMemberId = ProgressionDataUtils.to_string_name(memberId);
         if (normalizedMemberId == "")
             return BlackStarBrandRepeatCalamityCost;
-        if (
-            !_blackStarBrandFreeUsedByMemberId
-                .GetValueOrDefault(normalizedMemberId, false)
-                .AsBool()
-        )
+        if (!_blackStarBrandFreeUsedByMemberId.Contains(normalizedMemberId))
             return 0;
         return BlackStarBrandRepeatCalamityCost;
     }
@@ -318,91 +315,85 @@ public partial class MisfortuneService : RefCounted
         return GetSkillCastBlockReason(unit_state, skill_id);
     }
 
-    public GDictionary ConsumeSkillCast(BattleUnitState unitState, StringName skillId)
+    public MisfortuneSkillCastResult ConsumeSkillCastResult(
+        BattleUnitState unitState,
+        StringName skillId
+    )
     {
         var rule = _GetSkillGateRule(skillId);
         if (rule.Count == 0)
-            return new GDictionary
-            {
-                ["ok"] = true,
-                ["gated"] = false,
-                ["member_id"] =
-                    unitState != null
-                        ? ProgressionDataUtils.to_string_name(unitState.source_member_id).ToString()
-                        : "",
-            };
+            return MisfortuneSkillCastResult.Success(
+                unitState != null
+                    ? ProgressionDataUtils.to_string_name(unitState.source_member_id)
+                    : default,
+                gated: false
+            );
         var gateType = ProgressionDataUtils.to_string_name(
             rule.GetValueOrDefault("gate_type", "")
         );
         switch ((string)gateType)
         {
             case "black_star_brand":
-                return ConsumeBlackStarBrandCast(unitState);
+                return ConsumeBlackStarBrandCastResult(unitState);
             case "crown_break":
-                return ConsumeCrownBreakCast(unitState);
+                return ConsumeCrownBreakCastResult(unitState);
             case "doom_sentence":
-                return ConsumeDoomSentenceCast(unitState);
+                return ConsumeDoomSentenceCastResult(unitState);
             case "black_crown_seal":
-                return ConsumeBlackCrownSealCast(unitState);
+                return ConsumeBlackCrownSealCastResult(unitState);
             default:
-                return new GDictionary
-                {
-                    ["ok"] = true,
-                    ["gated"] = false,
-                    ["member_id"] =
-                        unitState != null
-                            ? ProgressionDataUtils
-                                .to_string_name(unitState.source_member_id)
-                                .ToString()
-                            : "",
-                };
+                return MisfortuneSkillCastResult.Success(
+                    unitState != null
+                        ? ProgressionDataUtils.to_string_name(unitState.source_member_id)
+                        : default,
+                    gated: false
+                );
         }
     }
+
+    public GDictionary ConsumeSkillCast(BattleUnitState unitState, StringName skillId) =>
+        ConsumeSkillCastResult(unitState, skillId).ToDictionary();
 
     public GDictionary consume_skill_cast(BattleUnitState unit_state, StringName skill_id)
     {
         return ConsumeSkillCast(unit_state, skill_id);
     }
 
-    public GDictionary ConsumeBlackStarBrandCast(BattleUnitState unitState)
+    public MisfortuneSkillCastResult ConsumeBlackStarBrandCastResult(BattleUnitState unitState)
     {
         if (unitState == null)
-            return new GDictionary
-            {
-                ["ok"] = false,
-                ["message"] = "技能施放者无效。",
-                ["calamity_cost"] = BlackStarBrandRepeatCalamityCost,
-            };
+            return MisfortuneSkillCastResult.Failure(
+                "技能施放者无效。",
+                calamityCost: BlackStarBrandRepeatCalamityCost
+            );
         var memberId = ProgressionDataUtils.to_string_name(unitState.source_member_id);
         if (memberId == "")
-            return new GDictionary
-            {
-                ["ok"] = false,
-                ["message"] = "黑星烙印只能由正式成员施放。",
-                ["calamity_cost"] = BlackStarBrandRepeatCalamityCost,
-            };
+            return MisfortuneSkillCastResult.Failure(
+                "黑星烙印只能由正式成员施放。",
+                calamityCost: BlackStarBrandRepeatCalamityCost
+            );
         int calamityCost = GetBlackStarBrandCalamityCost(memberId);
         int currentCalamity = GetMemberCalamity(memberId);
         if (calamityCost > 0 && currentCalamity < calamityCost)
-            return new GDictionary
-            {
-                ["ok"] = false,
-                ["message"] = "calamity 不足，无法施放黑星烙印。",
-                ["calamity_cost"] = calamityCost,
-                ["remaining_calamity"] = currentCalamity,
-            };
+            return MisfortuneSkillCastResult.Failure(
+                "calamity 不足，无法施放黑星烙印。",
+                memberId,
+                calamityCost,
+                currentCalamity
+            );
         if (calamityCost > 0)
             _calamityByMemberId[memberId] = Mathf.Max(currentCalamity - calamityCost, 0);
-        _blackStarBrandFreeUsedByMemberId[memberId] = true;
-        return new GDictionary
-        {
-            ["ok"] = true,
-            ["member_id"] = memberId.ToString(),
-            ["calamity_cost"] = calamityCost,
-            ["free_cast"] = calamityCost <= 0,
-            ["remaining_calamity"] = GetMemberCalamity(memberId),
-        };
+        _blackStarBrandFreeUsedByMemberId.Add(memberId);
+        return MisfortuneSkillCastResult.Success(
+            memberId,
+            calamityCost: calamityCost,
+            remainingCalamity: GetMemberCalamity(memberId),
+            freeCast: calamityCost <= 0
+        );
     }
+
+    public GDictionary ConsumeBlackStarBrandCast(BattleUnitState unitState) =>
+        ConsumeBlackStarBrandCastResult(unitState).ToDictionary();
 
     public GDictionary consume_black_star_brand_cast(BattleUnitState unit_state)
     {
@@ -424,41 +415,37 @@ public partial class MisfortuneService : RefCounted
         return CanCastCrownBreak(unit_state);
     }
 
-    public GDictionary ConsumeCrownBreakCast(BattleUnitState unitState)
+    public MisfortuneSkillCastResult ConsumeCrownBreakCastResult(BattleUnitState unitState)
     {
         if (unitState == null)
-            return new GDictionary
-            {
-                ["ok"] = false,
-                ["message"] = "技能施放者无效。",
-                ["calamity_cost"] = CrownBreakCalamityCost,
-            };
+            return MisfortuneSkillCastResult.Failure(
+                "技能施放者无效。",
+                calamityCost: CrownBreakCalamityCost
+            );
         var memberId = ProgressionDataUtils.to_string_name(unitState.source_member_id);
         if (memberId == "")
-            return new GDictionary
-            {
-                ["ok"] = false,
-                ["message"] = "折冠只能由正式成员施放。",
-                ["calamity_cost"] = CrownBreakCalamityCost,
-            };
+            return MisfortuneSkillCastResult.Failure(
+                "折冠只能由正式成员施放。",
+                calamityCost: CrownBreakCalamityCost
+            );
         int currentCalamity = GetMemberCalamity(memberId);
         if (currentCalamity < CrownBreakCalamityCost)
-            return new GDictionary
-            {
-                ["ok"] = false,
-                ["message"] = "calamity 不足，无法施放折冠。",
-                ["calamity_cost"] = CrownBreakCalamityCost,
-                ["remaining_calamity"] = currentCalamity,
-            };
+            return MisfortuneSkillCastResult.Failure(
+                "calamity 不足，无法施放折冠。",
+                memberId,
+                CrownBreakCalamityCost,
+                currentCalamity
+            );
         _calamityByMemberId[memberId] = Mathf.Max(currentCalamity - CrownBreakCalamityCost, 0);
-        return new GDictionary
-        {
-            ["ok"] = true,
-            ["member_id"] = memberId.ToString(),
-            ["calamity_cost"] = CrownBreakCalamityCost,
-            ["remaining_calamity"] = GetMemberCalamity(memberId),
-        };
+        return MisfortuneSkillCastResult.Success(
+            memberId,
+            calamityCost: CrownBreakCalamityCost,
+            remainingCalamity: GetMemberCalamity(memberId)
+        );
     }
+
+    public GDictionary ConsumeCrownBreakCast(BattleUnitState unitState) =>
+        ConsumeCrownBreakCastResult(unitState).ToDictionary();
 
     public GDictionary consume_crown_break_cast(BattleUnitState unit_state)
     {
@@ -472,7 +459,7 @@ public partial class MisfortuneService : RefCounted
         var memberId = ProgressionDataUtils.to_string_name(unitState.source_member_id);
         if (memberId == "")
             return "厄命宣判只能由正式成员施放。";
-        if (_doomSentenceUsedByMemberId.GetValueOrDefault(memberId, false).AsBool())
+        if (_doomSentenceUsedByMemberId.Contains(memberId))
             return "厄命宣判每战只能施放 1 次。";
         if (GetMemberCalamityCap(memberId) < DoomSentenceCalamityCost)
             return "本战 calamity 上限不足 5，无法施放厄命宣判。";
@@ -496,7 +483,7 @@ public partial class MisfortuneService : RefCounted
         return CanCastDoomSentence(unit_state);
     }
 
-    public GDictionary ConsumeDoomSentenceCast(BattleUnitState unitState)
+    public MisfortuneSkillCastResult ConsumeDoomSentenceCastResult(BattleUnitState unitState)
     {
         var blockReason = GetDoomSentenceCastBlockReason(unitState);
         var memberId =
@@ -504,24 +491,24 @@ public partial class MisfortuneService : RefCounted
                 ? ProgressionDataUtils.to_string_name(unitState.source_member_id)
                 : new StringName("");
         if (!string.IsNullOrEmpty(blockReason))
-            return new GDictionary
-            {
-                ["ok"] = false,
-                ["message"] = blockReason,
-                ["calamity_cost"] = DoomSentenceCalamityCost,
-                ["remaining_calamity"] = GetMemberCalamity(memberId),
-            };
+            return MisfortuneSkillCastResult.Failure(
+                blockReason,
+                memberId,
+                DoomSentenceCalamityCost,
+                GetMemberCalamity(memberId)
+            );
         int currentCalamity = GetMemberCalamity(memberId);
         _calamityByMemberId[memberId] = Mathf.Max(currentCalamity - DoomSentenceCalamityCost, 0);
-        _doomSentenceUsedByMemberId[memberId] = true;
-        return new GDictionary
-        {
-            ["ok"] = true,
-            ["member_id"] = memberId.ToString(),
-            ["calamity_cost"] = DoomSentenceCalamityCost,
-            ["remaining_calamity"] = GetMemberCalamity(memberId),
-        };
+        _doomSentenceUsedByMemberId.Add(memberId);
+        return MisfortuneSkillCastResult.Success(
+            memberId,
+            calamityCost: DoomSentenceCalamityCost,
+            remainingCalamity: GetMemberCalamity(memberId)
+        );
     }
+
+    public GDictionary ConsumeDoomSentenceCast(BattleUnitState unitState) =>
+        ConsumeDoomSentenceCastResult(unitState).ToDictionary();
 
     public GDictionary consume_doom_sentence_cast(BattleUnitState unit_state)
     {
@@ -535,7 +522,7 @@ public partial class MisfortuneService : RefCounted
         var memberId = ProgressionDataUtils.to_string_name(unitState.source_member_id);
         if (memberId == "")
             return "黑冠封印只能由正式成员施放。";
-        if (_blackCrownSealUsedByMemberId.GetValueOrDefault(memberId, false).AsBool())
+        if (_blackCrownSealUsedByMemberId.Contains(memberId))
             return "黑冠封印每战只能施放 1 次。";
         return "";
     }
@@ -555,7 +542,7 @@ public partial class MisfortuneService : RefCounted
         return CanCastBlackCrownSeal(unit_state);
     }
 
-    public GDictionary ConsumeBlackCrownSealCast(BattleUnitState unitState)
+    public MisfortuneSkillCastResult ConsumeBlackCrownSealCastResult(BattleUnitState unitState)
     {
         var blockReason = GetBlackCrownSealCastBlockReason(unitState);
         var memberId =
@@ -563,15 +550,13 @@ public partial class MisfortuneService : RefCounted
                 ? ProgressionDataUtils.to_string_name(unitState.source_member_id)
                 : new StringName("");
         if (!string.IsNullOrEmpty(blockReason))
-            return new GDictionary
-            {
-                ["ok"] = false,
-                ["message"] = blockReason,
-                ["member_id"] = memberId.ToString(),
-            };
-        _blackCrownSealUsedByMemberId[memberId] = true;
-        return new GDictionary { ["ok"] = true, ["member_id"] = memberId.ToString() };
+            return MisfortuneSkillCastResult.Failure(blockReason, memberId);
+        _blackCrownSealUsedByMemberId.Add(memberId);
+        return MisfortuneSkillCastResult.Success(memberId);
     }
+
+    public GDictionary ConsumeBlackCrownSealCast(BattleUnitState unitState) =>
+        ConsumeBlackCrownSealCastResult(unitState).ToDictionary();
 
     public GDictionary consume_black_crown_seal_cast(BattleUnitState unit_state)
     {
@@ -584,8 +569,11 @@ public partial class MisfortuneService : RefCounted
         var normalizedReasonId = ProgressionDataUtils.to_string_name(reasonId);
         if (normalizedMemberId == "" || normalizedReasonId == "")
             return false;
-        var memberReasonFlags = _EnsureMemberReasonFlags(normalizedMemberId);
-        return memberReasonFlags.GetValueOrDefault(normalizedReasonId, false).AsBool();
+        return _reasonFlagsByMemberId.TryGetValue(
+                normalizedMemberId,
+                out HashSet<StringName> memberReasonFlags
+            )
+            && memberReasonFlags.Contains(normalizedReasonId);
     }
 
     public bool has_triggered_reason(StringName member_id, StringName reason_id)
@@ -683,7 +671,11 @@ public partial class MisfortuneService : RefCounted
         if (targetUnit == null)
             return new GDictionary();
         var strongStatusIds = _ExtractStrongAttackDebuffIds(
-            GdInterop.GetArray(payload, "status_effect_ids")
+            payload != null
+            && payload.ContainsKey("status_effect_ids")
+            && payload["status_effect_ids"].VariantType == Variant.Type.Array
+                ? payload["status_effect_ids"].AsGodotArray()
+                : new GArray()
         );
         if (strongStatusIds.Count == 0)
             return new GDictionary();
@@ -710,9 +702,9 @@ public partial class MisfortuneService : RefCounted
         var results = new GArray();
         if (defeatedUnit == null || defeatedUnit.unit_id == "")
             return results;
-        if (_processedAdjacentDefeatUnitIds.ContainsKey(defeatedUnit.unit_id))
+        if (_processedAdjacentDefeatUnitIds.Contains(defeatedUnit.unit_id))
             return results;
-        _processedAdjacentDefeatUnitIds[defeatedUnit.unit_id] = true;
+        _processedAdjacentDefeatUnitIds.Add(defeatedUnit.unit_id);
         foreach (var unitValue in adjacentUnits)
         {
             var observerUnit = unitValue.AsGodotObject() as BattleUnitState;
@@ -804,12 +796,9 @@ public partial class MisfortuneService : RefCounted
         var memberId = ProgressionDataUtils.to_string_name(unitState.source_member_id);
         if (memberId == "")
             return new GDictionary();
-        var memberReasonFlags = _EnsureMemberReasonFlags(memberId);
+        HashSet<StringName> memberReasonFlags = _EnsureMemberReasonFlags(memberId);
         bool wasFirstReason = memberReasonFlags.Count == 0;
-        if (
-            memberReasonFlags.ContainsKey(normalizedReasonId)
-            && memberReasonFlags[normalizedReasonId].AsBool()
-        )
+        if (memberReasonFlags.Contains(normalizedReasonId))
             return new GDictionary
             {
                 ["member_id"] = memberId.ToString(),
@@ -819,7 +808,7 @@ public partial class MisfortuneService : RefCounted
                 ["calamity"] = GetMemberCalamity(memberId),
                 ["cap"] = _CalculateCalamityCap(unitState),
             };
-        memberReasonFlags[normalizedReasonId] = true;
+        memberReasonFlags.Add(normalizedReasonId);
         int previousCalamity = GetMemberCalamity(memberId);
         int calamityCap = _CalculateCalamityCap(unitState);
         int intendedGain = 1 + _GetBonusCalamityForReason(unitState, normalizedReasonId);
@@ -909,14 +898,20 @@ public partial class MisfortuneService : RefCounted
             <= maxHp * BattleState.LOW_HP_ATTACK_DISADVANTAGE_PERCENT();
     }
 
-    private GDictionary _EnsureMemberReasonFlags(StringName memberId)
+    private HashSet<StringName> _EnsureMemberReasonFlags(StringName memberId)
     {
         var normalizedMemberId = ProgressionDataUtils.to_string_name(memberId);
         if (normalizedMemberId == "")
-            return new GDictionary();
-        if (!_reasonFlagsByMemberId.ContainsKey(normalizedMemberId))
-            _reasonFlagsByMemberId[normalizedMemberId] = new GDictionary();
-        return _reasonFlagsByMemberId[normalizedMemberId].AsGodotDictionary();
+            return new HashSet<StringName>();
+        if (!_reasonFlagsByMemberId.TryGetValue(
+                normalizedMemberId,
+                out HashSet<StringName> memberReasonFlags
+            ))
+        {
+            memberReasonFlags = new HashSet<StringName>();
+            _reasonFlagsByMemberId[normalizedMemberId] = memberReasonFlags;
+        }
+        return memberReasonFlags;
     }
 
     private BattleUnitState _ResolveUnitByMemberId(StringName memberId)
@@ -934,11 +929,11 @@ public partial class MisfortuneService : RefCounted
         var memberId = ProgressionDataUtils.to_string_name(unitState.source_member_id);
         if (memberId == "")
             return 0;
-        if (_misstepToSchemeUsedByMemberId.GetValueOrDefault(memberId, false).AsBool())
+        if (_misstepToSchemeUsedByMemberId.Contains(memberId))
             return 0;
         if (!_UnitHasSkill(unitState, MisstepToSchemeSkillId))
             return 0;
-        _misstepToSchemeUsedByMemberId[memberId] = true;
+        _misstepToSchemeUsedByMemberId.Add(memberId);
         return 1;
     }
 
@@ -950,4 +945,5 @@ public partial class MisfortuneService : RefCounted
             return true;
         return unitState.known_skill_level_map.GetValueOrDefault(skillId, 0).AsInt32() > 0;
     }
+
 }

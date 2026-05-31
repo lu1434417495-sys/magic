@@ -433,7 +433,7 @@ public partial class GameRuntimeCommandLogger : RefCounted
         if (values == null)
             return normalizedArray;
         foreach (var entry in values)
-            normalizedArray.Add(GdInterop.ToVariant(NormalizeLogValue(entry)));
+            normalizedArray.Add(ToVariant(NormalizeLogValue(entry)));
         return normalizedArray;
     }
 
@@ -443,14 +443,14 @@ public partial class GameRuntimeCommandLogger : RefCounted
         {
             var normalizedDictionary = new Dictionary();
             foreach (var key in rawDictionary.Keys)
-                normalizedDictionary[key.ToString()] = GdInterop.ToVariant(NormalizeLogValue(rawDictionary[key]));
+                normalizedDictionary[key.ToString()] = ToVariant(NormalizeLogValue(rawDictionary[key]));
             return normalizedDictionary;
         }
         if (rawValue is Godot.Collections.Array rawArray)
         {
             var normalizedArray = new Godot.Collections.Array();
             foreach (var entry in rawArray)
-                normalizedArray.Add(GdInterop.ToVariant(NormalizeLogValue(entry)));
+                normalizedArray.Add(ToVariant(NormalizeLogValue(entry)));
             return normalizedArray;
         }
         if (rawValue is not Variant value)
@@ -480,13 +480,13 @@ public partial class GameRuntimeCommandLogger : RefCounted
                 var dict = value.AsGodotDictionary();
                 var normalizedDict = new Dictionary();
                 foreach (var key in dict.Keys)
-                    normalizedDict[key.ToString()] = GdInterop.ToVariant(NormalizeLogValue(dict[key]));
+                    normalizedDict[key.ToString()] = ToVariant(NormalizeLogValue(dict[key]));
                 return normalizedDict;
             case Variant.Type.Array:
                 var array = value.AsGodotArray();
                 var normalizedArray = new Godot.Collections.Array();
                 foreach (var entry in array)
-                    normalizedArray.Add(GdInterop.ToVariant(NormalizeLogValue(entry)));
+                    normalizedArray.Add(ToVariant(NormalizeLogValue(entry)));
                 return normalizedArray;
             case Variant.Type.Object:
                 var obj = value.AsGodotObject();
@@ -496,6 +496,27 @@ public partial class GameRuntimeCommandLogger : RefCounted
             default:
                 return value;
         }
+    }
+
+    private static Variant ToVariant(object value)
+    {
+        return value switch
+        {
+            Variant variant => variant,
+            string text => text,
+            StringName stringName => stringName,
+            bool boolValue => boolValue,
+            int intValue => intValue,
+            long longValue => longValue,
+            float floatValue => floatValue,
+            double doubleValue => doubleValue,
+            Vector2I coord => coord,
+            Vector2 coord => coord,
+            Dictionary dictionary => dictionary,
+            Godot.Collections.Array array => array,
+            GodotObject godotObject => godotObject,
+            _ => default,
+        };
     }
 
     private static bool DictionaryBool(Dictionary dictionary, string key, bool fallback)

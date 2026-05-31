@@ -62,7 +62,7 @@ public partial class BattleStatusModifierRules : RefCounted
             int rawInt = multiplier.Value;
             if (rawInt > DefaultMultiplierPercent)
             {
-                string statusLabel = GdInterop.IsEmpty(entry.StatusId)
+                string statusLabel = IsEmpty(entry.StatusId)
                     ? "<unknown>"
                     : entry.StatusId.ToString();
                 GameLog.Warning(
@@ -79,20 +79,26 @@ public partial class BattleStatusModifierRules : RefCounted
     private static List<StatusModifierEntry> BuildStatusModifierEntries(GodotObject unitState)
     {
         var entries = new List<StatusModifierEntry>();
-        GDictionary statusEffects = GdInterop.GetDictionary(unitState, "status_effects");
-        foreach (var statusValue in statusEffects.Values)
+        if (unitState is not BattleUnitState battleUnitState)
         {
-            GodotObject statusEntry = statusValue.AsGodotObject();
-            if (statusEntry == null)
+            return entries;
+        }
+
+        foreach (var statusValue in battleUnitState.status_effects.Values)
+        {
+            BattleStatusEffectState statusEntry =
+                statusValue.VariantType == Variant.Type.Object
+                    ? statusValue.AsGodotObject() as BattleStatusEffectState
+                    : null;
+            if (statusEntry == null || statusEntry.is_empty())
             {
                 continue;
             }
-            GDictionary parameters = GdInterop.GetDictionary(statusEntry, "params");
             entries.Add(
                 new StatusModifierEntry(
-                    GdInterop.GetStringName(statusEntry, "status_id"),
-                    GetOptionalInt(parameters, ParamHealMultiplierPercent),
-                    GetOptionalInt(parameters, ParamShieldGainMultiplierPercent)
+                    statusEntry.status_id,
+                    GetOptionalInt(statusEntry.@params, ParamHealMultiplierPercent),
+                    GetOptionalInt(statusEntry.@params, ParamShieldGainMultiplierPercent)
                 )
             );
         }
@@ -101,10 +107,8 @@ public partial class BattleStatusModifierRules : RefCounted
 
     private static int? GetOptionalInt(GDictionary parameters, string key)
     {
-        if (
-            !GdInterop.TryGet(parameters, key, out Variant value)
-            || value.VariantType != Variant.Type.Int
-        )
+        Variant value = ReadValue(parameters, key);
+        if (value.VariantType != Variant.Type.Int)
         {
             return null;
         }
@@ -119,5 +123,22 @@ public partial class BattleStatusModifierRules : RefCounted
         }
         int normalizedPercent = Mathf.Clamp(multiplierPercent, 0, DefaultMultiplierPercent);
         return Mathf.Max(Mathf.RoundToInt((float)amount * normalizedPercent / 100.0f), 0);
+    }
+
+    private static Variant ReadValue(GDictionary data, string key)
+    {
+        if (data == null)
+            return default;
+        if (data.ContainsKey(key))
+            return data[key];
+        var stringNameKey = new StringName(key);
+        if (data.ContainsKey(stringNameKey))
+            return data[stringNameKey];
+        return default;
+    }
+
+    private static bool IsEmpty(StringName value)
+    {
+        return value == null || value == "";
     }
 }

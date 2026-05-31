@@ -326,12 +326,20 @@ public partial class run_battle_rule_status_param_schema_regression : SceneTree
 
     private static GDictionary FirstDamageEvent(GDictionary result)
     {
-        GArray damageEvents = GdInterop.GetArray(result, "damage_events");
+        GArray damageEvents = DictArray(result, "damage_events");
         if (damageEvents.Count == 0 || damageEvents[0].VariantType != Variant.Type.Dictionary)
         {
             return new GDictionary();
         }
         return damageEvents[0].AsGodotDictionary();
+    }
+
+    private static GArray DictArray(GDictionary result, string key)
+    {
+        if (result == null || !result.ContainsKey(key))
+            return new GArray();
+        Variant value = result[key];
+        return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : new GArray();
     }
 
     private static BattleUnitState BuildUnit(StringName unitId)

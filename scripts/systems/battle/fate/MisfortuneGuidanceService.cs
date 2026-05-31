@@ -138,11 +138,43 @@ public partial class MisfortuneGuidanceService : RefCounted
         Dictionary itemDefs = null
     )
     {
+        return HandleForgeResultCore(
+            memberId,
+            DictBool(result, "success", false),
+            DictDictionary(result, "inventory_delta"),
+            DictDictionary(result, "service_side_effects"),
+            itemDefs ?? new Dictionary()
+        );
+    }
+
+    public Array<StringName> HandleForgeResult(
+        StringName memberId,
+        SettlementServiceResult result,
+        Dictionary itemDefs = null
+    )
+    {
+        return HandleForgeResultCore(
+            memberId,
+            result?.Success ?? false,
+            result?.InventoryDelta ?? new Dictionary(),
+            result?.ServiceSideEffects ?? new Dictionary(),
+            itemDefs ?? new Dictionary()
+        );
+    }
+
+    private Array<StringName> HandleForgeResultCore(
+        StringName memberId,
+        bool success,
+        Dictionary inventoryDelta,
+        Dictionary serviceSideEffects,
+        Dictionary itemDefs
+    )
+    {
         var unlockedIds = new Array<StringName>();
         var normalizedMemberId = ProgressionDataUtils.to_string_name(memberId);
         if (normalizedMemberId == "")
             return unlockedIds;
-        if (!result.GetValueOrDefault("success", false).AsBool())
+        if (!success)
             return unlockedIds;
         if (!HasExaltedReadyFlag(normalizedMemberId))
             return unlockedIds;
@@ -150,9 +182,9 @@ public partial class MisfortuneGuidanceService : RefCounted
         var memberState = GetMemberState(normalizedMemberId);
         if (!IsMisfortuneDevotee(memberState))
             return unlockedIds;
-        if (!ForgeResultUsesFixedMaterial(result))
+        if (!ForgeResultUsesFixedMaterial(inventoryDelta))
             return unlockedIds;
-        if (!ForgeResultOutputsDarkEquipment(result, itemDefs ?? new Dictionary()))
+        if (!ForgeResultOutputsDarkEquipment(inventoryDelta, serviceSideEffects, itemDefs))
             return unlockedIds;
         if (UnlockAchievement(normalizedMemberId, AchievementGuidanceExalted))
             AppendUniqueStringName(unlockedIds, AchievementGuidanceExalted);
@@ -280,12 +312,8 @@ public partial class MisfortuneGuidanceService : RefCounted
             : "";
     }
 
-    private bool ForgeResultUsesFixedMaterial(Dictionary result)
+    private bool ForgeResultUsesFixedMaterial(Dictionary inventoryDelta)
     {
-        var inventoryDeltaValue = result.GetValueOrDefault("inventory_delta", new Dictionary());
-        if (inventoryDeltaValue.VariantType != Variant.Type.Dictionary)
-            return false;
-        var inventoryDelta = inventoryDeltaValue.AsGodotDictionary();
         var removedEntries = inventoryDelta
             .GetValueOrDefault("removed_entries", new Godot.Collections.Array())
             .AsGodotArray();
@@ -306,9 +334,12 @@ public partial class MisfortuneGuidanceService : RefCounted
         return false;
     }
 
-    private bool ForgeResultOutputsDarkEquipment(Dictionary result, Dictionary itemDefs)
+    private bool ForgeResultOutputsDarkEquipment(
+        Dictionary inventoryDelta,
+        Dictionary serviceSideEffects,
+        Dictionary itemDefs)
     {
-        var outputItemId = ResolveForgeOutputItemId(result);
+        var outputItemId = ResolveForgeOutputItemId(inventoryDelta, serviceSideEffects);
         if (outputItemId == "")
             return false;
         var itemDef = GetItemDef(itemDefs, outputItemId);
@@ -329,25 +360,20 @@ public partial class MisfortuneGuidanceService : RefCounted
         return false;
     }
 
-    private StringName ResolveForgeOutputItemId(Dictionary result)
+    private StringName ResolveForgeOutputItemId(
+        Dictionary inventoryDelta,
+        Dictionary serviceSideEffects)
     {
-        var serviceSideEffectsValue = result.GetValueOrDefault(
-            "service_side_effects",
-            new Dictionary()
-        );
-        if (serviceSideEffectsValue.VariantType == Variant.Type.Dictionary)
+        if (serviceSideEffects != null && serviceSideEffects.Count > 0)
         {
-            var serviceSideEffects = serviceSideEffectsValue.AsGodotDictionary();
             var outputFromSideEffects = ProgressionDataUtils.to_string_name(
                 serviceSideEffects.GetValueOrDefault("output_item_id", "")
             );
             if (outputFromSideEffects != "")
                 return outputFromSideEffects;
         }
-        var inventoryDeltaValue = result.GetValueOrDefault("inventory_delta", new Dictionary());
-        if (inventoryDeltaValue.VariantType != Variant.Type.Dictionary)
+        if (inventoryDelta == null || inventoryDelta.Count == 0)
             return "";
-        var inventoryDelta = inventoryDeltaValue.AsGodotDictionary();
         var addedEntries = inventoryDelta
             .GetValueOrDefault("added_entries", new Godot.Collections.Array())
             .AsGodotArray();
@@ -482,4 +508,21 @@ public partial class MisfortuneGuidanceService : RefCounted
             values.Add(value);
     }
 
+    private static bool DictBool(Dictionary dictionary, string key, bool fallback)
+    {
+        if (dictionary == null || !dictionary.ContainsKey(key))
+            return fallback;
+        Variant value = dictionary[key];
+        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
+    }
+
+    private static Dictionary DictDictionary(Dictionary dictionary, string key)
+    {
+        if (dictionary == null || !dictionary.ContainsKey(key))
+            return new Dictionary();
+        Variant value = dictionary[key];
+        return value.VariantType == Variant.Type.Dictionary
+            ? value.AsGodotDictionary()
+            : new Dictionary();
+    }
 }

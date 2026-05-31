@@ -121,13 +121,13 @@ public partial class CharacterCreationIdentityOptionService : RefCounted
 
 
     private static T LookupBucketEntry<T>(Godot.Collections.Dictionary bucket, StringName defId)
-        where T : GodotObject
+        where T : class
     {
         if (bucket == null || defId == "")
             return null;
-        if (TryGetObject(bucket, defId, out var v1) && v1 is T t1)
+        if (TryGetObject<T>(bucket, defId, out var v1) && v1 is T t1)
             return t1;
-        if (TryGetObject(bucket, (string)defId, out var v2) && v2 is T t2)
+        if (TryGetObject<T>(bucket, (string)defId, out var v2) && v2 is T t2)
             return t2;
         return null;
     }
@@ -147,30 +147,30 @@ public partial class CharacterCreationIdentityOptionService : RefCounted
         return result;
     }
 
-    private static bool TryGetObject(
+    private static bool TryGetObject<T>(
         Godot.Collections.Dictionary dict,
         StringName key,
-        out GodotObject value
-    )
+        out T value
+    ) where T : class
     {
         if (dict.ContainsKey(key))
         {
-            value = dict[key].AsGodotObject();
+            value = dict[key].AsGodotObject() as T;
             return value != null;
         }
         value = null;
         return false;
     }
 
-    private static bool TryGetObject(
+    private static bool TryGetObject<T>(
         Godot.Collections.Dictionary dict,
         string key,
-        out GodotObject value
-    )
+        out T value
+    ) where T : class
     {
         if (dict.ContainsKey(key))
         {
-            value = dict[key].AsGodotObject();
+            value = dict[key].AsGodotObject() as T;
             return value != null;
         }
         value = null;

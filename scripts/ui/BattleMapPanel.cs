@@ -1500,7 +1500,7 @@ public partial class BattleMapPanel : Control
             _battle_equipment_slot_list.AddChild(emptyLabel);
             return;
         }
-        foreach (GDictionary slot in GdInterop.ReadDictionaryItems(slots))
+        foreach (GDictionary slot in ReadDictionaryItems(slots))
         {
             _battle_equipment_slot_list.AddChild(_create_battle_equipment_slot_row(slot));
         }
@@ -1614,7 +1614,7 @@ public partial class BattleMapPanel : Control
         }
         int selectedIndex = -1;
         int firstIndex = -1;
-        foreach (GDictionary entry in GdInterop.ReadDictionaryItems(entries))
+        foreach (GDictionary entry in ReadDictionaryItems(entries))
         {
             string itemStatus = DictBool(entry, "can_equip", false) ? "可装备" : "不可用";
             int itemIndex = _battle_equipment_backpack_list.AddItem(
@@ -1932,7 +1932,7 @@ public partial class BattleMapPanel : Control
                 );
             return;
         }
-        foreach (GDictionary slot in GdInterop.ReadDictionaryItems(slots))
+        foreach (GDictionary slot in ReadDictionaryItems(slots))
         {
             skill_grid.AddChild(_create_skill_slot(slot));
         }
@@ -1944,7 +1944,7 @@ public partial class BattleMapPanel : Control
         fate_badge_row.Visible = badges.Count > 0;
         if (badges.Count == 0)
             return;
-        foreach (GDictionary badge in GdInterop.ReadDictionaryItems(badges))
+        foreach (GDictionary badge in ReadDictionaryItems(badges))
         {
             fate_badge_row.AddChild(_create_fate_badge(badge));
         }
@@ -1956,7 +1956,7 @@ public partial class BattleMapPanel : Control
         timeline_row.Visible = entries.Count > 0;
         if (entries.Count == 0)
             return;
-        foreach (GDictionary entry in GdInterop.ReadDictionaryItems(entries))
+        foreach (GDictionary entry in ReadDictionaryItems(entries))
         {
             timeline_row.AddChild(
                 DictBool(entry, "is_overflow", false)
@@ -2522,41 +2522,95 @@ public partial class BattleMapPanel : Control
 
     private static GDictionary DictDictionary(GDictionary dict, string key)
     {
-        return GdInterop.GetDictionary(dict, key);
+        return TryRead(dict, key, out Variant value) && value.VariantType == Variant.Type.Dictionary
+            ? value.AsGodotDictionary()
+            : new GDictionary();
     }
 
     private static GArray DictArray(GDictionary dict, string key)
     {
-        return GdInterop.GetArray(dict, key);
+        return TryRead(dict, key, out Variant value) && value.VariantType == Variant.Type.Array
+            ? value.AsGodotArray()
+            : new GArray();
     }
 
     private static string DictString(GDictionary dict, string key, string fallback = "")
     {
-        return GdInterop.GetString(dict, key, fallback);
+        if (!TryRead(dict, key, out Variant value))
+            return fallback;
+        return value.VariantType switch
+        {
+            Variant.Type.String => value.AsString(),
+            Variant.Type.StringName => value.AsStringName().ToString(),
+            _ => fallback,
+        };
     }
 
     private static int DictInt(GDictionary dict, string key, int fallback = 0)
     {
-        return GdInterop.GetInt(dict, key, fallback);
+        return TryRead(dict, key, out Variant value) && value.VariantType == Variant.Type.Int
+            ? value.AsInt32()
+            : fallback;
     }
 
     private static float DictFloat(GDictionary dict, string key, float fallback = 0.0f)
     {
-        return (float)GdInterop.GetFloat(dict, key, fallback);
+        if (!TryRead(dict, key, out Variant value))
+            return fallback;
+        return value.VariantType switch
+        {
+            Variant.Type.Int => value.AsInt32(),
+            Variant.Type.Float => (float)value.AsDouble(),
+            _ => fallback,
+        };
     }
 
     private static bool DictBool(GDictionary dict, string key, bool fallback = false)
     {
-        return GdInterop.GetBool(dict, key, fallback);
+        if (!TryRead(dict, key, out Variant value))
+            return fallback;
+        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
     }
 
     private static Color DictColor(GDictionary dict, string key, Color fallback)
     {
         return
-            dict != null
-            && GdInterop.TryGet(dict, key, out var value)
+            TryRead(dict, key, out Variant value)
             && value.VariantType == Variant.Type.Color
             ? value.AsColor()
             : fallback;
+    }
+
+    private static IEnumerable<GDictionary> ReadDictionaryItems(GArray values)
+    {
+        if (values == null)
+            yield break;
+        foreach (Variant value in values)
+        {
+            if (value.VariantType == Variant.Type.Dictionary)
+                yield return value.AsGodotDictionary();
+        }
+    }
+
+    private static bool TryRead(GDictionary dict, string key, out Variant value)
+    {
+        if (dict == null)
+        {
+            value = default;
+            return false;
+        }
+        if (dict.ContainsKey(key))
+        {
+            value = dict[key];
+            return true;
+        }
+        StringName stringNameKey = new(key);
+        if (dict.ContainsKey(stringNameKey))
+        {
+            value = dict[stringNameKey];
+            return true;
+        }
+        value = default;
+        return false;
     }
 }

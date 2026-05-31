@@ -500,20 +500,40 @@ public partial class BattleUnitState : RefCounted
         weapon_two_handed_dice = _normalize_weapon_dice(
             GetDictionary(projection, "weapon_two_handed_dice")
         );
-        weapon_is_versatile = GetBool(projection, "weapon_is_versatile", false);
-        weapon_uses_two_hands = GetBool(
-            projection,
-            "weapon_uses_two_hands",
-            weapon_current_grip == WeaponGripTwoHanded
-        );
+        weapon_is_versatile = false;
+        if (projection.ContainsKey("weapon_is_versatile"))
+        {
+            Variant value = projection["weapon_is_versatile"];
+            if (value.VariantType == Variant.Type.Bool)
+                weapon_is_versatile = value.AsBool();
+        }
+        else if (projection.ContainsKey((StringName)"weapon_is_versatile"))
+        {
+            Variant value = projection[(StringName)"weapon_is_versatile"];
+            if (value.VariantType == Variant.Type.Bool)
+                weapon_is_versatile = value.AsBool();
+        }
+        bool hasWeaponUsesTwoHands = false;
+        weapon_uses_two_hands = weapon_current_grip == WeaponGripTwoHanded;
+        if (projection.ContainsKey("weapon_uses_two_hands"))
+        {
+            hasWeaponUsesTwoHands = true;
+            Variant value = projection["weapon_uses_two_hands"];
+            if (value.VariantType == Variant.Type.Bool)
+                weapon_uses_two_hands = value.AsBool();
+        }
+        else if (projection.ContainsKey((StringName)"weapon_uses_two_hands"))
+        {
+            hasWeaponUsesTwoHands = true;
+            Variant value = projection[(StringName)"weapon_uses_two_hands"];
+            if (value.VariantType == Variant.Type.Bool)
+                weapon_uses_two_hands = value.AsBool();
+        }
         if (weapon_uses_two_hands)
         {
             weapon_current_grip = WeaponGripTwoHanded;
         }
-        else if (
-            projection.ContainsKey("weapon_uses_two_hands")
-            && weapon_current_grip == WeaponGripTwoHanded
-        )
+        else if (hasWeaponUsesTwoHands && weapon_current_grip == WeaponGripTwoHanded)
         {
             weapon_current_grip =
                 weapon_one_handed_dice.Count > 0 ? WeaponGripOneHanded : WeaponGripNone;
@@ -613,16 +633,88 @@ public partial class BattleUnitState : RefCounted
 
     public BattleUnitState clone()
     {
-        BattleUnitState clonedState = from_dict(to_dict());
-        if (clonedState == null)
+        normalize_body_size_projection();
+        normalize_shield_state();
+        apply_weapon_projection(_build_current_weapon_projection_payload());
+        sync_default_combat_resource_unlocks();
+
+        return new BattleUnitState
         {
-            return null;
-        }
-        clonedState.per_battle_charges = DuplicateDictionary(per_battle_charges, true);
-        clonedState.per_turn_charges = DuplicateDictionary(per_turn_charges, true);
-        clonedState.per_turn_charge_limits = DuplicateDictionary(per_turn_charge_limits, true);
-        clonedState.has_moved_this_turn = has_moved_this_turn;
-        return clonedState;
+            unit_id = unit_id,
+            source_member_id = source_member_id,
+            enemy_template_id = enemy_template_id,
+            display_name = display_name,
+            faction_id = faction_id,
+            control_mode = control_mode,
+            ai_brain_id = ai_brain_id,
+            ai_state_id = ai_state_id,
+            coord = coord,
+            body_size = body_size,
+            body_size_category = body_size_category,
+            footprint_size = footprint_size,
+            occupied_coords = DuplicateVector2IArray(occupied_coords),
+            is_alive = is_alive,
+            attribute_snapshot = DuplicateAttributeSnapshot(attribute_snapshot),
+            equipment_view = get_equipment_view()?.duplicate_state() ?? NewEquipmentState(),
+            equipment_view_initialized = true,
+            current_hp = current_hp,
+            current_mp = current_mp,
+            current_stamina = current_stamina,
+            current_aura = current_aura,
+            current_ap = current_ap,
+            current_move_points = current_move_points,
+            unlocked_combat_resource_ids = DuplicateStringNameArray(
+                unlocked_combat_resource_ids
+            ),
+            stamina_recovery_progress = stamina_recovery_progress,
+            is_resting = is_resting,
+            has_taken_action_this_turn = has_taken_action_this_turn,
+            has_moved_this_turn = has_moved_this_turn,
+            can_use_locked_move_points_this_turn = can_use_locked_move_points_this_turn,
+            current_shield_hp = current_shield_hp,
+            shield_max_hp = shield_max_hp,
+            shield_duration = shield_duration,
+            shield_family = shield_family,
+            shield_source_unit_id = shield_source_unit_id,
+            shield_source_skill_id = shield_source_skill_id,
+            shield_params = DuplicateDictionary(shield_params, true),
+            action_progress = action_progress,
+            action_threshold = action_threshold,
+            known_active_skill_ids = DuplicateStringNameArray(known_active_skill_ids),
+            known_skill_level_map = DuplicateDictionary(known_skill_level_map, true),
+            known_skill_lock_hit_bonus_map = DuplicateDictionary(
+                known_skill_lock_hit_bonus_map,
+                true
+            ),
+            movement_tags = DuplicateStringNameArray(movement_tags),
+            vision_tags = DuplicateStringNameArray(vision_tags),
+            proficiency_tags = DuplicateStringNameArray(proficiency_tags),
+            save_advantage_tags = DuplicateStringNameArray(save_advantage_tags),
+            damage_resistances = DuplicateDictionary(damage_resistances, true),
+            race_trait_ids = DuplicateStringNameArray(race_trait_ids),
+            subrace_trait_ids = DuplicateStringNameArray(subrace_trait_ids),
+            ascension_trait_ids = DuplicateStringNameArray(ascension_trait_ids),
+            bloodline_trait_ids = DuplicateStringNameArray(bloodline_trait_ids),
+            versatility_pick = versatility_pick,
+            weapon_profile_kind = weapon_profile_kind,
+            weapon_item_id = weapon_item_id,
+            weapon_profile_type_id = weapon_profile_type_id,
+            weapon_family = weapon_family,
+            weapon_current_grip = weapon_current_grip,
+            weapon_attack_range = weapon_attack_range,
+            weapon_one_handed_dice = DuplicateDictionary(weapon_one_handed_dice, true),
+            weapon_two_handed_dice = DuplicateDictionary(weapon_two_handed_dice, true),
+            weapon_is_versatile = weapon_is_versatile,
+            weapon_uses_two_hands = weapon_uses_two_hands,
+            weapon_physical_damage_tag = weapon_physical_damage_tag,
+            cooldowns = DuplicateDictionary(cooldowns, true),
+            last_turn_tu = last_turn_tu,
+            status_effects = DuplicateStatusEffects(status_effects),
+            combo_state = DuplicateDictionary(combo_state, true),
+            per_battle_charges = DuplicateDictionary(per_battle_charges, true),
+            per_turn_charges = DuplicateDictionary(per_turn_charges, true),
+            per_turn_charge_limits = DuplicateDictionary(per_turn_charge_limits, true),
+        };
     }
 
     public static Vector2I get_footprint_size_for_body_size(int size_value)
@@ -1061,7 +1153,7 @@ public partial class BattleUnitState : RefCounted
             body_size_category = parsedBodySizeCategory,
             footprint_size = footprintSizeValue.AsVector2I(),
             occupied_coords = parsedOccupiedCoords,
-            is_alive = payload["is_alive"].AsBool(),
+            is_alive = ReadBool(payload, "is_alive"),
             attribute_snapshot = parsedAttributeSnapshot,
             equipment_view = parsedEquipmentState,
             equipment_view_initialized = true,
@@ -1073,10 +1165,12 @@ public partial class BattleUnitState : RefCounted
             current_move_points = payload["current_move_points"].AsInt32(),
             unlocked_combat_resource_ids = parsedUnlockedResources,
             stamina_recovery_progress = payload["stamina_recovery_progress"].AsInt32(),
-            is_resting = payload["is_resting"].AsBool(),
-            has_taken_action_this_turn = payload["has_taken_action_this_turn"].AsBool(),
-            can_use_locked_move_points_this_turn = payload["can_use_locked_move_points_this_turn"]
-                .AsBool(),
+            is_resting = ReadBool(payload, "is_resting"),
+            has_taken_action_this_turn = ReadBool(payload, "has_taken_action_this_turn"),
+            can_use_locked_move_points_this_turn = ReadBool(
+                payload,
+                "can_use_locked_move_points_this_turn"
+            ),
             current_shield_hp = payload["current_shield_hp"].AsInt32(),
             shield_max_hp = payload["shield_max_hp"].AsInt32(),
             shield_duration = payload["shield_duration"].AsInt32(),
@@ -1107,8 +1201,8 @@ public partial class BattleUnitState : RefCounted
             weapon_attack_range = payload["weapon_attack_range"].AsInt32(),
             weapon_one_handed_dice = parsedWeaponOneHandedDice,
             weapon_two_handed_dice = parsedWeaponTwoHandedDice,
-            weapon_is_versatile = payload["weapon_is_versatile"].AsBool(),
-            weapon_uses_two_hands = payload["weapon_uses_two_hands"].AsBool(),
+            weapon_is_versatile = ReadBool(payload, "weapon_is_versatile"),
+            weapon_uses_two_hands = ReadBool(payload, "weapon_uses_two_hands"),
             weapon_physical_damage_tag = ToStringName(payload["weapon_physical_damage_tag"]),
             cooldowns = DuplicateDictionary(payload["cooldowns"].AsGodotDictionary(), true),
             last_turn_tu = payload["last_turn_tu"].AsInt32(),
@@ -1143,6 +1237,14 @@ public partial class BattleUnitState : RefCounted
             snapshot.set_value(ToStringName(key), values[key].AsInt32());
         }
         return snapshot;
+    }
+
+    private static bool ReadBool(GDictionary payload, string key)
+    {
+        if (payload == null || !payload.ContainsKey(key))
+            return false;
+        Variant value = payload[key];
+        return value.VariantType == Variant.Type.Bool && value.AsBool();
     }
 
     public static GDictionary _status_effects_from_dict(GDictionary values)
@@ -1537,12 +1639,6 @@ public partial class BattleUnitState : RefCounted
         return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
     }
 
-    private static bool GetBool(GDictionary values, object key, bool fallback)
-    {
-        var value = values.GetValueOrDefault(key, fallback);
-        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
-    }
-
     private static int GetVariantInt(object rawValue)
     {
         if (rawValue is int intValue)
@@ -1571,6 +1667,67 @@ public partial class BattleUnitState : RefCounted
         foreach (Vector2I coordValue in source)
         {
             result.Add(coordValue);
+        }
+        return result;
+    }
+
+    private static GStringNameArray DuplicateStringNameArray(GStringNameArray source)
+    {
+        GStringNameArray result = new();
+        if (source == null)
+        {
+            return result;
+        }
+        foreach (StringName value in source)
+        {
+            result.Add(value);
+        }
+        return result;
+    }
+
+    private static GDictionary DuplicateStatusEffects(GDictionary source)
+    {
+        GDictionary result = new();
+        if (source == null)
+        {
+            return result;
+        }
+        foreach (string statusIdString in SortedStringKeys(source))
+        {
+            BattleStatusEffectState effectState = null;
+            Variant value = source.ContainsKey(statusIdString)
+                ? source[statusIdString]
+                : source[new StringName(statusIdString)];
+            if (value.VariantType == Variant.Type.Object)
+            {
+                effectState = value.AsGodotObject() as BattleStatusEffectState;
+            }
+            else if (value.VariantType == Variant.Type.Dictionary)
+            {
+                effectState = BattleStatusEffectState.from_dict(value.AsGodotDictionary());
+            }
+            if (effectState != null && !effectState.is_empty())
+            {
+                result[effectState.status_id] = effectState.duplicate_state();
+            }
+        }
+        return result;
+    }
+
+    private static AttributeSnapshot DuplicateAttributeSnapshot(AttributeSnapshot source)
+    {
+        AttributeSnapshot result = NewAttributeSnapshot();
+        if (source == null)
+        {
+            return result;
+        }
+        GDictionary values = source.get_all_values();
+        foreach (var key in values.Keys)
+        {
+            if (values[key].VariantType == Variant.Type.Int)
+            {
+                result.set_value(ToStringName(key), values[key].AsInt32());
+            }
         }
         return result;
     }

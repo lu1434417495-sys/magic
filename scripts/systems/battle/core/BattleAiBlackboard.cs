@@ -16,6 +16,7 @@ public partial class BattleAiBlackboard : RefCounted
     public int turn_started_tu = 0;
     public int turn_decision_count = 0;
 
+    public bool madness_ai_control = false;
     public bool madness_target_any_team = false;
     public bool low_luck_reverse_fate_used = false;
     public bool low_luck_black_star_wedge_used = false;
@@ -85,6 +86,7 @@ public partial class BattleAiBlackboard : RefCounted
             result["turn_started_tu"] = turn_started_tu;
         if (_hasTurnDecisionCount)
             result["turn_decision_count"] = turn_decision_count;
+        AddBool(result, "madness_ai_control", madness_ai_control);
         AddBool(result, "madness_target_any_team", madness_target_any_team);
         AddBool(result, "low_luck_reverse_fate_used", low_luck_reverse_fate_used);
         AddBool(result, "low_luck_black_star_wedge_used", low_luck_black_star_wedge_used);
@@ -161,6 +163,7 @@ public partial class BattleAiBlackboard : RefCounted
             "last_transition_reason" => last_transition_reason != "",
             "turn_started_tu" => _hasTurnStartedTu,
             "turn_decision_count" => _hasTurnDecisionCount,
+            "madness_ai_control" => madness_ai_control,
             "madness_target_any_team" => madness_target_any_team,
             "low_luck_reverse_fate_used" => low_luck_reverse_fate_used,
             "low_luck_black_star_wedge_used" => low_luck_black_star_wedge_used,
@@ -185,6 +188,7 @@ public partial class BattleAiBlackboard : RefCounted
             "last_transition_reason" => Variant.From(last_transition_reason),
             "turn_started_tu" => Variant.From(turn_started_tu),
             "turn_decision_count" => Variant.From(turn_decision_count),
+            "madness_ai_control" => Variant.From(madness_ai_control),
             "madness_target_any_team" => Variant.From(madness_target_any_team),
             "low_luck_reverse_fate_used" => Variant.From(low_luck_reverse_fate_used),
             "low_luck_black_star_wedge_used" => Variant.From(low_luck_black_star_wedge_used),
@@ -232,31 +236,53 @@ public partial class BattleAiBlackboard : RefCounted
                 turn_decision_count = value.AsInt32();
                 _hasTurnDecisionCount = true;
                 break;
+            case "madness_ai_control":
+                if (TryReadStrictBool(value, out bool madnessAiControl))
+                    madness_ai_control = madnessAiControl;
+                break;
             case "madness_target_any_team":
-                madness_target_any_team = value.AsBool();
+                if (TryReadStrictBool(value, out bool madnessTargetAnyTeam))
+                    madness_target_any_team = madnessTargetAnyTeam;
                 break;
             case "low_luck_reverse_fate_used":
-                low_luck_reverse_fate_used = value.AsBool();
+                if (TryReadStrictBool(value, out bool lowLuckReverseFateUsed))
+                    low_luck_reverse_fate_used = lowLuckReverseFateUsed;
                 break;
             case "low_luck_black_star_wedge_used":
-                low_luck_black_star_wedge_used = value.AsBool();
+                if (TryReadStrictBool(value, out bool lowLuckBlackStarWedgeUsed))
+                    low_luck_black_star_wedge_used = lowLuckBlackStarWedgeUsed;
                 break;
             case "meteor_protected_ally":
-                meteor_protected_ally = value.AsBool();
+                if (TryReadStrictBool(value, out bool meteorProtectedAlly))
+                    meteor_protected_ally = meteorProtectedAlly;
                 break;
             case "protected_ally":
-                protected_ally = value.AsBool();
+                if (TryReadStrictBool(value, out bool protectedAlly))
+                    protected_ally = protectedAlly;
                 break;
             case "summoned":
-                summoned = value.AsBool();
+                if (TryReadStrictBool(value, out bool summonedValue))
+                    summoned = summonedValue;
                 break;
             case "temporary_unit":
-                temporary_unit = value.AsBool();
+                if (TryReadStrictBool(value, out bool temporaryUnit))
+                    temporary_unit = temporaryUnit;
                 break;
             case "summon_source_unit_id":
                 summon_source_unit_id = value.AsStringName();
                 break;
         }
+    }
+
+    private static bool TryReadStrictBool(Variant value, out bool result)
+    {
+        if (value.VariantType == Variant.Type.Bool)
+        {
+            result = value.AsBool();
+            return true;
+        }
+        result = false;
+        return false;
     }
 
     private void ClearKey(string key)
@@ -270,6 +296,9 @@ public partial class BattleAiBlackboard : RefCounted
             case "turn_decision_count":
                 turn_decision_count = 0;
                 _hasTurnDecisionCount = false;
+                break;
+            case "madness_ai_control":
+                madness_ai_control = false;
                 break;
             case "madness_target_any_team":
                 madness_target_any_team = false;

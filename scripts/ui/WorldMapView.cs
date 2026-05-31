@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -223,7 +224,7 @@ public partial class WorldMapView : Control
         const int fontSize = 16;
         bool canDrawLabels = font != null;
 
-        foreach (GDictionary settlement in GdInterop.ReadDictionaryItems(settlements))
+        foreach (GDictionary settlement in ReadDictionaryItems(settlements))
         {
             Vector2I origin = DictVector2I(settlement, "origin", Vector2I.Zero);
             Vector2I footprintSize = DictVector2I(settlement, "footprint_size", Vector2I.One);
@@ -318,7 +319,7 @@ public partial class WorldMapView : Control
 
     private void _draw_mobile_entities(Vector2 cameraOrigin, Rect2I visibleRect)
     {
-        foreach (GDictionary worldEvent in GdInterop.ReadDictionaryItems(DictArray(_worldData, "world_events")))
+        foreach (GDictionary worldEvent in ReadDictionaryItems(DictArray(_worldData, "world_events")))
         {
             if (!DictBool(worldEvent, "is_discovered", false))
                 continue;
@@ -347,7 +348,7 @@ public partial class WorldMapView : Control
             DrawCircle(center, cell_size * 0.12f, encounter_marker_inner_color);
         }
 
-        foreach (GDictionary npc in GdInterop.ReadDictionaryItems(DictArray(_worldData, "world_npcs")))
+        foreach (GDictionary npc in ReadDictionaryItems(DictArray(_worldData, "world_npcs")))
         {
             Vector2I coord = DictVector2I(npc, "coord", Vector2I.Zero);
             if (!visibleRect.HasPoint(coord) || !_fogSystem.is_visible(coord, _playerFactionId))
@@ -503,34 +504,74 @@ public partial class WorldMapView : Control
 
     private static GArray DictArray(GDictionary dict, string key)
     {
-        return GdInterop.GetArray(dict, key);
+        return TryRead(dict, key, out Variant value) && value.VariantType == Variant.Type.Array
+            ? value.AsGodotArray()
+            : new GArray();
     }
 
     private static Vector2I DictVector2I(GDictionary dict, string key, Vector2I defaultValue)
     {
-        if (dict == null || !dict.ContainsKey(key))
-            return defaultValue;
-        return GdInterop.GetVector2I(dict, key, defaultValue);
+        return TryRead(dict, key, out Variant value) && value.VariantType == Variant.Type.Vector2I
+            ? value.AsVector2I()
+            : defaultValue;
     }
 
     private static string DictString(GDictionary dict, string key, string defaultValue)
     {
-        if (dict == null || !dict.ContainsKey(key))
+        if (!TryRead(dict, key, out Variant value))
             return defaultValue;
-        return dict[key].AsString();
+        return value.VariantType switch
+        {
+            Variant.Type.String => value.AsString(),
+            Variant.Type.StringName => value.AsStringName().ToString(),
+            _ => defaultValue,
+        };
     }
 
     private static int DictInt(GDictionary dict, string key, int defaultValue)
     {
-        if (dict == null || !dict.ContainsKey(key))
-            return defaultValue;
-        return dict[key].AsInt32();
+        return TryRead(dict, key, out Variant value) && value.VariantType == Variant.Type.Int
+            ? value.AsInt32()
+            : defaultValue;
     }
 
     private static bool DictBool(GDictionary dict, string key, bool defaultValue)
     {
-        if (dict == null || !dict.ContainsKey(key))
-            return defaultValue;
-        return dict[key].AsBool();
+        return TryRead(dict, key, out Variant value) && value.VariantType == Variant.Type.Bool
+            ? value.AsBool()
+            : defaultValue;
+    }
+
+    private static IEnumerable<GDictionary> ReadDictionaryItems(GArray values)
+    {
+        if (values == null)
+            yield break;
+        foreach (Variant value in values)
+        {
+            if (value.VariantType == Variant.Type.Dictionary)
+                yield return value.AsGodotDictionary();
+        }
+    }
+
+    private static bool TryRead(GDictionary dict, string key, out Variant value)
+    {
+        if (dict == null)
+        {
+            value = default;
+            return false;
+        }
+        if (dict.ContainsKey(key))
+        {
+            value = dict[key];
+            return true;
+        }
+        StringName stringNameKey = new(key);
+        if (dict.ContainsKey(stringNameKey))
+        {
+            value = dict[stringNameKey];
+            return true;
+        }
+        value = default;
+        return false;
     }
 }

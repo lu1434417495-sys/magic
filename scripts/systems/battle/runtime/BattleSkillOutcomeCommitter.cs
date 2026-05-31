@@ -1,12 +1,10 @@
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
-using System;
 
 [GlobalClass]
 public partial class BattleSkillOutcomeCommitter : RefCounted
 {
-    private static readonly StringName Empty = new("");
     private BattleRuntimeModule _runtime;
 
     public void setup(BattleRuntimeModule runtime)
@@ -84,16 +82,9 @@ public partial class BattleSkillOutcomeCommitter : RefCounted
             return;
         }
 
-        foreach (GDictionary result in outcome.target_results)
+        foreach (BattleCommonSkillTargetResult result in outcome.target_results)
         {
-            if (result == null)
-            {
-                continue;
-            }
-
-            BattleUnitState targetUnit = GetUnit(
-                GdInterop.GetStringName(result, "target_unit_id", Empty)
-            );
+            BattleUnitState targetUnit = GetUnit(result.TargetUnitId);
             if (targetUnit == null)
             {
                 continue;
@@ -102,9 +93,9 @@ public partial class BattleSkillOutcomeCommitter : RefCounted
             _runtime.record_battle_contribution_result(
                 sourceUnit,
                 targetUnit,
-                GdInterop.GetInt(result, "damage", 0),
-                GdInterop.GetInt(result, "healing", 0),
-                GdInterop.GetBool(result, "defeated", false),
+                result.Damage,
+                result.Healing,
+                result.Defeated,
                 new StringName("special"),
                 outcome.skill_id
             );
@@ -118,9 +109,9 @@ public partial class BattleSkillOutcomeCommitter : RefCounted
             return;
         }
 
-        foreach (var unitIdValue in outcome.status_effect_ids_by_unit_id.Keys)
+        foreach (var entry in outcome.status_effect_ids_by_unit_id)
         {
-            StringName unitId = GdInterop.ToStringName(unitIdValue, Empty);
+            StringName unitId = entry.Key;
             BattleUnitState unitState = GetUnit(unitId);
             if (unitState == null)
             {
@@ -128,14 +119,9 @@ public partial class BattleSkillOutcomeCommitter : RefCounted
             }
 
             GArray statusIds = new();
-            GArray rawStatusIds = GdInterop.GetArray(
-                outcome.status_effect_ids_by_unit_id,
-                unitIdValue
-            );
-            foreach (var statusValue in rawStatusIds)
+            foreach (StringName statusId in entry.Value)
             {
-                StringName statusId = GdInterop.ToStringName(statusValue, Empty);
-                if (!GdInterop.IsEmpty(statusId) && !statusIds.Contains(statusId))
+                if (!IsEmpty(statusId) && !statusIds.Contains(statusId))
                 {
                     statusIds.Add(statusId);
                 }
@@ -163,7 +149,7 @@ public partial class BattleSkillOutcomeCommitter : RefCounted
                 sourceUnit,
                 batch,
                 $"{defeatedUnit.display_name} 被击倒。",
-                new GDictionary { ["record_enemy_defeated_achievement"] = true }
+                new BattleDefeatHandlingOptions(recordEnemyDefeatedAchievement: true)
             );
         }
         return defeatedCount;
@@ -171,7 +157,7 @@ public partial class BattleSkillOutcomeCommitter : RefCounted
 
     private BattleUnitState GetUnit(StringName unitId)
     {
-        if (_runtime == null || GdInterop.IsEmpty(unitId))
+        if (_runtime == null || IsEmpty(unitId))
         {
             return null;
         }
@@ -183,4 +169,10 @@ public partial class BattleSkillOutcomeCommitter : RefCounted
         }
         return unitState;
     }
+
+    private static bool IsEmpty(StringName value)
+    {
+        return value == null || value == "";
+    }
+
 }

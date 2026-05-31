@@ -982,7 +982,12 @@ func _weapon_dice_signature(dice: Dictionary) -> Array:
 
 
 func _slot_ids(values: Array) -> Array[StringName]:
-	return ProgressionDataUtils.to_string_name_array(values)
+	var result: Array[StringName] = []
+	for value in values:
+		var normalized := StringName(String(value))
+		if normalized != &"":
+			result.append(normalized)
+	return result
 
 
 func _make_stack(item_id: StringName, quantity: int):

@@ -37,26 +37,26 @@ internal sealed class BattleAiSkillAffordanceRecord
         StringName normalizedSkillId = ProgressionDataUtils.to_string_name(skillId);
         if (normalizedSkillId == "")
         {
-            normalizedSkillId = GdInterop.GetStringName(record, "skill_id");
+            normalizedSkillId = ReadStringName(record, "skill_id");
         }
         return new BattleAiSkillAffordanceRecord
         {
             skill_id = normalizedSkillId,
-            is_generatable = GdInterop.GetBool(record, "is_generatable"),
-            skip_reason = GdInterop.GetString(record, "skip_reason"),
-            team_intent = GdInterop.GetStringName(record, "team_intent"),
-            target_mode = GdInterop.GetStringName(record, "target_mode"),
-            target_filter = GdInterop.GetStringName(record, "target_filter"),
-            selection_mode = GdInterop.GetStringName(record, "selection_mode"),
-            effect_roles = DecodeStringNameArray(GdInterop.GetArray(record, "effect_roles")),
-            affordances = DecodeStringNameArray(GdInterop.GetArray(record, "affordances")),
-            action_families = DecodeStringNameArray(GdInterop.GetArray(record, "action_families")),
-            requires_positioning_action = GdInterop.GetBool(
+            is_generatable = ReadBool(record, "is_generatable"),
+            skip_reason = ReadString(record, "skip_reason"),
+            team_intent = ReadStringName(record, "team_intent"),
+            target_mode = ReadStringName(record, "target_mode"),
+            target_filter = ReadStringName(record, "target_filter"),
+            selection_mode = ReadStringName(record, "selection_mode"),
+            effect_roles = DecodeStringNameArray(ReadArray(record, "effect_roles")),
+            affordances = DecodeStringNameArray(ReadArray(record, "affordances")),
+            action_families = DecodeStringNameArray(ReadArray(record, "action_families")),
+            requires_positioning_action = ReadBool(
                 record,
                 "requires_positioning_action"
             ),
-            variant_ids = DecodeStringNameArray(GdInterop.GetArray(record, "variant_ids")),
-            blocked_reason = GdInterop.GetString(record, "blocked_reason"),
+            variant_ids = DecodeStringNameArray(ReadArray(record, "variant_ids")),
+            blocked_reason = ReadString(record, "blocked_reason"),
         };
     }
 
@@ -77,6 +77,26 @@ internal sealed class BattleAiSkillAffordanceRecord
         result["variant_ids"] = ToStringNameArray(variant_ids);
         result["blocked_reason"] = blocked_reason;
         return result;
+    }
+
+    public BattleAiSkillAffordanceRecord Clone()
+    {
+        return new BattleAiSkillAffordanceRecord
+        {
+            skill_id = skill_id,
+            is_generatable = is_generatable,
+            skip_reason = skip_reason,
+            team_intent = team_intent,
+            target_mode = target_mode,
+            target_filter = target_filter,
+            selection_mode = selection_mode,
+            effect_roles = new List<StringName>(effect_roles),
+            affordances = new List<StringName>(affordances),
+            action_families = new List<StringName>(action_families),
+            requires_positioning_action = requires_positioning_action,
+            variant_ids = new List<StringName>(variant_ids),
+            blocked_reason = blocked_reason,
+        };
     }
 
     public void AddEffectRole(StringName value) => AddUnique(effect_roles, value);
@@ -140,8 +160,18 @@ internal sealed class BattleAiSkillAffordanceRecord
     private static List<StringName> DecodeStringNameArray(GArray values)
     {
         var result = new List<StringName>();
-        foreach (string value in GdInterop.ReadStringItems(values))
+        if (values == null)
         {
+            return result;
+        }
+        foreach (Variant rawValue in values)
+        {
+            string value = rawValue.VariantType switch
+            {
+                Variant.Type.String => rawValue.AsString(),
+                Variant.Type.StringName => rawValue.AsStringName().ToString(),
+                _ => "",
+            };
             StringName normalizedValue = new(value.StripEdges());
             if (normalizedValue != "")
             {
@@ -149,6 +179,46 @@ internal sealed class BattleAiSkillAffordanceRecord
             }
         }
         return result;
+    }
+
+    private static string ReadString(GDictionary data, string key, string fallback = "")
+    {
+        if (data == null || string.IsNullOrEmpty(key) || !data.ContainsKey(key))
+        {
+            return fallback;
+        }
+        Variant value = data[key];
+        if (value.VariantType == Variant.Type.String || value.VariantType == Variant.Type.StringName)
+        {
+            return value.ToString();
+        }
+        return fallback;
+    }
+
+    private static StringName ReadStringName(GDictionary data, string key)
+    {
+        string value = ReadString(data, key);
+        return !string.IsNullOrEmpty(value) ? new StringName(value) : "";
+    }
+
+    private static bool ReadBool(GDictionary data, string key, bool fallback = false)
+    {
+        if (data == null || string.IsNullOrEmpty(key) || !data.ContainsKey(key))
+        {
+            return fallback;
+        }
+        Variant value = data[key];
+        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
+    }
+
+    private static GArray ReadArray(GDictionary data, string key)
+    {
+        if (data == null || string.IsNullOrEmpty(key) || !data.ContainsKey(key))
+        {
+            return new GArray();
+        }
+        Variant value = data[key];
+        return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : new GArray();
     }
 
     private static GStringNameArray ToStringNameArray(IEnumerable<StringName> values)

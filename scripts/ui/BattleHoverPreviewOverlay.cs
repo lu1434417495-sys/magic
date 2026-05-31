@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -205,7 +206,7 @@ public partial class BattleHoverPreviewOverlay : PanelContainer
         }
 
         _fateBadgeRow.Visible = true;
-        foreach (GDictionary badge in GdInterop.ReadDictionaryItems(badges))
+        foreach (GDictionary badge in ReadDictionaryItems(badges))
         {
             if (badge.Count == 0)
                 continue;
@@ -352,44 +353,73 @@ public partial class BattleHoverPreviewOverlay : PanelContainer
 
     private static GDictionary DictDictionary(GDictionary dict, string key)
     {
-        if (dict == null || !dict.ContainsKey(key))
+        if (!TryRead(dict, key, out Variant value) || value.VariantType != Variant.Type.Dictionary)
             return new GDictionary();
-        return GdInterop.GetDictionary(dict, key);
+        return value.AsGodotDictionary();
     }
 
     private static GArray DictArray(GDictionary dict, string key)
     {
-        if (dict == null || !dict.ContainsKey(key))
+        if (!TryRead(dict, key, out Variant value) || value.VariantType != Variant.Type.Array)
             return new GArray();
-        return GdInterop.GetArray(dict, key);
+        return value.AsGodotArray();
     }
 
     private static string DictString(GDictionary dict, string key, string defaultValue)
     {
-        if (dict == null || !dict.ContainsKey(key))
+        if (!TryRead(dict, key, out Variant value))
             return defaultValue;
-        return dict[key].AsString();
+        return value.VariantType switch
+        {
+            Variant.Type.String => value.AsString(),
+            Variant.Type.StringName => value.AsStringName().ToString(),
+            _ => defaultValue,
+        };
     }
 
     private static StringName DictStringName(GDictionary dict, string key, string defaultValue)
     {
-        if (dict == null || !dict.ContainsKey(key))
+        if (!TryRead(dict, key, out Variant value))
             return new StringName(defaultValue);
-        StringName value = GdInterop.GetStringName(dict, key, new StringName(defaultValue));
-        return value;
+        return value.VariantType switch
+        {
+            Variant.Type.StringName => value.AsStringName(),
+            Variant.Type.String => new StringName(value.AsString()),
+            _ => new StringName(defaultValue),
+        };
     }
 
     private static bool DictBool(GDictionary dict, string key, bool defaultValue)
     {
-        if (dict == null || !dict.ContainsKey(key))
+        if (!TryRead(dict, key, out Variant value) || value.VariantType != Variant.Type.Bool)
             return defaultValue;
-        return dict[key].AsBool();
+        return value.AsBool();
     }
 
     private static int DictInt(GDictionary dict, string key, int defaultValue)
     {
-        if (dict == null || !dict.ContainsKey(key))
+        if (!TryRead(dict, key, out Variant value) || value.VariantType != Variant.Type.Int)
             return defaultValue;
-        return dict[key].AsInt32();
+        return value.AsInt32();
+    }
+
+    private static IEnumerable<GDictionary> ReadDictionaryItems(GArray items)
+    {
+        if (items == null)
+            yield break;
+        foreach (Variant item in items)
+        {
+            if (item.VariantType == Variant.Type.Dictionary)
+                yield return item.AsGodotDictionary();
+        }
+    }
+
+    private static bool TryRead(GDictionary dict, string key, out Variant value)
+    {
+        value = default;
+        if (dict == null || !dict.ContainsKey(key))
+            return false;
+        value = dict[key];
+        return value.VariantType != Variant.Type.Nil;
     }
 }

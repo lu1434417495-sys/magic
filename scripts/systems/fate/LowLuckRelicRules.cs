@@ -122,18 +122,12 @@ public partial class LowLuckRelicRules : RefCounted
             && attributeSnapshot.get_value(attributeId) > 0;
     }
 
-    public static bool unit_has_flag(GodotObject unitState, StringName attributeId)
+    public static bool unit_has_flag(BattleUnitState unitState, StringName attributeId)
     {
         if (unitState == null)
             return false;
 
-        if (unitState is BattleUnitState battleUnitState)
-        {
-            return snapshot_has_flag(battleUnitState.attribute_snapshot, attributeId);
-        }
-
-        var snapshot = unitState.Get("attribute_snapshot").AsGodotObject() as AttributeSnapshot;
-        return snapshot_has_flag(snapshot, attributeId);
+        return snapshot_has_flag(unitState.attribute_snapshot, attributeId);
     }
 
     public static Godot.Collections.Array<StringName> normalize_path_tags(
@@ -159,11 +153,11 @@ public partial class LowLuckRelicRules : RefCounted
     }
 
     public static bool should_reveal_hidden_path(
-        GodotObject attributeSnapshot,
+        AttributeSnapshot attributeSnapshot,
         Godot.Collections.Array pathTagsValue
     )
     {
-        if (!snapshot_has_flag(attributeSnapshot as AttributeSnapshot, ATTR_DEAD_ROAD_LANTERN))
+        if (!snapshot_has_flag(attributeSnapshot, ATTR_DEAD_ROAD_LANTERN))
             return false;
 
         foreach (var pathTag in normalize_path_tags(pathTagsValue))
@@ -177,18 +171,18 @@ public partial class LowLuckRelicRules : RefCounted
 
     public static bool member_has_item(
         Godot.Collections.Dictionary itemDefs,
-        GodotObject memberState,
+        PartyMemberState memberState,
         StringName itemId
     )
     {
         if (
             memberState == null
             || itemId == ""
-            || memberState.Get("equipment_state").AsGodotObject() == null
+            || memberState.equipment_state == null
         )
             return false;
 
-        var equipmentState = memberState.Get("equipment_state").AsGodotObject() as EquipmentState;
+        var equipmentState = memberState.equipment_state;
 
         if (equipmentState == null)
             return false;

@@ -492,11 +492,10 @@ public partial class SettlementWindow : Control
             if (!HasString(data, "state_summary_text"))
                 return null;
             if (
-                !data.ContainsKey("footprint_size")
-                || !GdInterop.HasVector2I(data, "footprint_size")
+                !HasVector2I(data, "footprint_size")
             )
                 return null;
-            Vector2I footprintSize = GdInterop.GetVector2I(data, "footprint_size");
+            Vector2I footprintSize = ReadVector2I(data, "footprint_size");
             if (footprintSize.X < 1 || footprintSize.Y < 1)
                 return null;
             if (
@@ -651,14 +650,13 @@ public partial class SettlementWindow : Control
                     return null;
             }
             if (
-                !data.ContainsKey("is_enabled")
-                || !GdInterop.HasBool(data, "is_enabled")
+                !HasBool(data, "is_enabled")
             )
                 return null;
             if (!HasString(data, "disabled_reason"))
                 return null;
-            bool isEnabled = data["is_enabled"].AsBool();
-            string disabledReason = data["disabled_reason"].AsString().StripEdges();
+            bool isEnabled = DictBool(data, "is_enabled", false);
+            string disabledReason = StrictString(data, "disabled_reason").StripEdges();
             if (!isEnabled && string.IsNullOrEmpty(disabledReason))
                 return null;
             string panelKind = "";
@@ -867,11 +865,9 @@ public partial class SettlementWindow : Control
         var options = new List<MemberOption>();
         if (data.ContainsKey("member_options"))
         {
-            if (!GdInterop.HasArray(data, "member_options"))
+            if (!HasArray(data, "member_options"))
                 return options;
-            foreach (GDictionary optionData in GdInterop.ReadDictionaryItems(
-                GdInterop.GetArray(data, "member_options")
-            ))
+            foreach (GDictionary optionData in ReadDictionaryItems(ReadArray(data, "member_options")))
             {
                 MemberOption option = MemberOption.From(optionData);
                 if (option != null)
@@ -935,19 +931,31 @@ public partial class SettlementWindow : Control
 
     private static PartyState GetPartyState(GDictionary data)
     {
-        if (data == null || !data.ContainsKey("party_state"))
+        if (!TryRead(data, "party_state", out Variant value))
             return null;
-        return data["party_state"].AsGodotObject() as PartyState;
+        return value.AsGodotObject() as PartyState;
     }
 
     private static bool HasArray(GDictionary data, string key)
     {
-        return GdInterop.HasArray(data, key);
+        return TryRead(data, key, out Variant value) && value.VariantType == Variant.Type.Array;
     }
 
     private static bool HasString(GDictionary data, string key)
     {
-        return GdInterop.HasString(data, key);
+        return
+            TryRead(data, key, out Variant value)
+            && (value.VariantType == Variant.Type.String || value.VariantType == Variant.Type.StringName);
+    }
+
+    private static bool HasVector2I(GDictionary data, string key)
+    {
+        return TryRead(data, key, out Variant value) && value.VariantType == Variant.Type.Vector2I;
+    }
+
+    private static bool HasBool(GDictionary data, string key)
+    {
+        return TryRead(data, key, out Variant value) && value.VariantType == Variant.Type.Bool;
     }
 
     private static bool HasNonEmptyString(GDictionary data, string key)
@@ -957,50 +965,98 @@ public partial class SettlementWindow : Control
 
     private static GArray ReadArray(GDictionary data, string key)
     {
-        if (data == null || !data.ContainsKey(key))
-            return new GArray();
-        return GdInterop.GetArray(data, key);
+        return TryRead(data, key, out Variant value) && value.VariantType == Variant.Type.Array
+            ? value.AsGodotArray()
+            : new GArray();
     }
 
     private static GDictionary DictDictionary(GDictionary data, string key)
     {
-        if (data == null || !data.ContainsKey(key))
-            return new GDictionary();
-        return GdInterop.GetDictionary(data, key);
+        return TryRead(data, key, out Variant value) && value.VariantType == Variant.Type.Dictionary
+            ? value.AsGodotDictionary()
+            : new GDictionary();
     }
 
     private static StringName DictStringName(GDictionary data, string key)
     {
-        if (data == null || !data.ContainsKey(key))
+        if (!TryRead(data, key, out Variant value))
             return "";
-        return ProgressionDataUtils.to_string_name(data[key]);
+        return value.VariantType switch
+        {
+            Variant.Type.StringName => value.AsStringName(),
+            Variant.Type.String => new StringName(value.AsString()),
+            _ => "",
+        };
     }
 
     private static string DictString(GDictionary data, string key, string defaultValue)
     {
-        if (data == null || !data.ContainsKey(key))
+        if (!TryRead(data, key, out Variant value))
             return defaultValue;
-        return data[key].AsString();
+        return value.VariantType switch
+        {
+            Variant.Type.String => value.AsString(),
+            Variant.Type.StringName => value.AsStringName().ToString(),
+            _ => defaultValue,
+        };
     }
 
     private static string StrictString(GDictionary data, string key)
     {
-        return GdInterop.HasString(data, key)
-            ? GdInterop.GetString(data, key)
-            : "";
+        return DictString(data, key, "");
     }
 
     private static bool DictBool(GDictionary data, string key, bool defaultValue)
     {
-        if (data == null || !data.ContainsKey(key))
-            return defaultValue;
-        return data[key].AsBool();
+        return TryRead(data, key, out Variant value) && value.VariantType == Variant.Type.Bool
+            ? value.AsBool()
+            : defaultValue;
     }
 
     private static int DictInt(GDictionary data, string key, int defaultValue)
     {
-        if (data == null || !data.ContainsKey(key))
-            return defaultValue;
-        return data[key].AsInt32();
+        return TryRead(data, key, out Variant value) && value.VariantType == Variant.Type.Int
+            ? value.AsInt32()
+            : defaultValue;
+    }
+
+    private static Vector2I ReadVector2I(GDictionary data, string key)
+    {
+        return TryRead(data, key, out Variant value) && value.VariantType == Variant.Type.Vector2I
+            ? value.AsVector2I()
+            : Vector2I.Zero;
+    }
+
+    private static IEnumerable<GDictionary> ReadDictionaryItems(GArray values)
+    {
+        if (values == null)
+            yield break;
+        foreach (Variant value in values)
+        {
+            if (value.VariantType == Variant.Type.Dictionary)
+                yield return value.AsGodotDictionary();
+        }
+    }
+
+    private static bool TryRead(GDictionary data, string key, out Variant value)
+    {
+        if (data == null)
+        {
+            value = default;
+            return false;
+        }
+        if (data.ContainsKey(key))
+        {
+            value = data[key];
+            return true;
+        }
+        StringName stringNameKey = new(key);
+        if (data.ContainsKey(stringNameKey))
+        {
+            value = data[stringNameKey];
+            return true;
+        }
+        value = default;
+        return false;
     }
 }

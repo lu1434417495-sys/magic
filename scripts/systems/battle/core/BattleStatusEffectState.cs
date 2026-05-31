@@ -46,7 +46,18 @@ public partial class BattleStatusEffectState : RefCounted
 
     public BattleStatusEffectState duplicate_state()
     {
-        return from_dict(to_dict());
+        return new BattleStatusEffectState
+        {
+            status_id = status_id,
+            source_unit_id = source_unit_id,
+            power = power,
+            @params = @params?.Duplicate(true) ?? new GDictionary(),
+            stacks = stacks,
+            duration = duration,
+            tick_interval_tu = tick_interval_tu,
+            next_tick_at_tu = next_tick_at_tu,
+            skip_next_turn_end_decay = skip_next_turn_end_decay,
+        };
     }
 
     public GDictionary to_dict()
@@ -145,7 +156,7 @@ public partial class BattleStatusEffectState : RefCounted
         bool skipDecayValue = false;
         if (effectDict.ContainsKey("skip_next_turn_end_decay"))
         {
-            if (!TryGetBool(effectDict, "skip_next_turn_end_decay", out skipDecayValue)
+            if (!TryReadBoolField(effectDict, "skip_next_turn_end_decay", out skipDecayValue)
                 || !skipDecayValue)
             {
                 return null;
@@ -222,7 +233,7 @@ public partial class BattleStatusEffectState : RefCounted
         return false;
     }
 
-    private static bool TryGetBool(GDictionary data, string key, out bool value)
+    private static bool TryReadBoolField(GDictionary data, string key, out bool value)
     {
         if (TryGetExactValue(data, key, out object rawValue) && TryAsBool(rawValue, out value))
         {

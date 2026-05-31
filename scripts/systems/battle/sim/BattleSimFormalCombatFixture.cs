@@ -694,7 +694,7 @@ public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCh
                 skill_config.ContainsKey("skill_id") ? skill_config["skill_id"].AsStringName() : ""
             );
             int target_level = Mathf.Max(_d_int(skill_config, "level", 1), 0);
-            bool is_core = skill_config.ContainsKey("is_core") && skill_config["is_core"].AsBool();
+            bool is_core = _d_bool(skill_config, "is_core", false);
             if ((string)skill_id == "")
                 continue;
             var skill_progress = unit_progress.get_skill_progress(skill_id);
@@ -1050,7 +1050,7 @@ public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCh
         var result = new Godot.Collections.Array<StringName>();
         foreach (var sc in skill_configs)
         {
-            if (sc == null || !(sc.ContainsKey("is_core") && sc["is_core"].AsBool()))
+            if (sc == null || !_d_bool(sc, "is_core", false))
                 continue;
             var sid = ProgressionDataUtils.to_string_name(
                 sc.ContainsKey("skill_id") ? sc["skill_id"].AsStringName() : ""
@@ -1138,6 +1138,14 @@ public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCh
 
     private static int _d_int(Godot.Collections.Dictionary d, string key, int fallback) =>
         d != null && d.ContainsKey(key) ? d[key].AsInt32() : fallback;
+
+    private static bool _d_bool(Godot.Collections.Dictionary d, string key, bool fallback)
+    {
+        if (d == null || !d.ContainsKey(key))
+            return fallback;
+        Variant value = d[key];
+        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
+    }
 
     private static bool _array_contains_str(Godot.Collections.Array arr, StringName v)
     {

@@ -14,6 +14,80 @@ public partial class BattleTargetCollectionService : RefCounted
     private static readonly StringName Ground = "ground";
     private static readonly Vector2I MissingCoord = new(-1, -1);
 
+    public BattleTargetCollectionResult CollectCombatProfileTargetCoords(
+        BattleState state,
+        BattleGridService gridService,
+        Vector2I sourceCoord,
+        CombatSkillDef combatProfile,
+        IEnumerable<Vector2I> targetCoords,
+        BattleUnitState sourceUnit = null,
+        IEnumerable<BattleUnitState> targetUnits = null,
+        int skillLevel = -1
+    )
+    {
+        if (combatProfile == null)
+        {
+            return BattleTargetCollectionResult.UnhandledResult(targetCoords);
+        }
+        if (IsSelfTargetCollection(combatProfile, skillLevel))
+        {
+            return BattleTargetCollectionResult.HandledResult(
+                CollectSelfTargetCoords(state, gridService, sourceCoord, sourceUnit)
+            );
+        }
+        if (combatProfile.target_mode == Unit)
+        {
+            return BattleTargetCollectionResult.HandledResult(CollectTargetUnitCoords(targetUnits));
+        }
+        if (combatProfile.target_mode != Ground)
+        {
+            return BattleTargetCollectionResult.UnhandledResult(targetCoords);
+        }
+        if (state == null || gridService == null)
+        {
+            return BattleTargetCollectionResult.UnhandledResult(targetCoords);
+        }
+
+        StringName areaPattern = GetEffectiveAreaPattern(combatProfile, skillLevel);
+        int areaValue = Math.Max(GetEffectiveAreaValue(combatProfile, skillLevel), 0);
+        var coordSet = new HashSet<Vector2I>();
+        foreach (Vector2I targetCoord in targetCoords ?? System.Array.Empty<Vector2I>())
+        {
+            if (!GridIsInside(gridService, state, targetCoord))
+            {
+                continue;
+            }
+
+            Vector2I areaCenter = targetCoord;
+            if (areaPattern == Self && sourceCoord != MissingCoord)
+            {
+                areaCenter = sourceCoord;
+            }
+            bool collectedAny = false;
+            Vector2I areaDirection =
+                sourceCoord != MissingCoord ? areaCenter - sourceCoord : Vector2I.Zero;
+            foreach (
+                Vector2I effectCoord in GridGetAreaCoords(
+                    gridService,
+                    state,
+                    areaCenter,
+                    areaPattern,
+                    areaValue,
+                    areaDirection
+                )
+            )
+            {
+                coordSet.Add(effectCoord);
+                collectedAny = true;
+            }
+            if (!collectedAny)
+            {
+                coordSet.Add(areaCenter);
+            }
+        }
+        return BattleTargetCollectionResult.HandledResult(coordSet);
+    }
+
     public GDictionary collect_combat_profile_target_coords(
         BattleState state,
         BattleGridService grid_service,
@@ -88,72 +162,17 @@ public partial class BattleTargetCollectionService : RefCounted
         int skill_level
     )
     {
-        if (combat_profile == null)
-        {
-            return BuildUnhandledResult(target_coords);
-        }
-        if (IsSelfTargetCollection(combat_profile, skill_level))
-        {
-            return BuildHandledResult(
-                CollectSelfTargetCoords(state, grid_service, source_coord, source_unit)
-            );
-        }
-        if (combat_profile.target_mode == Unit)
-        {
-            return BuildHandledResult(CollectTargetUnitCoords(target_units));
-        }
-        if (combat_profile.target_mode != Ground)
-        {
-            return BuildUnhandledResult(target_coords);
-        }
-        if (state == null || grid_service == null)
-        {
-            return BuildUnhandledResult(target_coords);
-        }
-
-        StringName areaPattern = GetEffectiveAreaPattern(combat_profile, skill_level);
-        int areaValue = Math.Max(GetEffectiveAreaValue(combat_profile, skill_level), 0);
-        var coordSet = new HashSet<Vector2I>();
-        foreach (var rawTargetCoord in target_coords ?? new GArray())
-        {
-            if (rawTargetCoord.VariantType != Variant.Type.Vector2I)
-            {
-                continue;
-            }
-            Vector2I targetCoord = rawTargetCoord.AsVector2I();
-            if (!GridIsInside(grid_service, state, targetCoord))
-            {
-                continue;
-            }
-
-            Vector2I areaCenter = targetCoord;
-            if (areaPattern == Self && source_coord != MissingCoord)
-            {
-                areaCenter = source_coord;
-            }
-            bool collectedAny = false;
-            Vector2I areaDirection =
-                source_coord != MissingCoord ? areaCenter - source_coord : Vector2I.Zero;
-            foreach (
-                Vector2I effectCoord in GridGetAreaCoords(
-                    grid_service,
-                    state,
-                    areaCenter,
-                    areaPattern,
-                    areaValue,
-                    areaDirection
-                )
+        return CollectCombatProfileTargetCoords(
+                state,
+                grid_service,
+                source_coord,
+                combat_profile,
+                ToVector2IList(target_coords),
+                source_unit,
+                ToBattleUnitList(target_units),
+                skill_level
             )
-            {
-                coordSet.Add(effectCoord);
-                collectedAny = true;
-            }
-            if (!collectedAny)
-            {
-                coordSet.Add(areaCenter);
-            }
-        }
-        return new GDictionary { ["handled"] = true, ["target_coords"] = SortCoords(coordSet) };
+            .ToDictionary();
     }
 
     private static bool IsSelfTargetCollection(CombatSkillDef combatProfile, int skillLevel)
@@ -173,7 +192,7 @@ public partial class BattleTargetCollectionService : RefCounted
         return GetEffectiveAreaPattern(combatProfile, skillLevel) == Self;
     }
 
-    private static GVector2IArray CollectSelfTargetCoords(
+    private static IEnumerable<Vector2I> CollectSelfTargetCoords(
         BattleState state,
         BattleGridService gridService,
         Vector2I sourceCoord,
@@ -183,21 +202,22 @@ public partial class BattleTargetCollectionService : RefCounted
         if (sourceUnit != null)
         {
             sourceUnit.refresh_footprint();
-            return SortCoords(sourceUnit.occupied_coords);
+            return sourceUnit.occupied_coords;
         }
         if (state != null && gridService != null && GridIsInside(gridService, state, sourceCoord))
         {
-            return new GVector2IArray { sourceCoord };
+            return new[] { sourceCoord };
         }
-        return new GVector2IArray();
+        return System.Array.Empty<Vector2I>();
     }
 
-    private static GVector2IArray CollectTargetUnitCoords(GArray targetUnits)
+    private static IEnumerable<Vector2I> CollectTargetUnitCoords(
+        IEnumerable<BattleUnitState> targetUnits
+    )
     {
         var coordSet = new HashSet<Vector2I>();
-        foreach (var rawTargetUnit in targetUnits ?? new GArray())
+        foreach (BattleUnitState targetUnit in targetUnits ?? System.Array.Empty<BattleUnitState>())
         {
-            BattleUnitState targetUnit = ToBattleUnitState(rawTargetUnit);
             if (targetUnit == null)
             {
                 continue;
@@ -208,29 +228,10 @@ public partial class BattleTargetCollectionService : RefCounted
                 coordSet.Add(occupiedCoord);
             }
         }
-        return SortCoords(coordSet);
+        return coordSet;
     }
 
-    private static GDictionary BuildHandledResult(GArray targetCoords)
-    {
-        return new GDictionary { ["handled"] = true, ["target_coords"] = SortCoords(targetCoords) };
-    }
-
-    private static GDictionary BuildHandledResult(IEnumerable<Vector2I> targetCoords)
-    {
-        return new GDictionary { ["handled"] = true, ["target_coords"] = SortCoords(targetCoords) };
-    }
-
-    private static GDictionary BuildUnhandledResult(GArray targetCoords)
-    {
-        return new GDictionary
-        {
-            ["handled"] = false,
-            ["target_coords"] = SortCoords(targetCoords),
-        };
-    }
-
-    private static GVector2IArray SortCoords(GArray targetCoords)
+    private static List<Vector2I> ToVector2IList(GArray targetCoords)
     {
         var coords = new List<Vector2I>();
         foreach (var rawCoord in targetCoords ?? new GArray())
@@ -240,25 +241,21 @@ public partial class BattleTargetCollectionService : RefCounted
                 coords.Add(rawCoord.AsVector2I());
             }
         }
-        return SortCoords(coords);
+        return coords;
     }
 
-    private static GVector2IArray SortCoords(IEnumerable<Vector2I> targetCoords)
+    private static List<BattleUnitState> ToBattleUnitList(GArray targetUnits)
     {
-        var coords = new List<Vector2I>(targetCoords ?? Array.Empty<Vector2I>());
-        coords.Sort(
-            (left, right) =>
-            {
-                int yCompare = left.Y.CompareTo(right.Y);
-                return yCompare != 0 ? yCompare : left.X.CompareTo(right.X);
-            }
-        );
-        var result = new GVector2IArray();
-        foreach (Vector2I coord in coords)
+        var units = new List<BattleUnitState>();
+        foreach (var rawTargetUnit in targetUnits ?? new GArray())
         {
-            result.Add(coord);
+            BattleUnitState targetUnit = ToBattleUnitState(rawTargetUnit);
+            if (targetUnit != null)
+            {
+                units.Add(targetUnit);
+            }
         }
-        return result;
+        return units;
     }
 
     private static StringName GetEffectiveAreaPattern(CombatSkillDef combatProfile, int skillLevel)

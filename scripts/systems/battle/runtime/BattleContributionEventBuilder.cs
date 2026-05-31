@@ -41,19 +41,19 @@ public static class BattleContributionEventBuilder
 
     public static BattleContributionEvent FromDictionary(GDictionary payload)
     {
-        StringName sourceUnitId = GdInterop.GetStringName(payload, "source_unit_id");
-        StringName targetUnitId = GdInterop.GetStringName(payload, "target_unit_id");
-        StringName sourceFactionId = GdInterop.GetStringName(payload, "source_faction_id");
-        StringName targetFactionId = GdInterop.GetStringName(payload, "target_faction_id");
-        StringName relationName = GdInterop.GetStringName(payload, "relation");
+        StringName sourceUnitId = ReadStringName(payload, "source_unit_id");
+        StringName targetUnitId = ReadStringName(payload, "target_unit_id");
+        StringName sourceFactionId = ReadStringName(payload, "source_faction_id");
+        StringName targetFactionId = ReadStringName(payload, "target_faction_id");
+        StringName relationName = ReadStringName(payload, "relation");
         return new BattleContributionEvent
         {
             source_unit_id = sourceUnitId,
-            source_member_id = GdInterop.GetStringName(payload, "source_member_id"),
+            source_member_id = ReadStringName(payload, "source_member_id"),
             source_faction_id = sourceFactionId,
             target_unit_id = targetUnitId,
             target_faction_id = targetFactionId,
-            skill_id = GdInterop.GetStringName(payload, "skill_id"),
+            skill_id = ReadStringName(payload, "skill_id"),
             relation = ParseRelation(
                 relationName,
                 sourceUnitId,
@@ -61,10 +61,10 @@ public static class BattleContributionEventBuilder
                 targetUnitId,
                 targetFactionId
             ),
-            origin_kind = ParseOriginKind(GdInterop.GetStringName(payload, "origin_kind")),
-            hp_damage_applied = Math.Max(GdInterop.GetInt(payload, "hp_damage_applied", 0), 0),
-            hp_healing_applied = Math.Max(GdInterop.GetInt(payload, "hp_healing_applied", 0), 0),
-            caused_defeat = GdInterop.GetBool(payload, "caused_defeat", false),
+            origin_kind = ParseOriginKind(ReadStringName(payload, "origin_kind")),
+            hp_damage_applied = Math.Max(ReadInt(payload, "hp_damage_applied"), 0),
+            hp_healing_applied = Math.Max(ReadInt(payload, "hp_healing_applied"), 0),
+            caused_defeat = ReadBool(payload, "caused_defeat"),
         };
     }
 
@@ -75,11 +75,11 @@ public static class BattleContributionEventBuilder
         StringName targetFactionId
     )
     {
-        if (!GdInterop.IsEmpty(sourceUnitId) && sourceUnitId == targetUnitId)
+        if (!IsEmpty(sourceUnitId) && sourceUnitId == targetUnitId)
         {
             return BattleContributionRelation.Self;
         }
-        if (GdInterop.IsEmpty(sourceFactionId) || GdInterop.IsEmpty(targetFactionId))
+        if (IsEmpty(sourceFactionId) || IsEmpty(targetFactionId))
         {
             return BattleContributionRelation.Unknown;
         }
@@ -121,5 +121,48 @@ public static class BattleContributionEventBuilder
             "special" => BattleContributionOriginKind.Special,
             _ => BattleContributionOriginKind.Unknown,
         };
+    }
+
+    private static bool IsEmpty(StringName value)
+    {
+        return value == null || value == "";
+    }
+
+    private static StringName ReadStringName(
+        GDictionary data,
+        string key,
+        StringName fallback = default
+    )
+    {
+        var value = ReadValue(data, key);
+        if (value.VariantType == Variant.Type.StringName)
+            return value.AsStringName();
+        if (value.VariantType == Variant.Type.String)
+            return new StringName(value.AsString());
+        return fallback ?? new StringName("");
+    }
+
+    private static int ReadInt(GDictionary data, string key, int fallback = 0)
+    {
+        var value = ReadValue(data, key);
+        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+    }
+
+    private static bool ReadBool(GDictionary data, string key, bool fallback = false)
+    {
+        var value = ReadValue(data, key);
+        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
+    }
+
+    private static Variant ReadValue(GDictionary data, string key)
+    {
+        if (data == null)
+            return default;
+        if (data.ContainsKey(key))
+            return data[key];
+        var stringNameKey = new StringName(key);
+        if (data.ContainsKey(stringNameKey))
+            return data[stringNameKey];
+        return default;
     }
 }

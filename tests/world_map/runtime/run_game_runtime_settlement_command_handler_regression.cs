@@ -173,12 +173,18 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
             AssertTrue(bountyService.Count > 0, "据点窗口应暴露悬赏署服务入口。");
             AssertTrue(DictBool(bountyService, "is_enabled", false), "悬赏署服务入口应为可点击状态。");
 
+            var warehouseQuest = new QuestState { quest_id = "contract_warehouse_visit" };
+            warehouseQuest.mark_accepted(runtime.get_world_step());
+            runtime._party_state.set_active_quest_state(warehouseQuest);
+            runtime._character_management.set_party_state(runtime._party_state);
             GDictionary warehouseResult = handler.command_execute_settlement_action("service:warehouse", new GDictionary());
             AssertTrue(DictBool(warehouseResult, "ok", false), "据点仓储动作应执行成功。");
             AssertEq(runtime._active_settlement_id, "spring_village_01", "仓储动作后应记录当前据点 ID。");
             AssertEq(runtime._active_modal_id, "warehouse", "仓储动作后应打开共享仓库 modal。");
             AssertTrue(runtime._active_warehouse_entry_label.Contains("据点服务"), "仓储入口标签应包含据点服务来源。");
             AssertEq(runtime._current_status_message, "已从据点服务打开共享仓库。", "仓储动作后应刷新状态文案。");
+            AssertTrue(runtime._party_state.has_claimable_quest("contract_warehouse_visit"), "仓储动作应通过 typed SettlementServiceResult 应用默认 quest_progress_events。");
+            AssertFalse(fixture.GameSession.has_pending_save(), "仓储动作成功后应通过 typed SettlementServiceResult 提交队伍状态持久化。");
             runtime._active_modal_id = "settlement";
             runtime._active_settlement_id = "spring_village_01";
 
@@ -382,6 +388,8 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
                 AssertEq(trainingQuest.get_objective_progress("train_once"), 1, "据点动作应推进任务目标进度。");
             }
             AssertTrue(runtime._party_state.has_claimable_quest("contract_training"), "目标完成后据点动作应把 QuestDef 任务推进到 claimable_quests。");
+            AssertEq(handler._result_quest_progress_events(questTrainingResult).Count, 3, "typed service result helper 应读取 canonical quest_progress_events。");
+            AssertEq(handler._result_quest_progress_events(new GDictionary()).Count, 0, "typed service result helper 应拒绝非 canonical result。");
 
             GDictionary canonicalTrainingResult = handler.execute_settlement_action("spring_village_01", "service:training", new GDictionary
             {
@@ -396,6 +404,8 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
             AssertTrue(canonicalTrainingResult.ContainsKey("pending_character_rewards"), "据点服务结果应包含 canonical pending_character_rewards。");
             AssertTrue(canonicalTrainingResult.ContainsKey("service_side_effects"), "据点服务结果应包含 service_side_effects。");
             AssertEq(DictArray(canonicalTrainingResult, "pending_character_rewards").Count, 1, "据点服务结果应输出 canonical 奖励数组。");
+            AssertEq(handler._result_pending_character_rewards(canonicalTrainingResult).Count, 1, "typed service result helper 应读取 canonical pending_character_rewards。");
+            AssertEq(handler._result_pending_character_rewards(new GDictionary()).Count, 0, "typed service result helper 应拒绝非 canonical result。");
             AssertFalse(canonicalTrainingResult.ContainsKey("pending_mastery_rewards"), "据点服务结果不应再输出 legacy pending_mastery_rewards。");
             AssertFalse(canonicalTrainingResult.ContainsKey("effects"), "据点服务结果不应再输出 legacy effects。");
             AssertEq(DictInt(canonicalTrainingResult, "gold_delta", 0), 0, "普通据点服务不应修改金币字段。");
@@ -853,6 +863,7 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
         AddQuestDef(questDefs, BuildQuestDef("contract_first_hunt", "首轮狩猎", "击败任意一组敌对遭遇。", "service_contract_board", new GArray { BuildObjective("defeat_enemy_once", "defeat_enemy", "", 1) }, new GArray { BuildGoldReward(80) }));
         AddQuestDef(questDefs, BuildQuestDef("contract_manual_drill", "训练记录", "在训练场完成两次记录。", "service_contract_board", new GArray { BuildObjective("train_once", "settlement_action", "service:training", 2) }, new GArray { BuildGoldReward(30) }));
         AddQuestDef(questDefs, BuildQuestDef("contract_repeatable_patrol", "巡路值守", "完成一次例行巡路，随后可再次接取。", "service_contract_board", new GArray { BuildObjective("warehouse_visit", "settlement_action", "service:warehouse", 1) }, new GArray { BuildGoldReward(15) }, true));
+        AddQuestDef(questDefs, BuildQuestDef("contract_warehouse_visit", "仓储访问追踪", "据点仓储动作进度测试。", "service_warehouse_hidden", new GArray { BuildObjective("warehouse_visit", "settlement_action", "service:warehouse", 1) }, new GArray { BuildGoldReward(1) }));
         AddQuestDef(questDefs, BuildQuestDef("contract_regional_bounty", "地区悬赏", "仅应出现在悬赏署任务板。", "service_bounty_registry", new GArray { BuildObjective("submit_report", "settlement_action", "service:report_bounty", 1) }, new GArray { BuildGoldReward(120) }));
         AddQuest(questDefs, "contract_missing_display_name", new GDictionary { ["quest_id"] = "contract_missing_display_name", ["description"] = "缺少 display_name 的坏契约不应显示。", ["provider_interaction_id"] = "service_contract_board", ["objective_defs"] = new GArray { BuildObjective("bad_missing_name", "defeat_enemy", "", 1) }, ["reward_entries"] = new GArray { BuildGoldReward(1) } });
         AddQuest(questDefs, "contract_missing_description", new GDictionary { ["quest_id"] = "contract_missing_description", ["display_name"] = "缺说明契约", ["provider_interaction_id"] = "service_contract_board", ["objective_defs"] = new GArray { BuildObjective("bad_missing_description", "defeat_enemy", "", 1) }, ["reward_entries"] = new GArray { BuildGoldReward(1) } });

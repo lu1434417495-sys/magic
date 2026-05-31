@@ -13,6 +13,9 @@
   - **二期**：`fate_rewrite`、`battle_reset`、`hostile_denial`、任意单位 `break_desperation`、完整 reaction/replay/rollback、外部副作用延迟。
 - MVP 不实现完整时间旅行系统，不改写永久 progression / achievement / battle rating / post-battle reward 的提交路径。
 - 先接入现有 `BattleRuntimeModule` / `BattleSkillExecutionOrchestrator` / special profile 架构。
+- 当前 `scripts/` 生产代码已经是 C# 环境；本文所有新增生产代码必须以 `.cs` 落地，不能再新增 `.gd` 生产脚本。
+- 新增业务回归默认写 C# `SceneTree` runner；只有 Godot 启动、场景截图、benchmark/simulation 等明确需要 GDScript 入口时才保留 `.gd`。
+- Godot `Resource` / `.tres`、`StringName`、`Vector2I` 仍是合法边界类型；核心 resolver / transaction / state delta 使用 C# typed DTO，不让裸 `Godot.Collections.Dictionary` 在核心逻辑中流动。
 - 不新增旧 payload/schema 兼容逻辑、 legacy alias 或 fallback migration。
 - 新增的战斗历史、每战使用次数、愿望反应窗口均为战斗内瞬态状态，不写入长期存档。
 - 代码完成后，如果运行时关系或推荐读集改变，需要同步更新 `docs/design/project_context_units.md`。
@@ -29,16 +32,16 @@
 当前代码的关键事实：
 
 - `CombatSkillDef.special_resolution_profile_id` 已经被陨石雨使用，适合承载祈愿术这种跨系统技能。
-- `SkillContentRegistry.VALID_SPECIAL_RESOLUTION_PROFILE_IDS` 目前只允许 `meteor_swarm`，需要加入 `wish`。
-- `BattleSkillExecutionOrchestrator` 目前对特殊档案是硬编码分发，需要新增 `wish` 分支，或在同一次改动中抽出小型 special profile dispatcher。
-- `BattleCommand` 目前只有目标单位/坐标/变体等固定字段，没有任意特殊载荷；祈愿术需要新增 `special_payload: Dictionary`，并用专用 validator 约束字段。
+- `SkillContentRegistry` 目前只把 `meteor_swarm` 作为已知 special profile 事实来源；实现时需要加入 `wish` 并拒绝未知 profile。
+- `BattleSkillExecutionOrchestrator.cs` 目前对 `meteor_swarm` 是硬编码分发；实现祈愿术前必须抽出小型 C# special profile router，避免再新增第二条硬编码分支。
+- `BattleCommand.cs` 目前只有目标单位/坐标/变体等固定字段，没有任意特殊载荷；祈愿术需要新增 `special_payload` 作为 Godot/UI/headless 边界传输字段，并用 `WishCommandPayload` typed DTO 约束字段。
 - 当前没有“刚刚发生事件”的统一反应历史，也没有“上一己方回合结束”的快照。命运改写、逆转伤亡、战局重置、敌意否决必须新增战斗内历史服务。
 - `BattleUnitState.per_battle_charges` 已存在但语义是“剩余次数”，不适合直接承载通用每战施法次数；祈愿术需要新增已使用次数语义。
 - 当前技能数据没有法术环阶字段。祈愿术需要新增明确的愿望交互等级，不能靠名称或标签猜测 8/9 环。
 
 ## 方案选择
 
-采用 **special profile + typed payload + 愿望 resolver + 分期 sidecar**。
+采用 **C# special profile + typed payload DTO + 愿望 resolver + 分期 sidecar**。
 
 MVP 只实现不依赖完整 reaction rollback 的 6 个模式。MVP 需要最小 sidecar：死亡记录、友方回合结束 serial、每战施法次数、庇护到期、当前 active unit 的额外动作窗口。二期才引入完整 `BattleWishHistoryService` reaction event、确定性重放、状态快照和外部副作用延迟。
 
@@ -52,15 +55,22 @@ MVP 只实现不依赖完整 reaction rollback 的 6 个模式。MVP 需要最�
 
 ### SkillDef 扩展
 
-文件：`scripts/player/progression/skill_def.gd`
+文件：`scripts/player/progression/SkillDef.cs`
 
 新增字段：
 
-```gdscript
-@export var wish_interaction_rank: int = 0
-@export var wish_copyable: bool = false
-@export var wish_deniable: bool = true
-@export var wish_forbidden_tags: Array[StringName] = []
+```csharp
+[Export]
+public int wish_interaction_rank { get; set; }
+
+[Export]
+public bool wish_copyable { get; set; }
+
+[Export]
+public bool wish_deniable { get; set; } = true;
+
+[Export]
+public Godot.Collections.Array<StringName> wish_forbidden_tags { get; set; } = new();
 ```
 
 语义：
@@ -79,12 +89,13 @@ MVP 只实现不依赖完整 reaction rollback 的 6 个模式。MVP 需要最�
 
 ### CombatSkillDef 扩展
 
-文件：`scripts/player/progression/combat_skill_def.gd`
+文件：`scripts/player/progression/CombatSkillDef.cs`
 
 新增字段：
 
-```gdscript
-@export var per_battle_cast_limit: int = 0
+```csharp
+[Export]
+public int per_battle_cast_limit { get; set; }
 ```
 
 语义：
@@ -93,7 +104,7 @@ MVP 只实现不依赖完整 reaction rollback 的 6 个模式。MVP 需要最�
 - `1` 用于祈愿术。
 - 本版只允许 `special_resolution_profile_id == &"wish"` 的技能设置非 0 值；资源验证必须拒绝其他技能设置 `per_battle_cast_limit > 0`。
 - 不复用 `BattleUnitState.per_battle_charges`，因为现有身份技能逻辑把它当“剩余次数”且只在 key 已存在时生效。
-- 新增 `BattleUnitState.per_battle_cast_counts: Dictionary = {}` 作为瞬态已使用次数，key 为 `skill_id`，缺 key 等价于已使用 `0` 次。
+- 新增 `BattleUnitState.per_battle_cast_counts` 作为 C# 内部瞬态已使用次数，建议类型为 `Dictionary<StringName, int>`；key 为 `skill_id`，缺 key 等价于已使用 `0` 次。
 - `per_battle_cast_counts` 不加入长期 `BattleUnitState.TO_DICT_FIELDS`；如果未来 battle snapshot 必须持久化它，需要先确认是否接受破坏性 schema 变更。
 - 已核对现有 `BattleUnitState` 使用 `TO_DICT_FIELDS` 与 exact schema 校验；实现时必须保持该字段为战斗内瞬态，不把它写入 `to_dict()` / `from_dict()` 的长期序列化白名单。
 
@@ -109,8 +120,8 @@ MVP 只实现不依赖完整 reaction rollback 的 6 个模式。MVP 需要最�
 
 祈愿术需要新增目标选择模式：
 
-```gdscript
-const TARGET_SELECTION_SPECIAL_PAYLOAD := &"special_payload"
+```csharp
+public static readonly StringName TARGET_SELECTION_SPECIAL_PAYLOAD = "special_payload";
 ```
 
 接入点：
@@ -118,7 +129,7 @@ const TARGET_SELECTION_SPECIAL_PAYLOAD := &"special_payload"
 - `BattleTargetCollectionService`：该模式不从普通单格/单体规则推导目标，而是把命令交给 `WishCommandPayload` 校验。
 - `BattleHudAdapter`：选中祈愿术时暴露 `selected_skill_target_selection_mode = "special_payload"`，并提供 9 种愿望的 payload 草案。
 - `BattleBoardController`：根据当前愿望模式切换目标选择交互；模式 2 和模式 9 选择 reaction event，其他模式选择单位/坐标/区域。
-- `GameRuntimeBattleSelection` / `battle_session_facade.gd`：保留、预览并提交 `special_payload`，让 headless 和自动化路径不依赖手动 UI。
+- `GameRuntimeBattleSelection.cs` / `BattleSessionFacade.cs`：保留、预览并提交 `special_payload`，让 headless 和自动化路径不依赖手动 UI。
 - `BattleAIActionAssembler`：默认不自动选择祈愿术，除非后续显式加入 AI 愿望策略；但必须能识别并跳过 `special_payload` 技能，避免构造坏命令。
 - 资源验证不允许普通技能误用 `special_payload`；只有 `special_resolution_profile_id == &"wish"` 的技能可以使用。
 
@@ -126,31 +137,33 @@ const TARGET_SELECTION_SPECIAL_PAYLOAD := &"special_payload"
 
 新增文件：
 
-- `scripts/systems/battle/core/wish/wish_profile.gd`
+- `scripts/systems/battle/core/wish/WishProfile.cs`
 - `data/configs/skill_special_profiles/profiles/wish_profile.tres`
 - `data/configs/skill_special_profiles/manifests/wish_special_profile_manifest.tres`
 
 建议字段：
 
-```gdscript
-class_name WishProfile
-extends Resource
-
-@export var profile_id: StringName = &"wish"
-@export var schema_version: int = 1
-@export var skill_id: StringName = &"wish"
-@export var max_team_transfer_targets: int = 6
-@export var team_transfer_max_distance: int = 12
-@export var sanctuary_area_size: Vector2i = Vector2i(5, 5)
-@export var repair_area_size: Vector2i = Vector2i(7, 7)
-@export var revive_hp_ratio: float = 0.5
-@export var revive_window_friendly_turn_ends: int = 3
-@export var major_damage_ratio_threshold: float = 0.35
-@export var sanctuary_status_id: StringName = &"wish_sanctuary"
-@export var extra_action_status_id: StringName = &"wish_extra_main_action"
-@export var rank_lock_status_id: StringName = &"wish_no_rank_9_cast"
-@export var beneficial_terrain_ids: Array[StringName] = [&"scrub", &"high_ground"]
-@export var removable_hazard_effect_ids: Array[StringName] = []
+```csharp
+[Tool]
+[GlobalClass]
+public partial class WishProfile : Resource
+{
+    [Export] public StringName profile_id { get; set; } = "wish";
+    [Export] public int schema_version { get; set; } = 1;
+    [Export] public StringName skill_id { get; set; } = "wish";
+    [Export] public int max_team_transfer_targets { get; set; } = 6;
+    [Export] public int team_transfer_max_distance { get; set; } = 12;
+    [Export] public Vector2I sanctuary_area_size { get; set; } = new(5, 5);
+    [Export] public Vector2I repair_area_size { get; set; } = new(7, 7);
+    [Export] public float revive_hp_ratio { get; set; } = 0.5f;
+    [Export] public int revive_window_friendly_turn_ends { get; set; } = 3;
+    [Export] public float major_damage_ratio_threshold { get; set; } = 0.35f;
+    [Export] public StringName sanctuary_status_id { get; set; } = "wish_sanctuary";
+    [Export] public StringName extra_action_status_id { get; set; } = "wish_extra_main_action";
+    [Export] public StringName rank_lock_status_id { get; set; } = "wish_no_rank_9_cast";
+    [Export] public Godot.Collections.Array<StringName> beneficial_terrain_ids { get; set; } = new() { "scrub", "high_ground" };
+    [Export] public Godot.Collections.Array<StringName> removable_hazard_effect_ids { get; set; } = new();
+}
 ```
 
 Manifest：
@@ -161,7 +174,7 @@ Manifest：
 - `required_regression_tests` 至少列出：
   - `tests/runtime/validation/run_resource_validation_regression.gd`
   - `tests/progression/schema/run_skill_schema_regression.gd`
-  - `tests/progression/schema/run_wish_schema_regression.gd`
+  - `tests/progression/schema/run_wish_schema_regression.cs`
   - `tests/battle_runtime/runtime/run_battle_skill_protocol_regression.gd`
   - MVP 的每战一次、payload、复制、复活、传送、庇护、地形、当前 active unit 额外动作专项测试脚本。
   - 二期实现时再补 reaction event、重置、命运改写、敌意否决专项测试脚本。
@@ -169,33 +182,34 @@ Manifest：
 
 ### Wish 命令载荷
 
-文件：`scripts/systems/battle/core/battle_command.gd`
+文件：`scripts/systems/battle/core/BattleCommand.cs`
 
 新增：
 
-```gdscript
-var special_payload: Dictionary = {}
+```csharp
+public Godot.Collections.Dictionary special_payload = new();
 ```
 
 新增 validator/helper：
 
-- `scripts/systems/battle/core/wish/wish_command_payload.gd`
+- `scripts/systems/battle/core/wish/WishCommandPayload.cs`
 
 通用字段：
 
-```gdscript
+```csharp
+public sealed class WishCommandPayload
 {
-	"wish_mode": StringName,
-	"target_unit_id": StringName,
-	"target_unit_ids": Array[StringName],
-	"target_coord": Vector2i,
-	"target_coords": Array[Vector2i],
-	"reaction_event_id": int,
-	"copy_skill_id": StringName,
-	"copy_payload": Dictionary,
-	"terrain_effect_id": StringName,
-	"terrain_id": StringName,
-	"grade_delta": int
+    public StringName WishMode { get; init; }
+    public StringName TargetUnitId { get; init; }
+    public IReadOnlyList<StringName> TargetUnitIds { get; init; } = Array.Empty<StringName>();
+    public Vector2I TargetCoord { get; init; } = new(-1, -1);
+    public IReadOnlyList<Vector2I> TargetCoords { get; init; } = Array.Empty<Vector2I>();
+    public int ReactionEventId { get; init; } = -1;
+    public StringName CopySkillId { get; init; }
+    public WishCopyPayload CopyPayload { get; init; }
+    public StringName TerrainEffectId { get; init; }
+    public StringName TerrainId { get; init; }
+    public int GradeDelta { get; init; }
 }
 ```
 
@@ -211,15 +225,15 @@ Validator 负责：
 - 按模式校验必需字段。
 - 坐标数组和目标数组长度必须匹配。
 - `copy_payload` 只能包含被复制技能运行时需要的目标字段，不能包含 `wish_mode`、`special_payload`、`grade_delta`、`reaction_event_id` 或其他敏感字段，避免祈愿术复制祈愿术或嵌套特殊载荷。
-- 对外保留 `BattleCommand.special_payload` 作为 UI/headless/facade 传输字典，对内必须先调用 `WishCommandPayload.from_command(command)` 或 `BattleCommand.get_wish_payload_or_error()` 转成 typed DTO；resolver 和 committer 不直接读取裸 `Dictionary`。
+- 对外保留 `BattleCommand.special_payload` 作为 UI/headless/facade 传输字典，对内必须先调用 `WishCommandPayload.FromCommand(command)` 或 `BattleCommand.GetWishPayloadOrError()` 转成 typed DTO；resolver 和 committer 不直接读取裸 `Godot.Collections.Dictionary`。
 - DTO 构建时统一把 String/StringName 归一为 `StringName`，缺失或空 payload 安全失败，不做旧 payload fallback。
-- `WishCommandPayload.to_internal_command_for_copy(copied_skill_def)` 只按被复制技能的 `target_selection_mode` 白名单生成内部 `BattleCommand`，例如 `single_unit` 只允许 `target_unit_id`，`single_coord` 只允许 `target_coord`，`multi_unit` 只允许 `target_unit_ids`。
+- `WishCommandPayload.ToInternalCommandForCopy(copiedSkillDef)` 只按被复制技能的 `target_selection_mode` 白名单生成内部 `BattleCommand`，例如 `single_unit` 只允许 `target_unit_id`，`single_coord` 只允许 `target_coord`，`multi_unit` 只允许 `target_unit_ids`。
 
 ## 运行时新增模块
 
 ### BattleWishBattleWindowService / BattleWishHistoryService
 
-MVP 新增文件：`scripts/systems/battle/runtime/battle_wish_battle_window_service.gd`
+MVP 新增文件：`scripts/systems/battle/runtime/BattleWishBattleWindowService.cs`
 
 MVP 职责：
 
@@ -234,7 +248,7 @@ MVP 职责：
 - `BattleTimelineDriver._end_active_turn(batch)`：通过语义 hook 调用 `advance_friendly_turn_end_serial(faction_id)`；通用模块不写 `wish` 专名。
 - `_clear_defeated_unit(unit_state, batch)`：记录清格前单位状态和清格后 occupancy 结果，保存死亡坐标、状态、死亡时的 friendly turn-end serial。
 
-二期新增文件：`scripts/systems/battle/runtime/battle_wish_history_service.gd`
+二期新增文件：`scripts/systems/battle/runtime/BattleWishHistoryService.cs`
 
 二期职责：
 
@@ -245,14 +259,14 @@ MVP 职责：
 二期事务范围：
 
 - `begin_current_event()` 必须早于 `BattleRuntimeSkillTurnResolver.consume_skill_costs()`，因为 AP/MP/cooldown 也需要被敌意否决或命运改写回滚。
-- 任何验证/提交失败都必须显式调用 `cancel_current_event()`；不要依赖 GDScript 异常式控制流。
+- 任何验证/提交失败都必须显式调用 `CancelCurrentEvent()`；C# 实现可以用 `try/finally` 守住 begin/cancel/complete 状态机，但不能把异常吞掉当作正常分支。
 - `complete_current_event()` 必须晚于 `BattleSkillOutcomeCommitter.commit_common_outcome()`、`_clear_defeated_unit()`、loot/report/mastery sidecar 和 changed unit/coord 登记。
 - 不可逆的纯日志、纯展示、bookkeeping 事件不占用 reaction 窗口；可交互事件仍不得跨过另一个可交互事件回滚旧状态。
 
 二期 snapshot 原则：
 
 - 一期不引入完整反应事件快照。
-- 二期 snapshot 必须是纯数据 Dictionary / DTO，不含 `RefCounted` 或 `Object` 引用，不依赖 Godot `duplicate(true)` 深拷贝对象图。
+- 二期 snapshot 必须是纯 C# DTO / primitive collection，不含 `RefCounted` 或 `GodotObject` 引用，不依赖 Godot `Duplicate(true)` 深拷贝对象图。
 - `pre_snapshot` 只记录受影响单位/cell/sidecar delta；相关单位为 `affected_unit_ids` 加 `indirectly_affected_unit_ids` 的闭包。
 - `post_snapshot` 只记录 checksum / 摘要。
 - `max_completed_events` 限制完整 snapshot 数量；调试 UI 的最近事件列表只保留轻量摘要。
@@ -260,29 +274,29 @@ MVP 职责：
 
 核心结构：
 
-```gdscript
-class_name BattleWishReactionEvent
-extends RefCounted
-
-var event_id: int
-var completed_event_serial: int
-var source_unit_id: StringName
-var source_skill_id: StringName
-var wish_interaction_rank: int
-var has_source_contest_bonus_snapshot: bool
-var source_contest_bonus_snapshot: int
-var event_type: StringName
-var created_turn_serial: int
-var pre_snapshot: Dictionary
-var post_snapshot: Dictionary
-var check_entries: Array[Dictionary]
-var replay_inputs: Dictionary
-var replay_supported_check_types: Array[StringName]
-var affected_unit_ids: Array[StringName]
-var indirectly_affected_unit_ids: Array[StringName]
-var affected_coords: Array[Vector2i]
-var reversible: bool
-var consumed_by_wish: bool
+```csharp
+public sealed class BattleWishReactionEvent
+{
+    public int EventId { get; init; }
+    public int CompletedEventSerial { get; init; }
+    public StringName SourceUnitId { get; init; }
+    public StringName SourceSkillId { get; init; }
+    public int WishInteractionRank { get; init; }
+    public bool HasSourceContestBonusSnapshot { get; init; }
+    public int SourceContestBonusSnapshot { get; init; }
+    public StringName EventType { get; init; }
+    public int CreatedTurnSerial { get; init; }
+    public BattleWishSnapshotDelta PreSnapshot { get; init; }
+    public BattleWishPostEventSummary PostSnapshot { get; init; }
+    public IReadOnlyList<BattleWishCheckEntry> CheckEntries { get; init; } = Array.Empty<BattleWishCheckEntry>();
+    public BattleWishReplayInputs ReplayInputs { get; init; }
+    public IReadOnlyList<StringName> ReplaySupportedCheckTypes { get; init; } = Array.Empty<StringName>();
+    public IReadOnlyList<StringName> AffectedUnitIds { get; init; } = Array.Empty<StringName>();
+    public IReadOnlyList<StringName> IndirectlyAffectedUnitIds { get; init; } = Array.Empty<StringName>();
+    public IReadOnlyList<Vector2I> AffectedCoords { get; init; } = Array.Empty<Vector2I>();
+    public bool Reversible { get; init; }
+    public bool ConsumedByWish { get; set; }
+}
 ```
 
 “刚刚发生”的定义：
@@ -303,20 +317,20 @@ var consumed_by_wish: bool
 
 ### BattleWishResolver
 
-新增文件：`scripts/systems/battle/runtime/battle_wish_resolver.gd`
+新增文件：`scripts/systems/battle/runtime/BattleWishResolver.cs`
 
 公开接口：
 
-```gdscript
-func setup(runtime) -> void
-func preview_wish(command: BattleCommand, caster: BattleUnitState, skill_def: SkillDef) -> BattlePreview
-func build_wish_result(command: BattleCommand, caster: BattleUnitState, skill_def: SkillDef) -> BattleWishCommitResult
+```csharp
+public void Setup(BattleRuntimeModule runtime);
+public void PreviewWish(BattleCommand command, BattleUnitState caster, SkillDef skillDef, BattlePreview preview);
+public BattleWishCommitResult BuildWishResult(BattleCommand command, BattleUnitState caster, SkillDef skillDef);
 ```
 
 职责：
 
 - 调用 `BattleSpecialProfileGate` 校验 manifest / owning skill / resolver id。
-- 调用 `WishCommandPayload.from_command()` 校验命令并得到 typed payload。
+- 调用 `WishCommandPayload.FromCommand()` 校验命令并得到 typed payload。
 - 按 9 种模式验证目标、历史事件、距离、LOS、阵营和环阶。
 - 在验证阶段构建 typed delta/result，不直接改写 `BattleState`、grid、terrain 或单位资源。
 - 返回 `BattleWishCommitResult`，由 commit adapter 在受控事务内统一应用。
@@ -332,30 +346,30 @@ Resolver 生命周期：
 
 ### BattleWishCommitResult
 
-新增文件：`scripts/systems/battle/core/wish/wish_commit_result.gd`
+新增文件：`scripts/systems/battle/core/wish/BattleWishCommitResult.cs`
 
 建议字段：
 
-```gdscript
-class_name BattleWishCommitResult
-extends RefCounted
-
-var ok: bool = false
-var reason: String = ""
-var mode: StringName = &""
-var precondition_snapshot: Dictionary = {}
-var state_delta: BattleWishStateDelta
-var changed_unit_ids: Array[StringName] = []
-var changed_coords: Array[Vector2i] = []
-var log_lines: Array[String] = []
-var report_entries: Array[Dictionary] = []
-var consumed_reaction_event_ids: Array[int] = []
+```csharp
+public sealed class BattleWishCommitResult
+{
+    public bool Ok { get; init; }
+    public string Reason { get; init; } = "";
+    public StringName Mode { get; init; }
+    public BattleWishPreconditionSnapshot PreconditionSnapshot { get; init; }
+    public BattleWishStateDelta StateDelta { get; init; }
+    public IReadOnlyList<StringName> ChangedUnitIds { get; init; } = Array.Empty<StringName>();
+    public IReadOnlyList<Vector2I> ChangedCoords { get; init; } = Array.Empty<Vector2I>();
+    public IReadOnlyList<string> LogLines { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<BattleReportEntry> ReportEntries { get; init; } = Array.Empty<BattleReportEntry>();
+    public IReadOnlyList<int> ConsumedReactionEventIds { get; init; } = Array.Empty<int>();
+}
 ```
 
 提交路径：
 
 - `BattleSpecialProfileCommitAdapter.commit_wish_result(result, batch)`。
-- 新增 `BattleWishStateDelta`，只描述要应用的变更：单位 patch/restore、grid occupancy 操作、terrain 操作、状态增删、额外动作窗口、reaction event 消费、日志和 report entry。
+- 新增 `BattleWishStateDelta.cs`，只描述要应用的变更：单位 patch/restore、grid occupancy 操作、terrain 操作、状态增删、额外动作窗口、reaction event 消费、日志和 report entry。该类型使用 C# collection / DTO；如果 UI/report 需要 Godot dictionary，由 adapter 在边界生成。
 - Commit adapter 创建 `BattleWishCommitTransaction`：
   1. 建立 MVP restore point，只覆盖 wish delta 会触达的单位、grid/cell、terrain/status、AP/MP/每战次数和 buffer。
   2. 应用祈愿术成本和 `per_battle_cast_counts` 递增。
@@ -403,9 +417,9 @@ MVP 方法语义在二期启动前必须冻结为契约：`flush_buffers()` 只�
 - 构造一个内部 `BattleCommand`，使用 `copy_payload` 作为目标信息。
 - 通过 `BattleWishCopyExecutor` 先验证、再构建 copied outcome：
 
-```gdscript
-validate_skill_as_wish_copy(caster, copied_skill_def, copied_command) -> String
-build_skill_outcome_as_wish_copy(caster, copied_skill_def, copied_command) -> BattleCommonSkillOutcome
+```csharp
+public string ValidateSkillAsWishCopy(BattleUnitState caster, SkillDef copiedSkillDef, BattleCommand copiedCommand);
+public BattleCommonSkillOutcome BuildSkillOutcomeAsWishCopy(BattleUnitState caster, SkillDef copiedSkillDef, BattleCommand copiedCommand);
 ```
 
 这些 helper：
@@ -576,7 +590,7 @@ MVP 不实现该模式；validator 收到该 mode 时返回“战局重置依赖
   - 伤害会致死，或
   - 伤害大于 `max_hp * major_damage_ratio_threshold`
   - 则伤害归零并消费状态。
-- 在现有 `scripts/systems/battle/rules/battle_status_semantic_table.gd` 的 `BattleStatusSemanticTable` 上新增最小静态 helper，例如 `find_pre_damage_prevention(unit, damage_context)`；`BattleDamageResolver` 只调用该通用语义查询接口，按 tag / semantic 得到要抵消的 status、原因和是否触发后消费，不能在 damage resolver 中直接判断 `wish_sanctuary`。
+- 在现有 `scripts/systems/battle/rules/BattleStatusSemanticTable.cs` 的 `BattleStatusSemanticTable` 上新增最小静态 helper，例如 `FindPreDamagePrevention(unit, damageContext)`；`BattleDamageResolver` 只调用该通用语义查询接口，按 tag / semantic 得到要抵消的 status、原因和是否触发后消费，不能在 damage resolver 中直接判断 `wish_sanctuary`。
 - 致死判定发生在扣血前；多段伤害逐段独立判定，第一段满足重大伤害/致死即触发并消费庇护。
 - 即死和强控使用 tag / semantic table 驱动：`strong_control`、`instant_death`、`execute`。新增状态只要带对应 tag 即被庇护识别。
 
@@ -643,8 +657,13 @@ MVP 只允许目标为当前 active unit；任意单位插队版属于二期。
 
 - MVP 新增 `BattleWishExtraActionService`，只管理当前 active unit 的 AP 豁免窗口：
 
-```gdscript
-var active_extra_action_context: Dictionary = {}
+```csharp
+public sealed class BattleWishExtraActionContext
+{
+    public StringName SourceSkillId { get; init; } = "wish";
+    public StringName UnitId { get; init; }
+    public bool Consumed { get; set; }
+}
 ```
 
 - 如果目标就是当前 active unit，窗口立即覆盖其下一次主要动作命令。
@@ -652,7 +671,7 @@ var active_extra_action_context: Dictionary = {}
 - 该窗口不推进 TU，不触发普通回合开始/结束 tick，不重置 AP/move/cooldown。
 - 窗口中的主要动作不消耗目标原有 AP；窗口消费后关闭。
 - AP 豁免只通过 `BattleWishExtraActionService.is_ap_free_window(unit, skill_def)` 判断，避免多个 resolver 各自绕过成本。
-- `BattleRuntimeSkillTurnResolver` 在 `active_extra_action_context.source_skill_id == &"wish"` 时检查 `wish_interaction_rank >= 9` 并给出 block reason。
+- `BattleRuntimeSkillTurnResolver` 在 `BattleWishExtraActionService.ActiveContext.SourceSkillId == "wish"` 时检查 `wish_interaction_rank >= 9` 并给出 block reason。
 
 测试：
 
@@ -725,47 +744,48 @@ MVP 不实现该模式；validator 收到该 mode 时返回“敌意否决依赖
 
 核心资源和 schema：
 
-- `scripts/player/progression/skill_def.gd`
-- `scripts/player/progression/combat_skill_def.gd`
-- `scripts/player/progression/skill_content_registry.gd`
-- `scripts/systems/battle/core/special_profiles/battle_special_profile_manifest_validator.gd`
-- `scripts/systems/battle/core/wish/wish_profile.gd`
-- `scripts/systems/battle/core/wish/wish_command_payload.gd`
-- `scripts/systems/battle/core/wish/wish_commit_result.gd`
-- `scripts/systems/battle/core/wish/wish_state_delta.gd`
+- `scripts/player/progression/SkillDef.cs`
+- `scripts/player/progression/CombatSkillDef.cs`
+- `scripts/player/progression/SkillContentRegistry.cs`
+- `scripts/systems/battle/core/special_profiles/BattleSpecialProfileManifestValidator.cs`
+- `scripts/systems/battle/core/wish/WishProfile.cs`
+- `scripts/systems/battle/core/wish/WishCommandPayload.cs`
+- `scripts/systems/battle/core/wish/BattleWishCommitResult.cs`
+- `scripts/systems/battle/core/wish/BattleWishStateDelta.cs`
+- `scripts/systems/battle/core/wish/BattleWishSnapshotDelta.cs`（二期）
 
 运行时：
 
-- `scripts/systems/battle/core/battle_command.gd`
-- `scripts/systems/battle/core/battle_unit_state.gd`
-- `scripts/systems/battle/runtime/battle_runtime_module.gd`
-- `scripts/systems/battle/runtime/battle_skill_execution_orchestrator.gd`
-- `scripts/systems/battle/runtime/battle_skill_turn_resolver.gd`
-- `scripts/systems/battle/runtime/battle_special_profile_router.gd`
-- `scripts/systems/battle/runtime/battle_special_profile_commit_adapter.gd`
-- `scripts/systems/battle/runtime/battle_wish_commit_transaction.gd`（MVP 只做 wish delta 原子提交；二期扩展 reaction rollback）
-- `scripts/systems/battle/runtime/battle_wish_copy_executor.gd`
-- `scripts/systems/battle/runtime/battle_wish_extra_action_service.gd`
-- `scripts/systems/battle/runtime/battle_wish_battle_window_service.gd`
-- `scripts/systems/battle/runtime/battle_wish_history_service.gd`（二期）
-- `scripts/systems/battle/runtime/battle_wish_resolver.gd`
-- `scripts/systems/battle/runtime/battle_timeline_driver.gd`
+- `scripts/systems/battle/core/BattleCommand.cs`
+- `scripts/systems/battle/core/BattleUnitState.cs`
+- `scripts/systems/battle/runtime/BattleRuntimeModule.cs`
+- `scripts/systems/battle/runtime/BattleSkillExecutionOrchestrator.cs`
+- `scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs`
+- `scripts/systems/battle/runtime/BattleSpecialProfileRouter.cs`
+- `scripts/systems/battle/runtime/BattleSpecialProfileCommitAdapter.cs`
+- `scripts/systems/battle/runtime/BattleWishCommitTransaction.cs`（MVP 只做 wish delta 原子提交；二期扩展 reaction rollback）
+- `scripts/systems/battle/runtime/BattleWishCopyExecutor.cs`
+- `scripts/systems/battle/runtime/BattleWishExtraActionService.cs`
+- `scripts/systems/battle/runtime/BattleWishBattleWindowService.cs`
+- `scripts/systems/battle/runtime/BattleWishHistoryService.cs`（二期）
+- `scripts/systems/battle/runtime/BattleWishResolver.cs`
+- `scripts/systems/battle/runtime/BattleTimelineDriver.cs`
 
 规则和地形：
 
-- `scripts/systems/battle/rules/battle_damage_resolver.gd`
-- `scripts/systems/battle/rules/battle_status_semantic_table.gd`
-- `scripts/systems/battle/terrain/battle_terrain_effect_system.gd`
-- `scripts/systems/battle/terrain/battle_grid_service.gd`
+- `scripts/systems/battle/rules/BattleDamageResolver.cs`
+- `scripts/systems/battle/rules/BattleStatusSemanticTable.cs`
+- `scripts/systems/battle/terrain/BattleTerrainEffectSystem.cs`
+- `scripts/systems/battle/terrain/BattleGridService.cs`
 
 展示和输入：
 
-- `scripts/systems/battle/presentation/battle_hud_adapter.gd`
-- `scripts/systems/battle/ai/battle_ai_action_assembler.gd`
-- `scripts/systems/game_runtime/game_runtime_battle_selection.gd`
-- `scripts/systems/game_runtime/battle_session_facade.gd`
-- `scripts/systems/game_runtime/headless/game_text_command_runner.gd`
-- `scripts/ui/battle_board_controller.gd`
+- `scripts/systems/battle/presentation/BattleHudAdapter.cs`
+- `scripts/systems/battle/ai/BattleAiActionAssembler.cs`
+- `scripts/systems/game_runtime/GameRuntimeBattleSelection.cs`
+- `scripts/systems/game_runtime/BattleSessionFacade.cs`
+- `scripts/systems/game_runtime/headless/GameTextCommandRunner.cs`
+- `scripts/ui/BattleBoardController.cs`
 - 文本命令回归覆盖 `tests/text_runtime/commands/` 下的战斗命令 runner。
 
 数据：
@@ -782,29 +802,29 @@ MVP 不实现该模式；validator 收到该 mode 时返回“敌意否决依赖
 
 MVP 新增测试：
 
-- `tests/battle_runtime/runtime/run_wish_per_battle_limit_regression.gd`
-- `tests/battle_runtime/runtime/run_wish_special_payload_protocol_regression.gd`
-- `tests/battle_runtime/runtime/run_wish_hud_preview_protocol_regression.gd`
-- `tests/battle_runtime/skills/run_wish_special_profile_regression.gd`
-- `tests/battle_runtime/skills/run_wish_copy_spell_regression.gd`
-- `tests/battle_runtime/skills/run_wish_reverse_casualty_regression.gd`
-- `tests/battle_runtime/skills/run_wish_team_transfer_regression.gd`
-- `tests/battle_runtime/skills/run_wish_break_desperation_active_unit_regression.gd`
-- `tests/battle_runtime/terrain/run_wish_reality_repair_regression.gd`
-- `tests/battle_runtime/rules/run_wish_sanctuary_regression.gd`
-- `tests/battle_runtime/ai/run_wish_ai_skip_special_payload_regression.gd`
-- `tests/progression/schema/run_wish_schema_regression.gd`
-- `tests/text_runtime/commands/run_wish_text_command_regression.gd`
+- `tests/battle_runtime/runtime/run_wish_per_battle_limit_regression.cs`
+- `tests/battle_runtime/runtime/run_wish_special_payload_protocol_regression.cs`
+- `tests/battle_runtime/runtime/run_wish_hud_preview_protocol_regression.cs`
+- `tests/battle_runtime/skills/run_wish_special_profile_regression.cs`
+- `tests/battle_runtime/skills/run_wish_copy_spell_regression.cs`
+- `tests/battle_runtime/skills/run_wish_reverse_casualty_regression.cs`
+- `tests/battle_runtime/skills/run_wish_team_transfer_regression.cs`
+- `tests/battle_runtime/skills/run_wish_break_desperation_active_unit_regression.cs`
+- `tests/battle_runtime/terrain/run_wish_reality_repair_regression.cs`
+- `tests/battle_runtime/rules/run_wish_sanctuary_regression.cs`
+- `tests/battle_runtime/ai/run_wish_ai_skip_special_payload_regression.cs`
+- `tests/progression/schema/run_wish_schema_regression.cs`
+- `tests/text_runtime/commands/run_wish_text_command_regression.cs`
 
 二期新增测试：
 
-- `tests/battle_runtime/runtime/run_wish_history_service_regression.gd`
-- `tests/battle_runtime/runtime/run_wish_reaction_event_regression.gd`
-- `tests/battle_runtime/runtime/run_wish_commit_transaction_rollback_regression.gd`
-- `tests/battle_runtime/runtime/run_wish_external_side_effect_delay_regression.gd`
-- `tests/battle_runtime/skills/run_wish_fate_rewrite_regression.gd`
-- `tests/battle_runtime/skills/run_wish_hostile_denial_regression.gd`
-- `tests/battle_runtime/skills/run_wish_battle_reset_regression.gd`
+- `tests/battle_runtime/runtime/run_wish_history_service_regression.cs`
+- `tests/battle_runtime/runtime/run_wish_reaction_event_regression.cs`
+- `tests/battle_runtime/runtime/run_wish_commit_transaction_rollback_regression.cs`
+- `tests/battle_runtime/runtime/run_wish_external_side_effect_delay_regression.cs`
+- `tests/battle_runtime/skills/run_wish_fate_rewrite_regression.cs`
+- `tests/battle_runtime/skills/run_wish_hostile_denial_regression.cs`
+- `tests/battle_runtime/skills/run_wish_battle_reset_regression.cs`
 
 需要覆盖的断言：
 
@@ -837,6 +857,7 @@ MVP 新增测试：
 这些 runner 当前已经存在；开始实现前和实现后都要运行，用来确认基础资源和技能协议没有被破坏。
 
 ```bash
+dotnet build magic.csproj
 godot --headless --script tests/runtime/validation/run_resource_validation_regression.gd
 godot --headless --script tests/progression/schema/run_skill_schema_regression.gd
 godot --headless --script tests/battle_runtime/runtime/run_battle_skill_protocol_regression.gd
@@ -847,25 +868,25 @@ godot --headless --script tests/battle_runtime/runtime/run_battle_skill_protocol
 这些 runner 在方案阶段可以不存在；它们是 MVP 实现阶段新增的验收面。
 
 ```bash
-godot --headless --script tests/progression/schema/run_wish_schema_regression.gd
-godot --headless --script tests/battle_runtime/runtime/run_wish_per_battle_limit_regression.gd
-godot --headless --script tests/battle_runtime/runtime/run_wish_special_payload_protocol_regression.gd
-godot --headless --script tests/battle_runtime/runtime/run_wish_hud_preview_protocol_regression.gd
-godot --headless --script tests/battle_runtime/skills/run_wish_special_profile_regression.gd
-godot --headless --script tests/battle_runtime/skills/run_wish_copy_spell_regression.gd
-godot --headless --script tests/battle_runtime/skills/run_wish_reverse_casualty_regression.gd
-godot --headless --script tests/battle_runtime/skills/run_wish_team_transfer_regression.gd
-godot --headless --script tests/battle_runtime/skills/run_wish_break_desperation_active_unit_regression.gd
-godot --headless --script tests/battle_runtime/terrain/run_wish_reality_repair_regression.gd
-godot --headless --script tests/battle_runtime/rules/run_wish_sanctuary_regression.gd
-godot --headless --script tests/battle_runtime/ai/run_wish_ai_skip_special_payload_regression.gd
-godot --headless --script tests/text_runtime/commands/run_wish_text_command_regression.gd
+godot --headless --script tests/progression/schema/run_wish_schema_regression.cs
+godot --headless --script tests/battle_runtime/runtime/run_wish_per_battle_limit_regression.cs
+godot --headless --script tests/battle_runtime/runtime/run_wish_special_payload_protocol_regression.cs
+godot --headless --script tests/battle_runtime/runtime/run_wish_hud_preview_protocol_regression.cs
+godot --headless --script tests/battle_runtime/skills/run_wish_special_profile_regression.cs
+godot --headless --script tests/battle_runtime/skills/run_wish_copy_spell_regression.cs
+godot --headless --script tests/battle_runtime/skills/run_wish_reverse_casualty_regression.cs
+godot --headless --script tests/battle_runtime/skills/run_wish_team_transfer_regression.cs
+godot --headless --script tests/battle_runtime/skills/run_wish_break_desperation_active_unit_regression.cs
+godot --headless --script tests/battle_runtime/terrain/run_wish_reality_repair_regression.cs
+godot --headless --script tests/battle_runtime/rules/run_wish_sanctuary_regression.cs
+godot --headless --script tests/battle_runtime/ai/run_wish_ai_skip_special_payload_regression.cs
+godot --headless --script tests/text_runtime/commands/run_wish_text_command_regression.cs
 ```
 
 按 touched surface 追加现有相关 runner：
 
-- 修改 runtime/orchestrator：运行 `tests/battle_runtime/runtime/run_battle_runtime_smoke.gd`、`tests/battle_runtime/runtime/run_battle_skill_protocol_regression.gd` 和相关 `tests/battle_runtime/skills/run_*_regression.gd`。
-- 修改 damage/status：运行 `tests/battle_runtime/rules/run_battle_damage_resolver_preview_contract_regression.gd`、`tests/battle_runtime/rules/run_status_effect_semantics_regression.gd`。
+- 修改 runtime/orchestrator：运行 `dotnet build magic.csproj`、`tests/battle_runtime/runtime/run_battle_runtime_smoke.gd`、`tests/battle_runtime/runtime/run_battle_skill_protocol_regression.gd` 和相关 `tests/battle_runtime/skills/run_*_regression.cs`。
+- 修改 damage/status：运行 `dotnet build magic.csproj`、`tests/battle_runtime/rules/run_battle_damage_resolver_preview_contract_regression.gd`、`tests/battle_runtime/rules/run_status_effect_semantics_regression.gd`。
 - 修改 HUD/board：运行 `tests/battle_runtime/rendering/run_battle_ui_regression.gd`；涉及 `BattleBoardController` 的 PR 需要手动截图或短视频。
 - 修改 state schema：运行现有 `tests/battle_runtime/state_schema/` 相关 runner；不要把瞬态 `per_battle_cast_counts` 加入长期 `TO_DICT_FIELDS`，除非先确认破坏性 schema 变更。
 
@@ -895,9 +916,9 @@ MVP：
 二期进入条件：
 
 1. 完成确定性重放审计表，确认 attack/save/spell-control 等检定的 replay 输入记录。
-2. 设计并验证纯数据 snapshot / delta，不依赖 `duplicate(true)`。
+2. 设计并验证纯数据 snapshot / delta，不依赖 Godot `Duplicate(true)`。
 3. 设计 reaction event 上限、性能基准和外部副作用延迟策略。
-4. 先通过 `run_wish_history_service_regression.gd` 与 `run_wish_commit_transaction_rollback_regression.gd` 的最小回滚场景。
+4. 先通过 `run_wish_history_service_regression.cs` 与 `run_wish_commit_transaction_rollback_regression.cs` 的最小回滚场景。
 5. MVP 验收后、二期编码前冻结 `BattleWishCommitTransaction` 的 MVP 方法契约，确认二期不会改写 `flush_buffers()` / `rollback_mvp_delta()` 的既有语义。
 6. 再实现 `fate_rewrite`、`hostile_denial`、`battle_reset` 和任意单位 `break_desperation`。
 
@@ -950,7 +971,7 @@ MVP：
 **建议**：在 `BattleRuntimeModule.start_battle()` 开头显式重置 `_wish_history_service`；将 `_setup_special_profile_runtime()` 纳入 `_ensure_sidecars_ready()` 的调用链；若需在测试中 mock，应通过 `configure_xxx_for_tests()` 方法暴露，保持与现有测试配置 pattern 一致。
 
 #### 3. `BattleCommand.special_payload` 作为通用 Dictionary 穿透运行时，类型安全与验证负担显著
-`BattleCommand` 是贯穿 AI、HUD、headless、text 命令、存档回放全链路的核心传输对象。方案要求"对外保留 `BattleCommand.special_payload` 作为传输字典，对内必须先调用 `WishCommandPayload.from_command()`"，这意味着每个 wish 入口点都必须手动调用转换，任何遗漏都会导致裸 Dictionary 穿透到 resolver/committer。此外，`BattleCommand` 若被用于战斗日志或回放序列化，`special_payload` 中的任意键值对会带来版本兼容隐患；GDScript Dictionary 的键是 Variant，`wish_mode` 等字段在传输过程中可能出现 String/StringName 混用。
+`BattleCommand` 是贯穿 AI、HUD、headless、text 命令、存档回放全链路的核心传输对象。方案要求"对外保留 `BattleCommand.special_payload` 作为传输字典，对内必须先调用 `WishCommandPayload.FromCommand()`"，这意味着每个 wish 入口点都必须手动调用转换，任何遗漏都会导致裸 `Godot.Collections.Dictionary` 穿透到 resolver/committer。此外，`BattleCommand` 若被用于战斗日志或回放序列化，`special_payload` 中的任意键值对会带来版本兼容隐患；Godot Dictionary 的键是 Variant，`wish_mode` 等字段在传输过程中可能出现 String/StringName 混用。
 
 **建议**：优先考虑将 wish 的特定载荷从 `BattleCommand` 中剥离（如使用 `WishContext` 对象）；若必须保留，则应在 `BattleCommand` 上提供强类型只读 accessor，在 accessor 内部强制完成校验与转换；为 `BattleCommand` 补充与 `BattleUnitState` 同等严格的序列化白名单。
 
@@ -971,24 +992,24 @@ wish 的落地方式迫使多个原本通用的核心模块引入 wish-specific 
 ### 二、状态一致性与事务层面
 
 #### 1. BattleWishHistoryService 快照范围：完整性与内存/性能权衡
-快照面覆盖了 `BattleState.units` 完整 clone、grid occupancy、terrain、log/report 长度、changed lists、loot resolver 待提交状态、battle metrics、active unit、timeline TU、interrupt context 等，范围极广。派生状态（如 log/report 长度、loot resolver 待提交状态）如果被完整 snapshot 但实际回滚时只恢复到长度/计数，可能导致底层数据与长度不一致。此外，每场战斗的每个技能/法术都产生一个 `BattleWishReactionEvent`，在 Godot GDScript 环境下可能导致显著的 GC 压力和内存占用。文档说"相关单位的完整 clone"，但未定义何为"相关"。
+快照面覆盖了 `BattleState.units` 完整 clone、grid occupancy、terrain、log/report 长度、changed lists、loot resolver 待提交状态、battle metrics、active unit、timeline TU、interrupt context 等，范围极广。派生状态（如 log/report 长度、loot resolver 待提交状态）如果被完整 snapshot 但实际回滚时只恢复到长度/计数，可能导致底层数据与长度不一致。此外，每场战斗的每个技能/法术都产生一个 `BattleWishReactionEvent`，如果用 Godot 容器深拷贝会带来显著的 GC 压力和内存占用。文档说"相关单位的完整 clone"，但未定义何为"相关"。
 
 **建议**：明确"相关"为 `affected_unit_ids` 的闭包，并记录 `indirectly_affected_unit_ids`；对 `pre_snapshot` 做深拷贝（回滚用），`post_snapshot` 做轻量校验和或引用比较；增加历史事件数量上限（如保留最近 10 个 completed reversible events），超出时清理旧 snapshot。
 
 #### 2. pre_snapshot / post_snapshot 克隆深度与深拷贝可行性
-文档要求保存 `BattleUnitState` 的"完整 clone"，但未明确 clone 策略。Godot/GDScript 的 `Dictionary.duplicate(true)` 和 `Array.duplicate(true)` 对 `RefCounted`/`Object` 实例只复制引用，不会递归深拷贝对象图。若 `BattleUnitState` 内部包含 `RefCounted` 子对象（如 `BattleStatusInstance`、shield 对象），`duplicate(true)` 只会复制引用，回滚时修改这些子对象会导致 snapshot 也被污染，回滚失效。
+文档要求保存 `BattleUnitState` 的"完整 clone"，但未明确 clone 策略。Godot 的 `Dictionary.Duplicate(true)` 和 `Array.Duplicate(true)` 对 `RefCounted`/`GodotObject` 实例只复制引用，不会递归深拷贝对象图。若 `BattleUnitState` 内部包含 `RefCounted` 子对象（如 status、shield 对象），`Duplicate(true)` 只会复制引用，回滚时修改这些子对象会导致 snapshot 也被污染，回滚失效。
 
-**建议**：在文档中明确要求 `BattleWishHistoryService` 实现自定义深拷贝方法，对 `BattleUnitState` 的每个标量/容器/子对象做显式序列化（如转为扁平 Dictionary），而非依赖 Godot 原生 `duplicate(true)`；规定 snapshot 格式为"纯数据 Dictionary"（不含 `RefCounted` 引用）；删除或弱化 `post_snapshot` 的深拷贝要求，改为记录 `post_event_checksum`。
+**建议**：在文档中明确要求 `BattleWishHistoryService` 实现自定义 C# snapshot DTO，对 `BattleUnitState` 的每个标量/容器/子对象做显式复制，而非依赖 Godot 原生 `Duplicate(true)`；规定 snapshot 格式为纯数据 DTO（不含 `RefCounted` 引用）；删除或弱化 `post_snapshot` 的深拷贝要求，改为记录 `post_event_checksum`。
 
 #### 3. BattleWishCommitTransaction 的原子性保证与 per_battle_cast_counts 回滚
 文档描述 commit 步骤为：①捕获快照 → ②应用成本 + per_battle_cast_counts 递增 → ③应用 delta → ④统一收尾。任一步失败则恢复快照且不消耗成本/次数。但未定义"失败"的检测边界和回滚的具体实现。步骤 ④ 的"death/loot/report 收尾"可能涉及向外部系统追加数据，若这些系统没有参与 snapshot，回滚时只会恢复 `BattleState`，但 report formatter 内部状态已经膨胀。此外，`BattleWishStateDelta` 若包含多个子操作，中途抛异常则已写入的部分无法自动撤销。
 
-**建议**：明确 `BattleWishCommitTransaction` 采用"快照替换"而非"patch 撤销"策略；对 `per_battle_cast_counts` 的递增操作要求必须在同一个 `Dictionary` 对象上进行，且该对象必须被包含在 snapshot 范围内；定义所有 sidecar（log、report、death、loot）必须实现 `transactional_append()` 接口，在 transaction 成功后再真正写入，或这些 sidecar 必须被纳入 snapshot 范围。
+**建议**：明确 `BattleWishCommitTransaction` 采用"快照替换"而非"patch 撤销"策略；对 `per_battle_cast_counts` 的递增操作要求必须在同一个 C# `Dictionary<StringName, int>` 对象上进行，且该对象必须被包含在 snapshot 范围内；定义所有 sidecar（log、report、death、loot）必须实现 `TransactionalAppend()` 接口，在 transaction 成功后再真正写入，或这些 sidecar 必须被纳入 snapshot 范围。
 
 #### 4. reaction event "begin → complete" 窗口与现有 sidecar 时序严谨性
 文档规定了 begin 早于 consume_skill_costs，complete 晚于 commit_common_outcome、_clear_defeated_unit、loot/report/mastery sidecar。但存在隐含的时序漏洞：若 `begin_reaction_event()` 与 `consume_skill_costs()` 之间出现异常，history service 会记录一个未消耗成本的 skeleton event，而该事件不会被 complete，也不会被清理。若 loot/mastery sidecar 是异步或回调驱动的，`complete_reaction_event()` 可能在 sidecar 尚未完全执行时就已被调用。此外，`_clear_defeated_unit()` 在清除格子前调用 `record_unit_death()`，若死亡记录保存了死亡时的状态 snapshot，而后续的 `_clear_defeated_unit` 修改了 grid occupancy，则 death record 中的坐标与 grid 状态可能不一致。
 
-**建议**：在 `BattleSkillExecutionOrchestrator` 中明确 `begin_reaction_event()` 和 `consume_skill_costs()` 必须在同一个 try/except 块内，任何异常都触发 `history_service.cancel_current_event()`；若 loot/mastery 存在异步路径，要求它们在 `complete_reaction_event()` 之前同步返回或提供 `await` 点；修正死亡记录时序：`_clear_defeated_unit()` 应先完成所有状态变更，再调用 `record_unit_death()`，或在 `record_unit_death` 中显式保存清格前后的两个视角。
+**建议**：在 `BattleSkillExecutionOrchestrator` 中明确 `BeginReactionEvent()` 和 `consume_skill_costs()` 必须在同一个 `try/finally` 状态机内，任何异常都触发 `historyService.CancelCurrentEvent()`；若 loot/mastery 存在异步路径，要求它们在 `CompleteReactionEvent()` 之前同步返回或提供 `await` 点；修正死亡记录时序：`_clear_defeated_unit()` 应先完成所有状态变更，再调用 `RecordUnitDeath()`，或在 death record 中显式保存清格前后的两个视角。
 
 #### 5. pending_external_side_effects 延迟策略的实现复杂度与 flush 可靠性
 文档要求外部副作用必须延迟到 reaction window 关闭后 flush。但"下一个 completed event 覆盖反应窗口"不意味着祈愿术不能再改写前一个事件——根据文档，祈愿术只能改写"最新一个 completed event"，所以只要新事件完成，旧事件自然关闭。但如果新事件就是祈愿术本身呢？祈愿术作为 reaction event 被记录后，它自己是否又开启一个新的 reaction window？这会导致 flush 无限推迟。此外，若战斗结算（如一方全灭）发生在某个 reaction event 之后，且结算逻辑立即计算 battle end result 和 post-battle rewards，此时 pending 中的副作用可能尚未 flush 就被结算逻辑覆盖或重复计算。
@@ -1028,7 +1049,7 @@ wish 的落地方式迫使多个原本通用的核心模块引入 wish-specific 
 #### 4. `fate_rewrite` 的"确定性重放"支持范围不明
 文档要求"如果某个检定类型尚未支持确定性重放，validator 必须让它不可选"，但未列出当前已有哪些检定支持、哪些不支持。若当前大量技能事件的检定未记录 `replay_inputs`，则 `fate_rewrite` 的可用事件池可能非常狭窄，甚至只剩普通攻击和少数法术，导致该模式在实战中几乎无法使用。文档将该模式排在实施顺序第 8 位（倒数第二），但其依赖的改造实际上需要大规模修改多个系统。
 
-**建议**：在文档中补充当前检定覆盖率审计表；增加降级策略（若某事件包含可重放和不可重放两种检定，允许只改写可重放的部分）；将 `fate_rewrite` 拆分为"先支持攻击/豁免重放"的 MVP 和"支持全部检定"的完整版；在 `BattleWishReactionEvent` 中增加 `replay_supported_check_types: Array[StringName]`。
+**建议**：在文档中补充当前检定覆盖率审计表；增加降级策略（若某事件包含可重放和不可重放两种检定，允许只改写可重放的部分）；将 `fate_rewrite` 拆分为"先支持攻击/豁免重放"的 MVP 和"支持全部检定"的完整版；在 `BattleWishReactionEvent` 中增加 `IReadOnlyList<StringName> ReplaySupportedCheckTypes`。
 
 #### 5. `break_desperation` 额外动作窗口与现有 interrupt action 框架兼容性
 `break_desperation` 需要新增 `BattleWishExtraActionService`，若目标不是当前 active unit，则 `BattleTimelineDriver` 需"暂停当前 active unit，临时切换 active_unit_id"。仓库已有 interrupt action 机制（如借机攻击、反应技能），文档未说明 `active_extra_action_context` 如何与现有 interrupt queue 交互。如果当前已有一个 interrupt action pending，额外动作是插队、排队还是被忽略？"暂停当前 active unit，临时切换，执行完恢复"涉及多字段联动，文档未定义恢复时的精确状态边界。若额外动作窗口中目标再次触发其他 interrupt，是否会产生嵌套？
@@ -1059,35 +1080,35 @@ wish 的落地方式迫使多个原本通用的核心模块引入 wish-specific 
 
 #### 2. 新增的 9 个回归测试 runner 覆盖不足，存在重复与遗漏
 遗漏的关键场景包括：
-- `copy_spell` 无独立 runner：复制法术逻辑最复杂，仅靠 `run_wish_special_profile_regression.gd` 笼统覆盖，失败时难以定位。
+- `copy_spell` 无独立 runner：复制法术逻辑最复杂，仅靠 `run_wish_special_profile_regression.cs` 笼统覆盖，失败时难以定位。
 - `break_desperation` 无独立 runner：额外动作窗口涉及 timeline 暂停/恢复、9 环 block，缺少独立回归测试。
 - Commit Transaction 回滚无独立 runner：这是一个跨模式的关键事务机制。
 - 外部副作用延迟（`pending_external_side_effects`）无独立 runner：高风险全局约束。
 - AI 对 `special_payload` 的跳过行为无测试。
 
-此外，`run_wish_reaction_event_regression.gd` 与 `run_wish_history_service_regression.gd` 的断言边界模糊，`fate_rewrite` 和 `hostile_denial` 都同时依赖两者，容易导致单个 runner 过于庞大。
+此外，`run_wish_reaction_event_regression.cs` 与 `run_wish_history_service_regression.cs` 的断言边界模糊，`fate_rewrite` 和 `hostile_denial` 都同时依赖两者，容易导致单个 runner 过于庞大。
 
-**建议**：新增 `run_wish_copy_spell_regression.gd`、`run_wish_break_desperation_regression.gd`、`run_wish_commit_transaction_rollback_regression.gd`、`run_wish_external_side_effect_delay_regression.gd`、`run_wish_ai_skip_special_payload_regression.gd`；将 reaction event runner 按模式拆分。
+**建议**：新增 `run_wish_copy_spell_regression.cs`、`run_wish_break_desperation_regression.cs`、`run_wish_commit_transaction_rollback_regression.cs`、`run_wish_external_side_effect_delay_regression.cs`、`run_wish_ai_skip_special_payload_regression.cs`；将 reaction event runner 按模式拆分。
 
 #### 3. Headless 测试对 UI 相关路径覆盖严重不足
-文档涉及大量 UI/交互层改动，但 headless 回归套件几乎完全绕过这些路径：`BattleBoardController` 目标选择模式切换在 headless 中完全不被执行；`BattleHudAdapter` 技能槽可用性同步的 block reason 不一致无法在 headless 中发现；`GameRuntimeBattleSelection` / `battle_session_facade.gd` 的 `special_payload` 保留与清理未被基线 runner 验证。
+文档涉及大量 UI/交互层改动，但 headless 回归套件几乎完全绕过这些路径：`BattleBoardController` 目标选择模式切换在 headless 中完全不被执行；`BattleHudAdapter` 技能槽可用性同步的 block reason 不一致无法在 headless 中发现；`GameRuntimeBattleSelection.cs` / `BattleSessionFacade.cs` 的 `special_payload` 保留与清理未被基线 runner 验证。
 
-**建议**：新增 `run_wish_hud_preview_protocol_regression.gd`，用程序方式模拟 HUD 的 preview → issue 全链路；在 `tests/text_runtime/commands/` 下新增覆盖 `special_payload` 的文本命令场景；文档应明确要求：任何修改 `BattleHudAdapter` 或 `BattleBoardController` 的 PR，必须附加手动 UI 截图或短视频。
+**建议**：新增 `run_wish_hud_preview_protocol_regression.cs`，用程序方式模拟 HUD 的 preview → issue 全链路；在 `tests/text_runtime/commands/` 下新增覆盖 `special_payload` 的文本命令场景；文档应明确要求：任何修改 `BattleHudAdapter` 或 `BattleBoardController` 的 PR，必须附加手动 UI 截图或短视频。
 
 #### 4. `BattleWishHistoryService` 完整快照机制在大规模模拟中的性能风险极高
-在 12v6 的大规模战斗中，假设 200 个事件，每个事件的 `pre_snapshot` + `post_snapshot` 都对 `BattleState.units` 做 `duplicate(true)`。`BattleUnitState` 包含 attribute_snapshot、equipment_view、status_effects 等重型嵌套对象。单次完整 deep clone 可能达到数 MB，200 个事件即数百 MB 峰值。Godot 的 `Dictionary.duplicate(true)` 会创建大量临时对象，在 headless AI vs AI 大规模模拟中会导致严重的 GC stutter 甚至 OOM。文档未定义 completed reaction events 何时释放。
+在 12v6 的大规模战斗中，假设 200 个事件，每个事件的 `pre_snapshot` + `post_snapshot` 都对 `BattleState.units` 做完整 Godot object clone。`BattleUnitState` 包含 attribute_snapshot、equipment_view、status_effects 等重型嵌套对象。单次完整 deep clone 可能达到数 MB，200 个事件即数百 MB 峰值。Godot 的 `Dictionary.Duplicate(true)` 会创建大量临时对象，在 headless AI vs AI 大规模模拟中会导致严重的 GC stutter 甚至 OOM。文档未定义 completed reaction events 何时释放。
 
-**建议**：`pre_snapshot` 应记录增量 delta 而非完整 `duplicate(true)`；若必须完整克隆，应使用对象池复用 `BattleUnitState` 结构，并对 grid/terrain 使用共享引用 + copy-on-write；在 `run_wish_history_service_regression.gd` 中增加性能断言；为 history service 设置 `max_completed_events` 上限（如 50）。
+**建议**：`pre_snapshot` 应记录增量 delta 而非完整 `Duplicate(true)`；若必须完整克隆，应使用对象池复用 `BattleUnitState` 结构，并对 grid/terrain 使用共享引用 + copy-on-write；在 `run_wish_history_service_regression.cs` 中增加性能断言；为 history service 设置 `max_completed_events` 上限（如 50）。
 
 #### 5. 现有 3 个基线 runner 相对于 20+ 改动文件过于薄弱
 改动清单涉及 schema、runtime、rules、terrain、presentation、AI、facade、text commands 共 8 个层面，但基线只覆盖 resource validation、skill schema、skill protocol。具体风险：普通技能 pipeline 被破坏未被充分覆盖；`BattleUnitState.to_dict()` 格式破坏导致旧存档失败；Timeline Driver 被破坏无专项回归；Damage Resolver 被全局修改无足够基线。
 
-**建议**：在基线中增加 `run_battle_timeline_driver_regression.gd`、`run_battle_unit_state_round_trip_regression.gd`、`run_battle_damage_resolver_global_regression.gd`；修改 `BattleSkillExecutionOrchestrator` 后，必须运行所有 `tests/battle_runtime/skills/` 下的 runner。
+**建议**：在基线中增加 `run_battle_timeline_driver_regression.cs`、`run_battle_unit_state_round_trip_regression.cs`、`run_battle_damage_resolver_global_regression.cs`；修改 `BattleSkillExecutionOrchestrator` 后，必须运行所有 `tests/battle_runtime/skills/` 下的 runner。
 
 #### 6. "不新增旧 payload/schema 兼容逻辑"的政策会导致存档/配置断裂
 `BattleUnitState.from_dict()` 使用 `_has_exact_fields` 严格匹配，新增 `per_battle_cast_counts` 到 `TO_DICT_FIELDS` 后，所有旧存档在加载时会因为缺少字段而 `from_dict` 返回 `null`。`BattleCommand` 若被 replay 系统以字典形式持久化，新增 `special_payload` 后旧 replay 命令反序列化时会丢失 `special_payload`。资源验证器要求"只有 `wish` 可以设置 `per_battle_cast_limit > 0`"，必须遍历所有现有 `.tres` 并确认它们未设置该字段。
 
-**建议**：将 `per_battle_cast_counts` 设为可选字段（不加入 `TO_DICT_FIELDS`，在 `from_dict` 中 `get("per_battle_cast_counts", {})` 读取）；或明确声明这是破坏性格式变更，并提供一次性 save migration runner。在 `WishCommandPayload.from_command()` 中增加降级处理：如果 `special_payload` 缺失或为空，按非法 payload 处理（安全失败）。在 `run_resource_validation_regression.gd` 中增加断言：扫描所有现有 `data/configs/skills/*.tres`，确认没有任何非 wish 技能设置了 `per_battle_cast_limit > 0`。
+**建议**：将 `per_battle_cast_counts` 保持为瞬态字段（不加入 `TO_DICT_FIELDS`，不从 `from_dict` 读取）；或明确声明这是破坏性格式变更，并提供一次性 save migration runner。在 `WishCommandPayload.FromCommand()` 中增加降级处理：如果 `special_payload` 缺失或为空，按非法 payload 处理（安全失败）。在 `run_resource_validation_regression.gd` 中增加断言：扫描所有现有 `data/configs/skills/*.tres`，确认没有任何非 wish 技能设置了 `per_battle_cast_limit > 0`。
 
 #### 7. 文档精度极高，但实现复杂度与工作量严重不匹配，存在过度设计
 842 行设计方案实现的几乎是"战斗运行时的小型时间旅行系统"，工程量远超一个技能的合理范围。`fate_rewrite` + `hostile_denial` + `battle_reset` 要求完整的状态回滚、确定性重放、外部副作用延迟、快照一致性，相当于在现有战斗运行时之上再包一层事务管理器。`break_desperation` 的额外动作触及核心回合模型，与现有的相位假设冲突，引入死锁或状态不一致的风险极高。"延迟外部副作用"策略要求 achievement、mastery、battle rating rewards 全部接入 `pending_external_side_effects`，波及面超出祈愿术本身。
@@ -1096,7 +1117,7 @@ wish 的落地方式迫使多个原本通用的核心模块引入 wish-specific 
 - **一期（MVP）**：`copy_spell`、`reverse_casualty`、`team_transfer`、`absolute_sanctuary`、`reality_repair`、`break_desperation`（仅当前 active unit）。不引入完整快照回滚，不修改外部副作用提交路径。
 - **二期（完整版）**：`fate_rewrite`、`hostile_denial`、`battle_reset`、`break_desperation`（任意单位）、延迟外部副作用。
 
-文档应补充工作量估算：按现有团队速率，完整方案预计需要 3-4 周，MVP 方案预计 1-1.5 周。若坚持一期完整实现，则必须将 `run_wish_history_service_regression.gd` 和 `run_wish_reaction_event_regression.gd` 的优先级提升至阻塞性，在编写任何 mode 逻辑之前先通过这两个 runner 验证快照与回滚基础设施的可靠性。
+文档应补充工作量估算：按现有团队速率，完整方案预计需要 3-4 周，MVP 方案预计 1-1.5 周。若坚持一期完整实现，则必须将 `run_wish_history_service_regression.cs` 和 `run_wish_reaction_event_regression.cs` 的优先级提升至阻塞性，在编写任何 mode 逻辑之前先通过这两个 runner 验证快照与回滚基础设施的可靠性。
 
 ---
 
@@ -1112,13 +1133,13 @@ wish 的落地方式迫使多个原本通用的核心模块引入 wish-specific 
 |---|---|---|
 | 架构 1：special profile 侵入 orchestrator | 部分采纳 | 已改为最小 special profile router。未采纳完整框架化重构，因为当前只有 `meteor_swarm` 和 `wish`，一次性平台化会扩大 MVP 风险。 |
 | 架构 2：wish sidecar 生命周期残留 | 采纳 | 已要求 `start_battle()` 清空 wish sidecar，`dispose()` 释放，`_ensure_sidecars_ready()` 重新 setup。 |
-| 架构 3：裸 `special_payload` Dictionary | 部分采纳 | 保留 `BattleCommand.special_payload` 作为传输面，但新增 typed accessor/validator。未采纳剥离成独立 `WishContext`，因为会破坏 HUD/facade/headless/text 共用命令链。 |
+| 架构 3：裸 `special_payload` Dictionary | 部分采纳 | 保留 `BattleCommand.special_payload` 作为边界传输面，但新增 typed accessor/validator。未采纳剥离成独立 `WishContext`，因为会破坏 HUD/facade/headless/text 共用命令链。 |
 | 架构 4：通用模块混入 wish-specific 逻辑 | 部分采纳 | 已要求通用模块只接语义 hook/tag，不写 `wish_sanctuary` 等硬编码。未采纳完整 `PreDamageInterceptor` / `BattleEventObserver` 平台化框架，避免 MVP 过大。 |
 | 架构 5：循环依赖风险 | 采纳 | 已要求 resolver 不反调 orchestrator 私有 helper，`copy_spell` 改用 `BattleWishCopyExecutor` / 注入服务。 |
 | 状态 1：快照范围过大 | 采纳 | 已把完整 reaction snapshot 移到二期，并要求相关单位/cell delta、event 上限和轻量摘要。 |
-| 状态 2：`duplicate(true)` 深拷贝不可靠 | 采纳 | 已要求二期 snapshot 使用纯数据 DTO / Dictionary，不含 `RefCounted/Object`，`post_snapshot` 用 checksum。 |
+| 状态 2：`Duplicate(true)` 深拷贝不可靠 | 采纳 | 已要求二期 snapshot 使用纯 C# 数据 DTO，不含 `RefCounted/GodotObject`，`post_snapshot` 用 checksum。 |
 | 状态 3：CommitTransaction 原子性不清 | 采纳 | 已新增 MVP transaction buffer / 成功后 flush / 失败回滚原则；二期再扩展 reaction rollback。 |
-| 状态 4：begin/complete 时序漏洞 | 部分采纳 | 已改成显式 begin/cancel/complete 状态机。未采纳 try/except 表述，因为 GDScript 不适合把该流程设计成异常控制流。 |
+| 状态 4：begin/complete 时序漏洞 | 部分采纳 | 已改成显式 begin/cancel/complete 状态机。C# 实现允许用 `try/finally` 守住状态机，但不能把异常当作正常控制流。 |
 | 状态 5：`pending_external_side_effects` 复杂 | 部分采纳 | 已移到二期。MVP 不实现会回滚永久外部副作用的模式，因此不改 achievement/mastery/reward 提交流程。 |
 | 状态 6：部分成功风险 | 采纳 | 已新增“部分成功防范原则”，多单位/多 cell/多步操作必须先全验证，提交失败整体回滚。 |
 | 规则 1：最新事件窗口会被不可逆事件卡住 | 部分采纳 | 已允许纯日志/展示/bookkeeping 不占用 reaction 窗口。未采纳最近 5 个任意事件回滚，因为会重新引入跨事件时间旅行风险。 |
@@ -1153,7 +1174,7 @@ wish 的落地方式迫使多个原本通用的核心模块引入 wish-specific 
 
 | 改进项 | 评价 |
 |---|---|
-| **MVP 不做完整 snapshot / history service** | 消除了 `duplicate(true)` 深拷贝不可靠、内存爆炸、GC 压力等核心基础设施风险。 |
+| **MVP 不做完整 snapshot / history service** | 消除了 `Duplicate(true)` 深拷贝不可靠、内存爆炸、GC 压力等核心基础设施风险。 |
 | **`per_battle_cast_counts` 不加入 `TO_DICT_FIELDS`** | 正确遵循了仓库政策，避免旧存档断裂。瞬态状态与长期存档的边界清晰。 |
 | **新增"部分成功防范原则"** | `reverse_casualty`、`battle_reset`、`team_transfer` 的"找不到格就整体失败"策略消除了验证后降级的原子性漏洞。 |
 | **copy_spell 改用 `BattleWishCopyExecutor` / 注入服务** | 切断了 resolver ↔ orchestrator 的循环依赖风险，避免了在 orchestrator 上开 bypass 通道。 |
@@ -1173,7 +1194,7 @@ wish 的落地方式迫使多个原本通用的核心模块引入 wish-specific 
 文档说"通用模块只接语义 hook/tag，不写 `wish_sanctuary` 硬编码"，但 MVP 仍需某种机制让 DamageResolver 在扣血前识别并消费"抵消重大伤害/即死/强控"的状态。如果仓库目前没有 `PreDamageInterceptor` 框架，MVP 中可能需要一次最小化的临时 hook（如 `BattleStatusSemanticTable` 提供的查询函数），需确保该临时 hook 不会扩散成隐含的 wish-specific 分支。建议在实现时把该 hook 设计为"状态标签驱动"的通用接口，即使第一期只被 sanctuary 使用。
 
 #### 3. 最小 special profile router 的设计边界
-裁决表说"已改为最小 special profile router，未采纳完整框架化重构"。需要确保这个"最小 router"不会变成第三种形态（比硬编码好，但比完整 registry 又缺少扩展性），导致下一个 special profile 还是需要改 router。建议 router 至少保留一个 `Dictionary[StringName, Callable]` 的注册面，哪怕当前只预填 `meteor_swarm` 和 `wish`。
+裁决表说"已改为最小 special profile router，未采纳完整框架化重构"。需要确保这个"最小 router"不会变成第三种形态（比硬编码好，但比完整 registry 又缺少扩展性），导致下一个 special profile 还是需要改 router。建议 router 至少保留一个 `Dictionary<StringName, IBattleSpecialProfileHandler>` 或 delegate 注册面，哪怕当前只预填 `meteor_swarm` 和 `wish`。
 
 #### 4. `break_desperation`（仅 active unit）的 AP 豁免
 MVP 限定为仅当前 active unit，避免了 timeline 暂停/恢复的复杂度，但"该动作不消耗目标原有 AP"仍需在 `BattleRuntimeSkillTurnResolver` 中识别 `active_extra_action_context` 并跳过 AP 检查。建议在实现时把这个判断集中在一个 helper（如 `is_ap_free_window()`），避免在 resolver 多处散布条件分支。
@@ -1256,7 +1277,7 @@ residual 5 的处理策略成立的前提是：**二期扩展 transaction 时，
 
 建议在开始编码前，由负责开发者快速确认以下基线假设，避免实施时发现基础设施不成立：
 
-1. **`BattleUnitState` 的序列化白名单机制**：确认当前已有 `to_dict()` / `from_dict()` 的严格字段白名单（如 `_has_exact_fields` 或 `TO_DICT_FIELDS`），从而确认 `per_battle_cast_counts` 以纯瞬态 Dictionary 管理、不加入白名单的策略可直接落地。
+1. **`BattleUnitState` 的序列化白名单机制**：确认当前已有 `to_dict()` / `from_dict()` 的严格字段白名单（如 `_has_exact_fields` 或 `TO_DICT_FIELDS`），从而确认 `per_battle_cast_counts` 以纯瞬态 C# dictionary 管理、不加入白名单的策略可直接落地。
 2. **`BattleSkillExecutionOrchestrator` 的 meteor_swarm 分支位置**：确认当前硬编码分支的具体行号和上下文，从而确定最小 `BattleSpecialProfileRouter` 的插入点和注册时机。
 3. **`BattleStatusSemanticTable` 的存在性与归属**：确认该语义表当前是否已存在于仓库中，以及其所在路径。若尚未存在，需评估是新建该表还是将 `find_pre_damage_prevention` 先放在其他已有语义/规则模块中，避免 MVP 初期引入新的全局依赖。
 

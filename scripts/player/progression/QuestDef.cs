@@ -267,7 +267,7 @@ public partial class QuestDef : Resource
             return null;
         if (!TryReadDictionaryArray(payload, "reward_entries", false, out var rewardEntryValues))
             return null;
-        if (!TryGetBool(payload, "is_repeatable", out bool isRepeatableValue))
+        if (!TryReadBoolField(payload, "is_repeatable", out bool isRepeatableValue))
             return null;
 
         var questDef = new QuestDef
@@ -491,7 +491,7 @@ public partial class QuestDef : Resource
         return false;
     }
 
-    private static bool TryGetBool(
+    private static bool TryReadBoolField(
         Godot.Collections.Dictionary payload,
         string key,
         out bool value

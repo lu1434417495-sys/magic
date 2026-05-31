@@ -20,6 +20,85 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         ["attribute_delta"] = 4,
     };
 
+    private sealed class AttributeGrowthEntryData
+    {
+        public readonly StringName AttributeId;
+        public readonly int Amount;
+
+        public AttributeGrowthEntryData(StringName attributeId, int amount)
+        {
+            AttributeId = attributeId;
+            Amount = amount;
+        }
+    }
+
+    private sealed class AchievementProgressSummaryEntry
+    {
+        public readonly StringName AchievementId;
+        public readonly string DisplayName;
+        public readonly string Description;
+        public readonly int CurrentValue;
+        public readonly int Threshold;
+        public readonly float ProgressRatio;
+
+        public AchievementProgressSummaryEntry(
+            StringName achievementId,
+            string displayName,
+            string description,
+            int currentValue,
+            int threshold
+        )
+        {
+            AchievementId = achievementId;
+            DisplayName = displayName ?? "";
+            Description = description ?? "";
+            CurrentValue = currentValue;
+            Threshold = threshold;
+            ProgressRatio = (float)currentValue / Mathf.Max(threshold, 1);
+        }
+
+        public GDictionary ToDictionary() =>
+            new()
+            {
+                ["achievement_id"] = AchievementId,
+                ["display_name"] = DisplayName,
+                ["description"] = Description,
+                ["current_value"] = CurrentValue,
+                ["threshold"] = Threshold,
+                ["progress_ratio"] = ProgressRatio,
+            };
+    }
+
+    public sealed class DailyPracticeGrowthResult
+    {
+        public bool Applied { get; }
+        public int DaysElapsed { get; }
+        public GStringNameArray ChangedMemberIds { get; }
+
+        public DailyPracticeGrowthResult(
+            bool applied,
+            int daysElapsed,
+            GStringNameArray changedMemberIds
+        )
+        {
+            Applied = applied;
+            DaysElapsed = Mathf.Max(daysElapsed, 0);
+            ChangedMemberIds = changedMemberIds?.Duplicate() ?? new GStringNameArray();
+        }
+
+        public GDictionary ToDictionary()
+        {
+            return new GDictionary
+            {
+                ["applied"] = Applied,
+                ["days_elapsed"] = DaysElapsed,
+                ["changed_member_ids"] = ProgressionDataUtils.string_name_array_to_string_array(
+                    ChangedMemberIds
+                ),
+            };
+        }
+    }
+
     private PartyState _party_state = new();
     private GDictionary _skill_defs = new();
     private GDictionary _profession_defs = new();
@@ -27,6 +106,17 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
     private GDictionary _item_defs = new();
     private GDictionary _quest_defs = new();
     private GDictionary _progression_content_bundle = new();
+    private Dictionary<StringName, SkillDef> _skill_def_index = new();
+    private Dictionary<StringName, AchievementDef> _achievement_def_index = new();
+    private Dictionary<StringName, ItemDef> _item_def_index = new();
+    private Dictionary<StringName, RaceDef> _race_def_index = new();
+    private Dictionary<StringName, SubraceDef> _subrace_def_index = new();
+    private Dictionary<StringName, AgeProfileDef> _age_profile_def_index = new();
+    private Dictionary<StringName, BloodlineDef> _bloodline_def_index = new();
+    private Dictionary<StringName, BloodlineStageDef> _bloodline_stage_def_index = new();
+    private Dictionary<StringName, AscensionDef> _ascension_def_index = new();
+    private Dictionary<StringName, AscensionStageDef> _ascension_stage_def_index = new();
+    private Dictionary<StringName, StageAdvancementModifier> _stage_advancement_modifier_index = new();
     private readonly BloodlineApplyService _bloodline_apply_service = new();
     private readonly AscensionApplyService _ascension_apply_service = new();
     private readonly StageAdvancementApplyService _stage_advancement_apply_service = new();
@@ -143,6 +233,44 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         _item_defs = item_defs ?? new GDictionary();
         _quest_defs = quest_defs ?? new GDictionary();
         _progression_content_bundle = progression_content_bundle ?? new GDictionary();
+        _skill_def_index = IndexContentDefs<SkillDef>(_skill_defs, skillDef => skillDef.skill_id);
+        _achievement_def_index = IndexContentDefs<AchievementDef>(
+            _achievement_defs,
+            achievementDef => achievementDef.achievement_id
+        );
+        _item_def_index = IndexContentDefs<ItemDef>(_item_defs, itemDef => itemDef.item_id);
+        _race_def_index = IndexContentDefs<RaceDef>(
+            _get_content_bucket("race_defs", "race"),
+            raceDef => raceDef.race_id
+        );
+        _subrace_def_index = IndexContentDefs<SubraceDef>(
+            _get_content_bucket("subrace_defs", "subrace"),
+            subraceDef => subraceDef.subrace_id
+        );
+        _age_profile_def_index = IndexContentDefs<AgeProfileDef>(
+            _get_content_bucket("age_profile_defs", "age_profile"),
+            ageProfileDef => ageProfileDef.profile_id
+        );
+        _bloodline_def_index = IndexContentDefs<BloodlineDef>(
+            _get_content_bucket("bloodline_defs", "bloodline"),
+            bloodlineDef => bloodlineDef.bloodline_id
+        );
+        _bloodline_stage_def_index = IndexContentDefs<BloodlineStageDef>(
+            _get_content_bucket("bloodline_stage_defs", "bloodline_stage"),
+            bloodlineStageDef => bloodlineStageDef.stage_id
+        );
+        _ascension_def_index = IndexContentDefs<AscensionDef>(
+            _get_content_bucket("ascension_defs", "ascension"),
+            ascensionDef => ascensionDef.ascension_id
+        );
+        _ascension_stage_def_index = IndexContentDefs<AscensionStageDef>(
+            _get_content_bucket("ascension_stage_defs", "ascension_stage"),
+            ascensionStageDef => ascensionStageDef.stage_id
+        );
+        _stage_advancement_modifier_index = IndexContentDefs<StageAdvancementModifier>(
+            _get_content_bucket("stage_advancement_defs", "stage_advancement"),
+            modifier => modifier.modifier_id
+        );
         _equipment_instance_id_allocator = equipment_instance_id_allocator;
         _party_warehouse_service.setup(_party_state, _item_defs, _equipment_instance_id_allocator);
         _party_equipment_service.setup(
@@ -176,17 +304,13 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
     public RaceDef get_race_def_for_member(StringName member_id)
     {
         var member_state = get_member_state(member_id);
-        return member_state == null
-            ? null
-            : _get_content_def<RaceDef>("race_defs", "race", member_state.race_id);
+        return member_state == null ? null : GetRaceDef(member_state.race_id);
     }
 
     public SubraceDef get_subrace_def_for_member(StringName member_id)
     {
         var member_state = get_member_state(member_id);
-        return member_state == null
-            ? null
-            : _get_content_def<SubraceDef>("subrace_defs", "subrace", member_state.subrace_id);
+        return member_state == null ? null : GetSubraceDef(member_state.subrace_id);
     }
 
     public BloodlineDef get_bloodline_def_for_member(StringName member_id)
@@ -194,11 +318,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         var member_state = get_member_state(member_id);
         return member_state == null || member_state.bloodline_id == ""
             ? null
-            : _get_content_def<BloodlineDef>(
-                "bloodline_defs",
-                "bloodline",
-                member_state.bloodline_id
-            );
+            : GetBloodlineDef(member_state.bloodline_id);
     }
 
     public BloodlineStageDef get_bloodline_stage_def_for_member(StringName member_id)
@@ -206,11 +326,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         var member_state = get_member_state(member_id);
         return member_state == null || member_state.bloodline_stage_id == ""
             ? null
-            : _get_content_def<BloodlineStageDef>(
-                "bloodline_stage_defs",
-                "bloodline_stage",
-                member_state.bloodline_stage_id
-            );
+            : GetBloodlineStageDef(member_state.bloodline_stage_id);
     }
 
     public AscensionDef get_ascension_def_for_member(StringName member_id)
@@ -218,11 +334,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         var member_state = get_member_state(member_id);
         return member_state == null || member_state.ascension_id == ""
             ? null
-            : _get_content_def<AscensionDef>(
-                "ascension_defs",
-                "ascension",
-                member_state.ascension_id
-            );
+            : GetAscensionDef(member_state.ascension_id);
     }
 
     public AscensionStageDef get_ascension_stage_def_for_member(StringName member_id)
@@ -230,11 +342,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         var member_state = get_member_state(member_id);
         return member_state == null || member_state.ascension_stage_id == ""
             ? null
-            : _get_content_def<AscensionStageDef>(
-                "ascension_stage_defs",
-                "ascension_stage",
-                member_state.ascension_stage_id
-            );
+            : GetAscensionStageDef(member_state.ascension_stage_id);
     }
 
     public AgeStageRule get_age_stage_rule_for_member(StringName member_id)
@@ -242,11 +350,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         var member_state = get_member_state(member_id);
         if (member_state == null)
             return null;
-        var age_profile = _get_content_def<AgeProfileDef>(
-            "age_profile_defs",
-            "age_profile",
-            member_state.age_profile_id
-        );
+        var age_profile = GetAgeProfileDef(member_state.age_profile_id);
         if (age_profile == null)
             return null;
         var effective_stage_id = member_state.effective_age_stage_id;
@@ -551,44 +655,32 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         StringName quest_id,
         StringName objective_id,
         int world_step
+    ) => SubmitItemObjectiveTyped(quest_id, objective_id, world_step).ToDictionary();
+
+    internal QuestSubmitItemResultData SubmitItemObjectiveTyped(
+        StringName quest_id,
+        StringName objective_id,
+        int world_step
     )
     {
-        var result = new GDictionary
-        {
-            ["ok"] = false,
-            ["error_code"] = "",
-            ["objective_id"] = "",
-            ["item_id"] = "",
-            ["target_value"] = 0,
-            ["required_quantity"] = 0,
-            ["submitted_quantity"] = 0,
-            ["accepted_quest_ids"] = new GStringNameArray(),
-            ["progressed_quest_ids"] = new GStringNameArray(),
-            ["claimable_quest_ids"] = new GStringNameArray(),
-            ["completed_quest_ids"] = new GStringNameArray(),
-        };
         var submission_preview = _preview_quest_submit_item_objective(quest_id, objective_id);
-        if (!GdInterop.GetBool(submission_preview, "ok"))
+        if (!submission_preview.Ok)
         {
-            result["error_code"] = GdInterop.GetString(
-                submission_preview,
-                "error_code",
-                "objective_not_found"
+            return QuestSubmitItemResultData.Failed(
+                string.IsNullOrEmpty(submission_preview.ErrorCode)
+                    ? "objective_not_found"
+                    : submission_preview.ErrorCode,
+                submission_preview.ObjectiveId.ToString(),
+                submission_preview.ItemId,
+                submission_preview.TargetValue,
+                submission_preview.RequiredQuantity
             );
-            result["objective_id"] = GdInterop.GetString(submission_preview, "objective_id");
-            result["item_id"] = GdInterop.GetString(submission_preview, "item_id");
-            result["required_quantity"] = GdInterop.GetInt(submission_preview, "required_quantity");
-            return result;
         }
 
-        var resolved_objective_id = GdInterop.GetStringName(submission_preview, "objective_id");
-        var item_id = GdInterop.GetStringName(submission_preview, "item_id");
-        var target_value = Mathf.Max(GdInterop.GetInt(submission_preview, "target_value"), 0);
-        var required_quantity = Mathf.Max(GdInterop.GetInt(submission_preview, "required_quantity"), 0);
-        result["objective_id"] = (string)resolved_objective_id;
-        result["item_id"] = (string)item_id;
-        result["target_value"] = target_value;
-        result["required_quantity"] = required_quantity;
+        var resolved_objective_id = submission_preview.ObjectiveId;
+        var item_id = submission_preview.ItemId;
+        var target_value = submission_preview.TargetValue;
+        var required_quantity = submission_preview.RequiredQuantity;
         if (
             resolved_objective_id == ""
             || item_id == ""
@@ -596,8 +688,13 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             || required_quantity <= 0
         )
         {
-            result["error_code"] = "invalid_submit_item_objective";
-            return result;
+            return QuestSubmitItemResultData.Failed(
+                "invalid_submit_item_objective",
+                resolved_objective_id.ToString(),
+                item_id,
+                target_value,
+                required_quantity
+            );
         }
 
         var warehouse_state_before =
@@ -605,17 +702,23 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
                 ? _party_state.warehouse_state.duplicate_state()
                 : null;
         var withdraw_item_ids = _build_repeated_item_ids(item_id, required_quantity);
-        var warehouse_commit = _party_warehouse_service.commit_batch_swap(
+        var warehouse_commit = _party_warehouse_service.CommitBatchSwapTyped(
             withdraw_item_ids,
             new GStringNameArray()
         );
-        if (!GdInterop.GetBool(warehouse_commit, "allowed"))
+        if (!warehouse_commit.Allowed)
         {
-            result["error_code"] =
-                GdInterop.GetString(warehouse_commit, "error_code") == "warehouse_missing_item"
+            string errorCode =
+                warehouse_commit.ErrorCode == "warehouse_missing_item"
                     ? "submit_item_missing_inventory"
                     : "submit_item_commit_failed";
-            return result;
+            return QuestSubmitItemResultData.Failed(
+                errorCode,
+                resolved_objective_id.ToString(),
+                item_id,
+                target_value,
+                required_quantity
+            );
         }
 
         var event_payload = new GDictionary
@@ -636,11 +739,10 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
                 ["submitted_quantity"] = required_quantity,
             },
         };
-        var summary = apply_quest_progress_events(new GArray { event_payload }, world_step);
-        if (
-            !ProgressionDataUtils.to_string_name_array(GdInterop.GetArray(summary, "progressed_quest_ids"))
-                .Contains(quest_id)
-        )
+        var summary = QuestProgressApplySummaryData.FromDictionary(
+            apply_quest_progress_events(new GArray { event_payload }, world_step)
+        );
+        if (!summary.ContainsProgressedQuest(quest_id))
         {
             if (_party_state != null)
                 _party_state.warehouse_state = warehouse_state_before;
@@ -650,89 +752,74 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
                 _equipment_instance_id_allocator
             );
             _quest_progress_service.setup(_party_state, _quest_defs);
-            result["error_code"] = "quest_progress_failed";
-            return result;
+            return QuestSubmitItemResultData.Failed(
+                "quest_progress_failed",
+                resolved_objective_id.ToString(),
+                item_id,
+                target_value,
+                required_quantity
+            );
         }
 
-        result["ok"] = true;
-        result["submitted_quantity"] = required_quantity;
-        result["accepted_quest_ids"] = ProgressionDataUtils.to_string_name_array(
-            GdInterop.GetArray(summary, "accepted_quest_ids")
+        return QuestSubmitItemResultData.Success(
+            item_id,
+            resolved_objective_id.ToString(),
+            target_value,
+            required_quantity,
+            required_quantity,
+            summary.CloneAcceptedQuestIds(),
+            summary.CloneProgressedQuestIds(),
+            summary.CloneClaimableQuestIds(),
+            summary.CloneCompletedQuestIds()
         );
-        result["progressed_quest_ids"] = ProgressionDataUtils.to_string_name_array(
-            GdInterop.GetArray(summary, "progressed_quest_ids")
-        );
-        result["claimable_quest_ids"] = ProgressionDataUtils.to_string_name_array(
-            GdInterop.GetArray(summary, "claimable_quest_ids")
-        );
-        result["completed_quest_ids"] = ProgressionDataUtils.to_string_name_array(
-            GdInterop.GetArray(summary, "completed_quest_ids")
-        );
-        return result;
     }
 
     public GDictionary claim_quest_reward(StringName quest_id) => claim_quest_reward(quest_id, -1);
 
-    public GDictionary claim_quest_reward(StringName quest_id, int world_step)
+    public GDictionary claim_quest_reward(StringName quest_id, int world_step) =>
+        ClaimQuestRewardTyped(quest_id, world_step).ToDictionary();
+
+    internal QuestClaimResultData ClaimQuestRewardTyped(StringName quest_id, int world_step)
     {
-        var result = new GDictionary
-        {
-            ["ok"] = false,
-            ["error_code"] = "",
-            ["gold_delta"] = 0,
-            ["item_rewards"] = new GArray(),
-            ["pending_character_rewards"] = new GArray(),
-            ["unsupported_reward_types"] = new GStringNameArray(),
-        };
         if (_party_state == null || quest_id == "")
-        {
-            result["error_code"] = "invalid_quest_id";
-            return result;
-        }
+            return QuestClaimResultData.Failed("invalid_quest_id");
         if (!_party_state.has_claimable_quest(quest_id))
-        {
-            result["error_code"] = "quest_not_claimable";
-            return result;
-        }
+            return QuestClaimResultData.Failed("quest_not_claimable");
         var quest_reward_data = _resolve_quest_reward_data(quest_id);
-        if (!GdInterop.GetBool(quest_reward_data, "found"))
-        {
-            result["error_code"] = "quest_def_missing";
-            return result;
-        }
-        if (!string.IsNullOrEmpty(GdInterop.GetString(quest_reward_data, "error_code")))
-        {
-            result["error_code"] = GdInterop.GetString(quest_reward_data, "error_code");
-            return result;
-        }
+        if (!quest_reward_data.Found)
+            return QuestClaimResultData.Failed("quest_def_missing");
+        if (!string.IsNullOrEmpty(quest_reward_data.ErrorCode))
+            return QuestClaimResultData.Failed(quest_reward_data.ErrorCode);
         var reward_preview = _preview_quest_reward_claim(quest_id, quest_reward_data);
-        if (!GdInterop.GetBool(reward_preview, "ok"))
+        if (!reward_preview.Ok)
         {
-            result["error_code"] = GdInterop.GetString(reward_preview, "error_code", "invalid_reward_entry");
-            result["unsupported_reward_types"] = ProgressionDataUtils.to_string_name_array(
-                GdInterop.GetArray(reward_preview, "unsupported_reward_types")
+            return QuestClaimResultData.Failed(
+                string.IsNullOrEmpty(reward_preview.ErrorCode)
+                    ? "invalid_reward_entry"
+                    : reward_preview.ErrorCode,
+                reward_preview.CloneUnsupportedRewardTypes()
             );
-            return result;
         }
 
-        var reward_item_ids = ProgressionDataUtils.to_string_name_array(
-            GdInterop.GetArray(reward_preview, "warehouse_deposit_item_ids")
-        );
+        var reward_item_ids = reward_preview.CloneWarehouseDepositItemIds();
         var warehouse_state_before = _party_state.warehouse_state?.duplicate_state();
         if (reward_item_ids.Count > 0)
         {
-            var warehouse_commit = _party_warehouse_service.commit_batch_swap(
+            var warehouse_commit = _party_warehouse_service.CommitBatchSwapTyped(
                 new GStringNameArray(),
                 reward_item_ids
             );
-            if (!GdInterop.GetBool(warehouse_commit, "allowed"))
+            if (!warehouse_commit.Allowed)
             {
-                result["error_code"] = _resolve_quest_reward_warehouse_error_code(warehouse_commit);
-                return result;
+                return QuestClaimResultData.Failed(
+                    _resolve_quest_reward_warehouse_error_code(
+                    warehouse_commit.ErrorCode
+                    )
+                );
             }
         }
 
-        var gold_delta = GdInterop.GetInt(reward_preview, "gold_delta");
+        var gold_delta = reward_preview.GoldDelta;
         var gold_before_claim = _party_state.get_gold();
         if (gold_delta > 0)
             _party_state.add_gold(gold_delta);
@@ -741,20 +828,17 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             if (gold_delta > 0)
                 _party_state.set_gold(gold_before_claim);
             _party_state.warehouse_state = warehouse_state_before;
-            result["error_code"] = "quest_claim_failed";
-            return result;
+            return QuestClaimResultData.Failed("quest_claim_failed");
         }
 
-        var pending_character_rewards = GdInterop.GetArray(reward_preview, "pending_character_rewards");
+        var pending_character_rewards = reward_preview.ClonePendingCharacterRewards();
         if (pending_character_rewards.Count > 0)
             enqueue_pending_character_rewards(pending_character_rewards);
-        result["ok"] = true;
-        result["gold_delta"] = gold_delta;
-        result["item_rewards"] = GdInterop.GetArray(reward_preview, "item_rewards").Duplicate(true);
-        result["pending_character_rewards"] = _pending_character_reward_options_to_dicts(
-            pending_character_rewards
+        return QuestClaimResultData.Success(
+            gold_delta,
+            reward_preview.CloneItemRewards(),
+            _pending_character_reward_options_to_dicts(pending_character_rewards)
         );
-        return result;
     }
 
     public GDictionary apply_quest_progress_events(GArray event_options) =>
@@ -837,14 +921,28 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         );
         if (weapon_item_id == "")
             return _build_unarmed_weapon_projection();
-        var item_def = GdInterop.GetObject<ItemDef>(_item_defs, weapon_item_id);
+        var item_def = GetItemDef(weapon_item_id);
         return item_def == null || !item_def.is_weapon()
             ? new GDictionary()
             : _build_weapon_projection_from_item_def(item_def, resolved_equipment_view);
     }
 
-    public StringName get_member_weapon_physical_damage_tag(StringName member_id) =>
-        GdInterop.GetStringName(get_member_weapon_projection(member_id), "weapon_physical_damage_tag");
+    public StringName get_member_weapon_physical_damage_tag(StringName member_id)
+    {
+        var member_state = get_member_state(member_id);
+        if (member_state == null)
+            return "";
+        var equipment_state = member_state.equipment_state ?? new EquipmentState();
+        var weapon_item_id = ProgressionDataUtils.to_string_name(
+            equipment_state.get_equipped_item_id("main_hand")
+        );
+        if (weapon_item_id == "")
+            return ItemDef.DAMAGE_TAG_PHYSICAL_BLUNT();
+        var item_def = GetItemDef(weapon_item_id);
+        if (item_def == null || !item_def.is_weapon())
+            return "";
+        return item_def.get_weapon_physical_damage_tag();
+    }
 
     private GDictionary _build_weapon_projection_from_item_def(
         ItemDef item_def,
@@ -979,10 +1077,18 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
 
     public GDictionary get_practice_skill_learn_status(StringName member_id, StringName skill_id)
     {
+        return GetPracticeSkillLearnStatusTyped(member_id, skill_id).ToLearnedStatusDictionary();
+    }
+
+    public PracticeSkillLearnStatus GetPracticeSkillLearnStatusTyped(
+        StringName member_id,
+        StringName skill_id
+    )
+    {
         var member_state = get_member_state(member_id);
         if (member_state == null || member_state.progression is not UnitProgress progression)
-            return new GDictionary { ["is_practice_skill"] = false };
-        return _build_practice_growth_service().get_skill_learned_status(skill_id, progression);
+            return PracticeSkillLearnStatus.NonPractice();
+        return _build_practice_growth_service().get_skill_learned_status_typed(skill_id, progression);
     }
 
     public GDictionary set_active_level_trigger_core_skill(
@@ -990,36 +1096,48 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         StringName skill_id
     )
     {
+        return SetActiveLevelTriggerCoreSkillTyped(member_id, skill_id).ToDictionary();
+    }
+
+    public LevelGrowthTriggerResult SetActiveLevelTriggerCoreSkillTyped(
+        StringName member_id,
+        StringName skill_id
+    )
+    {
         var member_state = get_member_state(member_id);
         var service = new LevelGrowthEvaluationService();
         service.setup(_skill_defs);
-        var result = service.set_active_trigger_core_skill(member_state, skill_id);
-        if (GdInterop.GetBool(result, "ok") && member_state?.progression != null)
+        var result = service.set_active_trigger_core_skill_typed(member_state, skill_id);
+        if (result.Ok && member_state?.progression != null)
             _build_progression_service(member_state.progression).refresh_runtime_state();
         return result;
     }
 
     public GDictionary clear_active_level_trigger_core_skill(StringName member_id)
     {
+        return ClearActiveLevelTriggerCoreSkillTyped(member_id).ToDictionary();
+    }
+
+    public LevelGrowthTriggerResult ClearActiveLevelTriggerCoreSkillTyped(StringName member_id)
+    {
         var member_state = get_member_state(member_id);
         var service = new LevelGrowthEvaluationService();
         service.setup(_skill_defs);
-        var result = service.clear_active_trigger_core_skill(member_state);
-        if (GdInterop.GetBool(result, "ok") && member_state?.progression != null)
+        var result = service.clear_active_trigger_core_skill_typed(member_state);
+        if (result.Ok && member_state?.progression != null)
             _build_progression_service(member_state.progression).refresh_runtime_state();
         return result;
     }
 
     public GDictionary apply_daily_practice_growth(int days_elapsed)
     {
-        var result = new GDictionary
-        {
-            ["applied"] = false,
-            ["days_elapsed"] = Mathf.Max(days_elapsed, 0),
-            ["changed_member_ids"] = new GArray(),
-        };
+        return ApplyDailyPracticeGrowthTyped(days_elapsed).ToDictionary();
+    }
+
+    public DailyPracticeGrowthResult ApplyDailyPracticeGrowthTyped(int days_elapsed)
+    {
         if (_party_state == null || days_elapsed <= 0)
-            return result;
+            return new DailyPracticeGrowthResult(false, days_elapsed, new GStringNameArray());
         var practice_service = _build_practice_growth_service();
         var changed_member_ids = new GStringNameArray();
         foreach (
@@ -1036,11 +1154,11 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             if (!DictionariesEqual(before_snapshot, after_snapshot))
                 changed_member_ids.Add(member_id);
         }
-        result["changed_member_ids"] = ProgressionDataUtils.string_name_array_to_string_array(
+        return new DailyPracticeGrowthResult(
+            changed_member_ids.Count > 0,
+            days_elapsed,
             changed_member_ids
         );
-        result["applied"] = changed_member_ids.Count > 0;
-        return result;
     }
 
     private bool _learn_skill_internal(
@@ -1056,13 +1174,13 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
 
         options ??= new GDictionary();
         var practice_service = _build_practice_growth_service();
-        var practice_status = practice_service.get_skill_learned_status(skill_id, progression);
+        var practice_status = practice_service.get_skill_learned_status_typed(skill_id, progression);
         var progression_service = _build_progression_service(progression);
-        if (GdInterop.GetBool(practice_status, "is_practice_skill"))
+        if (practice_status.IsPracticeSkill)
         {
-            if (GdInterop.GetBool(practice_status, "needs_replacement"))
+            if (practice_status.NeedsReplacement)
             {
-                if (!GdInterop.GetBool(options, "confirm_practice_replacement"))
+                if (!HasConfirmedPracticeReplacement(options))
                     return false;
                 if (!progression_service.can_learn_skill(skill_id))
                     return false;
@@ -1079,16 +1197,16 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
                     _append_unique_string_names(unlocked_ids, replacement_achievement_ids);
                 return true;
             }
-            if (!GdInterop.GetBool(practice_status, "can_learn"))
+            if (!practice_status.CanLearn)
                 return false;
         }
 
         if (!progression_service.learn_skill(skill_id))
             return false;
-        if (GdInterop.GetBool(practice_status, "is_practice_skill"))
+        if (practice_status.IsPracticeSkill)
             practice_service.inject_first_unlock_starting_values(
                 member_state,
-                GdInterop.GetStringName(practice_status, "track_type")
+                practice_status.TrackType
             );
         var achievement_ids = record_achievement_event(member_id, "skill_learned", 1, skill_id);
         if (unlocked_ids != null)
@@ -1270,7 +1388,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         var member_state = get_member_state(member_id);
         if (member_state == null || member_state.progression is not UnitProgress progression)
             return false;
-        var achievement_def = GdInterop.GetObject<AchievementDef>(_achievement_defs, achievement_id);
+        var achievement_def = GetAchievementDef(achievement_id);
         if (achievement_def == null)
             return false;
         var progress_state = progression.get_achievement_progress_state(achievement_id);
@@ -1539,12 +1657,12 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             }
             else if (entry.entry_type == "attribute_progress")
             {
-                var growth_result = attribute_growth_service.apply_attribute_progress(
+                var growth_result = attribute_growth_service.apply_attribute_progress_typed(
                     entry.target_id,
                     entry.amount,
                     entry.reason_text
                 );
-                if (GdInterop.GetBool(growth_result, "applied"))
+                if (growth_result.Applied)
                 {
                     applied_any = true;
                     delta.attribute_changes.Add(
@@ -1556,12 +1674,12 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
                                 entry.target_id,
                                 entry.target_label
                             ),
-                            ["progress_delta"] = GdInterop.GetInt(growth_result, "progress_delta"),
-                            ["progress_before"] = GdInterop.GetInt(growth_result, "progress_before"),
-                            ["progress_after"] = GdInterop.GetInt(growth_result, "progress_after"),
-                            ["delta"] = GdInterop.GetInt(growth_result, "attribute_delta"),
-                            ["attribute_before"] = GdInterop.GetInt(growth_result, "attribute_before"),
-                            ["attribute_after"] = GdInterop.GetInt(growth_result, "attribute_after"),
+                            ["progress_delta"] = growth_result.ProgressDelta,
+                            ["progress_before"] = growth_result.ProgressBefore,
+                            ["progress_after"] = growth_result.ProgressAfter,
+                            ["delta"] = growth_result.AttributeDelta,
+                            ["attribute_before"] = growth_result.AttributeBefore,
+                            ["attribute_after"] = growth_result.AttributeAfter,
                             ["reason_text"] = entry.reason_text,
                         }
                     );
@@ -1603,14 +1721,14 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         var in_progress_count = 0;
         var recent_unlocked_name = "";
         var recent_unlocked_time = 0;
-        var active_entries = new List<GDictionary>();
+        var active_entries = new List<AchievementProgressSummaryEntry>();
 
         foreach (
             string achievement_key in ProgressionDataUtils.sorted_string_keys(_achievement_defs)
         )
         {
             var achievement_id = new StringName(achievement_key);
-            var achievement_def = GdInterop.GetObject<AchievementDef>(_achievement_defs, achievement_id);
+            var achievement_def = GetAchievementDef(achievement_id);
             if (achievement_def == null)
                 continue;
             var progress_state = progression.get_achievement_progress_state(achievement_id);
@@ -1630,22 +1748,19 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
                 continue;
             in_progress_count++;
             active_entries.Add(
-                new GDictionary
-                {
-                    ["achievement_id"] = achievement_id,
-                    ["display_name"] = achievement_def.display_name,
-                    ["description"] = achievement_def.description,
-                    ["current_value"] = current_value,
-                    ["threshold"] = achievement_def.threshold,
-                    ["progress_ratio"] =
-                        (float)current_value / Mathf.Max(achievement_def.threshold, 1),
-                }
+                new AchievementProgressSummaryEntry(
+                    achievement_id,
+                    achievement_def.display_name,
+                    achievement_def.description,
+                    current_value,
+                    achievement_def.threshold
+                )
             );
         }
         active_entries.Sort(CompareAchievementProgressEntry);
         var active_progress_entries = new GArray();
         foreach (var entry in active_entries)
-            active_progress_entries.Add(entry);
+            active_progress_entries.Add(entry.ToDictionary());
         return new GDictionary
         {
             ["unlocked_count"] = unlocked_count,
@@ -1765,7 +1880,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         {
             var skill_id = new StringName(skill_key);
             var skill_progress = progression.get_skill_progress(skill_id);
-            var skill_def = GdInterop.GetObject<SkillDef>(_skill_defs, skill_id);
+            var skill_def = GetSkillDef(skill_id);
             if (
                 skill_progress == null
                 || skill_def == null
@@ -1789,7 +1904,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         {
             var skill_id = new StringName(skill_key);
             var skill_progress = progression.get_skill_progress(skill_id);
-            var skill_def = GdInterop.GetObject<SkillDef>(_skill_defs, skill_id);
+            var skill_def = GetSkillDef(skill_id);
             if (
                 skill_progress == null
                 || skill_def == null
@@ -1861,11 +1976,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
     {
         if (member_state == null)
             return;
-        var age_profile = _get_content_def<AgeProfileDef>(
-            "age_profile_defs",
-            "age_profile",
-            member_state.age_profile_id
-        );
+        var age_profile = GetAgeProfileDef(member_state.age_profile_id);
         var resolution = AgeStageResolver.resolve_effective_stage(
             member_state,
             age_profile,
@@ -1875,15 +1986,15 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             get_ascension_def_for_member(member_state.member_id),
             get_ascension_stage_def_for_member(member_state.member_id)
         );
-        var stage_id = GdInterop.GetStringName(resolution, "stage_id");
+        var stage_id = resolution?.StageId ?? "";
         if (stage_id == "")
             stage_id =
                 member_state.natural_age_stage_id != ""
                     ? member_state.natural_age_stage_id
                     : "adult";
         member_state.effective_age_stage_id = stage_id;
-        member_state.effective_age_stage_source_type = GdInterop.GetStringName(resolution, "source_type");
-        member_state.effective_age_stage_source_id = GdInterop.GetStringName(resolution, "source_id");
+        member_state.effective_age_stage_source_type = resolution?.SourceType ?? "";
+        member_state.effective_age_stage_source_id = resolution?.SourceId ?? "";
     }
 
     private Godot.Collections.Array<StageAdvancementModifier> _collect_active_stage_advancement_modifiers(
@@ -1893,17 +2004,9 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         var modifiers = new Godot.Collections.Array<StageAdvancementModifier>();
         if (member_state == null)
             return modifiers;
-        var stage_advancement_defs = _get_content_bucket(
-            "stage_advancement_defs",
-            "stage_advancement"
-        );
         foreach (var modifier_id in member_state.active_stage_advancement_modifier_ids)
         {
-            var modifier = GdInterop.GetObject<StageAdvancementModifier>(
-                stage_advancement_defs,
-                modifier_id
-            );
-            if (modifier != null)
+            if (_stage_advancement_modifier_index.TryGetValue(modifier_id, out var modifier))
                 modifiers.Add(modifier);
         }
         return modifiers;
@@ -1979,7 +2082,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             || trigger_skill_id == ""
         )
             return;
-        var skill_def = GdInterop.GetObject<SkillDef>(_skill_defs, trigger_skill_id);
+        var skill_def = GetSkillDef(trigger_skill_id);
         if (skill_def == null || skill_def.attribute_growth_progress.Count == 0)
             return;
         var skill_progress = progression.get_skill_progress(trigger_skill_id);
@@ -1991,30 +2094,28 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         var attribute_growth_service = new AttributeGrowthService();
         attribute_growth_service.setup(progression);
         var did_apply_growth = false;
-        foreach (GDictionary entry in growth_entries)
+        foreach (var entry in growth_entries)
         {
-            var attribute_id = GdInterop.GetStringName(entry, "attribute_id");
-            var amount = GdInterop.GetInt(entry, "amount");
-            var growth_result = attribute_growth_service.apply_attribute_progress(
-                attribute_id,
-                amount,
+            var growth_result = attribute_growth_service.apply_attribute_progress_typed(
+                entry.AttributeId,
+                entry.Amount,
                 $"{_resolve_skill_label(trigger_skill_id)} 锁定成长"
             );
-            if (!GdInterop.GetBool(growth_result, "applied"))
+            if (!growth_result.Applied)
                 continue;
             did_apply_growth = true;
             delta?.attribute_changes.Add(
                 new GDictionary
                 {
-                    ["attribute_id"] = attribute_id,
-                    ["attribute_label"] = _resolve_attribute_label(attribute_id),
-                    ["progress_delta"] = GdInterop.GetInt(growth_result, "progress_delta"),
-                    ["progress_before"] = GdInterop.GetInt(growth_result, "progress_before"),
-                    ["progress_after"] = GdInterop.GetInt(growth_result, "progress_after"),
-                    ["delta"] = GdInterop.GetInt(growth_result, "attribute_delta"),
-                    ["attribute_before"] = GdInterop.GetInt(growth_result, "attribute_before"),
-                    ["attribute_after"] = GdInterop.GetInt(growth_result, "attribute_after"),
-                    ["reason_text"] = GdInterop.GetString(growth_result, "reason_text"),
+                    ["attribute_id"] = entry.AttributeId,
+                    ["attribute_label"] = _resolve_attribute_label(entry.AttributeId),
+                    ["progress_delta"] = growth_result.ProgressDelta,
+                    ["progress_before"] = growth_result.ProgressBefore,
+                    ["progress_after"] = growth_result.ProgressAfter,
+                    ["delta"] = growth_result.AttributeDelta,
+                    ["attribute_before"] = growth_result.AttributeBefore,
+                    ["attribute_after"] = growth_result.AttributeAfter,
+                    ["reason_text"] = growth_result.ReasonText,
                 }
             );
         }
@@ -2024,19 +2125,27 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         progression.set_skill_progress(skill_progress);
     }
 
-    private Godot.Collections.Array<GDictionary> _collect_attribute_growth_entries(
+    private List<AttributeGrowthEntryData> _collect_attribute_growth_entries(
         SkillDef skill_def
     )
     {
-        var entries = new Godot.Collections.Array<GDictionary>();
+        var entries = new List<AttributeGrowthEntryData>();
         if (skill_def == null)
             return entries;
         var attribute_entries = new List<(string key, int amount)>();
-        foreach (var (key, amount) in GdInterop.ReadStringIntEntries(skill_def.attribute_growth_progress))
+        foreach (Variant rawKey in skill_def.attribute_growth_progress.Keys)
         {
-            var cleanKey = key.StripEdges();
+            if (
+                rawKey.VariantType != Variant.Type.String
+                && rawKey.VariantType != Variant.Type.StringName
+            )
+                continue;
+            Variant rawAmount = skill_def.attribute_growth_progress[rawKey];
+            if (rawAmount.VariantType != Variant.Type.Int)
+                continue;
+            var cleanKey = rawKey.AsString().StripEdges();
             if (cleanKey.Length > 0)
-                attribute_entries.Add((cleanKey, amount));
+                attribute_entries.Add((cleanKey, rawAmount.AsInt32()));
         }
         attribute_entries.Sort((a, b) => string.CompareOrdinal(a.key, b.key));
         foreach (var (attributeKey, amount) in attribute_entries)
@@ -2044,33 +2153,144 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             var attribute_id = ProgressionDataUtils.to_string_name(attributeKey);
             if (amount <= 0 || !AttributeGrowthService.is_valid_attribute_id(attribute_id))
                 continue;
-            entries.Add(new GDictionary { ["attribute_id"] = attribute_id, ["amount"] = amount });
+            entries.Add(new AttributeGrowthEntryData(attribute_id, amount));
         }
         return entries;
     }
 
-    private T _get_content_def<T>(string primary_bucket, string alias_bucket, StringName entry_id)
-        where T : GodotObject
+    private SkillDef GetSkillDef(StringName skillId) =>
+        skillId != "" && _skill_def_index.TryGetValue(skillId, out var skillDef)
+            ? skillDef
+            : null;
+
+    private AchievementDef GetAchievementDef(StringName achievementId) =>
+        achievementId != ""
+        && _achievement_def_index.TryGetValue(achievementId, out var achievementDef)
+            ? achievementDef
+            : null;
+
+    private ItemDef GetItemDef(StringName itemId) =>
+        itemId != "" && _item_def_index.TryGetValue(itemId, out var itemDef) ? itemDef : null;
+
+    private RaceDef GetRaceDef(StringName raceId) =>
+        raceId != "" && _race_def_index.TryGetValue(raceId, out var raceDef) ? raceDef : null;
+
+    private SubraceDef GetSubraceDef(StringName subraceId) =>
+        subraceId != "" && _subrace_def_index.TryGetValue(subraceId, out var subraceDef)
+            ? subraceDef
+            : null;
+
+    private AgeProfileDef GetAgeProfileDef(StringName profileId) =>
+        profileId != "" && _age_profile_def_index.TryGetValue(profileId, out var ageProfileDef)
+            ? ageProfileDef
+            : null;
+
+    private BloodlineDef GetBloodlineDef(StringName bloodlineId) =>
+        bloodlineId != ""
+        && _bloodline_def_index.TryGetValue(bloodlineId, out var bloodlineDef)
+            ? bloodlineDef
+            : null;
+
+    private BloodlineStageDef GetBloodlineStageDef(StringName stageId) =>
+        stageId != ""
+        && _bloodline_stage_def_index.TryGetValue(stageId, out var bloodlineStageDef)
+            ? bloodlineStageDef
+            : null;
+
+    private AscensionDef GetAscensionDef(StringName ascensionId) =>
+        ascensionId != ""
+        && _ascension_def_index.TryGetValue(ascensionId, out var ascensionDef)
+            ? ascensionDef
+            : null;
+
+    private AscensionStageDef GetAscensionStageDef(StringName stageId) =>
+        stageId != ""
+        && _ascension_stage_def_index.TryGetValue(stageId, out var ascensionStageDef)
+            ? ascensionStageDef
+            : null;
+
+    private static Dictionary<StringName, T> IndexContentDefs<T>(
+        GDictionary source,
+        Func<T, StringName> idSelector
+    )
+        where T : class
     {
-        if (entry_id == "")
-            return null;
-        return GdInterop.GetObject<T>(_get_content_bucket(primary_bucket, alias_bucket), entry_id);
+        var result = new Dictionary<StringName, T>();
+        if (source == null)
+            return result;
+        foreach (Variant rawKey in source.Keys)
+        {
+            Variant rawValue = source[rawKey];
+            if (rawValue.VariantType != Variant.Type.Object || rawValue.AsGodotObject() is not T entry)
+                continue;
+            var entryId = idSelector(entry);
+            if (entryId == "")
+                entryId = ProgressionDataUtils.to_string_name(rawKey);
+            if (entryId != "")
+                result[entryId] = entry;
+        }
+        return result;
     }
 
     private GDictionary _get_content_bucket(string primary_bucket, string alias_bucket)
     {
-        var primary = GdInterop.GetDictionary(_progression_content_bundle, primary_bucket);
+        var primary = GetDictionaryValue(_progression_content_bundle, primary_bucket);
         if (primary.Count > 0) return primary;
-        return GdInterop.GetDictionary(_progression_content_bundle, alias_bucket);
+        return GetDictionaryValue(_progression_content_bundle, alias_bucket);
     }
 
-    private static string _identity_def_label(GodotObject definition, StringName fallback_id)
+    private static GDictionary GetDictionaryValue(GDictionary source, string key)
+    {
+        if (source == null || string.IsNullOrEmpty(key))
+            return new GDictionary();
+
+        Variant stringKey = key;
+        if (TryGetDictionaryValue(source, stringKey, out var stringValue))
+            return stringValue;
+
+        Variant stringNameKey = new StringName(key);
+        return TryGetDictionaryValue(source, stringNameKey, out var stringNameValue)
+            ? stringNameValue
+            : new GDictionary();
+    }
+
+    private static bool TryGetDictionaryValue(
+        GDictionary source,
+        Variant key,
+        out GDictionary value
+    )
+    {
+        if (source.ContainsKey(key))
+        {
+            Variant rawValue = source[key];
+            if (rawValue.VariantType == Variant.Type.Dictionary)
+            {
+                value = rawValue.AsGodotDictionary();
+                return true;
+            }
+        }
+
+        value = new GDictionary();
+        return false;
+    }
+
+    private static string _identity_def_label(object definition, StringName fallback_id)
     {
         if (definition != null)
         {
-            var display_name = definition.Get("display_name").AsString().StripEdges();
-            if (display_name.Length > 0)
-                return display_name;
+            string displayName = definition switch
+            {
+                RaceDef raceDef => raceDef.display_name,
+                SubraceDef subraceDef => subraceDef.display_name,
+                BloodlineDef bloodlineDef => bloodlineDef.display_name,
+                BloodlineStageDef bloodlineStageDef => bloodlineStageDef.display_name,
+                AscensionDef ascensionDef => ascensionDef.display_name,
+                AscensionStageDef ascensionStageDef => ascensionStageDef.display_name,
+                _ => "",
+            };
+            displayName = displayName.StripEdges();
+            if (displayName.Length > 0)
+                return displayName;
         }
         return fallback_id != "" ? (string)fallback_id : "";
     }
@@ -2079,11 +2299,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
     {
         if (stage_id == "")
             return "";
-        var age_profile = _get_content_def<AgeProfileDef>(
-            "age_profile_defs",
-            "age_profile",
-            age_profile_id
-        );
+        var age_profile = GetAgeProfileDef(age_profile_id);
         if (age_profile != null)
         {
             foreach (var stage_rule in age_profile.stage_rules)
@@ -2350,9 +2566,9 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         return delta;
     }
 
-    private static GDictionary _capture_skill_levels(UnitProgress progression)
+    private static Dictionary<StringName, int> _capture_skill_levels(UnitProgress progression)
     {
-        var skill_levels = new GDictionary();
+        var skill_levels = new Dictionary<StringName, int>();
         if (progression == null)
             return skill_levels;
         foreach (var skill_key in progression.skills.Keys)
@@ -2365,9 +2581,9 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         return skill_levels;
     }
 
-    private static GDictionary _capture_granted_skill_ids(UnitProgress progression)
+    private static HashSet<StringName> _capture_granted_skill_ids(UnitProgress progression)
     {
-        var granted_skill_ids = new GDictionary();
+        var granted_skill_ids = new HashSet<StringName>();
         if (progression == null)
             return granted_skill_ids;
         foreach (var skill_key in progression.skills.Keys)
@@ -2375,14 +2591,14 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             var skill_id = ProgressionDataUtils.to_string_name(skill_key);
             var skill_progress = progression.get_skill_progress(skill_id);
             if (skill_progress != null && skill_progress.profession_granted_by != "")
-                granted_skill_ids[skill_id] = true;
+                granted_skill_ids.Add(skill_id);
         }
         return granted_skill_ids;
     }
 
-    private static GDictionary _capture_profession_ranks(UnitProgress progression)
+    private static Dictionary<StringName, int> _capture_profession_ranks(UnitProgress progression)
     {
-        var ranks = new GDictionary();
+        var ranks = new Dictionary<StringName, int>();
         if (progression == null)
             return ranks;
         foreach (var profession_key in progression.professions.Keys)
@@ -2405,22 +2621,28 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         if (progression == null)
             return normalized_entries;
         var entry_map = new Dictionary<StringName, PendingCharacterRewardEntry>();
-        foreach (var entry_data in GdInterop.ReadDictionaryItems(entry_options))
+        if (entry_options == null)
+            return normalized_entries;
+        foreach (Variant entry_option in entry_options)
         {
-            if (GdInterop.GetStringName(entry_data, "entry_type", "skill_mastery") != "skill_mastery")
+            PendingCharacterRewardEntryData entry_data =
+                PendingCharacterRewardEntryData.FromVariant(
+                    entry_option,
+                    PendingCharacterRewardContentRules.ENTRY_SKILL_MASTERY,
+                    source_type
+                );
+            if (
+                !entry_data.Exists
+                || entry_data.EntryType != PendingCharacterRewardContentRules.ENTRY_SKILL_MASTERY
+            )
                 continue;
-            var skill_id = GdInterop.GetStringName(entry_data, "target_id");
-            var mastery_amount = GdInterop.GetInt(entry_data, "amount");
+            var skill_id = entry_data.TargetId;
+            var mastery_amount = entry_data.Amount;
             if (skill_id == "" || mastery_amount <= 0)
                 continue;
-            var entry_source_type = GdInterop.GetStringName(
-                entry_data,
-                "mastery_source_type",
-                GdInterop.GetStringName(entry_data, "source_type", source_type)
-            );
-            var mastery_source_type = _resolve_mastery_source_type(entry_source_type);
+            var mastery_source_type = _resolve_mastery_source_type(entry_data.MasterySourceType);
             var skill_progress = progression.get_skill_progress(skill_id);
-            var skill_def = GdInterop.GetObject<SkillDef>(_skill_defs, skill_id);
+            var skill_def = GetSkillDef(skill_id);
             if (skill_progress == null || skill_def == null || !skill_progress.is_learned)
                 continue;
             if (
@@ -2435,14 +2657,14 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
                     entry_type = "skill_mastery",
                     target_id = skill_id,
                     target_label = _resolve_skill_label(skill_id),
-                    reason_text = GdInterop.GetString(entry_data, "reason_text"),
+                    reason_text = entry_data.ReasonText,
                 };
                 entry_map[skill_id] = reward_entry;
                 normalized_entries.Add(reward_entry);
             }
             reward_entry.amount += mastery_amount;
             if (string.IsNullOrEmpty(reward_entry.reason_text))
-                reward_entry.reason_text = GdInterop.GetString(entry_data, "reason_text");
+                reward_entry.reason_text = entry_data.ReasonText;
         }
         return normalized_entries;
     }
@@ -2468,7 +2690,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
                 );
             return raw_typed_reward.is_empty() ? null : raw_typed_reward;
         }
-        var unboxedTyped = GdInterop.UnboxToObject<PendingCharacterReward>(raw_reward_option);
+        var unboxedTyped = UnboxPendingCharacterReward(raw_reward_option);
         if (unboxedTyped != null)
         {
             if (!allow_unsupported_entries && _has_unsupported_pending_character_entry_object(unboxedTyped.entries))
@@ -2477,12 +2699,43 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
                 unboxedTyped.reward_id = _build_reward_id(
                     unboxedTyped.member_id,
                     unboxedTyped.source_id != "" ? unboxedTyped.source_id : unboxedTyped.source_type
-                );
+            );
             return unboxedTyped.is_empty() ? null : unboxedTyped;
         }
-        if (GdInterop.TryUnboxToDictionary(raw_reward_option, out var rewardDict))
+        if (TryUnboxRewardDictionary(raw_reward_option, out var rewardDict))
             return _normalize_pending_character_reward_dictionary(rewardDict);
         return null;
+    }
+
+    private static PendingCharacterReward UnboxPendingCharacterReward(object raw_reward_option)
+    {
+        if (raw_reward_option is PendingCharacterReward typed_reward)
+            return typed_reward;
+        if (
+            raw_reward_option is Variant variant_value
+            && variant_value.TryAsObject<PendingCharacterReward>(out var variant_reward)
+        )
+            return variant_reward;
+        return null;
+    }
+
+    private static bool TryUnboxRewardDictionary(
+        object raw_reward_option,
+        out GDictionary reward_data
+    )
+    {
+        if (raw_reward_option is GDictionary dictionary_reward)
+        {
+            reward_data = dictionary_reward;
+            return true;
+        }
+        if (
+            raw_reward_option is Variant variant_value
+            && variant_value.TryAsDictionary(out reward_data)
+        )
+            return true;
+        reward_data = null;
+        return false;
     }
 
     private PendingCharacterReward _normalize_pending_character_reward_dictionary(
@@ -2502,222 +2755,132 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         return normalized_reward;
     }
 
-    private GDictionary _resolve_quest_reward_data(StringName quest_id)
+    private QuestRewardData _resolve_quest_reward_data(StringName quest_id)
     {
-        if (quest_id == "" || !GdInterop.TryGet(_quest_defs, quest_id, out var questVal))
-            return MissingQuestRewardData();
+        if (quest_id == "" || !TryGetExactStringNameKey(_quest_defs, quest_id, out var questVal))
+            return QuestRewardData.Missing();
         if (questVal.TryAsDictionary(out var questDict))
-            return _normalize_quest_reward_data(questDict.Duplicate(true));
+            return QuestRewardData.FromDictionary(questDict);
         if (questVal.TryAsObject<QuestDef>(out var questDef))
-            return _normalize_quest_reward_data(new GDictionary
-            {
-                ["display_name"] = questDef.display_name,
-                ["reward_entries"] = questDef.reward_entries.Duplicate(true),
-            });
-        if (GdInterop.GetObject(_quest_defs, quest_id) is QuestDef questDefObj)
-        {
-            return _normalize_quest_reward_data(questDefObj.to_dict());
-        }
-        return MissingQuestRewardData();
+            return QuestRewardData.FromQuestDef(questDef);
+        return QuestRewardData.Missing();
     }
 
-    private static GDictionary MissingQuestRewardData() =>
-        new()
-        {
-            ["found"] = false,
-            ["error_code"] = "quest_def_missing",
-            ["display_name"] = "",
-            ["reward_entries"] = new GArray(),
-        };
-
-    private static GDictionary _normalize_quest_reward_data(GDictionary quest_data)
-    {
-        var result = new GDictionary
-        {
-            ["found"] = true,
-            ["error_code"] = "",
-            ["display_name"] = "",
-            ["reward_entries"] = GdInterop.GetArray(quest_data, "reward_entries"),
-        };
-        if (!GdInterop.HasString(quest_data, "display_name"))
-        {
-            result["error_code"] = "invalid_quest_display_name";
-            return result;
-        }
-        var display_name = GdInterop.GetString(quest_data, "display_name").StripEdges();
-        if (display_name.Length == 0)
-        {
-            result["error_code"] = "invalid_quest_display_name";
-            return result;
-        }
-        result["display_name"] = display_name;
-        return result;
-    }
-
-    private GDictionary _preview_quest_submit_item_objective(
+    private QuestSubmitItemPreviewData _preview_quest_submit_item_objective(
         StringName quest_id,
         StringName objective_id = default
     )
     {
-        var result = new GDictionary
-        {
-            ["ok"] = false,
-            ["error_code"] = "",
-            ["objective_id"] = "",
-            ["item_id"] = "",
-            ["target_value"] = 0,
-            ["required_quantity"] = 0,
-        };
         if (_party_state == null || quest_id == "")
         {
-            result["error_code"] = "invalid_quest_id";
-            return result;
+            return QuestSubmitItemPreviewData.Failed("invalid_quest_id");
         }
         var quest_state = _party_state.get_active_quest_state(quest_id);
         if (quest_state == null)
         {
-            result["error_code"] = "quest_not_active";
-            return result;
+            return QuestSubmitItemPreviewData.Failed("quest_not_active");
         }
-        if (quest_id == "" || !GdInterop.TryGet(_quest_defs, quest_id, out var questVal2))
+        if (quest_id == "" || !TryGetExactStringNameKey(_quest_defs, quest_id, out var questVal2))
         {
-            result["error_code"] = "quest_def_missing";
-            return result;
+            return QuestSubmitItemPreviewData.Failed("quest_def_missing");
         }
 
-        GArray objective_defs = null;
-        if (questVal2.TryAsObject<QuestDef>(out var quest_def))
-            objective_defs = ToUntyped(quest_def.objective_defs);
-        else if (questVal2.TryAsDictionary(out var questDict2))
-            objective_defs = GdInterop.GetArray(questDict2, "objective_defs");
-        else
+        if (!TryReadQuestObjectiveDefs(questVal2, out var objective_defs))
         {
-            if (GdInterop.GetObject(_quest_defs, quest_id) is QuestDef questDefObj2)
-            {
-                objective_defs = ToUntyped(questDefObj2.objective_defs);
-            }
-        }
-        if (objective_defs == null)
-        {
-            result["error_code"] = "quest_def_missing";
-            return result;
+            return QuestSubmitItemPreviewData.Failed("quest_def_missing");
         }
 
         var requested_objective_id = ProgressionDataUtils.to_string_name(objective_id);
         var found_completed_submit_item_objective = false;
-        foreach (var objective_data in GdInterop.ReadDictionaryItems(objective_defs))
+        var completed_preview = QuestSubmitItemPreviewData.Failed("objective_already_complete");
+        foreach (var objective_data in objective_defs)
         {
-            if (GdInterop.GetStringName(objective_data, "objective_type") != QuestDef.OBJECTIVE_SUBMIT_ITEM())
+            if (
+                !objective_data.Exists
+                || objective_data.ObjectiveType != QuestDef.OBJECTIVE_SUBMIT_ITEM()
+            )
                 continue;
-            var current_objective_id = GdInterop.GetStringName(objective_data, "objective_id");
+            var current_objective_id = objective_data.ObjectiveId;
             if (requested_objective_id != "" && current_objective_id != requested_objective_id)
                 continue;
-            var item_id = GdInterop.GetStringName(objective_data, "target_id");
-            var target_value = Mathf.Max(GdInterop.GetInt(objective_data, "target_value"), 0);
-            result["objective_id"] = (string)current_objective_id;
-            result["item_id"] = (string)item_id;
-            result["target_value"] = target_value;
-            result["required_quantity"] = Mathf.Max(
+            var item_id = objective_data.TargetId;
+            var target_value = objective_data.TargetValue;
+            var required_quantity = Mathf.Max(
                 target_value - quest_state.get_objective_progress(current_objective_id),
                 0
             );
             if (current_objective_id == "" || item_id == "" || target_value <= 0)
             {
-                result["error_code"] = "invalid_submit_item_objective";
-                return result;
+                return QuestSubmitItemPreviewData.Failed(
+                    "invalid_submit_item_objective",
+                    current_objective_id,
+                    item_id,
+                    target_value,
+                    required_quantity
+                );
             }
             if (quest_state.is_objective_complete(current_objective_id, target_value))
             {
                 found_completed_submit_item_objective = true;
-                result["error_code"] = "objective_already_complete";
+                completed_preview = QuestSubmitItemPreviewData.Failed(
+                    "objective_already_complete",
+                    current_objective_id,
+                    item_id,
+                    target_value,
+                    required_quantity
+                );
                 if (requested_objective_id != "")
-                    return result;
+                    return completed_preview;
                 continue;
             }
-            result["ok"] = true;
-            result["error_code"] = "";
-            return result;
+            return QuestSubmitItemPreviewData.Success(
+                current_objective_id,
+                item_id,
+                target_value,
+                required_quantity
+            );
         }
-        result["error_code"] = found_completed_submit_item_objective
-            ? "objective_already_complete"
-            : "objective_not_found";
-        return result;
+        return found_completed_submit_item_objective
+            ? completed_preview
+            : QuestSubmitItemPreviewData.Failed("objective_not_found");
     }
 
-    private GDictionary _preview_quest_reward_claim(
+    private QuestRewardPreviewData _preview_quest_reward_claim(
         StringName quest_id,
-        GDictionary quest_reward_data
+        QuestRewardData quest_reward_data
     )
     {
-        var result = new GDictionary
-        {
-            ["ok"] = true,
-            ["error_code"] = "",
-            ["gold_delta"] = 0,
-            ["item_rewards"] = new GArray(),
-            ["warehouse_deposit_item_ids"] = new GArray(),
-            ["pending_character_rewards"] = new GArray(),
-            ["unsupported_reward_types"] = new GStringNameArray(),
-        };
-        var reward_entries = GdInterop.GetArray(quest_reward_data, "reward_entries");
-        var quest_label = GdInterop.GetString(quest_reward_data, "display_name").StripEdges();
+        var quest_label = quest_reward_data.DisplayName.StripEdges();
         if (quest_label.Length == 0)
-        {
-            result["ok"] = false;
-            result["error_code"] = "invalid_quest_display_name";
-            return result;
-        }
+            return QuestRewardPreviewData.Failed("invalid_quest_display_name");
         var unsupported_reward_types = new GStringNameArray();
         var reward_item_entries = new GArray();
         var reward_item_ids = new GStringNameArray();
         var pending_character_rewards = new GArray();
-        foreach (var reward_option in reward_entries)
+        var gold_delta = 0;
+        foreach (var reward_data in quest_reward_data.RewardEntries)
         {
-            if (!reward_option.TryAsDictionary(out var reward_data))
-            {
-                result["ok"] = false;
-                result["error_code"] = "invalid_reward_entry";
-                return result;
-            }
-            var reward_type = GdInterop.GetStringName(reward_data, "reward_type");
+            if (!reward_data.Exists)
+                return QuestRewardPreviewData.Failed("invalid_reward_entry");
+            var reward_type = reward_data.RewardType;
             if (reward_type == "")
-            {
-                result["ok"] = false;
-                result["error_code"] = "invalid_reward_entry";
-                return result;
-            }
+                return QuestRewardPreviewData.Failed("invalid_reward_entry");
             if (reward_type == QuestDef.REWARD_GOLD())
             {
-                var amount = GdInterop.GetInt(reward_data, "amount");
+                var amount = reward_data.Amount;
                 if (amount <= 0)
-                {
-                    result["ok"] = false;
-                    result["error_code"] = "invalid_gold_amount";
-                    return result;
-                }
-                result["gold_delta"] = GdInterop.GetInt(result, "gold_delta") + amount;
+                    return QuestRewardPreviewData.Failed("invalid_gold_amount");
+                gold_delta += amount;
             }
             else if (reward_type == QuestDef.REWARD_ITEM())
             {
                 var item_reward_result = _preview_quest_item_reward_entry(reward_data);
-                if (!GdInterop.GetBool(item_reward_result, "ok"))
-                {
-                    result["ok"] = false;
-                    result["error_code"] = GdInterop.GetString(
-                        item_reward_result,
-                        "error_code",
-                        "invalid_item_reward"
-                    );
-                    return result;
-                }
-                var reward_item_entry = GdInterop.GetDictionary(item_reward_result, "item_reward");
+                if (!item_reward_result.Ok)
+                    return QuestRewardPreviewData.Failed(item_reward_result.ErrorCode);
+                var reward_item_entry = item_reward_result.CloneItemReward();
                 if (reward_item_entry.Count > 0)
-                    reward_item_entries.Add(reward_item_entry.Duplicate(true));
-                foreach (
-                    var item_id in ProgressionDataUtils.to_string_name_array(
-                        GdInterop.GetArray(item_reward_result, "warehouse_deposit_item_ids")
-                    )
-                )
+                    reward_item_entries.Add(reward_item_entry);
+                foreach (var item_id in item_reward_result.CloneWarehouseDepositItemIds())
                     reward_item_ids.Add(item_id);
             }
             else if (reward_type == QuestDef.REWARD_PENDING_CHARACTER_REWARD())
@@ -2727,20 +2890,9 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
                     quest_label,
                     reward_data
                 );
-                if (!GdInterop.GetBool(pending_reward_result, "ok"))
-                {
-                    result["ok"] = false;
-                    result["error_code"] = GdInterop.GetString(
-                        pending_reward_result,
-                        "error_code",
-                        "invalid_pending_character_reward"
-                    );
-                    return result;
-                }
-                var reward = GdInterop.GetObject<PendingCharacterReward>(
-                    pending_reward_result,
-                    "pending_character_reward"
-                );
+                if (!pending_reward_result.Ok)
+                    return QuestRewardPreviewData.Failed(pending_reward_result.ErrorCode);
+                var reward = pending_reward_result.PendingReward;
                 if (reward != null && !reward.is_empty())
                     pending_character_rewards.Add(reward);
             }
@@ -2751,101 +2903,91 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         }
         if (unsupported_reward_types.Count > 0)
         {
-            result["ok"] = false;
-            result["error_code"] = "unsupported_reward_types";
-            result["unsupported_reward_types"] = unsupported_reward_types;
-            return result;
+            return QuestRewardPreviewData.Failed(
+                "unsupported_reward_types",
+                unsupportedRewardTypes: unsupported_reward_types
+            );
         }
         if (reward_item_ids.Count > 0)
         {
-            var warehouse_preview = _party_warehouse_service.preview_batch_swap(
+            var warehouse_preview = _party_warehouse_service.PreviewBatchSwapTyped(
                 new GStringNameArray(),
                 reward_item_ids
             );
-            if (!GdInterop.GetBool(warehouse_preview, "allowed"))
-            {
-                result["ok"] = false;
-                result["error_code"] = _resolve_quest_reward_warehouse_error_code(
-                    warehouse_preview
+            if (!warehouse_preview.Allowed)
+                return QuestRewardPreviewData.Failed(
+                    _resolve_quest_reward_warehouse_error_code(warehouse_preview.ErrorCode)
                 );
-                return result;
-            }
         }
-        result["item_rewards"] = reward_item_entries;
-        result["warehouse_deposit_item_ids"] =
-            ProgressionDataUtils.string_name_array_to_string_array(reward_item_ids);
-        result["pending_character_rewards"] = pending_character_rewards;
-        return result;
+        return QuestRewardPreviewData.Success(
+            gold_delta,
+            reward_item_entries,
+            reward_item_ids,
+            pending_character_rewards
+        );
     }
 
-    private GDictionary _preview_quest_item_reward_entry(GDictionary reward_data)
+    private QuestItemRewardPreviewData _preview_quest_item_reward_entry(
+        QuestRewardEntryData reward_data
+    )
     {
-        var reward_item_id = QuestDef.get_reward_item_id(reward_data);
-        var reward_quantity = QuestDef.get_reward_quantity(reward_data);
+        var reward_item_id = reward_data.ItemId;
+        var reward_quantity = reward_data.Quantity;
         if (reward_item_id == "" || reward_quantity <= 0)
-            return new GDictionary { ["ok"] = false, ["error_code"] = "invalid_item_reward" };
-        if (_item_defs == null || !_item_defs.ContainsKey(reward_item_id))
-            return new GDictionary { ["ok"] = false, ["error_code"] = "item_reward_missing_def" };
+            return QuestItemRewardPreviewData.Failed("invalid_item_reward");
+        if (_item_defs == null || !TryGetExactStringNameKey(_item_defs, reward_item_id, out var itemValue))
+            return QuestItemRewardPreviewData.Failed("item_reward_missing_def");
         var item_display_name = "";
-        var itemObj = GdInterop.GetObject(_item_defs, reward_item_id);
-        if (itemObj != null)
-            item_display_name = GdInterop.GetString(itemObj, "display_name").StripEdges();
-        else
+        if (itemValue.TryAsObject<ItemDef>(out var itemDef))
+            item_display_name = itemDef.display_name.StripEdges();
+        else if (itemValue.TryAsDictionary(out var itemData))
         {
-            var itemData = GdInterop.GetDictionary(_item_defs, reward_item_id);
-            if (itemData.Count > 0)
-                item_display_name = GdInterop.GetString(itemData, "display_name").StripEdges();
-            else
-                return new GDictionary { ["ok"] = false, ["error_code"] = "item_reward_missing_def" };
+            item_display_name = CharacterQuestDataReader.ReadTrimmedString(
+                itemData,
+                "display_name"
+            );
         }
+        else
+            return QuestItemRewardPreviewData.Failed("item_reward_missing_def");
         if (item_display_name.Length == 0)
-            return new GDictionary { ["ok"] = false, ["error_code"] = "invalid_item_display_name" };
-        return new GDictionary
-        {
-            ["ok"] = true,
-            ["item_reward"] = new GDictionary
+            return QuestItemRewardPreviewData.Failed("invalid_item_display_name");
+        return QuestItemRewardPreviewData.Success(
+            new GDictionary
             {
-                ["item_id"] = (string)reward_item_id,
+                ["item_id"] = reward_item_id.ToString(),
                 ["display_name"] = item_display_name,
                 ["quantity"] = reward_quantity,
             },
-            ["warehouse_deposit_item_ids"] = ProgressionDataUtils.string_name_array_to_string_array(
-                _build_repeated_item_ids(reward_item_id, reward_quantity)
-            ),
-        };
+            _build_repeated_item_ids(reward_item_id, reward_quantity)
+        );
     }
 
-    private GDictionary _preview_quest_pending_character_reward_entry(
+    private QuestPendingCharacterRewardPreviewData _preview_quest_pending_character_reward_entry(
         StringName quest_id,
         string quest_label,
-        GDictionary reward_data
+        QuestRewardEntryData reward_data
     )
     {
-        var member_id = GdInterop.GetStringName(reward_data, "member_id");
-        var entry_options = GdInterop.GetArray(reward_data, "entries");
+        var member_id = reward_data.MemberId;
+        var entry_options = reward_data.CloneEntries();
         if (
             member_id == ""
             || entry_options.Count == 0
         )
-            return new GDictionary
-            {
-                ["ok"] = false,
-                ["error_code"] = "invalid_pending_character_reward",
-            };
-        var source_type = GdInterop.GetStringName(reward_data, "source_type", RewardTypeQuest);
-        if (source_type == "")
-            source_type = RewardTypeQuest;
-        var source_id = GdInterop.GetStringName(reward_data, "source_id", quest_id);
+            return QuestPendingCharacterRewardPreviewData.Failed(
+                "invalid_pending_character_reward"
+            );
+        var source_type = reward_data.SourceType != "" ? reward_data.SourceType : RewardTypeQuest;
+        var source_id = reward_data.SourceId != "" ? reward_data.SourceId : quest_id;
         if (source_id == "")
             source_id = quest_id != "" ? quest_id : source_type;
-        var source_label = GdInterop.GetString(reward_data, "source_label").StripEdges();
+        var source_label = reward_data.SourceLabel.StripEdges();
         if (source_label.Length == 0)
             source_label = quest_label;
-        var summary_text = GdInterop.GetString(reward_data, "summary_text").StripEdges();
-        var reward_id = GdInterop.GetStringName(reward_data, "reward_id");
+        var summary_text = reward_data.SummaryText.StripEdges();
         var pending_reward = build_pending_character_reward(
             member_id,
-            reward_id,
+            reward_data.RewardId,
             source_type,
             source_id,
             source_label,
@@ -2853,12 +2995,40 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             summary_text
         );
         return pending_reward == null || pending_reward.is_empty()
-            ? new GDictionary
+            ? QuestPendingCharacterRewardPreviewData.Failed("invalid_pending_character_reward")
+            : QuestPendingCharacterRewardPreviewData.Success(pending_reward);
+    }
+
+    private static bool TryReadQuestObjectiveDefs(
+        Variant questDefValue,
+        out List<QuestObjectiveDefData> objectiveDefs
+    )
+    {
+        objectiveDefs = new List<QuestObjectiveDefData>();
+        if (questDefValue.TryAsObject<QuestDef>(out var questDef))
+        {
+            foreach (var objectiveData in questDef.objective_defs)
             {
-                ["ok"] = false,
-                ["error_code"] = "invalid_pending_character_reward",
+                var objectiveDef = QuestObjectiveDefData.FromDictionary(objectiveData);
+                if (objectiveDef.Exists)
+                    objectiveDefs.Add(objectiveDef);
             }
-            : new GDictionary { ["ok"] = true, ["pending_character_reward"] = pending_reward };
+            return true;
+        }
+        if (questDefValue.TryAsDictionary(out var questDict))
+        {
+            foreach (var objectiveData in CharacterQuestDataReader.ReadArray(
+                questDict,
+                "objective_defs"
+            ))
+            {
+                var objectiveDef = QuestObjectiveDefData.FromVariant(objectiveData);
+                if (objectiveDef.Exists)
+                    objectiveDefs.Add(objectiveDef);
+            }
+            return true;
+        }
+        return false;
     }
 
     private static GStringNameArray _build_repeated_item_ids(StringName item_id, int quantity)
@@ -2869,12 +3039,661 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         return item_ids;
     }
 
-    private static string _resolve_quest_reward_warehouse_error_code(
-        GDictionary warehouse_result
-    ) =>
-        GdInterop.GetString(warehouse_result, "error_code") == "warehouse_blocked_swap"
+    private static GStringNameArray CloneStringNameArray(GStringNameArray source)
+    {
+        var result = new GStringNameArray();
+        if (source == null)
+            return result;
+        foreach (var value in source)
+            result.Add(value);
+        return result;
+    }
+
+    private sealed class PendingCharacterRewardEntryData
+    {
+        public readonly bool Exists;
+        public readonly StringName EntryType;
+        public readonly StringName TargetId;
+        public readonly int Amount;
+        public readonly string TargetLabel;
+        public readonly string ReasonText;
+        public readonly StringName SourceType;
+        public readonly StringName MasterySourceType;
+
+        private PendingCharacterRewardEntryData(
+            bool exists,
+            StringName entryType,
+            StringName targetId,
+            int amount,
+            string targetLabel,
+            string reasonText,
+            StringName sourceType,
+            StringName masterySourceType
+        )
+        {
+            Exists = exists;
+            EntryType = entryType;
+            TargetId = targetId;
+            Amount = amount;
+            TargetLabel = targetLabel ?? "";
+            ReasonText = reasonText ?? "";
+            SourceType = sourceType;
+            MasterySourceType = masterySourceType != "" ? masterySourceType : sourceType;
+        }
+
+        public static PendingCharacterRewardEntryData FromVariant(
+            Variant value,
+            StringName defaultEntryType = default,
+            StringName defaultSourceType = default
+        )
+        {
+            if (value.TryAsObject<PendingCharacterRewardEntry>(out var typedEntry))
+                return FromEntry(typedEntry, defaultEntryType, defaultSourceType);
+            if (value.TryAsDictionary(out var entryData))
+                return FromDictionary(entryData, defaultEntryType, defaultSourceType);
+            return Missing();
+        }
+
+        public static PendingCharacterRewardEntryData FromDictionary(
+            GDictionary data,
+            StringName defaultEntryType = default,
+            StringName defaultSourceType = default
+        )
+        {
+            if (data == null || data.Count == 0)
+                return Missing();
+            var entryType = CharacterQuestDataReader.ReadStringName(data, "entry_type");
+            if (entryType == "")
+                entryType = defaultEntryType;
+            CharacterQuestDataReader.TryReadInt(data, "amount", out var amount);
+            var sourceType = CharacterQuestDataReader.ReadStringName(data, "source_type");
+            if (sourceType == "")
+                sourceType = defaultSourceType;
+            var masterySourceType = CharacterQuestDataReader.ReadStringName(
+                data,
+                "mastery_source_type"
+            );
+            if (masterySourceType == "")
+                masterySourceType = sourceType;
+            return new PendingCharacterRewardEntryData(
+                true,
+                entryType,
+                CharacterQuestDataReader.ReadStringName(data, "target_id"),
+                amount,
+                CharacterQuestDataReader.ReadString(data, "target_label"),
+                CharacterQuestDataReader.ReadString(data, "reason_text"),
+                sourceType,
+                masterySourceType
+            );
+        }
+
+        private static PendingCharacterRewardEntryData FromEntry(
+            PendingCharacterRewardEntry entry,
+            StringName defaultEntryType,
+            StringName defaultSourceType
+        )
+        {
+            if (entry == null)
+                return Missing();
+            var entryType = entry.entry_type != "" ? entry.entry_type : defaultEntryType;
+            return new PendingCharacterRewardEntryData(
+                true,
+                entryType,
+                entry.target_id,
+                entry.amount,
+                entry.target_label,
+                entry.reason_text,
+                defaultSourceType,
+                defaultSourceType
+            );
+        }
+
+        private static PendingCharacterRewardEntryData Missing() =>
+            new(false, "", "", 0, "", "", "", "");
+    }
+
+    private static string _resolve_quest_reward_warehouse_error_code(string warehouse_error_code) =>
+        warehouse_error_code == "warehouse_blocked_swap"
             ? "reward_overflow"
             : "quest_reward_commit_failed";
+
+    private sealed class QuestSubmitItemPreviewData
+    {
+        public readonly bool Ok;
+        public readonly string ErrorCode;
+        public readonly StringName ObjectiveId;
+        public readonly StringName ItemId;
+        public readonly int TargetValue;
+        public readonly int RequiredQuantity;
+
+        private QuestSubmitItemPreviewData(
+            bool ok,
+            string errorCode,
+            StringName objectiveId,
+            StringName itemId,
+            int targetValue,
+            int requiredQuantity
+        )
+        {
+            Ok = ok;
+            ErrorCode = errorCode ?? "";
+            ObjectiveId = objectiveId;
+            ItemId = itemId;
+            TargetValue = Mathf.Max(targetValue, 0);
+            RequiredQuantity = Mathf.Max(requiredQuantity, 0);
+        }
+
+        public static QuestSubmitItemPreviewData Success(
+            StringName objectiveId,
+            StringName itemId,
+            int targetValue,
+            int requiredQuantity
+        ) =>
+            new(true, "", objectiveId, itemId, targetValue, requiredQuantity);
+
+        public static QuestSubmitItemPreviewData Failed(
+            string errorCode,
+            StringName objectiveId = default,
+            StringName itemId = default,
+            int targetValue = 0,
+            int requiredQuantity = 0
+        ) =>
+            new(false, errorCode, objectiveId, itemId, targetValue, requiredQuantity);
+    }
+
+    private sealed class QuestObjectiveDefData
+    {
+        public readonly bool Exists;
+        public readonly StringName ObjectiveId;
+        public readonly StringName ObjectiveType;
+        public readonly StringName TargetId;
+        public readonly int TargetValue;
+
+        private QuestObjectiveDefData(
+            bool exists,
+            StringName objectiveId,
+            StringName objectiveType,
+            StringName targetId,
+            int targetValue
+        )
+        {
+            Exists = exists;
+            ObjectiveId = objectiveId;
+            ObjectiveType = objectiveType;
+            TargetId = targetId;
+            TargetValue = Mathf.Max(targetValue, 0);
+        }
+
+        public static QuestObjectiveDefData FromVariant(Variant value)
+        {
+            if (value.VariantType != Variant.Type.Dictionary)
+                return Empty();
+            return FromDictionary(value.AsGodotDictionary());
+        }
+
+        public static QuestObjectiveDefData FromDictionary(GDictionary data)
+        {
+            if (data == null || data.Count == 0)
+                return Empty();
+            return new QuestObjectiveDefData(
+                true,
+                CharacterQuestDataReader.ReadStringName(data, "objective_id"),
+                CharacterQuestDataReader.ReadStringName(data, "objective_type"),
+                CharacterQuestDataReader.ReadStringName(data, "target_id"),
+                CharacterQuestDataReader.TryReadInt(data, "target_value", out var targetValue)
+                    ? targetValue
+                    : 0
+            );
+        }
+
+        private static QuestObjectiveDefData Empty() => new(false, "", "", "", 0);
+    }
+
+    private sealed class QuestRewardData
+    {
+        public readonly bool Found;
+        public readonly string ErrorCode;
+        public readonly string DisplayName;
+        public readonly IReadOnlyList<QuestRewardEntryData> RewardEntries;
+
+        private QuestRewardData(
+            bool found,
+            string errorCode,
+            string displayName,
+            IReadOnlyList<QuestRewardEntryData> rewardEntries
+        )
+        {
+            Found = found;
+            ErrorCode = errorCode ?? "";
+            DisplayName = displayName ?? "";
+            RewardEntries = rewardEntries ?? new List<QuestRewardEntryData>();
+        }
+
+        public static QuestRewardData Missing() =>
+            new(false, "quest_def_missing", "", new List<QuestRewardEntryData>());
+
+        public static QuestRewardData FromDictionary(GDictionary questData)
+        {
+            string displayName = CharacterQuestDataReader.ReadTrimmedString(
+                questData,
+                "display_name"
+            );
+            string errorCode = displayName.Length == 0 ? "invalid_quest_display_name" : "";
+            return new QuestRewardData(
+                true,
+                errorCode,
+                displayName,
+                QuestRewardEntryData.FromArray(
+                    CharacterQuestDataReader.ReadArray(questData, "reward_entries")
+                )
+            );
+        }
+
+        public static QuestRewardData FromQuestDef(QuestDef questDef)
+        {
+            if (questDef == null)
+                return Missing();
+            string displayName = (questDef.display_name ?? "").StripEdges();
+            string errorCode = displayName.Length == 0 ? "invalid_quest_display_name" : "";
+            var rewardEntries = new List<QuestRewardEntryData>();
+            foreach (var rewardEntry in questDef.reward_entries)
+                rewardEntries.Add(QuestRewardEntryData.FromDictionary(rewardEntry));
+            return new QuestRewardData(true, errorCode, displayName, rewardEntries);
+        }
+    }
+
+    private sealed class QuestRewardEntryData
+    {
+        public readonly bool Exists;
+        public readonly StringName RewardType;
+        public readonly int Amount;
+        public readonly StringName ItemId;
+        public readonly int Quantity;
+        public readonly StringName MemberId;
+        public readonly StringName SourceType;
+        public readonly StringName SourceId;
+        public readonly string SourceLabel;
+        public readonly string SummaryText;
+        public readonly StringName RewardId;
+        private readonly GArray _entries;
+
+        private QuestRewardEntryData(
+            bool exists,
+            StringName rewardType,
+            int amount,
+            StringName itemId,
+            int quantity,
+            StringName memberId,
+            StringName sourceType,
+            StringName sourceId,
+            string sourceLabel,
+            string summaryText,
+            StringName rewardId,
+            GArray entries
+        )
+        {
+            Exists = exists;
+            RewardType = rewardType;
+            Amount = Mathf.Max(amount, 0);
+            ItemId = itemId;
+            Quantity = Mathf.Max(quantity, 0);
+            MemberId = memberId;
+            SourceType = sourceType;
+            SourceId = sourceId;
+            SourceLabel = sourceLabel ?? "";
+            SummaryText = summaryText ?? "";
+            RewardId = rewardId;
+            _entries = entries != null ? entries.Duplicate(true) : new GArray();
+        }
+
+        public GArray CloneEntries() => _entries.Duplicate(true);
+
+        public static IReadOnlyList<QuestRewardEntryData> FromArray(GArray rewardEntries)
+        {
+            var result = new List<QuestRewardEntryData>();
+            if (rewardEntries == null)
+                return result;
+            foreach (Variant rewardEntry in rewardEntries)
+                result.Add(FromVariant(rewardEntry));
+            return result;
+        }
+
+        public static QuestRewardEntryData FromVariant(Variant value)
+        {
+            if (value.VariantType != Variant.Type.Dictionary)
+                return Missing();
+            return FromDictionary(value.AsGodotDictionary());
+        }
+
+        public static QuestRewardEntryData FromDictionary(GDictionary data)
+        {
+            if (data == null || data.Count == 0)
+                return Missing();
+            CharacterQuestDataReader.TryReadInt(data, "amount", out var amount);
+            CharacterQuestDataReader.TryReadInt(data, "quantity", out var quantity);
+            return new QuestRewardEntryData(
+                true,
+                CharacterQuestDataReader.ReadStringName(data, "reward_type"),
+                amount,
+                CharacterQuestDataReader.ReadStringName(data, "item_id"),
+                quantity,
+                CharacterQuestDataReader.ReadStringName(data, "member_id"),
+                CharacterQuestDataReader.ReadStringName(data, "source_type"),
+                CharacterQuestDataReader.ReadStringName(data, "source_id"),
+                CharacterQuestDataReader.ReadTrimmedString(data, "source_label"),
+                CharacterQuestDataReader.ReadTrimmedString(data, "summary_text"),
+                CharacterQuestDataReader.ReadStringName(data, "reward_id"),
+                CharacterQuestDataReader.ReadArray(data, "entries")
+            );
+        }
+
+        private static QuestRewardEntryData Missing() =>
+            new(false, "", 0, "", 0, "", "", "", "", "", "", new GArray());
+    }
+
+    private sealed class QuestRewardPreviewData
+    {
+        public readonly bool Ok;
+        public readonly string ErrorCode;
+        public readonly int GoldDelta;
+        private readonly GArray _itemRewards;
+        private readonly GStringNameArray _warehouseDepositItemIds;
+        private readonly GArray _pendingCharacterRewards;
+        private readonly GStringNameArray _unsupportedRewardTypes;
+
+        private QuestRewardPreviewData(
+            bool ok,
+            string errorCode,
+            int goldDelta,
+            GArray itemRewards,
+            GStringNameArray warehouseDepositItemIds,
+            GArray pendingCharacterRewards,
+            GStringNameArray unsupportedRewardTypes
+        )
+        {
+            Ok = ok;
+            ErrorCode = errorCode ?? "";
+            GoldDelta = Mathf.Max(goldDelta, 0);
+            _itemRewards = itemRewards != null ? itemRewards.Duplicate(true) : new GArray();
+            _warehouseDepositItemIds =
+                warehouseDepositItemIds != null
+                    ? CloneStringNameArray(warehouseDepositItemIds)
+                    : new GStringNameArray();
+            _pendingCharacterRewards =
+                pendingCharacterRewards != null
+                    ? pendingCharacterRewards.Duplicate(true)
+                    : new GArray();
+            _unsupportedRewardTypes =
+                unsupportedRewardTypes != null
+                    ? CloneStringNameArray(unsupportedRewardTypes)
+                    : new GStringNameArray();
+        }
+
+        public GArray CloneItemRewards() => _itemRewards.Duplicate(true);
+
+        public GStringNameArray CloneWarehouseDepositItemIds() =>
+            CloneStringNameArray(_warehouseDepositItemIds);
+
+        public GArray ClonePendingCharacterRewards() => _pendingCharacterRewards.Duplicate(true);
+
+        public GStringNameArray CloneUnsupportedRewardTypes() =>
+            CloneStringNameArray(_unsupportedRewardTypes);
+
+        public static QuestRewardPreviewData Success(
+            int goldDelta,
+            GArray itemRewards,
+            GStringNameArray warehouseDepositItemIds,
+            GArray pendingCharacterRewards
+        ) =>
+            new(
+                true,
+                "",
+                goldDelta,
+                itemRewards,
+                warehouseDepositItemIds,
+                pendingCharacterRewards,
+                new GStringNameArray()
+            );
+
+        public static QuestRewardPreviewData Failed(
+            string errorCode,
+            GStringNameArray unsupportedRewardTypes = null
+        ) =>
+            new(
+                false,
+                errorCode,
+                0,
+                new GArray(),
+                new GStringNameArray(),
+                new GArray(),
+                unsupportedRewardTypes
+            );
+    }
+
+    private sealed class QuestItemRewardPreviewData
+    {
+        public readonly bool Ok;
+        public readonly string ErrorCode;
+        private readonly GDictionary _itemReward;
+        private readonly GStringNameArray _warehouseDepositItemIds;
+
+        private QuestItemRewardPreviewData(
+            bool ok,
+            string errorCode,
+            GDictionary itemReward,
+            GStringNameArray warehouseDepositItemIds
+        )
+        {
+            Ok = ok;
+            ErrorCode = ok
+                ? ""
+                : string.IsNullOrEmpty(errorCode)
+                    ? "invalid_item_reward"
+                    : errorCode;
+            _itemReward = itemReward != null ? itemReward.Duplicate(true) : new GDictionary();
+            _warehouseDepositItemIds =
+                warehouseDepositItemIds != null
+                    ? CloneStringNameArray(warehouseDepositItemIds)
+                    : new GStringNameArray();
+        }
+
+        public GDictionary CloneItemReward() => _itemReward.Duplicate(true);
+
+        public GStringNameArray CloneWarehouseDepositItemIds() =>
+            CloneStringNameArray(_warehouseDepositItemIds);
+
+        public static QuestItemRewardPreviewData Success(
+            GDictionary itemReward,
+            GStringNameArray warehouseDepositItemIds
+        ) =>
+            new(true, "", itemReward, warehouseDepositItemIds);
+
+        public static QuestItemRewardPreviewData Failed(string errorCode) =>
+            new(false, errorCode, new GDictionary(), new GStringNameArray());
+    }
+
+    private sealed class QuestPendingCharacterRewardPreviewData
+    {
+        public readonly bool Ok;
+        public readonly string ErrorCode;
+        public readonly PendingCharacterReward PendingReward;
+
+        private QuestPendingCharacterRewardPreviewData(
+            bool ok,
+            string errorCode,
+            PendingCharacterReward pendingReward
+        )
+        {
+            Ok = ok;
+            ErrorCode = ok
+                ? ""
+                : string.IsNullOrEmpty(errorCode)
+                    ? "invalid_pending_character_reward"
+                    : errorCode;
+            PendingReward = pendingReward;
+        }
+
+        public static QuestPendingCharacterRewardPreviewData Success(
+            PendingCharacterReward pendingReward
+        ) =>
+            new(true, "", pendingReward);
+
+        public static QuestPendingCharacterRewardPreviewData Failed(string errorCode) =>
+            new(false, errorCode, null);
+    }
+
+    private sealed class QuestProgressApplySummaryData
+    {
+        private readonly GStringNameArray _acceptedQuestIds;
+        private readonly GStringNameArray _progressedQuestIds;
+        private readonly GStringNameArray _claimableQuestIds;
+        private readonly GStringNameArray _completedQuestIds;
+
+        private QuestProgressApplySummaryData(
+            GStringNameArray acceptedQuestIds,
+            GStringNameArray progressedQuestIds,
+            GStringNameArray claimableQuestIds,
+            GStringNameArray completedQuestIds
+        )
+        {
+            _acceptedQuestIds = acceptedQuestIds;
+            _progressedQuestIds = progressedQuestIds;
+            _claimableQuestIds = claimableQuestIds;
+            _completedQuestIds = completedQuestIds;
+        }
+
+        public bool ContainsProgressedQuest(StringName questId) =>
+            questId != "" && _progressedQuestIds.Contains(questId);
+
+        public GStringNameArray CloneAcceptedQuestIds() =>
+            CloneStringNameArray(_acceptedQuestIds);
+
+        public GStringNameArray CloneProgressedQuestIds() =>
+            CloneStringNameArray(_progressedQuestIds);
+
+        public GStringNameArray CloneClaimableQuestIds() =>
+            CloneStringNameArray(_claimableQuestIds);
+
+        public GStringNameArray CloneCompletedQuestIds() =>
+            CloneStringNameArray(_completedQuestIds);
+
+        public static QuestProgressApplySummaryData FromDictionary(GDictionary summary) =>
+            new(
+                CharacterQuestDataReader.ReadStringNameArray(summary, "accepted_quest_ids"),
+                CharacterQuestDataReader.ReadStringNameArray(summary, "progressed_quest_ids"),
+                CharacterQuestDataReader.ReadStringNameArray(summary, "claimable_quest_ids"),
+                CharacterQuestDataReader.ReadStringNameArray(summary, "completed_quest_ids")
+            );
+    }
+
+    private static class CharacterQuestDataReader
+    {
+        public static string ReadString(GDictionary data, string key)
+        {
+            if (!TryGet(data, key, out Variant value))
+                return "";
+            return value.VariantType switch
+            {
+                Variant.Type.String => value.AsString(),
+                Variant.Type.StringName => value.AsStringName().ToString(),
+                _ => "",
+            };
+        }
+
+        public static bool TryReadString(GDictionary data, string key, out string result)
+        {
+            if (!TryGet(data, key, out Variant value))
+            {
+                result = "";
+                return false;
+            }
+            if (value.VariantType == Variant.Type.String)
+            {
+                result = value.AsString();
+                return true;
+            }
+            if (value.VariantType == Variant.Type.StringName)
+            {
+                result = value.AsStringName().ToString();
+                return true;
+            }
+            result = "";
+            return false;
+        }
+
+        public static string ReadTrimmedString(GDictionary data, string key) =>
+            ReadString(data, key).StripEdges();
+
+        public static StringName ReadStringName(GDictionary data, string key)
+        {
+            if (!TryGet(data, key, out Variant value))
+                return "";
+            return value.VariantType switch
+            {
+                Variant.Type.StringName => value.AsStringName(),
+                Variant.Type.String => new StringName(value.AsString().StripEdges()),
+                _ => new StringName(""),
+            };
+        }
+
+        public static bool TryReadInt(GDictionary data, string key, out int result)
+        {
+            if (!TryGet(data, key, out Variant value) || value.VariantType != Variant.Type.Int)
+            {
+                result = 0;
+                return false;
+            }
+            result = value.AsInt32();
+            return true;
+        }
+
+        public static GArray ReadArray(GDictionary data, string key)
+        {
+            if (!TryGet(data, key, out Variant value))
+                return new GArray();
+            return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : new GArray();
+        }
+
+        public static GStringNameArray ReadStringNameArray(GDictionary data, string key)
+        {
+            GStringNameArray result = new();
+            foreach (Variant value in ReadArray(data, key))
+            {
+                if (value.VariantType == Variant.Type.StringName)
+                    result.Add(value.AsStringName());
+                else if (value.VariantType == Variant.Type.String)
+                    result.Add(new StringName(value.AsString()));
+            }
+            return result;
+        }
+
+        private static bool TryGet(GDictionary data, string key, out Variant value)
+        {
+            if (data == null || string.IsNullOrEmpty(key))
+            {
+                value = default;
+                return false;
+            }
+            foreach (Variant rawKey in data.Keys)
+            {
+                if (rawKey.VariantType == Variant.Type.String && rawKey.AsString() == key)
+                {
+                    value = data[rawKey];
+                    return true;
+                }
+                if (
+                    rawKey.VariantType == Variant.Type.StringName
+                    && rawKey.AsStringName().ToString() == key
+                )
+                {
+                    value = data[rawKey];
+                    return true;
+                }
+            }
+            value = default;
+            return false;
+        }
+    }
 
     private GArray _pending_character_reward_options_to_dicts(GArray reward_options)
     {
@@ -2894,13 +3713,14 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
     )
     {
         var entries = new Godot.Collections.Array<PendingCharacterRewardEntry>();
-        foreach (var entry_option in entry_options)
+        if (entry_options == null)
+            return entries;
+        foreach (Variant entry_option in entry_options)
         {
-            PendingCharacterRewardEntry entry = null;
-            if (entry_option.TryAsObject<PendingCharacterRewardEntry>(out var typed_entry))
-                entry = PendingCharacterRewardEntry.from_dict(typed_entry.to_dict());
-            else if (entry_option.TryAsDictionary(out var entryDict))
-                entry = _normalize_pending_character_entry(entryDict);
+            PendingCharacterRewardEntry entry =
+                _normalize_pending_character_entry(
+                    PendingCharacterRewardEntryData.FromVariant(entry_option)
+                );
             if (entry != null && !entry.is_empty())
                 entries.Add(entry);
         }
@@ -2909,21 +3729,20 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
 
     private bool _has_unsupported_pending_character_entry_type(GArray entry_options)
     {
-        foreach (var entry_option in entry_options)
+        if (entry_options == null)
+            return false;
+        foreach (Variant entry_option in entry_options)
         {
-            if (entry_option.TryAsObject<PendingCharacterRewardEntry>(out var typed_entry))
-            {
-                if (_is_unsupported_pending_character_entry(typed_entry.entry_type, typed_entry.target_id))
-                    return true;
-                continue;
-            }
-            if (entry_option.TryAsDictionary(out var entry_data))
-            {
-                var entry_type = GdInterop.GetStringName(entry_data, "entry_type");
-                var target_id = GdInterop.GetStringName(entry_data, "target_id");
-                if (_is_unsupported_pending_character_entry(entry_type, target_id))
-                    return true;
-            }
+            PendingCharacterRewardEntryData entry_data =
+                PendingCharacterRewardEntryData.FromVariant(entry_option);
+            if (
+                entry_data.Exists
+                && _is_unsupported_pending_character_entry(
+                    entry_data.EntryType,
+                    entry_data.TargetId
+                )
+            )
+                return true;
         }
         return false;
     }
@@ -2958,11 +3777,15 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         return false;
     }
 
-    private PendingCharacterRewardEntry _normalize_pending_character_entry(GDictionary entry_data)
+    private PendingCharacterRewardEntry _normalize_pending_character_entry(
+        PendingCharacterRewardEntryData entry_data
+    )
     {
-        var entry_type = GdInterop.GetStringName(entry_data, "entry_type");
-        var target_id = GdInterop.GetStringName(entry_data, "target_id");
-        var amount = GdInterop.GetInt(entry_data, "amount");
+        if (entry_data == null || !entry_data.Exists)
+            return null;
+        var entry_type = entry_data.EntryType;
+        var target_id = entry_data.TargetId;
+        var amount = entry_data.Amount;
         if (entry_type == "" || target_id == "" || amount == 0)
             return null;
         if (!PendingCharacterRewardContentRules.is_supported_entry_type(entry_type))
@@ -2977,8 +3800,8 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             entry_type = entry_type,
             target_id = target_id,
             amount = amount,
-            target_label = GdInterop.GetString(entry_data, "target_label"),
-            reason_text = GdInterop.GetString(entry_data, "reason_text"),
+            target_label = entry_data.TargetLabel,
+            reason_text = entry_data.ReasonText,
         };
         if (string.IsNullOrEmpty(entry.target_label))
             entry.target_label = _resolve_reward_target_label(entry.entry_type, entry.target_id, "");
@@ -3005,11 +3828,13 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             source_label = !string.IsNullOrEmpty(achievement_def.display_name)
                 ? achievement_def.display_name
                 : (string)achievement_def.achievement_id,
-            summary_text = GdInterop.GetString(
-                meta ?? new GDictionary(),
+            summary_text = CharacterQuestDataReader.TryReadString(
+                meta,
                 "summary_text",
-                achievement_def.description
-            ),
+                out var summary_text
+            )
+                ? summary_text
+                : achievement_def.description,
             entries = _build_achievement_reward_entries(achievement_def),
         };
         return reward.is_empty() ? null : reward;
@@ -3067,7 +3892,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         )
         {
             var achievement_id = new StringName(achievement_key);
-            var achievement_def = GdInterop.GetObject<AchievementDef>(_achievement_defs, achievement_id);
+            var achievement_def = GetAchievementDef(achievement_id);
             if (achievement_def != null && achievement_def.matches_event(event_type, subject_id))
                 matches.Add(achievement_def);
         }
@@ -3107,9 +3932,9 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
     private static void _fill_delta_from_progression(
         CharacterProgressionDelta delta,
         UnitProgress progression,
-        GDictionary before_skill_levels,
-        GDictionary before_granted_skill_ids,
-        GDictionary before_profession_ranks
+        Dictionary<StringName, int> before_skill_levels,
+        HashSet<StringName> before_granted_skill_ids,
+        Dictionary<StringName, int> before_profession_ranks
     )
     {
         delta.character_level_after = progression.character_level;
@@ -3121,12 +3946,14 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             var skill_progress = progression.get_skill_progress(skill_id);
             if (skill_progress == null)
                 continue;
-            var before_level = GdInterop.GetInt(before_skill_levels, skill_id, -1);
+            var before_level = before_skill_levels.TryGetValue(skill_id, out var captured_level)
+                ? captured_level
+                : -1;
             if (before_level >= 0 && skill_progress.skill_level > before_level)
                 _append_unique_string_name(delta.leveled_skill_ids, skill_id);
             if (
                 skill_progress.profession_granted_by != ""
-                && !before_granted_skill_ids.ContainsKey(skill_id)
+                && !before_granted_skill_ids.Contains(skill_id)
             )
                 _append_unique_string_name(delta.granted_skill_ids, skill_id);
         }
@@ -3136,7 +3963,12 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             var profession_progress = progression.get_profession_progress(profession_id);
             if (profession_progress == null)
                 continue;
-            var before_rank = GdInterop.GetInt(before_profession_ranks, profession_id, 0);
+            var before_rank = before_profession_ranks.TryGetValue(
+                profession_id,
+                out var captured_rank
+            )
+                ? captured_rank
+                : 0;
             if (profession_progress.rank != before_rank)
                 _append_unique_string_name(delta.changed_profession_ids, profession_id);
         }
@@ -3221,7 +4053,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
 
     private string _resolve_skill_label(StringName skill_id)
     {
-        var skill_def = GdInterop.GetObject<SkillDef>(_skill_defs, skill_id);
+        var skill_def = GetSkillDef(skill_id);
         return skill_def != null && !string.IsNullOrEmpty(skill_def.display_name)
             ? skill_def.display_name
             : (string)skill_id;
@@ -3321,22 +4153,18 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         return "角色奖励";
     }
 
-    private static int CompareAchievementProgressEntry(GDictionary a, GDictionary b)
+    private static int CompareAchievementProgressEntry(
+        AchievementProgressSummaryEntry a,
+        AchievementProgressSummaryEntry b
+    )
     {
-        var ratio_a = (float)GdInterop.GetFloat(a, "progress_ratio");
-        var ratio_b = (float)GdInterop.GetFloat(b, "progress_ratio");
-        if (Mathf.IsEqualApprox(ratio_a, ratio_b))
+        if (Mathf.IsEqualApprox(a.ProgressRatio, b.ProgressRatio))
         {
-            var current_a = GdInterop.GetInt(a, "current_value");
-            var current_b = GdInterop.GetInt(b, "current_value");
-            if (current_a == current_b)
-                return string.CompareOrdinal(
-                    GdInterop.GetString(a, "display_name"),
-                    GdInterop.GetString(b, "display_name")
-                );
-            return current_b.CompareTo(current_a);
+            if (a.CurrentValue == b.CurrentValue)
+                return string.CompareOrdinal(a.DisplayName, b.DisplayName);
+            return b.CurrentValue.CompareTo(a.CurrentValue);
         }
-        return ratio_b.CompareTo(ratio_a);
+        return b.ProgressRatio.CompareTo(a.ProgressRatio);
     }
 
 
@@ -3361,11 +4189,22 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         return (float)dict[key];
     }
 
-    private static bool GetBoolParam(GDictionary dict, string key, bool fallback = false)
+    private static bool HasConfirmedPracticeReplacement(GDictionary options)
     {
-        if (dict == null || !dict.ContainsKey(key))
-            return fallback;
-        return (bool)dict[key];
+        return TryGetExactBoolParam(options, "confirm_practice_replacement", out bool confirmed)
+            && confirmed;
+    }
+
+    private static bool TryGetExactBoolParam(GDictionary dict, string key, out bool value)
+    {
+        value = false;
+        if (dict == null || string.IsNullOrEmpty(key) || !dict.ContainsKey(key))
+            return false;
+        Variant rawValue = dict[key];
+        if (rawValue.VariantType != Variant.Type.Bool)
+            return false;
+        value = rawValue.AsBool();
+        return true;
     }
 
     private static bool DictionariesEqual(GDictionary left, GDictionary right)
@@ -3378,6 +4217,30 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
                 return false;
         }
         return true;
+    }
+
+    private static bool TryGetExactStringNameKey(
+        GDictionary dictionary,
+        StringName key,
+        out Variant value
+    )
+    {
+        if (dictionary == null || key == "")
+        {
+            value = default;
+            return false;
+        }
+        foreach (Variant rawKey in dictionary.Keys)
+        {
+            if (rawKey.VariantType != Variant.Type.StringName)
+                continue;
+            if (rawKey.AsStringName() != key)
+                continue;
+            value = dictionary[rawKey];
+            return true;
+        }
+        value = default;
+        return false;
     }
 
     private static GArray ToUntyped(Godot.Collections.Array<StageAdvancementModifier> values)

@@ -68,6 +68,12 @@ public partial class BattleAiCandidateRequest : RefCounted
     private CandidatePayloadSection _runtimeMetadata =
         CandidatePayloadSection.Empty("runtime_metadata");
 
+    private MoveToRangePathSearchBudget _typedPathSearchBudget;
+
+    private MoveToRangeTacticalParams _typedTacticalParams;
+
+    private MoveToRangeRuntimeMetadata _typedRuntimeMetadata;
+
     internal MoveToRangePathSearchBudget ParsedPathSearchBudget { get; private set; } = new();
 
     internal MoveToRangeTacticalParams ParsedTacticalParams { get; private set; } = new();
@@ -126,21 +132,33 @@ public partial class BattleAiCandidateRequest : RefCounted
     }
     public GDictionary PathSearchBudget
     {
-        get => _pathSearchBudget.ToDictionary();
-        set => _pathSearchBudget = CandidatePayloadSection.FromDictionary(
-            value,
-            "path_search_budget"
-        );
+        get => _typedPathSearchBudget?.ToDictionary() ?? _pathSearchBudget.ToDictionary();
+        set
+        {
+            _typedPathSearchBudget = null;
+            _pathSearchBudget = CandidatePayloadSection.FromDictionary(
+                value,
+                "path_search_budget"
+            );
+        }
     }
     public GDictionary TacticalParams
     {
-        get => _tacticalParams.ToDictionary();
-        set => _tacticalParams = CandidatePayloadSection.FromDictionary(value, "tactical_params");
+        get => _typedTacticalParams?.ToDictionary() ?? _tacticalParams.ToDictionary();
+        set
+        {
+            _typedTacticalParams = null;
+            _tacticalParams = CandidatePayloadSection.FromDictionary(value, "tactical_params");
+        }
     }
     public GDictionary RuntimeMetadata
     {
-        get => _runtimeMetadata.ToDictionary();
-        set => _runtimeMetadata = CandidatePayloadSection.FromDictionary(value, "runtime_metadata");
+        get => _typedRuntimeMetadata?.ToDictionary() ?? _runtimeMetadata.ToDictionary();
+        set
+        {
+            _typedRuntimeMetadata = null;
+            _runtimeMetadata = CandidatePayloadSection.FromDictionary(value, "runtime_metadata");
+        }
     }
     public GDictionary path_search_budget
     {
@@ -156,6 +174,20 @@ public partial class BattleAiCandidateRequest : RefCounted
     {
         get => RuntimeMetadata;
         set => RuntimeMetadata = value;
+    }
+
+    internal void SetMoveToRangeSections(
+        MoveToRangePathSearchBudget pathSearchBudget,
+        MoveToRangeTacticalParams tacticalParams,
+        MoveToRangeRuntimeMetadata runtimeMetadata
+    )
+    {
+        _typedPathSearchBudget = pathSearchBudget?.Clone() ?? new MoveToRangePathSearchBudget();
+        _typedTacticalParams = tacticalParams?.Clone() ?? new MoveToRangeTacticalParams();
+        _typedRuntimeMetadata = runtimeMetadata?.Clone() ?? new MoveToRangeRuntimeMetadata();
+        _pathSearchBudget = CandidatePayloadSection.Empty("path_search_budget");
+        _tacticalParams = CandidatePayloadSection.Empty("tactical_params");
+        _runtimeMetadata = CandidatePayloadSection.Empty("runtime_metadata");
     }
 
     public bool RequireValidPayload()
@@ -247,8 +279,14 @@ public partial class BattleAiCandidateRequest : RefCounted
         out string error
     )
     {
-        pathBudget = new MoveToRangePathSearchBudget();
         error = "";
+        if (_typedPathSearchBudget != null)
+        {
+            pathBudget = _typedPathSearchBudget.Clone();
+            return ValidatePathBudget(pathBudget, out error);
+        }
+
+        pathBudget = new MoveToRangePathSearchBudget();
         foreach (CandidatePayloadField field in _pathSearchBudget.Fields)
         {
             if (!PathBudgetKeys.Contains(field.Key))
@@ -318,7 +356,7 @@ public partial class BattleAiCandidateRequest : RefCounted
         )
             return false;
 
-        return true;
+        return ValidatePathBudget(pathBudget, out error);
     }
 
     private bool TryParseMoveToRangeTacticalParams(
@@ -326,8 +364,14 @@ public partial class BattleAiCandidateRequest : RefCounted
         out string error
     )
     {
-        tacticalParams = new MoveToRangeTacticalParams();
         error = "";
+        if (_typedTacticalParams != null)
+        {
+            tacticalParams = _typedTacticalParams.Clone();
+            return ValidateTacticalParams(tacticalParams, out error);
+        }
+
+        tacticalParams = new MoveToRangeTacticalParams();
         foreach (CandidatePayloadField field in _tacticalParams.Fields)
         {
             if (!MoveToRangeTacticalKeys.Contains(field.Key))
@@ -411,7 +455,7 @@ public partial class BattleAiCandidateRequest : RefCounted
         )
             return false;
 
-        return true;
+        return ValidateTacticalParams(tacticalParams, out error);
     }
 
     private bool TryParseRuntimeMetadata(
@@ -419,8 +463,14 @@ public partial class BattleAiCandidateRequest : RefCounted
         out string error
     )
     {
-        runtimeMetadata = new MoveToRangeRuntimeMetadata();
         error = "";
+        if (_typedRuntimeMetadata != null)
+        {
+            runtimeMetadata = _typedRuntimeMetadata.Clone();
+            return true;
+        }
+
+        runtimeMetadata = new MoveToRangeRuntimeMetadata();
         foreach (CandidatePayloadField field in _runtimeMetadata.Fields)
         {
             if (!MoveToRangeRuntimeKeys.Contains(field.Key))
@@ -457,6 +507,74 @@ public partial class BattleAiCandidateRequest : RefCounted
             )
         )
             return false;
+        return true;
+    }
+
+    private static bool ValidatePathBudget(
+        MoveToRangePathSearchBudget pathBudget,
+        out string error
+    )
+    {
+        error = "";
+        if (pathBudget == null)
+        {
+            error = "path_search_budget must be set.";
+            return false;
+        }
+        if (pathBudget.MaxCost < 0)
+        {
+            error = "path_search_budget.max_cost must be int >= 0.";
+            return false;
+        }
+        if (pathBudget.MaxNodes < 0)
+        {
+            error = "path_search_budget.max_nodes must be int >= 0.";
+            return false;
+        }
+        if (pathBudget.MaxDestinations < 0)
+        {
+            error = "path_search_budget.max_destinations must be int >= 0.";
+            return false;
+        }
+        if (pathBudget.PathTreeMinDestinationCount < 0)
+        {
+            error = "path_search_budget.path_tree_min_destination_count must be int >= 0.";
+            return false;
+        }
+        return true;
+    }
+
+    private static bool ValidateTacticalParams(
+        MoveToRangeTacticalParams tacticalParams,
+        out string error
+    )
+    {
+        error = "";
+        if (tacticalParams == null)
+        {
+            error = "tactical_params must be set.";
+            return false;
+        }
+        if (tacticalParams.AoeSetupMinTargetCount < 0)
+        {
+            error = "tactical_params.aoe_setup_min_target_count must be int >= 0.";
+            return false;
+        }
+        if (tacticalParams.AoeSetupTargetCountWeight < 0)
+        {
+            error = "tactical_params.aoe_setup_target_count_weight must be int >= 0.";
+            return false;
+        }
+        if (tacticalParams.AoeSetupImprovementWeight < 0)
+        {
+            error = "tactical_params.aoe_setup_improvement_weight must be int >= 0.";
+            return false;
+        }
+        if (tacticalParams.AoeSetupFriendlyFirePenalty < 0)
+        {
+            error = "tactical_params.aoe_setup_friendly_fire_penalty must be int >= 0.";
+            return false;
+        }
         return true;
     }
 
@@ -509,7 +627,7 @@ public partial class BattleAiCandidateRequest : RefCounted
         error = "";
         if (source == null || !source.TryGetValue(key, out CandidatePayloadValue rawValue))
             return true;
-        if (!rawValue.TryGetBool(out value))
+        if (!rawValue.TryReadBool(out value))
         {
             error = $"{source.Path}.{key} must be bool.";
             return false;
@@ -597,6 +715,19 @@ internal sealed class MoveToRangePathSearchBudget
     public int PathTreeMinDestinationCount;
     public bool IncludeOrigin;
     public bool PreferProgress = true;
+
+    public MoveToRangePathSearchBudget Clone()
+    {
+        return new MoveToRangePathSearchBudget
+        {
+            MaxCost = MaxCost,
+            MaxNodes = MaxNodes,
+            MaxDestinations = MaxDestinations,
+            PathTreeMinDestinationCount = PathTreeMinDestinationCount,
+            IncludeOrigin = IncludeOrigin,
+            PreferProgress = PreferProgress,
+        };
+    }
 
     public GDictionary ToDictionary()
     {
@@ -768,7 +899,7 @@ internal sealed class CandidatePayloadValue
         return _kind == CandidatePayloadValueKind.Int;
     }
 
-    public bool TryGetBool(out bool value)
+    public bool TryReadBool(out bool value)
     {
         value = _boolValue;
         return _kind == CandidatePayloadValueKind.Bool;
@@ -913,10 +1044,25 @@ internal sealed class MoveToRangeTacticalParams
     public int AoeSetupImprovementWeight = 220;
     public int AoeSetupFriendlyFirePenalty = 1000;
 
+    public MoveToRangeTacticalParams Clone()
+    {
+        return new MoveToRangeTacticalParams
+        {
+            TargetSelector = TargetSelector,
+            RangeSkillIds = new List<StringName>(RangeSkillIds ?? new List<StringName>()),
+            PositionObjectiveKind = PositionObjectiveKind,
+            AoeSetupEnabled = AoeSetupEnabled,
+            AoeSetupMinTargetCount = AoeSetupMinTargetCount,
+            AoeSetupTargetCountWeight = AoeSetupTargetCountWeight,
+            AoeSetupImprovementWeight = AoeSetupImprovementWeight,
+            AoeSetupFriendlyFirePenalty = AoeSetupFriendlyFirePenalty,
+        };
+    }
+
     public GDictionary ToDictionary()
     {
         var rangeSkillIds = new GArray();
-        foreach (StringName skillId in RangeSkillIds)
+        foreach (StringName skillId in RangeSkillIds ?? new List<StringName>())
         {
             rangeSkillIds.Add(skillId);
         }
@@ -939,6 +1085,16 @@ internal sealed class MoveToRangeRuntimeMetadata
     public int ConfiguredDesiredMinDistance;
     public int ConfiguredDesiredMaxDistance;
     public int EffectiveAttackRange;
+
+    public MoveToRangeRuntimeMetadata Clone()
+    {
+        return new MoveToRangeRuntimeMetadata
+        {
+            ConfiguredDesiredMinDistance = ConfiguredDesiredMinDistance,
+            ConfiguredDesiredMaxDistance = ConfiguredDesiredMaxDistance,
+            EffectiveAttackRange = EffectiveAttackRange,
+        };
+    }
 
     public GDictionary ToDictionary()
     {

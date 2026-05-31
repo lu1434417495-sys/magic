@@ -1,13 +1,86 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
+using GCombatEffectArray = Godot.Collections.Array<CombatEffectDef>;
 using GDictionary = Godot.Collections.Dictionary;
 
+public readonly record struct BattleSpecialSkillResult(
+    bool Applied,
+    int MovedSteps,
+    IReadOnlyList<StringName> StatusEffectIds,
+    IReadOnlyList<string> LogLines
+)
+{
+    public static BattleSpecialSkillResult Empty() =>
+        new(false, 0, Array.Empty<StringName>(), Array.Empty<string>());
+
+    public GDictionary ToDictionary()
+    {
+        var statusEffectIds = new GArray();
+        foreach (StringName statusEffectId in StatusEffectIds ?? Array.Empty<StringName>())
+        {
+            statusEffectIds.Add(statusEffectId);
+        }
+        var logLines = new GArray();
+        foreach (string logLine in LogLines ?? Array.Empty<string>())
+        {
+            logLines.Add(logLine);
+        }
+        return new GDictionary
+        {
+            ["applied"] = Applied,
+            ["moved_steps"] = MovedSteps,
+            ["status_effect_ids"] = statusEffectIds,
+            ["log_lines"] = logLines,
+        };
+    }
+}
+
 // 翻译自 battle_special_skill_resolver.gd（2026-05-25，战斗特殊技能 C# 迁移）。
-// runtime 耦合：战斗实体统一按 GodotObject + GdInterop 访问；保留 snake_case 公开接口供 GDScript 调用。
+// 保留 snake_case 公开接口供 GDScript 调用。
 [GlobalClass]
 public partial class BattleSpecialSkillResolver : RefCounted
 {
+    private static readonly StringName PARAM_FORCED_MOVE_IMMUNE = "forced_move_immune";
+
+    private readonly record struct ForcedMoveStatusParameters(bool ForcedMoveImmune)
+    {
+        public static ForcedMoveStatusParameters FromStatus(BattleStatusEffectState statusEntry)
+        {
+            return new ForcedMoveStatusParameters(
+                ReadBool(statusEntry?.@params, PARAM_FORCED_MOVE_IMMUNE)
+            );
+        }
+    }
+
+    private readonly record struct BodySizeOverrideResult(
+        bool Applied,
+        IReadOnlyList<StringName> StatusEffectIds,
+        IReadOnlyList<string> LogLines
+    )
+    {
+        public GDictionary ToDictionary()
+        {
+            var statusEffectIds = new GArray();
+            foreach (StringName statusEffectId in StatusEffectIds ?? Array.Empty<StringName>())
+            {
+                statusEffectIds.Add(statusEffectId);
+            }
+            var logLines = new GArray();
+            foreach (string logLine in LogLines ?? Array.Empty<string>())
+            {
+                logLines.Add(logLine);
+            }
+            return new GDictionary
+            {
+                ["applied"] = Applied,
+                ["status_effect_ids"] = statusEffectIds,
+                ["log_lines"] = logLines,
+            };
+        }
+    }
+
     private static readonly StringName BODY_SIZE_CATEGORY_OVERRIDE_EFFECT_TYPE =
         "body_size_category_override";
     private static readonly StringName LAYERED_BARRIER_EFFECT_TYPE = "layered_barrier";
@@ -91,6 +164,19 @@ public partial class BattleSpecialSkillResolver : RefCounted
         _runtime._apply_skill_mastery_grant(unit_state as BattleUnitState, grant, batch as BattleEventBatch);
     }
 
+    internal void ApplySkillMasteryGrantTyped(
+        BattleUnitState unitState,
+        BattleSkillMasteryGrant grant,
+        BattleEventBatch batch
+    )
+    {
+        if (_runtime == null)
+        {
+            return;
+        }
+        _runtime.ApplySkillMasteryGrantTyped(unitState, grant, batch);
+    }
+
     public void _append_changed_coords(GodotObject batch, GArray coords)
     {
         if (_runtime == null)
@@ -119,35 +205,34 @@ public partial class BattleSpecialSkillResolver : RefCounted
     }
 
     public void _apply_on_kill_gain_resources_effects(
-        GodotObject source_unit,
-        GodotObject defeated_unit,
-        GodotObject skill_def,
-        GArray effect_defs,
-        GodotObject batch
+        BattleUnitState source_unit,
+        BattleUnitState defeated_unit,
+        SkillDef skill_def,
+        GCombatEffectArray effect_defs,
+        BattleEventBatch batch
     )
     {
         if (source_unit == null || defeated_unit == null || skill_def == null || batch == null)
         {
             return;
         }
-        if (GdInterop.GetBool(defeated_unit, "is_alive"))
+        if (defeated_unit.is_alive)
         {
             return;
         }
-        foreach (var effectDefValue in effect_defs)
+        foreach (CombatEffectDef effectDef in effect_defs ?? new GCombatEffectArray())
         {
-            GodotObject effectDef = effectDefValue.AsGodotObject();
             if (
                 effectDef == null
-                || GdInterop.GetStringName(effectDef, "effect_type") != "on_kill_gain_resources"
+                || effectDef.effect_type != "on_kill_gain_resources"
             )
             {
                 continue;
             }
-            GDictionary parameters = GdInterop.GetDictionary(effectDef, "params");
-            int apGain = Math.Max(GdInterop.GetInt(parameters, "ap_gain", 0), 0);
+            GDictionary parameters = effectDef.@params ?? new GDictionary();
+            int apGain = Math.Max(ReadInt(parameters, "ap_gain", 0), 0);
             int freeMovePointsGain = Math.Max(
-                GdInterop.GetInt(parameters, "free_move_points_gain", 0),
+                ReadInt(parameters, "free_move_points_gain", 0),
                 0
             );
             if (apGain <= 0 && freeMovePointsGain <= 0)
@@ -156,17 +241,14 @@ public partial class BattleSpecialSkillResolver : RefCounted
             }
             if (apGain > 0)
             {
-                source_unit.Set("current_ap", GdInterop.GetInt(source_unit, "current_ap") + apGain);
+                source_unit.current_ap += apGain;
             }
             if (freeMovePointsGain > 0)
             {
-                source_unit.Set(
-                    "current_move_points",
-                    GdInterop.GetInt(source_unit, "current_move_points") + freeMovePointsGain
-                );
-                source_unit.Set("can_use_locked_move_points_this_turn", true);
+                source_unit.current_move_points += freeMovePointsGain;
+                source_unit.can_use_locked_move_points_this_turn = true;
             }
-            _append_changed_unit_id(batch, GdInterop.GetStringName(source_unit, "unit_id"));
+            _append_changed_unit_id(batch, source_unit.unit_id);
             var gainParts = new System.Collections.Generic.List<string>();
             if (apGain > 0)
             {
@@ -176,14 +258,12 @@ public partial class BattleSpecialSkillResolver : RefCounted
             {
                 gainParts.Add($"获得 {freeMovePointsGain} 点普通移动力并可在行动后移动");
             }
-            string skillName = !string.IsNullOrEmpty(GdInterop.GetString(skill_def, "display_name"))
-                ? GdInterop.GetString(skill_def, "display_name")
-                : GdInterop.GetStringName(skill_def, "skill_id").ToString();
-            GdInterop
-                .GetArray(batch, "log_lines")
-                .Add(
-                    $"{GdInterop.GetString(source_unit, "display_name")} 击倒 {GdInterop.GetString(defeated_unit, "display_name")}，触发 {skillName}：{string.Join("，", gainParts)}。"
-                );
+            string skillName = !string.IsNullOrEmpty(skill_def.display_name)
+                ? skill_def.display_name
+                : skill_def.skill_id.ToString();
+            batch.log_lines.Add(
+                $"{source_unit.display_name} 击倒 {defeated_unit.display_name}，触发 {skillName}：{string.Join("，", gainParts)}。"
+            );
         }
     }
 
@@ -198,81 +278,98 @@ public partial class BattleSpecialSkillResolver : RefCounted
     )
     {
         forced_move_context ??= new GDictionary();
-        var result = new GDictionary
-        {
-            ["applied"] = false,
-            ["moved_steps"] = 0,
-            ["status_effect_ids"] = new GArray(),
-            ["log_lines"] = new GArray(),
-        };
+        return ApplyUnitSkillSpecialEffectsResult(
+                active_unit as BattleUnitState,
+                target_unit as BattleUnitState,
+                skill_def as SkillDef,
+                cast_variant as CombatCastVariantDef,
+                ToCombatEffectDefArray(effect_defs),
+                batch as BattleEventBatch,
+                forced_move_context
+            )
+            .ToDictionary();
+    }
+
+    public BattleSpecialSkillResult ApplyUnitSkillSpecialEffectsResult(
+        BattleUnitState active_unit,
+        BattleUnitState target_unit,
+        SkillDef skill_def,
+        CombatCastVariantDef cast_variant,
+        GCombatEffectArray effect_defs,
+        BattleEventBatch batch,
+        GDictionary forced_move_context = null
+    )
+    {
+        forced_move_context ??= new GDictionary();
         if (active_unit == null || skill_def == null)
         {
-            return result;
+            return BattleSpecialSkillResult.Empty();
         }
-        if (_is_black_star_brand_skill(GdInterop.GetStringName(skill_def, "skill_id")))
+        if (_is_black_star_brand_skill(skill_def.skill_id))
         {
-            return _apply_black_star_brand_effect(active_unit, target_unit);
+            return ApplyBlackStarBrandEffectResult(active_unit, target_unit);
         }
-        if (_is_doom_shift_skill(GdInterop.GetStringName(skill_def, "skill_id")))
+        if (_is_doom_shift_skill(skill_def.skill_id))
         {
-            return _apply_doom_shift_effect(active_unit, target_unit, batch);
+            return ApplyDoomShiftEffectResult(active_unit, target_unit, batch);
         }
         if (effect_defs == null || effect_defs.Count == 0)
         {
-            return result;
+            return BattleSpecialSkillResult.Empty();
         }
 
         BattleLayeredBarrierService layeredBarrierService = _runtime._layered_barrier_service;
         var seenForcedMoveEffects = new GDictionary();
-        foreach (var effectDefValue in effect_defs)
+        bool applied = false;
+        int maxMovedSteps = 0;
+        var statusEffectIds = new List<StringName>();
+        var logLines = new List<string>();
+        foreach (CombatEffectDef effectDef in effect_defs)
         {
-            GodotObject effectDef = effectDefValue.AsGodotObject();
             if (effectDef == null)
             {
                 continue;
             }
-            StringName effectType = GdInterop.GetStringName(effectDef, "effect_type");
+            StringName effectType = effectDef.effect_type;
             if (effectType == LAYERED_BARRIER_EFFECT_TYPE)
             {
-                GDictionary barrierResult =
+                BattleLayeredBarrierApplyResult barrierResult =
                     layeredBarrierService != null
-                        ? layeredBarrierService.ApplyLayeredBarrierEffect(
-                            active_unit as BattleUnitState,
-                            (target_unit ?? active_unit) as BattleUnitState,
-                            skill_def as SkillDef,
-                            effectDef as CombatEffectDef,
-                            batch as BattleEventBatch
+                        ? layeredBarrierService.ApplyLayeredBarrierEffectResult(
+                            active_unit,
+                            target_unit ?? active_unit,
+                            skill_def,
+                            effectDef,
+                            batch
                         )
-                        : new GDictionary();
-                if (GdInterop.GetBool(barrierResult, "applied", false))
+                        : BattleLayeredBarrierApplyResult.Empty();
+                if (barrierResult.Applied)
                 {
-                    result["applied"] = true;
+                    applied = true;
                 }
                 continue;
             }
             if (effectType == BODY_SIZE_CATEGORY_OVERRIDE_EFFECT_TYPE)
             {
-                GDictionary bodySizeResult = _apply_body_size_category_override_effect(
+                BodySizeOverrideResult bodySizeResult = _apply_body_size_category_override_effect_result(
                     active_unit,
                     target_unit ?? active_unit,
                     effectDef,
                     batch
                 );
-                if (GdInterop.GetBool(bodySizeResult, "applied", false))
+                if (bodySizeResult.Applied)
                 {
-                    result["applied"] = true;
-                    foreach (
-                        Variant statusId in GdInterop.GetArray(bodySizeResult, "status_effect_ids")
-                    )
+                    applied = true;
+                    foreach (StringName statusId in bodySizeResult.StatusEffectIds)
                     {
-                        if (!GdInterop.GetArray(result, "status_effect_ids").Contains(statusId))
+                        if (!statusEffectIds.Contains(statusId))
                         {
-                            GdInterop.GetArray(result, "status_effect_ids").Add(statusId);
+                            statusEffectIds.Add(statusId);
                         }
                     }
-                    foreach (var logLine in GdInterop.GetArray(bodySizeResult, "log_lines"))
+                    foreach (string logLine in bodySizeResult.LogLines)
                     {
-                        GdInterop.GetArray(result, "log_lines").Add(logLine.ToString());
+                        logLines.Add(logLine);
                     }
                 }
                 continue;
@@ -287,96 +384,86 @@ public partial class BattleSpecialSkillResolver : RefCounted
                 continue;
             }
             seenForcedMoveEffects[forcedMoveInstanceId] = true;
-            GodotObject moveTarget = target_unit ?? active_unit;
             int movedSteps = _apply_forced_move_effect(
                 active_unit,
-                moveTarget,
+                target_unit ?? active_unit,
                 effectDef,
                 batch,
                 forced_move_context
             );
             if (movedSteps > 0)
             {
-                result["applied"] = true;
-                result["moved_steps"] = Math.Max(
-                    GdInterop.GetInt(result, "moved_steps", 0),
-                    movedSteps
-                );
+                applied = true;
+                maxMovedSteps = Math.Max(maxMovedSteps, movedSteps);
             }
         }
-        return result;
+        return new BattleSpecialSkillResult(applied, maxMovedSteps, statusEffectIds, logLines);
     }
 
     public GDictionary _apply_doom_shift_effect(
-        GodotObject active_unit,
-        GodotObject target_unit,
-        GodotObject batch
+        BattleUnitState active_unit,
+        BattleUnitState target_unit,
+        BattleEventBatch batch
     )
     {
-        var result = new GDictionary
-        {
-            ["applied"] = false,
-            ["moved_steps"] = 0,
-            ["status_effect_ids"] = new GArray(),
-            ["log_lines"] = new GArray(),
-        };
+        return ApplyDoomShiftEffectResult(active_unit, target_unit, batch).ToDictionary();
+    }
+
+    public BattleSpecialSkillResult ApplyDoomShiftEffectResult(
+        BattleUnitState active_unit,
+        BattleUnitState target_unit,
+        BattleEventBatch batch
+    )
+    {
         if (RtState() == null || active_unit == null || target_unit == null)
         {
-            return result;
+            return BattleSpecialSkillResult.Empty();
         }
-        if (
-            GdInterop.GetStringName(target_unit, "unit_id")
-            == GdInterop.GetStringName(active_unit, "unit_id")
-        )
+        if (target_unit.unit_id == active_unit.unit_id)
         {
-            return result;
+            return BattleSpecialSkillResult.Empty();
         }
         if (!_swap_unit_positions(active_unit, target_unit, batch))
         {
-            return result;
+            return BattleSpecialSkillResult.Empty();
         }
         _set_runtime_status_effect(
             active_unit,
             STATUS_MARKED,
             DOOM_SHIFT_SELF_DEBUFF_DURATION_TU,
-            GdInterop.GetStringName(active_unit, "unit_id"),
+            active_unit.unit_id,
             1,
             new GDictionary { ["counts_as_debuff"] = true }
         );
-        _append_changed_unit_id(batch, GdInterop.GetStringName(active_unit, "unit_id"));
-        result["applied"] = true;
-        result["log_lines"] = new GArray
-        {
-            $"{GdInterop.GetString(active_unit, "display_name")} 先承受 marked，再与 {GdInterop.GetString(target_unit, "display_name")} 交换位置。",
-        };
-        return result;
+        _append_changed_unit_id(batch, active_unit.unit_id);
+        return new BattleSpecialSkillResult(
+            true,
+            0,
+            Array.Empty<StringName>(),
+            new[] { $"{active_unit.display_name} 先承受 marked，再与 {target_unit.display_name} 交换位置。" }
+        );
     }
 
     public bool _swap_unit_positions(
-        GodotObject first_unit,
-        GodotObject second_unit,
-        GodotObject batch
+        BattleUnitState first_unit,
+        BattleUnitState second_unit,
+        BattleEventBatch batch
     )
     {
-        GodotObject state = RtState();
+        BattleState state = RtState();
         BattleGridService gridService = _runtime.get_grid_service();
         if (state == null || first_unit == null || second_unit == null)
         {
             return false;
         }
-        if (
-            GdInterop.GetStringName(first_unit, "unit_id")
-            == GdInterop.GetStringName(second_unit, "unit_id")
-        )
+        if (first_unit.unit_id == second_unit.unit_id)
         {
             return false;
         }
-        GArray firstPreviousCoords = (GArray)
-            GdInterop.GetArray(first_unit, "occupied_coords").Duplicate();
-        GArray secondPreviousCoords = (GArray)
-            GdInterop.GetArray(second_unit, "occupied_coords").Duplicate();
-        Vector2I firstCoord = GdInterop.GetVector2I(first_unit, "coord");
-        Vector2I secondCoord = GdInterop.GetVector2I(second_unit, "coord");
+        GArray firstPreviousCoords = ToUntypedVector2IArray(first_unit.occupied_coords);
+        GArray secondPreviousCoords = ToUntypedVector2IArray(second_unit.occupied_coords);
+        Vector2I firstCoord = first_unit.coord;
+        Vector2I secondCoord = second_unit.coord;
         if (!_resolve_swap_barrier_passage(first_unit, firstCoord, secondCoord, batch))
         {
             return false;
@@ -385,41 +472,41 @@ public partial class BattleSpecialSkillResolver : RefCounted
         {
             return false;
         }
-        gridService.clear_unit_occupancy(state, first_unit as BattleUnitState);
-        gridService.clear_unit_occupancy(state, second_unit as BattleUnitState);
+        gridService.clear_unit_occupancy(state, first_unit);
+        gridService.clear_unit_occupancy(state, second_unit);
         bool canSwap =
-            gridService.can_place_unit(state, first_unit as BattleUnitState, secondCoord, true)
-            && gridService.can_place_unit(state, second_unit as BattleUnitState, firstCoord, true);
+            gridService.can_place_unit(state, first_unit, secondCoord, true)
+            && gridService.can_place_unit(state, second_unit, firstCoord, true);
         if (!canSwap)
         {
             gridService.set_occupants(
                 state,
                 firstPreviousCoords,
-                GdInterop.GetStringName(first_unit, "unit_id")
+                first_unit.unit_id
             );
             gridService.set_occupants(
                 state,
                 secondPreviousCoords,
-                GdInterop.GetStringName(second_unit, "unit_id")
+                second_unit.unit_id
             );
             return false;
         }
-        gridService.place_unit(state, first_unit as BattleUnitState, secondCoord, true);
-        gridService.place_unit(state, second_unit as BattleUnitState, firstCoord, true);
+        gridService.place_unit(state, first_unit, secondCoord, true);
+        gridService.place_unit(state, second_unit, firstCoord, true);
         _append_changed_coords(batch, firstPreviousCoords);
         _append_changed_coords(batch, secondPreviousCoords);
         _append_changed_unit_coords(batch, first_unit);
         _append_changed_unit_coords(batch, second_unit);
-        _append_changed_unit_id(batch, GdInterop.GetStringName(first_unit, "unit_id"));
-        _append_changed_unit_id(batch, GdInterop.GetStringName(second_unit, "unit_id"));
+        _append_changed_unit_id(batch, first_unit.unit_id);
+        _append_changed_unit_id(batch, second_unit.unit_id);
         return true;
     }
 
     public bool _resolve_swap_barrier_passage(
-        GodotObject unit_state,
+        BattleUnitState unit_state,
         Vector2I from_coord,
         Vector2I to_coord,
-        GodotObject batch
+        BattleEventBatch batch
     )
     {
         if (unit_state == null)
@@ -431,57 +518,53 @@ public partial class BattleSpecialSkillResolver : RefCounted
         {
             return true;
         }
-        GDictionary barrierResult = layeredBarrierService.ResolveUnitBoundaryCrossing(
-            unit_state as BattleUnitState,
+        BattleBarrierInteractionResult barrierResult =
+            layeredBarrierService.ResolveUnitBoundaryCrossingResult(
+            unit_state,
             from_coord,
             to_coord,
-            batch as BattleEventBatch
+            batch
         );
-        return !GdInterop.GetBool(barrierResult, "blocked", false)
-            && GdInterop.GetBool(unit_state, "is_alive")
-            && GdInterop.GetVector2I(unit_state, "coord") == from_coord;
+        return !barrierResult.Blocked && unit_state.is_alive && unit_state.coord == from_coord;
     }
 
     public GDictionary _apply_black_star_brand_effect(
-        GodotObject active_unit,
-        GodotObject target_unit
+        BattleUnitState active_unit,
+        BattleUnitState target_unit
     )
     {
-        var result = new GDictionary
-        {
-            ["applied"] = false,
-            ["moved_steps"] = 0,
-            ["status_effect_ids"] = new GArray(),
-            ["log_lines"] = new GArray(),
-        };
+        return ApplyBlackStarBrandEffectResult(active_unit, target_unit).ToDictionary();
+    }
+
+    public BattleSpecialSkillResult ApplyBlackStarBrandEffectResult(
+        BattleUnitState active_unit,
+        BattleUnitState target_unit
+    )
+    {
         if (active_unit == null || target_unit == null)
         {
-            return result;
+            return BattleSpecialSkillResult.Empty();
         }
         _clear_black_star_brand_statuses(target_unit);
+        var statusEffectIds = new List<StringName>();
+        var logLines = new List<string>();
         if (_is_black_star_brand_elite_target(target_unit))
         {
             _set_runtime_status_effect(
                 target_unit,
                 STATUS_BLACK_STAR_BRAND_ELITE,
                 BLACK_STAR_BRAND_DURATION_TU,
-                GdInterop.GetStringName(active_unit, "unit_id")
+                active_unit.unit_id
             );
             _set_runtime_status_effect(
                 target_unit,
                 STATUS_BLACK_STAR_BRAND_ELITE_GUARD_WINDOW,
                 BLACK_STAR_BRAND_DURATION_TU,
-                GdInterop.GetStringName(active_unit, "unit_id")
+                active_unit.unit_id
             );
-            result["status_effect_ids"] = new GArray
-            {
-                STATUS_BLACK_STAR_BRAND_ELITE,
-                STATUS_BLACK_STAR_BRAND_ELITE_GUARD_WINDOW,
-            };
-            result["log_lines"] = new GArray
-            {
-                $"{GdInterop.GetString(target_unit, "display_name")} 被施加黑星烙印：暴击失效、命中下降，且第一次受击会被穿透部分格挡。",
-            };
+            statusEffectIds.Add(STATUS_BLACK_STAR_BRAND_ELITE);
+            statusEffectIds.Add(STATUS_BLACK_STAR_BRAND_ELITE_GUARD_WINDOW);
+            logLines.Add($"{target_unit.display_name} 被施加黑星烙印：暴击失效、命中下降，且第一次受击会被穿透部分格挡。");
         }
         else
         {
@@ -489,17 +572,13 @@ public partial class BattleSpecialSkillResolver : RefCounted
                 target_unit,
                 STATUS_BLACK_STAR_BRAND_NORMAL,
                 BLACK_STAR_BRAND_DURATION_TU,
-                GdInterop.GetStringName(active_unit, "unit_id")
+                active_unit.unit_id
             );
-            (target_unit as BattleUnitState)?.erase_status_effect(STATUS_GUARDING);
-            result["status_effect_ids"] = new GArray { STATUS_BLACK_STAR_BRAND_NORMAL };
-            result["log_lines"] = new GArray
-            {
-                $"{GdInterop.GetString(target_unit, "display_name")} 被施加黑星烙印：无法反击，且无法进入格挡。",
-            };
+            target_unit.erase_status_effect(STATUS_GUARDING);
+            statusEffectIds.Add(STATUS_BLACK_STAR_BRAND_NORMAL);
+            logLines.Add($"{target_unit.display_name} 被施加黑星烙印：无法反击，且无法进入格挡。");
         }
-        result["applied"] = true;
-        return result;
+        return new BattleSpecialSkillResult(true, 0, statusEffectIds, logLines);
     }
 
     public void _set_runtime_status_effect(
@@ -513,7 +592,7 @@ public partial class BattleSpecialSkillResolver : RefCounted
     {
         source_unit_id ??= new StringName("");
         status_params ??= new GDictionary();
-        if (unit_state == null || GdInterop.IsEmpty(status_id))
+        if (unit_state == null || IsEmpty(status_id))
         {
             return;
         }
@@ -529,18 +608,18 @@ public partial class BattleSpecialSkillResolver : RefCounted
         (unit_state as BattleUnitState)?.set_status_effect(statusEntry);
     }
 
-    public void _clear_black_star_brand_statuses(GodotObject unit_state)
+    public void _clear_black_star_brand_statuses(BattleUnitState unit_state)
     {
         if (unit_state == null)
         {
             return;
         }
-        (unit_state as BattleUnitState)?.erase_status_effect(STATUS_BLACK_STAR_BRAND_NORMAL);
-        (unit_state as BattleUnitState)?.erase_status_effect(STATUS_BLACK_STAR_BRAND_ELITE);
-        (unit_state as BattleUnitState)?.erase_status_effect(STATUS_BLACK_STAR_BRAND_ELITE_GUARD_WINDOW);
+        unit_state.erase_status_effect(STATUS_BLACK_STAR_BRAND_NORMAL);
+        unit_state.erase_status_effect(STATUS_BLACK_STAR_BRAND_ELITE);
+        unit_state.erase_status_effect(STATUS_BLACK_STAR_BRAND_ELITE_GUARD_WINDOW);
     }
 
-    public bool _is_black_star_brand_elite_target(GodotObject unit_state)
+    public bool _is_black_star_brand_elite_target(BattleUnitState unit_state)
     {
         return _is_elite_or_boss_target(unit_state);
     }
@@ -629,32 +708,32 @@ public partial class BattleSpecialSkillResolver : RefCounted
     )
     {
         forced_move_context ??= new GDictionary();
-        GodotObject state = RtState();
+        BattleUnitState sourceUnit = source_unit as BattleUnitState;
+        BattleUnitState unitState = unit_state as BattleUnitState;
+        CombatEffectDef effectDef = effect_def as CombatEffectDef;
+        BattleEventBatch eventBatch = batch as BattleEventBatch;
+        BattleState state = RtState();
         BattleGridService gridService = _runtime.get_grid_service();
-        if (state == null || unit_state == null || effect_def == null)
+        if (state == null || unitState == null || effectDef == null)
         {
             return 0;
         }
-        int moveDistance = Math.Max(GdInterop.GetInt(effect_def, "forced_move_distance"), 0);
+        int moveDistance = Math.Max(effectDef.forced_move_distance, 0);
         if (moveDistance <= 0)
         {
             return 0;
         }
-        if (_blocks_enemy_forced_move(source_unit, unit_state))
+        if (_blocks_enemy_forced_move(sourceUnit, unitState))
         {
-            if (batch != null)
+            if (eventBatch != null)
             {
-                GdInterop
-                    .GetArray(batch, "log_lines")
-                    .Add(
-                        $"{GdInterop.GetString(unit_state, "display_name")} 稳如金刚，未被强制位移。"
-                    );
+                eventBatch.log_lines.Add($"{unitState.display_name} 稳如金刚，未被强制位移。");
             }
             return 0;
         }
 
-        StringName mode = GdInterop.GetStringName(effect_def, "forced_move_mode");
-        if (GdInterop.IsEmpty(mode))
+        StringName mode = effectDef.forced_move_mode;
+        if (IsEmpty(mode))
         {
             return 0;
         }
@@ -668,14 +747,14 @@ public partial class BattleSpecialSkillResolver : RefCounted
         for (int step = 0; step < moveDistance; step++)
         {
             Vector2I nextCoord = _pick_forced_move_coord(
-                unit_state,
+                unitState,
                 mode,
-                source_unit,
+                sourceUnit,
                 forced_move_context
             );
             if (
                 nextCoord == new Vector2I(-1, -1)
-                || nextCoord == GdInterop.GetVector2I(unit_state, "coord")
+                || nextCoord == unitState.coord
             )
             {
                 break;
@@ -683,84 +762,95 @@ public partial class BattleSpecialSkillResolver : RefCounted
             if (
                 !gridService.can_traverse(
                     state,
-                    GdInterop.GetVector2I(unit_state, "coord"),
+                    unitState.coord,
                     nextCoord,
-                    unit_state as BattleUnitState
+                    unitState
                 )
             )
             {
                 break;
             }
-            GDictionary barrierResult =
+            BattleBarrierInteractionResult barrierResult =
                 layeredBarrierService != null
-                    ? layeredBarrierService.ResolveUnitBoundaryCrossing(
-                        unit_state as BattleUnitState,
-                        GdInterop.GetVector2I(unit_state, "coord"),
+                    ? layeredBarrierService.ResolveUnitBoundaryCrossingResult(
+                        unitState,
+                        unitState.coord,
                         nextCoord,
-                        batch as BattleEventBatch
+                        eventBatch
                     )
-                    : new GDictionary();
+                    : new BattleBarrierInteractionResult(false, false);
             if (
-                GdInterop.GetBool(barrierResult, "blocked", false)
-                || !GdInterop.GetBool(unit_state, "is_alive")
+                barrierResult.Blocked
+                || !unitState.is_alive
             )
             {
                 break;
             }
-            GArray previousCoords = (GArray)
-                GdInterop.GetArray(unit_state, "occupied_coords").Duplicate();
-            if (!gridService.move_unit(state, unit_state as BattleUnitState, nextCoord))
+            GArray previousCoords = ToUntypedVector2IArray(unitState.occupied_coords);
+            if (!gridService.move_unit(state, unitState, nextCoord))
             {
                 break;
             }
             movedSteps += 1;
-            _append_changed_coords(batch, previousCoords);
-            _append_changed_unit_coords(batch, unit_state);
-            _append_changed_unit_id(batch, GdInterop.GetStringName(unit_state, "unit_id"));
+            _append_changed_coords(eventBatch, previousCoords);
+            _append_changed_unit_coords(eventBatch, unitState);
+            _append_changed_unit_id(eventBatch, unitState.unit_id);
         }
         return movedSteps;
     }
 
     public GDictionary _apply_body_size_category_override_effect(
-        GodotObject source_unit,
-        GodotObject target_unit,
-        GodotObject effect_def,
-        GodotObject batch
+        BattleUnitState source_unit,
+        BattleUnitState target_unit,
+        CombatEffectDef effect_def,
+        BattleEventBatch batch
     )
     {
-        var result = new GDictionary
-        {
-            ["applied"] = false,
-            ["status_effect_ids"] = new GArray(),
-            ["log_lines"] = new GArray(),
-        };
-        GodotObject state = RtState();
+        return _apply_body_size_category_override_effect_result(
+            source_unit,
+            target_unit,
+            effect_def,
+            batch
+        ).ToDictionary();
+    }
+
+    private BodySizeOverrideResult _apply_body_size_category_override_effect_result(
+        BattleUnitState source_unit,
+        BattleUnitState target_unit,
+        CombatEffectDef effect_def,
+        BattleEventBatch batch
+    )
+    {
+        BodySizeOverrideResult result = new(
+            false,
+            Array.Empty<StringName>(),
+            Array.Empty<string>()
+        );
+        BattleState state = RtState();
         BattleGridService gridService = _runtime.get_grid_service();
         if (state == null || target_unit == null || effect_def == null)
         {
             return result;
         }
-        StringName statusId = ProgressionDataUtils.to_string_name(
-            GdInterop.GetStringName(effect_def, "status_id")
-        );
+        StringName statusId = ProgressionDataUtils.to_string_name(effect_def.status_id);
         StringName targetCategory = ProgressionDataUtils.to_string_name(
-            GdInterop.GetStringName(effect_def, "body_size_category")
+            effect_def.body_size_category
         );
         if (
-            GdInterop.IsEmpty(statusId)
+            IsEmpty(statusId)
             || !BodySizeRules.is_valid_body_size_category(targetCategory)
         )
         {
             return result;
         }
-        int durationTu = Math.Max(GdInterop.GetInt(effect_def, "duration_tu"), 0);
+        int durationTu = Math.Max(effect_def.duration_tu, 0);
         if (durationTu <= 0)
         {
             return result;
         }
 
-        var existingEntry = (target_unit as BattleUnitState)?.get_status_effect(statusId);
-        StringName restoreCategory = GdInterop.GetStringName(target_unit, "body_size_category");
+        var existingEntry = target_unit.get_status_effect(statusId);
+        StringName restoreCategory = target_unit.body_size_category;
         if (existingEntry != null && existingEntry.@params != null)
         {
             StringName existingRestoreCategory = ProgressionDataUtils.to_string_name(
@@ -775,104 +865,87 @@ public partial class BattleSpecialSkillResolver : RefCounted
             }
         }
 
-        StringName previousCategory = GdInterop.GetStringName(target_unit, "body_size_category");
-        int previousBodySize = GdInterop.GetInt(target_unit, "body_size");
-        Vector2I previousFootprint = GdInterop.GetVector2I(target_unit, "footprint_size");
-        GArray previousCoords = (GArray)
-            GdInterop.GetArray(target_unit, "occupied_coords").Duplicate();
-        gridService.clear_unit_occupancy(state, target_unit as BattleUnitState);
-        (target_unit as BattleUnitState)?.set_body_size_category(targetCategory);
+        StringName previousCategory = target_unit.body_size_category;
+        int previousBodySize = target_unit.body_size;
+        Vector2I previousFootprint = target_unit.footprint_size;
+        GArray previousCoords = ToUntypedVector2IArray(target_unit.occupied_coords);
+        gridService.clear_unit_occupancy(state, target_unit);
+        target_unit.set_body_size_category(targetCategory);
         if (
             !gridService.can_place_footprint(
                 state,
-                GdInterop.GetVector2I(target_unit, "coord"),
-                GdInterop.GetVector2I(target_unit, "footprint_size"),
-                GdInterop.GetStringName(target_unit, "unit_id"),
-                target_unit as BattleUnitState
+                target_unit.coord,
+                target_unit.footprint_size,
+                target_unit.unit_id,
+                target_unit
             )
         )
         {
-            target_unit.Set("body_size_category", previousCategory);
-            target_unit.Set("body_size", previousBodySize);
-            target_unit.Set("footprint_size", previousFootprint);
-            target_unit.Set("occupied_coords", previousCoords);
+            target_unit.body_size_category = previousCategory;
+            target_unit.body_size = previousBodySize;
+            target_unit.footprint_size = previousFootprint;
+            target_unit.occupied_coords = ToVector2IArray(previousCoords);
             gridService.set_occupants(
                 state,
-                GdInterop.GetArray(target_unit, "occupied_coords"),
-                GdInterop.GetStringName(target_unit, "unit_id")
+                previousCoords,
+                target_unit.unit_id
             );
-            GdInterop
-                .GetArray(result, "log_lines")
-                .Add(
-                    $"{GdInterop.GetString(target_unit, "display_name")} 周围空间不足，无法改变体型。"
-                );
-            return result;
+            return result with
+            {
+                LogLines = new[]
+                {
+                    $"{target_unit.display_name} 周围空间不足，无法改变体型。",
+                },
+            };
         }
         gridService.set_occupants(
             state,
-            GdInterop.GetArray(target_unit, "occupied_coords"),
-            GdInterop.GetStringName(target_unit, "unit_id")
+            ToUntypedVector2IArray(target_unit.occupied_coords),
+            target_unit.unit_id
         );
 
         GDictionary statusParams = (GDictionary)
-            GdInterop.GetDictionary(effect_def, "params").Duplicate(true);
+            (effect_def.@params ?? new GDictionary()).Duplicate(true);
         statusParams[STATUS_PARAM_BODY_SIZE_CATEGORY_OVERRIDE] = targetCategory.ToString();
         statusParams[STATUS_PARAM_PREVIOUS_BODY_SIZE_CATEGORY] = restoreCategory.ToString();
         _set_runtime_status_effect(
             target_unit,
             statusId,
             durationTu,
-            source_unit != null
-                ? GdInterop.GetStringName(source_unit, "unit_id")
-                : new StringName(""),
-            Math.Max(GdInterop.GetInt(effect_def, "power"), 1),
+            source_unit != null ? source_unit.unit_id : new StringName(""),
+            Math.Max(effect_def.power, 1),
             statusParams
         );
         _append_changed_coords(batch, previousCoords);
         _append_changed_unit_coords(batch, target_unit);
-        _append_changed_unit_id(batch, GdInterop.GetStringName(target_unit, "unit_id"));
-        result["applied"] = true;
-        result["status_effect_ids"] = new GArray { statusId };
-        GdInterop
-            .GetArray(result, "log_lines")
-            .Add(
-                $"{GdInterop.GetString(target_unit, "display_name")} 的体型临时变为 {targetCategory}。"
-            );
-        return result;
+        _append_changed_unit_id(batch, target_unit.unit_id);
+        return new BodySizeOverrideResult(
+            true,
+            new[] { statusId },
+            new[] { $"{target_unit.display_name} 的体型临时变为 {targetCategory}。" }
+        );
     }
 
-    public bool _blocks_enemy_forced_move(GodotObject source_unit, GodotObject target_unit)
+    public bool _blocks_enemy_forced_move(BattleUnitState source_unit, BattleUnitState target_unit)
     {
         if (source_unit == null || target_unit == null)
         {
             return false;
         }
-        if (
-            GdInterop.GetStringName(source_unit, "unit_id")
-            == GdInterop.GetStringName(target_unit, "unit_id")
-        )
+        if (source_unit.unit_id == target_unit.unit_id)
         {
             return false;
         }
-        if (
-            GdInterop.GetString(source_unit, "faction_id")
-            == GdInterop.GetString(target_unit, "faction_id")
-        )
+        if (source_unit.faction_id == target_unit.faction_id)
         {
             return false;
         }
-        BattleStatusEffectState statusEntry = (target_unit as BattleUnitState)?.get_status_effect(
-            STATUS_VAJRA_BODY
-        );
-        if (statusEntry == null || GdInterop.GetObject(statusEntry, "params") == null)
+        BattleStatusEffectState statusEntry = target_unit.get_status_effect(STATUS_VAJRA_BODY);
+        if (statusEntry == null)
         {
             return false;
         }
-        return GdInterop.GetBool(
-            GdInterop.GetDictionary(statusEntry, "params"),
-            "forced_move_immune",
-            false
-        );
+        return ForcedMoveStatusParameters.FromStatus(statusEntry).ForcedMoveImmune;
     }
 
     public void _record_vajra_body_mastery_from_incoming_damage(
@@ -889,26 +962,47 @@ public partial class BattleSpecialSkillResolver : RefCounted
             target_unit as BattleUnitState,
             skill_def as SkillDef,
             result,
-            _runtime.Get("_skill_defs").AsGodotDictionary()
+            _runtime.get_skill_defs()
         );
         _apply_skill_mastery_grant(target_unit, grant, batch);
     }
 
+    internal void RecordVajraBodyMasteryFromIncomingDamageTyped(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        SkillDef skillDef,
+        AttackEffectResolutionResult result,
+        BattleEventBatch batch = null
+    )
+    {
+        BattleSkillMasteryService skillMasteryService = _runtime?._skill_mastery_service;
+        if (skillMasteryService == null)
+            return;
+        BattleSkillMasteryGrant grant = skillMasteryService.BuildVajraBodyMasteryGrantTyped(
+            sourceUnit,
+            targetUnit,
+            skillDef,
+            result,
+            _runtime.get_skill_defs()
+        );
+        ApplySkillMasteryGrantTyped(targetUnit, grant, batch);
+    }
+
     public Vector2I _pick_forced_move_coord(
-        GodotObject unit_state,
+        BattleUnitState unit_state,
         StringName mode,
-        GodotObject source_unit = null,
+        BattleUnitState source_unit = null,
         GDictionary forced_move_context = null
     )
     {
         forced_move_context ??= new GDictionary();
-        GodotObject state = RtState();
+        BattleState state = RtState();
         BattleGridService gridService = _runtime.get_grid_service();
         if (state == null || unit_state == null)
         {
             return new Vector2I(-1, -1);
         }
-        (unit_state as BattleUnitState)?.refresh_footprint();
+        unit_state.refresh_footprint();
         var bestCoord = new Vector2I(-1, -1);
         int bestScore = FORCED_MOVE_INVALID_SCORE;
         foreach (
@@ -921,13 +1015,13 @@ public partial class BattleSpecialSkillResolver : RefCounted
             }
         )
         {
-            Vector2I candidateCoord = GdInterop.GetVector2I(unit_state, "coord") + direction;
+            Vector2I candidateCoord = unit_state.coord + direction;
             if (
                 !gridService.can_traverse(
                     state,
-                    GdInterop.GetVector2I(unit_state, "coord"),
+                    unit_state.coord,
                     candidateCoord,
-                    unit_state as BattleUnitState
+                    unit_state
                 )
             )
             {
@@ -964,15 +1058,15 @@ public partial class BattleSpecialSkillResolver : RefCounted
     }
 
     public int _score_forced_move_coord(
-        GodotObject unit_state,
+        BattleUnitState unit_state,
         Vector2I candidate_coord,
         StringName mode,
-        GodotObject source_unit = null,
+        BattleUnitState source_unit = null,
         GDictionary forced_move_context = null
     )
     {
         forced_move_context ??= new GDictionary();
-        GodotObject state = RtState();
+        BattleState state = RtState();
         BattleGridService gridService = _runtime.get_grid_service();
         if (state == null || unit_state == null)
         {
@@ -994,20 +1088,19 @@ public partial class BattleSpecialSkillResolver : RefCounted
             closestHostileDistance = 999999;
             foreach (var hostileUnitValue in hostileUnits)
             {
-                GodotObject hostileUnit = hostileUnitValue.AsGodotObject();
+                var hostileUnit = hostileUnitValue.AsGodotObject() as BattleUnitState;
+                if (hostileUnit == null)
+                {
+                    continue;
+                }
                 closestHostileDistance = Math.Min(
                     closestHostileDistance,
-                    gridService.get_distance(
-                        candidate_coord,
-                        GdInterop.GetVector2I(hostileUnit, "coord")
-                    )
+                    gridService.get_distance(candidate_coord, hostileUnit.coord)
                 );
             }
         }
         int score = closestHostileDistance * 100;
-        score -=
-            gridService.get_distance(GdInterop.GetVector2I(unit_state, "coord"), candidate_coord)
-            * 10;
+        score -= gridService.get_distance(unit_state.coord, candidate_coord) * 10;
         score -= candidate_coord.Y * 2 + candidate_coord.X;
         if (mode == "evasive")
         {
@@ -1017,9 +1110,9 @@ public partial class BattleSpecialSkillResolver : RefCounted
     }
 
     public int _score_wind_push_coord(
-        GodotObject unit_state,
+        BattleUnitState unit_state,
         Vector2I candidate_coord,
-        GodotObject source_unit,
+        BattleUnitState source_unit,
         GDictionary forced_move_context = null
     )
     {
@@ -1033,15 +1126,12 @@ public partial class BattleSpecialSkillResolver : RefCounted
         {
             return FORCED_MOVE_INVALID_SCORE;
         }
-        Vector2I stepDelta = candidate_coord - GdInterop.GetVector2I(unit_state, "coord");
+        Vector2I stepDelta = candidate_coord - unit_state.coord;
         if (_dot_vector2i(stepDelta, pushDirection) <= 0)
         {
             return FORCED_MOVE_INVALID_SCORE;
         }
-        int currentProjection = _dot_vector2i(
-            GdInterop.GetVector2I(unit_state, "coord"),
-            pushDirection
-        );
+        int currentProjection = _dot_vector2i(unit_state.coord, pushDirection);
         int candidateProjection = _dot_vector2i(candidate_coord, pushDirection);
         return (candidateProjection - currentProjection) * 1000
             - candidate_coord.Y * 2
@@ -1054,13 +1144,13 @@ public partial class BattleSpecialSkillResolver : RefCounted
     }
 
     public Vector2I _resolve_forced_move_direction(
-        GodotObject unit_state,
-        GodotObject source_unit,
+        BattleUnitState unit_state,
+        BattleUnitState source_unit,
         GDictionary forced_move_context = null
     )
     {
         forced_move_context ??= new GDictionary();
-        Vector2I contextDirection = GdInterop.GetVector2I(
+        Vector2I contextDirection = ReadVector2I(
             forced_move_context,
             "direction",
             Vector2I.Zero
@@ -1076,8 +1166,7 @@ public partial class BattleSpecialSkillResolver : RefCounted
         if (source_unit != null && unit_state != null)
         {
             return _normalize_axis_direction(
-                GdInterop.GetVector2I(unit_state, "coord")
-                    - GdInterop.GetVector2I(source_unit, "coord")
+                unit_state.coord - source_unit.coord
             );
         }
         return Vector2I.Zero;
@@ -1102,30 +1191,26 @@ public partial class BattleSpecialSkillResolver : RefCounted
         return Vector2I.Zero;
     }
 
-    public GArray _collect_hostile_units_for(GodotObject unit_state)
+    public GArray _collect_hostile_units_for(BattleUnitState unit_state)
     {
         var hostileUnits = new GArray();
-        GodotObject state = RtState();
+        BattleState state = RtState();
         if (state == null || unit_state == null)
         {
             return hostileUnits;
         }
-        foreach (var otherUnitValue in GdInterop.GetDictionary(state, "units").Values)
+        foreach (var otherUnitValue in state.units.Values)
         {
-            GodotObject otherUnit = otherUnitValue.AsGodotObject();
+            var otherUnit = otherUnitValue.AsGodotObject() as BattleUnitState;
             if (
                 otherUnit == null
-                || GdInterop.GetStringName(otherUnit, "unit_id")
-                    == GdInterop.GetStringName(unit_state, "unit_id")
-                || !GdInterop.GetBool(otherUnit, "is_alive")
+                || otherUnit.unit_id == unit_state.unit_id
+                || !otherUnit.is_alive
             )
             {
                 continue;
             }
-            if (
-                GdInterop.GetString(otherUnit, "faction_id")
-                == GdInterop.GetString(unit_state, "faction_id")
-            )
+            if (otherUnit.faction_id == unit_state.faction_id)
             {
                 continue;
             }
@@ -1134,20 +1219,20 @@ public partial class BattleSpecialSkillResolver : RefCounted
         return hostileUnits;
     }
 
-    public void _handle_adjacent_ally_defeat(GodotObject defeated_unit)
+    public void _handle_adjacent_ally_defeat(BattleUnitState defeated_unit)
     {
         if (RtState() == null || defeated_unit == null)
         {
             return;
         }
         if (
-            GdInterop.GetBool(defeated_unit, "is_alive")
-            || GdInterop.IsEmpty(GdInterop.GetStringName(defeated_unit, "source_member_id"))
+            defeated_unit.is_alive
+            || IsEmpty(defeated_unit.source_member_id)
         )
         {
             return;
         }
-        if (_runtime == null || !_runtime.HasMethod("handle_misfortune_trigger"))
+        if (_runtime == null)
         {
             return;
         }
@@ -1167,90 +1252,82 @@ public partial class BattleSpecialSkillResolver : RefCounted
     }
 
     public void _handle_low_luck_relic_ally_defeat(
-        GodotObject defeated_unit,
-        GodotObject batch = null
+        BattleUnitState defeated_unit,
+        BattleEventBatch batch = null
     )
     {
-        GodotObject state = RtState();
-        if (state == null || defeated_unit == null || GdInterop.GetBool(defeated_unit, "is_alive"))
+        BattleState state = RtState();
+        if (state == null || defeated_unit == null || defeated_unit.is_alive)
         {
             return;
         }
-        foreach (var unitValue in GdInterop.GetDictionary(state, "units").Values)
+        foreach (var unitValue in state.units.Values)
         {
-            GodotObject candidate = unitValue.AsGodotObject();
-            if (candidate == null || !GdInterop.GetBool(candidate, "is_alive"))
+            var candidate = unitValue.AsGodotObject() as BattleUnitState;
+            if (candidate == null || !candidate.is_alive)
+            {
+                continue;
+            }
+            if (candidate.unit_id == defeated_unit.unit_id)
+            {
+                continue;
+            }
+            if (candidate.faction_id != defeated_unit.faction_id)
             {
                 continue;
             }
             if (
-                GdInterop.GetStringName(candidate, "unit_id")
-                == GdInterop.GetStringName(defeated_unit, "unit_id")
+                !LowLuckRelicRules.snapshot_has_flag(
+                    candidate.attribute_snapshot,
+                    LowLuckRelicRules.ATTR_BLOOD_DEBT_SHAWL
+                )
             )
             {
                 continue;
             }
-            if (
-                GdInterop.GetString(candidate, "faction_id")
-                != GdInterop.GetString(defeated_unit, "faction_id")
-            )
-            {
-                continue;
-            }
-            if (
-                !LowLuckRelicRules.unit_has_flag(candidate, LowLuckRelicRules.ATTR_BLOOD_DEBT_SHAWL)
-            )
-            {
-                continue;
-            }
-            candidate.Set(
-                "current_ap",
-                GdInterop.GetInt(candidate, "current_ap")
-                    + LowLuckRelicRules.BLOOD_DEBT_ALLY_DOWN_AP_GAIN
-            );
-            _append_changed_unit_id(batch, GdInterop.GetStringName(candidate, "unit_id"));
+            candidate.current_ap += LowLuckRelicRules.BLOOD_DEBT_ALLY_DOWN_AP_GAIN;
+            _append_changed_unit_id(batch, candidate.unit_id);
             if (batch != null)
             {
-                GdInterop
-                    .GetArray(batch, "log_lines")
-                    .Add(
-                        $"{GdInterop.GetString(candidate, "display_name")} 目睹队友倒地，血债披肩返还 {LowLuckRelicRules.BLOOD_DEBT_ALLY_DOWN_AP_GAIN} 点行动点。"
-                    );
+                batch.log_lines.Add(
+                    $"{candidate.display_name} 目睹队友倒地，血债披肩返还 {LowLuckRelicRules.BLOOD_DEBT_ALLY_DOWN_AP_GAIN} 点行动点。"
+                );
             }
         }
     }
 
-    public GArray _collect_adjacent_living_allies(GodotObject defeated_unit)
+    public GArray _collect_adjacent_living_allies(BattleUnitState defeated_unit)
     {
         var adjacentAllies = new GArray();
         if (defeated_unit == null)
         {
             return adjacentAllies;
         }
-        (defeated_unit as BattleUnitState)?.refresh_footprint();
-        foreach (var unitValue in GdInterop.GetDictionary(RtState(), "units").Values)
+        BattleState state = RtState();
+        if (state == null)
         {
-            GodotObject candidate = unitValue.AsGodotObject();
-            if (candidate == null || !GdInterop.GetBool(candidate, "is_alive"))
+            return adjacentAllies;
+        }
+        defeated_unit.refresh_footprint();
+        foreach (var unitValue in state.units.Values)
+        {
+            var candidate = unitValue.AsGodotObject() as BattleUnitState;
+            if (candidate == null || !candidate.is_alive)
+            {
+                continue;
+            }
+            if (candidate.unit_id == defeated_unit.unit_id)
             {
                 continue;
             }
             if (
-                GdInterop.GetStringName(candidate, "unit_id")
-                == GdInterop.GetStringName(defeated_unit, "unit_id")
+                candidate.faction_id != defeated_unit.faction_id
+                || IsEmpty(candidate.source_member_id)
             )
             {
                 continue;
             }
-            if (
-                GdInterop.GetString(candidate, "faction_id")
-                    != GdInterop.GetString(defeated_unit, "faction_id")
-                || GdInterop.IsEmpty(GdInterop.GetStringName(candidate, "source_member_id"))
-            )
-            {
-                continue;
-            }
-            (candidate as BattleUnitState)?.refresh_footprint();
+            candidate.refresh_footprint();
             if (_are_units_adjacent(candidate, defeated_unit))
             {
                 adjacentAllies.Add(candidate);
@@ -1259,18 +1336,16 @@ public partial class BattleSpecialSkillResolver : RefCounted
         return adjacentAllies;
     }
 
-    public bool _are_units_adjacent(GodotObject first_unit, GodotObject second_unit)
+    public bool _are_units_adjacent(BattleUnitState first_unit, BattleUnitState second_unit)
     {
         if (first_unit == null || second_unit == null)
         {
             return false;
         }
-        foreach (var firstCoordValue in GdInterop.GetArray(first_unit, "occupied_coords"))
+        foreach (Vector2I firstCoord in first_unit.occupied_coords)
         {
-            Vector2I firstCoord = firstCoordValue.AsVector2I();
-            foreach (var secondCoordValue in GdInterop.GetArray(second_unit, "occupied_coords"))
+            foreach (Vector2I secondCoord in second_unit.occupied_coords)
             {
-                Vector2I secondCoord = secondCoordValue.AsVector2I();
                 if (
                     Math.Abs(firstCoord.X - secondCoord.X) + Math.Abs(firstCoord.Y - secondCoord.Y)
                     == 1
@@ -1283,9 +1358,92 @@ public partial class BattleSpecialSkillResolver : RefCounted
         return false;
     }
 
-    private GodotObject RtState()
+    private static GArray ToUntypedVector2IArray(Godot.Collections.Array<Vector2I> coords)
     {
-        return GdInterop.GetObject(_runtime, "_state");
+        var result = new GArray();
+        if (coords == null)
+        {
+            return result;
+        }
+        foreach (Vector2I coord in coords)
+        {
+            result.Add(coord);
+        }
+        return result;
+    }
+
+    private static GCombatEffectArray ToCombatEffectDefArray(GArray values)
+    {
+        var result = new GCombatEffectArray();
+        foreach (var rawValue in values ?? new GArray())
+        {
+            CombatEffectDef effectDef = rawValue.AsGodotObject() as CombatEffectDef;
+            if (effectDef != null)
+            {
+                result.Add(effectDef);
+            }
+        }
+        return result;
+    }
+
+    private static Godot.Collections.Array<Vector2I> ToVector2IArray(GArray coords)
+    {
+        var result = new Godot.Collections.Array<Vector2I>();
+        if (coords == null)
+        {
+            return result;
+        }
+        foreach (var coordValue in coords)
+        {
+            if (coordValue.VariantType == Variant.Type.Vector2I)
+            {
+                result.Add(coordValue.AsVector2I());
+            }
+        }
+        return result;
+    }
+
+    private static bool IsEmpty(StringName value) => value == null || value == "";
+
+    private static int ReadInt(GDictionary source, string key, int fallback = 0)
+    {
+        if (source == null || key == null || !source.ContainsKey(key))
+            return fallback;
+        Variant value = source[key];
+        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+    }
+
+    private static bool ReadBool(GDictionary source, StringName key, bool fallback = false)
+    {
+        if (source == null || IsEmpty(key))
+        {
+            return fallback;
+        }
+        if (source.ContainsKey(key))
+        {
+            Variant value = source[key];
+            return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
+        }
+        string stringKey = key.ToString();
+        if (source.ContainsKey(stringKey))
+        {
+            Variant value = source[stringKey];
+            return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
+        }
+        return fallback;
+    }
+
+    private static Vector2I ReadVector2I(GDictionary source, string key, Vector2I fallback = default)
+    {
+        if (source == null || key == null || !source.ContainsKey(key))
+            return fallback;
+        Variant value = source[key];
+        return value.VariantType == Variant.Type.Vector2I ? value.AsVector2I() : fallback;
+    }
+
+    private BattleState RtState()
+    {
+        return _runtime?._state;
     }
 
     private static GodotObject ResolveWeakRef(WeakReference<GodotObject> weakRef)

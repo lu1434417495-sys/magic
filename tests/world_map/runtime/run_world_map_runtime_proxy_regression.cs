@@ -46,11 +46,15 @@ public partial class run_world_map_runtime_proxy_regression : SceneTree
         runtime._settlement_entry_active = true;
         runtime._world_map_data_context.active_map_id = "ashen_ashlands";
         runtime._world_map_data_context.active_map_display_name = "灰烬地图";
-        runtime._pending_submap_prompt = new GDictionary
-        {
-            ["title"] = "进入灰烬地图",
-            ["target_display_name"] = "灰烬地图",
-        };
+        runtime.GetPendingSubmapPromptState().Set(
+            "",
+            "",
+            Vector2I.Zero,
+            "ashen_ashlands",
+            "灰烬地图",
+            "进入灰烬地图",
+            ""
+        );
         runtime._pending_battle_start_prompt = new GDictionary
         {
             ["title"] = "开始战斗",

@@ -71,18 +71,14 @@ public partial class PartyItemUseService : RefCounted
             return _with_reason(result, "missing_skill_def");
 
         options ??= new Godot.Collections.Dictionary();
-        var practiceStatus = _get_practice_skill_learn_status(normalizedMemberId, skillId);
-        bool needsReplacement =
-            practiceStatus.ContainsKey("needs_replacement")
-            && practiceStatus["needs_replacement"].AsBool();
-        bool confirmed =
-            options.ContainsKey("confirm_practice_replacement")
-            && options["confirm_practice_replacement"].AsBool();
+        var practiceStatus = GetPracticeSkillLearnStatus(normalizedMemberId, skillId);
+        bool needsReplacement = practiceStatus.NeedsReplacement;
+        bool confirmed = HasConfirmedPracticeReplacement(options);
         if (needsReplacement && !confirmed)
         {
             result["reason"] = new StringName("practice_replacement_confirmation_required");
             result["needs_confirmation"] = true;
-            result["practice_replacement_preview"] = practiceStatus;
+            result["practice_replacement_preview"] = practiceStatus.ToLearnedStatusDictionary();
             return result;
         }
 
@@ -124,15 +120,15 @@ public partial class PartyItemUseService : RefCounted
             : null;
     }
 
-    private Godot.Collections.Dictionary _get_practice_skill_learn_status(
+    private PracticeSkillLearnStatus GetPracticeSkillLearnStatus(
         StringName memberId,
         StringName skillId
     )
     {
         if (_character_management == null)
-            return new Godot.Collections.Dictionary { { "is_practice_skill", false } };
-        return _character_management.get_practice_skill_learn_status(memberId, skillId)
-            ?? new Godot.Collections.Dictionary { { "is_practice_skill", false } };
+            return PracticeSkillLearnStatus.NonPractice();
+        return _character_management.GetPracticeSkillLearnStatusTyped(memberId, skillId)
+            ?? PracticeSkillLearnStatus.NonPractice();
     }
 
     private static Godot.Collections.Dictionary _with_reason(
@@ -142,5 +138,13 @@ public partial class PartyItemUseService : RefCounted
     {
         result["reason"] = new StringName(reason);
         return result;
+    }
+
+    private static bool HasConfirmedPracticeReplacement(Godot.Collections.Dictionary options)
+    {
+        if (options == null || !options.ContainsKey("confirm_practice_replacement"))
+            return false;
+        Variant value = options["confirm_practice_replacement"];
+        return value.VariantType == Variant.Type.Bool && value.AsBool();
     }
 }

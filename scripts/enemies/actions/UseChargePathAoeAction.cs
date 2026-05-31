@@ -343,9 +343,7 @@ public partial class UseChargePathAoeAction : EnemyAiAction
         var path = _build_resolved_anchor_path(ctxUnitState.coord, rac);
         if (path.Count == 0)
             return result;
-        bool arh =
-            pse.@params.ContainsKey("allow_repeat_hits_across_steps")
-            && (bool)pse.@params["allow_repeat_hits_across_steps"];
+        bool arh = pse.allow_repeat_hits_across_steps;
         var tf = BattleTargetTeamRules.resolve_effect_target_filter(sd, pse);
         var state = context.state;
         foreach (var ac in path)

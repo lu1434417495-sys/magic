@@ -14,9 +14,11 @@ public partial class StageAdvancementApplyService : RefCounted
     {
         if (memberState == null || modifierId == "")
             return false;
-        var modifier =
-            _get_content_def("stage_advancement_defs", "stage_advancement", modifierId)
-            as StageAdvancementModifier;
+        StageAdvancementModifier modifier = _get_content_def<StageAdvancementModifier>(
+            "stage_advancement_defs",
+            "stage_advancement",
+            modifierId
+        );
         if (modifier == null || modifier.modifier_id != modifierId)
             return false;
         if (!_modifier_applies_to_member(modifier, memberState))
@@ -69,16 +71,18 @@ public partial class StageAdvancementApplyService : RefCounted
         return true;
     }
 
-    private GodotObject _get_content_def(
+    private T _get_content_def<T>(
         string primaryBucket,
         string aliasBucket,
         StringName entryId
-    )
+    ) where T : class
     {
         if (entryId == "")
             return null;
         var bucket = _get_content_bucket(primaryBucket, aliasBucket);
-        return bucket.ContainsKey(entryId) ? bucket[entryId].AsGodotObject() : null;
+        return bucket != null && bucket.ContainsKey(entryId)
+            ? bucket[entryId].AsGodotObject() as T
+            : null;
     }
 
     private Godot.Collections.Dictionary _get_content_bucket(

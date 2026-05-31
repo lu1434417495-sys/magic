@@ -27,29 +27,22 @@ public partial class AttributeGrowthService : RefCounted
         StringName attributeId,
         int amount,
         string reasonText = ""
+    ) => apply_attribute_progress_typed(attributeId, amount, reasonText).ToDictionary();
+
+    public AttributeGrowthResult apply_attribute_progress_typed(
+        StringName attributeId,
+        int amount,
+        string reasonText = ""
     )
     {
-        var result = new Godot.Collections.Dictionary
-        {
-            { "attribute_id", attributeId },
-            { "progress_delta", 0 },
-            { "progress_before", 0 },
-            { "progress_after", 0 },
-            { "attribute_before", 0 },
-            { "attribute_after", 0 },
-            { "attribute_delta", 0 },
-            { "reason_text", reasonText },
-            { "applied", false },
-        };
-
         if (
             _unit_progress == null
             || _unit_progress.unit_base_attributes == null
         )
-            return result;
+            return AttributeGrowthResult.NotApplied(attributeId, reasonText);
 
         if (!is_valid_attribute_id(attributeId) || amount <= 0)
-            return result;
+            return AttributeGrowthResult.NotApplied(attributeId, reasonText);
 
         var growthProgress = _unit_progress.attribute_growth_progress;
 
@@ -79,20 +72,14 @@ public partial class AttributeGrowthService : RefCounted
 
         baseAttrs.set_attribute_value(attributeId, nextAttribute);
 
-        result["progress_delta"] = amount;
-
-        result["progress_before"] = beforeProgress;
-
-        result["progress_after"] = nextProgress;
-
-        result["attribute_before"] = beforeAttribute;
-
-        result["attribute_after"] = nextAttribute;
-
-        result["attribute_delta"] = nextAttribute - beforeAttribute;
-
-        result["applied"] = true;
-
-        return result;
+        return AttributeGrowthResult.AppliedResult(
+            attributeId,
+            amount,
+            beforeProgress,
+            nextProgress,
+            beforeAttribute,
+            nextAttribute,
+            reasonText
+        );
     }
 }

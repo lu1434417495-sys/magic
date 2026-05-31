@@ -1,4 +1,5 @@
 using Godot;
+using System.Collections.Generic;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
@@ -52,7 +53,7 @@ public partial class QuestProgressService : RefCounted
     {
         if (_party_state == null || questId == "")
             return false;
-        if (_quest_defs.Count > 0 && !_quest_defs.ContainsKey(questId))
+        if (_quest_defs.Count > 0 && !HasExactStringNameKey(_quest_defs, questId))
             return false;
         if (_party_state.has_active_quest(questId))
             return false;
@@ -153,62 +154,54 @@ public partial class QuestProgressService : RefCounted
         if (_party_state == null || eventOptions == null)
             return summary;
 
-        foreach (var eventValue in eventOptions)
+        foreach (Variant eventValue in eventOptions)
         {
-            if (eventValue.VariantType != Variant.Type.Dictionary)
+            QuestProgressEventData eventData = QuestProgressEventData.FromVariant(eventValue);
+            if (!eventData.IsValid)
                 continue;
 
-            GDictionary eventData = eventValue.AsGodotDictionary().Duplicate(true);
-            if (!IsValidQuestProgressEvent(eventData))
-                continue;
-
-            StringName eventType = ReadRequiredStringName(eventData, "event_type");
-            StringName questId = ReadRequiredStringName(eventData, "quest_id");
-            int eventWorldStep = GdInterop.GetInt(eventData, "world_step");
-
-            if (eventType == EVENT_ACCEPT)
+            if (eventData.EventType == EVENT_ACCEPT)
             {
                 if (
-                    questId != ""
+                    eventData.QuestId != ""
                     && accept_quest(
-                        questId,
-                        eventWorldStep,
-                        GdInterop.GetBool(eventData, "allow_reaccept")
+                        eventData.QuestId,
+                        eventData.WorldStep,
+                        eventData.AllowReaccept
                     )
                 )
-                    AppendUniqueStringName(acceptedQuestIds, questId);
+                    AppendUniqueStringName(acceptedQuestIds, eventData.QuestId);
             }
-            else if (eventType == EVENT_COMPLETE)
+            else if (eventData.EventType == EVENT_COMPLETE)
             {
-                if (questId == "")
+                if (eventData.QuestId == "")
                     continue;
                 if (
-                    !_party_state.has_active_quest(questId)
-                    && GdInterop.GetBool(eventData, "auto_accept")
+                    !_party_state.has_active_quest(eventData.QuestId)
+                    && eventData.AutoAccept
                 )
                 {
                     if (
                         accept_quest(
-                            questId,
-                            eventWorldStep,
-                            GdInterop.GetBool(eventData, "allow_reaccept")
+                            eventData.QuestId,
+                            eventData.WorldStep,
+                            eventData.AllowReaccept
                         )
                     )
-                        AppendUniqueStringName(acceptedQuestIds, questId);
+                        AppendUniqueStringName(acceptedQuestIds, eventData.QuestId);
                 }
-                if (complete_quest(questId, eventWorldStep))
-                    AppendUniqueStringName(claimableSummaryQuestIds, questId);
+                if (complete_quest(eventData.QuestId, eventData.WorldStep))
+                    AppendUniqueStringName(claimableSummaryQuestIds, eventData.QuestId);
             }
-            else if (eventType == EVENT_PROGRESS)
+            else if (eventData.EventType == EVENT_PROGRESS)
             {
-                GStringNameArray progressedQuestIds = ApplyProgressEvent(eventData, eventWorldStep);
+                GStringNameArray progressedQuestIds = ApplyProgressEvent(eventData);
                 foreach (StringName progressedQuestId in progressedQuestIds)
                     AppendUniqueStringName(progressedSummaryQuestIds, progressedQuestId);
 
                 foreach (
                     StringName claimableQuestId in MaybeCompleteQuestsAfterProgress(
-                        eventData,
-                        eventWorldStep,
+                        eventData.WorldStep,
                         progressedQuestIds
                     )
                 )
@@ -218,28 +211,28 @@ public partial class QuestProgressService : RefCounted
         return summary;
     }
 
-    private GStringNameArray ApplyProgressEvent(GDictionary eventData, int worldStep)
+    private GStringNameArray ApplyProgressEvent(QuestProgressEventData eventData)
     {
         GStringNameArray progressedQuestIds = new();
-        StringName questId = GdInterop.GetStringName(eventData, "quest_id");
-        int progressDelta = ResolveProgressDelta(eventData);
+        StringName questId = eventData.QuestId;
+        int progressDelta = eventData.ProgressDelta;
         if (progressDelta <= 0)
             return progressedQuestIds;
 
         if (questId != "")
         {
             QuestState questState = _party_state.get_active_quest_state(questId);
-            if (questState == null && GdInterop.GetBool(eventData, "auto_accept"))
+            if (questState == null && eventData.AutoAccept)
             {
                 if (
-                    accept_quest(questId, worldStep, GdInterop.GetBool(eventData, "allow_reaccept"))
+                    accept_quest(questId, eventData.WorldStep, eventData.AllowReaccept)
                 )
                     questState = _party_state.get_active_quest_state(questId);
             }
             if (questState == null)
                 return progressedQuestIds;
 
-            StringName objectiveId = GdInterop.GetStringName(eventData, "objective_id");
+            StringName objectiveId = eventData.ObjectiveId;
             if (objectiveId == "")
                 return progressedQuestIds;
 
@@ -251,20 +244,20 @@ public partial class QuestProgressService : RefCounted
                 objectiveId,
                 progressDelta,
                 targetValue,
-                BuildEventContext(eventData)
+                eventData.BuildContext()
             );
             progressedQuestIds.Add(questId);
             return progressedQuestIds;
         }
 
-        foreach (GDictionary matchEntry in FindMatchingActiveObjectives(eventData))
+        foreach (QuestActiveObjectiveMatch match in FindMatchingActiveObjectives(eventData))
         {
-            QuestState questState = matchEntry["quest_state"].AsGodotObject() as QuestState;
-            GDictionary objectiveDef = matchEntry["objective_def"].AsGodotDictionary();
-            if (questState == null || objectiveDef.Count == 0)
+            QuestState questState = match.QuestState;
+            QuestObjectiveDefData objectiveDef = match.ObjectiveDef;
+            if (questState == null || !objectiveDef.Exists)
                 continue;
 
-            StringName objectiveId = GdInterop.GetStringName(objectiveDef, "objective_id");
+            StringName objectiveId = objectiveDef.ObjectiveId;
             if (objectiveId == "")
                 continue;
 
@@ -276,190 +269,82 @@ public partial class QuestProgressService : RefCounted
                 objectiveId,
                 progressDelta,
                 targetValue,
-                BuildEventContext(eventData)
+                eventData.BuildContext()
             );
             AppendUniqueStringName(progressedQuestIds, questState.quest_id);
         }
         return progressedQuestIds;
     }
 
-    private bool DidProgressReachTarget(GDictionary eventData)
-    {
-        StringName questId = ReadRequiredStringName(eventData, "quest_id");
-        StringName objectiveId = ReadRequiredStringName(eventData, "objective_id");
-        if (questId == "" || objectiveId == "")
-            return false;
-
-        int targetValue = ResolveEventTargetValue(eventData, questId, objectiveId);
-        if (targetValue <= 0)
-            return false;
-
-        QuestState questState = _party_state.get_active_quest_state(questId);
-        return questState != null && questState.is_objective_complete(objectiveId, targetValue);
-    }
-
-    private static bool IsValidQuestProgressEvent(GDictionary eventData)
-    {
-        StringName eventType = ReadRequiredStringName(eventData, "event_type");
-        if (eventType != EVENT_ACCEPT && eventType != EVENT_PROGRESS && eventType != EVENT_COMPLETE)
-            return false;
-        if (
-            !eventData.ContainsKey("world_step")
-            || eventData["world_step"].VariantType != Variant.Type.Int
-        )
-            return false;
-        if (
-            eventData.ContainsKey("allow_reaccept")
-            && eventData["allow_reaccept"].VariantType != Variant.Type.Bool
-        )
-            return false;
-        if (
-            eventData.ContainsKey("auto_accept")
-            && eventData["auto_accept"].VariantType != Variant.Type.Bool
-        )
-            return false;
-        if (
-            eventData.ContainsKey("context")
-            && eventData["context"].VariantType != Variant.Type.Dictionary
-        )
-            return false;
-
-        if (eventType == EVENT_ACCEPT || eventType == EVENT_COMPLETE)
-            return ReadRequiredStringName(eventData, "quest_id") != "";
-        if (eventType == EVENT_PROGRESS)
-            return IsValidProgressEvent(eventData);
-        return false;
-    }
-
-    private static bool IsValidProgressEvent(GDictionary eventData)
-    {
-        if (ResolveProgressDelta(eventData) <= 0)
-            return false;
-        if (
-            eventData.ContainsKey("target_value")
-            && (
-                eventData["target_value"].VariantType != Variant.Type.Int
-                || eventData["target_value"].AsInt32() <= 0
-            )
-        )
-        {
-            return false;
-        }
-
-        if (eventData.ContainsKey("quest_id") || eventData.ContainsKey("objective_id"))
-        {
-            return ReadRequiredStringName(eventData, "quest_id") != ""
-                && ReadRequiredStringName(eventData, "objective_id") != "";
-        }
-        return ReadRequiredStringName(eventData, "objective_type") != ""
-            && ReadRequiredStringName(eventData, "target_id") != "";
-    }
-
-    private static StringName ReadRequiredStringName(GDictionary eventData, string fieldName)
-    {
-        if (!eventData.ContainsKey(fieldName))
-            return "";
-
-        var value = eventData[fieldName];
-        if (value.VariantType == Variant.Type.StringName)
-            return value.AsStringName();
-        if (value.VariantType == Variant.Type.String)
-            return new StringName(value.AsString());
-        return "";
-    }
-
-    private static int ResolveProgressDelta(GDictionary eventData)
-    {
-        if (!eventData.ContainsKey("progress_delta"))
-            return 0;
-        var progressDeltaValue = eventData["progress_delta"];
-        if (progressDeltaValue.VariantType != Variant.Type.Int)
-            return 0;
-        int progressDelta = progressDeltaValue.AsInt32();
-        return progressDelta > 0 ? progressDelta : 0;
-    }
-
     private int ResolveEventTargetValue(
-        GDictionary eventData,
+        QuestProgressEventData eventData,
         StringName questId,
         StringName objectiveId
     )
     {
         if (objectiveId == "")
             return 0;
-        if (eventData.ContainsKey("target_value"))
-        {
-            var targetValueValue = eventData["target_value"];
-            if (targetValueValue.VariantType != Variant.Type.Int)
-                return 0;
-            return Mathf.Max(targetValueValue.AsInt32(), 0);
-        }
+        if (eventData.HasTargetValue)
+            return eventData.TargetValue;
         return ResolveObjectiveTargetValue(FindObjectiveDef(questId, objectiveId));
     }
 
-    private static int ResolveObjectiveTargetValue(GDictionary objectiveDef)
-    {
-        if (
-            objectiveDef == null
-            || objectiveDef.Count == 0
-            || !objectiveDef.ContainsKey("target_value")
-        )
-            return 0;
-        var targetValueValue = objectiveDef["target_value"];
-        if (targetValueValue.VariantType != Variant.Type.Int)
-            return 0;
-        return Mathf.Max(targetValueValue.AsInt32(), 0);
-    }
+    private static int ResolveObjectiveTargetValue(QuestObjectiveDefData objectiveDef) =>
+        objectiveDef != null && objectiveDef.Exists ? objectiveDef.TargetValue : 0;
 
-    private GDictionary FindObjectiveDef(StringName questId, StringName objectiveId)
+    private QuestObjectiveDefData FindObjectiveDef(StringName questId, StringName objectiveId)
     {
         if (questId == "" || objectiveId == "")
-            return new GDictionary();
+            return QuestObjectiveDefData.Empty;
 
-        foreach (var objectiveValue in GetObjectiveDefs(questId))
+        foreach (QuestObjectiveDefData objectiveDef in GetObjectiveDefs(questId))
         {
-            if (objectiveValue.VariantType != Variant.Type.Dictionary)
-                continue;
-
-            GDictionary objectiveDef = objectiveValue.AsGodotDictionary();
-            if (
-                GdInterop.GetStringName(objectiveDef, "objective_id") == objectiveId
-            )
-                return objectiveDef.Duplicate(true);
+            if (objectiveDef.ObjectiveId == objectiveId)
+                return objectiveDef;
         }
-        return new GDictionary();
+        return QuestObjectiveDefData.Empty;
     }
 
-    private GArray GetObjectiveDefs(StringName questId)
+    private List<QuestObjectiveDefData> GetObjectiveDefs(StringName questId)
     {
-        if (questId == "" || !_quest_defs.ContainsKey(questId))
-            return new GArray();
-
-        var questDef = _quest_defs[questId];
+        var result = new List<QuestObjectiveDefData>();
+        if (questId == "" || !TryGetExactStringNameKey(_quest_defs, questId, out var questDef))
+            return result;
         if (questDef.VariantType == Variant.Type.Dictionary)
         {
             GDictionary questDefDict = questDef.AsGodotDictionary();
-            return
-                questDefDict.ContainsKey("objective_defs")
-                && questDefDict["objective_defs"].VariantType == Variant.Type.Array
-                ? questDefDict["objective_defs"].AsGodotArray()
-                : new GArray();
+            foreach (Variant objectiveValue in QuestProgressDataReader.ReadArray(
+                questDefDict,
+                "objective_defs"
+            ))
+            {
+                QuestObjectiveDefData objectiveDef =
+                    QuestObjectiveDefData.FromVariant(objectiveValue);
+                if (objectiveDef.Exists)
+                    result.Add(objectiveDef);
+            }
+            return result;
         }
 
         if (questDef.AsGodotObject() is not QuestDef questDefObject)
-            return new GArray();
+            return result;
 
-        var result = new GArray();
-        foreach (var entry in questDefObject.objective_defs)
-            result.Add(entry);
+        foreach (GDictionary entry in questDefObject.objective_defs)
+        {
+            QuestObjectiveDefData objectiveDef = QuestObjectiveDefData.FromDictionary(entry);
+            if (objectiveDef.Exists)
+                result.Add(objectiveDef);
+        }
         return result;
     }
 
-    private Godot.Collections.Array<GDictionary> FindMatchingActiveObjectives(GDictionary eventData)
+    private List<QuestActiveObjectiveMatch> FindMatchingActiveObjectives(
+        QuestProgressEventData eventData
+    )
     {
-        Godot.Collections.Array<GDictionary> matches = new();
-        StringName objectiveType = GdInterop.GetStringName(eventData, "objective_type");
-        StringName targetId = GdInterop.GetStringName(eventData, "target_id");
+        var matches = new List<QuestActiveObjectiveMatch>();
+        StringName objectiveType = eventData.ObjectiveType;
+        StringName targetId = eventData.TargetId;
         if (objectiveType == "")
             return matches;
 
@@ -467,38 +352,30 @@ public partial class QuestProgressService : RefCounted
         {
             if (questState == null || questState.quest_id == "")
                 continue;
-            if (!_quest_defs.ContainsKey(questState.quest_id))
+            if (!HasExactStringNameKey(_quest_defs, questState.quest_id))
                 continue;
 
-            foreach (var objectiveValue in GetObjectiveDefs(questState.quest_id))
+            foreach (QuestObjectiveDefData objectiveDef in GetObjectiveDefs(questState.quest_id))
             {
-                if (objectiveValue.VariantType != Variant.Type.Dictionary)
+                if (!objectiveDef.Exists)
                     continue;
 
-                GDictionary objectiveDef = objectiveValue.AsGodotDictionary();
-                if (GdInterop.GetStringName(objectiveDef, "objective_type") != objectiveType)
+                if (objectiveDef.ObjectiveType != objectiveType)
                     continue;
 
-                StringName objectiveTargetId = GdInterop.GetStringName(objectiveDef, "target_id");
+                StringName objectiveTargetId = objectiveDef.TargetId;
                 if (objectiveTargetId != "" && targetId != "" && objectiveTargetId != targetId)
                     continue;
                 if (objectiveTargetId != "" && targetId == "")
                     continue;
 
-                matches.Add(
-                    new GDictionary
-                    {
-                        ["quest_state"] = questState,
-                        ["objective_def"] = objectiveDef.Duplicate(true),
-                    }
-                );
+                matches.Add(new QuestActiveObjectiveMatch(questState, objectiveDef));
             }
         }
         return matches;
     }
 
     private GStringNameArray MaybeCompleteQuestsAfterProgress(
-        GDictionary eventData,
         int worldStep,
         GStringNameArray progressedQuestIds
     )
@@ -519,33 +396,6 @@ public partial class QuestProgressService : RefCounted
         return claimableQuestIds;
     }
 
-    private static GDictionary BuildEventContext(GDictionary eventData)
-    {
-        GDictionary context = new();
-        if (
-            eventData.ContainsKey("context")
-            && eventData["context"].VariantType == Variant.Type.Dictionary
-        )
-            context = eventData["context"].AsGodotDictionary().Duplicate(true);
-
-        foreach (
-            string key in new[]
-            {
-                "member_id",
-                "action_id",
-                "enemy_template_id",
-                "settlement_id",
-                "source_type",
-                "source_id",
-            }
-        )
-        {
-            if (eventData.ContainsKey(key))
-                context[key] = eventData[key];
-        }
-        return context;
-    }
-
     private static void AppendUniqueStringName(GStringNameArray target, StringName value)
     {
         if (target == null || value == "" || target.Contains(value))
@@ -555,9 +405,380 @@ public partial class QuestProgressService : RefCounted
 
     private QuestDef GetQuestDefObject(StringName questId)
     {
-        if (questId == "" || !_quest_defs.ContainsKey(questId))
+        if (questId == "" || !TryGetExactStringNameKey(_quest_defs, questId, out var questDef))
             return null;
-        return _quest_defs[questId].AsGodotObject() as QuestDef;
+        return questDef.AsGodotObject() as QuestDef;
+    }
+
+    private static bool HasExactStringNameKey(GDictionary dictionary, StringName key) =>
+        TryGetExactStringNameKey(dictionary, key, out _);
+
+    private static bool TryGetExactStringNameKey(
+        GDictionary dictionary,
+        StringName key,
+        out Variant value
+    )
+    {
+        if (dictionary == null || key == "")
+        {
+            value = default;
+            return false;
+        }
+        foreach (Variant rawKey in dictionary.Keys)
+        {
+            if (rawKey.VariantType != Variant.Type.StringName)
+                continue;
+            if (rawKey.AsStringName() != key)
+                continue;
+            value = dictionary[rawKey];
+            return true;
+        }
+        value = default;
+        return false;
+    }
+
+    private sealed class QuestActiveObjectiveMatch
+    {
+        public readonly QuestState QuestState;
+        public readonly QuestObjectiveDefData ObjectiveDef;
+
+        public QuestActiveObjectiveMatch(QuestState questState, QuestObjectiveDefData objectiveDef)
+        {
+            QuestState = questState;
+            ObjectiveDef = objectiveDef ?? QuestObjectiveDefData.Empty;
+        }
+    }
+
+    private sealed class QuestProgressEventData
+    {
+        public readonly bool IsValid;
+        public readonly StringName EventType;
+        public readonly StringName QuestId;
+        public readonly StringName ObjectiveId;
+        public readonly StringName ObjectiveType;
+        public readonly StringName TargetId;
+        public readonly int WorldStep;
+        public readonly bool AllowReaccept;
+        public readonly bool AutoAccept;
+        public readonly int ProgressDelta;
+        public readonly bool HasTargetValue;
+        public readonly int TargetValue;
+        private readonly GDictionary _sourceData;
+
+        private QuestProgressEventData(
+            bool isValid,
+            StringName eventType,
+            StringName questId,
+            StringName objectiveId,
+            StringName objectiveType,
+            StringName targetId,
+            int worldStep,
+            bool allowReaccept,
+            bool autoAccept,
+            int progressDelta,
+            bool hasTargetValue,
+            int targetValue,
+            GDictionary sourceData
+        )
+        {
+            IsValid = isValid;
+            EventType = eventType;
+            QuestId = questId;
+            ObjectiveId = objectiveId;
+            ObjectiveType = objectiveType;
+            TargetId = targetId;
+            WorldStep = worldStep;
+            AllowReaccept = allowReaccept;
+            AutoAccept = autoAccept;
+            ProgressDelta = progressDelta;
+            HasTargetValue = hasTargetValue;
+            TargetValue = targetValue;
+            _sourceData = sourceData != null ? sourceData.Duplicate(true) : new GDictionary();
+        }
+
+        public static QuestProgressEventData FromVariant(Variant value)
+        {
+            if (value.VariantType != Variant.Type.Dictionary)
+                return Invalid();
+            return FromDictionary(value.AsGodotDictionary());
+        }
+
+        private static QuestProgressEventData FromDictionary(GDictionary data)
+        {
+            if (data == null || data.Count == 0)
+                return Invalid();
+
+            StringName eventType = QuestProgressDataReader.ReadStringName(data, "event_type");
+            if (eventType != EVENT_ACCEPT && eventType != EVENT_PROGRESS && eventType != EVENT_COMPLETE)
+                return Invalid();
+            if (!QuestProgressDataReader.TryReadInt(data, "world_step", out int worldStep))
+                return Invalid();
+            if (
+                QuestProgressDataReader.HasKey(data, "allow_reaccept")
+                && !QuestProgressDataReader.TryReadBool(data, "allow_reaccept", out _)
+            )
+                return Invalid();
+            if (
+                QuestProgressDataReader.HasKey(data, "auto_accept")
+                && !QuestProgressDataReader.TryReadBool(data, "auto_accept", out _)
+            )
+                return Invalid();
+            if (
+                QuestProgressDataReader.HasKey(data, "context")
+                && !QuestProgressDataReader.HasDictionary(data, "context")
+            )
+                return Invalid();
+
+            StringName questId = QuestProgressDataReader.ReadStringName(data, "quest_id");
+            StringName objectiveId = QuestProgressDataReader.ReadStringName(data, "objective_id");
+            StringName objectiveType = QuestProgressDataReader.ReadStringName(
+                data,
+                "objective_type"
+            );
+            StringName targetId = QuestProgressDataReader.ReadStringName(data, "target_id");
+            bool allowReaccept = QuestProgressDataReader.TryReadBool(
+                data,
+                "allow_reaccept",
+                out bool parsedAllowReaccept
+            ) && parsedAllowReaccept;
+            bool autoAccept = QuestProgressDataReader.TryReadBool(
+                data,
+                "auto_accept",
+                out bool parsedAutoAccept
+            ) && parsedAutoAccept;
+            bool hasTargetValue = QuestProgressDataReader.HasKey(data, "target_value");
+            int targetValue = 0;
+            if (
+                hasTargetValue
+                && !QuestProgressDataReader.TryReadInt(data, "target_value", out targetValue)
+            )
+                return Invalid();
+            if (hasTargetValue && targetValue <= 0)
+                return Invalid();
+
+            int progressDelta = 0;
+            if (eventType == EVENT_PROGRESS)
+            {
+                if (!QuestProgressDataReader.TryReadInt(data, "progress_delta", out progressDelta))
+                    return Invalid();
+                if (progressDelta <= 0)
+                    return Invalid();
+                if (
+                    QuestProgressDataReader.HasKey(data, "quest_id")
+                    || QuestProgressDataReader.HasKey(data, "objective_id")
+                )
+                {
+                    if (questId == "" || objectiveId == "")
+                        return Invalid();
+                }
+                else if (objectiveType == "" || targetId == "")
+                {
+                    return Invalid();
+                }
+            }
+            else if (questId == "")
+            {
+                return Invalid();
+            }
+
+            return new QuestProgressEventData(
+                true,
+                eventType,
+                questId,
+                objectiveId,
+                objectiveType,
+                targetId,
+                worldStep,
+                allowReaccept,
+                autoAccept,
+                progressDelta,
+                hasTargetValue,
+                Mathf.Max(targetValue, 0),
+                data
+            );
+        }
+
+        public GDictionary BuildContext()
+        {
+            GDictionary context = QuestProgressDataReader.ReadDictionary(_sourceData, "context");
+            foreach (
+                string key in new[]
+                {
+                    "member_id",
+                    "action_id",
+                    "enemy_template_id",
+                    "settlement_id",
+                    "source_type",
+                    "source_id",
+                }
+            )
+            {
+                if (QuestProgressDataReader.TryGet(_sourceData, key, out Variant value))
+                    context[key] = value;
+            }
+            return context;
+        }
+
+        private static QuestProgressEventData Invalid() =>
+            new(
+                false,
+                "",
+                "",
+                "",
+                "",
+                "",
+                0,
+                false,
+                false,
+                0,
+                false,
+                0,
+                new GDictionary()
+            );
+    }
+
+    private sealed class QuestObjectiveDefData
+    {
+        public static readonly QuestObjectiveDefData Empty = new(false, "", "", "", 0);
+
+        public readonly bool Exists;
+        public readonly StringName ObjectiveId;
+        public readonly StringName ObjectiveType;
+        public readonly StringName TargetId;
+        public readonly int TargetValue;
+
+        private QuestObjectiveDefData(
+            bool exists,
+            StringName objectiveId,
+            StringName objectiveType,
+            StringName targetId,
+            int targetValue
+        )
+        {
+            Exists = exists;
+            ObjectiveId = objectiveId;
+            ObjectiveType = objectiveType;
+            TargetId = targetId;
+            TargetValue = Mathf.Max(targetValue, 0);
+        }
+
+        public static QuestObjectiveDefData FromVariant(Variant value)
+        {
+            if (value.VariantType != Variant.Type.Dictionary)
+                return Empty;
+            return FromDictionary(value.AsGodotDictionary());
+        }
+
+        public static QuestObjectiveDefData FromDictionary(GDictionary data)
+        {
+            if (data == null || data.Count == 0)
+                return Empty;
+            return new QuestObjectiveDefData(
+                true,
+                QuestProgressDataReader.ReadStringName(data, "objective_id"),
+                QuestProgressDataReader.ReadStringName(data, "objective_type"),
+                QuestProgressDataReader.ReadStringName(data, "target_id"),
+                QuestProgressDataReader.TryReadInt(data, "target_value", out int targetValue)
+                    ? targetValue
+                    : 0
+            );
+        }
+    }
+
+    private static class QuestProgressDataReader
+    {
+        public static bool HasKey(GDictionary data, string key)
+        {
+            return TryGet(data, key, out _);
+        }
+
+        public static bool TryGet(GDictionary data, string key, out Variant value)
+        {
+            if (data == null || string.IsNullOrEmpty(key))
+            {
+                value = default;
+                return false;
+            }
+            foreach (Variant rawKey in data.Keys)
+            {
+                if (
+                    rawKey.VariantType == Variant.Type.String
+                    && rawKey.AsString() == key
+                )
+                {
+                    value = data[rawKey];
+                    return true;
+                }
+                if (
+                    rawKey.VariantType == Variant.Type.StringName
+                    && rawKey.AsStringName().ToString() == key
+                )
+                {
+                    value = data[rawKey];
+                    return true;
+                }
+            }
+            value = default;
+            return false;
+        }
+
+        public static StringName ReadStringName(GDictionary data, string key)
+        {
+            if (!TryGet(data, key, out Variant value))
+                return "";
+            return value.VariantType switch
+            {
+                Variant.Type.StringName => value.AsStringName(),
+                Variant.Type.String => new StringName(value.AsString()),
+                _ => new StringName(""),
+            };
+        }
+
+        public static bool TryReadInt(GDictionary data, string key, out int result)
+        {
+            if (!TryGet(data, key, out Variant value) || value.VariantType != Variant.Type.Int)
+            {
+                result = 0;
+                return false;
+            }
+            result = value.AsInt32();
+            return true;
+        }
+
+        public static bool TryReadBool(GDictionary data, string key, out bool result)
+        {
+            if (!TryGet(data, key, out Variant value) || value.VariantType != Variant.Type.Bool)
+            {
+                result = false;
+                return false;
+            }
+            result = value.AsBool();
+            return true;
+        }
+
+        public static bool HasDictionary(GDictionary data, string key)
+        {
+            return TryGet(data, key, out Variant value)
+                && value.VariantType == Variant.Type.Dictionary;
+        }
+
+        public static GDictionary ReadDictionary(GDictionary data, string key)
+        {
+            if (!TryGet(data, key, out Variant value))
+                return new GDictionary();
+            return value.VariantType == Variant.Type.Dictionary
+                ? value.AsGodotDictionary().Duplicate(true)
+                : new GDictionary();
+        }
+
+        public static GArray ReadArray(GDictionary data, string key)
+        {
+            if (!TryGet(data, key, out Variant value))
+                return new GArray();
+            return value.VariantType == Variant.Type.Array
+                ? value.AsGodotArray()
+                : new GArray();
+        }
     }
 
     private int GetWorldStep()

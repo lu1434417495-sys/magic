@@ -10,15 +10,15 @@
 script = ExtResource("3_wa3jm")
 effect_type = &"damage"
 power = 0
-params = {
-"add_weapon_dice": true,
-"requires_weapon": true,
-"use_weapon_physical_damage_tag": true
-}
+add_weapon_dice = true
+requires_weapon = true
+use_weapon_physical_damage_tag = true
 
 [sub_resource type="Resource" id="Resource_pc1q2"]
 script = ExtResource("3_wa3jm")
 effect_type = &"repeat_attack_until_fail"
+stop_on_miss = true
+stop_on_target_down = true
 params = {
 "same_target_only": true,
 "cost_resource": "stamina",
@@ -31,8 +31,6 @@ params = {
 "3": 2,
 "5": 3
 },
-"stop_on_miss": true,
-"stop_on_target_down": true,
 "stop_on_insufficient_resource": true
 }
 

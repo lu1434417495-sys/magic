@@ -125,11 +125,53 @@ public partial class BattleBarrierInstanceState : RefCounted
 
     private static Variant GetValue(GDictionary source, object key, object fallback)
     {
+        Variant fallbackValue = ToVariant(fallback);
         if (source == null)
         {
-            return GdInterop.GetValueOrDefault(null, "", fallback);
+            return fallbackValue;
         }
-        return source.GetValueOrDefault(key, GdInterop.GetValueOrDefault(null, "", fallback));
+        Variant variantKey = ToVariant(key);
+        if (source.ContainsKey(variantKey))
+        {
+            return source[variantKey];
+        }
+        if (key is string stringKey)
+        {
+            var stringNameKey = new StringName(stringKey);
+            if (source.ContainsKey(stringNameKey))
+            {
+                return source[stringNameKey];
+            }
+        }
+        else if (key is StringName stringNameKey)
+        {
+            string keyText = stringNameKey.ToString();
+            if (source.ContainsKey(keyText))
+            {
+                return source[keyText];
+            }
+        }
+        return fallbackValue;
+    }
+
+    private static Variant ToVariant(object value)
+    {
+        return value switch
+        {
+            null => default,
+            Variant variant => variant,
+            bool boolValue => Variant.From(boolValue),
+            int intValue => Variant.From(intValue),
+            long longValue => Variant.From(longValue),
+            float floatValue => Variant.From(floatValue),
+            double doubleValue => Variant.From(doubleValue),
+            string stringValue => Variant.From(stringValue),
+            StringName stringNameValue => Variant.From(stringNameValue),
+            Vector2I vector2IValue => Variant.From(vector2IValue),
+            GArray arrayValue => Variant.From(arrayValue),
+            GDictionary dictionaryValue => Variant.From(dictionaryValue),
+            _ => Variant.From(value.ToString() ?? ""),
+        };
     }
 
     private static GArray GetArray(GDictionary source, object key)

@@ -141,7 +141,7 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
             double elapsed = (Time.GetTicksMsec() - batchStartMsec) / 1000.0;
             double runElapsed = (Time.GetTicksMsec() - runStartMsec) / 1000.0;
             PrintProgress(
-                $"[Progress] run {runIndex + 1}/{requestedRunCount} done winner={GetString(result, "winner_faction_id")} ended={GetBool(result, "battle_ended")} iterations={GetInt(result, "iterations")} timeline_steps={GetInt(result, "timeline_steps")} run_elapsed={runElapsed:F1}s batch_elapsed={elapsed:F1}s rate={(runIndex + 1) / Math.Max(elapsed, 0.001):F2} runs/s"
+                $"[Progress] run {runIndex + 1}/{requestedRunCount} done winner={GetString(result, "winner_faction_id")} ended={ReadExactBool(result, "battle_ended")} iterations={GetInt(result, "iterations")} timeline_steps={GetInt(result, "timeline_steps")} run_elapsed={runElapsed:F1}s batch_elapsed={elapsed:F1}s rate={(runIndex + 1) / Math.Max(elapsed, 0.001):F2} runs/s"
             );
 
             if (HasReachedTimeout(batchStartMsec, timeoutSeconds) && completedRunCount < requestedRunCount)
@@ -176,7 +176,7 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
         if (string.IsNullOrEmpty(outputPath))
         {
             GameLog.Info(
-                Json.Stringify(GdInterop.GetValueOrDefault(null, "", NormalizeValue(report)), "\t"),
+                Json.Stringify(ToVariant(NormalizeValue(report)), "\t"),
                 "bench.report",
                 "bench"
             );
@@ -608,68 +608,91 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
         if (file == null)
             return false;
         file.StoreString(
-            Json.Stringify(GdInterop.GetValueOrDefault(null, "", NormalizeValue(payload)), "\t")
+            Json.Stringify(ToVariant(NormalizeValue(payload)), "\t")
         );
         return true;
     }
 
-    private static object NormalizeValue(Variant rawValue)
+    private static object NormalizeValue(object rawValue)
     {
-        if (rawValue.VariantType == Variant.Type.Dictionary) { var rawDictionary = rawValue.AsGodotDictionary();
+        if (rawValue is Variant rawVariant)
+            return NormalizeVariant(rawVariant);
+        if (rawValue is GDictionary rawDictionary)
+        {
             var normalized = new GDictionary();
             foreach (var key in rawDictionary.Keys)
-                normalized[key.ToString()] = GdInterop.GetValueOrDefault(
-                    null,
-                    "",
-                    NormalizeValue(rawDictionary[key])
-                );
+                normalized[key.ToString()] = ToVariant(NormalizeValue(rawDictionary[key]));
             return normalized;
         }
-        if (rawValue.VariantType == Variant.Type.Array) { var rawArray = rawValue.AsGodotArray();
+        if (rawValue is GArray rawArray)
+        {
             var normalized = new GArray();
             foreach (var entry in rawArray)
-                normalized.Add(GdInterop.GetValueOrDefault(null, "", NormalizeValue(entry)));
+                normalized.Add(ToVariant(NormalizeValue(entry)));
             return normalized;
         }
-
-        if (rawValue.VariantType == Variant.Type.StringName)
-            return rawValue.AsStringName().ToString();
-        if (rawValue.VariantType == Variant.Type.Vector2I)
-        {
-            Vector2I v = rawValue.AsVector2I();
-            return new GDictionary { ["x"] = v.X, ["y"] = v.Y };
-        }
-        if (rawValue.VariantType == Variant.Type.Array)
-        {
-            var normalized = new GArray();
-            foreach (var entry in rawValue.AsGodotArray())
-                normalized.Add(GdInterop.GetValueOrDefault(null, "", NormalizeValue(entry)));
-            return normalized;
-        }
-        if (rawValue.VariantType == Variant.Type.Dictionary)
-        {
-            var normalized = new GDictionary();
-            foreach (var key in rawValue.AsGodotDictionary().Keys)
-                normalized[key.ToString()] = GdInterop.GetValueOrDefault(
-                    null,
-                    "",
-                    NormalizeValue(rawValue.AsGodotDictionary()[key])
-                );
-            return normalized;
-        }
-        if (rawValue.VariantType == Variant.Type.Object)
-        {
-            GodotObject obj = rawValue.AsGodotObject();
-            if (obj is BattleSimScenarioDef scenarioDef)
-                return NormalizeValue(scenarioDef.to_dict());
-            if (obj is BattleSimProfileDef profileDef)
-                return NormalizeValue(profileDef.to_dict());
-            if (obj is BattleUnitState unitState)
-                return NormalizeValue(unitState.to_dict());
-            return obj?.ToString() ?? "";
-        }
+        if (rawValue is GodotObject obj)
+            return NormalizeGodotObject(obj);
         return rawValue;
     }
+
+    private static object NormalizeVariant(Variant value)
+    {
+        if (value.VariantType == Variant.Type.StringName)
+            return value.AsStringName().ToString();
+        if (value.VariantType == Variant.Type.Vector2I)
+        {
+            Vector2I v = value.AsVector2I();
+            return new GDictionary { ["x"] = v.X, ["y"] = v.Y };
+        }
+        if (value.VariantType == Variant.Type.Array)
+        {
+            var normalized = new GArray();
+            foreach (var entry in value.AsGodotArray())
+                normalized.Add(ToVariant(NormalizeValue(entry)));
+            return normalized;
+        }
+        if (value.VariantType == Variant.Type.Dictionary)
+        {
+            var normalized = new GDictionary();
+            GDictionary dictionary = value.AsGodotDictionary();
+            foreach (var key in dictionary.Keys)
+                normalized[key.ToString()] = ToVariant(NormalizeValue(dictionary[key]));
+            return normalized;
+        }
+        if (value.VariantType == Variant.Type.Object)
+            return NormalizeGodotObject(value.AsGodotObject());
+        return value;
+    }
+
+    private static object NormalizeGodotObject(GodotObject obj)
+    {
+        if (obj is BattleSimScenarioDef scenarioDef)
+            return NormalizeValue(scenarioDef.to_dict());
+        if (obj is BattleSimProfileDef profileDef)
+            return NormalizeValue(profileDef.to_dict());
+        if (obj is BattleUnitState unitState)
+            return NormalizeValue(unitState.to_dict());
+        return obj?.ToString() ?? "";
+    }
+
+    private static Variant ToVariant(object value) =>
+        value switch
+        {
+            Variant variant => variant,
+            string text => text,
+            StringName stringName => stringName,
+            int intValue => intValue,
+            long longValue => longValue,
+            bool boolValue => boolValue,
+            float floatValue => floatValue,
+            double doubleValue => doubleValue,
+            Vector2I coord => coord,
+            GArray array => array,
+            GDictionary dictionary => dictionary,
+            GodotObject godotObject => godotObject,
+            _ => default,
+        };
 
     private static bool ReadBoolEnvironment(string name, bool defaultValue)
     {
@@ -730,42 +753,98 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
 
     private static GDictionary GetDict(GDictionary dictionary, object key)
     {
-        return GdInterop.GetDictionary(dictionary, key);
+        return TryRead(dictionary, key, out Variant value) && value.VariantType == Variant.Type.Dictionary
+            ? value.AsGodotDictionary()
+            : new GDictionary();
     }
 
     private static GArray GetArray(GDictionary dictionary, object key)
     {
-        return GdInterop.GetArray(dictionary, key);
+        return TryRead(dictionary, key, out Variant value) && value.VariantType == Variant.Type.Array
+            ? value.AsGodotArray()
+            : new GArray();
     }
 
     private static GodotObject GetObject(GDictionary dictionary, object key)
     {
-        return GdInterop.GetObject(dictionary, key);
+        return TryRead(dictionary, key, out Variant value) && value.VariantType == Variant.Type.Object
+            ? value.AsGodotObject()
+            : null;
     }
 
     private static int GetInt(GDictionary dictionary, object key, int fallback = 0)
     {
-        return GdInterop.GetInt(dictionary, key, fallback);
+        return TryRead(dictionary, key, out Variant value) && value.VariantType == Variant.Type.Int
+            ? value.AsInt32()
+            : fallback;
     }
 
     private static long GetLong(GDictionary dictionary, object key, long fallback = 0L)
     {
-        return GdInterop.TryGet(dictionary, key, out var value)
-            && value.VariantType == Variant.Type.Int
+        return TryRead(dictionary, key, out Variant value) && value.VariantType == Variant.Type.Int
             ? value.AsInt64()
             : fallback;
     }
 
     private static string GetString(GDictionary dictionary, object key, string fallback = "")
     {
-        return GdInterop.HasString(dictionary, key)
-            ? GdInterop.GetString(dictionary, key)
-            : fallback;
+        if (!TryRead(dictionary, key, out Variant value))
+            return fallback;
+        return value.VariantType switch
+        {
+            Variant.Type.String => value.AsString(),
+            Variant.Type.StringName => value.AsStringName().ToString(),
+            _ => fallback,
+        };
     }
 
-    private static bool GetBool(GDictionary dictionary, object key, bool fallback = false)
+    private static bool ReadExactBool(GDictionary dictionary, object key, bool fallback = false)
     {
-        return GdInterop.GetBool(dictionary, key, fallback);
+        if (!TryRead(dictionary, key, out Variant value))
+            return fallback;
+        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
+    }
+
+    private static bool TryRead(GDictionary dictionary, object key, out Variant value)
+    {
+        value = default;
+        if (dictionary == null || key == null)
+            return false;
+        Variant variantKey = key switch
+        {
+            Variant valueKey => valueKey,
+            string stringKey => stringKey,
+            StringName stringNameKey => stringNameKey,
+            int intKey => intKey,
+            long longKey => longKey,
+            _ => default,
+        };
+        if (variantKey.VariantType == Variant.Type.Nil)
+            return false;
+        if (dictionary.ContainsKey(variantKey))
+        {
+            value = dictionary[variantKey];
+            return value.VariantType != Variant.Type.Nil;
+        }
+        if (variantKey.VariantType == Variant.Type.String)
+        {
+            StringName stringNameKey = new(variantKey.AsString());
+            if (dictionary.ContainsKey(stringNameKey))
+            {
+                value = dictionary[stringNameKey];
+                return value.VariantType != Variant.Type.Nil;
+            }
+        }
+        else if (variantKey.VariantType == Variant.Type.StringName)
+        {
+            string stringKey = variantKey.AsStringName().ToString();
+            if (dictionary.ContainsKey(stringKey))
+            {
+                value = dictionary[stringKey];
+                return value.VariantType != Variant.Type.Nil;
+            }
+        }
+        return false;
     }
 
     private sealed class BatchAccumulator
@@ -906,7 +985,7 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
             TotalMultishotMastery += fixture.multishot_mastery;
             TotalBasicMastery += fixture.basic_mastery;
 
-            if (GetBool(result, "battle_ended"))
+            if (ReadExactBool(result, "battle_ended"))
             {
                 EndedCount++;
                 string winner = GetString(result, "winner_faction_id");

@@ -211,6 +211,93 @@ public partial class UnitProgress : RefCounted
         return true;
     }
 
+    public UnitProgress duplicate_state()
+    {
+        sync_active_core_skill_ids();
+        sync_default_combat_resource_unlocks();
+
+        var copy = new UnitProgress
+        {
+            version = version,
+            unit_id = unit_id,
+            display_name = display_name,
+            character_level = character_level,
+            unit_base_attributes = unit_base_attributes?.duplicate_state() ?? new UnitBaseAttributes(),
+            reputation_state = reputation_state?.duplicate_state() ?? new UnitReputationState(),
+            known_knowledge_ids = DuplicateStringNameArray(known_knowledge_ids),
+            active_core_skill_ids = DuplicateStringNameArray(active_core_skill_ids),
+            attribute_growth_progress = DuplicateDictionary(attribute_growth_progress),
+            blocked_relearn_skill_ids = DuplicateStringNameArray(blocked_relearn_skill_ids),
+            merged_skill_source_map = DuplicateStringNameArrayMap(merged_skill_source_map),
+            unlocked_combat_resource_ids = DuplicateStringNameArray(unlocked_combat_resource_ids),
+            active_level_trigger_core_skill_id = active_level_trigger_core_skill_id,
+            locked_level_trigger_skill_ids = DuplicateStringNameArray(locked_level_trigger_skill_ids),
+        };
+
+        foreach (var key in ProgressionDataUtils.sorted_string_keys(skills))
+        {
+            var skillProgress = get_skill_progress(new StringName(key));
+            if (skillProgress != null)
+                copy.skills[skillProgress.skill_id] = skillProgress.duplicate_state();
+        }
+
+        foreach (var key in ProgressionDataUtils.sorted_string_keys(professions))
+        {
+            var professionProgress = get_profession_progress(new StringName(key));
+            if (professionProgress != null)
+                copy.professions[professionProgress.profession_id] = professionProgress.duplicate_state();
+        }
+
+        foreach (var key in ProgressionDataUtils.sorted_string_keys(achievement_progress))
+        {
+            var progressState = get_achievement_progress_state(new StringName(key));
+            if (progressState != null)
+                copy.achievement_progress[progressState.achievement_id] =
+                    progressState.duplicate_state();
+        }
+
+        foreach (var pendingChoice in pending_profession_choices)
+            if (pendingChoice != null)
+                copy.pending_profession_choices.Add(pendingChoice.duplicate_state());
+
+        return copy;
+    }
+
+    private static Godot.Collections.Array<StringName> DuplicateStringNameArray(
+        Godot.Collections.Array<StringName> values
+    )
+    {
+        return values != null
+            ? new Godot.Collections.Array<StringName>(values)
+            : new Godot.Collections.Array<StringName>();
+    }
+
+    private static Godot.Collections.Dictionary DuplicateDictionary(
+        Godot.Collections.Dictionary values
+    )
+    {
+        return values?.Duplicate(true) ?? new Godot.Collections.Dictionary();
+    }
+
+    private static Godot.Collections.Dictionary DuplicateStringNameArrayMap(
+        Godot.Collections.Dictionary values
+    )
+    {
+        var copy = new Godot.Collections.Dictionary();
+        if (values == null)
+            return copy;
+        foreach (var rawKey in values.Keys)
+        {
+            var key = ProgressionDataUtils.to_string_name(rawKey);
+            if (key == "")
+                continue;
+            copy[key] = DuplicateStringNameArray(
+                ProgressionDataUtils.to_string_name_array(values[rawKey])
+            );
+        }
+        return copy;
+    }
+
     public Godot.Collections.Dictionary to_dict()
     {
         sync_active_core_skill_ids();

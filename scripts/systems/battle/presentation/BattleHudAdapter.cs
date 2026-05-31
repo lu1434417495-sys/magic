@@ -1878,7 +1878,7 @@ public partial class BattleHudAdapter : RefCounted
     private static string BuildFatePreviewSummaryText(GArray badges)
     {
         var parts = new List<string>();
-        foreach (GDictionary badge in GdInterop.ReadDictionaryItems(badges))
+        foreach (GDictionary badge in ReadDictionaryItems(badges))
         {
             parts.Add(DictString(badge, "text"));
         }
@@ -2266,28 +2266,42 @@ public partial class BattleHudAdapter : RefCounted
     {
         if (itemDefs == null || IsEmpty(itemId))
             return null;
-        return GdInterop.GetObject<ItemDef>(itemDefs, itemId)
-            ?? GdInterop.GetObject<ItemDef>(itemDefs, itemId.ToString());
+        if (TryRead(itemDefs, itemId, out Variant itemValue))
+            return itemValue.AsGodotObject() as ItemDef;
+        return null;
     }
 
     private static int DictionaryInt(GDictionary dict, object key, int fallback = 0)
     {
-        return GdInterop.TryGet(dict, key, out var value) ? value.AsInt32() : fallback;
+        return TryRead(dict, key, out Variant value) && value.VariantType == Variant.Type.Int
+            ? value.AsInt32()
+            : fallback;
     }
 
     private static string DictString(GDictionary dict, object key, string fallback = "")
     {
-        return GdInterop.GetString(dict, key, fallback);
+        if (!TryRead(dict, key, out Variant value))
+            return fallback;
+        return value.VariantType switch
+        {
+            Variant.Type.String => value.AsString(),
+            Variant.Type.StringName => value.AsStringName().ToString(),
+            _ => fallback,
+        };
     }
 
     private static int DictInt(GDictionary dict, object key, int fallback = 0)
     {
-        return GdInterop.GetInt(dict, key, fallback);
+        return TryRead(dict, key, out Variant value) && value.VariantType == Variant.Type.Int
+            ? value.AsInt32()
+            : fallback;
     }
 
     private static bool DictBool(GDictionary dict, object key, bool fallback = false)
     {
-        return GdInterop.GetBool(dict, key, fallback);
+        if (!TryRead(dict, key, out Variant value))
+            return fallback;
+        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
     }
 
     private static StringName DictStringName(
@@ -2296,23 +2310,89 @@ public partial class BattleHudAdapter : RefCounted
         StringName fallback = default
     )
     {
-        return GdInterop.TryGet(dict, key, out var value)
-            ? ProgressionDataUtils.to_string_name(value)
-            : NormalizeStringName(fallback);
+        if (!TryRead(dict, key, out Variant value))
+            return NormalizeStringName(fallback);
+        return value.VariantType switch
+        {
+            Variant.Type.StringName => value.AsStringName(),
+            Variant.Type.String => new StringName(value.AsString()),
+            _ => NormalizeStringName(fallback),
+        };
     }
 
     private static GArray DictArray(GDictionary dict, object key)
     {
-        return GdInterop.GetArray(dict, key);
+        return TryRead(dict, key, out Variant value) && value.VariantType == Variant.Type.Array
+            ? value.AsGodotArray()
+            : new GArray();
     }
 
     private static Color DictColor(GDictionary dict, object key, Color fallback)
     {
         return
-            GdInterop.TryGet(dict, key, out var value)
+            TryRead(dict, key, out Variant value)
             && value.VariantType == Variant.Type.Color
             ? value.AsColor()
             : fallback;
+    }
+
+    private static IEnumerable<GDictionary> ReadDictionaryItems(GArray values)
+    {
+        if (values == null)
+            yield break;
+        foreach (Variant value in values)
+        {
+            if (value.VariantType == Variant.Type.Dictionary)
+                yield return value.AsGodotDictionary();
+        }
+    }
+
+    private static bool TryRead(GDictionary dict, object key, out Variant value)
+    {
+        if (dict == null)
+        {
+            value = default;
+            return false;
+        }
+        Variant variantKey = KeyToVariant(key);
+        if (dict.ContainsKey(variantKey))
+        {
+            value = dict[variantKey];
+            return true;
+        }
+        if (key is StringName stringNameKey)
+        {
+            string stringKey = stringNameKey.ToString();
+            if (dict.ContainsKey(stringKey))
+            {
+                value = dict[stringKey];
+                return true;
+            }
+        }
+        else if (key is string stringKey)
+        {
+            StringName alternateStringNameKey = new(stringKey);
+            if (dict.ContainsKey(alternateStringNameKey))
+            {
+                value = dict[alternateStringNameKey];
+                return true;
+            }
+        }
+        value = default;
+        return false;
+    }
+
+    private static Variant KeyToVariant(object key)
+    {
+        return key switch
+        {
+            Variant variantKey => variantKey,
+            StringName stringNameKey => stringNameKey,
+            string stringKey => stringKey,
+            int intKey => intKey,
+            long longKey => longKey,
+            _ => default,
+        };
     }
 
     private static GVector2IArray CloneVector2IArray(GVector2IArray source)

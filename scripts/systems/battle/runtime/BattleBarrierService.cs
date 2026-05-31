@@ -3,6 +3,41 @@ using System.Collections.Generic;
 using Godot;
 using Godot.Collections;
 
+public readonly record struct BattleBarrierInteractionResult(bool Blocked, bool Applied)
+{
+    public Dictionary ToDictionary() => new() { ["blocked"] = Blocked, ["applied"] = Applied };
+}
+
+public readonly record struct BattleBarrierPassageResult(bool Applied, bool Stopped)
+{
+    public Dictionary ToDictionary() => new() { ["applied"] = Applied, ["stopped"] = Stopped };
+}
+
+public readonly record struct BattleLayeredBarrierApplyResult(
+    bool Applied,
+    StringName BarrierInstanceId,
+    IReadOnlyList<string> LogLines
+)
+{
+    public static BattleLayeredBarrierApplyResult Empty() =>
+        new(false, "", System.Array.Empty<string>());
+
+    public Dictionary ToDictionary()
+    {
+        var logLines = new Godot.Collections.Array();
+        foreach (string line in LogLines ?? System.Array.Empty<string>())
+        {
+            logLines.Add(line);
+        }
+        return new Dictionary
+        {
+            ["applied"] = Applied,
+            ["barrier_instance_id"] = BarrierInstanceId.ToString(),
+            ["log_lines"] = logLines,
+        };
+    }
+}
+
 [GlobalClass]
 public partial class BattleBarrierService : RefCounted
 {
@@ -49,12 +84,18 @@ public partial class BattleBarrierService : RefCounted
         BattleEventBatch batch
     )
     {
-        var result = new Dictionary
-        {
-            ["applied"] = false,
-            ["barrier_instance_id"] = "",
-            ["log_lines"] = new Godot.Collections.Array(),
-        };
+        return ApplyLayeredBarrierEffectResult(sourceUnit, targetUnit, skillDef, effectDef, batch)
+            .ToDictionary();
+    }
+
+    public BattleLayeredBarrierApplyResult ApplyLayeredBarrierEffectResult(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        SkillDef skillDef,
+        CombatEffectDef effectDef,
+        BattleEventBatch batch
+    )
+    {
         var runtime = _ResolveRuntime();
         if (
             runtime == null
@@ -62,30 +103,26 @@ public partial class BattleBarrierService : RefCounted
             || sourceUnit == null
             || effectDef == null
         )
-            return result;
+            return BattleLayeredBarrierApplyResult.Empty();
         var effectParams =
             effectDef.@params != null ? effectDef.@params.Duplicate(true) : new Dictionary();
-        var profileId = ProgressionDataUtils.to_string_name(
-            effectParams.GetValueOrDefault("profile_id", "")
-        );
+        var profileId = DictStringName(effectParams, "profile_id", "");
         var profile = _contentRegistry.get_profile_def(profileId);
         if (profile == null)
-            return result;
+            return BattleLayeredBarrierApplyResult.Empty();
 
         var anchorUnit = targetUnit != null ? targetUnit : sourceUnit;
         var radiusCells = Mathf.Max(
-            (int)effectParams.GetValueOrDefault("radius_cells", profile.radius_cells),
+            DictInt(effectParams, "radius_cells", profile.radius_cells),
             1
         );
-        var areaPattern = ProgressionDataUtils.to_string_name(
-            effectParams.GetValueOrDefault("area_pattern", profile.area_pattern)
-        );
+        var areaPattern = DictStringName(effectParams, "area_pattern", profile.area_pattern);
         if (areaPattern == "")
             areaPattern = profile.area_pattern;
         var durationTu = effectDef.duration_tu;
         if (durationTu <= 0)
             durationTu = Mathf.Max(
-                (int)effectParams.GetValueOrDefault("duration_tu", profile.duration_tu),
+                DictInt(effectParams, "duration_tu", profile.duration_tu),
                 0
             );
         if (durationTu <= 0)
@@ -114,10 +151,7 @@ public partial class BattleBarrierService : RefCounted
         var line =
             $"{sourceUnit.display_name} 创造{_GetBarrierLabel(instance)}，固定在 ({anchorUnit.coord.X}, {anchorUnit.coord.Y})，半径 {radiusCells} 格。";
         _AppendLog(batch, line);
-        result["applied"] = true;
-        result["barrier_instance_id"] = instanceId;
-        result["log_lines"] = new Godot.Collections.Array { line };
-        return result;
+        return new BattleLayeredBarrierApplyResult(true, instanceId, new[] { line });
     }
 
     public void AdvanceBarrierDurations(int elapsedTu, BattleEventBatch batch)
@@ -153,7 +187,18 @@ public partial class BattleBarrierService : RefCounted
         BattleEventBatch batch
     )
     {
-        var result = new Dictionary { ["blocked"] = false, ["applied"] = false };
+        return ResolveUnitBoundaryCrossingResult(unitState, fromCoord, toCoord, batch)
+            .ToDictionary();
+    }
+
+    public BattleBarrierInteractionResult ResolveUnitBoundaryCrossingResult(
+        BattleUnitState unitState,
+        Vector2I fromCoord,
+        Vector2I toCoord,
+        BattleEventBatch batch
+    )
+    {
+        bool applied = false;
         var runtime = _ResolveRuntime();
         if (
             runtime == null
@@ -161,7 +206,7 @@ public partial class BattleBarrierService : RefCounted
             || unitState == null
             || !unitState.is_alive
         )
-            return result;
+            return new BattleBarrierInteractionResult(false, false);
         foreach (StringName barrierKey in _SortedBarrierKeys())
         {
             if (!TryReadBarrier(barrierKey, out BattleBarrierInstanceState barrier))
@@ -177,25 +222,22 @@ public partial class BattleBarrierService : RefCounted
                 toCoord,
                 unitState.footprint_size
             );
-            var transition = _geometryService.classify_footprint_transition(
+            var transition = _geometryService.ClassifyFootprintTransition(
                 runtime._state,
                 (Godot.Collections.Array)fromFootprint,
                 (Godot.Collections.Array)toFootprint,
                 barrierCoords
             );
-            if (!transition.GetValueOrDefault("crosses_boundary", false).AsBool())
+            if (!transition.CrossesBoundary)
                 continue;
             var passageResult = _ApplyBarrierPassage(unitState, barrier, batch);
-            result["applied"] =
-                result.GetValueOrDefault("applied", false).AsBool()
-                || passageResult.GetValueOrDefault("applied", false).AsBool();
-            if (passageResult.GetValueOrDefault("stopped", false).AsBool())
+            applied = applied || passageResult.Applied;
+            if (passageResult.Stopped)
             {
-                result["blocked"] = true;
-                return result;
+                return new BattleBarrierInteractionResult(true, applied);
             }
         }
-        return result;
+        return new BattleBarrierInteractionResult(false, applied);
     }
 
     public Dictionary ResolveSkillBarrierInteraction(
@@ -206,9 +248,27 @@ public partial class BattleBarrierService : RefCounted
         BattleEventBatch batch
     )
     {
+        return ResolveSkillBarrierInteractionResult(
+                sourceUnit,
+                targetUnit,
+                skillDef,
+                effectDefs,
+                batch
+            )
+            .ToDictionary();
+    }
+
+    public BattleBarrierInteractionResult ResolveSkillBarrierInteractionResult(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        SkillDef skillDef,
+        Godot.Collections.Array effectDefs,
+        BattleEventBatch batch
+    )
+    {
         if (sourceUnit == null || targetUnit == null)
-            return new Dictionary { ["blocked"] = false, ["applied"] = false };
-        return _ResolveProjectedEffectBarrierInteraction(
+            return new BattleBarrierInteractionResult(false, false);
+        return _ResolveProjectedEffectBarrierInteractionResult(
             sourceUnit,
             targetUnit.coord,
             targetUnit.display_name,
@@ -226,7 +286,25 @@ public partial class BattleBarrierService : RefCounted
         BattleEventBatch batch
     )
     {
-        return _ResolveProjectedEffectBarrierInteraction(
+        return ResolveGroundBarrierInteractionResult(
+                sourceUnit,
+                targetCoord,
+                skillDef,
+                effectDefs,
+                batch
+            )
+            .ToDictionary();
+    }
+
+    public BattleBarrierInteractionResult ResolveGroundBarrierInteractionResult(
+        BattleUnitState sourceUnit,
+        Vector2I targetCoord,
+        SkillDef skillDef,
+        Godot.Collections.Array effectDefs,
+        BattleEventBatch batch
+    )
+    {
+        return _ResolveProjectedEffectBarrierInteractionResult(
             sourceUnit,
             targetCoord,
             $"({targetCoord.X}, {targetCoord.Y})",
@@ -236,7 +314,7 @@ public partial class BattleBarrierService : RefCounted
         );
     }
 
-    private Dictionary _ResolveProjectedEffectBarrierInteraction(
+    private BattleBarrierInteractionResult _ResolveProjectedEffectBarrierInteractionResult(
         BattleUnitState sourceUnit,
         Vector2I targetCoord,
         string targetLabel,
@@ -245,14 +323,13 @@ public partial class BattleBarrierService : RefCounted
         BattleEventBatch batch
     )
     {
-        var result = new Dictionary { ["blocked"] = false, ["applied"] = false };
         var runtime = _ResolveRuntime();
         if (
             runtime == null
             || runtime._state == null
             || sourceUnit == null
         )
-            return result;
+            return new BattleBarrierInteractionResult(false, false);
         foreach (StringName barrierKey in _SortedBarrierKeys())
         {
             if (!TryReadBarrier(barrierKey, out BattleBarrierInstanceState barrier))
@@ -265,9 +342,7 @@ public partial class BattleBarrierService : RefCounted
             if (_SkillBreaksLayer(skillDef, activeLayer))
             {
                 _BreakActiveLayer(barrierKey, barrier, activeLayer, batch);
-                result["blocked"] = true;
-                result["applied"] = true;
-                return result;
+                return new BattleBarrierInteractionResult(true, true);
             }
             if (_SkillBreaksAnyRemainingLayer(skillDef, barrier))
             {
@@ -275,9 +350,7 @@ public partial class BattleBarrierService : RefCounted
                     batch,
                     $"{sourceUnit.display_name} 试图破解{_GetBarrierLabel(barrier)}，但必须先处理外层 {_GetLayerLabel(activeLayer)}。"
                 );
-                result["blocked"] = true;
-                result["applied"] = true;
-                return result;
+                return new BattleBarrierInteractionResult(true, true);
             }
             var categories = _categoryResolver.ResolveCategories(skillDef, effectDefs);
             var blockingLayer = _FindFirstBlockingLayer(barrier, categories);
@@ -292,44 +365,41 @@ public partial class BattleBarrierService : RefCounted
                 batch,
                 $"{sourceUnit.display_name} 的 {(skillDef != null ? skillDef.display_name : "效果")} 被{_GetBarrierLabel(barrier)}的 {_GetLayerLabel(blockingLayer)} 阻挡，无法影响 {targetLabel}。"
             );
-            result["blocked"] = true;
-            result["applied"] = true;
-            return result;
+            return new BattleBarrierInteractionResult(true, true);
         }
-        return result;
+        return new BattleBarrierInteractionResult(false, false);
     }
 
-    private Dictionary _ApplyBarrierPassage(
+    private BattleBarrierPassageResult _ApplyBarrierPassage(
         BattleUnitState unitState,
         BattleBarrierInstanceState barrier,
         BattleEventBatch batch
     )
     {
-        var result = new Dictionary { ["applied"] = false, ["stopped"] = false };
         if (unitState == null || barrier == null || barrier.IsEmpty)
-            return result;
+            return new BattleBarrierPassageResult(false, false);
         _AppendLog(
             batch,
             $"{unitState.display_name} 穿过{_GetBarrierLabel(barrier)}，依次承受未破除的色层。"
         );
+        bool applied = false;
         foreach (BattleBarrierLayerState layer in barrier.GetLayersTyped())
         {
             if (layer == null || layer.broken)
                 continue;
-            var layerResult = _outcomeResolver.ApplyPassageOutcomes(
+            var layerResult = _outcomeResolver.ApplyPassageOutcomesResult(
                 unitState,
                 barrier,
                 layer,
                 batch
             );
-            result["applied"] = true;
-            if (layerResult.GetValueOrDefault("stopped", false).AsBool() || !unitState.is_alive)
+            applied = true;
+            if (layerResult.Stopped || !unitState.is_alive)
             {
-                result["stopped"] = true;
-                return result;
+                return new BattleBarrierPassageResult(applied, true);
             }
         }
-        return result;
+        return new BattleBarrierPassageResult(applied, false);
     }
 
     private void _BreakActiveLayer(
@@ -365,7 +435,7 @@ public partial class BattleBarrierService : RefCounted
         var resolvedDc = BattleSaveResolver.resolve_save_dc(sourceUnit, effectDef);
         if (resolvedDc > 0)
             return resolvedDc;
-        var paramDc = (int)effectParams.GetValueOrDefault("save_dc", DEFAULT_SAVE_DC);
+        var paramDc = DictInt(effectParams, "save_dc", DEFAULT_SAVE_DC);
         return Mathf.Max(paramDc, 1);
     }
 
@@ -613,4 +683,19 @@ public partial class BattleBarrierService : RefCounted
         return target;
     }
 
+    private static int DictInt(Dictionary dictionary, string key, int fallback)
+    {
+        if (dictionary == null || !dictionary.ContainsKey(key))
+            return fallback;
+        Variant value = dictionary[key];
+        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+    }
+
+    private static StringName DictStringName(Dictionary dictionary, string key, StringName fallback)
+    {
+        if (dictionary == null || !dictionary.ContainsKey(key))
+            return fallback;
+        StringName value = ProgressionDataUtils.to_string_name(dictionary[key]);
+        return value != "" ? value : fallback;
+    }
 }

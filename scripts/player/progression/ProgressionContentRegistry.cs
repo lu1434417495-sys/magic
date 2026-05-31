@@ -854,7 +854,7 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
             subject_id = subjectId,
             threshold = threshold,
         };
-        foreach (AchievementRewardDef reward in GdInterop.ReadObjectItems<AchievementRewardDef>(rewards))
+        foreach (AchievementRewardDef reward in ReadObjectItems<AchievementRewardDef>(rewards))
         {
             achievement.rewards.Add(reward);
         }
@@ -879,11 +879,11 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
             provider_interaction_id = providerInteractionId,
             tags = tags != null ? DuplicateStringNameArray(tags) : new GStringNameArray(),
         };
-        foreach (GDictionary objectiveValue in GdInterop.ReadDictionaryItems(objectiveDefs))
+        foreach (GDictionary objectiveValue in ReadDictionaryItems(objectiveDefs))
         {
             questDef.objective_defs.Add(objectiveValue.Duplicate(true));
         }
-        foreach (GDictionary rewardValue in GdInterop.ReadDictionaryItems(rewardEntries))
+        foreach (GDictionary rewardValue in ReadDictionaryItems(rewardEntries))
         {
             questDef.reward_entries.Add(rewardValue.Duplicate(true));
         }
@@ -1643,18 +1643,15 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
 
     private static StringName _strict_to_string_name(object rawValue)
     {
-        StringName normalized = GdInterop.ToStringName(rawValue);
+        StringName normalized = ProgressionDataUtils.to_string_name(rawValue);
         string normalizedText = normalized.ToString().StripEdges();
         return string.IsNullOrEmpty(normalizedText) ? new StringName("") : new StringName(normalizedText);
     }
 
     private static bool HasDictionary(GDictionary source, string key)
     {
-        if (source == null || !source.ContainsKey(key))
-        {
-            return false;
-        }
-        return GdInterop.HasDictionary(source, key);
+        return TryGetValue(source, key, out Variant value)
+            && value.VariantType == Variant.Type.Dictionary;
     }
 
     private void _append_invalid_skill_errors(
@@ -2084,23 +2081,108 @@ public partial class ProgressionContentRegistry : RefCounted, IValidatableRegist
     private static GDictionary GetDictionary(GDictionary source, string key)
     {
         if (
-            source == null
-            || !source.ContainsKey(key)
-            || !HasDictionary(source, key)
+            !TryGetValue(source, key, out Variant value)
+            || value.VariantType != Variant.Type.Dictionary
         )
         {
             return new GDictionary();
         }
-        return GdInterop.GetDictionary(source, key);
+        return value.AsGodotDictionary();
     }
 
     private static T GetObject<T>(GDictionary source, StringName key)
         where T : class
     {
-        if (source == null || !source.ContainsKey(key))
+        if (
+            !TryGetValue(source, key, out Variant value)
+            || value.VariantType != Variant.Type.Object
+        )
         {
             return null;
         }
-        return GdInterop.GetObject(source, key) as T;
+        return value.AsGodotObject() as T;
+    }
+
+    private static IEnumerable<T> ReadObjectItems<T>(GArray values)
+        where T : class
+    {
+        if (values == null)
+        {
+            yield break;
+        }
+        foreach (Variant value in values)
+        {
+            if (value.VariantType == Variant.Type.Object && value.AsGodotObject() is T typedValue)
+            {
+                yield return typedValue;
+            }
+        }
+    }
+
+    private static IEnumerable<GDictionary> ReadDictionaryItems(GArray values)
+    {
+        if (values == null)
+        {
+            yield break;
+        }
+        foreach (Variant value in values)
+        {
+            if (value.VariantType == Variant.Type.Dictionary)
+            {
+                yield return value.AsGodotDictionary();
+            }
+        }
+    }
+
+    private static bool TryGetValue(GDictionary source, object key, out Variant value)
+    {
+        if (source == null)
+        {
+            value = default;
+            return false;
+        }
+        Variant variantKey = ToVariantKey(key);
+        if (source.ContainsKey(variantKey))
+        {
+            value = source[variantKey];
+            return true;
+        }
+        if (key is StringName stringNameKey)
+        {
+            string keyText = stringNameKey.ToString();
+            if (source.ContainsKey(keyText))
+            {
+                value = source[keyText];
+                return true;
+            }
+        }
+        else if (key is string stringKey)
+        {
+            var stringName = new StringName(stringKey);
+            if (source.ContainsKey(stringName))
+            {
+                value = source[stringName];
+                return true;
+            }
+        }
+        value = default;
+        return false;
+    }
+
+    private static Variant ToVariantKey(object key)
+    {
+        return key switch
+        {
+            Variant variant => variant,
+            StringName stringName => Variant.From(stringName),
+            string text => Variant.From(text),
+            int intValue => Variant.From(intValue),
+            long longValue => Variant.From(longValue),
+            float floatValue => Variant.From(floatValue),
+            double doubleValue => Variant.From(doubleValue),
+            bool boolValue => Variant.From(boolValue),
+            Vector2I coord => Variant.From(coord),
+            _ => Variant.From(key?.ToString() ?? ""),
+        };
     }
 }

@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using static GdInterop;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
@@ -25,118 +24,6 @@ public partial class BattleAiScoreService
         public List<DamageEstimateBreakdown> DamageEstimates = new();
     }
 
-    private sealed class TargetNumericSummaryEntry
-    {
-        private GDictionary TracePayload = new();
-
-        public Vector2I CandidateAnchorCoord = new(-1, -1);
-        public StringName TargetUnitId = "";
-        public StringName AllyUnitId = "";
-        public StringName TargetFactionId = "";
-        public bool IsAlly;
-        public int DistanceFromAnchor = -1;
-        public int ComponentExpectedDamage;
-        public int ComponentWorstCaseDamage;
-        public int LethalProbabilityPercent;
-        public int StatusEffectCount;
-        public int ApPenalty;
-        public int ExpectedDamageHpPercent;
-        public int WorstCaseDamageHpPercent;
-        public bool HardReject;
-        public List<ComponentBreakdownEntry> ComponentBreakdown = new();
-        public HostileTerrainConsequence HostileTerrain = new();
-
-        public bool HasCenterDirect
-        {
-            get
-            {
-                foreach (ComponentBreakdownEntry component in ComponentBreakdown)
-                {
-                    if (component.ComponentId == "center_direct")
-                    {
-                        return true;
-                    }
-                }
-                return false;
-            }
-        }
-
-        public GDictionary ToTraceDictionary()
-        {
-            return TracePayload?.Duplicate(true) ?? new GDictionary();
-        }
-
-        public static TargetNumericSummaryEntry FromDictionary(GDictionary source)
-        {
-            source ??= new GDictionary();
-            return new TargetNumericSummaryEntry
-            {
-                TracePayload = source.Duplicate(true),
-                CandidateAnchorCoord = DictVector2I(
-                    source,
-                    "candidate_anchor_coord",
-                    new Vector2I(-1, -1)
-                ),
-                TargetUnitId = DictStringName(
-                    source,
-                    "target_unit_id",
-                    DictStringName(source, "ally_unit_id", "")
-                ),
-                AllyUnitId = DictStringName(source, "ally_unit_id", ""),
-                TargetFactionId = DictStringName(source, "target_faction_id", ""),
-                IsAlly = DictBool(source, "is_ally", false),
-                DistanceFromAnchor = DictInt(source, "distance_from_anchor", -1),
-                ComponentExpectedDamage = Math.Max(
-                    DictInt(source, "component_expected_damage", 0),
-                    0
-                ),
-                ComponentWorstCaseDamage = Math.Max(
-                    DictInt(source, "component_worst_case_damage", 0),
-                    0
-                ),
-                LethalProbabilityPercent = DictInt(source, "lethal_probability_percent", 0),
-                StatusEffectCount = CountStringNameArray(source, "status_effect_ids"),
-                ApPenalty = DictInt(source, "ap_penalty", 0),
-                ExpectedDamageHpPercent = DictInt(source, "expected_damage_hp_percent", 0),
-                WorstCaseDamageHpPercent = DictInt(source, "worst_case_damage_hp_percent", 0),
-                HardReject = DictBool(source, "hard_reject", false),
-                ComponentBreakdown = ReadComponentBreakdown(source),
-                HostileTerrain = HostileTerrainConsequence.FromDictionary(
-                    DictDictionary(source, "hostile_terrain_consequence", new GDictionary())
-                ),
-            };
-        }
-    }
-
-    private sealed class HostileTerrainConsequence
-    {
-        public int MoveCostDelta;
-        public bool CreatesDust;
-        public bool CreatesCrater;
-        public bool CreatesRubble;
-
-        public bool HasProtectedAllyConsequence =>
-            MoveCostDelta > 0 || CreatesDust || CreatesCrater || CreatesRubble;
-
-        public static HostileTerrainConsequence FromDictionary(GDictionary source)
-        {
-            source ??= new GDictionary();
-            return new HostileTerrainConsequence
-            {
-                MoveCostDelta = DictInt(source, "move_cost_delta", 0),
-                CreatesDust = DictBool(source, "creates_dust", false),
-                CreatesCrater = DictBool(source, "creates_crater", false),
-                CreatesRubble = DictBool(source, "creates_rubble", false),
-            };
-        }
-    }
-
-    private sealed class ComponentBreakdownEntry
-    {
-        public StringName ComponentId = "";
-        public int ExpectedDamage;
-    }
-
     private sealed class TargetRoleSummary
     {
         public int HealSkillCount;
@@ -150,9 +37,29 @@ public partial class BattleAiScoreService
             || BestRangedAttackRange >= MinRangedThreatRange;
     }
 
+    private readonly record struct ChainDamageParameters(
+        int BaseRadius,
+        StringName BonusTerrainEffectId,
+        int WetChainRadius,
+        bool PreventRepeatTarget
+    )
+    {
+        public static ChainDamageParameters FromEffect(CombatEffectDef effectDef)
+        {
+            GDictionary parameters = GetEffectParams(effectDef);
+            int baseRadius = Math.Max(DictInt(parameters, "base_chain_radius", 1), 0);
+            return new ChainDamageParameters(
+                baseRadius,
+                DictStringName(parameters, "bonus_terrain_effect_id", ""),
+                Math.Max(DictInt(parameters, "wet_chain_radius", baseRadius), baseRadius),
+                effectDef?.prevent_repeat_target ?? true
+            );
+        }
+    }
+
     private StringName ResolveMeteorUseCase(
         BattleAiScoreInput scoreInput,
-        IReadOnlyList<TargetNumericSummaryEntry> targetSummaries
+        IReadOnlyList<MeteorSwarmNumericSummary> targetSummaries
     )
     {
         if (scoreInput == null)
@@ -185,7 +92,7 @@ public partial class BattleAiScoreService
         BattleAiScoreInput scoreInput,
         IBattleAiScoreContext context,
         BattleUnitState targetUnit,
-        TargetNumericSummaryEntry summary,
+        MeteorSwarmNumericSummary summary,
         int targetPriorityScore
     )
     {
@@ -210,7 +117,7 @@ public partial class BattleAiScoreService
     private GArray ResolveMeteorHighPriorityReasons(
         IBattleAiScoreContext context,
         BattleUnitState targetUnit,
-        TargetNumericSummaryEntry summary,
+        MeteorSwarmNumericSummary summary,
         int targetPriorityScore
     )
     {
@@ -233,7 +140,7 @@ public partial class BattleAiScoreService
             reasons.Add("role_threat_multiplier");
         }
         int centerDirectExpected = ResolveComponentExpectedDamage(
-            summary.ComponentBreakdown,
+            summary.Components,
             "center_direct"
         );
         int maxHp = GetUnitMaxHp(targetUnit);
@@ -260,11 +167,14 @@ public partial class BattleAiScoreService
     }
 
     private static int ResolveComponentExpectedDamage(
-        IEnumerable<ComponentBreakdownEntry> components,
+        IEnumerable<MeteorSwarmComponentBreakdownEntry> components,
         StringName componentId
     )
     {
-        foreach (ComponentBreakdownEntry component in components ?? System.Array.Empty<ComponentBreakdownEntry>())
+        foreach (
+            MeteorSwarmComponentBreakdownEntry component in components
+                ?? System.Array.Empty<MeteorSwarmComponentBreakdownEntry>()
+        )
         {
             if (component.ComponentId == componentId)
             {
@@ -403,7 +313,7 @@ public partial class BattleAiScoreService
 
     private static bool HasMeteorDecapitationTarget(
         BattleAiScoreInput scoreInput,
-        IReadOnlyList<TargetNumericSummaryEntry> targetSummaries
+        IReadOnlyList<MeteorSwarmNumericSummary> targetSummaries
     )
     {
         if (
@@ -415,7 +325,7 @@ public partial class BattleAiScoreService
         {
             return false;
         }
-        foreach (TargetNumericSummaryEntry summary in targetSummaries)
+        foreach (MeteorSwarmNumericSummary summary in targetSummaries)
         {
             if (!summary.HasCenterDirect)
             {
@@ -429,81 +339,58 @@ public partial class BattleAiScoreService
         return false;
     }
 
-    private static List<TargetNumericSummaryEntry> ReadTargetNumericSummaries(
+    private static List<MeteorSwarmNumericSummary> ReadTargetNumericSummaries(
         BattleSpecialProfilePreviewFacts facts
     )
     {
         if (facts is not MeteorSwarmPreviewFacts meteorFacts)
         {
-            return new List<TargetNumericSummaryEntry>();
+            return new List<MeteorSwarmNumericSummary>();
+        }
+        if (meteorFacts.target_numeric_summaries.Count > 0)
+        {
+            return new List<MeteorSwarmNumericSummary>(meteorFacts.target_numeric_summaries);
         }
         return ReadTargetNumericSummaries(meteorFacts.target_numeric_summary);
     }
 
-    private static List<TargetNumericSummaryEntry> ReadTargetNumericSummaries(
+    private static List<MeteorSwarmNumericSummary> ReadTargetNumericSummaries(
         IEnumerable<GDictionary> summaries
     )
     {
-        var result = new List<TargetNumericSummaryEntry>();
+        var result = new List<MeteorSwarmNumericSummary>();
         foreach (GDictionary summary in summaries ?? System.Array.Empty<GDictionary>())
         {
             if (summary == null)
             {
                 continue;
             }
-            result.Add(TargetNumericSummaryEntry.FromDictionary(summary));
+            result.Add(MeteorSwarmNumericSummary.FromDictionary(summary));
         }
         return result;
     }
 
     private static GArray TargetNumericSummariesToArray(
-        IEnumerable<TargetNumericSummaryEntry> summaries
+        IEnumerable<MeteorSwarmNumericSummary> summaries
     )
     {
         var result = new GArray();
         foreach (
-            TargetNumericSummaryEntry summary in summaries
-                ?? System.Array.Empty<TargetNumericSummaryEntry>()
+            MeteorSwarmNumericSummary summary in summaries
+                ?? System.Array.Empty<MeteorSwarmNumericSummary>()
         )
         {
             if (summary != null)
             {
-                result.Add(summary.ToTraceDictionary());
+                result.Add(summary.ToDictionary());
             }
-        }
-        return result;
-    }
-
-    private static int CountStringNameArray(GDictionary source, string key)
-    {
-        int count = 0;
-        foreach (string _ in ReadStringItems(DictArray(source, key, new GArray())))
-        {
-            count += 1;
-        }
-        return count;
-    }
-
-    private static List<ComponentBreakdownEntry> ReadComponentBreakdown(GDictionary summary)
-    {
-        var result = new List<ComponentBreakdownEntry>();
-        GArray componentBreakdown = DictArray(summary, "component_breakdown", new GArray());
-        foreach (GDictionary component in ReadDictionaryItems(componentBreakdown))
-        {
-            result.Add(
-                new ComponentBreakdownEntry
-                {
-                    ComponentId = DictStringName(component, "component_id", ""),
-                    ExpectedDamage = DictInt(component, "expected_damage", 0),
-                }
-            );
         }
         return result;
     }
 
     private static bool HasMeteorZoneDenial(
         BattleAiScoreInput scoreInput,
-        IReadOnlyList<TargetNumericSummaryEntry> targetSummaries
+        IReadOnlyList<MeteorSwarmNumericSummary> targetSummaries
     )
     {
         if (scoreInput == null || scoreInput.estimated_terrain_effect_count <= 0)
@@ -517,7 +404,7 @@ public partial class BattleAiScoreService
 
     private string ResolveMeteorFriendlyFireRejectReason(
         BattleUnitState targetUnit,
-        TargetNumericSummaryEntry summary,
+        MeteorSwarmNumericSummary summary,
         int estimatedDamage,
         int worstCaseDamage,
         int statusCount
@@ -576,8 +463,8 @@ public partial class BattleAiScoreService
             return false;
         }
         if (
-            DictBool(targetUnit.ai_blackboard, "meteor_protected_ally", false)
-            || DictBool(targetUnit.ai_blackboard, "protected_ally", false)
+            targetUnit.ai_blackboard?.meteor_protected_ally == true
+            || targetUnit.ai_blackboard?.protected_ally == true
         )
         {
             return true;
@@ -587,7 +474,7 @@ public partial class BattleAiScoreService
     }
 
     private static bool MeteorSummaryHasAnyProtectedAllyConsequence(
-        TargetNumericSummaryEntry summary,
+        MeteorSwarmNumericSummary summary,
         int estimatedDamage,
         int worstCaseDamage,
         int statusCount
@@ -1137,13 +1024,12 @@ public partial class BattleAiScoreService
         {
             return targets;
         }
-        int maxRadius = ResolveChainDamageRadius(context, primaryTarget, chainEffect);
+        ChainDamageParameters chainParameters = ChainDamageParameters.FromEffect(chainEffect);
+        int maxRadius = ResolveChainDamageRadius(context, primaryTarget, chainParameters);
         if (maxRadius <= 0)
         {
             return targets;
         }
-        GDictionary chainParams = GetEffectParams(chainEffect);
-        bool preventRepeatTarget = DictBool(chainParams, "prevent_repeat_target", true);
         StringName targetFilter = ResolveEffectTargetFilter(skillDef, chainEffect);
         var visited = new HashSet<StringName> { primaryTarget.unit_id };
         var queue = new Queue<BattleUnitState>();
@@ -1157,7 +1043,7 @@ public partial class BattleAiScoreService
                 {
                     continue;
                 }
-                if (preventRepeatTarget && visited.Contains(candidate.unit_id))
+                if (chainParameters.PreventRepeatTarget && visited.Contains(candidate.unit_id))
                 {
                     continue;
                 }
@@ -1204,20 +1090,21 @@ public partial class BattleAiScoreService
     private int ResolveChainDamageRadius(
         IBattleAiScoreContext context,
         BattleUnitState primaryTarget,
-        CombatEffectDef chainEffect
+        ChainDamageParameters chainParameters
     )
     {
-        GDictionary chainParams = GetEffectParams(chainEffect);
-        int baseRadius = Math.Max(DictInt(chainParams, "base_chain_radius", 1), 0);
-        StringName bonusEffectId = DictStringName(chainParams, "bonus_terrain_effect_id", "");
         if (
-            !IsEmpty(bonusEffectId)
-            && UnitStandsOnTerrainEffect(context, primaryTarget, bonusEffectId)
+            !IsEmpty(chainParameters.BonusTerrainEffectId)
+            && UnitStandsOnTerrainEffect(
+                context,
+                primaryTarget,
+                chainParameters.BonusTerrainEffectId
+            )
         )
         {
-            return Math.Max(DictInt(chainParams, "wet_chain_radius", baseRadius), baseRadius);
+            return chainParameters.WetChainRadius;
         }
-        return baseRadius;
+        return chainParameters.BaseRadius;
     }
 
     private static bool UnitStandsOnTerrainEffect(

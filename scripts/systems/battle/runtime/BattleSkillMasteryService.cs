@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GCombatEffectArray = Godot.Collections.Array<CombatEffectDef>;
@@ -23,7 +24,7 @@ public partial class BattleSkillMasteryService : RefCounted
     private static readonly StringName HpMax = "hp_max";
     private static readonly StringName StaminaMax = "stamina_max";
 
-    private readonly GArray _resolutionEvents = new();
+    private readonly List<SkillMasteryResolutionEvent> _resolutionEvents = new();
 
     public void Clear()
     {
@@ -44,20 +45,20 @@ public partial class BattleSkillMasteryService : RefCounted
             return;
         if (sourceUnit.source_member_id == "")
             return;
-        if (!_IsSkillMasteryQualifyingResult(result, skillDef))
+        var resultSnapshot = SkillMasteryResultSnapshot.FromDictionary(result);
+        if (!_IsSkillMasteryQualifyingResult(resultSnapshot, skillDef))
             return;
         int amount = _ResolveSkillMasteryTargetAmount(sourceUnit, targetUnit, skillDef);
         if (amount <= 0)
             return;
         _resolutionEvents.Add(
-            new GDictionary
-            {
-                ["target_unit_id"] = targetUnit.unit_id,
-                ["amount"] = amount,
-                ["critical_hit"] = result.GetValueOrDefault("critical_hit", false).AsBool(),
-                ["skill_damage_dice_is_max"] = _ResultHasSkillDamageDieEvent(result),
-                ["weapon_damage_dice_is_max"] = _ResultHasWeaponDiceMaxEvent(result),
-            }
+            SkillMasteryResolutionEvent.ForTargetResult(
+                targetUnit.unit_id,
+                amount,
+                resultSnapshot.CriticalHit,
+                resultSnapshot.HasSkillDamageDieEvent,
+                resultSnapshot.HasWeaponDiceMaxEvent
+            )
         );
     }
 
@@ -79,14 +80,13 @@ public partial class BattleSkillMasteryService : RefCounted
         if (amount <= 0)
             return;
         _resolutionEvents.Add(
-            new GDictionary
-            {
-                ["target_unit_id"] = targetUnit.unit_id,
-                ["amount"] = amount,
-                ["critical_hit"] = result.CriticalHit,
-                ["skill_damage_dice_is_max"] = _ResultHasSkillDamageDieEvent(result),
-                ["weapon_damage_dice_is_max"] = _ResultHasWeaponDiceMaxEvent(result),
-            }
+            SkillMasteryResolutionEvent.ForTargetResult(
+                targetUnit.unit_id,
+                amount,
+                result.CriticalHit,
+                _ResultHasSkillDamageDieEvent(result),
+                _ResultHasWeaponDiceMaxEvent(result)
+            )
         );
     }
 
@@ -115,7 +115,7 @@ public partial class BattleSkillMasteryService : RefCounted
         if (amount <= 0)
             return;
         _resolutionEvents.Add(
-            new GDictionary { ["skill_id"] = skillDef.skill_id, ["amount"] = amount }
+            SkillMasteryResolutionEvent.ForSkillAmount(skillDef.skill_id, amount)
         );
     }
 
@@ -134,7 +134,7 @@ public partial class BattleSkillMasteryService : RefCounted
         if (skillDef == null || amount <= 0)
             return;
         _resolutionEvents.Add(
-            new GDictionary { ["skill_id"] = skillDef.skill_id, ["amount"] = amount }
+            SkillMasteryResolutionEvent.ForSkillAmount(skillDef.skill_id, amount)
         );
     }
 
@@ -146,14 +146,9 @@ public partial class BattleSkillMasteryService : RefCounted
     public int ResolveActiveSkillMasteryAmount()
     {
         int total = 0;
-        foreach (var eventValue in _resolutionEvents)
+        foreach (var resolutionEvent in _resolutionEvents)
         {
-            if (eventValue.VariantType != Variant.Type.Dictionary)
-                continue;
-            total += Mathf.Max(
-                eventValue.AsGodotDictionary().GetValueOrDefault("amount", 0).AsInt32(),
-                0
-            );
+            total += Mathf.Max(resolutionEvent.Amount, 0);
         }
         return total;
     }
@@ -204,38 +199,79 @@ public partial class BattleSkillMasteryService : RefCounted
     {
         if (sourceUnit == null || targetUnit == null || result == null)
             return new GDictionary();
+        BattleSkillMasteryGrant grant = BuildVajraBodyMasteryGrantTyped(
+            sourceUnit,
+            targetUnit,
+            skillDef,
+            SkillMasteryResultSnapshot.FromDictionary(result),
+            skillDefs
+        );
+        return grant?.ToDictionary() ?? new GDictionary();
+    }
+
+    internal BattleSkillMasteryGrant BuildVajraBodyMasteryGrantTyped(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        SkillDef skillDef,
+        AttackEffectResolutionResult result,
+        GDictionary skillDefs
+    )
+    {
+        return BuildVajraBodyMasteryGrantTyped(
+            sourceUnit,
+            targetUnit,
+            skillDef,
+            SkillMasteryResultSnapshot.FromResult(result),
+            skillDefs
+        );
+    }
+
+    private BattleSkillMasteryGrant BuildVajraBodyMasteryGrantTyped(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        SkillDef skillDef,
+        SkillMasteryResultSnapshot resultSnapshot,
+        GDictionary skillDefs
+    )
+    {
+        if (sourceUnit == null || targetUnit == null)
+            return null;
         if (targetUnit.source_member_id == "" || !targetUnit.is_alive)
-            return new GDictionary();
+            return null;
         if (sourceUnit.faction_id.ToString() == targetUnit.faction_id.ToString())
-            return new GDictionary();
+            return null;
         var statusEntry = targetUnit.get_status_effect(StatusVajraBody);
         if (statusEntry == null)
-            return new GDictionary();
-        var masterySourceIds = _CollectVajraBodyMasterySourceIds(sourceUnit, skillDef, result);
+            return null;
+        var masterySourceIds = _CollectVajraBodyMasterySourceIds(
+            sourceUnit,
+            skillDef,
+            resultSnapshot
+        );
         var masterySourceId = _ResolveFirstAllowedSkillMasterySource(
             VajraBodySkillId,
             masterySourceIds,
             skillDefs
         );
         if (masterySourceId == "")
-            return new GDictionary();
-        int qualifyingHits = _CountVajraBodyMasteryHits(result);
+            return null;
+        int qualifyingHits = resultSnapshot.CountVajraBodyMasteryHits;
         if (qualifyingHits <= 0)
-            return new GDictionary();
+            return null;
         int multiplier = _ResolveVajraBodyMasteryMultiplier(sourceUnit, targetUnit);
         int masteryAmount = qualifyingHits * multiplier;
         if (masteryAmount <= 0)
-            return new GDictionary();
-        return new GDictionary
+            return null;
+        return new BattleSkillMasteryGrant
         {
-            ["member_id"] = targetUnit.source_member_id,
-            ["skill_id"] = VajraBodySkillId,
-            ["amount"] = masteryAmount,
-            ["source_type"] = masterySourceId,
-            ["source_label"] = "战斗受击",
-            ["reason_text"] = "金刚不坏：承受重击或高威胁命中",
-            ["allow_unlocks"] = true,
-            ["record_near_death_unbroken_manual"] = _IsVajraBodyLowHpTrainingWindow(targetUnit),
+            MemberId = targetUnit.source_member_id,
+            SkillId = VajraBodySkillId,
+            Amount = masteryAmount,
+            SourceType = masterySourceId,
+            SourceLabel = "战斗受击",
+            ReasonText = "金刚不坏：承受重击或高威胁命中",
+            AllowUnlocks = true,
+            RecordNearDeathUnbrokenManual = _IsVajraBodyLowHpTrainingWindow(targetUnit),
         };
     }
 
@@ -272,9 +308,10 @@ public partial class BattleSkillMasteryService : RefCounted
             return new GDictionary();
         if (!_EffectDefsHavePhysicalDamage(effectDefs))
             return new GDictionary();
-        if (!result.GetValueOrDefault("attack_success", false).AsBool())
+        var resultSnapshot = SkillMasteryResultSnapshot.FromDictionary(result);
+        if (!resultSnapshot.AttackSuccess)
             return new GDictionary();
-        if (result.GetValueOrDefault("damage", 0).AsInt32() <= 0)
+        if (resultSnapshot.Damage <= 0)
             return new GDictionary();
         var guardDef = skillDefs.GetValueOrDefault(WarriorGuardSkillId, default).As<SkillDef>();
         if (guardDef == null)
@@ -293,6 +330,51 @@ public partial class BattleSkillMasteryService : RefCounted
             ["source_label"] = "战斗",
             ["reason_text"] = "",
             ["allow_unlocks"] = true,
+        };
+    }
+
+    internal BattleSkillMasteryGrant BuildGuardMasteryGrantFromIncomingHitTyped(
+        BattleUnitState attackerUnit,
+        BattleUnitState targetUnit,
+        GCombatEffectArray effectDefs,
+        AttackEffectResolutionResult result,
+        GDictionary skillDefs
+    )
+    {
+        if (
+            attackerUnit == null
+            || targetUnit == null
+            || effectDefs == null
+            || effectDefs.Count == 0
+        )
+            return null;
+        if (targetUnit.source_member_id == "")
+            return null;
+        if (!targetUnit.status_effects.ContainsKey("guarding"))
+            return null;
+        if (!_EffectDefsHavePhysicalDamage(effectDefs))
+            return null;
+        if (!result.AttackSuccess)
+            return null;
+        if (result.Damage <= 0)
+            return null;
+        var guardDef = skillDefs.GetValueOrDefault(WarriorGuardSkillId, default).As<SkillDef>();
+        if (guardDef == null)
+            return null;
+        if (_GetSkillMasteryTriggerMode(guardDef) != "incoming_physical_hit")
+            return null;
+        int amount = _ResolveIncomingSkillMasterySourceAmount(attackerUnit, targetUnit, guardDef);
+        if (amount <= 0)
+            return null;
+        return new BattleSkillMasteryGrant
+        {
+            MemberId = targetUnit.source_member_id,
+            SkillId = WarriorGuardSkillId,
+            Amount = amount,
+            SourceType = "battle",
+            SourceLabel = "战斗",
+            ReasonText = "",
+            AllowUnlocks = true,
         };
     }
 
@@ -370,37 +452,35 @@ public partial class BattleSkillMasteryService : RefCounted
         return ResolveBattleRatingMasteryAmount(score);
     }
 
-    private bool _IsSkillMasteryQualifyingResult(GDictionary result, SkillDef skillDef)
+    private bool _IsSkillMasteryQualifyingResult(
+        SkillMasteryResultSnapshot result,
+        SkillDef skillDef
+    )
     {
-        if (result == null || result.Count == 0)
-            return false;
         var triggerMode = _GetSkillMasteryTriggerMode(skillDef);
         switch ((string)triggerMode)
         {
             case "weapon_attack_quality":
-                return result.GetValueOrDefault("attack_success", false).AsBool()
-                    && (
-                        result.GetValueOrDefault("critical_hit", false).AsBool()
-                        || _ResultHasWeaponDiceMaxEvent(result)
-                    );
+                return result.AttackSuccess
+                    && (result.CriticalHit || result.HasWeaponDiceMaxEvent);
             case "damage_dealt":
-                return _ResultHasEffectiveDamageOrAbsorb(result);
+                return result.HasEffectiveDamageOrAbsorb;
             case "status_applied":
-                return _ResultHasStatusApplied(result);
+                return result.HasStatusApplied;
             case "effect_applied":
-                return result.GetValueOrDefault("applied", false).AsBool();
+                return result.Applied;
             case "incoming_physical_hit":
                 return false;
             case "secondary_hit":
-                return result.GetValueOrDefault("secondary_hit_success", false).AsBool();
+                return result.SecondaryHitSuccess;
             case "skill_damage_dice_max":
-                if (!_ResultHasEffectiveDamageOrAbsorb(result))
+                if (!result.HasEffectiveDamageOrAbsorb)
                     return false;
-                return _ResultHasSkillDamageDieEvent(result);
+                return result.HasSkillDamageDieEvent;
             default:
-                if (!_ResultHasEffectiveDamageOrAbsorb(result))
+                if (!result.HasEffectiveDamageOrAbsorb)
                     return false;
-                return _ResultHasSkillDamageDieEvent(result);
+                return result.HasSkillDamageDieEvent;
         }
     }
 
@@ -462,48 +542,14 @@ public partial class BattleSkillMasteryService : RefCounted
         return amountMode;
     }
 
-    private bool _ResultHasEffectiveDamageOrAbsorb(GDictionary result)
-    {
-        return result.GetValueOrDefault("damage", 0).AsInt32() > 0
-            || result.GetValueOrDefault("shield_absorbed", 0).AsInt32() > 0;
-    }
-
     private bool _ResultHasEffectiveDamageOrAbsorb(AttackEffectResolutionResult result)
     {
         return result.Damage > 0 || result.ShieldAbsorbed > 0;
     }
 
-    private bool _ResultHasStatusApplied(GDictionary result)
-    {
-        var statusEffectIds = result.GetValueOrDefault("status_effect_ids", new GArray());
-        return statusEffectIds.VariantType == Variant.Type.Array
-            && statusEffectIds.AsGodotArray().Count > 0;
-    }
-
     private bool _ResultHasStatusApplied(AttackEffectResolutionResult result)
     {
         return result.StatusEffectIds != null && result.StatusEffectIds.Count > 0;
-    }
-
-    private bool _ResultHasSkillDamageDieEvent(GDictionary result)
-    {
-        if (result.GetValueOrDefault("skill_damage_dice_is_max", false).AsBool())
-            return true;
-        var damageEvents = result.GetValueOrDefault("damage_events", new GArray());
-        if (damageEvents.VariantType != Variant.Type.Array)
-            return false;
-        foreach (var eventValue in damageEvents.AsGodotArray())
-        {
-            if (
-                eventValue.VariantType == Variant.Type.Dictionary
-                && eventValue
-                    .AsGodotDictionary()
-                    .GetValueOrDefault("skill_damage_dice_is_max", false)
-                    .AsBool()
-            )
-                return true;
-        }
-        return false;
     }
 
     private bool _ResultHasSkillDamageDieEvent(AttackEffectResolutionResult result)
@@ -513,27 +559,6 @@ public partial class BattleSkillMasteryService : RefCounted
         foreach (DamageEventResult damageEvent in result.DamageEvents ?? System.Array.Empty<DamageEventResult>())
         {
             if (damageEvent.SkillDamageDiceIsMax)
-                return true;
-        }
-        return false;
-    }
-
-    private bool _ResultHasWeaponDiceMaxEvent(GDictionary result)
-    {
-        var damageEvents = result.GetValueOrDefault("damage_events", new GArray());
-        if (damageEvents.VariantType != Variant.Type.Array)
-            return false;
-        foreach (var eventValue in damageEvents.AsGodotArray())
-        {
-            if (eventValue.VariantType != Variant.Type.Dictionary)
-                continue;
-            var evt = eventValue.AsGodotDictionary();
-            if (
-                evt.GetValueOrDefault("weapon_damage_dice_is_max", false).AsBool()
-                && ProgressionDataUtils.to_string_name(
-                    evt.GetValueOrDefault("weapon_damage_dice_is_max_reason", "")
-                ) == "weapon_dice_max"
-            )
                 return true;
         }
         return false;
@@ -569,14 +594,27 @@ public partial class BattleSkillMasteryService : RefCounted
         return false;
     }
 
+    private bool _EffectDefsHavePhysicalDamage(GCombatEffectArray effectDefs)
+    {
+        foreach (CombatEffectDef effectDef in effectDefs ?? new GCombatEffectArray())
+        {
+            if (effectDef == null || effectDef.effect_type != "damage")
+                continue;
+            var tag = ProgressionDataUtils.to_string_name(effectDef.damage_tag);
+            if (tag == "physical_slash" || tag == "physical_pierce" || tag == "physical_blunt")
+                return true;
+        }
+        return false;
+    }
+
     private GArray _CollectVajraBodyMasterySourceIds(
         BattleUnitState sourceUnit,
         SkillDef skillDef,
-        GDictionary result
+        SkillMasteryResultSnapshot result
     )
     {
         var sourceIds = new GArray();
-        if (!_ResultHasVajraBodyMasteryEvent(result))
+        if (!result.HasVajraBodyMasteryEvent)
             return sourceIds;
         if (_IsVajraBodyHeavyHitSkill(skillDef))
             sourceIds.Add(MasterySourceHeavyHitTaken);
@@ -610,47 +648,6 @@ public partial class BattleSkillMasteryService : RefCounted
                 return sourceId;
         }
         return "";
-    }
-
-    private int _CountVajraBodyMasteryHits(GDictionary result)
-    {
-        var damageEvents = result.GetValueOrDefault("damage_events", new GArray());
-        if (damageEvents.VariantType != Variant.Type.Array)
-            return 0;
-        int count = 0;
-        foreach (var eventValue in damageEvents.AsGodotArray())
-        {
-            if (eventValue.VariantType != Variant.Type.Dictionary)
-                continue;
-            var evt = eventValue.AsGodotDictionary();
-            if (_IsVajraBodyMasteryEvent(evt))
-                count++;
-        }
-        return count;
-    }
-
-    private bool _ResultHasVajraBodyMasteryEvent(GDictionary result)
-    {
-        if (result == null)
-            return false;
-        var damageEvents = result.GetValueOrDefault("damage_events", new GArray());
-        if (damageEvents.VariantType != Variant.Type.Array)
-            return false;
-        foreach (var eventValue in damageEvents.AsGodotArray())
-        {
-            if (
-                eventValue.VariantType == Variant.Type.Dictionary
-                && _IsVajraBodyMasteryEvent(eventValue.AsGodotDictionary())
-            )
-                return true;
-        }
-        return false;
-    }
-
-    private bool _IsVajraBodyMasteryEvent(GDictionary evt)
-    {
-        return evt.GetValueOrDefault("damage_dice_high_total_roll", false).AsBool()
-            && evt.GetValueOrDefault("hp_damage", 0).AsInt32() > 0;
     }
 
     private bool _IsVajraBodyHeavyHitSkill(SkillDef skillDef)
@@ -818,4 +815,275 @@ public partial class BattleSkillMasteryService : RefCounted
             );
     }
 
+    private readonly struct SkillMasteryResultSnapshot
+    {
+        private readonly SkillMasteryDamageEventSnapshot[] _damageEvents;
+
+        public SkillMasteryResultSnapshot(
+            bool attackSuccess,
+            bool criticalHit,
+            bool applied,
+            bool secondaryHitSuccess,
+            int damage,
+            int shieldAbsorbed,
+            int statusEffectCount,
+            bool skillDamageDiceIsMax,
+            SkillMasteryDamageEventSnapshot[] damageEvents
+        )
+        {
+            AttackSuccess = attackSuccess;
+            CriticalHit = criticalHit;
+            Applied = applied;
+            SecondaryHitSuccess = secondaryHitSuccess;
+            Damage = damage;
+            ShieldAbsorbed = shieldAbsorbed;
+            StatusEffectCount = statusEffectCount;
+            SkillDamageDiceIsMax = skillDamageDiceIsMax;
+            _damageEvents = damageEvents ?? System.Array.Empty<SkillMasteryDamageEventSnapshot>();
+        }
+
+        public bool AttackSuccess { get; }
+        public bool CriticalHit { get; }
+        public bool Applied { get; }
+        public bool SecondaryHitSuccess { get; }
+        public int Damage { get; }
+        public int ShieldAbsorbed { get; }
+        public int StatusEffectCount { get; }
+        public bool SkillDamageDiceIsMax { get; }
+
+        public bool HasEffectiveDamageOrAbsorb => Damage > 0 || ShieldAbsorbed > 0;
+        public bool HasStatusApplied => StatusEffectCount > 0;
+
+        public bool HasSkillDamageDieEvent
+        {
+            get
+            {
+                if (SkillDamageDiceIsMax)
+                    return true;
+                foreach (var damageEvent in _damageEvents ?? System.Array.Empty<SkillMasteryDamageEventSnapshot>())
+                {
+                    if (damageEvent.SkillDamageDiceIsMax)
+                        return true;
+                }
+                return false;
+            }
+        }
+
+        public bool HasWeaponDiceMaxEvent
+        {
+            get
+            {
+                foreach (var damageEvent in _damageEvents ?? System.Array.Empty<SkillMasteryDamageEventSnapshot>())
+                {
+                    if (damageEvent.IsWeaponDiceMaxEvent)
+                        return true;
+                }
+                return false;
+            }
+        }
+
+        public bool HasVajraBodyMasteryEvent => CountVajraBodyMasteryHits > 0;
+
+        public int CountVajraBodyMasteryHits
+        {
+            get
+            {
+                int count = 0;
+                foreach (var damageEvent in _damageEvents ?? System.Array.Empty<SkillMasteryDamageEventSnapshot>())
+                {
+                    if (damageEvent.IsVajraBodyMasteryEvent)
+                        count++;
+                }
+                return count;
+            }
+        }
+
+        public static SkillMasteryResultSnapshot FromDictionary(GDictionary source)
+        {
+            if (source == null || source.Count == 0)
+                return new SkillMasteryResultSnapshot();
+            return new SkillMasteryResultSnapshot(
+                BooleanField(source, "attack_success"),
+                BooleanField(source, "critical_hit"),
+                BooleanField(source, "applied"),
+                BooleanField(source, "secondary_hit_success"),
+                IntegerField(source, "damage"),
+                IntegerField(source, "shield_absorbed"),
+                ArrayField(source, "status_effect_ids").Count,
+                BooleanField(source, "skill_damage_dice_is_max"),
+                ReadDamageEvents(source)
+            );
+        }
+
+        public static SkillMasteryResultSnapshot FromResult(
+            AttackEffectResolutionResult result
+        )
+        {
+            return new SkillMasteryResultSnapshot(
+                result.AttackSuccess,
+                result.CriticalHit,
+                result.Applied,
+                result.SecondaryHitSuccess,
+                result.Damage,
+                result.ShieldAbsorbed,
+                result.StatusEffectIds?.Count ?? 0,
+                result.SkillDamageDiceIsMax,
+                ReadDamageEvents(result)
+            );
+        }
+
+        private static SkillMasteryDamageEventSnapshot[] ReadDamageEvents(GDictionary source)
+        {
+            var damageEvents = ArrayField(source, "damage_events");
+            if (damageEvents.Count == 0)
+                return System.Array.Empty<SkillMasteryDamageEventSnapshot>();
+            var results = new System.Collections.Generic.List<SkillMasteryDamageEventSnapshot>();
+            foreach (var eventValue in damageEvents)
+            {
+                if (eventValue.VariantType != Variant.Type.Dictionary)
+                    continue;
+                var evt = eventValue.AsGodotDictionary();
+                results.Add(
+                    new SkillMasteryDamageEventSnapshot(
+                        BooleanField(evt, "damage_dice_high_total_roll"),
+                        BooleanField(evt, "skill_damage_dice_is_max"),
+                        BooleanField(evt, "weapon_damage_dice_is_max"),
+                        AttackEffectResolutionResultReader.ParseDamageDiceMaxReason(
+                            ProgressionDataUtils.to_string_name(
+                                evt.GetValueOrDefault("weapon_damage_dice_is_max_reason", "")
+                            )
+                        ),
+                        IntegerField(evt, "hp_damage")
+                    )
+                );
+            }
+            return results.ToArray();
+        }
+
+        private static SkillMasteryDamageEventSnapshot[] ReadDamageEvents(
+            AttackEffectResolutionResult result
+        )
+        {
+            if (result.DamageEvents == null || result.DamageEvents.Length == 0)
+                return System.Array.Empty<SkillMasteryDamageEventSnapshot>();
+            var results = new System.Collections.Generic.List<SkillMasteryDamageEventSnapshot>();
+            foreach (DamageEventResult damageEvent in result.DamageEvents)
+            {
+                results.Add(
+                    new SkillMasteryDamageEventSnapshot(
+                        damageEvent.DamageDiceHighTotalRoll,
+                        damageEvent.SkillDamageDiceIsMax,
+                        damageEvent.WeaponDamageDiceIsMax,
+                        damageEvent.WeaponDamageDiceIsMaxReason,
+                        damageEvent.HpDamage
+                    )
+                );
+            }
+            return results.ToArray();
+        }
+
+        private static bool BooleanField(GDictionary dictionary, string key)
+        {
+            if (dictionary == null || !dictionary.ContainsKey(key))
+                return false;
+            Variant value = dictionary[key];
+            return value.VariantType == Variant.Type.Bool && value.AsBool();
+        }
+
+        private static int IntegerField(GDictionary dictionary, string key)
+        {
+            if (dictionary == null || !dictionary.ContainsKey(key))
+                return 0;
+            Variant value = dictionary[key];
+            return value.VariantType == Variant.Type.Int ? value.AsInt32() : 0;
+        }
+
+        private static GArray ArrayField(GDictionary dictionary, string key)
+        {
+            if (dictionary == null || !dictionary.ContainsKey(key))
+                return new GArray();
+            Variant value = dictionary[key];
+            return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : new GArray();
+        }
+    }
+
+    private readonly struct SkillMasteryResolutionEvent
+    {
+        private SkillMasteryResolutionEvent(
+            StringName targetUnitId,
+            StringName skillId,
+            int amount,
+            bool criticalHit,
+            bool skillDamageDiceIsMax,
+            bool weaponDamageDiceIsMax
+        )
+        {
+            TargetUnitId = targetUnitId ?? "";
+            SkillId = skillId ?? "";
+            Amount = amount;
+            CriticalHit = criticalHit;
+            SkillDamageDiceIsMax = skillDamageDiceIsMax;
+            WeaponDamageDiceIsMax = weaponDamageDiceIsMax;
+        }
+
+        public StringName TargetUnitId { get; }
+        public StringName SkillId { get; }
+        public int Amount { get; }
+        public bool CriticalHit { get; }
+        public bool SkillDamageDiceIsMax { get; }
+        public bool WeaponDamageDiceIsMax { get; }
+
+        public static SkillMasteryResolutionEvent ForTargetResult(
+            StringName targetUnitId,
+            int amount,
+            bool criticalHit,
+            bool skillDamageDiceIsMax,
+            bool weaponDamageDiceIsMax
+        )
+        {
+            return new SkillMasteryResolutionEvent(
+                targetUnitId,
+                "",
+                amount,
+                criticalHit,
+                skillDamageDiceIsMax,
+                weaponDamageDiceIsMax
+            );
+        }
+
+        public static SkillMasteryResolutionEvent ForSkillAmount(StringName skillId, int amount)
+        {
+            return new SkillMasteryResolutionEvent("", skillId, amount, false, false, false);
+        }
+    }
+
+    private readonly struct SkillMasteryDamageEventSnapshot
+    {
+        public SkillMasteryDamageEventSnapshot(
+            bool damageDiceHighTotalRoll,
+            bool skillDamageDiceIsMax,
+            bool weaponDamageDiceIsMax,
+            DamageDiceMaxReasonKind weaponDamageDiceIsMaxReason,
+            int hpDamage
+        )
+        {
+            DamageDiceHighTotalRoll = damageDiceHighTotalRoll;
+            SkillDamageDiceIsMax = skillDamageDiceIsMax;
+            WeaponDamageDiceIsMax = weaponDamageDiceIsMax;
+            WeaponDamageDiceIsMaxReason = weaponDamageDiceIsMaxReason;
+            HpDamage = hpDamage;
+        }
+
+        public bool DamageDiceHighTotalRoll { get; }
+        public bool SkillDamageDiceIsMax { get; }
+        public bool WeaponDamageDiceIsMax { get; }
+        public DamageDiceMaxReasonKind WeaponDamageDiceIsMaxReason { get; }
+        public int HpDamage { get; }
+
+        public bool IsWeaponDiceMaxEvent =>
+            WeaponDamageDiceIsMax
+            && WeaponDamageDiceIsMaxReason == DamageDiceMaxReasonKind.WeaponDiceMax;
+
+        public bool IsVajraBodyMasteryEvent => DamageDiceHighTotalRoll && HpDamage > 0;
+    }
 }

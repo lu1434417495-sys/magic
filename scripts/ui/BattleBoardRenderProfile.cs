@@ -211,10 +211,10 @@ public partial class BattleBoardRenderProfile : RefCounted
     {
         foreach (GDictionary spec in source_specs)
         {
-            if (GdInterop.GetStringName(spec, "key") != sourceKey)
+            if (DictStringName(spec, "key") != sourceKey)
                 continue;
 
-            GArray files = GdInterop.GetArray(spec, "files");
+            GArray files = DictArray(spec, "files");
             if (files.Count > 0)
                 return files[0].AsString();
         }
@@ -363,5 +363,69 @@ public partial class BattleBoardRenderProfile : RefCounted
             ["visual_origin"] = Vector2I.Zero,
             ["allow_generated_fallback"] = true,
         };
+    }
+
+    private static StringName DictStringName(
+        GDictionary dict,
+        object key,
+        StringName fallback = default
+    )
+    {
+        if (!TryRead(dict, key, out Variant value))
+            return fallback ?? new StringName("");
+        return value.VariantType switch
+        {
+            Variant.Type.StringName => value.AsStringName(),
+            Variant.Type.String => new StringName(value.AsString()),
+            _ => fallback ?? new StringName(""),
+        };
+    }
+
+    private static GArray DictArray(GDictionary dict, object key)
+    {
+        return TryRead(dict, key, out Variant value) && value.VariantType == Variant.Type.Array
+            ? value.AsGodotArray()
+            : new GArray();
+    }
+
+    private static bool TryRead(GDictionary dict, object key, out Variant value)
+    {
+        if (dict == null)
+        {
+            value = default;
+            return false;
+        }
+        Variant variantKey = key switch
+        {
+            Variant rawKey => rawKey,
+            StringName stringNameKey => stringNameKey,
+            string stringKey => stringKey,
+            _ => default,
+        };
+        if (dict.ContainsKey(variantKey))
+        {
+            value = dict[variantKey];
+            return true;
+        }
+        if (key is StringName sourceKey)
+        {
+            string stringKey = sourceKey.ToString();
+            if (dict.ContainsKey(stringKey))
+            {
+                value = dict[stringKey];
+                return true;
+            }
+        }
+        else if (key is string stringKey)
+        {
+            StringName alternateStringNameKey = new(stringKey);
+            if (dict.ContainsKey(alternateStringNameKey))
+            {
+                value = dict[alternateStringNameKey];
+                return true;
+            }
+        }
+        value = default;
+        return false;
     }
 }

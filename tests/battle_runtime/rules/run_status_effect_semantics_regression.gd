@@ -274,7 +274,7 @@ func _test_refresh_timeline_statuses_keep_single_stack_and_max_duration() -> voi
 		second_effect.duration_tu = 15
 
 		_assert_true(BattleStatusSemanticTable.has_semantic(status_id), "%s 应注册正式状态语义。" % label)
-		var merged = BattleStatusSemanticTable.merge_status(first_effect, &"source_a")
+		var merged = BattleStatusSemanticTable.merge_status(first_effect, &"source_a", null)
 		merged = BattleStatusSemanticTable.merge_status(second_effect, &"source_b", merged)
 		_assert_true(merged != null, "%s 合并后应生成正式状态。" % label)
 		_assert_eq(int(merged.stacks) if merged != null else -1, 1, "%s 应按 refresh 语义保持单层。" % label)
@@ -324,7 +324,7 @@ func _test_status_duration_is_not_backfilled_from_semantic_defaults() -> void:
 	effect_def.status_id = &"pinned"
 	effect_def.power = 1
 
-	var merged = BattleStatusSemanticTable.merge_status(effect_def, &"source_unit")
+	var merged = BattleStatusSemanticTable.merge_status(effect_def, &"source_unit", null)
 	_assert_true(merged != null, "状态效果应能在缺少 duration_tu 时正常合并。")
 	_assert_true(merged != null and not merged.has_duration(), "缺少来源时长时，状态不应再从语义表回填默认 TU。")
 
@@ -338,7 +338,7 @@ func _test_status_params_duration_is_not_used_as_runtime_duration() -> void:
 		"duration": 15,
 	}
 
-	var merged = BattleStatusSemanticTable.merge_status(effect_def, &"source_unit")
+	var merged = BattleStatusSemanticTable.merge_status(effect_def, &"source_unit", null)
 	_assert_true(merged != null, "旧 params.duration 不应阻止状态对象合并。")
 	_assert_true(merged != null and not merged.has_duration(), "旧 params.duration 不应再恢复为状态剩余 TU。")
 
@@ -353,7 +353,7 @@ func _test_status_duration_tu_ignores_legacy_params_duration() -> void:
 		"duration": 90,
 	}
 
-	var merged = BattleStatusSemanticTable.merge_status(effect_def, &"source_unit")
+	var merged = BattleStatusSemanticTable.merge_status(effect_def, &"source_unit", null)
 	_assert_true(merged != null, "正式 duration_tu 应继续生成状态对象。")
 	_assert_eq(int(merged.duration) if merged != null else -1, 20, "正式 duration_tu 应生效，旧 params.duration 不应覆盖。")
 
@@ -636,7 +636,7 @@ func _apply_status(
 		effect_def.duration_tu = duration_tu
 	if tick_interval_tu > 0:
 		effect_def.tick_interval_tu = tick_interval_tu
-	var result := runtime._damage_resolver.resolve_effects(source_unit, target_unit, [effect_def])
+	var result = runtime._damage_resolver.resolve_effects(source_unit, target_unit, [effect_def])
 	runtime.mark_applied_statuses_for_turn_timing(target_unit, result.get("status_effect_ids", []))
 
 

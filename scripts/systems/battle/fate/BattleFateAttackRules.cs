@@ -59,36 +59,46 @@ public partial class BattleFateAttackRules : RefCounted
             if (statusEntry == null || statusEntry.@params == null)
                 continue;
 
-            if (_get_status_param_bool(statusEntry.@params, paramKey, false))
+            if (TryGetStatusParamBool(statusEntry.@params, paramKey, out bool boolValue) && boolValue)
                 return true;
         }
 
         return false;
     }
 
-    private bool _get_status_param_bool(
+    private static bool TryGetStatusParamBool(
         Godot.Collections.Dictionary @params,
         StringName paramKey,
-        bool fallback = false
+        out bool value
     )
     {
+        value = false;
         if (@params == null || paramKey == "")
-            return fallback;
+            return false;
 
         if (@params.ContainsKey(paramKey))
-            return @params[paramKey].AsBool();
+            return TryReadExactBool(@params[paramKey], out value);
 
         string paramName = (string)paramKey;
 
         if (@params.ContainsKey(paramName))
-            return @params[paramName].AsBool();
+            return TryReadExactBool(@params[paramName], out value);
 
         foreach (var keyValue in @params.Keys)
         {
             if (ProgressionDataUtils.to_string_name(keyValue) == paramKey)
-                return @params[keyValue].AsBool();
+                return TryReadExactBool(@params[keyValue], out value);
         }
 
-        return fallback;
+        return false;
+    }
+
+    private static bool TryReadExactBool(Variant rawValue, out bool value)
+    {
+        value = false;
+        if (rawValue.VariantType != Variant.Type.Bool)
+            return false;
+        value = rawValue.AsBool();
+        return true;
     }
 }

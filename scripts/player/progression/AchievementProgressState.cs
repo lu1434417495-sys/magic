@@ -8,6 +8,17 @@ public partial class AchievementProgressState : RefCounted
     public bool is_unlocked;
     public int unlocked_at_unix_time;
 
+    public AchievementProgressState duplicate_state()
+    {
+        return new AchievementProgressState
+        {
+            achievement_id = achievement_id,
+            current_value = current_value,
+            is_unlocked = is_unlocked,
+            unlocked_at_unix_time = unlocked_at_unix_time,
+        };
+    }
+
     public Godot.Collections.Dictionary to_dict() =>
         new()
         {

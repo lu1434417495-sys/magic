@@ -275,23 +275,28 @@ public partial class SubmapEntryWindow : Control
 
     private static string DictString(GDictionary dict, string key, string defaultValue)
     {
-        if (dict == null || !dict.ContainsKey(key))
+        if (!TryRead(dict, key, out Variant value))
             return defaultValue;
-        return dict[key].AsString();
+        return value.VariantType switch
+        {
+            Variant.Type.String => value.AsString(),
+            Variant.Type.StringName => value.AsStringName().ToString(),
+            _ => defaultValue,
+        };
     }
 
     private static bool DictBool(GDictionary dict, string key, bool defaultValue)
     {
-        if (dict == null || !dict.ContainsKey(key))
+        if (!TryRead(dict, key, out Variant value) || value.VariantType != Variant.Type.Bool)
             return defaultValue;
-        return dict[key].AsBool();
+        return value.AsBool();
     }
 
     private static int DictInt(GDictionary dict, string key, int defaultValue)
     {
-        if (dict == null || !dict.ContainsKey(key))
+        if (!TryRead(dict, key, out Variant value) || value.VariantType != Variant.Type.Int)
             return defaultValue;
-        return dict[key].AsInt32();
+        return value.AsInt32();
     }
 
     private static Vector2 DictVector2(GDictionary dict, string key, Vector2 defaultValue)
@@ -300,5 +305,14 @@ public partial class SubmapEntryWindow : Control
             return defaultValue;
         var value = dict[key];
         return value.VariantType == Variant.Type.Vector2 ? value.AsVector2() : defaultValue;
+    }
+
+    private static bool TryRead(GDictionary dict, string key, out Variant value)
+    {
+        value = default;
+        if (dict == null || !dict.ContainsKey(key))
+            return false;
+        value = dict[key];
+        return value.VariantType != Variant.Type.Nil;
     }
 }

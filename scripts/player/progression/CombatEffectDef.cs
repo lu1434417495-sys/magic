@@ -29,6 +29,48 @@ public partial class CombatEffectDef : Resource
     public StringName damage_tag { get; set; } = "";
 
     [Export]
+    public bool add_weapon_dice { get; set; }
+
+    [Export]
+    public bool requires_weapon { get; set; }
+
+    [Export]
+    public bool use_weapon_physical_damage_tag { get; set; }
+
+    [Export]
+    public bool resolve_as_weapon_attack { get; set; }
+
+    [Export]
+    public bool allow_repeat_hits_across_steps { get; set; }
+
+    [Export]
+    public bool prevent_repeat_target { get; set; } = true;
+
+    [Export]
+    public bool stop_on_miss { get; set; } = true;
+
+    [Export]
+    public bool stop_on_target_down { get; set; } = true;
+
+    [Export]
+    public bool remove_harmful { get; set; }
+
+    [Export]
+    public bool remove_harmful_from_allies { get; set; } = true;
+
+    [Export]
+    public bool remove_beneficial { get; set; }
+
+    [Export]
+    public bool remove_beneficial_from_enemies { get; set; } = true;
+
+    [Export]
+    public bool require_damage_applied { get; set; }
+
+    [Export]
+    public bool staged_execution { get; set; }
+
+    [Export]
     public Godot.Collections.Array effect_categories { get; set; } = new();
 
     [Export]

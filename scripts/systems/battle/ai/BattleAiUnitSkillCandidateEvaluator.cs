@@ -45,7 +45,7 @@ public sealed class BattleAiUnitSkillCandidateEvaluator
             return new CandidateTraceSummary
             {
                 Payload = payload,
-                TotalScore = GdInterop.GetInt(payload, "total_score", -999999),
+                TotalScore = DictInt(payload, "total_score", -999999),
             };
         }
 
@@ -55,7 +55,7 @@ public sealed class BattleAiUnitSkillCandidateEvaluator
             return new CandidateTraceSummary
             {
                 Payload = source.Duplicate(true),
-                TotalScore = GdInterop.GetInt(source, "total_score", -999999),
+                TotalScore = DictInt(source, "total_score", -999999),
             };
         }
     }
@@ -429,10 +429,7 @@ public sealed class BattleAiUnitSkillCandidateEvaluator
                 target,
                 combatProfile.target_team_filter,
                 new BattleTargetTeamRules.TargetFilterOptions(
-                    MadnessTargetAnyTeam: GdInterop.GetBool(
-                        actor.ai_blackboard,
-                        "madness_target_any_team"
-                    )
+                    MadnessTargetAnyTeam: actor.ai_blackboard?.madness_target_any_team == true
                 )
             )
         )
@@ -700,6 +697,17 @@ public sealed class BattleAiUnitSkillCandidateEvaluator
         }
         value = rawValue.AsInt32();
         return true;
+    }
+
+    private static bool TryAsBool(Variant rawValue, out bool value)
+    {
+        if (rawValue.VariantType == Variant.Type.Bool)
+        {
+            value = rawValue.AsBool();
+            return true;
+        }
+        value = false;
+        return false;
     }
 
     private static bool TryAsArray(Variant rawValue, out GArray value)

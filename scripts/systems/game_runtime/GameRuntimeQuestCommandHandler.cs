@@ -1,6 +1,8 @@
 using System;
 using Godot;
 using Godot.Collections;
+using GArray = Godot.Collections.Array;
+using GDictionary = Godot.Collections.Dictionary;
 
 [GlobalClass]
 public partial class GameRuntimeQuestCommandHandler : RefCounted
@@ -63,10 +65,10 @@ public partial class GameRuntimeQuestCommandHandler : RefCounted
             return CommandError("运行时尚未初始化。");
         if (questId == "")
             return CommandError("任务 ID 不能为空。");
-        var questData = GetQuestDefData(questId);
-        if (questData == null || questData.Count == 0)
+        QuestCommandDefData questDef = GetQuestCommandDefData(questId);
+        if (!questDef.Exists)
             return CommandError(string.Format("未找到任务 {0}。", questId));
-        var questLabel = ResolveQuestLabel(questId, questData);
+        string questLabel = questDef.DisplayName;
         if (string.IsNullOrEmpty(questLabel))
             return InvalidQuestDisplayNameError();
         var partyState = GetPartyState();
@@ -77,7 +79,7 @@ public partial class GameRuntimeQuestCommandHandler : RefCounted
                 string.Format("任务《{0}》已完成，奖励待领取，当前不可再次接取。", questLabel)
             );
         var hasCompleted = partyState != null && partyState.has_completed_quest(questId);
-        var isRepeatable = GdInterop.GetBool(questData, "is_repeatable");
+        var isRepeatable = questDef.IsRepeatable;
         var effectiveAllowReaccept = allowReaccept || (hasCompleted && isRepeatable);
         if (hasCompleted && !effectiveAllowReaccept)
             return CommandError(string.Format("任务《{0}》已完成，当前不可再次接取。", questLabel));
@@ -112,10 +114,10 @@ public partial class GameRuntimeQuestCommandHandler : RefCounted
             return CommandError("运行时尚未初始化。");
         if (questId == "" || objectiveId == "")
             return CommandError("任务 ID 和目标 ID 不能为空。");
-        var questData = GetQuestDefData(questId);
-        if (questData == null || questData.Count == 0)
+        QuestCommandDefData questDef = GetQuestCommandDefData(questId);
+        if (!questDef.Exists)
             return CommandError(string.Format("未找到任务 {0}。", questId));
-        var questLabel = ResolveQuestLabel(questId, questData);
+        string questLabel = questDef.DisplayName;
         if (string.IsNullOrEmpty(questLabel))
             return InvalidQuestDisplayNameError();
         var eventData = new Dictionary
@@ -135,16 +137,8 @@ public partial class GameRuntimeQuestCommandHandler : RefCounted
             new Godot.Collections.Array { eventData },
             "quest"
         );
-        var progressedQuestIds = GdInterop.GetArray(summary, "progressed_quest_ids");
-        bool hasProgressed = false;
-        foreach (var id in progressedQuestIds)
-        {
-            if (id.AsStringName() == questId)
-            {
-                hasProgressed = true;
-                break;
-            }
-        }
+        QuestProgressSummaryData progressSummary = QuestProgressSummaryData.FromDictionary(summary);
+        bool hasProgressed = progressSummary.ContainsProgressedQuest(questId);
         if (!hasProgressed)
             return CommandError(
                 string.Format("当前无法推进任务《{0}》的目标 {1}。", questLabel, objectiveId)
@@ -170,10 +164,10 @@ public partial class GameRuntimeQuestCommandHandler : RefCounted
             return CommandError("运行时尚未初始化。");
         if (questId == "")
             return CommandError("任务 ID 不能为空。");
-        var questData = GetQuestDefData(questId);
-        if (questData == null || questData.Count == 0)
+        QuestCommandDefData questDef = GetQuestCommandDefData(questId);
+        if (!questDef.Exists)
             return CommandError(string.Format("未找到任务 {0}。", questId));
-        var questLabel = ResolveQuestLabel(questId, questData);
+        string questLabel = questDef.DisplayName;
         if (string.IsNullOrEmpty(questLabel))
             return InvalidQuestDisplayNameError();
         if (!characterManagement.complete_quest(questId, GetWorldStep()))
@@ -200,23 +194,23 @@ public partial class GameRuntimeQuestCommandHandler : RefCounted
             return CommandError("运行时尚未初始化。");
         if (questId == "")
             return CommandError("任务 ID 不能为空。");
-        var questData = GetQuestDefData(questId);
-        if (questData == null || questData.Count == 0)
+        QuestCommandDefData questDef = GetQuestCommandDefData(questId);
+        if (!questDef.Exists)
             return CommandError(string.Format("未找到任务 {0}。", questId));
-        var questLabel = ResolveQuestLabel(questId, questData);
+        string questLabel = questDef.DisplayName;
         if (string.IsNullOrEmpty(questLabel))
             return InvalidQuestDisplayNameError();
-        var submitResult = characterManagement
-            .submit_item_objective(questId, objectiveId, GetWorldStep());
-        if (!GdInterop.GetBool(submitResult, "ok"))
+        QuestSubmitItemResultData submitData = characterManagement.SubmitItemObjectiveTyped(
+            questId,
+            objectiveId,
+            GetWorldStep()
+        );
+        if (!submitData.Ok)
         {
-            var missingItemId = GdInterop.GetStringName(submitResult, "item_id");
+            var missingItemId = submitData.ItemId;
             var missingItemLabel = GetItemDisplayName(missingItemId);
-            var requiredQuantity = Mathf.Max(
-                GdInterop.GetInt(submitResult, "required_quantity"),
-                0
-            );
-            var errorCode = GdInterop.GetString(submitResult, "error_code");
+            var requiredQuantity = Mathf.Max(submitData.RequiredQuantity, 0);
+            var errorCode = submitData.ErrorCode;
             switch (errorCode)
             {
                 case "invalid_quest_id":
@@ -262,20 +256,16 @@ public partial class GameRuntimeQuestCommandHandler : RefCounted
             }
         }
         SetPartyState(characterManagement.get_party_state());
-        var itemId = GdInterop.GetStringName(submitResult, "item_id");
+        var itemId = submitData.ItemId;
         var itemLabel = GetItemDisplayName(itemId);
-        var submittedQuantity = Mathf.Max(
-            GdInterop.GetInt(submitResult, "submitted_quantity"),
-            0
-        );
-        var claimableQuestIds = GdInterop.GetArray(submitResult, "claimable_quest_ids");
+        var submittedQuantity = Mathf.Max(submitData.SubmittedQuantity, 0);
         var message = string.Format(
             "已为任务《{0}》提交 {1} x{2}。",
             questLabel,
             itemLabel,
             submittedQuantity
         );
-        if (claimableQuestIds.Contains(questId))
+        if (submitData.ContainsClaimableQuest(questId))
             message = string.Format(
                 "已为任务《{0}》提交 {1} x{2}，奖励待领取。",
                 questLabel,
@@ -291,7 +281,7 @@ public partial class GameRuntimeQuestCommandHandler : RefCounted
         }
         UpdateStatus(message);
         var result = CommandOk(message);
-        result["objective_id"] = GdInterop.GetString(submitResult, "objective_id");
+        result["objective_id"] = submitData.ObjectiveId;
         result["item_id"] = itemId.ToString();
         result["submitted_quantity"] = submittedQuantity;
         return result;
@@ -306,17 +296,19 @@ public partial class GameRuntimeQuestCommandHandler : RefCounted
             return CommandError("运行时尚未初始化。");
         if (questId == "")
             return CommandError("任务 ID 不能为空。");
-        var questData = GetQuestDefData(questId);
-        if (questData == null || questData.Count == 0)
+        QuestCommandDefData questDef = GetQuestCommandDefData(questId);
+        if (!questDef.Exists)
             return CommandError(string.Format("未找到任务 {0}。", questId));
-        var questLabel = ResolveQuestLabel(questId, questData);
+        string questLabel = questDef.DisplayName;
         if (string.IsNullOrEmpty(questLabel))
             return InvalidQuestDisplayNameError();
-        var claimResult = characterManagement
-            .claim_quest_reward(questId, GetWorldStep());
-        if (!GdInterop.GetBool(claimResult, "ok"))
+        QuestClaimResultData claimData = characterManagement.ClaimQuestRewardTyped(
+            questId,
+            GetWorldStep()
+        );
+        if (!claimData.Ok)
         {
-            var errorCode = GdInterop.GetString(claimResult, "error_code");
+            var errorCode = claimData.ErrorCode;
             switch (errorCode)
             {
                 case "quest_not_claimable":
@@ -377,7 +369,7 @@ public partial class GameRuntimeQuestCommandHandler : RefCounted
                     );
                 case "unsupported_reward_types":
                     var unsupportedTypes = StringNameArrayToStringArray(
-                        GdInterop.GetArray(claimResult, "unsupported_reward_types")
+                        claimData.CloneUnsupportedRewardTypes()
                     );
                     var unsupportedText =
                         unsupportedTypes.Count > 0
@@ -396,8 +388,8 @@ public partial class GameRuntimeQuestCommandHandler : RefCounted
         }
         SetPartyState(characterManagement.get_party_state());
         var persistError = PersistPartyState();
-        var goldDelta = GdInterop.GetInt(claimResult, "gold_delta");
-        var rewardSummary = BuildQuestClaimRewardSummaryText(claimResult);
+        var goldDelta = claimData.GoldDelta;
+        var rewardSummary = claimData.BuildRewardSummaryText();
         var message = string.Format("已领取任务《{0}》奖励。", questLabel);
         if (!string.IsNullOrEmpty(rewardSummary))
             message = string.Format("已领取任务《{0}》奖励，获得 {1}。", questLabel, rewardSummary);
@@ -410,8 +402,8 @@ public partial class GameRuntimeQuestCommandHandler : RefCounted
         UpdateStatus(message);
         var result = CommandOk(message);
         result["gold_delta"] = goldDelta;
-        result["item_rewards"] = GdInterop.GetArray(claimResult, "item_rewards").Duplicate(true);
-        result["pending_character_rewards"] = GdInterop.GetArray(claimResult, "pending_character_rewards").Duplicate(true);
+        result["item_rewards"] = claimData.CloneItemRewards();
+        result["pending_character_rewards"] = claimData.ClonePendingCharacterRewards();
         return result;
     }
 
@@ -500,34 +492,19 @@ public partial class GameRuntimeQuestCommandHandler : RefCounted
             : new Dictionary();
     }
 
-    private Dictionary GetQuestDefData(StringName questId)
-    {
-        return HasRuntime()
-            ? _runtime._get_quest_def_data(questId)
-            : new Dictionary();
-    }
-
-    private string ResolveQuestLabel(StringName questId, Dictionary questData)
-    {
-        return HasRuntime()
-            ? _runtime._resolve_quest_label(questId, questData)
-            : "";
-    }
-
-    private string BuildQuestClaimRewardSummaryText(Dictionary claimResult)
-    {
-        return HasRuntime()
-            ? _runtime._build_quest_claim_reward_summary_text(claimResult)
-            : "";
-    }
+    private QuestCommandDefData GetQuestCommandDefData(StringName questId) =>
+        QuestCommandDefData.FromQuestDef(HasRuntime() ? _runtime._get_quest_def(questId) : null);
 
     private Godot.Collections.Array<String> StringNameArrayToStringArray(
-        Godot.Collections.Array values
+        Godot.Collections.Array<StringName> values
     )
     {
-        return HasRuntime()
-            ? _runtime._string_name_array_to_string_array(values)
-            : new Godot.Collections.Array<String>();
+        var result = new Godot.Collections.Array<String>();
+        if (values == null)
+            return result;
+        foreach (var value in values)
+            result.Add(value.ToString());
+        return result;
     }
 
     private static GameRuntimeFacade ResolveWeakRef(WeakReference<GameRuntimeFacade> weakRef)
@@ -535,5 +512,160 @@ public partial class GameRuntimeQuestCommandHandler : RefCounted
         if (weakRef == null || !weakRef.TryGetTarget(out GameRuntimeFacade target))
             return null;
         return target;
+    }
+}
+
+internal sealed class QuestCommandDefData
+{
+    public readonly bool Exists;
+    public readonly string DisplayName;
+    public readonly bool IsRepeatable;
+
+    private QuestCommandDefData(bool exists, string displayName, bool isRepeatable)
+    {
+        Exists = exists;
+        DisplayName = displayName ?? "";
+        IsRepeatable = isRepeatable;
+    }
+
+    public static QuestCommandDefData FromQuestDef(QuestDef questDef)
+    {
+        if (questDef == null || questDef.quest_id == "")
+            return new QuestCommandDefData(false, "", false);
+        return new QuestCommandDefData(
+            true,
+            questDef.display_name?.Trim() ?? "",
+            questDef.is_repeatable
+        );
+    }
+}
+
+internal sealed class QuestProgressSummaryData
+{
+    private readonly GArray _progressedQuestIds;
+
+    private QuestProgressSummaryData(GArray progressedQuestIds)
+    {
+        _progressedQuestIds = progressedQuestIds != null
+            ? progressedQuestIds.Duplicate(true)
+            : new GArray();
+    }
+
+    public bool ContainsProgressedQuest(StringName questId) =>
+        QuestCommandDataReader.ContainsStringName(_progressedQuestIds, questId);
+
+    public static QuestProgressSummaryData FromDictionary(GDictionary data) =>
+        new(QuestCommandDataReader.ReadArray(data, "progressed_quest_ids"));
+}
+
+internal static class QuestCommandDataReader
+{
+    public static int ReadInt(GDictionary data, object key)
+    {
+        if (!TryGet(data, key, out Variant value))
+            return 0;
+        return value.VariantType == Variant.Type.Int ? value.AsInt32() : 0;
+    }
+
+    public static string ReadString(GDictionary data, object key)
+    {
+        if (!TryGet(data, key, out Variant value))
+            return "";
+        return value.VariantType switch
+        {
+            Variant.Type.String => value.AsString(),
+            Variant.Type.StringName => value.AsStringName().ToString(),
+            _ => "",
+        };
+    }
+
+    public static string ReadTrimmedString(GDictionary data, object key) =>
+        ReadString(data, key).Trim();
+
+    public static StringName ReadStringName(GDictionary data, object key)
+    {
+        if (!TryGet(data, key, out Variant value))
+            return "";
+        return value.VariantType switch
+        {
+            Variant.Type.StringName => value.AsStringName(),
+            Variant.Type.String => new StringName(value.AsString()),
+            _ => new StringName(""),
+        };
+    }
+
+    public static GArray ReadArray(GDictionary data, object key)
+    {
+        if (!TryGet(data, key, out Variant value))
+            return new GArray();
+        return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : new GArray();
+    }
+
+    public static bool ContainsStringName(GArray values, StringName target)
+    {
+        if (values == null || target == "")
+            return false;
+        foreach (Variant value in values)
+        {
+            if (value.VariantType == Variant.Type.StringName && value.AsStringName() == target)
+                return true;
+            if (value.VariantType == Variant.Type.String && new StringName(value.AsString()) == target)
+                return true;
+        }
+        return false;
+    }
+
+    public static System.Collections.Generic.IEnumerable<GDictionary> ReadDictionaryItems(
+        GArray values
+    )
+    {
+        if (values == null)
+            yield break;
+        foreach (Variant value in values)
+        {
+            if (value.VariantType == Variant.Type.Dictionary)
+                yield return value.AsGodotDictionary();
+        }
+    }
+
+    private static bool TryGet(GDictionary data, object key, out Variant value)
+    {
+        if (data == null)
+        {
+            value = default;
+            return false;
+        }
+        Variant variantKey = key switch
+        {
+            Variant valueKey => valueKey,
+            string stringKey => stringKey,
+            StringName stringNameKey => stringNameKey,
+            _ => default,
+        };
+        if (data.ContainsKey(variantKey))
+        {
+            value = data[variantKey];
+            return true;
+        }
+        if (variantKey.VariantType == Variant.Type.String)
+        {
+            var stringNameKey = new StringName(variantKey.AsString());
+            if (data.ContainsKey(stringNameKey))
+            {
+                value = data[stringNameKey];
+                return true;
+            }
+        }
+        else if (variantKey.VariantType == Variant.Type.StringName)
+        {
+            string stringKey = variantKey.AsStringName().ToString();
+            if (data.ContainsKey(stringKey))
+            {
+                value = data[stringKey];
+                return true;
+            }
+        }
+        value = default;
+        return false;
     }
 }

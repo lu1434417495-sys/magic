@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using Godot;
-using static GdInterop;
 using GDictionary = Godot.Collections.Dictionary;
 
 [GlobalClass]
@@ -36,13 +35,13 @@ public partial class BattleEquipmentRequirementRules : RefCounted
         Badge,
     };
 
-    public static bool unit_has_equipped_shield(GodotObject unit_state, GDictionary item_defs)
+    public static bool unit_has_equipped_shield(BattleUnitState unit_state, GDictionary item_defs)
     {
         return unit_has_equipped_item_tag(unit_state, OffHand, TagShield, item_defs);
     }
 
     public static bool unit_has_equipped_item_tag(
-        GodotObject unit_state,
+        BattleUnitState unit_state,
         StringName slot_id,
         StringName tag_id,
         GDictionary item_defs
@@ -53,7 +52,7 @@ public partial class BattleEquipmentRequirementRules : RefCounted
             return false;
         }
 
-        EquipmentState equipmentView = (unit_state as BattleUnitState)?.get_equipment_view();
+        EquipmentState equipmentView = unit_state.get_equipment_view();
         if (equipmentView == null)
         {
             return false;
@@ -69,7 +68,7 @@ public partial class BattleEquipmentRequirementRules : RefCounted
         if (
             IsEmpty(itemId)
             || item_defs == null
-            || !TryGet(item_defs, itemId, out Variant itemDefValue)
+            || !TryRead(item_defs, itemId, out Variant itemDefValue)
         )
         {
             return false;
@@ -87,5 +86,52 @@ public partial class BattleEquipmentRequirementRules : RefCounted
     private static bool IsValidSlot(StringName slotId)
     {
         return !IsEmpty(slotId) && ValidSlots.Contains(slotId);
+    }
+
+    private static bool IsEmpty(StringName value)
+    {
+        return value == null || string.IsNullOrEmpty(value.ToString());
+    }
+
+    private static bool TryRead(GDictionary dictionary, object key, out Variant value)
+    {
+        value = default;
+        if (dictionary == null || key == null)
+            return false;
+        Variant variantKey = key switch
+        {
+            Variant valueKey => valueKey,
+            string stringKey => stringKey,
+            StringName stringNameKey => stringNameKey,
+            int intKey => intKey,
+            long longKey => longKey,
+            _ => default,
+        };
+        if (variantKey.VariantType == Variant.Type.Nil)
+            return false;
+        if (dictionary.ContainsKey(variantKey))
+        {
+            value = dictionary[variantKey];
+            return value.VariantType != Variant.Type.Nil;
+        }
+        if (variantKey.VariantType == Variant.Type.String)
+        {
+            StringName stringNameKey = new(variantKey.AsString());
+            if (dictionary.ContainsKey(stringNameKey))
+            {
+                value = dictionary[stringNameKey];
+                return value.VariantType != Variant.Type.Nil;
+            }
+        }
+        else if (variantKey.VariantType == Variant.Type.StringName)
+        {
+            string stringKey = variantKey.AsStringName().ToString();
+            if (dictionary.ContainsKey(stringKey))
+            {
+                value = dictionary[stringKey];
+                return value.VariantType != Variant.Type.Nil;
+            }
+        }
+        return false;
     }
 }

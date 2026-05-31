@@ -9,12 +9,12 @@ script = ExtResource("3_3q1il")
 effect_type = &"damage"
 power = 0
 max_skill_level = 2
+add_weapon_dice = true
+requires_weapon = true
+use_weapon_physical_damage_tag = true
 params = {
-"add_weapon_dice": true,
 "dice_count": 1,
-"dice_sides": 6,
-"requires_weapon": true,
-"use_weapon_physical_damage_tag": true
+"dice_sides": 6
 }
 
 [sub_resource type="Resource" id="Resource_saint_damage_l3"]
@@ -23,12 +23,12 @@ effect_type = &"damage"
 power = 0
 min_skill_level = 3
 max_skill_level = 4
+add_weapon_dice = true
+requires_weapon = true
+use_weapon_physical_damage_tag = true
 params = {
-"add_weapon_dice": true,
 "dice_count": 1,
-"dice_sides": 8,
-"requires_weapon": true,
-"use_weapon_physical_damage_tag": true
+"dice_sides": 8
 }
 
 [sub_resource type="Resource" id="Resource_saint_damage_l5"]
@@ -36,17 +36,19 @@ script = ExtResource("3_3q1il")
 effect_type = &"damage"
 power = 0
 min_skill_level = 5
+add_weapon_dice = true
+requires_weapon = true
+use_weapon_physical_damage_tag = true
 params = {
-"add_weapon_dice": true,
 "dice_count": 1,
-"dice_sides": 10,
-"requires_weapon": true,
-"use_weapon_physical_damage_tag": true
+"dice_sides": 10
 }
 
 [sub_resource type="Resource" id="Resource_ndvel"]
 script = ExtResource("3_3q1il")
 effect_type = &"repeat_attack_until_fail"
+stop_on_miss = true
+stop_on_target_down = true
 params = {
 "base_attack_bonus": 0,
 "cost_resource": "aura",
@@ -60,9 +62,7 @@ params = {
 "5": 3
 },
 "same_target_only": true,
-"stop_on_insufficient_resource": true,
-"stop_on_miss": true,
-"stop_on_target_down": true
+"stop_on_insufficient_resource": true
 }
 
 [sub_resource type="Resource" id="Resource_v8nna"]

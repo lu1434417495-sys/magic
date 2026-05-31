@@ -7,6 +7,101 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
 {
     private WeakReference<GameRuntimeFacade> _runtimeRef;
 
+    public sealed class BattleLocalWritebackResult
+    {
+        public bool Ok { get; }
+        public string ErrorCode { get; }
+        public Dictionary Details { get; }
+        public int CommittedMemberCount { get; }
+        public int UsedSlots { get; }
+        public int Capacity { get; }
+
+        private BattleLocalWritebackResult(
+            bool ok,
+            string errorCode,
+            Dictionary details,
+            int committedMemberCount,
+            int usedSlots,
+            int capacity
+        )
+        {
+            Ok = ok;
+            ErrorCode = errorCode ?? "";
+            Details = details?.Duplicate(true) ?? new Dictionary();
+            CommittedMemberCount = Mathf.Max(committedMemberCount, 0);
+            UsedSlots = Mathf.Max(usedSlots, 0);
+            Capacity = Mathf.Max(capacity, 0);
+        }
+
+        public static BattleLocalWritebackResult Success(
+            int committedMemberCount,
+            int usedSlots,
+            int capacity
+        ) =>
+            new(true, "", new Dictionary(), committedMemberCount, usedSlots, capacity);
+
+        public static BattleLocalWritebackResult Failed(
+            string errorCode,
+            Dictionary details = null
+        ) =>
+            new(false, errorCode, details, 0, 0, 0);
+
+        public static BattleLocalWritebackResult FromFailureDictionary(Dictionary failure)
+        {
+            return Failed(
+                DictionaryString(
+                    failure,
+                    "error_code",
+                    "battle_local_writeback_inoption_failed"
+                ),
+                DictionaryDictionary(failure, "details")
+            );
+        }
+
+        public Dictionary ToDictionary()
+        {
+            return Ok
+                ? new Dictionary
+                {
+                    ["ok"] = true,
+                    ["error_code"] = "",
+                    ["committed_member_count"] = CommittedMemberCount,
+                    ["used_slots"] = UsedSlots,
+                    ["capacity"] = Capacity,
+                }
+                : BuildBattleLocalWritebackFailure(ErrorCode, Details);
+        }
+    }
+
+    private sealed class BattleLocalCandidateValidationResult
+    {
+        public bool Ok { get; private set; }
+        public Dictionary Failure { get; private set; } = new();
+        public int UsedSlots { get; private set; }
+        public int Capacity { get; private set; }
+
+        public static BattleLocalCandidateValidationResult Success(int usedSlots, int capacity)
+        {
+            return new BattleLocalCandidateValidationResult
+            {
+                Ok = true,
+                UsedSlots = usedSlots,
+                Capacity = capacity,
+            };
+        }
+
+        public static BattleLocalCandidateValidationResult Failed(Dictionary failure)
+        {
+            return new BattleLocalCandidateValidationResult
+            {
+                Ok = false,
+                Failure = failure ?? BuildBattleLocalWritebackFailure(
+                    "battle_local_writeback_invalid_candidate_party"
+                ),
+            };
+        }
+    }
+
     private GameRuntimeFacade _runtime
     {
         get => ResolveWeakRef(_runtimeRef);
@@ -34,6 +129,14 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
     }
 
     public Dictionary CommitBattleLocalViewsToPartyState(
+        BattleState battleState,
+        PartyState partyState
+    )
+    {
+        return CommitBattleLocalViewsToPartyStateTyped(battleState, partyState).ToDictionary();
+    }
+
+    public BattleLocalWritebackResult CommitBattleLocalViewsToPartyStateTyped(
         BattleState battleState,
         PartyState partyState
     )
@@ -67,27 +170,37 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
         ReportConsistencyFailure(writebackResult, battleSummary, winnerFactionId);
     }
 
-    private Dictionary CommitBattleLocalViewsToPartyStateInternal(
+    private BattleLocalWritebackResult CommitBattleLocalViewsToPartyStateInternal(
         BattleState battleState,
         PartyState partyState
     )
     {
         if (battleState == null)
-            return BuildBattleLocalWritebackFailure("battle_local_writeback_missing_battle_state");
+            return BattleLocalWritebackResult.Failed(
+                "battle_local_writeback_missing_battle_state"
+            );
         if (partyState == null)
-            return BuildBattleLocalWritebackFailure("battle_local_writeback_missing_party_state");
+            return BattleLocalWritebackResult.Failed(
+                "battle_local_writeback_missing_party_state"
+            );
 
         var candidateParty = ClonePartyStateForBattleWriteback(partyState);
         if (candidateParty == null)
-            return BuildBattleLocalWritebackFailure("battle_local_writeback_invalid_party_state");
+            return BattleLocalWritebackResult.Failed(
+                "battle_local_writeback_invalid_party_state"
+            );
 
         var backpackView = battleState.get_party_backpack_view();
         if (backpackView == null)
-            return BuildBattleLocalWritebackFailure("battle_local_writeback_invalid_backpack_view");
+            return BattleLocalWritebackResult.Failed(
+                "battle_local_writeback_invalid_backpack_view"
+            );
 
         WarehouseState warehouseState = backpackView.duplicate_state();
         if (warehouseState == null)
-            return BuildBattleLocalWritebackFailure("battle_local_writeback_invalid_backpack_view");
+            return BattleLocalWritebackResult.Failed(
+                "battle_local_writeback_invalid_backpack_view"
+            );
 
         candidateParty.warehouse_state = warehouseState;
 
@@ -96,9 +209,11 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
         {
             var unitState = battleState.units[allyUnitId].As<BattleUnitState>();
             if (unitState == null)
-                return BuildBattleLocalWritebackFailure(
-                    "battle_local_writeback_missing_ally_unit",
-                    new Dictionary { ["unit_id"] = allyUnitId.ToString() }
+                return BattleLocalWritebackResult.FromFailureDictionary(
+                    BuildBattleLocalWritebackFailure(
+                        "battle_local_writeback_missing_ally_unit",
+                        new Dictionary { ["unit_id"] = allyUnitId.ToString() }
+                    )
                 );
 
             var memberId = ProgressionDataUtils.to_string_name(unitState.source_member_id);
@@ -106,52 +221,62 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
                 continue;
 
             if (committedMemberIds.ContainsKey(memberId))
-                return BuildBattleLocalWritebackFailure(
-                    "battle_local_writeback_duplicate_member_unit",
-                    new Dictionary { ["member_id"] = memberId.ToString() }
+                return BattleLocalWritebackResult.FromFailureDictionary(
+                    BuildBattleLocalWritebackFailure(
+                        "battle_local_writeback_duplicate_member_unit",
+                        new Dictionary { ["member_id"] = memberId.ToString() }
+                    )
                 );
 
             PartyMemberState memberState = candidateParty.get_member_state(memberId);
             if (memberState == null)
-                return BuildBattleLocalWritebackFailure(
-                    "battle_local_writeback_member_not_found",
-                    new Dictionary
-                    {
-                        ["member_id"] = memberId.ToString(),
-                        ["unit_id"] = unitState.unit_id.ToString(),
-                    }
+                return BattleLocalWritebackResult.FromFailureDictionary(
+                    BuildBattleLocalWritebackFailure(
+                        "battle_local_writeback_member_not_found",
+                        new Dictionary
+                        {
+                            ["member_id"] = memberId.ToString(),
+                            ["unit_id"] = unitState.unit_id.ToString(),
+                        }
+                    )
                 );
 
             if (!unitState.equipment_view_initialized)
-                return BuildBattleLocalWritebackFailure(
-                    "battle_local_writeback_uninitialized_equipment_view",
-                    new Dictionary
-                    {
-                        ["member_id"] = memberId.ToString(),
-                        ["unit_id"] = unitState.unit_id.ToString(),
-                    }
+                return BattleLocalWritebackResult.FromFailureDictionary(
+                    BuildBattleLocalWritebackFailure(
+                        "battle_local_writeback_uninitialized_equipment_view",
+                        new Dictionary
+                        {
+                            ["member_id"] = memberId.ToString(),
+                            ["unit_id"] = unitState.unit_id.ToString(),
+                        }
+                    )
                 );
 
             var equipmentView = unitState.equipment_view;
             if (equipmentView == null)
-                return BuildBattleLocalWritebackFailure(
-                    "battle_local_writeback_invalid_equipment_view",
-                    new Dictionary
-                    {
-                        ["member_id"] = memberId.ToString(),
-                        ["unit_id"] = unitState.unit_id.ToString(),
-                    }
+                return BattleLocalWritebackResult.FromFailureDictionary(
+                    BuildBattleLocalWritebackFailure(
+                        "battle_local_writeback_invalid_equipment_view",
+                        new Dictionary
+                        {
+                            ["member_id"] = memberId.ToString(),
+                            ["unit_id"] = unitState.unit_id.ToString(),
+                        }
+                    )
                 );
 
             EquipmentState equipmentCopy = equipmentView.duplicate_state();
             if (equipmentCopy == null)
-                return BuildBattleLocalWritebackFailure(
-                    "battle_local_writeback_invalid_equipment_view",
-                    new Dictionary
-                    {
-                        ["member_id"] = memberId.ToString(),
-                        ["unit_id"] = unitState.unit_id.ToString(),
-                    }
+                return BattleLocalWritebackResult.FromFailureDictionary(
+                    BuildBattleLocalWritebackFailure(
+                        "battle_local_writeback_invalid_equipment_view",
+                        new Dictionary
+                        {
+                            ["member_id"] = memberId.ToString(),
+                            ["unit_id"] = unitState.unit_id.ToString(),
+                        }
+                    )
                 );
 
             memberState.equipment_state = equipmentCopy;
@@ -159,35 +284,36 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
         }
 
         var validationResult = ValidateBattleLocalCandidatePartyState(candidateParty);
-        if (!DictionaryBool(validationResult, "ok", false))
-            return validationResult;
+        if (!validationResult.Ok)
+            return BattleLocalWritebackResult.FromFailureDictionary(validationResult.Failure);
 
         _runtime.set_party_state(candidateParty);
         SyncRuntimePartyServicesAfterBattleLocalWriteback();
 
-        return new Dictionary
-        {
-            ["ok"] = true,
-            ["error_code"] = "",
-            ["committed_member_count"] = committedMemberIds.Count,
-            ["used_slots"] = DictionaryInt(validationResult, "used_slots", 0),
-            ["capacity"] = DictionaryInt(validationResult, "capacity", 0),
-        };
+        return BattleLocalWritebackResult.Success(
+            committedMemberIds.Count,
+            validationResult.UsedSlots,
+            validationResult.Capacity
+        );
     }
 
     private PartyState ClonePartyStateForBattleWriteback(PartyState partyState)
     {
         if (partyState == null)
             return null;
-        return PartyState.from_dict(partyState.to_dict());
+        return partyState.duplicate_state();
     }
 
-    private Dictionary ValidateBattleLocalCandidatePartyState(PartyState candidateParty)
+    private BattleLocalCandidateValidationResult ValidateBattleLocalCandidatePartyState(
+        PartyState candidateParty
+    )
     {
         var warehouseState = candidateParty?.warehouse_state;
         if (candidateParty == null || warehouseState == null)
-            return BuildBattleLocalWritebackFailure(
-                "battle_local_writeback_invalid_candidate_party"
+            return BattleLocalCandidateValidationResult.Failed(
+                BuildBattleLocalWritebackFailure(
+                    "battle_local_writeback_invalid_candidate_party"
+                )
             );
 
         var instanceOwnerById = new Dictionary();
@@ -197,14 +323,14 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
                 continue;
             var instanceId = ProgressionDataUtils.to_string_name(instanceObj.instance_id);
             var itemId = ProgressionDataUtils.to_string_name(instanceObj.item_id);
-            var registerResult = RegisterBattleLocalInstanceOwner(
+            if (!TryRegisterBattleLocalInstanceOwner(
                 instanceOwnerById,
                 instanceId,
                 itemId,
-                "backpack"
-            );
-            if (!DictionaryBool(registerResult, "ok", false))
-                return registerResult;
+                "backpack",
+                out Dictionary failure
+            ))
+                return BattleLocalCandidateValidationResult.Failed(failure);
         }
 
         foreach (var memberIdStr in ProgressionDataUtils.sorted_string_keys(candidateParty.member_states))
@@ -216,9 +342,11 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
 
             EquipmentState equipmentState = memberState.equipment_state;
             if (equipmentState == null)
-                return BuildBattleLocalWritebackFailure(
-                    "battle_local_writeback_invalid_equipment_state",
-                    new Dictionary { ["member_id"] = memberId.ToString() }
+                return BattleLocalCandidateValidationResult.Failed(
+                    BuildBattleLocalWritebackFailure(
+                        "battle_local_writeback_invalid_equipment_state",
+                        new Dictionary { ["member_id"] = memberId.ToString() }
+                    )
                 );
 
             foreach (StringName entrySlotId in equipmentState.get_entry_slot_ids())
@@ -227,13 +355,15 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
                     equipmentState.get_equipped_item_id(entrySlotId)
                 );
                 if (itemId == "")
-                    return BuildBattleLocalWritebackFailure(
-                        "battle_local_writeback_invalid_equipment_entry",
-                        new Dictionary
-                        {
-                            ["member_id"] = memberId.ToString(),
-                            ["entry_slot_id"] = entrySlotId.ToString(),
-                        }
+                    return BattleLocalCandidateValidationResult.Failed(
+                        BuildBattleLocalWritebackFailure(
+                            "battle_local_writeback_invalid_equipment_entry",
+                            new Dictionary
+                            {
+                                ["member_id"] = memberId.ToString(),
+                                ["entry_slot_id"] = entrySlotId.ToString(),
+                            }
+                        )
                     );
 
                 var instanceId = ProgressionDataUtils.to_string_name(
@@ -243,14 +373,14 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
                     continue;
 
                 var ownerLabel = string.Format("equipment:{0}:{1}", memberId, entrySlotId);
-                var registerResult = RegisterBattleLocalInstanceOwner(
+                if (!TryRegisterBattleLocalInstanceOwner(
                     instanceOwnerById,
                     instanceId,
                     itemId,
-                    ownerLabel
-                );
-                if (!DictionaryBool(registerResult, "ok", false))
-                    return registerResult;
+                    ownerLabel,
+                    out Dictionary failure
+                ))
+                    return BattleLocalCandidateValidationResult.Failed(failure);
             }
         }
 
@@ -261,35 +391,33 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
         var capacity = capacityService.get_total_capacity();
 
         if (usedSlots > capacity)
-            return BuildBattleLocalWritebackFailure(
-                "battle_local_writeback_capacity_mismatch",
-                new Dictionary { ["used_slots"] = usedSlots, ["capacity"] = capacity }
+            return BattleLocalCandidateValidationResult.Failed(
+                BuildBattleLocalWritebackFailure(
+                    "battle_local_writeback_capacity_mismatch",
+                    new Dictionary { ["used_slots"] = usedSlots, ["capacity"] = capacity }
+                )
             );
 
-        return new Dictionary
-        {
-            ["ok"] = true,
-            ["error_code"] = "",
-            ["used_slots"] = usedSlots,
-            ["capacity"] = capacity,
-        };
+        return BattleLocalCandidateValidationResult.Success(usedSlots, capacity);
     }
 
-    private Dictionary RegisterBattleLocalInstanceOwner(
+    private bool TryRegisterBattleLocalInstanceOwner(
         Dictionary instanceOwnerById,
         StringName instanceId,
         StringName itemId,
-        string ownerLabel
+        string ownerLabel,
+        out Dictionary failure
     )
     {
+        failure = new Dictionary();
         if (instanceId == "")
-            return new Dictionary { ["ok"] = true, ["error_code"] = "" };
+            return true;
 
         var instanceKey = instanceId.ToString();
         if (instanceOwnerById.ContainsKey(instanceKey))
         {
             var previousOwner = DictionaryDictionary(instanceOwnerById, instanceKey);
-            return BuildBattleLocalWritebackFailure(
+            failure = BuildBattleLocalWritebackFailure(
                 "battle_local_writeback_instance_conflict",
                 new Dictionary
                 {
@@ -300,6 +428,7 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
                     ["previous_item_id"] = DictionaryString(previousOwner, "item_id"),
                 }
             );
+            return false;
         }
 
         instanceOwnerById[instanceKey] = new Dictionary
@@ -307,7 +436,7 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
             ["owner"] = ownerLabel,
             ["item_id"] = itemId.ToString(),
         };
-        return new Dictionary { ["ok"] = true, ["error_code"] = "" };
+        return true;
     }
 
     private void SyncRuntimePartyServicesAfterBattleLocalWriteback()
@@ -411,22 +540,6 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
             })
         );
         System.Diagnostics.Debug.Assert(false, message);
-    }
-
-    private static bool DictionaryBool(Dictionary dictionary, string key, bool fallback)
-    {
-        if (dictionary == null || !dictionary.ContainsKey(key))
-            return fallback;
-        var value = dictionary[key];
-        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
-    }
-
-    private static int DictionaryInt(Dictionary dictionary, string key, int fallback)
-    {
-        if (dictionary == null || !dictionary.ContainsKey(key))
-            return fallback;
-        var value = dictionary[key];
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
     }
 
     private static string DictionaryString(Dictionary dictionary, string key, string fallback = "")

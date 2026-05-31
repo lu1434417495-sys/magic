@@ -1,9 +1,161 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
+
+internal sealed class BattleChangeEquipmentResult
+{
+    internal bool Allowed;
+    internal string ErrorCode = "";
+    internal string Message = "";
+    internal StringName Operation = "";
+    internal StringName SlotId = "";
+    internal StringName TargetUnitId = "";
+    internal StringName ItemId = "";
+    internal StringName InstanceId = "";
+    internal GStringNameArray OccupiedSlotIds = new();
+
+    internal int ApBefore;
+    internal int ApAfter;
+    internal int HpBefore;
+    internal int HpAfter;
+    internal int HpMaxBefore;
+    internal int HpMaxAfter;
+    internal bool HpClamped;
+    internal StringName WeaponProfileKind = "";
+    internal StringName WeaponItemId = "";
+    internal StringName WeaponProfileTypeId = "";
+    internal StringName WeaponCurrentGrip = "";
+    internal int WeaponAttackRange;
+    internal bool WeaponUsesTwoHands;
+    internal StringName WeaponPhysicalDamageTag = "";
+
+    internal BattleChangeEquipmentResult Clone()
+    {
+        return new BattleChangeEquipmentResult
+        {
+            Allowed = Allowed,
+            ErrorCode = ErrorCode,
+            Message = Message,
+            Operation = Operation,
+            SlotId = SlotId,
+            TargetUnitId = TargetUnitId,
+            ItemId = ItemId,
+            InstanceId = InstanceId,
+            OccupiedSlotIds = CloneStringNameArray(OccupiedSlotIds),
+            ApBefore = ApBefore,
+            ApAfter = ApAfter,
+            HpBefore = HpBefore,
+            HpAfter = HpAfter,
+            HpMaxBefore = HpMaxBefore,
+            HpMaxAfter = HpMaxAfter,
+            HpClamped = HpClamped,
+            WeaponProfileKind = WeaponProfileKind,
+            WeaponItemId = WeaponItemId,
+            WeaponProfileTypeId = WeaponProfileTypeId,
+            WeaponCurrentGrip = WeaponCurrentGrip,
+            WeaponAttackRange = WeaponAttackRange,
+            WeaponUsesTwoHands = WeaponUsesTwoHands,
+            WeaponPhysicalDamageTag = WeaponPhysicalDamageTag,
+        };
+    }
+
+    internal GDictionary ToDictionary()
+    {
+        return new GDictionary
+        {
+            ["allowed"] = Allowed,
+            ["error_code"] = ErrorCode ?? "",
+            ["message"] = Message ?? "",
+            ["operation"] = Operation.ToString(),
+            ["slot_id"] = SlotId.ToString(),
+            ["slot_label"] = EquipmentRules.get_slot_label(SlotId),
+            ["target_unit_id"] = TargetUnitId.ToString(),
+            ["item_id"] = ItemId.ToString(),
+            ["instance_id"] = InstanceId.ToString(),
+            ["occupied_slot_ids"] = StringifyStringNameArray(OccupiedSlotIds),
+            ["ap_before"] = ApBefore,
+            ["ap_after"] = ApAfter,
+            ["hp_before"] = HpBefore,
+            ["hp_after"] = HpAfter,
+            ["hp_max_before"] = HpMaxBefore,
+            ["hp_max_after"] = HpMaxAfter,
+            ["hp_clamped"] = HpClamped,
+            ["weapon_profile_kind"] = WeaponProfileKind.ToString(),
+            ["weapon_item_id"] = WeaponItemId.ToString(),
+            ["weapon_profile_type_id"] = WeaponProfileTypeId.ToString(),
+            ["weapon_current_grip"] = WeaponCurrentGrip.ToString(),
+            ["weapon_attack_range"] = WeaponAttackRange,
+            ["weapon_uses_two_hands"] = WeaponUsesTwoHands,
+            ["weapon_physical_damage_tag"] = WeaponPhysicalDamageTag.ToString(),
+        };
+    }
+
+    private static GStringNameArray CloneStringNameArray(GStringNameArray values)
+    {
+        var clone = new GStringNameArray();
+        foreach (StringName value in values ?? new GStringNameArray())
+        {
+            clone.Add(value);
+        }
+        return clone;
+    }
+
+    private static GStringArray StringifyStringNameArray(GStringNameArray values)
+    {
+        var result = new GStringArray();
+        foreach (StringName value in values ?? new GStringNameArray())
+        {
+            result.Add(value.ToString());
+        }
+        return result;
+    }
+}
+
+internal readonly struct ChangeEquipmentRuleResult
+{
+    internal readonly bool Allowed;
+    internal readonly string ErrorCode;
+    internal readonly string Message;
+    internal readonly GStringNameArray OccupiedSlotIds;
+
+    internal ChangeEquipmentRuleResult(
+        bool allowed,
+        string errorCode = "",
+        string message = "",
+        GStringNameArray occupiedSlotIds = null
+    )
+    {
+        Allowed = allowed;
+        ErrorCode = errorCode ?? "";
+        Message = message ?? "";
+        OccupiedSlotIds = occupiedSlotIds ?? new GStringNameArray();
+    }
+
+    internal GDictionary ToDictionary()
+    {
+        return new GDictionary
+        {
+            ["allowed"] = Allowed,
+            ["error_code"] = ErrorCode,
+            ["message"] = Message,
+            ["occupied_slot_ids"] = StringifyStringNameArray(OccupiedSlotIds),
+        };
+    }
+
+    private static GStringArray StringifyStringNameArray(GStringNameArray values)
+    {
+        var result = new GStringArray();
+        foreach (StringName value in values ?? new GStringNameArray())
+        {
+            result.Add(value.ToString());
+        }
+        return result;
+    }
+}
 
 // 翻译自 battle_change_equipment_resolver.gd（2026-05-25，战斗换装 C# 迁移）。
 // runtime 耦合：战斗实体/视图使用 C# runtime state；command 为 C# BattleCommand。
@@ -40,26 +192,6 @@ public partial class BattleChangeEquipmentResolver : RefCounted
         HandleChangeEquipmentCommand(active_unit as BattleUnitState, command, batch as BattleEventBatch);
     }
 
-    public GDictionary build_result(
-        bool allowed,
-        string error_code,
-        string message,
-        BattleCommand command
-    )
-    {
-        return BuildChangeEquipmentResult(allowed, error_code, message, command);
-    }
-
-    public void append_report(
-        GodotObject batch,
-        GodotObject active_unit,
-        GDictionary result,
-        bool success
-    )
-    {
-        AppendChangeEquipmentReport(batch as BattleEventBatch, active_unit as BattleUnitState, result, success);
-    }
-
     public int get_unit_hp_max(GodotObject unit_state)
     {
         return GetUnitHpMax(unit_state);
@@ -80,29 +212,35 @@ public partial class BattleChangeEquipmentResolver : RefCounted
         {
             return;
         }
-        GDictionary validation = ValidateChangeEquipmentCommand(activeUnit, command);
-        if (!GdInterop.GetBool(validation, "allowed", false))
+        BattleChangeEquipmentResult validation = ValidateChangeEquipmentCommand(activeUnit, command);
+        if (!validation.Allowed)
         {
-            preview.log_lines.Add(GdInterop.GetString(validation, "message", "换装命令无效。"));
+            preview.log_lines.Add(
+                string.IsNullOrEmpty(validation.Message) ? "换装命令无效。" : validation.Message
+            );
             return;
         }
 
         EquipmentState equipmentView = activeUnit.get_equipment_view()?.duplicate_state();
         WarehouseState backpackView = RuntimeState()?.get_party_backpack_view()?.duplicate_state();
-        GDictionary applyResult = ApplyChangeEquipmentToViews(
+        BattleChangeEquipmentResult applyResult = ApplyChangeEquipmentToViews(
             command,
             validation,
             equipmentView,
             backpackView
         );
-        if (GdInterop.GetBool(applyResult, "allowed", false))
+        if (applyResult.Allowed)
         {
             preview.allowed = true;
-            preview.log_lines.Add(GdInterop.GetString(applyResult, "message", "换装可执行。"));
+            preview.log_lines.Add(
+                string.IsNullOrEmpty(applyResult.Message) ? "换装可执行。" : applyResult.Message
+            );
         }
         else
         {
-            preview.log_lines.Add(GdInterop.GetString(applyResult, "message", "换装命令无效。"));
+            preview.log_lines.Add(
+                string.IsNullOrEmpty(applyResult.Message) ? "换装命令无效。" : applyResult.Message
+            );
         }
     }
 
@@ -112,8 +250,8 @@ public partial class BattleChangeEquipmentResolver : RefCounted
         BattleEventBatch batch
     )
     {
-        GDictionary validation = ValidateChangeEquipmentCommand(activeUnit, command);
-        if (!GdInterop.GetBool(validation, "allowed", false))
+        BattleChangeEquipmentResult validation = ValidateChangeEquipmentCommand(activeUnit, command);
+        if (!validation.Allowed)
         {
             AppendChangeEquipmentReport(batch, activeUnit, validation, false);
             return;
@@ -121,13 +259,13 @@ public partial class BattleChangeEquipmentResolver : RefCounted
 
         EquipmentState equipmentView = activeUnit.get_equipment_view()?.duplicate_state();
         WarehouseState backpackView = RuntimeState()?.get_party_backpack_view()?.duplicate_state();
-        GDictionary applyResult = ApplyChangeEquipmentToViews(
+        BattleChangeEquipmentResult applyResult = ApplyChangeEquipmentToViews(
             command,
             validation,
             equipmentView,
             backpackView
         );
-        if (!GdInterop.GetBool(applyResult, "allowed", false))
+        if (!applyResult.Allowed)
         {
             AppendChangeEquipmentReport(batch, activeUnit, applyResult, false);
             return;
@@ -138,8 +276,8 @@ public partial class BattleChangeEquipmentResolver : RefCounted
         RuntimeState()?.set_party_backpack_view(backpackView);
         RefreshChangeEquipmentProjection(activeUnit, applyResult);
         activeUnit.current_ap = Math.Max(activeUnit.current_ap - CHANGE_EQUIPMENT_AP_COST, 0);
-        applyResult["ap_before"] = apBefore;
-        applyResult["ap_after"] = activeUnit.current_ap;
+        applyResult.ApBefore = apBefore;
+        applyResult.ApAfter = activeUnit.current_ap;
         _runtime?._record_action_issued(
             activeUnit,
             BattleCommand.TYPE_CHANGE_EQUIPMENT(),
@@ -150,16 +288,19 @@ public partial class BattleChangeEquipmentResolver : RefCounted
         AppendChangeEquipmentReport(batch, activeUnit, applyResult, true);
     }
 
-    private void RefreshChangeEquipmentProjection(BattleUnitState activeUnit, GDictionary result)
+    private void RefreshChangeEquipmentProjection(
+        BattleUnitState activeUnit,
+        BattleChangeEquipmentResult result
+    )
     {
         if (activeUnit == null)
         {
             return;
         }
-        int hpBefore = GdInterop.GetInt(activeUnit, "current_hp");
+        int hpBefore = activeUnit.current_hp;
         int hpMaxBefore = GetUnitHpMax(activeUnit);
         if (
-            !GdInterop.IsEmpty(activeUnit.source_member_id)
+            !StringNameIsEmpty(activeUnit.source_member_id)
             && _runtime?.GetCharacterGatewayTyped() != null
         )
         {
@@ -169,33 +310,27 @@ public partial class BattleChangeEquipmentResolver : RefCounted
         bool hpClamped = false;
         if (hpMaxAfter > 0 && hpMaxAfter < hpMaxBefore && hpBefore > hpMaxAfter)
         {
-            activeUnit.Set("current_hp", hpMaxAfter);
+            activeUnit.current_hp = hpMaxAfter;
             hpClamped = true;
         }
-        if (GdInterop.GetInt(activeUnit, "current_hp") < 0)
+        if (activeUnit.current_hp < 0)
         {
-            activeUnit.Set("current_hp", 0);
+            activeUnit.current_hp = 0;
             hpClamped = true;
         }
-        activeUnit.Set("is_alive", GdInterop.GetInt(activeUnit, "current_hp") > 0);
-        result["hp_before"] = hpBefore;
-        result["hp_after"] = GdInterop.GetInt(activeUnit, "current_hp");
-        result["hp_max_before"] = hpMaxBefore;
-        result["hp_max_after"] = hpMaxAfter;
-        result["hp_clamped"] = hpClamped;
-        result["weapon_profile_kind"] = GdInterop.GetString(activeUnit, "weapon_profile_kind");
-        result["weapon_item_id"] = GdInterop.GetString(activeUnit, "weapon_item_id");
-        result["weapon_profile_type_id"] = GdInterop.GetString(
-            activeUnit,
-            "weapon_profile_type_id"
-        );
-        result["weapon_current_grip"] = GdInterop.GetString(activeUnit, "weapon_current_grip");
-        result["weapon_attack_range"] = GdInterop.GetInt(activeUnit, "weapon_attack_range");
-        result["weapon_uses_two_hands"] = GdInterop.GetBool(activeUnit, "weapon_uses_two_hands");
-        result["weapon_physical_damage_tag"] = GdInterop.GetString(
-            activeUnit,
-            "weapon_physical_damage_tag"
-        );
+        activeUnit.is_alive = activeUnit.current_hp > 0;
+        result.HpBefore = hpBefore;
+        result.HpAfter = activeUnit.current_hp;
+        result.HpMaxBefore = hpMaxBefore;
+        result.HpMaxAfter = hpMaxAfter;
+        result.HpClamped = hpClamped;
+        result.WeaponProfileKind = activeUnit.weapon_profile_kind;
+        result.WeaponItemId = activeUnit.weapon_item_id;
+        result.WeaponProfileTypeId = activeUnit.weapon_profile_type_id;
+        result.WeaponCurrentGrip = activeUnit.weapon_current_grip;
+        result.WeaponAttackRange = activeUnit.weapon_attack_range;
+        result.WeaponUsesTwoHands = activeUnit.weapon_uses_two_hands;
+        result.WeaponPhysicalDamageTag = activeUnit.weapon_physical_damage_tag;
     }
 
     private int GetUnitHpMax(GodotObject unitState)
@@ -218,12 +353,12 @@ public partial class BattleChangeEquipmentResolver : RefCounted
         return Math.Max(snapshot.get_value(AttributeService.STAMINA_MAX), 0);
     }
 
-    private GDictionary ValidateChangeEquipmentCommand(
+    private BattleChangeEquipmentResult ValidateChangeEquipmentCommand(
         BattleUnitState activeUnit,
         BattleCommand command
     )
     {
-        GDictionary result = BuildChangeEquipmentResult(
+        BattleChangeEquipmentResult result = BuildChangeEquipmentResult(
             false,
             "invalid_command",
             "换装命令无效。",
@@ -237,15 +372,12 @@ public partial class BattleChangeEquipmentResolver : RefCounted
 
         StringName operation = GetChangeEquipmentOperation(command);
         StringName slotId = GetChangeEquipmentSlotId(command);
-        result["operation"] = operation.ToString();
-        result["slot_id"] = slotId.ToString();
-        result["target_unit_id"] = ResolveChangeEquipmentTargetUnitId(activeUnit, command)
-            .ToString();
-        result["item_id"] = ResolveChangeEquipmentItemId(command).ToString();
-        result["instance_id"] = ResolveChangeEquipmentInstanceId(command).ToString();
-        result["occupied_slot_ids"] = StringifyStringNameArray(
-            ResolveChangeEquipmentOccupiedSlots(command, slotId)
-        );
+        result.Operation = operation;
+        result.SlotId = slotId;
+        result.TargetUnitId = ResolveChangeEquipmentTargetUnitId(activeUnit, command);
+        result.ItemId = ResolveChangeEquipmentItemId(command);
+        result.InstanceId = ResolveChangeEquipmentInstanceId(command);
+        result.OccupiedSlotIds = ResolveChangeEquipmentOccupiedSlots(command, slotId);
 
         StringName targetUnitId = ResolveChangeEquipmentTargetUnitId(activeUnit, command);
         if (state.active_unit_id != activeUnit.unit_id)
@@ -306,7 +438,7 @@ public partial class BattleChangeEquipmentResolver : RefCounted
         if (operation == BattleCommand.EQUIPMENT_OPERATION_EQUIP())
         {
             StringName instanceId = ResolveChangeEquipmentInstanceId(command);
-            if (GdInterop.IsEmpty(instanceId))
+            if (StringNameIsEmpty(instanceId))
             {
                 return WithChangeEquipmentError(
                     result,
@@ -329,7 +461,7 @@ public partial class BattleChangeEquipmentResolver : RefCounted
                 backpackInstance.item_id
             );
             StringName commandItemId = ResolveChangeEquipmentItemId(command);
-            if (!GdInterop.IsEmpty(commandItemId) && commandItemId != resolvedItemId)
+            if (!StringNameIsEmpty(commandItemId) && commandItemId != resolvedItemId)
             {
                 return WithChangeEquipmentError(
                     result,
@@ -337,33 +469,34 @@ public partial class BattleChangeEquipmentResolver : RefCounted
                     "装备实例与命令物品不一致。"
                 );
             }
-            result["item_id"] = resolvedItemId.ToString();
-            GDictionary itemRule = ResolveChangeEquipmentItemRule(
+            result.ItemId = resolvedItemId;
+            ChangeEquipmentRuleResult itemRule = ResolveChangeEquipmentItemRule(
                 resolvedItemId,
                 slotId,
                 command,
                 activeUnit
             );
-            if (!GdInterop.GetBool(itemRule, "allowed", false))
+            if (!itemRule.Allowed)
             {
                 return WithChangeEquipmentError(
                     result,
-                    GdInterop.GetString(itemRule, "error_code", "item_not_equipment"),
-                    GdInterop.GetString(itemRule, "message", "装备实例不能放入该槽位。"),
-                    new GDictionary
-                    {
-                        ["occupied_slot_ids"] = GdInterop.GetArray(itemRule, "occupied_slot_ids"),
-                    }
+                    string.IsNullOrEmpty(itemRule.ErrorCode)
+                        ? "item_not_equipment"
+                        : itemRule.ErrorCode,
+                    string.IsNullOrEmpty(itemRule.Message)
+                        ? "装备实例不能放入该槽位。"
+                        : itemRule.Message,
+                    itemRule.OccupiedSlotIds
                 );
             }
-            result["occupied_slot_ids"] = GdInterop.GetArray(itemRule, "occupied_slot_ids");
+            result.OccupiedSlotIds = itemRule.OccupiedSlotIds;
         }
         else
         {
             StringName entrySlot = ProgressionDataUtils.to_string_name(
                 equipmentView.get_entry_slot_for_slot(slotId)
             );
-            if (GdInterop.IsEmpty(entrySlot))
+            if (StringNameIsEmpty(entrySlot))
             {
                 return WithChangeEquipmentError(
                     result,
@@ -376,8 +509,8 @@ public partial class BattleChangeEquipmentResolver : RefCounted
             );
             StringName commandInstanceId = ResolveChangeEquipmentInstanceId(command);
             if (
-                !GdInterop.IsEmpty(commandInstanceId)
-                && !GdInterop.IsEmpty(equippedInstanceId)
+                !StringNameIsEmpty(commandInstanceId)
+                && !StringNameIsEmpty(equippedInstanceId)
                 && commandInstanceId != equippedInstanceId
             )
             {
@@ -387,26 +520,24 @@ public partial class BattleChangeEquipmentResolver : RefCounted
                     "装备实例与当前槽位不一致。"
                 );
             }
-            result["item_id"] = ProgressionDataUtils
-                .to_string_name(equipmentView.get_equipped_item_id(slotId))
-                .ToString();
-            result["instance_id"] = equippedInstanceId.ToString();
-            result["occupied_slot_ids"] = StringifyStringNameArray(
-                ProgressionDataUtils.to_string_name_array(
-                    equipmentView.get_occupied_slot_ids_for_entry(entrySlot)
-                )
+            result.ItemId = ProgressionDataUtils.to_string_name(
+                equipmentView.get_equipped_item_id(slotId)
+            );
+            result.InstanceId = equippedInstanceId;
+            result.OccupiedSlotIds = ProgressionDataUtils.to_string_name_array(
+                equipmentView.get_occupied_slot_ids_for_entry(entrySlot)
             );
         }
 
-        result["allowed"] = true;
-        result["error_code"] = "";
-        result["message"] = BuildChangeEquipmentSuccessMessage(activeUnit, result);
+        result.Allowed = true;
+        result.ErrorCode = "";
+        result.Message = BuildChangeEquipmentSuccessMessage(activeUnit, result);
         return result;
     }
 
-    private GDictionary ApplyChangeEquipmentToViews(
+    private BattleChangeEquipmentResult ApplyChangeEquipmentToViews(
         BattleCommand command,
-        GDictionary validation,
+        BattleChangeEquipmentResult validation,
         EquipmentState equipmentView,
         WarehouseState backpackView
     )
@@ -421,19 +552,11 @@ public partial class BattleChangeEquipmentResolver : RefCounted
             );
         }
 
-        StringName operation = ProgressionDataUtils.to_string_name(
-            validation.GetValueOrDefault("operation", "")
-        );
-        StringName slotId = ProgressionDataUtils.to_string_name(
-            validation.GetValueOrDefault("slot_id", "")
-        );
-        StringName itemId = ProgressionDataUtils.to_string_name(
-            validation.GetValueOrDefault("item_id", "")
-        );
-        StringName instanceId = ProgressionDataUtils.to_string_name(
-            validation.GetValueOrDefault("instance_id", "")
-        );
-        GDictionary result = (GDictionary)validation.Duplicate(true);
+        StringName operation = validation.Operation;
+        StringName slotId = validation.SlotId;
+        StringName itemId = validation.ItemId;
+        StringName instanceId = validation.InstanceId;
+        BattleChangeEquipmentResult result = validation.Clone();
 
         if (operation == BattleCommand.EQUIPMENT_OPERATION_EQUIP())
         {
@@ -448,12 +571,10 @@ public partial class BattleChangeEquipmentResolver : RefCounted
             }
             var backpackInstances = backpackView.equipment_instances;
             EquipmentInstanceState newInstance = backpackInstances[backpackIndex];
-            itemId = ProgressionDataUtils.to_string_name(newInstance.Get("item_id"));
+            itemId = newInstance.item_id;
             backpackInstances.RemoveAt(backpackIndex);
 
-            GStringNameArray occupiedSlots = ProgressionDataUtils.to_string_name_array(
-                validation.GetValueOrDefault("occupied_slot_ids", new GArray())
-            );
+            GStringNameArray occupiedSlots = validation.OccupiedSlotIds;
             if (occupiedSlots.Count == 0)
             {
                 occupiedSlots = new GStringNameArray { slotId };
@@ -465,7 +586,7 @@ public partial class BattleChangeEquipmentResolver : RefCounted
                     equipmentView.get_entry_slot_for_slot(occupiedSlotId)
                 );
                 if (
-                    GdInterop.IsEmpty(existingEntrySlot)
+                    StringNameIsEmpty(existingEntrySlot)
                     || displacedEntrySlots.ContainsKey(existingEntrySlot)
                 )
                 {
@@ -480,31 +601,30 @@ public partial class BattleChangeEquipmentResolver : RefCounted
                     if (
                         BackpackHasEquipmentInstance(
                             backpackView,
-                            ProgressionDataUtils.to_string_name(
-                                displacedInstance.Get("instance_id")
-                            )
+                            displacedInstance.instance_id
                         )
                     )
                     {
                         return WithChangeEquipmentError(
                             result,
                             "equipment_instance_already_in_backpack",
-                            $"战斗背包中已存在装备实例 {displacedInstance.Get("instance_id")}。"
+                            $"战斗背包中已存在装备实例 {displacedInstance.instance_id}。"
                         );
                     }
                     backpackInstances.Add(displacedInstance);
                 }
             }
             equipmentView.set_equipped_entry(slotId, itemId, occupiedSlots, newInstance);
-            result["item_id"] = itemId.ToString();
-            result["instance_id"] = instanceId.ToString();
+            result.ItemId = itemId;
+            result.InstanceId = instanceId;
+            result.OccupiedSlotIds = occupiedSlots;
         }
         else
         {
             StringName entrySlot = ProgressionDataUtils.to_string_name(
                 equipmentView.get_entry_slot_for_slot(slotId)
             );
-            if (GdInterop.IsEmpty(entrySlot))
+            if (StringNameIsEmpty(entrySlot))
             {
                 return WithChangeEquipmentError(
                     result,
@@ -521,11 +641,9 @@ public partial class BattleChangeEquipmentResolver : RefCounted
                     $"{EquipmentRules.get_slot_label(slotId)} 当前没有已装备物品。"
                 );
             }
-            StringName removedInstanceId = ProgressionDataUtils.to_string_name(
-                removedInstance.Get("instance_id")
-            );
+            StringName removedInstanceId = removedInstance.instance_id;
             if (
-                !GdInterop.IsEmpty(removedInstanceId)
+                !StringNameIsEmpty(removedInstanceId)
                 && BackpackHasEquipmentInstance(backpackView, removedInstanceId)
             )
             {
@@ -536,45 +654,47 @@ public partial class BattleChangeEquipmentResolver : RefCounted
                 );
             }
             backpackView.equipment_instances.Add(removedInstance);
-            result["item_id"] = ProgressionDataUtils
-                .to_string_name(removedInstance.Get("item_id"))
-                .ToString();
-            result["instance_id"] = removedInstanceId.ToString();
+            result.ItemId = removedInstance.item_id;
+            result.InstanceId = removedInstanceId;
         }
 
-        GDictionary ownershipResult = ValidateChangeEquipmentInstanceOwnership(
+        ChangeEquipmentRuleResult ownershipResult = ValidateChangeEquipmentInstanceOwnership(
             equipmentView,
             backpackView
         );
-        if (!GdInterop.GetBool(ownershipResult, "allowed", false))
+        if (!ownershipResult.Allowed)
         {
             return WithChangeEquipmentError(
                 result,
-                GdInterop.GetString(
-                    ownershipResult,
-                    "error_code",
-                    "equipment_instance_write_failed"
-                ),
-                GdInterop.GetString(ownershipResult, "message", "装备实例写入失败。")
+                string.IsNullOrEmpty(ownershipResult.ErrorCode)
+                    ? "equipment_instance_write_failed"
+                    : ownershipResult.ErrorCode,
+                string.IsNullOrEmpty(ownershipResult.Message)
+                    ? "装备实例写入失败。"
+                    : ownershipResult.Message
             );
         }
-        GDictionary capacityResult = ValidateChangeEquipmentBackpackCapacity(backpackView);
-        if (!GdInterop.GetBool(capacityResult, "allowed", false))
+        ChangeEquipmentRuleResult capacityResult = ValidateChangeEquipmentBackpackCapacity(backpackView);
+        if (!capacityResult.Allowed)
         {
             return WithChangeEquipmentError(
                 result,
-                GdInterop.GetString(capacityResult, "error_code", "backpack_capacity_exceeded"),
-                GdInterop.GetString(capacityResult, "message", "战斗背包容量不足。")
+                string.IsNullOrEmpty(capacityResult.ErrorCode)
+                    ? "backpack_capacity_exceeded"
+                    : capacityResult.ErrorCode,
+                string.IsNullOrEmpty(capacityResult.Message)
+                    ? "战斗背包容量不足。"
+                    : capacityResult.Message
             );
         }
 
-        result["allowed"] = true;
-        result["error_code"] = "";
-        result["message"] = BuildChangeEquipmentSuccessMessage(null, result);
+        result.Allowed = true;
+        result.ErrorCode = "";
+        result.Message = BuildChangeEquipmentSuccessMessage(null, result);
         return result;
     }
 
-    private GDictionary BuildChangeEquipmentResult(
+    internal BattleChangeEquipmentResult BuildChangeEquipmentResult(
         bool allowed,
         string errorCode,
         string message,
@@ -582,162 +702,128 @@ public partial class BattleChangeEquipmentResolver : RefCounted
     )
     {
         StringName slotId = GetChangeEquipmentSlotId(command);
-        return new GDictionary
+        return new BattleChangeEquipmentResult
         {
-            ["allowed"] = allowed,
-            ["error_code"] = errorCode,
-            ["message"] = message,
-            ["operation"] = GetChangeEquipmentOperation(command).ToString(),
-            ["slot_id"] = slotId.ToString(),
-            ["slot_label"] = EquipmentRules.get_slot_label(slotId),
-            ["target_unit_id"] = "",
-            ["item_id"] = ResolveChangeEquipmentItemId(command).ToString(),
-            ["instance_id"] = ResolveChangeEquipmentInstanceId(command).ToString(),
-            ["occupied_slot_ids"] = StringifyStringNameArray(
-                ResolveChangeEquipmentOccupiedSlots(command, slotId)
-            ),
+            Allowed = allowed,
+            ErrorCode = errorCode ?? "",
+            Message = message ?? "",
+            Operation = GetChangeEquipmentOperation(command),
+            SlotId = slotId,
+            TargetUnitId = "",
+            ItemId = ResolveChangeEquipmentItemId(command),
+            InstanceId = ResolveChangeEquipmentInstanceId(command),
+            OccupiedSlotIds = ResolveChangeEquipmentOccupiedSlots(command, slotId),
         };
     }
 
-    private GDictionary WithChangeEquipmentError(
-        GDictionary result,
+    private BattleChangeEquipmentResult WithChangeEquipmentError(
+        BattleChangeEquipmentResult result,
         string errorCode,
         string message
     )
     {
-        return WithChangeEquipmentError(result, errorCode, message, new GDictionary());
+        return WithChangeEquipmentError(result, errorCode, message, null);
     }
 
-    private GDictionary WithChangeEquipmentError(
-        GDictionary result,
+    private BattleChangeEquipmentResult WithChangeEquipmentError(
+        BattleChangeEquipmentResult result,
         string errorCode,
         string message,
-        GDictionary extraFields
+        GStringNameArray occupiedSlotIds
     )
     {
-        GDictionary output = (GDictionary)result.Duplicate(true);
-        foreach (var key in extraFields.Keys)
+        BattleChangeEquipmentResult output = result?.Clone() ?? new BattleChangeEquipmentResult();
+        if (occupiedSlotIds != null)
         {
-            output[key] =
-                key.ToString() == "occupied_slot_ids"
-                    ? StringifyVariantArray(extraFields[key])
-                    : extraFields[key];
+            output.OccupiedSlotIds = occupiedSlotIds;
         }
-        output["allowed"] = false;
-        output["error_code"] = errorCode;
-        output["message"] = message;
+        output.Allowed = false;
+        output.ErrorCode = errorCode ?? "";
+        output.Message = message ?? "";
         return output;
     }
 
-    private void AppendChangeEquipmentReport(
+    internal void AppendChangeEquipmentReport(
         BattleEventBatch batch,
         BattleUnitState activeUnit,
-        GDictionary result,
+        BattleChangeEquipmentResult result,
         bool success
     )
     {
+        result ??= new BattleChangeEquipmentResult();
         bool hasUnit = activeUnit != null;
+        int hpBefore = result.HpBefore != 0 || !hasUnit ? result.HpBefore : activeUnit.current_hp;
+        int hpAfter = result.HpAfter != 0 || !hasUnit ? result.HpAfter : activeUnit.current_hp;
+        int hpMaxBefore =
+            result.HpMaxBefore != 0 || !hasUnit ? result.HpMaxBefore : GetUnitHpMax(activeUnit);
+        int hpMaxAfter =
+            result.HpMaxAfter != 0 || !hasUnit ? result.HpMaxAfter : GetUnitHpMax(activeUnit);
         var reportEntry = new GDictionary
         {
             ["entry_type"] = "change_equipment",
             ["type"] = "change_equipment",
             ["ok"] = success,
-            ["error_code"] = success
-                ? ""
-                : GdInterop.GetString(result, "error_code", "change_equipment_failed"),
-            ["reason_id"] = GdInterop.GetString(result, "operation", ""),
+            ["error_code"] = success ? "" : (result.ErrorCode ?? "change_equipment_failed"),
+            ["reason_id"] = result.Operation.ToString(),
             ["event_tags"] = new GArray { "equipment", "change_equipment" },
-            ["unit_id"] = hasUnit ? GdInterop.GetStringName(activeUnit, "unit_id").ToString() : "",
-            ["target_unit_id"] = GdInterop.GetString(result, "target_unit_id", ""),
-            ["operation"] = GdInterop.GetString(result, "operation", ""),
-            ["slot_id"] = GdInterop.GetString(result, "slot_id", ""),
-            ["slot_label"] = GdInterop.GetString(result, "slot_label", ""),
-            ["item_id"] = GdInterop.GetString(result, "item_id", ""),
-            ["instance_id"] = GdInterop.GetString(result, "instance_id", ""),
+            ["unit_id"] = hasUnit ? activeUnit.unit_id.ToString() : "",
+            ["target_unit_id"] = result.TargetUnitId.ToString(),
+            ["operation"] = result.Operation.ToString(),
+            ["slot_id"] = result.SlotId.ToString(),
+            ["slot_label"] = EquipmentRules.get_slot_label(result.SlotId),
+            ["item_id"] = result.ItemId.ToString(),
+            ["instance_id"] = result.InstanceId.ToString(),
             ["ap_cost"] = success ? CHANGE_EQUIPMENT_AP_COST : 0,
-            ["ap_before"] = GdInterop.GetInt(result, "ap_before", 0),
-            ["ap_after"] = GdInterop.GetInt(
-                result,
-                "ap_after",
-                hasUnit ? GdInterop.GetInt(activeUnit, "current_ap") : 0
-            ),
-            ["current_ap"] = hasUnit ? GdInterop.GetInt(activeUnit, "current_ap") : 0,
-            ["hp_before"] = GdInterop.GetInt(
-                result,
-                "hp_before",
-                hasUnit ? GdInterop.GetInt(activeUnit, "current_hp") : 0
-            ),
-            ["hp_after"] = GdInterop.GetInt(
-                result,
-                "hp_after",
-                hasUnit ? GdInterop.GetInt(activeUnit, "current_hp") : 0
-            ),
-            ["hp_max_before"] = GdInterop.GetInt(result, "hp_max_before", GetUnitHpMax(activeUnit)),
-            ["hp_max_after"] = GdInterop.GetInt(result, "hp_max_after", GetUnitHpMax(activeUnit)),
-            ["hp_clamped"] = GdInterop.GetBool(result, "hp_clamped", false),
-            ["weapon_profile_kind"] = GdInterop.GetString(
-                result,
-                "weapon_profile_kind",
-                hasUnit ? GdInterop.GetString(activeUnit, "weapon_profile_kind") : ""
-            ),
-            ["weapon_item_id"] = GdInterop.GetString(
-                result,
-                "weapon_item_id",
-                hasUnit ? GdInterop.GetString(activeUnit, "weapon_item_id") : ""
-            ),
-            ["weapon_profile_type_id"] = GdInterop.GetString(
-                result,
-                "weapon_profile_type_id",
-                hasUnit ? GdInterop.GetString(activeUnit, "weapon_profile_type_id") : ""
-            ),
-            ["weapon_current_grip"] = GdInterop.GetString(
-                result,
-                "weapon_current_grip",
-                hasUnit ? GdInterop.GetString(activeUnit, "weapon_current_grip") : ""
-            ),
-            ["weapon_attack_range"] = GdInterop.GetInt(
-                result,
-                "weapon_attack_range",
-                hasUnit ? GdInterop.GetInt(activeUnit, "weapon_attack_range") : 0
-            ),
-            ["weapon_uses_two_hands"] = GdInterop.GetBool(
-                result,
-                "weapon_uses_two_hands",
-                hasUnit && GdInterop.GetBool(activeUnit, "weapon_uses_two_hands")
-            ),
-            ["weapon_physical_damage_tag"] = GdInterop.GetString(
-                result,
-                "weapon_physical_damage_tag",
-                hasUnit ? GdInterop.GetString(activeUnit, "weapon_physical_damage_tag") : ""
-            ),
-            ["text"] = GdInterop.GetString(result, "message", "换装命令无效。"),
+            ["ap_before"] = result.ApBefore,
+            ["ap_after"] = success ? result.ApAfter : (hasUnit ? activeUnit.current_ap : 0),
+            ["current_ap"] = hasUnit ? activeUnit.current_ap : 0,
+            ["hp_before"] = hpBefore,
+            ["hp_after"] = hpAfter,
+            ["hp_max_before"] = hpMaxBefore,
+            ["hp_max_after"] = hpMaxAfter,
+            ["hp_clamped"] = result.HpClamped,
+            ["weapon_profile_kind"] = !StringNameIsEmpty(result.WeaponProfileKind)
+                ? result.WeaponProfileKind.ToString()
+                : (hasUnit ? activeUnit.weapon_profile_kind.ToString() : ""),
+            ["weapon_item_id"] = !StringNameIsEmpty(result.WeaponItemId)
+                ? result.WeaponItemId.ToString()
+                : (hasUnit ? activeUnit.weapon_item_id.ToString() : ""),
+            ["weapon_profile_type_id"] = !StringNameIsEmpty(result.WeaponProfileTypeId)
+                ? result.WeaponProfileTypeId.ToString()
+                : (hasUnit ? activeUnit.weapon_profile_type_id.ToString() : ""),
+            ["weapon_current_grip"] = !StringNameIsEmpty(result.WeaponCurrentGrip)
+                ? result.WeaponCurrentGrip.ToString()
+                : (hasUnit ? activeUnit.weapon_current_grip.ToString() : ""),
+            ["weapon_attack_range"] = result.WeaponAttackRange != 0 || !hasUnit
+                ? result.WeaponAttackRange
+                : activeUnit.weapon_attack_range,
+            ["weapon_uses_two_hands"] = result.WeaponUsesTwoHands
+                || (hasUnit && activeUnit.weapon_uses_two_hands),
+            ["weapon_physical_damage_tag"] = !StringNameIsEmpty(result.WeaponPhysicalDamageTag)
+                ? result.WeaponPhysicalDamageTag.ToString()
+                : (hasUnit ? activeUnit.weapon_physical_damage_tag.ToString() : ""),
+            ["text"] = string.IsNullOrEmpty(result.Message) ? "换装命令无效。" : result.Message,
         };
         _runtime?._append_report_entry_to_batch(batch, reportEntry);
     }
 
-    private string BuildChangeEquipmentSuccessMessage(GodotObject activeUnit, GDictionary result)
+    private string BuildChangeEquipmentSuccessMessage(
+        BattleUnitState activeUnit,
+        BattleChangeEquipmentResult result
+    )
     {
         string unitName =
-            activeUnit != null
-            && !string.IsNullOrEmpty(GdInterop.GetString(activeUnit, "display_name"))
-                ? GdInterop.GetString(activeUnit, "display_name")
-                : GdInterop.GetString(result, "target_unit_id", "");
+            activeUnit != null && !string.IsNullOrEmpty(activeUnit.display_name)
+                ? activeUnit.display_name
+                : result?.TargetUnitId.ToString() ?? "";
         if (string.IsNullOrEmpty(unitName))
         {
             unitName = "当前单位";
         }
-        StringName operation = ProgressionDataUtils.to_string_name(
-            result.GetValueOrDefault("operation", "")
-        );
-        string slotLabel = GdInterop.GetString(
-            result,
-            "slot_label",
-            EquipmentRules.get_slot_label(
-                ProgressionDataUtils.to_string_name(result.GetValueOrDefault("slot_id", ""))
-            )
-        );
-        string itemId = GdInterop.GetString(result, "item_id", "");
-        string instanceId = GdInterop.GetString(result, "instance_id", "");
+        StringName operation = result?.Operation ?? new StringName("");
+        string slotLabel = EquipmentRules.get_slot_label(result?.SlotId ?? new StringName(""));
+        string itemId = result?.ItemId.ToString() ?? "";
+        string instanceId = result?.InstanceId.ToString() ?? "";
         if (operation == BattleCommand.EQUIPMENT_OPERATION_EQUIP())
         {
             return $"{unitName} 换装：{slotLabel} 装备 {itemId}（实例 {instanceId}），消耗 {CHANGE_EQUIPMENT_AP_COST} AP。";
@@ -773,7 +859,7 @@ public partial class BattleChangeEquipmentResolver : RefCounted
             return "";
         }
         StringName explicitTarget = ProgressionDataUtils.to_string_name(command.target_unit_id);
-        if (!GdInterop.IsEmpty(explicitTarget))
+        if (!StringNameIsEmpty(explicitTarget))
         {
             return explicitTarget;
         }
@@ -789,14 +875,12 @@ public partial class BattleChangeEquipmentResolver : RefCounted
             return "";
         }
         StringName itemId = ProgressionDataUtils.to_string_name(command.equipment_item_id);
-        if (!GdInterop.IsEmpty(itemId))
+        if (!StringNameIsEmpty(itemId))
         {
             return itemId;
         }
         GDictionary instancePayload = command.equipment_instance ?? new GDictionary();
-        return ProgressionDataUtils.to_string_name(
-            instancePayload.GetValueOrDefault("item_id", "")
-        );
+        return DictStringName(instancePayload, "item_id");
     }
 
     private StringName ResolveChangeEquipmentInstanceId(BattleCommand command)
@@ -806,14 +890,12 @@ public partial class BattleChangeEquipmentResolver : RefCounted
             return "";
         }
         StringName instanceId = ProgressionDataUtils.to_string_name(command.equipment_instance_id);
-        if (!GdInterop.IsEmpty(instanceId))
+        if (!StringNameIsEmpty(instanceId))
         {
             return instanceId;
         }
         GDictionary instancePayload = command.equipment_instance ?? new GDictionary();
-        return ProgressionDataUtils.to_string_name(
-            instancePayload.GetValueOrDefault("instance_id", "")
-        );
+        return DictStringName(instancePayload, "instance_id");
     }
 
     private GStringNameArray ResolveChangeEquipmentOccupiedSlots(
@@ -838,7 +920,7 @@ public partial class BattleChangeEquipmentResolver : RefCounted
         return occupiedSlots;
     }
 
-    private GDictionary ResolveChangeEquipmentItemRule(
+    private ChangeEquipmentRuleResult ResolveChangeEquipmentItemRule(
         StringName itemId,
         StringName slotId,
         BattleCommand command,
@@ -848,46 +930,45 @@ public partial class BattleChangeEquipmentResolver : RefCounted
         StringName normItem = ProgressionDataUtils.to_string_name(itemId);
         StringName normSlot = ProgressionDataUtils.to_string_name(slotId);
         GStringNameArray fallbackOccupied = ResolveChangeEquipmentOccupiedSlots(command, normSlot);
-        var result = new GDictionary
-        {
-            ["allowed"] = true,
-            ["error_code"] = "",
-            ["message"] = "",
-            ["occupied_slot_ids"] = StringifyStringNameArray(fallbackOccupied),
-        };
         ItemDef itemDef = GetChangeEquipmentItemDef(normItem);
         if (itemDef == null)
         {
             if (HasChangeEquipmentItemCatalog())
             {
-                result["allowed"] = false;
-                result["error_code"] = "item_not_found";
-                result["message"] = $"找不到装备定义：{normItem}。";
+                return new ChangeEquipmentRuleResult(
+                    false,
+                    "item_not_found",
+                    $"找不到装备定义：{normItem}。",
+                    fallbackOccupied
+                );
             }
-            return result;
+            return new ChangeEquipmentRuleResult(true, occupiedSlotIds: fallbackOccupied);
         }
         if (!itemDef.is_equipment())
         {
-            result["allowed"] = false;
-            result["error_code"] = "item_not_equipment";
-            result["message"] = $"{normItem} 不是可装备物品。";
-            return result;
+            return new ChangeEquipmentRuleResult(
+                false,
+                "item_not_equipment",
+                $"{normItem} 不是可装备物品。",
+                fallbackOccupied
+            );
         }
         GStringNameArray allowedSlots = itemDef.get_equipment_slot_ids();
         if (!allowedSlots.Contains(normSlot))
         {
-            result["allowed"] = false;
-            result["error_code"] = "slot_not_allowed";
-            result["message"] =
-                $"{normItem} 不能装备到 {EquipmentRules.get_slot_label(normSlot)}。";
-            return result;
+            return new ChangeEquipmentRuleResult(
+                false,
+                "slot_not_allowed",
+                $"{normItem} 不能装备到 {EquipmentRules.get_slot_label(normSlot)}。",
+                fallbackOccupied
+            );
         }
-        GDictionary requirementRule = ResolveChangeEquipmentRequirementRule(
+        ChangeEquipmentRuleResult requirementRule = ResolveChangeEquipmentRequirementRule(
             activeUnit,
             itemDef,
             normItem
         );
-        if (!GdInterop.GetBool(requirementRule, "allowed", true))
+        if (!requirementRule.Allowed)
         {
             return requirementRule;
         }
@@ -902,68 +983,63 @@ public partial class BattleChangeEquipmentResolver : RefCounted
         {
             occupiedSlots.Insert(0, normSlot);
         }
-        result["occupied_slot_ids"] = StringifyStringNameArray(occupiedSlots);
-        return result;
+        return new ChangeEquipmentRuleResult(true, occupiedSlotIds: occupiedSlots);
     }
 
-    private GDictionary ResolveChangeEquipmentRequirementRule(
+    private ChangeEquipmentRuleResult ResolveChangeEquipmentRequirementRule(
         BattleUnitState activeUnit,
         ItemDef itemDef,
         StringName itemId
     )
     {
-        var result = new GDictionary
-        {
-            ["allowed"] = true,
-            ["error_code"] = "",
-            ["message"] = "",
-            ["occupied_slot_ids"] = new GArray(),
-        };
         if (itemDef == null)
         {
-            return result;
+            return new ChangeEquipmentRuleResult(true);
         }
         EquipmentRequirement equipReq = itemDef.equip_requirement as EquipmentRequirement;
         if (equipReq == null)
         {
-            return result;
+            return new ChangeEquipmentRuleResult(true);
         }
         string itemLabel = GetChangeEquipmentItemDisplayName(itemDef, itemId);
         if (
             activeUnit == null
-            || GdInterop.IsEmpty(activeUnit.source_member_id)
+            || StringNameIsEmpty(activeUnit.source_member_id)
         )
         {
-            result["allowed"] = false;
-            result["error_code"] = "item_not_equippable";
-            result["message"] = BuildChangeEquipmentRequirementFailureMessage(itemLabel);
-            return result;
+            return new ChangeEquipmentRuleResult(
+                false,
+                "item_not_equippable",
+                BuildChangeEquipmentRequirementFailureMessage(itemLabel)
+            );
         }
         IBattleRuntimeCharacterGateway characterGateway = _runtime?.GetCharacterGatewayTyped();
         if (characterGateway == null)
         {
-            result["allowed"] = false;
-            result["error_code"] = "item_not_equippable";
-            result["message"] = BuildChangeEquipmentRequirementFailureMessage(itemLabel);
-            return result;
+            return new ChangeEquipmentRuleResult(
+                false,
+                "item_not_equippable",
+                BuildChangeEquipmentRequirementFailureMessage(itemLabel)
+            );
         }
         PartyMemberState memberState = characterGateway.get_member_state(activeUnit.source_member_id);
         if (memberState == null)
         {
-            result["allowed"] = false;
-            result["error_code"] = "item_not_equippable";
-            result["message"] = BuildChangeEquipmentRequirementFailureMessage(itemLabel);
-            return result;
+            return new ChangeEquipmentRuleResult(
+                false,
+                "item_not_equippable",
+                BuildChangeEquipmentRequirementFailureMessage(itemLabel)
+            );
         }
-        GDictionary reqResult = equipReq.Check(memberState) ?? new GDictionary();
-        if (GdInterop.GetBool(reqResult, "allowed", true))
+        if (equipReq.CheckResult(memberState).Allowed)
         {
-            return result;
+            return new ChangeEquipmentRuleResult(true);
         }
-        result["allowed"] = false;
-        result["error_code"] = "item_not_equippable";
-        result["message"] = BuildChangeEquipmentRequirementFailureMessage(itemLabel);
-        return result;
+        return new ChangeEquipmentRuleResult(
+            false,
+            "item_not_equippable",
+            BuildChangeEquipmentRequirementFailureMessage(itemLabel)
+        );
     }
 
     private string BuildChangeEquipmentRequirementFailureMessage(string itemLabel)
@@ -984,7 +1060,7 @@ public partial class BattleChangeEquipmentResolver : RefCounted
     {
         StringName normalized = ProgressionDataUtils.to_string_name(itemId);
         GDictionary defs = _runtime?.get_item_defs();
-        if (GdInterop.IsEmpty(normalized) || defs == null || defs.Count == 0)
+        if (StringNameIsEmpty(normalized) || defs == null || defs.Count == 0)
         {
             return null;
         }
@@ -999,26 +1075,34 @@ public partial class BattleChangeEquipmentResolver : RefCounted
         return null;
     }
 
+    private static StringName DictStringName(GDictionary data, string key)
+    {
+        if (data == null || !data.ContainsKey(key))
+        {
+            return "";
+        }
+        return ProgressionDataUtils.to_string_name(data[key]);
+    }
+
     private bool HasChangeEquipmentItemCatalog()
     {
         GDictionary itemDefs = _runtime?.get_item_defs();
         return itemDefs != null && itemDefs.Count > 0;
     }
 
-    private GDictionary ValidateChangeEquipmentInstanceOwnership(
+    private ChangeEquipmentRuleResult ValidateChangeEquipmentInstanceOwnership(
         EquipmentState equipmentView,
         WarehouseState backpackView
     )
     {
-        var owners = new GDictionary();
+        var owners = new Dictionary<StringName, string>();
         if (backpackView == null)
         {
-            return new GDictionary
-            {
-                ["allowed"] = false,
-                ["error_code"] = "backpack_view_unavailable",
-                ["message"] = "战斗内背包状态不可用。",
-            };
+            return new ChangeEquipmentRuleResult(
+                false,
+                "backpack_view_unavailable",
+                "战斗内背包状态不可用。"
+            );
         }
         foreach (EquipmentInstanceState instance in backpackView.get_non_empty_instances())
         {
@@ -1028,25 +1112,24 @@ public partial class BattleChangeEquipmentResolver : RefCounted
             StringName itemId = ProgressionDataUtils.to_string_name(
                 instance != null ? instance.item_id : new StringName("")
             );
-            GDictionary ownerResult = ClaimChangeEquipmentInstanceOwner(
+            ChangeEquipmentRuleResult ownerResult = ClaimChangeEquipmentInstanceOwner(
                 owners,
                 instanceId,
                 itemId,
                 "backpack"
             );
-            if (!GdInterop.GetBool(ownerResult, "allowed", false))
+            if (!ownerResult.Allowed)
             {
                 return ownerResult;
             }
         }
         if (equipmentView == null)
         {
-            return new GDictionary
-            {
-                ["allowed"] = false,
-                ["error_code"] = "equipment_view_unavailable",
-                ["message"] = "战斗内装备状态不可用。",
-            };
+            return new ChangeEquipmentRuleResult(
+                false,
+                "equipment_view_unavailable",
+                "战斗内装备状态不可用。"
+            );
         }
         foreach (StringName entrySlotId in equipmentView.get_entry_slot_ids())
         {
@@ -1057,87 +1140,66 @@ public partial class BattleChangeEquipmentResolver : RefCounted
                 equipmentView.get_equipped_instance_id(entrySlotId)
             );
             string ownerName = $"equipment:{entrySlotId}";
-            GDictionary ownerResult = ClaimChangeEquipmentInstanceOwner(
+            ChangeEquipmentRuleResult ownerResult = ClaimChangeEquipmentInstanceOwner(
                 owners,
                 instanceId,
                 itemId,
                 ownerName
             );
-            if (!GdInterop.GetBool(ownerResult, "allowed", false))
+            if (!ownerResult.Allowed)
             {
                 return ownerResult;
             }
         }
-        return new GDictionary
-        {
-            ["allowed"] = true,
-            ["error_code"] = "",
-            ["message"] = "",
-        };
+        return new ChangeEquipmentRuleResult(true);
     }
 
-    private GDictionary ClaimChangeEquipmentInstanceOwner(
-        GDictionary owners,
+    private ChangeEquipmentRuleResult ClaimChangeEquipmentInstanceOwner(
+        Dictionary<StringName, string> owners,
         StringName instanceId,
         StringName itemId,
         string ownerName
     )
     {
-        if (GdInterop.IsEmpty(instanceId) || GdInterop.IsEmpty(itemId))
+        if (StringNameIsEmpty(instanceId) || StringNameIsEmpty(itemId))
         {
-            return new GDictionary
-            {
-                ["allowed"] = false,
-                ["error_code"] = "equipment_instance_write_failed",
-                ["message"] = $"装备实例写入失败：{ownerName} 存在空实例或空物品。",
-            };
+            return new ChangeEquipmentRuleResult(
+                false,
+                "equipment_instance_write_failed",
+                $"装备实例写入失败：{ownerName} 存在空实例或空物品。"
+            );
         }
         if (owners.ContainsKey(instanceId))
         {
-            return new GDictionary
-            {
-                ["allowed"] = false,
-                ["error_code"] = "equipment_instance_duplicate_owner",
-                ["message"] = $"装备实例 {instanceId} 同时存在于多个位置。",
-            };
+            return new ChangeEquipmentRuleResult(
+                false,
+                "equipment_instance_duplicate_owner",
+                $"装备实例 {instanceId} 同时存在于多个位置。"
+            );
         }
-        owners[instanceId] = new GDictionary { ["item_id"] = itemId, ["owner"] = ownerName };
-        return new GDictionary
-        {
-            ["allowed"] = true,
-            ["error_code"] = "",
-            ["message"] = "",
-        };
+        owners[instanceId] = ownerName;
+        return new ChangeEquipmentRuleResult(true);
     }
 
-    private GDictionary ValidateChangeEquipmentBackpackCapacity(WarehouseState backpackView)
+    private ChangeEquipmentRuleResult ValidateChangeEquipmentBackpackCapacity(
+        WarehouseState backpackView
+    )
     {
         int capacity = GetChangeEquipmentBackpackCapacity();
         if (capacity < 0)
         {
-            return new GDictionary
-            {
-                ["allowed"] = true,
-                ["error_code"] = "",
-                ["message"] = "",
-            };
+            return new ChangeEquipmentRuleResult(true);
         }
         int usedSlots = GetChangeEquipmentBackpackUsedSlots(backpackView);
         if (usedSlots <= capacity)
         {
-            return new GDictionary
-            {
-                ["allowed"] = true,
-                ["error_code"] = "",
-                ["message"] = "",
-            };
+            return new ChangeEquipmentRuleResult(true);
         }
-        return new GDictionary
-        {
-            ["allowed"] = false,
-            ["error_code"] = "backpack_capacity_exceeded",
-            ["message"] = $"战斗背包容量不足：需要 {usedSlots} 格，当前容量 {capacity} 格。",
-        };
+        return new ChangeEquipmentRuleResult(
+            false,
+            "backpack_capacity_exceeded",
+            $"战斗背包容量不足：需要 {usedSlots} 格，当前容量 {capacity} 格。"
+        );
     }
 
     private int GetChangeEquipmentBackpackCapacity()
@@ -1182,7 +1244,7 @@ public partial class BattleChangeEquipmentResolver : RefCounted
     private int FindBackpackEquipmentInstanceIndex(WarehouseState backpackView, StringName instanceId)
     {
         StringName normalizedId = ProgressionDataUtils.to_string_name(instanceId);
-        if (backpackView == null || GdInterop.IsEmpty(normalizedId))
+        if (backpackView == null || StringNameIsEmpty(normalizedId))
         {
             return -1;
         }
@@ -1217,24 +1279,9 @@ public partial class BattleChangeEquipmentResolver : RefCounted
         return result;
     }
 
-    private static GStringArray StringifyVariantArray(object rawValues)
+    private static bool StringNameIsEmpty(StringName value)
     {
-        var result = new GStringArray();
-        GArray values = rawValues switch
-        {
-            Variant value when value.VariantType == Variant.Type.Array => value.AsGodotArray(),
-            GArray array => array,
-            _ => null,
-        };
-        if (values == null)
-        {
-            return result;
-        }
-        foreach (var value in values)
-        {
-            result.Add(value.ToString());
-        }
-        return result;
+        return value == null || string.IsNullOrEmpty(value.ToString());
     }
 
     private BattleState RuntimeState()

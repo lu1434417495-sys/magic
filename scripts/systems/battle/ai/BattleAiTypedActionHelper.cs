@@ -126,7 +126,7 @@ public sealed class BattleAiTypedActionHelper
         BattleUnitState actor = context?.unit_state;
         if (
             actor != null
-            && DictBool(actor.ai_blackboard, "madness_target_any_team")
+            && actor.ai_blackboard?.madness_target_any_team == true
             && selector != SelectorSelf
         )
         {
@@ -318,7 +318,7 @@ public sealed class BattleAiTypedActionHelper
             targetUnit,
             targetFilter,
             new BattleTargetTeamRules.TargetFilterOptions(
-                MadnessTargetAnyTeam: DictBool(actor.ai_blackboard, "madness_target_any_team")
+                MadnessTargetAnyTeam: actor.ai_blackboard?.madness_target_any_team == true
             )
         );
     }
@@ -636,16 +636,6 @@ public sealed class BattleAiTypedActionHelper
             return fallback;
         return TryGetDictionaryValue(dictionary, key, out Variant rawValue)
             && TryAsInt(rawValue, out int value)
-            ? value
-            : fallback;
-    }
-
-    private static bool DictBool(GDictionary dictionary, string key, bool fallback = false)
-    {
-        if (dictionary == null)
-            return fallback;
-        return TryGetDictionaryValue(dictionary, key, out Variant rawValue)
-            && TryAsBool(rawValue, out bool value)
             ? value
             : fallback;
     }

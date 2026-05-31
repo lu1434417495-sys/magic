@@ -187,7 +187,7 @@ public partial class GameRuntimeBattleSelection : RefCounted
             UpdateStatus("当前没有可手动操作的单位。");
             return;
         }
-        if (GdInterop.IsEmpty(GetSelectedSkillId()))
+        if (GetSelectedSkillId() == "")
         {
             UpdateStatus("请先用数字键选择一个技能。");
             return;
@@ -256,7 +256,7 @@ public partial class GameRuntimeBattleSelection : RefCounted
             ClearBattleSkillTargetSelection();
         }
         SetLastManualUnitId(activeUnitId);
-        if (activeUnit == null || GdInterop.IsEmpty(GetSelectedSkillId()))
+        if (activeUnit == null || GetSelectedSkillId() == "")
         {
             return;
         }
@@ -325,7 +325,7 @@ public partial class GameRuntimeBattleSelection : RefCounted
         if (targetUnit != null)
         {
             StringName selectedSkillResult = HandleSelectedUnitSkillClick(activeUnit, targetUnit);
-            if (!GdInterop.IsEmpty(selectedSkillResult))
+            if (selectedSkillResult != "")
             {
                 return selectedSkillResult;
             }
@@ -446,7 +446,7 @@ public partial class GameRuntimeBattleSelection : RefCounted
         BattleUnitState targetUnit
     )
     {
-        if (activeUnit == null || targetUnit == null || GdInterop.IsEmpty(GetSelectedSkillId()))
+        if (activeUnit == null || targetUnit == null || GetSelectedSkillId() == "")
         {
             return null;
         }
@@ -627,7 +627,7 @@ public partial class GameRuntimeBattleSelection : RefCounted
 
     private SkillDef GetSelectedBattleSkillDef(BattleUnitState activeUnit)
     {
-        if (activeUnit == null || GdInterop.IsEmpty(GetSelectedSkillId()))
+        if (activeUnit == null || GetSelectedSkillId() == "")
         {
             return null;
         }
@@ -657,7 +657,7 @@ public partial class GameRuntimeBattleSelection : RefCounted
         {
             return null;
         }
-        if (GdInterop.IsEmpty(GetSelectedSkillVariantId()))
+        if (GetSelectedSkillVariantId() == "")
         {
             return unlockedOptions[0].AsGodotObject() as CombatCastVariantDef;
         }
@@ -685,7 +685,7 @@ public partial class GameRuntimeBattleSelection : RefCounted
         {
             defaultSkillLevel = 0;
         }
-        int skillLevel = GdInterop.GetInt(
+        int skillLevel = ReadInt(
             activeUnit.known_skill_level_map,
             skillDef.skill_id,
             defaultSkillLevel
@@ -722,7 +722,11 @@ public partial class GameRuntimeBattleSelection : RefCounted
             return null;
         }
         GDictionary skillDefs = Runtime.get_skill_defs();
-        return GdInterop.GetObject(skillDefs, skillId) as SkillDef;
+        if (skillDefs == null || !skillDefs.ContainsKey(skillId))
+        {
+            return null;
+        }
+        return skillDefs[skillId].AsGodotObject() as SkillDef;
     }
 
     private GVector2IArray CollectSelectedBattleSkillValidTargetCoords()
@@ -941,7 +945,7 @@ public partial class GameRuntimeBattleSelection : RefCounted
             {
                 return false;
             }
-            BattleCellState cell = GdInterop.GetObject(battleState.cells, coord) as BattleCellState;
+            BattleCellState cell = battleState.cells[coord].AsGodotObject() as BattleCellState;
             if (cell == null)
             {
                 return false;
@@ -1386,7 +1390,7 @@ public partial class GameRuntimeBattleSelection : RefCounted
         GDictionary costs = combatProfile.get_effective_resource_costs(
             GetUnitSkillLevel(activeUnit, skillDef.skill_id)
         );
-        int cooldown = GdInterop.GetInt(activeUnit.cooldowns, skillDef.skill_id, 0);
+        int cooldown = ReadInt(activeUnit.cooldowns, skillDef.skill_id, 0);
         if (cooldown > 0)
         {
             return $"{skillDef.display_name} 仍在冷却中（{cooldown}）。";
@@ -1396,22 +1400,22 @@ public partial class GameRuntimeBattleSelection : RefCounted
         {
             return lockedResourceBlockReason;
         }
-        if (activeUnit.current_ap < GdInterop.GetInt(costs, "ap_cost", combatProfile.ap_cost))
+        if (activeUnit.current_ap < ReadInt(costs, "ap_cost", combatProfile.ap_cost))
         {
             return "AP不足，无法施放该技能。";
         }
-        if (activeUnit.current_mp < GdInterop.GetInt(costs, "mp_cost", combatProfile.mp_cost))
+        if (activeUnit.current_mp < ReadInt(costs, "mp_cost", combatProfile.mp_cost))
         {
             return "法力不足，无法施放该技能。";
         }
         if (
             activeUnit.current_stamina
-            < GdInterop.GetInt(costs, "stamina_cost", combatProfile.stamina_cost)
+            < ReadInt(costs, "stamina_cost", combatProfile.stamina_cost)
         )
         {
             return "体力不足，无法施放该技能。";
         }
-        if (activeUnit.current_aura < GdInterop.GetInt(costs, "aura_cost", combatProfile.aura_cost))
+        if (activeUnit.current_aura < ReadInt(costs, "aura_cost", combatProfile.aura_cost))
         {
             return "斗气不足，无法施放该技能。";
         }
@@ -1428,21 +1432,21 @@ public partial class GameRuntimeBattleSelection : RefCounted
             return "技能施放者无效。";
         }
         if (
-            GdInterop.GetInt(costs, "mp_cost", 0) > 0
+            ReadInt(costs, "mp_cost", 0) > 0
             && !activeUnit.has_combat_resource_unlocked(BattleUnitState.COMBAT_RESOURCE_MP())
         )
         {
             return "法力尚未解锁，无法施放该技能。";
         }
         if (
-            GdInterop.GetInt(costs, "stamina_cost", 0) > 0
+            ReadInt(costs, "stamina_cost", 0) > 0
             && !activeUnit.has_combat_resource_unlocked(BattleUnitState.COMBAT_RESOURCE_STAMINA())
         )
         {
             return "体力尚未解锁，无法施放该技能。";
         }
         if (
-            GdInterop.GetInt(costs, "aura_cost", 0) > 0
+            ReadInt(costs, "aura_cost", 0) > 0
             && !activeUnit.has_combat_resource_unlocked(BattleUnitState.COMBAT_RESOURCE_AURA())
         )
         {
@@ -1453,13 +1457,13 @@ public partial class GameRuntimeBattleSelection : RefCounted
 
     private int GetUnitSkillLevel(BattleUnitState unitState, StringName skillId)
     {
-        if (unitState == null || GdInterop.IsEmpty(skillId))
+        if (unitState == null || skillId == "")
         {
             return 0;
         }
         if (unitState.known_skill_level_map.ContainsKey(skillId))
         {
-            return GdInterop.GetInt(unitState.known_skill_level_map, skillId, 0);
+            return ReadInt(unitState.known_skill_level_map, skillId, 0);
         }
         SkillDef skillDef = GetSkillDef(skillId);
         if (IsLevelLessSkill(skillDef))
@@ -1473,7 +1477,7 @@ public partial class GameRuntimeBattleSelection : RefCounted
     {
         return skillDef != null
             && skillDef.max_level == 0
-            && GdInterop.IsEmpty(skillDef.dynamic_max_level_stat_id);
+            && skillDef.dynamic_max_level_stat_id == "";
     }
 
     private string BuildBattleSkillSelectionStatus(SkillDef skillDef, BattleUnitState activeUnit)
@@ -1780,27 +1784,30 @@ public partial class GameRuntimeBattleSelection : RefCounted
         }
 
         int skillLevel = GetUnitSkillLevel(activeUnit, skillDef.skill_id);
-        GDictionary collectedTargetCoords =
-            _targetCollectionService.collect_combat_profile_target_coords(
+        BattleTargetCollectionResult collectedTargetCoords =
+            _targetCollectionService.CollectCombatProfileTargetCoords(
                 GetBattleState(),
                 GetBattleGridService(),
                 activeUnit.coord,
                 skillDef.combat_profile,
-                ToUntypedArray(targetCoords),
+                targetCoords,
                 activeUnit,
                 CollectSelectedTargetUnits(activeUnit, skillDef),
                 skillLevel
             );
-        if (GdInterop.GetBool(collectedTargetCoords, "handled", false))
+        if (collectedTargetCoords.Handled)
         {
-            return SortCoords(GdInterop.GetArray(collectedTargetCoords, "target_coords"));
+            return SortCoords(collectedTargetCoords.TargetCoords);
         }
         return targetCoords;
     }
 
-    private GArray CollectSelectedTargetUnits(BattleUnitState activeUnit, SkillDef skillDef)
+    private List<BattleUnitState> CollectSelectedTargetUnits(
+        BattleUnitState activeUnit,
+        SkillDef skillDef
+    )
     {
-        var targetUnits = new GArray();
+        var targetUnits = new List<BattleUnitState>();
         if (activeUnit == null || skillDef?.combat_profile == null)
         {
             return targetUnits;
@@ -1842,7 +1849,7 @@ public partial class GameRuntimeBattleSelection : RefCounted
             return "single_unit";
         }
         StringName selectionMode = skillDef.combat_profile.target_selection_mode;
-        return GdInterop.IsEmpty(selectionMode) ? new StringName("single_unit") : selectionMode;
+        return selectionMode == "" ? new StringName("single_unit") : selectionMode;
     }
 
     private BattleUnitState GetManualActiveUnit()
@@ -2048,6 +2055,36 @@ public partial class GameRuntimeBattleSelection : RefCounted
             result.Add(value);
         }
         return result;
+    }
+
+    private static int ReadInt(GDictionary data, string key, int fallback = 0)
+    {
+        if (data == null || string.IsNullOrEmpty(key) || !data.ContainsKey(key))
+        {
+            return fallback;
+        }
+        Variant value = data[key];
+        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+    }
+
+    private static int ReadInt(GDictionary data, StringName key, int fallback = 0)
+    {
+        if (data == null || key == "" || !data.ContainsKey(key))
+        {
+            return fallback;
+        }
+        Variant value = data[key];
+        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+    }
+
+    private static GArray ReadArray(GDictionary data, string key)
+    {
+        if (data == null || string.IsNullOrEmpty(key) || !data.ContainsKey(key))
+        {
+            return new GArray();
+        }
+        Variant value = data[key];
+        return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : new GArray();
     }
 
     private static GArray ToUntypedArray<T>(IEnumerable<T> values)

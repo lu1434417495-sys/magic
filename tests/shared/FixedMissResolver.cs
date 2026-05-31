@@ -105,10 +105,4 @@ public partial class FixedMissResolver : BattleHitResolver
         return dictionary[key].AsInt32();
     }
 
-    private static bool GetBool(GDictionary dictionary, string key, bool fallback)
-    {
-        if (dictionary == null || !dictionary.ContainsKey(key))
-            return fallback;
-        return dictionary[key].AsBool();
-    }
 }

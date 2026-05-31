@@ -17,25 +17,50 @@ public partial class BattleRepeatAttackResolver : RefCounted
     private static readonly StringName DamageEffect = "damage";
     private static readonly string PreResistanceStage = "pre_resistance";
 
-    private WeakReference<GodotObject> _runtimeRef;
-    private WeakReference<GodotObject> _masteryRecorderRef;
+    private readonly record struct RepeatAttackRuntimeParameters(
+        bool StopOnMiss,
+        bool StopOnTargetDown,
+        double FollowUpDamageMultiplier
+    )
+    {
+        public static RepeatAttackRuntimeParameters FromEffect(CombatEffectDef effectDef)
+        {
+            GDictionary parameters = effectDef?.@params ?? new GDictionary();
+            return new RepeatAttackRuntimeParameters(
+                effectDef?.stop_on_miss ?? true,
+                effectDef?.stop_on_target_down ?? true,
+                Math.Max(GetFloat(parameters, "follow_up_damage_multiplier", 1.0), 1.0)
+            );
+        }
+
+        public double GetStageDamageMultiplier(int stageIndex)
+        {
+            return stageIndex <= 0 ? 1.0 : Math.Pow(FollowUpDamageMultiplier, stageIndex);
+        }
+
+    }
+
+    private WeakReference<BattleRuntimeModule> _runtimeRef;
+    private WeakReference<BattleSkillMasteryService> _masteryRecorderRef;
 
     private BattleRuntimeModule _runtime
     {
-        get => ResolveWeakRef(_runtimeRef) as BattleRuntimeModule;
-        set => _runtimeRef = value != null ? new WeakReference<GodotObject>(value) : null;
+        get => ResolveWeakRef(_runtimeRef);
+        set => _runtimeRef = value != null ? new WeakReference<BattleRuntimeModule>(value) : null;
     }
 
     private BattleSkillMasteryService _masteryRecorder
     {
-        get => ResolveWeakRef(_masteryRecorderRef) as BattleSkillMasteryService;
-        set => _masteryRecorderRef = value != null ? new WeakReference<GodotObject>(value) : null;
+        get => ResolveWeakRef(_masteryRecorderRef);
+        set =>
+            _masteryRecorderRef =
+                value != null ? new WeakReference<BattleSkillMasteryService>(value) : null;
     }
 
-    public void setup(GodotObject runtime, GodotObject mastery_recorder = null)
+    public void setup(BattleRuntimeModule runtime, BattleSkillMasteryService mastery_recorder = null)
     {
-        _runtime = runtime as BattleRuntimeModule;
-        _masteryRecorder = mastery_recorder as BattleSkillMasteryService;
+        _runtime = runtime;
+        _masteryRecorder = mastery_recorder;
     }
 
     public void dispose()
@@ -70,6 +95,8 @@ public partial class BattleRepeatAttackResolver : RefCounted
         int totalKillCount = 0;
         int stageIndex = 0;
         bool anyAttackSucceeded = false;
+        RepeatAttackRuntimeParameters repeatParameters =
+            RepeatAttackRuntimeParameters.FromEffect(repeat_attack_effect);
 
         while (stageIndex < REPEAT_ATTACK_STAGE_GUARD && target_unit.is_alive)
         {
@@ -138,7 +165,7 @@ public partial class BattleRepeatAttackResolver : RefCounted
                     $"{DisplayName(active_unit)} 的 {DisplayName(skill_def)} 第 {stageIndex + 1} 段未命中 {DisplayName(target_unit)}，{stageResolutionText}，{costResourceAbbr} 消耗 {stageResourceCost}。"
                 );
                 _runtime?.append_result_report_entry(batch, stageResult);
-                if (_should_stop_repeat_attack_on_miss(repeat_attack_effect))
+                if (repeatParameters.StopOnMiss)
                 {
                     break;
                 }
@@ -208,9 +235,9 @@ public partial class BattleRepeatAttackResolver : RefCounted
                     active_unit,
                     batch,
                     $"{DisplayName(target_unit)} 被击倒。",
-                    new GDictionary { ["record_enemy_defeated_achievement"] = true }
+                    new BattleDefeatHandlingOptions(recordEnemyDefeatedAchievement: true)
                 );
-                if (_should_stop_repeat_attack_on_target_down(repeat_attack_effect))
+                if (repeatParameters.StopOnTargetDown)
                 {
                     break;
                 }
@@ -321,7 +348,8 @@ public partial class BattleRepeatAttackResolver : RefCounted
             skillLevel,
             fate_aware
         );
-        GodotObject combatProfile = GdInterop.GetObject(skill_def, "combat_profile");
+        SkillDef skillDef = skill_def as SkillDef;
+        CombatSkillDef combatProfile = skillDef?.combat_profile;
         GDictionary effectiveCosts = GetEffectiveResourceCosts(combatProfile, skillLevel);
         spec = spec.with_base_resource_cost(
             _get_repeat_attack_preview_base_cost(skill_def, spec.cost_resource_kind, effectiveCosts)
@@ -377,7 +405,8 @@ public partial class BattleRepeatAttackResolver : RefCounted
         GodotObject repeat_attack_effect
     )
     {
-        GodotObject combatProfile = GdInterop.GetObject(skill_def, "combat_profile");
+        SkillDef skillDef = skill_def as SkillDef;
+        CombatSkillDef combatProfile = skillDef?.combat_profile;
         if (
             active_unit == null
             || skill_def == null
@@ -435,8 +464,11 @@ public partial class BattleRepeatAttackResolver : RefCounted
         {
             return 0;
         }
-        GDictionary levelMap = GdInterop.GetDictionary(active_unit, "known_skill_level_map");
-        return GdInterop.GetInt(levelMap, GdInterop.GetStringName(skill_def, "skill_id"), 0);
+        BattleUnitState activeUnit = active_unit as BattleUnitState;
+        SkillDef skillDef = skill_def as SkillDef;
+        return activeUnit != null && skillDef != null
+            ? GetInt(activeUnit.known_skill_level_map, skillDef.skill_id, 0)
+            : 0;
     }
 
     public static int _get_repeat_attack_preview_base_cost(
@@ -445,8 +477,9 @@ public partial class BattleRepeatAttackResolver : RefCounted
         GDictionary effective_costs
     )
     {
-        GodotObject combatProfile = GdInterop.GetObject(skill_def, "combat_profile");
-        if (skill_def == null || combatProfile == null)
+        SkillDef skillDef = skill_def as SkillDef;
+        CombatSkillDef combatProfile = skillDef?.combat_profile;
+        if (skillDef == null || combatProfile == null)
         {
             return 0;
         }
@@ -455,11 +488,7 @@ public partial class BattleRepeatAttackResolver : RefCounted
         {
             return 0;
         }
-        return GdInterop.GetInt(
-            effective_costs,
-            costField,
-            GdInterop.GetInt(combatProfile, costField)
-        );
+        return GetInt(effective_costs, costField, GetCombatProfileCost(combatProfile, cost_resource_kind));
     }
 
     public static int _get_unit_resource_value(
@@ -476,7 +505,7 @@ public partial class BattleRepeatAttackResolver : RefCounted
         {
             return 0;
         }
-        return GdInterop.GetInt(active_unit, currentField);
+        return GetUnitResourceValue(active_unit as BattleUnitState, cost_resource_kind);
     }
 
     private AttackEffectResolutionResult ResolveRepeatAttackStageResult(
@@ -604,8 +633,10 @@ public partial class BattleRepeatAttackResolver : RefCounted
         GodotObject skill_def
     )
     {
-        GodotObject combatProfile = GdInterop.GetObject(skill_def, "combat_profile");
-        if (active_unit == null || skill_def == null || combatProfile == null)
+        BattleUnitState activeUnit = active_unit as BattleUnitState;
+        SkillDef skillDef = skill_def as SkillDef;
+        CombatSkillDef combatProfile = skillDef?.combat_profile;
+        if (activeUnit == null || skillDef == null || combatProfile == null)
         {
             return new GDictionary();
         }
@@ -613,8 +644,8 @@ public partial class BattleRepeatAttackResolver : RefCounted
         if (_runtime != null)
         {
             skillLevel = _runtime._get_unit_skill_level(
-                active_unit as BattleUnitState,
-                GdInterop.GetStringName(skill_def, "skill_id")
+                activeUnit,
+                skillDef.skill_id
             );
         }
         else
@@ -640,8 +671,9 @@ public partial class BattleRepeatAttackResolver : RefCounted
         CombatResourceKind cost_resource_kind
     )
     {
-        GodotObject combatProfile = GdInterop.GetObject(skill_def, "combat_profile");
-        if (skill_def == null || combatProfile == null)
+        SkillDef skillDef = skill_def as SkillDef;
+        CombatSkillDef combatProfile = skillDef?.combat_profile;
+        if (skillDef == null || combatProfile == null)
         {
             return 0;
         }
@@ -651,11 +683,7 @@ public partial class BattleRepeatAttackResolver : RefCounted
         {
             return 0;
         }
-        return GdInterop.GetInt(
-            effectiveCosts,
-            costField,
-            GdInterop.GetInt(combatProfile, costField)
-        );
+        return GetInt(effectiveCosts, costField, GetCombatProfileCost(combatProfile, cost_resource_kind));
     }
 
     public bool _can_pay_repeat_attack_stage_cost(
@@ -677,7 +705,8 @@ public partial class BattleRepeatAttackResolver : RefCounted
         {
             return true;
         }
-        return GdInterop.GetInt(active_unit, currentField) >= stageCost;
+        return GetUnitResourceValue(active_unit as BattleUnitState, stage_spec.cost_resource_kind)
+            >= stageCost;
     }
 
     public void _consume_repeat_attack_stage_cost(
@@ -695,28 +724,26 @@ public partial class BattleRepeatAttackResolver : RefCounted
         {
             return;
         }
-        active_unit.Set(
-            currentField,
-            Math.Max(GdInterop.GetInt(active_unit, currentField) - stageCost, 0)
+        BattleUnitState activeUnit = active_unit as BattleUnitState;
+        SetUnitResourceValue(
+            activeUnit,
+            stage_spec.cost_resource_kind,
+            Math.Max(GetUnitResourceValue(activeUnit, stage_spec.cost_resource_kind) - stageCost, 0)
         );
     }
 
     public bool _should_stop_repeat_attack_on_miss(GodotObject repeat_attack_effect)
     {
-        return GdInterop.GetBool(
-            GdInterop.GetDictionary(repeat_attack_effect, "params"),
-            "stop_on_miss",
-            true
-        );
+        return RepeatAttackRuntimeParameters
+            .FromEffect(repeat_attack_effect as CombatEffectDef)
+            .StopOnMiss;
     }
 
     public bool _should_stop_repeat_attack_on_target_down(GodotObject repeat_attack_effect)
     {
-        return GdInterop.GetBool(
-            GdInterop.GetDictionary(repeat_attack_effect, "params"),
-            "stop_on_target_down",
-            true
-        );
+        return RepeatAttackRuntimeParameters
+            .FromEffect(repeat_attack_effect as CombatEffectDef)
+            .StopOnTargetDown;
     }
 
     public double _get_repeat_attack_stage_damage_multiplier(
@@ -724,19 +751,9 @@ public partial class BattleRepeatAttackResolver : RefCounted
         int stage_index
     )
     {
-        if (repeat_attack_effect == null || stage_index <= 0)
-        {
-            return 1.0;
-        }
-        double followUpDamageMultiplier = Math.Max(
-            GdInterop.GetFloat(
-                GdInterop.GetDictionary(repeat_attack_effect, "params"),
-                "follow_up_damage_multiplier",
-                1.0
-            ),
-            1.0
-        );
-        return Math.Pow(followUpDamageMultiplier, stage_index);
+        return RepeatAttackRuntimeParameters
+            .FromEffect(repeat_attack_effect as CombatEffectDef)
+            .GetStageDamageMultiplier(stage_index);
     }
 
     public GCombatEffectArray _build_repeat_attack_stage_effects(
@@ -746,8 +763,8 @@ public partial class BattleRepeatAttackResolver : RefCounted
     )
     {
         var stagedEffects = new GCombatEffectArray();
-        string damageMultiplierStage = GdInterop.GetString(
-            GdInterop.GetDictionary(repeat_attack_effect, "params"),
+        string damageMultiplierStage = GetString(
+            repeat_attack_effect?.@params,
             "damage_multiplier_stage",
             PreResistanceStage
         );
@@ -793,10 +810,9 @@ public partial class BattleRepeatAttackResolver : RefCounted
         return _runtime != null;
     }
 
-    private static GDictionary GetEffectiveResourceCosts(GodotObject combatProfile, int skillLevel)
+    private static GDictionary GetEffectiveResourceCosts(CombatSkillDef combatProfile, int skillLevel)
     {
-        return (combatProfile as CombatSkillDef)?.get_effective_resource_costs(skillLevel)
-            ?? new GDictionary();
+        return combatProfile?.get_effective_resource_costs(skillLevel) ?? new GDictionary();
     }
 
     private static GArray ToUntypedArray(GCombatEffectArray values)
@@ -816,21 +832,207 @@ public partial class BattleRepeatAttackResolver : RefCounted
         return result;
     }
 
-    private static void AppendLog(GodotObject batch, string line)
+    private static int GetCombatProfileCost(
+        CombatSkillDef combatProfile,
+        CombatResourceKind costResourceKind
+    )
     {
-        GdInterop.GetArray(batch, "log_lines").Add(line);
+        if (combatProfile == null)
+        {
+            return 0;
+        }
+        return costResourceKind switch
+        {
+            CombatResourceKind.Ap => combatProfile.ap_cost,
+            CombatResourceKind.Aura => combatProfile.aura_cost,
+            CombatResourceKind.Mp => combatProfile.mp_cost,
+            CombatResourceKind.Stamina => combatProfile.stamina_cost,
+            _ => 0,
+        };
     }
 
-    private static string DisplayName(GodotObject value)
+    private static int GetUnitResourceValue(
+        BattleUnitState activeUnit,
+        CombatResourceKind costResourceKind
+    )
     {
-        return GdInterop.GetString(value, "display_name");
+        if (activeUnit == null)
+        {
+            return 0;
+        }
+        return costResourceKind switch
+        {
+            CombatResourceKind.Ap => activeUnit.current_ap,
+            CombatResourceKind.Aura => activeUnit.current_aura,
+            CombatResourceKind.Mp => activeUnit.current_mp,
+            CombatResourceKind.Stamina => activeUnit.current_stamina,
+            _ => 0,
+        };
     }
 
-    private static GodotObject ResolveWeakRef(WeakReference<GodotObject> weakRef)
+    private static void SetUnitResourceValue(
+        BattleUnitState activeUnit,
+        CombatResourceKind costResourceKind,
+        int value
+    )
+    {
+        if (activeUnit == null)
+        {
+            return;
+        }
+        int normalizedValue = Math.Max(value, 0);
+        switch (costResourceKind)
+        {
+            case CombatResourceKind.Ap:
+                activeUnit.current_ap = normalizedValue;
+                break;
+            case CombatResourceKind.Aura:
+                activeUnit.current_aura = normalizedValue;
+                break;
+            case CombatResourceKind.Mp:
+                activeUnit.current_mp = normalizedValue;
+                break;
+            case CombatResourceKind.Stamina:
+                activeUnit.current_stamina = normalizedValue;
+                break;
+        }
+    }
+
+    private static int GetInt(GDictionary source, object key, int fallback = 0)
+    {
+        if (!TryGetValue(source, key, out Variant value))
+        {
+            return fallback;
+        }
+        return value.VariantType switch
+        {
+            Variant.Type.Int => value.AsInt32(),
+            Variant.Type.Float => (int)value.AsDouble(),
+            Variant.Type.Bool => value.AsBool() ? 1 : 0,
+            Variant.Type.String => int.TryParse(value.AsString(), out int parsed)
+                ? parsed
+                : fallback,
+            Variant.Type.StringName
+                => int.TryParse(value.AsStringName().ToString(), out int parsed)
+                    ? parsed
+                    : fallback,
+            _ => fallback,
+        };
+    }
+
+    private static double GetFloat(GDictionary source, object key, double fallback = 0.0)
+    {
+        if (!TryGetValue(source, key, out Variant value))
+        {
+            return fallback;
+        }
+        return value.VariantType switch
+        {
+            Variant.Type.Int => value.AsInt32(),
+            Variant.Type.Float => value.AsDouble(),
+            Variant.Type.Bool => value.AsBool() ? 1.0 : 0.0,
+            Variant.Type.String => double.TryParse(value.AsString(), out double parsed)
+                ? parsed
+                : fallback,
+            Variant.Type.StringName
+                => double.TryParse(value.AsStringName().ToString(), out double parsed)
+                    ? parsed
+                    : fallback,
+            _ => fallback,
+        };
+    }
+
+    private static string GetString(GDictionary source, object key, string fallback = "")
+    {
+        if (!TryGetValue(source, key, out Variant value))
+        {
+            return fallback;
+        }
+        if (value.VariantType == Variant.Type.Nil)
+        {
+            return fallback;
+        }
+        return value.VariantType switch
+        {
+            Variant.Type.String => value.AsString(),
+            Variant.Type.StringName => value.AsStringName().ToString(),
+            _ => value.ToString(),
+        };
+    }
+
+    private static bool TryGetValue(GDictionary source, object key, out Variant value)
+    {
+        if (source == null)
+        {
+            value = default;
+            return false;
+        }
+        Variant variantKey = ToVariantKey(key);
+        if (source.ContainsKey(variantKey))
+        {
+            value = source[variantKey];
+            return true;
+        }
+        if (key is StringName stringNameKey)
+        {
+            string keyText = stringNameKey.ToString();
+            if (source.ContainsKey(keyText))
+            {
+                value = source[keyText];
+                return true;
+            }
+        }
+        else if (key is string stringKey)
+        {
+            var stringName = new StringName(stringKey);
+            if (source.ContainsKey(stringName))
+            {
+                value = source[stringName];
+                return true;
+            }
+        }
+        value = default;
+        return false;
+    }
+
+    private static Variant ToVariantKey(object key)
+    {
+        return key switch
+        {
+            Variant variant => variant,
+            StringName stringName => Variant.From(stringName),
+            string text => Variant.From(text),
+            int intValue => Variant.From(intValue),
+            long longValue => Variant.From(longValue),
+            float floatValue => Variant.From(floatValue),
+            double doubleValue => Variant.From(doubleValue),
+            bool boolValue => Variant.From(boolValue),
+            Vector2I coord => Variant.From(coord),
+            _ => Variant.From(key?.ToString() ?? ""),
+        };
+    }
+
+    private static void AppendLog(BattleEventBatch batch, string line)
+    {
+        batch?.log_lines.Add(line);
+    }
+
+    private static string DisplayName(object value)
+    {
+        return value switch
+        {
+            BattleUnitState unitState => unitState.display_name,
+            SkillDef skillDef => skillDef.display_name,
+            _ => "",
+        };
+    }
+
+    private static T ResolveWeakRef<T>(WeakReference<T> weakRef)
+        where T : GodotObject
     {
         if (
             weakRef == null
-            || !weakRef.TryGetTarget(out GodotObject target)
+            || !weakRef.TryGetTarget(out T target)
             || !GodotObject.IsInstanceValid(target)
         )
         {

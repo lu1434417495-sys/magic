@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 using Godot.Collections;
 
@@ -10,6 +11,8 @@ public partial class MeteorSwarmPreviewFacts : BattleSpecialProfilePreviewFacts
     public int friendly_fire_risk_percent = 0;
     public Array<Dictionary> component_preview = new();
     public Array<Dictionary> target_numeric_summary = new();
+    public List<MeteorSwarmNumericSummary> target_numeric_summaries = new();
+    public List<MeteorSwarmNumericSummary> friendly_fire_numeric_summaries = new();
 
     public override Dictionary ToDict()
     {
@@ -22,4 +25,10 @@ public partial class MeteorSwarmPreviewFacts : BattleSpecialProfilePreviewFacts
         payload["target_numeric_summary"] = target_numeric_summary.Duplicate(true);
         return payload;
     }
+
+    public IReadOnlyList<MeteorSwarmNumericSummary> GetTargetNumericSummariesTyped() =>
+        target_numeric_summaries;
+
+    public IReadOnlyList<MeteorSwarmNumericSummary> GetFriendlyFireNumericSummariesTyped() =>
+        friendly_fire_numeric_summaries;
 }

@@ -124,6 +124,20 @@ public partial class UnitBaseAttributes : RefCounted
 
     public int get_drop_luck() => Mathf.Clamp(get_effective_luck(), EffectiveLuckMin, DropLuckMax);
 
+    public UnitBaseAttributes duplicate_state()
+    {
+        return new UnitBaseAttributes
+        {
+            strength = strength,
+            agility = agility,
+            constitution = constitution,
+            perception = perception,
+            intelligence = intelligence,
+            willpower = willpower,
+            custom_stats = custom_stats?.Duplicate(true) ?? new GDictionary(),
+        };
+    }
+
     public GDictionary to_dict()
     {
         return new GDictionary

@@ -6,9 +6,9 @@ public partial class SkillEffectiveMaxLevelRules : RefCounted
     private const string PROFESSION_RANK_STAT_PREFIX = "profession_rank:";
 
     public static int get_effective_max_level(
-        GodotObject skillDef,
+        SkillDef skillDef,
         UnitSkillProgress skillProgress,
-        GodotObject unitProgress
+        UnitProgress unitProgress
     )
     {
         if (skillDef == null)
@@ -16,7 +16,7 @@ public partial class SkillEffectiveMaxLevelRules : RefCounted
 
         int absoluteMax = get_effective_absolute_max_level(skillDef, unitProgress);
 
-        int configuredNonCoreMax = skillDef.Get("non_core_max_level").AsInt32();
+        int configuredNonCoreMax = skillDef.non_core_max_level;
 
         if (
             configuredNonCoreMax > 0
@@ -31,8 +31,8 @@ public partial class SkillEffectiveMaxLevelRules : RefCounted
     }
 
     public static int get_effective_absolute_max_level(
-        GodotObject skillDef,
-        GodotObject unitProgress
+        SkillDef skillDef,
+        UnitProgress unitProgress
     )
     {
         if (skillDef == null)
@@ -41,13 +41,13 @@ public partial class SkillEffectiveMaxLevelRules : RefCounted
         if (_uses_dynamic_max_level(skillDef))
         {
             int statValue = _get_dynamic_max_level_stat_value(
-                skillDef.Get("dynamic_max_level_stat_id").AsStringName(),
+                skillDef.dynamic_max_level_stat_id,
                 unitProgress
             );
 
-            int baseLevel = Mathf.Max(skillDef.Get("dynamic_max_level_base").AsInt32(), 0);
+            int baseLevel = Mathf.Max(skillDef.dynamic_max_level_base, 0);
 
-            int levelPerStat = skillDef.Get("dynamic_max_level_per_stat").AsInt32();
+            int levelPerStat = skillDef.dynamic_max_level_per_stat;
 
             int dynamicLevel;
 
@@ -58,22 +58,22 @@ public partial class SkillEffectiveMaxLevelRules : RefCounted
             else
                 dynamicLevel = baseLevel;
 
-            if (skillDef.Get("max_level").AsInt32() >= 0)
-                return Mathf.Max(dynamicLevel, skillDef.Get("max_level").AsInt32());
+            if (skillDef.max_level >= 0)
+                return Mathf.Max(dynamicLevel, skillDef.max_level);
 
             return dynamicLevel;
         }
 
-        if (skillDef.Get("max_level").AsInt32() < 0)
+        if (skillDef.max_level < 0)
             return 0;
 
-        return Mathf.Max(skillDef.Get("max_level").AsInt32(), 0);
+        return Mathf.Max(skillDef.max_level, 0);
     }
 
     public static bool is_at_effective_max_level(
-        GodotObject skillDef,
+        SkillDef skillDef,
         UnitSkillProgress skillProgress,
-        GodotObject unitProgress
+        UnitProgress unitProgress
     )
     {
         if (skillDef == null || skillProgress == null)
@@ -83,21 +83,21 @@ public partial class SkillEffectiveMaxLevelRules : RefCounted
             >= get_effective_max_level(skillDef, skillProgress, unitProgress);
     }
 
-    private static bool _uses_dynamic_max_level(GodotObject skillDef)
+    private static bool _uses_dynamic_max_level(SkillDef skillDef)
     {
-        return skillDef != null && skillDef.Get("dynamic_max_level_stat_id").AsStringName() != "";
+        return skillDef != null && skillDef.dynamic_max_level_stat_id != "";
     }
 
     private static int _get_dynamic_max_level_stat_value(
         StringName statId,
-        GodotObject unitProgress
+        UnitProgress unitProgress
     )
     {
         if (unitProgress == null)
             return 0;
 
         if (statId == "character_level")
-            return Mathf.Max(unitProgress.Get("character_level").AsInt32(), 0);
+            return Mathf.Max(unitProgress.character_level, 0);
 
         string statKey = (string)statId;
 
@@ -110,9 +110,7 @@ public partial class SkillEffectiveMaxLevelRules : RefCounted
             if (professionId == "")
                 return 0;
 
-            var professionProgress = (unitProgress as UnitProgress)?.get_profession_progress(
-                professionId
-            );
+            var professionProgress = unitProgress.get_profession_progress(professionId);
 
             if (professionProgress == null)
                 return 0;
@@ -120,7 +118,7 @@ public partial class SkillEffectiveMaxLevelRules : RefCounted
             return Mathf.Max(professionProgress.rank, 0);
         }
 
-        var unitBaseAttributes = (unitProgress as UnitProgress)?.unit_base_attributes;
+        var unitBaseAttributes = unitProgress.unit_base_attributes;
 
         if (unitBaseAttributes == null)
             return 0;

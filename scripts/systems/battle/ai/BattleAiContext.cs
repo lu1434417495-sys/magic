@@ -195,7 +195,7 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
             {
                 result.Set(entry);
             }
-            result.TraceId = GdInterop.GetStringName(source ?? new GDictionary(), "trace_id");
+            result.TraceId = ReadStringName(source, "trace_id");
             return result;
         }
 
@@ -568,13 +568,13 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
         }
         if (runtime_action_plan != null)
         {
-            GDictionary planRecord = runtime_action_plan.get_skill_affordance_record(
-                normalizedSkillId
-            );
-            if (planRecord.Count > 0)
+            if (
+                runtime_action_plan.TryGetSkillAffordanceRecordTyped(
+                    normalizedSkillId,
+                    out BattleAiSkillAffordanceRecord typedPlanRecord
+                )
+            )
             {
-                BattleAiSkillAffordanceRecord typedPlanRecord =
-                    BattleAiSkillAffordanceRecord.FromDictionary(normalizedSkillId, planRecord);
                 _skill_affordance_records_by_skill_id[normalizedSkillId] = typedPlanRecord;
                 return typedPlanRecord.ToDictionary();
             }
@@ -1004,6 +1004,21 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
             Variant.Type.StringName => rawKey.AsStringName().ToString(),
             Variant.Type.Nil => "",
             _ => rawKey.ToString(),
+        };
+    }
+
+    private static StringName ReadStringName(GDictionary source, string key)
+    {
+        if (source == null || string.IsNullOrEmpty(key) || !source.ContainsKey(key))
+        {
+            return "";
+        }
+        Variant value = source[key];
+        return value.VariantType switch
+        {
+            Variant.Type.StringName => value.AsStringName(),
+            Variant.Type.String => new StringName(value.AsString()),
+            _ => "",
         };
     }
 

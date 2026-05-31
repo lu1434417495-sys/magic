@@ -452,7 +452,7 @@ public partial class PartyWarehouseWindow : Control
         private static List<WarehouseEntry> ParseEntries(GArray entriesData)
         {
             var entries = new List<WarehouseEntry>();
-            foreach (GDictionary entryData in GdInterop.ReadDictionaryItems(entriesData))
+            foreach (GDictionary entryData in ReadDictionaryItems(entriesData))
             {
                 entries.Add(WarehouseEntry.From(entryData));
             }
@@ -462,7 +462,7 @@ public partial class PartyWarehouseWindow : Control
         private static List<TargetMember> ParseTargetMembers(GArray membersData)
         {
             var members = new List<TargetMember>();
-            foreach (GDictionary memberData in GdInterop.ReadDictionaryItems(membersData))
+            foreach (GDictionary memberData in ReadDictionaryItems(membersData))
             {
                 members.Add(TargetMember.From(memberData));
             }
@@ -530,43 +530,84 @@ public partial class PartyWarehouseWindow : Control
 
     private static GArray ReadArray(GDictionary dict, string key)
     {
-        if (dict == null || !dict.ContainsKey(key))
-            return new GArray();
-        return GdInterop.GetArray(dict, key);
+        return TryRead(dict, key, out Variant value) && value.VariantType == Variant.Type.Array
+            ? value.AsGodotArray()
+            : new GArray();
     }
 
     private static StringName ReadStringName(GDictionary dict, string key)
     {
-        if (dict == null || !dict.ContainsKey(key))
+        if (!TryRead(dict, key, out Variant value))
             return "";
-        return GdInterop.GetStringName(dict, key);
+        return value.VariantType switch
+        {
+            Variant.Type.StringName => value.AsStringName(),
+            Variant.Type.String => new StringName(value.AsString()),
+            _ => "",
+        };
     }
 
     private static string ReadStringLoose(GDictionary dict, string key, string defaultValue)
     {
-        if (dict == null || !dict.ContainsKey(key))
+        if (!TryRead(dict, key, out Variant value))
             return defaultValue;
-        return GdInterop.GetString(dict, key, defaultValue);
+        return value.VariantType switch
+        {
+            Variant.Type.String => value.AsString(),
+            Variant.Type.StringName => value.AsStringName().ToString(),
+            _ => defaultValue,
+        };
     }
 
     private static string ReadStringStrict(GDictionary dict, string key, string defaultValue)
     {
-        if (dict == null || !dict.ContainsKey(key))
-            return defaultValue;
-        return GdInterop.HasString(dict, key) ? GdInterop.GetString(dict, key) : defaultValue;
+        return ReadStringLoose(dict, key, defaultValue);
     }
 
     private static bool ReadBool(GDictionary dict, string key, bool defaultValue)
     {
-        if (dict == null || !dict.ContainsKey(key))
-            return defaultValue;
-        return dict[key].AsBool();
+        return TryRead(dict, key, out Variant value) && value.VariantType == Variant.Type.Bool
+            ? value.AsBool()
+            : defaultValue;
     }
 
     private static int ReadInt(GDictionary dict, string key, int defaultValue)
     {
-        if (dict == null || !dict.ContainsKey(key))
-            return defaultValue;
-        return dict[key].AsInt32();
+        return TryRead(dict, key, out Variant value) && value.VariantType == Variant.Type.Int
+            ? value.AsInt32()
+            : defaultValue;
+    }
+
+    private static IEnumerable<GDictionary> ReadDictionaryItems(GArray values)
+    {
+        if (values == null)
+            yield break;
+        foreach (Variant value in values)
+        {
+            if (value.VariantType == Variant.Type.Dictionary)
+                yield return value.AsGodotDictionary();
+        }
+    }
+
+    private static bool TryRead(GDictionary dict, string key, out Variant value)
+    {
+        if (dict == null)
+        {
+            value = default;
+            return false;
+        }
+        if (dict.ContainsKey(key))
+        {
+            value = dict[key];
+            return true;
+        }
+        StringName stringNameKey = new(key);
+        if (dict.ContainsKey(stringNameKey))
+        {
+            value = dict[stringNameKey];
+            return true;
+        }
+        value = default;
+        return false;
     }
 }

@@ -8,6 +8,105 @@ public partial class GameRuntimeBattleLootCommitService : RefCounted
 {
     private WeakReference<GameRuntimeFacade> _runtimeRef;
 
+    private sealed class ItemCommitResult
+    {
+        public bool Ok { get; private set; }
+        public string ErrorCode { get; private set; } = "";
+        public string BlockedItemId { get; private set; } = "";
+        public int CommittedItemCount { get; private set; }
+        public GArray OverflowEntries { get; private set; } = new();
+
+        public static ItemCommitResult Create(
+            bool ok,
+            string errorCode,
+            string blockedItemId,
+            int committedItemCount,
+            GArray overflowEntries
+        )
+        {
+            return new ItemCommitResult
+            {
+                Ok = ok,
+                ErrorCode = errorCode ?? "",
+                BlockedItemId = blockedItemId ?? "",
+                CommittedItemCount = Mathf.Max(committedItemCount, 0),
+                OverflowEntries = overflowEntries?.Duplicate(true) ?? new GArray(),
+            };
+        }
+
+        public Dictionary ToDictionary()
+        {
+            return new Dictionary
+            {
+                ["ok"] = Ok,
+                ["error_code"] = ErrorCode,
+                ["blocked_item_id"] = BlockedItemId,
+                ["committed_item_count"] = CommittedItemCount,
+                ["overflow_entries"] = OverflowEntries.Duplicate(true),
+            };
+        }
+    }
+
+    public sealed class BattleLootCommitResult
+    {
+        public bool Ok { get; private set; }
+        public string ErrorCode { get; private set; } = "";
+        public string BlockedItemId { get; private set; } = "";
+        public int CommittedItemCount { get; private set; }
+        public GArray OverflowEntries { get; private set; } = new();
+        public int OverflowEntryCount { get; private set; }
+
+        public static BattleLootCommitResult Create(
+            bool ok,
+            string errorCode,
+            string blockedItemId,
+            int committedItemCount,
+            GArray overflowEntries,
+            int overflowEntryCount
+        )
+        {
+            var normalizedOverflowEntries = overflowEntries?.Duplicate(true) ?? new GArray();
+            return new BattleLootCommitResult
+            {
+                Ok = ok,
+                ErrorCode = errorCode ?? "",
+                BlockedItemId = blockedItemId ?? "",
+                CommittedItemCount = Mathf.Max(committedItemCount, 0),
+                OverflowEntries = normalizedOverflowEntries,
+                OverflowEntryCount = Mathf.Max(overflowEntryCount, normalizedOverflowEntries.Count),
+            };
+        }
+
+        public static BattleLootCommitResult Success() => Create(true, "", "", 0, new GArray(), 0);
+
+        public static BattleLootCommitResult FromDictionary(Dictionary payload)
+        {
+            if (payload == null || payload.Count == 0)
+                return Create(false, "", "", 0, new GArray(), 0);
+            return Create(
+                DictionaryBool(payload, "ok", false),
+                DictionaryString(payload, "error_code", ""),
+                DictionaryString(payload, "blocked_item_id", ""),
+                DictionaryInt(payload, "committed_item_count", 0),
+                DictionaryArray(payload, "overflow_entries", new GArray()),
+                DictionaryInt(payload, "overflow_entry_count", 0)
+            );
+        }
+
+        public Dictionary ToDictionary()
+        {
+            return new Dictionary
+            {
+                ["ok"] = Ok,
+                ["error_code"] = ErrorCode,
+                ["blocked_item_id"] = BlockedItemId,
+                ["committed_item_count"] = CommittedItemCount,
+                ["overflow_entries"] = OverflowEntries.Duplicate(true),
+                ["overflow_entry_count"] = OverflowEntryCount,
+            };
+        }
+    }
+
     private GameRuntimeFacade _runtime
     {
         get => ResolveWeakRef(_runtimeRef);
@@ -38,6 +137,13 @@ public partial class GameRuntimeBattleLootCommitService : RefCounted
         BattleResolutionResult battleResolutionResult
     )
     {
+        return CommitBattleLootToSharedWarehouseTyped(battleResolutionResult).ToDictionary();
+    }
+
+    public BattleLootCommitResult CommitBattleLootToSharedWarehouseTyped(
+        BattleResolutionResult battleResolutionResult
+    )
+    {
         return CommitBattleLootToSharedWarehouseInternal(battleResolutionResult);
     }
 
@@ -62,6 +168,21 @@ public partial class GameRuntimeBattleLootCommitService : RefCounted
         string battleName,
         string winnerFactionId,
         Dictionary lootCommitResult,
+        bool persistedOk
+    )
+    {
+        return BuildBattleResolutionStatusMessageInternal(
+            battleName,
+            winnerFactionId,
+            lootCommitResult,
+            persistedOk
+        );
+    }
+
+    public string BuildBattleResolutionStatusMessageTyped(
+        string battleName,
+        string winnerFactionId,
+        BattleLootCommitResult lootCommitResult,
         bool persistedOk
     )
     {
@@ -103,6 +224,21 @@ public partial class GameRuntimeBattleLootCommitService : RefCounted
         );
     }
 
+    public Dictionary BuildLastBattleLootSnapshotTyped(
+        string battleName,
+        string winnerFactionId,
+        BattleResolutionResult battleResolutionResult,
+        BattleLootCommitResult lootCommitResult
+    )
+    {
+        return BuildLastBattleLootSnapshotInternal(
+            battleName,
+            winnerFactionId,
+            battleResolutionResult,
+            lootCommitResult
+        );
+    }
+
     public Dictionary build_last_battle_loot_snapshot(
         string battleName,
         string winnerFactionId,
@@ -130,20 +266,20 @@ public partial class GameRuntimeBattleLootCommitService : RefCounted
 
     public Dictionary _commit_fixed_item_loot_entry(Dictionary lootEntryData)
     {
-        return CommitFixedItemLootEntry(lootEntryData);
+        return CommitFixedItemLootEntry(lootEntryData).ToDictionary();
     }
 
     public Dictionary _commit_equipment_instance_loot_entry(Dictionary lootEntryData)
     {
-        return CommitEquipmentInstanceLootEntry(lootEntryData);
+        return CommitEquipmentInstanceLootEntry(lootEntryData).ToDictionary();
     }
 
-    private Dictionary CommitBattleLootToSharedWarehouseInternal(
+    private BattleLootCommitResult CommitBattleLootToSharedWarehouseInternal(
         BattleResolutionResult battleResolutionResult
     )
     {
         if (battleResolutionResult == null)
-            return BuildLootCommitResult(
+            return BattleLootCommitResult.Create(
                 false,
                 "missing_battle_resolution_result",
                 "",
@@ -154,13 +290,13 @@ public partial class GameRuntimeBattleLootCommitService : RefCounted
 
         battleResolutionResult.set_overflow_entries(new GArray());
         if (battleResolutionResult.winner_faction_id != "player")
-            return BuildLootCommitResult(true, "", "", 0, new GArray(), 0);
+            return BattleLootCommitResult.Success();
 
         var partyState = _runtime._party_state;
         var partyWarehouseService = _runtime._party_warehouse_service;
         var gameSession = _runtime._game_session;
         if (partyState == null || partyWarehouseService == null || gameSession == null)
-            return BuildLootCommitResult(
+            return BattleLootCommitResult.Create(
                 false,
                 "warehouse_service_unavailable",
                 "",
@@ -202,7 +338,7 @@ public partial class GameRuntimeBattleLootCommitService : RefCounted
             if (dropType == BattleLootConstants.DROP_TYPE_EQUIPMENT_INSTANCE())
             {
                 var instanceCommitResult = CommitEquipmentInstanceLootEntry(lootEntryData);
-                if (!DictionaryBool(instanceCommitResult, "ok", false))
+                if (!instanceCommitResult.Ok)
                 {
                     partyState.warehouse_state = warehouseStateBefore;
                     partyState.apply_fate_run_flags(fateRunFlagsBefore);
@@ -211,42 +347,27 @@ public partial class GameRuntimeBattleLootCommitService : RefCounted
                         partyState,
                         itemDefs
                     );
-                    return BuildLootCommitResult(
+                    return BattleLootCommitResult.Create(
                         false,
-                        DictionaryString(
-                            instanceCommitResult,
-                            "error_code",
+                        FallbackString(
+                            instanceCommitResult.ErrorCode,
                             "battle_loot_equipment_instance_failed"
                         ),
-                        DictionaryString(instanceCommitResult, "blocked_item_id", ""),
+                        instanceCommitResult.BlockedItemId,
                         0,
                         new GArray(),
                         0
                     );
                 }
-                committedItemCount += DictionaryInt(
-                    instanceCommitResult,
-                    "committed_item_count",
-                    0
-                );
-                foreach (
-                    var overflowValue in DictionaryArray(
-                        instanceCommitResult,
-                        "overflow_entries",
-                        new Godot.Collections.Array()
-                    )
-                )
-                {
-                    if (overflowValue.VariantType == Variant.Type.Dictionary)
-                        overflowEntries.Add(overflowValue.AsGodotDictionary().Duplicate(true));
-                }
+                committedItemCount += instanceCommitResult.CommittedItemCount;
+                AppendOverflowEntries(overflowEntries, instanceCommitResult.OverflowEntries);
                 continue;
             }
 
             if (dropType == BattleLootConstants.DROP_TYPE_RANDOM_EQUIPMENT())
             {
                 var equipmentCommitResult = CommitRandomEquipmentLootEntry(lootEntryData);
-                if (!DictionaryBool(equipmentCommitResult, "ok", false))
+                if (!equipmentCommitResult.Ok)
                 {
                     partyState.warehouse_state = warehouseStateBefore;
                     partyState.apply_fate_run_flags(fateRunFlagsBefore);
@@ -255,40 +376,25 @@ public partial class GameRuntimeBattleLootCommitService : RefCounted
                         partyState,
                         itemDefs
                     );
-                    return BuildLootCommitResult(
+                    return BattleLootCommitResult.Create(
                         false,
-                        DictionaryString(
-                            equipmentCommitResult,
-                            "error_code",
+                        FallbackString(
+                            equipmentCommitResult.ErrorCode,
                             "battle_loot_random_equipment_failed"
                         ),
-                        DictionaryString(equipmentCommitResult, "blocked_item_id", ""),
+                        equipmentCommitResult.BlockedItemId,
                         0,
                         new GArray(),
                         0
                     );
                 }
-                committedItemCount += DictionaryInt(
-                    equipmentCommitResult,
-                    "committed_item_count",
-                    0
-                );
-                foreach (
-                    var overflowValue in DictionaryArray(
-                        equipmentCommitResult,
-                        "overflow_entries",
-                        new Godot.Collections.Array()
-                    )
-                )
-                {
-                    if (overflowValue.VariantType == Variant.Type.Dictionary)
-                        overflowEntries.Add(overflowValue.AsGodotDictionary().Duplicate(true));
-                }
+                committedItemCount += equipmentCommitResult.CommittedItemCount;
+                AppendOverflowEntries(overflowEntries, equipmentCommitResult.OverflowEntries);
                 continue;
             }
 
             var itemCommitResult = CommitFixedItemLootEntry(lootEntryData);
-            if (!DictionaryBool(itemCommitResult, "ok", false))
+            if (!itemCommitResult.Ok)
             {
                 partyState.warehouse_state = warehouseStateBefore;
                 partyState.apply_fate_run_flags(fateRunFlagsBefore);
@@ -297,31 +403,19 @@ public partial class GameRuntimeBattleLootCommitService : RefCounted
                     partyState,
                     itemDefs
                 );
-                return BuildLootCommitResult(
+                return BattleLootCommitResult.Create(
                     false,
-                    DictionaryString(itemCommitResult, "error_code", "battle_loot_item_missing_def"),
-                    DictionaryString(itemCommitResult, "blocked_item_id", ""),
+                    FallbackString(itemCommitResult.ErrorCode, "battle_loot_item_missing_def"),
+                    itemCommitResult.BlockedItemId,
                     0,
                     new GArray(),
                     0
                 );
             }
-            committedItemCount += DictionaryInt(itemCommitResult, "committed_item_count", 0);
+            committedItemCount += itemCommitResult.CommittedItemCount;
             if (IsOrdinaryBattleCalamityConversionEntry(lootEntryData))
-                MarkRegularBattleCalamityShardsCommitted(
-                    DictionaryInt(itemCommitResult, "committed_item_count", 0)
-                );
-            foreach (
-                var overflowValue in DictionaryArray(
-                    itemCommitResult,
-                    "overflow_entries",
-                    new Godot.Collections.Array()
-                )
-            )
-            {
-                if (overflowValue.VariantType == Variant.Type.Dictionary)
-                    overflowEntries.Add(overflowValue.AsGodotDictionary().Duplicate(true));
-            }
+                MarkRegularBattleCalamityShardsCommitted(itemCommitResult.CommittedItemCount);
+            AppendOverflowEntries(overflowEntries, itemCommitResult.OverflowEntries);
         }
 
         battleResolutionResult.set_overflow_entries(overflowEntries);
@@ -330,11 +424,12 @@ public partial class GameRuntimeBattleLootCommitService : RefCounted
             battleResolutionResult.overflow_entries.Count > 0
             && battleResolutionResult.overflow_entries[0].VariantType == Variant.Type.Dictionary
         )
-            overflowItemId = GdInterop.GetString(
+            overflowItemId = DictionaryString(
                 battleResolutionResult.overflow_entries[0].AsGodotDictionary(),
-                "item_id"
+                "item_id",
+                ""
             );
-        return BuildLootCommitResult(
+        return BattleLootCommitResult.Create(
             true,
             "",
             overflowItemId,
@@ -344,16 +439,16 @@ public partial class GameRuntimeBattleLootCommitService : RefCounted
         );
     }
 
-    private Dictionary CommitFixedItemLootEntry(Dictionary lootEntryData)
+    private ItemCommitResult CommitFixedItemLootEntry(Dictionary lootEntryData)
     {
         var itemId = DictionaryStringName(lootEntryData, "item_id", "");
         var quantity = Mathf.Max(DictionaryInt(lootEntryData, "quantity", 0), 0);
         if (itemId == "" || quantity <= 0)
-            return BuildItemCommitResult(true, "", "", 0, new GArray());
+            return ItemCommitResult.Create(true, "", "", 0, new GArray());
         var partyWarehouseService = _runtime._party_warehouse_service;
-        var addResult = partyWarehouseService.add_item(itemId, quantity);
-        if (!DictionaryBool(addResult, "item_found", false))
-            return BuildItemCommitResult(
+        var addResult = partyWarehouseService.AddItemTyped(itemId, quantity);
+        if (!addResult.ItemFound)
+            return ItemCommitResult.Create(
                 false,
                 "battle_loot_item_missing_def",
                 itemId.ToString(),
@@ -361,30 +456,30 @@ public partial class GameRuntimeBattleLootCommitService : RefCounted
                 new GArray()
             );
         var overflowEntries = new GArray();
-        var remainingQuantity = DictionaryInt(addResult, "remaining_quantity", 0);
+        var remainingQuantity = Mathf.Max(addResult.RemainingQuantity, 0);
         if (remainingQuantity > 0)
             overflowEntries.Add(BuildBattleOverflowEntry(lootEntryData, remainingQuantity));
-        return BuildItemCommitResult(
+        return ItemCommitResult.Create(
             true,
             "",
             "",
-            DictionaryInt(addResult, "added_quantity", 0),
+            Mathf.Max(addResult.AddedQuantity, 0),
             overflowEntries
         );
     }
 
-    private Dictionary CommitRandomEquipmentLootEntry(Dictionary lootEntryData)
+    private ItemCommitResult CommitRandomEquipmentLootEntry(Dictionary lootEntryData)
     {
         var itemId = DictionaryStringName(lootEntryData, "item_id", "");
         var quantity = Mathf.Max(DictionaryInt(lootEntryData, "quantity", 0), 0);
         var dropLuck = Mathf.Clamp(DictionaryInt(lootEntryData, "drop_luck", 0), -6, 5);
         if (itemId == "" || quantity <= 0)
-            return BuildItemCommitResult(true, "", "", 0, new GArray());
+            return ItemCommitResult.Create(true, "", "", 0, new GArray());
         var gameSession = _runtime._game_session;
         var itemDefs = gameSession.get_item_defs();
         var itemDef = itemDefs.ContainsKey(itemId) ? itemDefs[itemId].AsGodotObject() as ItemDef : null;
         if (itemDef == null)
-            return BuildItemCommitResult(
+            return ItemCommitResult.Create(
                 false,
                 "battle_loot_item_missing_def",
                 itemId.ToString(),
@@ -392,7 +487,7 @@ public partial class GameRuntimeBattleLootCommitService : RefCounted
                 new GArray()
             );
         if (!itemDef.is_equipment())
-            return BuildItemCommitResult(
+            return ItemCommitResult.Create(
                 false,
                 "battle_loot_random_equipment_invalid_item",
                 itemId.ToString(),
@@ -408,26 +503,26 @@ public partial class GameRuntimeBattleLootCommitService : RefCounted
             if (rolledInstanceValue.VariantType == Variant.Type.Nil)
                 continue;
             var rolledInstance = rolledInstanceValue.AsGodotObject() as EquipmentInstanceState;
-            var rolledItemId = ProgressionDataUtils.to_string_name(rolledInstance.Get("item_id"));
+            var rolledItemId = rolledInstance?.item_id ?? new StringName("");
             var partyWarehouseService = _runtime._party_warehouse_service;
-            var addResult = partyWarehouseService.add_equipment_instance(rolledInstance);
-            if (!DictionaryBool(addResult, "item_found", false))
-                return BuildItemCommitResult(
+            var addResult = partyWarehouseService.AddEquipmentInstanceTyped(rolledInstance);
+            if (!addResult.ItemFound)
+                return ItemCommitResult.Create(
                     false,
                     "battle_loot_item_missing_def",
                     rolledItemId.ToString(),
                     0,
                     new GArray()
                 );
-            if (!DictionaryBool(addResult, "is_equipment", false))
-                return BuildItemCommitResult(
+            if (!addResult.IsEquipment)
+                return ItemCommitResult.Create(
                     false,
                     "battle_loot_random_equipment_invalid_item",
                     rolledItemId.ToString(),
                     0,
                     new GArray()
                 );
-            if (DictionaryInt(addResult, "remaining_quantity", 0) > 0)
+            if (addResult.RemainingQuantity > 0)
             {
                 overflowQuantity++;
                 continue;
@@ -437,13 +532,13 @@ public partial class GameRuntimeBattleLootCommitService : RefCounted
         var overflowEntries = new GArray();
         if (overflowQuantity > 0)
             overflowEntries.Add(BuildBattleOverflowEntry(lootEntryData, overflowQuantity));
-        return BuildItemCommitResult(true, "", "", committedItemCount, overflowEntries);
+        return ItemCommitResult.Create(true, "", "", committedItemCount, overflowEntries);
     }
 
-    private Dictionary CommitEquipmentInstanceLootEntry(Dictionary lootEntryData)
+    private ItemCommitResult CommitEquipmentInstanceLootEntry(Dictionary lootEntryData)
     {
         if (!TryDictionary(lootEntryData, "equipment_instance", out var equipmentInstanceData))
-            return BuildItemCommitResult(
+            return ItemCommitResult.Create(
                 false,
                 "battle_loot_equipment_instance_missing_payload",
                 DictionaryString(lootEntryData, "item_id", ""),
@@ -452,7 +547,7 @@ public partial class GameRuntimeBattleLootCommitService : RefCounted
             );
         var equipmentInstance = EquipmentInstanceState.from_dict(equipmentInstanceData);
         if (equipmentInstance == null)
-            return BuildItemCommitResult(
+            return ItemCommitResult.Create(
                 false,
                 "battle_loot_equipment_instance_invalid_payload",
                 DictionaryString(lootEntryData, "item_id", ""),
@@ -466,7 +561,7 @@ public partial class GameRuntimeBattleLootCommitService : RefCounted
             equipmentInstance.item_id = itemId;
         }
         if (itemId == "")
-            return BuildItemCommitResult(
+            return ItemCommitResult.Create(
                 false,
                 "battle_loot_equipment_instance_invalid_payload",
                 "",
@@ -477,7 +572,7 @@ public partial class GameRuntimeBattleLootCommitService : RefCounted
         var itemDefs = gameSession.get_item_defs();
         var itemDef = itemDefs.ContainsKey(itemId) ? itemDefs[itemId].AsGodotObject() as ItemDef : null;
         if (itemDef == null)
-            return BuildItemCommitResult(
+            return ItemCommitResult.Create(
                 false,
                 "battle_loot_item_missing_def",
                 itemId.ToString(),
@@ -485,7 +580,7 @@ public partial class GameRuntimeBattleLootCommitService : RefCounted
                 new GArray()
             );
         if (!itemDef.is_equipment())
-            return BuildItemCommitResult(
+            return ItemCommitResult.Create(
                 false,
                 "battle_loot_random_equipment_invalid_item",
                 itemId.ToString(),
@@ -493,16 +588,16 @@ public partial class GameRuntimeBattleLootCommitService : RefCounted
                 new GArray()
             );
         var partyWarehouseService = _runtime._party_warehouse_service;
-        var addResult = partyWarehouseService.add_equipment_instance(equipmentInstance);
-        if (DictionaryInt(addResult, "remaining_quantity", 0) > 0)
-            return BuildItemCommitResult(
+        var addResult = partyWarehouseService.AddEquipmentInstanceTyped(equipmentInstance);
+        if (addResult.RemainingQuantity > 0)
+            return ItemCommitResult.Create(
                 true,
                 "",
                 "",
                 0,
                 new GArray { BuildBattleOverflowEntry(lootEntryData, 1) }
             );
-        return BuildItemCommitResult(true, "", "", 1, new GArray());
+        return ItemCommitResult.Create(true, "", "", 1, new GArray());
     }
 
     private Dictionary BuildBattleOverflowEntry(Dictionary lootEntryData, int overflowQuantity)
@@ -510,6 +605,22 @@ public partial class GameRuntimeBattleLootCommitService : RefCounted
         var overflowEntry = lootEntryData.Duplicate(true);
         overflowEntry["quantity"] = Mathf.Max(overflowQuantity, 0);
         return overflowEntry;
+    }
+
+    private static void AppendOverflowEntries(GArray target, GArray source)
+    {
+        if (target == null || source == null)
+            return;
+        foreach (var overflowValue in source)
+        {
+            if (overflowValue.VariantType == Variant.Type.Dictionary)
+                target.Add(overflowValue.AsGodotDictionary().Duplicate(true));
+        }
+    }
+
+    private static string FallbackString(string value, string fallback)
+    {
+        return string.IsNullOrEmpty(value) ? fallback : value;
     }
 
     private Godot.Collections.Array ResolveEffectiveBattleLootEntriesForCommit(
@@ -675,6 +786,21 @@ public partial class GameRuntimeBattleLootCommitService : RefCounted
         bool persistedOk
     )
     {
+        return BuildBattleResolutionStatusMessageInternal(
+            battleName,
+            winnerFactionId,
+            BattleLootCommitResult.FromDictionary(lootCommitResult),
+            persistedOk
+        );
+    }
+
+    private string BuildBattleResolutionStatusMessageInternal(
+        string battleName,
+        string winnerFactionId,
+        BattleLootCommitResult lootCommitResult,
+        bool persistedOk
+    )
+    {
         string message;
         if (persistedOk)
             message = string.Format(
@@ -690,23 +816,20 @@ public partial class GameRuntimeBattleLootCommitService : RefCounted
         return string.Format("{0} {1}", message, lootStatusSuffix);
     }
 
-    private string BuildBattleLootStatusSuffix(Dictionary lootCommitResult)
+    private string BuildBattleLootStatusSuffix(BattleLootCommitResult lootCommitResult)
     {
-        if (lootCommitResult == null || lootCommitResult.Count == 0)
+        if (lootCommitResult == null)
             return "";
-        if (!DictionaryBool(lootCommitResult, "ok", false))
+        if (!lootCommitResult.Ok)
         {
-            var blockedItemId = DictionaryStringName(lootCommitResult, "blocked_item_id", "");
-            if (blockedItemId != "")
+            if (!string.IsNullOrEmpty(lootCommitResult.BlockedItemId))
                 return string.Format(
                     "战斗掉落写入共享仓库失败：{0}。",
-                    GetItemDisplayName(blockedItemId)
+                    GetItemDisplayName(new StringName(lootCommitResult.BlockedItemId))
                 );
             return "战斗掉落写入共享仓库失败。";
         }
-        var overflowText = FormatBattleDropEntriesInternal(
-            DictionaryArray(lootCommitResult, "overflow_entries", new Godot.Collections.Array())
-        );
+        var overflowText = FormatBattleDropEntriesInternal(lootCommitResult.OverflowEntries);
         if (string.IsNullOrEmpty(overflowText))
             return "";
         return string.Format("未装下的掉落：{0}。", overflowText);
@@ -717,6 +840,21 @@ public partial class GameRuntimeBattleLootCommitService : RefCounted
         string winnerFactionId,
         BattleResolutionResult battleResolutionResult,
         Dictionary lootCommitResult
+    )
+    {
+        return BuildLastBattleLootSnapshotInternal(
+            battleName,
+            winnerFactionId,
+            battleResolutionResult,
+            BattleLootCommitResult.FromDictionary(lootCommitResult)
+        );
+    }
+
+    private Dictionary BuildLastBattleLootSnapshotInternal(
+        string battleName,
+        string winnerFactionId,
+        BattleResolutionResult battleResolutionResult,
+        BattleLootCommitResult lootCommitResult
     )
     {
         if (battleResolutionResult == null)
@@ -735,8 +873,8 @@ public partial class GameRuntimeBattleLootCommitService : RefCounted
             ["overflow_entries"] = overflowEntries,
             ["overflow_entry_count"] = overflowEntries.Count,
             ["overflow_summary_text"] = FormatBattleDropEntriesInternal(overflowEntries),
-            ["commit_ok"] = DictionaryBool(lootCommitResult, "ok", false),
-            ["commit_error_code"] = DictionaryString(lootCommitResult, "error_code", ""),
+            ["commit_ok"] = lootCommitResult?.Ok ?? false,
+            ["commit_error_code"] = lootCommitResult?.ErrorCode ?? "",
         };
     }
 
@@ -786,63 +924,39 @@ public partial class GameRuntimeBattleLootCommitService : RefCounted
         return _runtime._get_item_display_name(itemId);
     }
 
-    private static Dictionary BuildLootCommitResult(
-        bool ok,
-        string errorCode,
-        string blockedItemId,
-        int committedItemCount,
-        Godot.Collections.Array overflowEntries,
-        int overflowEntryCount
-    )
-    {
-        return new Dictionary
-        {
-            ["ok"] = ok,
-            ["error_code"] = errorCode,
-            ["blocked_item_id"] = blockedItemId,
-            ["committed_item_count"] = committedItemCount,
-            ["overflow_entries"] = overflowEntries,
-            ["overflow_entry_count"] = overflowEntryCount,
-        };
-    }
-
-    private static Dictionary BuildItemCommitResult(
-        bool ok,
-        string errorCode,
-        string blockedItemId,
-        int committedItemCount,
-        Godot.Collections.Array overflowEntries
-    )
-    {
-        return new Dictionary
-        {
-            ["ok"] = ok,
-            ["error_code"] = errorCode,
-            ["blocked_item_id"] = blockedItemId,
-            ["committed_item_count"] = committedItemCount,
-            ["overflow_entries"] = overflowEntries,
-        };
-    }
-
     private static bool DictionaryBool(Dictionary dictionary, string key, bool fallback)
     {
-        if (dictionary == null || !dictionary.ContainsKey(key))
+        if (!TryRead(dictionary, key, out Variant value) || value.VariantType != Variant.Type.Bool)
             return fallback;
-        return dictionary[key].AsBool();
+        return value.AsBool();
     }
 
     private static int DictionaryInt(Dictionary dictionary, string key, int fallback)
     {
-        if (dictionary == null || !dictionary.ContainsKey(key))
+        if (!TryRead(dictionary, key, out Variant value) || value.VariantType != Variant.Type.Int)
             return fallback;
-        return dictionary[key].AsInt32();
+        return value.AsInt32();
     }
 
     private static string DictionaryString(Dictionary dictionary, string key, string fallback)
     {
-        if (dictionary == null || !dictionary.ContainsKey(key))
+        if (!TryRead(dictionary, key, out Variant value))
             return fallback;
-        return dictionary[key].AsString();
+        return value.VariantType switch
+        {
+            Variant.Type.String => value.AsString(),
+            Variant.Type.StringName => value.AsStringName().ToString(),
+            _ => fallback,
+        };
+    }
+
+    private static bool TryRead(Dictionary dictionary, string key, out Variant value)
+    {
+        value = default;
+        if (dictionary == null || !dictionary.ContainsKey(key))
+            return false;
+        value = dictionary[key];
+        return value.VariantType != Variant.Type.Nil;
     }
 
     private static StringName DictionaryStringName(

@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using Godot;
-using static GdInterop;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using System;
@@ -240,7 +239,9 @@ public partial class BattleAiDecisionEngine : RefCounted
 
     private static BattleAiDecision FailCandidateAction(EnemyAiAction action, string message)
     {
-        StringName actionId = GetStringName(action, "action_id", "anonymous_action");
+        StringName actionId = !IsEmpty(action.action_id)
+            ? action.action_id
+            : "anonymous_action";
         string fullMessage = $"AI action {actionId} failed: {message}";
         GameLog.Error(fullMessage, "ai.decision.no_candidates", "ai");
         return null;
@@ -383,7 +384,7 @@ public partial class BattleAiDecisionEngine : RefCounted
             return;
         }
 
-        StringName metadataBucketId = GetStringName(metadata, "score_bucket_id");
+        StringName metadataBucketId = DictStringName(metadata, "score_bucket_id");
         if (!IsEmpty(metadataBucketId))
         {
             decision.score_bucket_id = metadataBucketId;
@@ -403,8 +404,8 @@ public partial class BattleAiDecisionEngine : RefCounted
             scoreInput.score_bucket_priority = priority;
         }
 
-        GDictionary currentRuntimeMetadata = GetDictionary(scoreInput, "runtime_action_metadata");
-        GDictionary runtimeActionMetadata = GetDictionary(metadata, "runtime_action_metadata");
+        GDictionary currentRuntimeMetadata = scoreInput.runtime_action_metadata ?? new GDictionary();
+        GDictionary runtimeActionMetadata = DictDictionary(metadata, "runtime_action_metadata");
         if (currentRuntimeMetadata.Count == 0 && runtimeActionMetadata.Count > 0)
         {
             scoreInput.runtime_action_metadata = runtimeActionMetadata.Duplicate(true);
@@ -796,5 +797,68 @@ public partial class BattleAiDecisionEngine : RefCounted
     private static bool IsEmpty(StringName value)
     {
         return value == null || string.IsNullOrEmpty(value.ToString());
+    }
+
+    private static StringName DictStringName(GDictionary dictionary, object key)
+    {
+        if (!TryRead(dictionary, key, out Variant value))
+            return "";
+        return value.VariantType switch
+        {
+            Variant.Type.StringName => value.AsStringName(),
+            Variant.Type.String => new StringName(value.AsString()),
+            _ => "",
+        };
+    }
+
+    private static GDictionary DictDictionary(GDictionary dictionary, object key)
+    {
+        if (!TryRead(dictionary, key, out Variant value))
+            return new GDictionary();
+        return value.VariantType == Variant.Type.Dictionary
+            ? value.AsGodotDictionary()
+            : new GDictionary();
+    }
+
+    private static bool TryRead(GDictionary dictionary, object key, out Variant value)
+    {
+        value = default;
+        if (dictionary == null || key == null)
+            return false;
+        Variant variantKey = key switch
+        {
+            Variant valueKey => valueKey,
+            string stringKey => stringKey,
+            StringName stringNameKey => stringNameKey,
+            int intKey => intKey,
+            long longKey => longKey,
+            _ => default,
+        };
+        if (variantKey.VariantType == Variant.Type.Nil)
+            return false;
+        if (dictionary.ContainsKey(variantKey))
+        {
+            value = dictionary[variantKey];
+            return value.VariantType != Variant.Type.Nil;
+        }
+        if (variantKey.VariantType == Variant.Type.String)
+        {
+            StringName stringNameKey = new(variantKey.AsString());
+            if (dictionary.ContainsKey(stringNameKey))
+            {
+                value = dictionary[stringNameKey];
+                return value.VariantType != Variant.Type.Nil;
+            }
+        }
+        else if (variantKey.VariantType == Variant.Type.StringName)
+        {
+            string stringKey = variantKey.AsStringName().ToString();
+            if (dictionary.ContainsKey(stringKey))
+            {
+                value = dictionary[stringKey];
+                return value.VariantType != Variant.Type.Nil;
+            }
+        }
+        return false;
     }
 }

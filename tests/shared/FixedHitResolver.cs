@@ -170,10 +170,4 @@ public partial class FixedHitResolver : BattleHitResolver
         return dictionary[key].AsInt32();
     }
 
-    protected static bool GetBool(GDictionary dictionary, string key, bool fallback)
-    {
-        if (dictionary == null || !dictionary.ContainsKey(key))
-            return fallback;
-        return dictionary[key].AsBool();
-    }
 }

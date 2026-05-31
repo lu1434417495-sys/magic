@@ -67,9 +67,9 @@ public partial class FaithRankDef : Resource
                 errors.Add($"Faith rank {rank_index} contains a non-dictionary reward entry.");
                 continue;
             }
-            StringName entryType = GdInterop.GetStringName(rewardData, "entry_type");
-            StringName targetId = GdInterop.GetStringName(rewardData, "target_id");
-            int amount = GdInterop.GetInt(rewardData, "amount");
+            StringName entryType = ReadStringName(rewardData, "entry_type");
+            StringName targetId = ReadStringName(rewardData, "target_id");
+            int amount = ReadInt(rewardData, "amount");
             if (entryType == "" || targetId == "" || amount == 0)
             {
                 errors.Add($"Faith rank {rank_index} contains an invalid reward entry.");
@@ -93,5 +93,37 @@ public partial class FaithRankDef : Resource
             }
         }
         return errors;
+    }
+
+    private static StringName ReadStringName(
+        Godot.Collections.Dictionary data,
+        string key,
+        StringName fallback = default
+    )
+    {
+        var value = ReadValue(data, key);
+        if (value.VariantType == Variant.Type.StringName)
+            return value.AsStringName();
+        if (value.VariantType == Variant.Type.String)
+            return new StringName(value.AsString());
+        return fallback ?? new StringName("");
+    }
+
+    private static int ReadInt(Godot.Collections.Dictionary data, string key, int fallback = 0)
+    {
+        var value = ReadValue(data, key);
+        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+    }
+
+    private static Variant ReadValue(Godot.Collections.Dictionary data, string key)
+    {
+        if (data == null)
+            return default;
+        if (data.ContainsKey(key))
+            return data[key];
+        var stringNameKey = new StringName(key);
+        if (data.ContainsKey(stringNameKey))
+            return data[stringNameKey];
+        return default;
     }
 }

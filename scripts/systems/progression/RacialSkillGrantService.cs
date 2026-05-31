@@ -135,36 +135,39 @@ public partial class RacialSkillGrantService : RefCounted
         var entries = new Godot.Collections.Array<Godot.Collections.Dictionary>();
         if (memberState == null)
             return entries;
-        var rd =
-            _get_content_def(contentBundle, "race_defs", "race", memberState.race_id) as RaceDef;
+        RaceDef rd =
+            _get_content_def<RaceDef>(contentBundle, "race_defs", "race", memberState.race_id);
         if (rd != null)
             _append(entries, rd.racial_granted_skills, "race", memberState.race_id);
-        var srd =
-            _get_content_def(contentBundle, "subrace_defs", "subrace", memberState.subrace_id)
-            as SubraceDef;
+        SubraceDef srd = _get_content_def<SubraceDef>(
+            contentBundle,
+            "subrace_defs",
+            "subrace",
+            memberState.subrace_id
+        );
         if (srd != null)
             _append(entries, srd.racial_granted_skills, "subrace", memberState.subrace_id);
         if (memberState.bloodline_id != "")
         {
-            var bld =
-                _get_content_def(
+            BloodlineDef bld =
+                _get_content_def<BloodlineDef>(
                     contentBundle,
                     "bloodline_defs",
                     "bloodline",
                     memberState.bloodline_id
-                ) as BloodlineDef;
+                );
             if (bld != null)
                 _append(entries, bld.racial_granted_skills, "bloodline", memberState.bloodline_id);
         }
         if (memberState.bloodline_stage_id != "")
         {
-            var blsd =
-                _get_content_def(
+            BloodlineStageDef blsd =
+                _get_content_def<BloodlineStageDef>(
                     contentBundle,
                     "bloodline_stage_defs",
                     "bloodline_stage",
                     memberState.bloodline_stage_id
-                ) as BloodlineStageDef;
+                );
             if (blsd != null)
                 _append(
                     entries,
@@ -175,25 +178,25 @@ public partial class RacialSkillGrantService : RefCounted
         }
         if (memberState.ascension_id != "")
         {
-            var ad =
-                _get_content_def(
+            AscensionDef ad =
+                _get_content_def<AscensionDef>(
                     contentBundle,
                     "ascension_defs",
                     "ascension",
                     memberState.ascension_id
-                ) as AscensionDef;
+                );
             if (ad != null)
                 _append(entries, ad.racial_granted_skills, "ascension", memberState.ascension_id);
         }
         if (memberState.ascension_stage_id != "")
         {
-            var asd =
-                _get_content_def(
+            AscensionStageDef asd =
+                _get_content_def<AscensionStageDef>(
                     contentBundle,
                     "ascension_stage_defs",
                     "ascension_stage",
                     memberState.ascension_stage_id
-                ) as AscensionStageDef;
+                );
             if (asd != null)
                 _append(
                     entries,
@@ -274,17 +277,17 @@ public partial class RacialSkillGrantService : RefCounted
         || sourceType == "ascension"
         || sourceType == "bloodline";
 
-    private static GodotObject _get_content_def(
+    private static T _get_content_def<T>(
         Godot.Collections.Dictionary contentBundle,
         string primaryBucket,
         string aliasBucket,
         StringName entryId
-    )
+    ) where T : class
     {
         if (entryId == "")
             return null;
         var bucket = _get_content_bucket(contentBundle, primaryBucket, aliasBucket);
-        return bucket.ContainsKey(entryId) ? bucket[entryId].AsGodotObject() : null;
+        return bucket.ContainsKey(entryId) ? bucket[entryId].AsGodotObject() as T : null;
     }
 
     private static Godot.Collections.Dictionary _get_content_bucket(

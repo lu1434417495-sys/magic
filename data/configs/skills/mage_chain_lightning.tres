@@ -104,11 +104,11 @@ duration_tu = 60
 script = ExtResource("1_effect")
 effect_type = &"chain_damage"
 effect_target_team_filter = &"any"
+prevent_repeat_target = true
 params = {
 "base_chain_radius": 1,
 "bonus_terrain_effect_id": "wet",
 "chain_shape": "square",
-"prevent_repeat_target": true,
 "wet_chain_radius": 2
 }
 

@@ -10,11 +10,9 @@
 script = ExtResource("3_tx6ou")
 effect_type = &"damage"
 power = 0
-params = {
-"add_weapon_dice": true,
-"resolve_as_weapon_attack": true,
-"use_weapon_physical_damage_tag": true
-}
+add_weapon_dice = true
+use_weapon_physical_damage_tag = true
+resolve_as_weapon_attack = true
 
 [sub_resource type="Resource" id="Resource_suppression_l0"]
 script = ExtResource("3_tx6ou")

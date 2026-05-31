@@ -9,6 +9,124 @@ using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
+internal static class BattleRuntimeDictionaryOptions
+{
+    internal static bool ReadBool(GDictionary source, string key, bool fallback = false)
+    {
+        return TryRead(source, key, out Variant value) && value.VariantType == Variant.Type.Bool
+            ? value.AsBool()
+            : fallback;
+    }
+
+    internal static bool TryRead(GDictionary source, string key, out Variant value)
+    {
+        value = default;
+        if (source == null || string.IsNullOrEmpty(key))
+        {
+            return false;
+        }
+        if (source.ContainsKey(key))
+        {
+            value = source[key];
+            return value.VariantType != Variant.Type.Nil;
+        }
+        StringName stringNameKey = new(key);
+        if (source.ContainsKey(stringNameKey))
+        {
+            value = source[stringNameKey];
+            return value.VariantType != Variant.Type.Nil;
+        }
+        return false;
+    }
+}
+
+internal readonly struct BattleDefeatHandlingOptions
+{
+    internal readonly bool CollectLoot;
+    internal readonly bool RecordEnemyDefeatedAchievement;
+    internal readonly bool CheckBattleEnd;
+
+    internal BattleDefeatHandlingOptions(
+        bool collectLoot = true,
+        bool recordEnemyDefeatedAchievement = false,
+        bool checkBattleEnd = true
+    )
+    {
+        CollectLoot = collectLoot;
+        RecordEnemyDefeatedAchievement = recordEnemyDefeatedAchievement;
+        CheckBattleEnd = checkBattleEnd;
+    }
+
+    internal static BattleDefeatHandlingOptions FromDictionary(GDictionary options)
+    {
+        options ??= new GDictionary();
+        return new BattleDefeatHandlingOptions(
+            BattleRuntimeDictionaryOptions.ReadBool(options, "collect_loot", true),
+            BattleRuntimeDictionaryOptions.ReadBool(
+                options,
+                "record_enemy_defeated_achievement"
+            ),
+            BattleRuntimeDictionaryOptions.ReadBool(options, "check_battle_end", true)
+        );
+    }
+}
+
+internal readonly struct BattleStartOptions
+{
+    internal readonly bool ValidateSpawnReachability;
+    internal readonly bool EnforceOpposingSpawnSides;
+    internal readonly bool ValidateBidirectionalSpawnReachability;
+
+    private BattleStartOptions(
+        bool validateSpawnReachability,
+        bool enforceOpposingSpawnSides,
+        bool validateBidirectionalSpawnReachability
+    )
+    {
+        ValidateSpawnReachability = validateSpawnReachability;
+        EnforceOpposingSpawnSides = enforceOpposingSpawnSides;
+        ValidateBidirectionalSpawnReachability = validateBidirectionalSpawnReachability;
+    }
+
+    internal static BattleStartOptions FromContext(
+        GDictionary context,
+        bool validateSpawnReachabilityDefault
+    )
+    {
+        context ??= new GDictionary();
+        return new BattleStartOptions(
+            BattleRuntimeDictionaryOptions.ReadBool(
+                context,
+                "validate_spawn_reachability",
+                validateSpawnReachabilityDefault
+            ),
+            BattleRuntimeDictionaryOptions.ReadBool(context, "enforce_opposing_spawn_sides"),
+            BattleRuntimeDictionaryOptions.ReadBool(
+                context,
+                "validate_bidirectional_spawn_reachability"
+            )
+        );
+    }
+}
+
+internal readonly struct BattleEndOptions
+{
+    internal readonly bool CommitProgression;
+
+    internal BattleEndOptions(bool commitProgression = false)
+    {
+        CommitProgression = commitProgression;
+    }
+
+    internal static BattleEndOptions FromDictionary(GDictionary options)
+    {
+        options ??= new GDictionary();
+        return new BattleEndOptions(
+            BattleRuntimeDictionaryOptions.ReadBool(options, "commit_progression")
+        );
+    }
+}
+
 [GlobalClass]
 public partial class BattleRuntimeModule : RefCounted
 {
@@ -51,6 +169,7 @@ public partial class BattleRuntimeModule : RefCounted
         set => _characterGateway = value as IBattleRuntimeCharacterGateway;
     }
     public GDictionary _skill_defs = new();
+    private readonly Dictionary<StringName, SkillDef> _skillDefIndex = new();
     public GDictionary _item_defs = new();
     public GDictionary _enemy_templates = new();
     public GDictionary _enemy_ai_brains = new();
@@ -129,6 +248,7 @@ public partial class BattleRuntimeModule : RefCounted
     {
         _characterGateway = character_gateway;
         _skill_defs = skill_defs ?? new GDictionary();
+        RebuildSkillDefIndex();
         _special_profile_registry_snapshot =
             battle_special_profile_registry_snapshot?.Duplicate(true) ?? new GDictionary();
         BindDamageResolver();
@@ -231,10 +351,9 @@ public partial class BattleRuntimeModule : RefCounted
 
         bool hasExplicitEnemyUnits =
             enemyBuildContext.ContainsKey("enemy_units")
-            && GdInterop.GetArray(enemyBuildContext, "enemy_units").Count > 0;
-        bool validateSpawnReachability = GetBool(
+            && GetArray(enemyBuildContext, "enemy_units").Count > 0;
+        BattleStartOptions startOptions = BattleStartOptions.FromContext(
             context,
-            "validate_spawn_reachability",
             !hasExplicitEnemyUnits
         );
         if (hasExplicitEnemyUnits)
@@ -279,14 +398,12 @@ public partial class BattleRuntimeModule : RefCounted
             StringName encounterAnchorId =
                 encounter_anchor != null
                     ? ProgressionDataUtils.to_string_name(encounter_anchor.entity_id)
-                    : ProgressionDataUtils.to_string_name(
-                        context.GetValueOrDefault("encounter_anchor_id", "")
-                    );
+                    : GetStringName(context, "encounter_anchor_id");
             string battleIdPrefix = !IsEmpty(encounterAnchorId)
                 ? encounterAnchorId.ToString()
                 : "battle";
             string encounterDisplayName =
-                encounter_anchor != null ? encounter_anchor.Get("display_name").ToString() : "";
+                encounter_anchor != null ? encounter_anchor.display_name : "";
             if (string.IsNullOrEmpty(encounterDisplayName))
                 encounterDisplayName = GetString(context, "encounter_display_name", "未知遭遇");
 
@@ -297,11 +414,7 @@ public partial class BattleRuntimeModule : RefCounted
                 map_size = GetVector2I(terrainData, "map_size", Vector2I.Zero),
                 world_coord = context.ContainsKey("world_coord")
                     ? GetVector2I(context, "world_coord", Vector2I.Zero)
-                    : (
-                        encounter_anchor != null
-                            ? encounter_anchor.Get("world_coord").AsVector2I()
-                            : Vector2I.Zero
-                    ),
+                    : (encounter_anchor != null ? encounter_anchor.world_coord : Vector2I.Zero),
                 encounter_anchor_id = encounterAnchorId,
                 terrain_profile_id = terrainProfileId,
                 cells = GetDict(terrainData, "cells"),
@@ -319,7 +432,7 @@ public partial class BattleRuntimeModule : RefCounted
             GArray enemySpawnCoords = GetArray(terrainData, "enemy_spawns");
             StringName allySpawnSide = "";
             StringName enemySpawnSide = "";
-            if (GetBool(context, "enforce_opposing_spawn_sides", false))
+            if (startOptions.EnforceOpposingSpawnSides)
             {
                 allySpawnSide = _resolve_spawn_side_from_coords(allySpawnCoords);
                 enemySpawnSide = _resolve_spawn_side_from_coords(enemySpawnCoords);
@@ -341,23 +454,18 @@ public partial class BattleRuntimeModule : RefCounted
                 continue;
             }
             _initialize_unit_trait_hooks();
-            if (validateSpawnReachability)
+            if (startOptions.ValidateSpawnReachability)
             {
-                GDictionary options = new()
-                {
-                    ["validate_player_to_enemy"] = GetBool(
-                        context,
-                        "validate_bidirectional_spawn_reachability",
-                        false
-                    ),
-                };
-                GDictionary reachability = _spawn_reachability_service.validate_state(
-                    _state,
-                    _grid_service,
-                    _skill_defs,
-                    options
-                );
-                if (!GetBool(reachability, "valid", false))
+                BattleSpawnReachabilityResult reachability =
+                    _spawn_reachability_service.ValidateStateTyped(
+                        _state,
+                        _grid_service,
+                        _skill_defs,
+                        new BattleSpawnReachabilityOptions(
+                            startOptions.ValidateBidirectionalSpawnReachability
+                        )
+                    );
+                if (!reachability.Valid)
                 {
                     _last_start_failure = new GDictionary
                     {
@@ -366,7 +474,7 @@ public partial class BattleRuntimeModule : RefCounted
                         ["terrain_seed"] = terrainSeed,
                         ["ally_spawn_count"] = allySpawnCoords.Count,
                         ["enemy_spawn_count"] = enemySpawnCoords.Count,
-                        ["reachability"] = reachability.Duplicate(true),
+                        ["reachability"] = reachability.ToDictionary(),
                     };
                     _state = null;
                     _ai_action_plans_by_unit_id.Clear();
@@ -591,7 +699,7 @@ public partial class BattleRuntimeModule : RefCounted
     {
         if (terrain_data == null || !terrain_data.ContainsKey("terrain_profile_id"))
             return "";
-        return GdInterop.GetStringName(terrain_data, "terrain_profile_id", "");
+        return GetStringName(terrain_data, "terrain_profile_id");
     }
 
     public BattleEventBatch advance(int tick_count)
@@ -925,14 +1033,14 @@ public partial class BattleRuntimeModule : RefCounted
         {
             if (command.command_type == BattleCommand.TYPE_CHANGE_EQUIPMENT())
             {
-                GDictionary validation = _build_change_equipment_result(
+                BattleChangeEquipmentResult validation = _change_equipment_resolver.BuildChangeEquipmentResult(
                     false,
                     "target_not_self",
                     "只能为当前行动单位自己换装。",
                     command
                 );
-                validation["target_unit_id"] = command.unit_id.ToString();
-                _append_change_equipment_report(batch, activeUnit, validation, false);
+                validation.TargetUnitId = command.unit_id;
+                _change_equipment_resolver.AppendChangeEquipmentReport(batch, activeUnit, validation, false);
                 _append_batch_logs_to_state(batch);
             }
             return batch;
@@ -1036,10 +1144,7 @@ public partial class BattleRuntimeModule : RefCounted
         int safeReportStart = Math.Clamp(report_start_index, 0, batch.report_entries.Count);
         for (int i = safeReportStart; i < batch.report_entries.Count; i++)
         {
-            GDictionary reportEntry = GdInterop.GetDictionary(
-                new GDictionary { ["entry"] = batch.report_entries[i] },
-                "entry"
-            );
+            GDictionary reportEntry = AsDictionary(batch.report_entries[i]);
             if (reportEntry.Count > 0)
                 _state.report_entries.Add(reportEntry.Duplicate(true));
         }
@@ -1049,7 +1154,7 @@ public partial class BattleRuntimeModule : RefCounted
     {
         if (batch == null || result == null || result.Count == 0)
             return;
-        GDictionary reportEntry = GdInterop.GetDictionary(result, "report_entry");
+        GDictionary reportEntry = GetDict(result, "report_entry");
         if (reportEntry.Count > 0)
             _append_report_entry_to_batch(batch, reportEntry);
     }
@@ -1104,7 +1209,7 @@ public partial class BattleRuntimeModule : RefCounted
             batch.changed_unit_ids.Add(unitState.unit_id);
             batch.log_lines.Add($"{unitState.display_name} 完成职业晋升。");
         }
-        if (GetBool(delta, "needs_promotion_modal"))
+        if (delta.needs_promotion_modal)
         {
             _keep_promotion_choice_modal_open(
                 batch,
@@ -1179,17 +1284,20 @@ public partial class BattleRuntimeModule : RefCounted
             ? MisfortuneService.get_skill_sidecar_missing_message(skill_id)
             : _fate_runtime.get_misfortune_skill_cast_block_reason(active_unit, skill_id);
 
-    public GDictionary consume_misfortune_skill_cast(
+    public MisfortuneSkillCastResult consume_misfortune_skill_cast_result(
         BattleUnitState active_unit,
         StringName skill_id
     ) =>
         _fate_runtime == null
-            ? new GDictionary
-            {
-                ["ok"] = false,
-                ["message"] = MisfortuneService.get_skill_sidecar_missing_message(skill_id),
-            }
-            : _fate_runtime.consume_misfortune_skill_cast(active_unit, skill_id);
+            ? MisfortuneSkillCastResult.Failure(
+                MisfortuneService.get_skill_sidecar_missing_message(skill_id)
+            )
+            : _fate_runtime.consume_misfortune_skill_cast_result(active_unit, skill_id);
+
+    public GDictionary consume_misfortune_skill_cast(
+        BattleUnitState active_unit,
+        StringName skill_id
+    ) => consume_misfortune_skill_cast_result(active_unit, skill_id).ToDictionary();
 
     public GDictionary handle_misfortune_trigger(StringName reason_id, GDictionary payload = null) =>
         _fate_runtime != null
@@ -1267,10 +1375,14 @@ public partial class BattleRuntimeModule : RefCounted
 
     public void end_battle(GDictionary result = null)
     {
-        result ??= new GDictionary();
+        EndBattle(BattleEndOptions.FromDictionary(result));
+    }
+
+    internal void EndBattle(BattleEndOptions options)
+    {
         if (_state == null)
             return;
-        if (_characterGateway != null && GetBool(result, "commit_progression", false))
+        if (_characterGateway != null && options.CommitProgression)
         {
             foreach (StringName allyUnitId in _state.ally_unit_ids)
             {
@@ -1396,6 +1508,42 @@ public partial class BattleRuntimeModule : RefCounted
 
     public GDictionary get_skill_defs() => _skill_defs;
 
+    public SkillDef get_skill_def_typed(StringName skill_id)
+    {
+        if (IsEmpty(skill_id))
+        {
+            return null;
+        }
+        return _skillDefIndex.TryGetValue(skill_id, out SkillDef skillDef) ? skillDef : null;
+    }
+
+    private void RebuildSkillDefIndex()
+    {
+        _skillDefIndex.Clear();
+        if (_skill_defs == null)
+        {
+            return;
+        }
+        foreach (Variant key in _skill_defs.Keys)
+        {
+            SkillDef skillDef = _skill_defs[key].AsGodotObject() as SkillDef;
+            if (skillDef == null)
+            {
+                continue;
+            }
+            StringName keySkillId = ProgressionDataUtils.to_string_name(key);
+            if (!IsEmpty(keySkillId) && !_skillDefIndex.ContainsKey(keySkillId))
+            {
+                _skillDefIndex[keySkillId] = skillDef;
+            }
+            StringName defSkillId = ProgressionDataUtils.to_string_name(skillDef.skill_id);
+            if (!IsEmpty(defSkillId) && !_skillDefIndex.ContainsKey(defSkillId))
+            {
+                _skillDefIndex[defSkillId] = skillDef;
+            }
+        }
+    }
+
     public GDictionary get_special_profile_registry_snapshot() =>
         _special_profile_registry_snapshot.Duplicate(true);
 
@@ -1468,7 +1616,7 @@ public partial class BattleRuntimeModule : RefCounted
         _add_ai_trace_unit_ids(unit_ids, GetArray(score, "target_unit_ids"));
         _add_ai_trace_unit_id(
             unit_ids,
-            ProgressionDataUtils.to_string_name(score.GetValueOrDefault("target_unit_id", ""))
+            GetStringName(score, "target_unit_id")
         );
     }
 
@@ -1555,7 +1703,7 @@ public partial class BattleRuntimeModule : RefCounted
         foreach (StringName unitId in unit_ids)
         {
             string key = unitId.ToString();
-            GDictionary snapshot = GdInterop.GetDictionary(snapshot_map, key);
+            GDictionary snapshot = GetDict(snapshot_map, key);
             if (snapshot.Count > 0)
                 snapshots.Add(snapshot.Duplicate(true));
         }
@@ -1619,8 +1767,8 @@ public partial class BattleRuntimeModule : RefCounted
             int hpAfter = GetInt(after, "hp", hpBefore);
             int shieldBefore = GetInt(before, "shield_hp", GetInt(after, "shield_hp", 0));
             int shieldAfter = GetInt(after, "shield_hp", shieldBefore);
-            bool beforeAlive = GetBool(before, "alive", false);
-            bool afterAlive = GetBool(after, "alive", beforeAlive);
+            bool beforeAlive = BattleRuntimeDictionaryOptions.ReadBool(before, "alive");
+            bool afterAlive = BattleRuntimeDictionaryOptions.ReadBool(after, "alive", beforeAlive);
             string coordBefore = GetString(before, "coord", GetString(after, "coord", ""));
             string coordAfter = GetString(after, "coord", coordBefore);
             results.Add(
@@ -1881,7 +2029,7 @@ public partial class BattleRuntimeModule : RefCounted
         if (source_unit == null || result == null || result.Count == 0)
             return;
         GStringNameArray sourceStatusIds = NormalizeStatusIdArray(
-            GdInterop.GetArray(result, "source_status_effect_ids")
+            GetArray(result, "source_status_effect_ids")
         );
         if (sourceStatusIds.Count == 0)
             return;
@@ -2034,6 +2182,7 @@ public partial class BattleRuntimeModule : RefCounted
         _ai_trace_enabled = false;
         _characterGateway = null;
         _skill_defs = new GDictionary();
+        _skillDefIndex.Clear();
         _special_profile_registry_snapshot = new GDictionary();
         _item_defs = new GDictionary();
         _enemy_templates = new GDictionary();
@@ -2411,20 +2560,6 @@ public partial class BattleRuntimeModule : RefCounted
     public int _get_unit_stamina_max(BattleUnitState unit_state) =>
         _change_equipment_resolver.get_unit_stamina_max(unit_state);
 
-    public GDictionary _build_change_equipment_result(
-        bool allowed,
-        string error_code,
-        string message,
-        BattleCommand command
-    ) => _change_equipment_resolver.build_result(allowed, error_code, message, command);
-
-    public void _append_change_equipment_report(
-        BattleEventBatch batch,
-        BattleUnitState active_unit,
-        GDictionary result,
-        bool success
-    ) => _change_equipment_resolver.append_report(batch, active_unit, result, success);
-
     public bool _move_unit_along_validated_path(
         BattleUnitState active_unit,
         GVector2IArray anchor_path,
@@ -2653,6 +2788,22 @@ public partial class BattleRuntimeModule : RefCounted
         );
     }
 
+    public BattleUnitSkillValidationResult _validate_unit_skill_targets_result(
+        BattleUnitState active_unit,
+        BattleCommand command,
+        SkillDef skill_def,
+        CombatCastVariantDef cast_variant = null
+    )
+    {
+        _ensure_sidecars_ready();
+        return _skill_orchestrator._validate_unit_skill_targets_result(
+            active_unit,
+            command,
+            skill_def,
+            cast_variant
+        );
+    }
+
     public GStringNameArray _normalize_target_unit_ids(BattleCommand command)
     {
         _ensure_sidecars_ready();
@@ -2739,7 +2890,7 @@ public partial class BattleRuntimeModule : RefCounted
             cast_variant,
             effect_defs,
             batch,
-            spell_control_context ?? new GDictionary()
+            BattleSpellControlResult.FromDictionary(spell_control_context)
         );
     }
 
@@ -2763,7 +2914,7 @@ public partial class BattleRuntimeModule : RefCounted
             primary_result,
             batch,
             skill_subject,
-            spell_control_context ?? new GDictionary()
+            BattleSpellControlResult.FromDictionary(spell_control_context)
         );
     }
 
@@ -2803,7 +2954,7 @@ public partial class BattleRuntimeModule : RefCounted
                 primary_target,
                 skill_def,
                 chain_effect,
-                spell_control_context ?? new GDictionary()
+                BattleSpellControlResult.FromDictionary(spell_control_context)
             )
         );
     }
@@ -2818,7 +2969,7 @@ public partial class BattleRuntimeModule : RefCounted
         return _skill_orchestrator._resolve_chain_damage_radius(
             primary_target,
             chain_effect,
-            spell_control_context ?? new GDictionary()
+            BattleSpellControlResult.FromDictionary(spell_control_context)
         );
     }
 
@@ -2883,7 +3034,7 @@ public partial class BattleRuntimeModule : RefCounted
             source_unit,
             defeated_unit,
             skill_def,
-            ToUntypedArray(effect_defs),
+            effect_defs ?? new GCombatEffectArray(),
             batch
         );
     }
@@ -2898,13 +3049,35 @@ public partial class BattleRuntimeModule : RefCounted
         GDictionary forced_move_context = null
     )
     {
+        return ApplyUnitSkillSpecialEffectsResult(
+                active_unit,
+                target_unit,
+                skill_def,
+                cast_variant,
+                effect_defs,
+                batch,
+                forced_move_context
+            )
+            .ToDictionary();
+    }
+
+    public BattleSpecialSkillResult ApplyUnitSkillSpecialEffectsResult(
+        BattleUnitState active_unit,
+        BattleUnitState target_unit,
+        SkillDef skill_def,
+        CombatCastVariantDef cast_variant,
+        GCombatEffectArray effect_defs,
+        BattleEventBatch batch,
+        GDictionary forced_move_context = null
+    )
+    {
         _ensure_sidecars_ready();
-        return _special_skill_resolver._apply_unit_skill_special_effects(
+        return _special_skill_resolver.ApplyUnitSkillSpecialEffectsResult(
             active_unit,
             target_unit,
             skill_def,
             cast_variant,
-            ToUntypedArray(effect_defs),
+            effect_defs ?? new GCombatEffectArray(),
             batch,
             forced_move_context ?? new GDictionary()
         );
@@ -3151,6 +3324,24 @@ public partial class BattleRuntimeModule : RefCounted
         );
     }
 
+    internal void RecordVajraBodyMasteryFromIncomingDamageTyped(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        SkillDef skillDef,
+        AttackEffectResolutionResult result,
+        BattleEventBatch batch = null
+    )
+    {
+        _ensure_sidecars_ready();
+        _special_skill_resolver.RecordVajraBodyMasteryFromIncomingDamageTyped(
+            sourceUnit,
+            targetUnit,
+            skillDef,
+            result,
+            batch
+        );
+    }
+
     public Vector2I _pick_forced_move_coord(
         BattleUnitState unit_state,
         StringName mode,
@@ -3239,6 +3430,22 @@ public partial class BattleRuntimeModule : RefCounted
         );
     }
 
+    public BattleSpellControlResult _resolve_ground_spell_control_after_cost_result(
+        BattleUnitState active_unit,
+        SkillDef skill_def,
+        int spent_mp,
+        BattleEventBatch batch
+    )
+    {
+        _ensure_sidecars_ready();
+        return _ground_effect_service._resolve_ground_spell_control_after_cost_result(
+            active_unit,
+            skill_def,
+            spent_mp,
+            batch
+        );
+    }
+
     public GDictionary _resolve_unit_spell_control_after_cost(
         BattleUnitState active_unit,
         SkillDef skill_def,
@@ -3247,6 +3454,20 @@ public partial class BattleRuntimeModule : RefCounted
     {
         _ensure_sidecars_ready();
         return _ground_effect_service._resolve_unit_spell_control_after_cost(
+            active_unit,
+            skill_def,
+            batch
+        );
+    }
+
+    public BattleSpellControlResult _resolve_unit_spell_control_after_cost_result(
+        BattleUnitState active_unit,
+        SkillDef skill_def,
+        BattleEventBatch batch
+    )
+    {
+        _ensure_sidecars_ready();
+        return _ground_effect_service._resolve_unit_spell_control_after_cost_result(
             active_unit,
             skill_def,
             batch
@@ -3409,6 +3630,26 @@ public partial class BattleRuntimeModule : RefCounted
         );
     }
 
+    public BattleGroundUnitEffectsResult _apply_ground_unit_effects_result(
+        BattleUnitState source_unit,
+        SkillDef skill_def,
+        GCombatEffectArray effect_defs,
+        GVector2IArray effect_coords,
+        BattleEventBatch batch,
+        GVector2IArray target_coords = null
+    )
+    {
+        _ensure_sidecars_ready();
+        return _ground_effect_service._apply_ground_unit_effects_result(
+            source_unit,
+            skill_def,
+            ToUntypedArray(effect_defs),
+            ToUntypedArray(effect_coords),
+            batch,
+            ToUntypedArray(target_coords ?? new GVector2IArray())
+        );
+    }
+
     public GDictionary _resolve_ground_unit_effect_result(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
@@ -3459,6 +3700,24 @@ public partial class BattleRuntimeModule : RefCounted
         );
     }
 
+    public BattleGroundTerrainEffectsResult _apply_ground_terrain_effects_result(
+        BattleUnitState source_unit,
+        SkillDef skill_def,
+        GCombatEffectArray effect_defs,
+        GVector2IArray effect_coords,
+        BattleEventBatch batch
+    )
+    {
+        _ensure_sidecars_ready();
+        return _ground_effect_service._apply_ground_terrain_effects_result(
+            source_unit,
+            skill_def,
+            ToUntypedArray(effect_defs),
+            ToUntypedArray(effect_coords),
+            batch
+        );
+    }
+
     public bool _apply_ground_cell_effect(
         BattleUnitState source_unit,
         SkillDef skill_def,
@@ -3495,7 +3754,7 @@ public partial class BattleRuntimeModule : RefCounted
     public GCombatEffectArray _typed_combat_effect_defs(GArray raw_values)
     {
         var typedValues = new GCombatEffectArray();
-        foreach (CombatEffectDef effectDef in GdInterop.ReadObjectItems<CombatEffectDef>(raw_values))
+        foreach (CombatEffectDef effectDef in ReadObjectItems<CombatEffectDef>(raw_values))
         {
             typedValues.Add(effectDef);
         }
@@ -3505,7 +3764,7 @@ public partial class BattleRuntimeModule : RefCounted
     public GBattleUnitArray _typed_battle_units(GArray raw_values)
     {
         var typedValues = new GBattleUnitArray();
-        foreach (BattleUnitState unitState in GdInterop.ReadObjectItems<BattleUnitState>(raw_values))
+        foreach (BattleUnitState unitState in ReadObjectItems<BattleUnitState>(raw_values))
         {
             typedValues.Add(unitState);
         }
@@ -3526,8 +3785,26 @@ public partial class BattleRuntimeModule : RefCounted
         GDictionary shield_roll_context = null
     )
     {
+        return ApplyUnitShieldEffectsResult(
+                source_unit,
+                target_unit,
+                skill_def,
+                effect_defs,
+                shield_roll_context
+            )
+            .ToDictionary();
+    }
+
+    public BattleShieldApplyResult ApplyUnitShieldEffectsResult(
+        BattleUnitState source_unit,
+        BattleUnitState target_unit,
+        SkillDef skill_def,
+        GCombatEffectArray effect_defs,
+        GDictionary shield_roll_context = null
+    )
+    {
         _ensure_sidecars_ready();
-        return _shield_service._apply_unit_shield_effects(
+        return _shield_service.ApplyUnitShieldEffectsResult(
             source_unit,
             target_unit,
             skill_def,
@@ -3544,8 +3821,26 @@ public partial class BattleRuntimeModule : RefCounted
         GDictionary shield_roll_context = null
     )
     {
+        return ApplyShieldEffectToTargetResult(
+                source_unit,
+                target_unit,
+                skill_def,
+                effect_def,
+                shield_roll_context
+            )
+            .ToDictionary();
+    }
+
+    public BattleShieldApplyResult ApplyShieldEffectToTargetResult(
+        BattleUnitState source_unit,
+        BattleUnitState target_unit,
+        SkillDef skill_def,
+        CombatEffectDef effect_def,
+        GDictionary shield_roll_context = null
+    )
+    {
         _ensure_sidecars_ready();
-        return _shield_service._apply_shield_effect_to_target(
+        return _shield_service.ApplyShieldEffectToTargetResult(
             source_unit,
             target_unit,
             skill_def,
@@ -3722,54 +4017,54 @@ public partial class BattleRuntimeModule : RefCounted
         BattleEventBatch batch
     )
     {
-        if (grant == null || grant.Count == 0 || _characterGateway == null)
+        ApplySkillMasteryGrantTyped(
+            unit_state,
+            BattleSkillMasteryGrant.FromDictionary(grant),
+            batch
+        );
+    }
+
+    internal void ApplySkillMasteryGrantTyped(
+        BattleUnitState unitState,
+        BattleSkillMasteryGrant grant,
+        BattleEventBatch batch
+    )
+    {
+        if (grant?.IsValid != true || _characterGateway == null)
             return;
-        StringName memberId = ProgressionDataUtils.to_string_name(
-            grant.GetValueOrDefault("member_id", "")
-        );
-        StringName skillId = ProgressionDataUtils.to_string_name(
-            grant.GetValueOrDefault("skill_id", "")
-        );
-        StringName sourceType = ProgressionDataUtils.to_string_name(
-            grant.GetValueOrDefault("source_type", "")
-        );
-        int amount = GetInt(grant, "amount", 0);
-        if (IsEmpty(memberId) || IsEmpty(skillId) || IsEmpty(sourceType) || amount <= 0)
-            return;
-        if (GetBool(grant, "record_near_death_unbroken_manual", false))
+        if (grant.RecordNearDeathUnbrokenManual)
             _characterGateway.record_achievement_event(
-                memberId,
+                grant.MemberId,
                 "near_death_unbroken_manual",
                 1,
                 "",
                 new GDictionary()
             );
         CharacterProgressionDelta delta = _characterGateway.grant_skill_mastery_from_source(
-            memberId,
-            skillId,
-            amount,
-            sourceType,
-            GetString(grant, "source_label"),
-            GetString(grant, "reason_text"),
-            GetBool(grant, "allow_unlocks", true)
+            grant.MemberId,
+            grant.SkillId,
+            grant.Amount,
+            grant.SourceType,
+            grant.SourceLabel,
+            grant.ReasonText,
+            grant.AllowUnlocks
         );
-        _append_progression_delta_to_batch(unit_state, delta, batch);
+        _append_progression_delta_to_batch(unitState, delta, batch);
     }
 
     public void _flush_last_stand_mastery_records(BattleEventBatch batch)
     {
         if (_damage_resolver == null)
             return;
-        GArray records = _damage_resolver.get_and_clear_last_stand_mastery_records();
-        foreach (GDictionary record in GdInterop.ReadDictionaryItems(records))
+        List<BattleSkillMasteryGrant> records =
+            _damage_resolver.GetAndClearLastStandMasteryRecordsTyped();
+        foreach (BattleSkillMasteryGrant record in records)
         {
-            StringName memberId = ProgressionDataUtils.to_string_name(
-                record.GetValueOrDefault("member_id", "")
-            );
+            StringName memberId = record?.MemberId ?? "";
             BattleUnitState unitState = !IsEmpty(memberId)
                 ? _find_unit_by_member_id(memberId)
                 : null;
-            _apply_skill_mastery_grant(unitState, record, batch);
+            ApplySkillMasteryGrantTyped(unitState, record, batch);
         }
     }
 
@@ -3867,6 +4162,22 @@ public partial class BattleRuntimeModule : RefCounted
         );
     }
 
+    public BattleGroundSkillValidationResult _validate_ground_skill_command_result(
+        BattleUnitState active_unit,
+        SkillDef skill_def,
+        CombatCastVariantDef cast_variant,
+        BattleCommand command
+    )
+    {
+        _ensure_sidecars_ready();
+        return _ground_effect_service._validate_ground_skill_command_result(
+            active_unit,
+            skill_def,
+            cast_variant,
+            command
+        );
+    }
+
     public string _get_ground_special_effect_validation_message(
         BattleUnitState active_unit,
         SkillDef skill_def,
@@ -3954,18 +4265,34 @@ public partial class BattleRuntimeModule : RefCounted
         GDictionary options = null
     )
     {
-        options ??= new GDictionary();
+        handle_unit_defeated_by_runtime_effect(
+            unit_state,
+            source_unit,
+            batch,
+            log_line,
+            BattleDefeatHandlingOptions.FromDictionary(options)
+        );
+    }
+
+    internal void handle_unit_defeated_by_runtime_effect(
+        BattleUnitState unit_state,
+        BattleUnitState source_unit,
+        BattleEventBatch batch,
+        string log_line,
+        BattleDefeatHandlingOptions options
+    )
+    {
         if (unit_state == null)
             return;
-        if (GetBool(options, "collect_loot", true))
+        if (options.CollectLoot)
             _collect_defeated_unit_loot(unit_state, source_unit);
         _clear_defeated_unit(unit_state, batch);
         _record_unit_defeated(unit_state);
-        if (GetBool(options, "record_enemy_defeated_achievement", false))
+        if (options.RecordEnemyDefeatedAchievement)
             _battle_rating_system.record_enemy_defeated_achievement(source_unit, unit_state);
         if (!string.IsNullOrEmpty(log_line) && batch != null)
             batch.log_lines.Add(log_line);
-        if (GetBool(options, "check_battle_end", true))
+        if (options.CheckBattleEnd)
             _check_battle_end(batch);
     }
 
@@ -4010,7 +4337,7 @@ public partial class BattleRuntimeModule : RefCounted
             _append_changed_unit_id(target_batch, unitId);
         foreach (string logLine in source_batch.log_lines)
             target_batch.log_lines.Add(logLine);
-        foreach (GDictionary reportEntry in GdInterop.ReadDictionaryItems(source_batch.report_entries))
+        foreach (GDictionary reportEntry in ReadDictionaryItems(source_batch.report_entries))
         {
             target_batch.report_entries.Add(reportEntry.Duplicate(true));
         }
@@ -4166,6 +4493,11 @@ public partial class BattleRuntimeModule : RefCounted
         SkillDef skill_def
     ) => _skill_turn_resolver.get_effective_skill_costs(active_unit, skill_def);
 
+    public CombatSkillResourceCosts _get_effective_skill_resource_costs(
+        BattleUnitState active_unit,
+        SkillDef skill_def
+    ) => _skill_turn_resolver.get_effective_skill_resource_costs(active_unit, skill_def);
+
     public string _get_black_contract_push_variant_block_reason(
         BattleUnitState active_unit,
         CombatCastVariantDef cast_variant
@@ -4198,11 +4530,22 @@ public partial class BattleRuntimeModule : RefCounted
         BattleEventBatch batch
     ) => _skill_turn_resolver.apply_turn_start_statuses(unit_state, batch);
 
+    public BattleStatusTickResult _apply_turn_start_statuses_result(
+        BattleUnitState unit_state,
+        BattleEventBatch batch
+    ) => _skill_turn_resolver.ApplyTurnStartStatusesResult(unit_state, batch);
+
     public GDictionary _apply_unit_status_periodic_ticks(
         BattleUnitState unit_state,
         int elapsed_tu,
         BattleEventBatch batch
     ) => _skill_turn_resolver.apply_unit_status_periodic_ticks(unit_state, elapsed_tu, batch);
+
+    public BattleStatusTickResult _apply_unit_status_periodic_ticks_result(
+        BattleUnitState unit_state,
+        int elapsed_tu,
+        BattleEventBatch batch
+    ) => _skill_turn_resolver.ApplyUnitStatusPeriodicTicksResult(unit_state, elapsed_tu, batch);
 
     public bool _advance_unit_status_durations(
         BattleUnitState unit_state,
@@ -4343,44 +4686,162 @@ public partial class BattleRuntimeModule : RefCounted
 
     private static GodotObject GetObject(GDictionary dict, object key)
     {
-        return GdInterop.GetObject(dict, key);
+        return TryGetValue(dict, key, out Variant value) && value.VariantType == Variant.Type.Object
+            ? value.AsGodotObject()
+            : null;
     }
 
     private static GDictionary GetDict(GDictionary dict, object key)
     {
-        return GdInterop.GetDictionary(dict, key);
+        return TryGetValue(dict, key, out Variant value) && value.VariantType == Variant.Type.Dictionary
+            ? value.AsGodotDictionary()
+            : new GDictionary();
     }
 
     private static GArray GetArray(GDictionary dict, object key)
     {
-        return GdInterop.GetArray(dict, key);
+        return TryGetValue(dict, key, out Variant value) && value.VariantType == Variant.Type.Array
+            ? value.AsGodotArray()
+            : new GArray();
     }
 
     private static string GetString(GDictionary dict, object key, string fallback = "")
     {
-        return GdInterop.GetString(dict, key, fallback);
+        if (!TryGetValue(dict, key, out Variant value))
+            return fallback;
+        return value.VariantType switch
+        {
+            Variant.Type.String => value.AsString(),
+            Variant.Type.StringName => value.AsStringName().ToString(),
+            Variant.Type.Int => value.AsInt32().ToString(),
+            Variant.Type.Float => value.AsDouble().ToString(System.Globalization.CultureInfo.InvariantCulture),
+            Variant.Type.Bool => value.AsBool() ? "True" : "False",
+            _ => fallback,
+        };
+    }
+
+    private static StringName GetStringName(
+        GDictionary dict,
+        object key,
+        StringName fallback = default
+    )
+    {
+        if (!TryGetValue(dict, key, out Variant value))
+            return fallback;
+        StringName parsed = ProgressionDataUtils.to_string_name(value);
+        return IsEmpty(parsed) ? fallback : parsed;
     }
 
     private static int GetInt(GDictionary dict, object key, int fallback = 0)
     {
-        return GdInterop.GetInt(dict, key, fallback);
-    }
-
-    private static bool GetBool(GDictionary dict, object key, bool fallback = false)
-    {
-        return GdInterop.GetBool(dict, key, fallback);
-    }
-
-    private static bool GetBool(GodotObject obj, StringName property, bool fallback = false)
-    {
-        if (obj == null)
+        if (!TryGetValue(dict, key, out Variant value))
             return fallback;
-        return GdInterop.GetBool(obj, property, fallback);
+        return value.VariantType switch
+        {
+            Variant.Type.Int => value.AsInt32(),
+            Variant.Type.Float => (int)value.AsDouble(),
+            Variant.Type.Bool => value.AsBool() ? 1 : 0,
+            Variant.Type.String => int.TryParse(value.AsString(), out int parsed)
+                ? parsed
+                : fallback,
+            Variant.Type.StringName
+                => int.TryParse(value.AsStringName().ToString(), out int parsed)
+                    ? parsed
+                    : fallback,
+            _ => fallback,
+        };
     }
 
     private static Vector2I GetVector2I(GDictionary dict, object key, Vector2I fallback)
     {
-        return GdInterop.GetVector2I(dict, key, fallback);
+        return TryGetValue(dict, key, out Variant value)
+            && value.VariantType == Variant.Type.Vector2I
+            ? value.AsVector2I()
+            : fallback;
+    }
+
+    private static GDictionary AsDictionary(object rawValue)
+    {
+        if (rawValue is GDictionary dictionary)
+            return dictionary;
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Dictionary)
+            return variant.AsGodotDictionary();
+        return new GDictionary();
+    }
+
+    private static IEnumerable<T> ReadObjectItems<T>(GArray values)
+        where T : GodotObject
+    {
+        if (values == null)
+            yield break;
+        foreach (Variant value in values)
+        {
+            if (value.VariantType == Variant.Type.Object && value.AsGodotObject() is T typedValue)
+                yield return typedValue;
+        }
+    }
+
+    private static IEnumerable<GDictionary> ReadDictionaryItems(GArray values)
+    {
+        if (values == null)
+            yield break;
+        foreach (Variant value in values)
+        {
+            if (value.VariantType == Variant.Type.Dictionary)
+                yield return value.AsGodotDictionary();
+        }
+    }
+
+    private static bool TryGetValue(GDictionary dict, object key, out Variant value)
+    {
+        if (dict == null)
+        {
+            value = default;
+            return false;
+        }
+        Variant variantKey = ToVariantKey(key);
+        if (dict.ContainsKey(variantKey))
+        {
+            value = dict[variantKey];
+            return true;
+        }
+        if (key is StringName stringNameKey)
+        {
+            string keyText = stringNameKey.ToString();
+            if (dict.ContainsKey(keyText))
+            {
+                value = dict[keyText];
+                return true;
+            }
+        }
+        else if (key is string stringKey)
+        {
+            var stringName = new StringName(stringKey);
+            if (dict.ContainsKey(stringName))
+            {
+                value = dict[stringName];
+                return true;
+            }
+        }
+        value = default;
+        return false;
+    }
+
+    private static Variant ToVariantKey(object key)
+    {
+        return key switch
+        {
+            Variant variant => variant,
+            StringName stringName => Variant.From(stringName),
+            string text => Variant.From(text),
+            int intValue => Variant.From(intValue),
+            long longValue => Variant.From(longValue),
+            float floatValue => Variant.From(floatValue),
+            double doubleValue => Variant.From(doubleValue),
+            bool boolValue => Variant.From(boolValue),
+            Vector2I coord => Variant.From(coord),
+            _ => Variant.From(key?.ToString() ?? ""),
+        };
     }
 
     private static GVector2IArray ToVector2IArray(GArray values)

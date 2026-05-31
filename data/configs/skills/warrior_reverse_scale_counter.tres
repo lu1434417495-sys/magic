@@ -11,10 +11,10 @@ power = 16
 min_skill_level = 0
 max_skill_level = -1
 damage_tag = &"force"
+add_weapon_dice = false
 params = {
-    "dice_count": 1,
-    "dice_sides": 10,
-    "add_weapon_dice": false
+"dice_count": 1,
+"dice_sides": 10
 }
 
 [sub_resource type="Resource" id="Resource_combat"]

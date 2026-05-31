@@ -1,6 +1,16 @@
 using Godot;
 using System;
 
+public readonly record struct BattleStatusDurationAdvanceResult(bool Expired, bool Changed)
+{
+    public Godot.Collections.Dictionary ToDictionary() =>
+        new()
+        {
+            ["expired"] = Expired,
+            ["changed"] = Changed,
+        };
+}
+
 [GlobalClass]
 public partial class BattleStatusSemanticTable : RefCounted
 {
@@ -262,24 +272,27 @@ public partial class BattleStatusSemanticTable : RefCounted
         GodotObject effectDef,
         StringName sourceUnitId,
         BattleStatusEffectState existingEntry = null
+    ) => merge_status_typed(effectDef as CombatEffectDef, sourceUnitId, existingEntry);
+
+    public static BattleStatusEffectState merge_status_typed(
+        CombatEffectDef effectDef,
+        StringName sourceUnitId,
+        BattleStatusEffectState existingEntry = null
     )
     {
-        if (
-            effectDef == null
-            || ProgressionDataUtils.to_string_name(effectDef.Get("status_id")) == ""
-        )
+        if (effectDef == null || ProgressionDataUtils.to_string_name(effectDef.status_id) == "")
             return null;
-        var semantic = get_semantic(effectDef.Get("status_id").AsStringName());
+        var semantic = get_semantic(effectDef.status_id);
         var se = existingEntry?.duplicate_state() ?? new BattleStatusEffectState();
-        se.status_id = ProgressionDataUtils.to_string_name(effectDef.Get("status_id"));
+        se.status_id = ProgressionDataUtils.to_string_name(effectDef.status_id);
         se.source_unit_id = sourceUnitId;
         se.@params = _clone_effect_params(effectDef);
-        int incomingPower = Mathf.Max(effectDef.Get("power").AsInt32(), 1);
+        int incomingPower = Mathf.Max(effectDef.power, 1);
         int prevPower = Mathf.Max(se.power, 0);
         int prevStacks = Mathf.Max(se.stacks, 0);
         if (semantic.Count == 0)
         {
-            se.power = effectDef.Get("power").AsInt32();
+            se.power = effectDef.power;
             se.stacks = Mathf.Max(prevStacks + 1, 1);
             int sd = _resolve_duration_tu(effectDef);
             if (sd >= 0)
@@ -351,8 +364,7 @@ public partial class BattleStatusSemanticTable : RefCounted
         return ProgressionDataUtils.to_string_name(
                 s.ContainsKey("tick_mode") ? s["tick_mode"] : TICK_NONE
             ) == TICK_TURN_START_AP_PENALTY
-            && s.ContainsKey("consume_after_ap_penalty")
-            && s["consume_after_ap_penalty"].AsBool();
+            && _gpb(s, "consume_after_ap_penalty", false);
     }
 
     public static string get_turn_start_ap_penalty_display_label(BattleStatusEffectState se)
@@ -420,20 +432,25 @@ public partial class BattleStatusSemanticTable : RefCounted
         return Mathf.Max(_gpi(se.@params, "attack_roll_penalty", dp), 0);
     }
 
-    public static Godot.Collections.Dictionary advance_timeline_duration(
+    public static BattleStatusDurationAdvanceResult advance_timeline_duration_result(
         BattleStatusEffectState se,
         int elapsedTu
     )
     {
         if (se == null || elapsedTu <= 0 || se.duration < 0)
-            return new Godot.Collections.Dictionary { { "expired", false }, { "changed", false } };
+            return new BattleStatusDurationAdvanceResult(false, false);
         int pd = se.duration;
         int rd = Mathf.Max(pd - elapsedTu, 0);
         if (rd <= 0)
-            return new Godot.Collections.Dictionary { { "expired", true }, { "changed", true } };
+            return new BattleStatusDurationAdvanceResult(true, true);
         se.duration = rd;
-        return new Godot.Collections.Dictionary { { "expired", false }, { "changed", rd != pd } };
+        return new BattleStatusDurationAdvanceResult(false, rd != pd);
     }
+
+    public static Godot.Collections.Dictionary advance_timeline_duration(
+        BattleStatusEffectState se,
+        int elapsedTu
+    ) => advance_timeline_duration_result(se, elapsedTu).ToDictionary();
 
     private static Godot.Collections.Dictionary _brt(StringName tm = default)
     {
@@ -446,45 +463,41 @@ public partial class BattleStatusSemanticTable : RefCounted
         };
     }
 
-    private static int _resolve_duration_tu(GodotObject ed)
+    private static int _resolve_duration_tu(CombatEffectDef ed)
     {
         if (ed == null)
             return -1;
-        if (
-            ed.Get("params").AsGodotDictionary() != null
-            && ed.Get("params").AsGodotDictionary().ContainsKey("duration_tu")
-        )
+        Godot.Collections.Dictionary parameters = ed.@params;
+        if (parameters != null && parameters.ContainsKey("duration_tu"))
             return _npt(
-                ed.Get("params").AsGodotDictionary()["duration_tu"].AsInt32(),
+                parameters["duration_tu"].AsInt32(),
                 "status params.duration_tu"
             );
-        if (ed.Get("duration_tu").AsInt32() > 0)
-            return _npt(ed.Get("duration_tu").AsInt32(), "status duration_tu");
+        if (ed.duration_tu > 0)
+            return _npt(ed.duration_tu, "status duration_tu");
         return -1;
     }
 
-    private static int _resolve_tick_interval_tu(GodotObject ed)
+    private static int _resolve_tick_interval_tu(CombatEffectDef ed)
     {
         if (ed == null)
             return 0;
-        if (ed.Get("tick_interval_tu").AsInt32() > 0)
-            return _npt(ed.Get("tick_interval_tu").AsInt32(), "status tick_interval_tu");
-        if (
-            ed.Get("params").AsGodotDictionary() != null
-            && ed.Get("params").AsGodotDictionary().ContainsKey("tick_interval_tu")
-        )
+        if (ed.tick_interval_tu > 0)
+            return _npt(ed.tick_interval_tu, "status tick_interval_tu");
+        Godot.Collections.Dictionary parameters = ed.@params;
+        if (parameters != null && parameters.ContainsKey("tick_interval_tu"))
             return _npt(
-                ed.Get("params").AsGodotDictionary()["tick_interval_tu"].AsInt32(),
+                parameters["tick_interval_tu"].AsInt32(),
                 "status params.tick_interval_tu"
             );
         return 0;
     }
 
-    private static Godot.Collections.Dictionary _clone_effect_params(GodotObject ed)
+    private static Godot.Collections.Dictionary _clone_effect_params(CombatEffectDef ed)
     {
-        if (ed?.Get("params").AsGodotDictionary() == null)
+        if (ed?.@params == null)
             return new Godot.Collections.Dictionary();
-        return ed.Get("params").AsGodotDictionary().Duplicate(true);
+        return ed.@params.Duplicate(true);
     }
 
     private static int _gpi(Godot.Collections.Dictionary @params, StringName pk, int fb)
@@ -507,14 +520,19 @@ public partial class BattleStatusSemanticTable : RefCounted
         if (@params == null || pk == "")
             return fb;
         if (@params.ContainsKey(pk))
-            return @params[pk].AsBool();
+            return _read_bool_value(@params[pk], fb);
         string pn = (string)pk;
         if (@params.ContainsKey(pn))
-            return @params[pn].AsBool();
+            return _read_bool_value(@params[pn], fb);
         foreach (var k in @params.Keys)
             if (ProgressionDataUtils.to_string_name(k) == pk)
-                return @params[k].AsBool();
+                return _read_bool_value(@params[k], fb);
         return fb;
+    }
+
+    private static bool _read_bool_value(Variant value, bool fallback)
+    {
+        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
     }
 
     private static int _get_effect_intensity(BattleStatusEffectState se) =>

@@ -452,7 +452,7 @@ public partial class BattleAttackCheckPolicyService : RefCounted
                 {
                     continue;
                 }
-                GDictionary rawSpec = GdInterop.GetDictionary(
+                GDictionary rawSpec = GetDict(
                     effectState.@params,
                     ParamAccuracyModifierSpec
                 );
@@ -827,6 +827,66 @@ public partial class BattleAttackCheckPolicyService : RefCounted
     private static string BuildSortKey(BattleAttackRollModifierSpec spec)
     {
         return $"{spec.source_domain}|{spec.stack_key}|{spec.source_id}|{spec.source_instance_id}|{spec.label}";
+    }
+
+    private static GDictionary GetDict(GDictionary source, object key)
+    {
+        return TryGetValue(source, key, out Variant value)
+            && value.VariantType == Variant.Type.Dictionary
+            ? value.AsGodotDictionary()
+            : new GDictionary();
+    }
+
+    private static bool TryGetValue(GDictionary source, object key, out Variant value)
+    {
+        if (source == null)
+        {
+            value = default;
+            return false;
+        }
+        Variant variantKey = ToVariantKey(key);
+        if (source.ContainsKey(variantKey))
+        {
+            value = source[variantKey];
+            return true;
+        }
+        if (key is StringName stringNameKey)
+        {
+            string keyText = stringNameKey.ToString();
+            if (source.ContainsKey(keyText))
+            {
+                value = source[keyText];
+                return true;
+            }
+        }
+        else if (key is string stringKey)
+        {
+            var stringName = new StringName(stringKey);
+            if (source.ContainsKey(stringName))
+            {
+                value = source[stringName];
+                return true;
+            }
+        }
+        value = default;
+        return false;
+    }
+
+    private static Variant ToVariantKey(object key)
+    {
+        return key switch
+        {
+            Variant variant => variant,
+            StringName stringName => Variant.From(stringName),
+            string text => Variant.From(text),
+            int intValue => Variant.From(intValue),
+            long longValue => Variant.From(longValue),
+            float floatValue => Variant.From(floatValue),
+            double doubleValue => Variant.From(doubleValue),
+            bool boolValue => Variant.From(boolValue),
+            Vector2I coord => Variant.From(coord),
+            _ => Variant.From(key?.ToString() ?? ""),
+        };
     }
 
     private static bool IsEmpty(StringName value)

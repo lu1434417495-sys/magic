@@ -145,6 +145,20 @@ public partial class QuestState : RefCounted
         status_id = STATUS_FAILED;
     }
 
+    public QuestState duplicate_state()
+    {
+        return new QuestState
+        {
+            quest_id = quest_id,
+            status_id = status_id,
+            objective_progress = objective_progress?.Duplicate(true) ?? new Godot.Collections.Dictionary(),
+            accepted_at_world_step = accepted_at_world_step,
+            completed_at_world_step = completed_at_world_step,
+            reward_claimed_at_world_step = reward_claimed_at_world_step,
+            last_progress_context = last_progress_context?.Duplicate(true) ?? new Godot.Collections.Dictionary(),
+        };
+    }
+
     public Godot.Collections.Dictionary to_dict()
     {
         return new Godot.Collections.Dictionary

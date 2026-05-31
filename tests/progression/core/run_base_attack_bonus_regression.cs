@@ -23,6 +23,7 @@ public partial class run_base_attack_bonus_regression : SceneTree
         TestAttributeServiceWritesBaseAttackBonusForFullWarrior();
         TestAttributeServiceExcludesInactiveAndHiddenProfessions();
         TestAttributeServiceMultiClassMatchesStaticCalculation();
+        TestAttributeServiceProtectedCustomStatSourceMapping();
 
         if (_failures.Count == 0)
         {
@@ -218,6 +219,49 @@ public partial class run_base_attack_bonus_regression : SceneTree
             3,
             "战士 3 + 法师 3 + 牧师 3 在 service 应得 BAB 3，与静态算法一致。"
         );
+    }
+
+    private void TestAttributeServiceProtectedCustomStatSourceMapping()
+    {
+        UnitProgress progress = MakeProgress("hidden_luck_source_mapping");
+        AttributeService service = new();
+        service.setup(progress);
+        StringName hiddenLuck = UnitBaseAttributes.HIDDEN_LUCK_AT_BIRTH();
+
+        AssertTrue(
+            !service.apply_permanent_attribute_change(hiddenLuck, 1, new GDictionary()),
+            "protected custom stat 不应接受空 source_context。"
+        );
+        AssertEq(progress.unit_base_attributes.get_attribute_value(hiddenLuck), 0, "空 source_context 不应改写 hidden luck。");
+
+        AssertTrue(
+            !service.apply_permanent_attribute_change(
+                hiddenLuck,
+                1,
+                new GDictionary
+                {
+                    ["source_type"] = AttributeService.PROTECTED_CUSTOM_STAT_SOURCE_STORY_SCRIPT_ID(),
+                    [AttributeService.PROTECTED_CUSTOM_STAT_WRITE_FLAG_ID()] = 1,
+                }
+            ),
+            "protected custom stat 不应接受非 bool 的 story_script 写入 flag。"
+        );
+        AssertEq(progress.unit_base_attributes.get_attribute_value(hiddenLuck), 0, "非 bool flag 不应改写 hidden luck。");
+
+        AssertTrue(
+            service.apply_permanent_attribute_change(
+                hiddenLuck,
+                1,
+                new GDictionary
+                {
+                    ["source_type"] = AttributeService.PROTECTED_CUSTOM_STAT_SOURCE_STORY_SCRIPT_ID(),
+                    ["source_id"] = "story_event",
+                    [AttributeService.PROTECTED_CUSTOM_STAT_WRITE_FLAG_ID()] = true,
+                }
+            ),
+            "story_script + 明确 bool flag 应允许改写 protected custom stat。"
+        );
+        AssertEq(progress.unit_base_attributes.get_attribute_value(hiddenLuck), 1, "bool flag 应改写 hidden luck。");
     }
 
     private static GArray Pairs(params (int Rank, StringName Progression)[] pairs)

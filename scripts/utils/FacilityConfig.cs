@@ -36,9 +36,9 @@ public partial class FacilityConfig : Resource
             return (interaction_type ?? string.Empty).Capitalize();
         }
 
-        var firstNpc = bound_service_npcs[0];
+        var firstNpc = bound_service_npcs[0] as FacilityNpcConfig;
         return firstNpc == null
             ? string.Empty
-            : firstNpc.Get("service_type").AsString().Capitalize();
+            : (firstNpc.service_type ?? string.Empty).Capitalize();
     }
 }

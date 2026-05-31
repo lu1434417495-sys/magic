@@ -815,8 +815,11 @@ public partial class UseGroundSkillAction : EnemyAiAction
 
     private static bool _is_meteor_special_score_input(BattleAiScoreInput scoreInput)
     {
-        return GdInterop.GetString(scoreInput.special_profile_preview_facts, "profile_id")
-            == "meteor_swarm";
+        GDictionary facts = scoreInput.special_profile_preview_facts;
+        return facts != null
+            && facts.ContainsKey("profile_id")
+            && facts["profile_id"].VariantType == Variant.Type.String
+            && facts["profile_id"].AsString() == "meteor_swarm";
     }
 
     private GDictionary _build_position_metadata(

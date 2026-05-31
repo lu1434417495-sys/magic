@@ -77,6 +77,46 @@ public partial class PartyMemberState : RefCounted
         progression = new UnitProgress();
     }
 
+    public PartyMemberState duplicate_state()
+    {
+        return new PartyMemberState
+        {
+            member_id = member_id,
+            display_name = display_name,
+            faction_id = faction_id,
+            portrait_id = portrait_id,
+            progression = progression?.duplicate_state() ?? new UnitProgress(),
+            equipment_state = equipment_state?.duplicate_state() ?? new EquipmentState(),
+            control_mode = control_mode,
+            current_hp = current_hp,
+            current_mp = current_mp,
+            current_aura = current_aura,
+            is_dead = is_dead,
+            race_id = race_id,
+            subrace_id = subrace_id,
+            age_years = age_years,
+            birth_at_world_step = birth_at_world_step,
+            age_profile_id = age_profile_id,
+            natural_age_stage_id = natural_age_stage_id,
+            effective_age_stage_id = effective_age_stage_id,
+            effective_age_stage_source_type = effective_age_stage_source_type,
+            effective_age_stage_source_id = effective_age_stage_source_id,
+            body_size = body_size,
+            body_size_category = body_size_category,
+            versatility_pick = versatility_pick,
+            active_stage_advancement_modifier_ids =
+                new Godot.Collections.Array<StringName>(active_stage_advancement_modifier_ids),
+            bloodline_id = bloodline_id,
+            bloodline_stage_id = bloodline_stage_id,
+            ascension_id = ascension_id,
+            ascension_stage_id = ascension_stage_id,
+            ascension_started_at_world_step = ascension_started_at_world_step,
+            original_race_id_before_ascension = original_race_id_before_ascension,
+            biological_age_years = biological_age_years,
+            astral_memory_years = astral_memory_years,
+        };
+    }
+
     public int get_hidden_luck_at_birth()
     {
         var a = _get_unit_base_attributes();
@@ -183,7 +223,7 @@ public partial class PartyMemberState : RefCounted
             return null;
         if (!TryGetStrictInt(data, "current_aura", out int currentAura) || currentAura < 0)
             return null;
-        if (!TryGetBool(data, "is_dead", out bool isDeadValue))
+        if (!TryReadBoolField(data, "is_dead", out bool isDeadValue))
             return null;
         var raceId = _parse_string_name_field(data["race_id"], false, out bool o5);
         if (!o5)
@@ -414,7 +454,7 @@ public partial class PartyMemberState : RefCounted
         return false;
     }
 
-    private static bool TryGetBool(
+    private static bool TryReadBoolField(
         Godot.Collections.Dictionary data,
         string key,
         out bool value

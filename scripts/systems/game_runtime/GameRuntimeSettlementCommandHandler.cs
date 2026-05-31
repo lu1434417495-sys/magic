@@ -8,7 +8,7 @@ using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 // 翻译自 game_runtime_settlement_command_handler.gd（2026-05-26，据点命令处理 C# 迁移）。
-// runtime 强耦合：绝大多数状态/动作委托 _runtime；子服务为 C# 实例（按 GodotObject + Call 调用）。
+// runtime 强耦合：绝大多数状态/动作委托 GameRuntimeFacade；子服务为 C# 实例直接调用。
 [GlobalClass]
 public partial class GameRuntimeSettlementCommandHandler : RefCounted
 {
@@ -63,28 +63,196 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         "interaction_script_id",
     };
 
-    private WeakReference<GodotObject> _runtimeRef;
+    private WeakReference<GameRuntimeFacade> _runtimeRef;
 
-    private GodotObject _runtime
+    private GameRuntimeFacade Runtime
     {
         get => ResolveWeakRef(_runtimeRef);
-        set => _runtimeRef = value != null ? new WeakReference<GodotObject>(value) : null;
+        set => _runtimeRef = value != null ? new WeakReference<GameRuntimeFacade>(value) : null;
     }
-
-    private GameRuntimeFacade Runtime => _runtime as GameRuntimeFacade;
 
     private SettlementShopService _shop_service = new();
     private SettlementForgeService _forge_service = new();
     private SettlementResearchService _research_service = new();
 
-    public void setup(GodotObject runtime)
+    private sealed class SettlementActionValidationResult
     {
-        _runtime = runtime;
+        public bool Ok { get; }
+        public string Message { get; }
+        public GDictionary ServiceEntry { get; }
+
+        private SettlementActionValidationResult(
+            bool ok,
+            string message,
+            GDictionary serviceEntry = null
+        )
+        {
+            Ok = ok;
+            Message = message ?? "";
+            ServiceEntry = serviceEntry?.Duplicate(true) ?? new GDictionary();
+        }
+
+        public static SettlementActionValidationResult Success(GDictionary serviceEntry = null) =>
+            new(true, "", serviceEntry);
+
+        public static SettlementActionValidationResult Failure(string message) =>
+            new(false, message);
+
+        public GDictionary ToDictionary()
+        {
+            var result = new GDictionary
+            {
+                ["ok"] = Ok,
+            };
+            if (!Ok || !string.IsNullOrEmpty(Message))
+            {
+                result["message"] = Message;
+            }
+            if (Ok && ServiceEntry.Count != 0)
+            {
+                result["service_entry"] = ServiceEntry.Duplicate(true);
+            }
+            return result;
+        }
+    }
+
+    private readonly record struct RuntimeCommandResultSnapshot(
+        GDictionary Payload,
+        bool Ok,
+        string Message
+    )
+    {
+        public static RuntimeCommandResultSnapshot FromDictionary(GDictionary payload)
+        {
+            GDictionary normalized = payload ?? new GDictionary();
+            return new RuntimeCommandResultSnapshot(
+                normalized,
+                ReadBool(normalized, "ok", false),
+                ReadString(normalized, "message", "")
+            );
+        }
+    }
+
+    private sealed class SettlementServiceEntryResolution
+    {
+        public GDictionary ServiceEntry { get; }
+        public bool IsEnabled { get; }
+        public string DisabledReason { get; }
+        public bool Found => ServiceEntry.Count != 0;
+
+        private SettlementServiceEntryResolution(
+            GDictionary serviceEntry,
+            bool isEnabled,
+            string disabledReason
+        )
+        {
+            ServiceEntry = serviceEntry?.Duplicate(true) ?? new GDictionary();
+            IsEnabled = isEnabled;
+            DisabledReason = disabledReason ?? "";
+        }
+
+        public static SettlementServiceEntryResolution Missing() => new(null, false, "");
+
+        public static SettlementServiceEntryResolution FromServiceData(
+            GDictionary serviceEntry,
+            SettlementServiceMetadata metadata
+        ) =>
+            new(
+                serviceEntry,
+                metadata?.IsEnabled ?? false,
+                metadata?.DisabledReason ?? ""
+            );
+    }
+
+    private sealed class StagecoachDestinationData
+    {
+        public string SettlementId { get; }
+        public string DisplayName { get; }
+        public string TierName { get; }
+        public int TravelCost { get; }
+        public bool CanTravel { get; }
+        public string DisabledReason { get; }
+        public Vector2I Coord { get; }
+        public string InteractionScriptId { get; }
+
+        public StagecoachDestinationData(
+            string settlementId,
+            string displayName,
+            string tierName,
+            int travelCost,
+            bool canTravel,
+            string disabledReason,
+            Vector2I coord,
+            string interactionScriptId
+        )
+        {
+            SettlementId = settlementId ?? "";
+            DisplayName = displayName ?? "";
+            TierName = tierName ?? "";
+            TravelCost = travelCost;
+            CanTravel = canTravel;
+            DisabledReason = disabledReason ?? "";
+            Coord = coord;
+            InteractionScriptId = interactionScriptId ?? "";
+        }
+
+        public GDictionary ToDictionary() =>
+            new()
+            {
+                ["settlement_id"] = SettlementId,
+                ["entry_id"] = $"travel:{SettlementId}",
+                ["display_name"] = DisplayName,
+                ["tier_name"] = TierName,
+                ["travel_cost"] = TravelCost,
+                ["can_travel"] = CanTravel,
+                ["state_label"] = CanTravel ? "状态：可出发" : "状态：不可出发",
+                ["cost_label"] = $"路费 {TravelCost} 金",
+                ["summary_text"] = TierName,
+                ["details_text"] = $"{TierName} {DisabledReason}",
+                ["is_enabled"] = CanTravel,
+                ["target_settlement_id"] = SettlementId,
+                ["disabled_reason"] = DisabledReason,
+                ["coord"] = new GDictionary { ["x"] = Coord.X, ["y"] = Coord.Y },
+                ["interaction_script_id"] = InteractionScriptId,
+            };
+    }
+
+    private readonly struct SettlementPersistResult
+    {
+        public readonly bool Ok;
+        public readonly int PartyError;
+        public readonly int WorldError;
+        public readonly int PlayerError;
+
+        public SettlementPersistResult(int partyError, int worldError, int playerError)
+        {
+            PartyError = partyError;
+            WorldError = worldError;
+            PlayerError = playerError;
+            Ok =
+                PartyError == (int)Error.Ok
+                && WorldError == (int)Error.Ok
+                && PlayerError == (int)Error.Ok;
+        }
+
+        public GDictionary ToDictionary() =>
+            new()
+            {
+                ["ok"] = Ok,
+                ["party_error"] = PartyError,
+                ["world_error"] = WorldError,
+                ["player_error"] = PlayerError,
+            };
+    }
+
+    public void setup(GameRuntimeFacade runtime)
+    {
+        Runtime = runtime;
     }
 
     public void dispose()
     {
-        _runtime = null;
+        Runtime = null;
         _shop_service = new SettlementShopService();
         _forge_service = new SettlementForgeService();
         _research_service = new SettlementResearchService();
@@ -107,14 +275,14 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         GDictionary settlementState = _get_or_create_settlement_state(targetId);
         return new GDictionary
         {
-            ["settlement_id"] = GdInterop.GetString(settlement, "settlement_id"),
-            ["display_name"] = GdInterop.GetString(settlement, "display_name"),
-            ["tier_name"] = GdInterop.GetString(settlement, "tier_name"),
-            ["footprint_size"] = GdInterop.TryGet(settlement, "footprint_size", out var footprintSizeVal) ? footprintSizeVal : default,
-            ["faction_id"] = GdInterop.GetString(settlement, "faction_id"),
-            ["facilities"] = GdInterop.TryGet(settlement, "facilities", out var facilitiesVal) ? facilitiesVal : default,
+            ["settlement_id"] = ReadString(settlement, "settlement_id"),
+            ["display_name"] = ReadString(settlement, "display_name"),
+            ["tier_name"] = ReadString(settlement, "tier_name"),
+            ["footprint_size"] = ReadVariant(settlement, "footprint_size"),
+            ["faction_id"] = ReadString(settlement, "faction_id"),
+            ["facilities"] = ReadVariant(settlement, "facilities"),
             ["available_services"] = _build_service_entries(settlement, settlementState),
-            ["service_npcs"] = GdInterop.TryGet(settlement, "service_npcs", out var serviceNpcsVal) ? serviceNpcsVal : default,
+            ["service_npcs"] = ReadVariant(settlement, "service_npcs"),
             ["member_options"] = _build_member_options(),
             ["default_member_id"] = resolve_default_settlement_member_id().ToString(),
             ["state_summary_text"] = _build_settlement_state_summary(settlementState),
@@ -130,42 +298,27 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             return new GDictionary();
         }
         var entries = new GDictArray();
-        foreach (GDictionary entryData in Dictionaries(GdInterop.GetArray(context, "buy_entries")))
+        foreach (GDictionary entryData in Dictionaries(ReadArray(context, "buy_entries")))
         {
             GDictionary entry = (GDictionary)entryData.Duplicate(true);
-            entry["entry_id"] = $"buy:{GdInterop.GetString(entry, "item_id")}";
-            entry["state_label"] = GdInterop.GetBool(entry, "can_buy", false)
-                ? "状态：可购"
-                : "状态：不可购";
-            entry["cost_label"] = $"单价 {GdInterop.GetInt(entry, "unit_price", 0)} 金";
-            entry["summary_text"] = GdInterop.GetString(entry, "stock_text");
-            entry["details_text"] = GdInterop.GetString(entry, "description");
-            entry["is_enabled"] = GdInterop.GetBool(entry, "can_buy", false);
-            entry["disabled_reason"] = GdInterop.GetString(entry, "disabled_reason");
-            entry["shop_action"] = "buy";
+            if (!entry.ContainsKey("is_enabled"))
+            {
+                entry["is_enabled"] = false;
+            }
             entries.Add(entry);
         }
-        foreach (GDictionary entryData in Dictionaries(GdInterop.GetArray(context, "sell_entries")))
+        foreach (GDictionary entryData in Dictionaries(ReadArray(context, "sell_entries")))
         {
             GDictionary entry = (GDictionary)entryData.Duplicate(true);
-            string sellInstanceId = GdInterop.GetString(entry, "instance_id");
-            entry["entry_id"] = !string.IsNullOrEmpty(sellInstanceId)
-                ? $"sell:{GdInterop.GetString(entry, "item_id")}:{sellInstanceId}"
-                : $"sell:{GdInterop.GetString(entry, "item_id")}";
-            entry["state_label"] = GdInterop.GetBool(entry, "can_sell", false)
-                ? "状态：可售"
-                : "状态：不可售";
-            entry["cost_label"] = $"回收 {GdInterop.GetInt(entry, "unit_price", 0)} 金";
-            entry["summary_text"] = GdInterop.GetString(entry, "stock_text");
-            entry["details_text"] = GdInterop.GetString(entry, "description");
-            entry["is_enabled"] = GdInterop.GetBool(entry, "can_sell", false);
-            entry["disabled_reason"] = GdInterop.GetString(entry, "disabled_reason");
-            entry["shop_action"] = "sell";
+            if (!entry.ContainsKey("is_enabled"))
+            {
+                entry["is_enabled"] = false;
+            }
             entries.Add(entry);
         }
         context["entries"] = entries;
-        context["summary_text"] = $"持有金币：{GdInterop.GetInt(context, "gold", 0)}";
-        context["state_summary_text"] = GdInterop.GetString(context, "feedback_text");
+        context["summary_text"] = $"持有金币：{ReadInt(context, "gold")}";
+        context["state_summary_text"] = ReadString(context, "feedback_text");
         context["action_id"] = "shop:trade";
         context["panel_kind"] = "shop";
         context["show_member_selector"] = true;
@@ -203,28 +356,22 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             return new GDictionary();
         }
         var entries = new GDictArray();
-        foreach (GDictionary entryData in Dictionaries(GdInterop.GetArray(context, "destinations")))
+        foreach (GDictionary entryData in Dictionaries(ReadArray(context, "destinations")))
         {
             GDictionary entry = (GDictionary)entryData.Duplicate(true);
-            entry["entry_id"] = $"travel:{GdInterop.GetString(entry, "settlement_id")}";
-            entry["state_label"] = GdInterop.GetBool(entry, "can_travel", false)
-                ? "状态：可出发"
-                : "状态：不可出发";
-            entry["cost_label"] = $"路费 {GdInterop.GetInt(entry, "travel_cost", 0)} 金";
-            entry["summary_text"] = GdInterop.GetString(entry, "tier_name");
-            entry["details_text"] =
-                $"{GdInterop.GetString(entry, "tier_name")} {GdInterop.GetString(entry, "disabled_reason")}";
-            entry["is_enabled"] = GdInterop.GetBool(entry, "can_travel", false);
-            entry["target_settlement_id"] = GdInterop.GetString(entry, "settlement_id");
+            if (!entry.ContainsKey("is_enabled"))
+            {
+                entry["is_enabled"] = false;
+            }
             entries.Add(entry);
         }
         context["entries"] = entries;
-        context["summary_text"] = $"持有金币：{GdInterop.GetInt(context, "gold", 0)}";
-        context["state_summary_text"] = GdInterop.GetString(context, "feedback_text");
+        context["summary_text"] = $"持有金币：{ReadInt(context, "gold")}";
+        context["state_summary_text"] = ReadString(context, "feedback_text");
         context["action_id"] = "stagecoach:travel";
         context["panel_kind"] = "stagecoach";
         context["meta"] =
-            $"驿站：{GdInterop.GetString(context, "origin_name")}  |  金币：{GdInterop.GetInt(context, "gold", 0)}";
+            $"驿站：{ReadString(context, "origin_name")}  |  金币：{ReadInt(context, "gold")}";
         context["confirm_label"] = "确认出发";
         context["cancel_label"] = "返回据点";
         context["show_member_selector"] = true;
@@ -266,23 +413,21 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         {
             return _command_error("当前没有可执行动作的据点。");
         }
-        GDictionary validation = _validate_settlement_action_request(
+        SettlementActionValidationResult validation = ValidateSettlementActionRequestTyped(
             settlementId,
             action_id,
             payloadData
         );
-        if (!GdInterop.GetBool(validation, "ok", false))
+        if (!validation.Ok)
         {
             return _command_error(
-                GdInterop.GetString(validation, "message", "当前据点未开放该服务。")
+                string.IsNullOrEmpty(validation.Message)
+                    ? "当前据点未开放该服务。"
+                    : validation.Message
             );
         }
-        if (
-            !TryAsDictionary(
-                GdInterop.GetDictionary(validation, "service_entry"),
-                out GDictionary serviceEntry
-            )
-        )
+        GDictionary serviceEntry = validation.ServiceEntry;
+        if (serviceEntry.Count == 0)
         {
             return _command_error("当前据点未开放该服务。");
         }
@@ -311,10 +456,10 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         {
             return _command_error("当前商店上下文缺失。");
         }
-        string settlementId = GdInterop.GetString(context, "settlement_id");
+        string settlementId = ReadString(context, "settlement_id");
         GDictionary settlementState = _get_or_create_settlement_state(settlementId);
-        GDictionary result = _shop_service.buy(
-            GdInterop.GetString(context, "interaction_script_id"),
+        SettlementShopTradeResult result = _shop_service.BuyTyped(
+            ReadString(context, "interaction_script_id"),
             _get_settlement_record(settlementId),
             settlementState,
             _get_item_defs(),
@@ -323,15 +468,17 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             item_id,
             quantity
         );
-        if (!GdInterop.GetBool(result, "success", false))
+        if (!result.Success)
         {
             _refresh_active_shop_context();
-            return _command_error(GdInterop.GetString(result, "message", "购买失败。"));
+            return _command_error(
+                string.IsNullOrEmpty(result.Message) ? "购买失败。" : result.Message
+            );
         }
         _set_active_settlement_state(settlementId, settlementState);
-        GDictionary persistResult = _persist_changes(true, true, false);
-        string message = GdInterop.GetString(result, "message", "购买成功。");
-        if (!GdInterop.GetBool(persistResult, "ok", false))
+        SettlementPersistResult persistResult = PersistChangesTyped(true, true, false);
+        string message = string.IsNullOrEmpty(result.Message) ? "购买成功。" : result.Message;
+        if (!persistResult.Ok)
         {
             message = $"{message} 但队伍或据点状态持久化失败。";
         }
@@ -356,10 +503,10 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         {
             return _command_error("当前商店上下文缺失。");
         }
-        string settlementId = GdInterop.GetString(context, "settlement_id");
+        string settlementId = ReadString(context, "settlement_id");
         GDictionary settlementState = _get_or_create_settlement_state(settlementId);
-        GDictionary result = _shop_service.sell(
-            GdInterop.GetString(context, "interaction_script_id"),
+        SettlementShopTradeResult result = _shop_service.SellTyped(
+            ReadString(context, "interaction_script_id"),
             _get_settlement_record(settlementId),
             settlementState,
             _get_item_defs(),
@@ -369,15 +516,17 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             quantity,
             instance_id
         );
-        if (!GdInterop.GetBool(result, "success", false))
+        if (!result.Success)
         {
             _refresh_active_shop_context();
-            return _command_error(GdInterop.GetString(result, "message", "出售失败。"));
+            return _command_error(
+                string.IsNullOrEmpty(result.Message) ? "出售失败。" : result.Message
+            );
         }
         _set_active_settlement_state(settlementId, settlementState);
-        GDictionary persistResult = _persist_changes(true, true, false);
-        string message = GdInterop.GetString(result, "message", "出售成功。");
-        if (!GdInterop.GetBool(persistResult, "ok", false))
+        SettlementPersistResult persistResult = PersistChangesTyped(true, true, false);
+        string message = string.IsNullOrEmpty(result.Message) ? "出售成功。" : result.Message;
+        if (!persistResult.Ok)
         {
             message = $"{message} 但队伍或据点状态持久化失败。";
         }
@@ -397,15 +546,20 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         {
             return _command_error("当前没有可用的驿站路线。");
         }
-        GDictionary destination = _find_stagecoach_destination(context, settlement_id);
-        if (destination.Count == 0)
+        StagecoachDestinationData destination = ResolveStagecoachDestinationTyped(
+            context,
+            settlement_id
+        );
+        if (destination == null)
         {
             return _command_error("当前驿站路线中不存在该目的地。");
         }
-        if (!GdInterop.GetBool(destination, "can_travel", false))
+        if (!destination.CanTravel)
         {
             return _command_error(
-                GdInterop.GetString(destination, "disabled_reason", "当前无法前往该据点。")
+                !string.IsNullOrEmpty(destination.DisabledReason)
+                    ? destination.DisabledReason
+                    : "当前无法前往该据点。"
             );
         }
         PartyState partyState = _get_party_state();
@@ -413,18 +567,18 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         {
             return _command_error("当前不存在队伍数据。");
         }
-        int travelCost = GdInterop.GetInt(destination, "travel_cost", 0);
+        int travelCost = destination.TravelCost;
         if (!partyState.spend_gold(travelCost))
         {
             return _command_error("金币不足，无法启程。");
         }
-        string destinationId = GdInterop.GetString(destination, "settlement_id");
+        string destinationId = destination.SettlementId;
         GDictionary destinationRecord = _get_settlement_record(destinationId);
         if (destinationRecord.Count == 0)
         {
             return _command_error("未找到目标据点。");
         }
-        Vector2I destinationCoord = GdInterop.GetVector2I(destinationRecord, "origin");
+        Vector2I destinationCoord = destination.Coord;
         _clear_settlement_entry_context(false);
         _set_player_coord(destinationCoord);
         _set_selected_coord(destinationCoord);
@@ -433,13 +587,13 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         _set_active_modal_id("settlement");
         _set_active_settlement_id(destinationId);
         _set_settlement_feedback_text(
-            $"驿队将你送到了 {GdInterop.GetString(destinationRecord, "display_name", destinationId)}。"
+            $"驿队将你送到了 {ReadString(destinationRecord, "display_name", destinationId)}。"
         );
         _refresh_world_visibility();
-        GDictionary persistResult = _persist_changes(true, true, true);
+        SettlementPersistResult persistResult = PersistChangesTyped(true, true, true);
         string message =
-            $"已从 {GdInterop.GetString(context, "origin_name", "当前据点")} 抵达 {GdInterop.GetString(destinationRecord, "display_name", destinationId)}，花费 {travelCost} 金。";
-        if (!GdInterop.GetBool(persistResult, "ok", false))
+            $"已从 {ReadString(context, "origin_name", "当前据点")} 抵达 {ReadString(destinationRecord, "display_name", destinationId)}，花费 {travelCost} 金。";
+        if (!persistResult.Ok)
         {
             message = $"{message} 但队伍或世界状态持久化失败。";
         }
@@ -453,24 +607,22 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         GDictionary payload
     )
     {
-        GDictionary validation = _validate_settlement_action_request(
+        SettlementActionValidationResult validation = ValidateSettlementActionRequestTyped(
             settlement_id,
             action_id,
             payload
         );
-        if (!GdInterop.GetBool(validation, "ok", false))
+        if (!validation.Ok)
         {
-            string message = GdInterop.GetString(validation, "message", "当前据点未开放该服务。");
+            string message = string.IsNullOrEmpty(validation.Message)
+                ? "当前据点未开放该服务。"
+                : validation.Message;
             _set_settlement_feedback_text(message);
             _update_status(message);
             return;
         }
-        if (
-            !TryAsDictionary(
-                GdInterop.GetDictionary(validation, "service_entry"),
-                out GDictionary serviceEntry
-            )
-        )
+        GDictionary serviceEntry = validation.ServiceEntry;
+        if (serviceEntry.Count == 0)
         {
             string serviceErrorMessage = "当前据点未开放该服务。";
             _set_settlement_feedback_text(serviceErrorMessage);
@@ -505,29 +657,26 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         {
             return _command_error("运行时尚未初始化。");
         }
-        string interactionScriptId = GdInterop.GetString(payload, "interaction_script_id");
+        string interactionScriptId = ReadString(payload, "interaction_script_id");
         if (interactionScriptId == "party_warehouse")
         {
-            _finalize_successful_action(
-                action_id,
-                payload,
-                new GDictionary
-                {
-                    ["persist_party_state"] = true,
-                    ["quest_progress_events"] = _extract_quest_progress_events(
-                        payload,
-                        action_id,
-                        settlement_id
-                    ),
-                }
+            string warehouseMessage = "已从据点服务打开共享仓库。";
+            var warehouseResult = new SettlementServiceResult
+            {
+                Success = true,
+                Message = warehouseMessage,
+                PersistPartyState = true,
+            };
+            warehouseResult.SetQuestProgressEventPayloads(
+                ToUntypedDictArray(_extract_quest_progress_events(payload, action_id, settlement_id))
             );
+            _finalize_successful_action(action_id, payload, warehouseResult);
             _clear_settlement_entry_context();
             _set_active_settlement_id(settlement_id);
             _set_active_modal_id("");
             _open_party_warehouse_window(
-                $"据点服务：{GdInterop.GetString(payload, "facility_name", "设施")}·{GdInterop.GetString(payload, "npc_name", "值守人员")}"
+                $"据点服务：{ReadString(payload, "facility_name", "设施")}·{ReadString(payload, "npc_name", "值守人员")}"
             );
-            string warehouseMessage = "已从据点服务打开共享仓库。";
             _update_status(warehouseMessage);
             return _command_ok(warehouseMessage);
         }
@@ -539,45 +688,49 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             }
             _open_contract_board_modal(settlement_id, payload);
             return _command_ok(
-                $"已打开 {GdInterop.GetString(payload, "facility_name", "据点任务板")} 的任务板。"
+                $"已打开 {ReadString(payload, "facility_name", "据点任务板")} 的任务板。"
             );
         }
         if (SHOP_INTERACTION_IDS.Contains(interactionScriptId))
         {
             _open_shop_modal(settlement_id, payload);
             return _command_ok(
-                $"已打开 {GdInterop.GetString(payload, "facility_name", "据点商店")} 的商店。"
+                $"已打开 {ReadString(payload, "facility_name", "据点商店")} 的商店。"
             );
         }
         if (_is_forge_interaction(interactionScriptId) && !_is_forge_modal_submission(payload))
         {
             _open_forge_modal(settlement_id, payload);
             return _command_ok(
-                $"已打开 {GdInterop.GetString(payload, "facility_name", "锻造设施")} 的锻造界面。"
+                $"已打开 {ReadString(payload, "facility_name", "锻造设施")} 的锻造界面。"
             );
         }
         if (STAGECOACH_INTERACTION_IDS.Contains(interactionScriptId))
         {
             _open_stagecoach_modal(settlement_id, payload);
             return _command_ok(
-                $"已打开 {GdInterop.GetString(payload, "facility_name", "驿站")} 的驿站路线。"
+                $"已打开 {ReadString(payload, "facility_name", "驿站")} 的驿站路线。"
             );
         }
-        GDictionary result = execute_settlement_action(settlement_id, action_id, payload);
-        string message = GdInterop.GetString(result, "message", "交互已完成。");
+        SettlementServiceResult serviceResult = ExecuteSettlementActionTyped(
+            settlement_id,
+            action_id,
+            payload
+        );
+        string message = serviceResult?.Message ?? "交互已完成。";
         _set_settlement_feedback_text(message);
-        bool actionSucceeded = GdInterop.GetBool(result, "success", false);
+        bool actionSucceeded = serviceResult?.Success ?? false;
         if (_is_forge_interaction(interactionScriptId))
         {
             _refresh_active_forge_context(message);
             if (actionSucceeded)
             {
-                GDictionary forgePersistResult = _finalize_successful_action(
+                SettlementPersistResult forgePersistResult = FinalizeSuccessfulActionTyped(
                     action_id,
                     payload,
-                    result
+                    serviceResult
                 );
-                if (GdInterop.GetBool(forgePersistResult, "ok", false))
+                if (forgePersistResult.Ok)
                 {
                     _update_status(message);
                     return _command_ok(message);
@@ -591,8 +744,12 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         }
         if (actionSucceeded)
         {
-            GDictionary persistResult = _finalize_successful_action(action_id, payload, result);
-            if (GdInterop.GetBool(persistResult, "ok", false))
+            SettlementPersistResult persistResult = FinalizeSuccessfulActionTyped(
+                action_id,
+                payload,
+                serviceResult
+            );
+            if (persistResult.Ok)
             {
                 _update_status(message);
                 return _command_ok(message);
@@ -665,7 +822,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             return activeSettlementId;
         }
         GDictionary settlement = _get_selected_settlement();
-        return GdInterop.GetString(settlement, "settlement_id");
+        return ReadString(settlement, "settlement_id");
     }
 
     public GDictionary build_settlement_action_payload(
@@ -699,14 +856,14 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         var payload = new GDictionary
         {
             ["action_id"] = action_id,
-            ["facility_id"] = GdInterop.GetString(service_data, "facility_id"),
-            ["facility_template_id"] = GdInterop.GetString(service_data, "facility_template_id"),
-            ["facility_name"] = GdInterop.GetString(service_data, "facility_name"),
-            ["npc_id"] = GdInterop.GetString(service_data, "npc_id"),
-            ["npc_template_id"] = GdInterop.GetString(service_data, "npc_template_id"),
-            ["npc_name"] = GdInterop.GetString(service_data, "npc_name"),
-            ["service_type"] = GdInterop.GetString(service_data, "service_type"),
-            ["interaction_script_id"] = GdInterop.GetString(service_data, "interaction_script_id"),
+            ["facility_id"] = ReadString(service_data, "facility_id"),
+            ["facility_template_id"] = ReadString(service_data, "facility_template_id"),
+            ["facility_name"] = ReadString(service_data, "facility_name"),
+            ["npc_id"] = ReadString(service_data, "npc_id"),
+            ["npc_template_id"] = ReadString(service_data, "npc_template_id"),
+            ["npc_name"] = ReadString(service_data, "npc_name"),
+            ["service_type"] = ReadString(service_data, "service_type"),
+            ["interaction_script_id"] = ReadString(service_data, "interaction_script_id"),
         };
         foreach (var key in overrides.Keys)
         {
@@ -716,10 +873,10 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             }
             payload[key] = overrides[key];
         }
-        if (string.IsNullOrEmpty(GdInterop.GetString(payload, "member_id")))
+        if (string.IsNullOrEmpty(ReadString(payload, "member_id")))
         {
             StringName memberId = resolve_default_settlement_member_id();
-            if (!GdInterop.IsEmpty(memberId))
+            if (memberId != "")
             {
                 payload["member_id"] = memberId.ToString();
             }
@@ -733,44 +890,62 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         GDictionary payload
     )
     {
-        GDictionary modalValidation = _validate_settlement_action_modal_context(
+        return ValidateSettlementActionRequestTyped(settlement_id, action_id, payload).ToDictionary();
+    }
+
+    private SettlementActionValidationResult ValidateSettlementActionRequestTyped(
+        string settlement_id,
+        string action_id,
+        GDictionary payload
+    )
+    {
+        SettlementActionValidationResult modalValidation = ValidateSettlementActionModalContextTyped(
             settlement_id,
             action_id,
             payload
         );
-        if (!GdInterop.GetBool(modalValidation, "ok", false))
+        if (!modalValidation.Ok)
         {
             return modalValidation;
         }
-        GDictionary visibilityValidation = _validate_settlement_visibility_context(settlement_id);
-        if (!GdInterop.GetBool(visibilityValidation, "ok", false))
+        SettlementActionValidationResult visibilityValidation = ValidateSettlementVisibilityContextTyped(
+            settlement_id
+        );
+        if (!visibilityValidation.Ok)
         {
             return visibilityValidation;
         }
-        GDictionary serviceEntry = _resolve_settlement_service_entry(settlement_id, action_id);
+        SettlementServiceEntryResolution serviceResolution = ResolveSettlementServiceEntryTyped(
+            settlement_id,
+            action_id
+        );
+        GDictionary serviceEntry = serviceResolution.ServiceEntry;
         if (serviceEntry.Count == 0)
         {
-            return new GDictionary
-            {
-                ["ok"] = false,
-                ["message"] = _build_unknown_settlement_action_message(settlement_id, action_id),
-            };
+            return SettlementActionValidationResult.Failure(
+                _build_unknown_settlement_action_message(settlement_id, action_id)
+            );
         }
         if (
             _settlement_action_requires_enabled_service(payload)
-            && !GdInterop.GetBool(serviceEntry, "is_enabled", true)
+            && !serviceResolution.IsEnabled
         )
         {
-            return new GDictionary
-            {
-                ["ok"] = false,
-                ["message"] = _build_disabled_settlement_action_message(serviceEntry),
-            };
+            return SettlementActionValidationResult.Failure(
+                _build_disabled_settlement_action_message(serviceEntry)
+            );
         }
-        return new GDictionary { ["ok"] = true, ["service_entry"] = serviceEntry };
+        return SettlementActionValidationResult.Success(serviceEntry);
     }
 
     public GDictionary _validate_settlement_action_modal_context(
+        string settlement_id,
+        string action_id,
+        GDictionary payload
+    ) =>
+        ValidateSettlementActionModalContextTyped(settlement_id, action_id, payload).ToDictionary();
+
+    private SettlementActionValidationResult ValidateSettlementActionModalContextTyped(
         string settlement_id,
         string action_id,
         GDictionary payload
@@ -780,92 +955,65 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         {
             if (_get_active_modal_id() != "contract_board")
             {
-                return new GDictionary
-                {
-                    ["ok"] = false,
-                    ["message"] = "当前没有打开对应的任务板。",
-                };
+                return SettlementActionValidationResult.Failure("当前没有打开对应的任务板。");
             }
             GDictionary contractBoardContext = _get_active_contract_board_context();
-            if (GdInterop.GetString(contractBoardContext, "settlement_id").Trim() != settlement_id)
+            if (ReadString(contractBoardContext, "settlement_id").Trim() != settlement_id)
             {
-                return new GDictionary
-                {
-                    ["ok"] = false,
-                    ["message"] = "当前任务板与请求的据点不一致。",
-                };
+                return SettlementActionValidationResult.Failure("当前任务板与请求的据点不一致。");
             }
-            if (GdInterop.GetString(contractBoardContext, "action_id").Trim() != action_id)
+            if (ReadString(contractBoardContext, "action_id").Trim() != action_id)
             {
-                return new GDictionary
-                {
-                    ["ok"] = false,
-                    ["message"] = "当前任务板与请求的服务入口不一致。",
-                };
+                return SettlementActionValidationResult.Failure("当前任务板与请求的服务入口不一致。");
             }
-            return new GDictionary { ["ok"] = true };
+            return SettlementActionValidationResult.Success();
         }
         if (_is_forge_modal_submission(payload))
         {
             if (_get_active_modal_id() != "forge")
             {
-                return new GDictionary
-                {
-                    ["ok"] = false,
-                    ["message"] = "当前没有打开对应的锻造界面。",
-                };
+                return SettlementActionValidationResult.Failure("当前没有打开对应的锻造界面。");
             }
             GDictionary forgeContext = _get_active_forge_context();
-            if (GdInterop.GetString(forgeContext, "settlement_id").Trim() != settlement_id)
+            if (ReadString(forgeContext, "settlement_id").Trim() != settlement_id)
             {
-                return new GDictionary
-                {
-                    ["ok"] = false,
-                    ["message"] = "当前锻造界面与请求的据点不一致。",
-                };
+                return SettlementActionValidationResult.Failure("当前锻造界面与请求的据点不一致。");
             }
-            if (GdInterop.GetString(forgeContext, "action_id").Trim() != action_id)
+            if (ReadString(forgeContext, "action_id").Trim() != action_id)
             {
-                return new GDictionary
-                {
-                    ["ok"] = false,
-                    ["message"] = "当前锻造界面与请求的服务入口不一致。",
-                };
+                return SettlementActionValidationResult.Failure("当前锻造界面与请求的服务入口不一致。");
             }
-            return new GDictionary { ["ok"] = true };
+            return SettlementActionValidationResult.Success();
         }
         if (_get_active_modal_id() != "settlement")
         {
-            return new GDictionary { ["ok"] = false, ["message"] = "当前没有打开对应的据点窗口。" };
+            return SettlementActionValidationResult.Failure("当前没有打开对应的据点窗口。");
         }
         string activeSettlementId = _get_active_settlement_id();
         if (string.IsNullOrEmpty(activeSettlementId) || activeSettlementId != settlement_id)
         {
-            return new GDictionary
-            {
-                ["ok"] = false,
-                ["message"] = "当前据点窗口与请求的据点不一致。",
-            };
+            return SettlementActionValidationResult.Failure("当前据点窗口与请求的据点不一致。");
         }
-        return new GDictionary { ["ok"] = true };
+        return SettlementActionValidationResult.Success();
     }
 
-    public GDictionary _validate_settlement_visibility_context(string settlement_id)
+    public GDictionary _validate_settlement_visibility_context(string settlement_id) =>
+        ValidateSettlementVisibilityContextTyped(settlement_id).ToDictionary();
+
+    private SettlementActionValidationResult ValidateSettlementVisibilityContextTyped(
+        string settlement_id
+    )
     {
         GDictionary settlement = _get_settlement_record(settlement_id);
         if (settlement.Count == 0)
         {
-            return new GDictionary { ["ok"] = false, ["message"] = "未找到据点数据。" };
+            return SettlementActionValidationResult.Failure("未找到据点数据。");
         }
         if (!_is_settlement_visible_to_player(settlement))
         {
-            return new GDictionary
-            {
-                ["ok"] = false,
-                ["message"] = "当前据点不在视野中，不能执行据点服务。",
-            };
+            return SettlementActionValidationResult.Failure("当前据点不在视野中，不能执行据点服务。");
         }
-        return new GDictionary { ["ok"] = true };
+        return SettlementActionValidationResult.Success();
     }
 
     public bool _settlement_action_requires_enabled_service(GDictionary payload)
@@ -876,32 +1024,60 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
 
     public GDictionary _resolve_settlement_service_entry(string settlement_id, string action_id)
     {
-        if (
-            !TryAsArray(
-                GdInterop.GetArray(get_settlement_window_data(settlement_id), "available_services"),
-                out GArray serviceOptions
-            )
-        )
+        return ResolveSettlementServiceEntryTyped(settlement_id, action_id).ServiceEntry;
+    }
+
+    private SettlementServiceEntryResolution ResolveSettlementServiceEntryTyped(
+        string settlement_id,
+        string action_id
+    )
+    {
+        GDictionary settlement = _get_settlement_record(settlement_id);
+        if (settlement.Count == 0)
         {
-            return new GDictionary();
+            return SettlementServiceEntryResolution.Missing();
         }
-        foreach (GDictionary serviceData in Dictionaries(serviceOptions))
+        GDictionary settlementState = _get_or_create_settlement_state(settlement_id);
+        GArray serviceOptions = ReadArray(settlement, "available_services");
+        if (serviceOptions.Count == 0)
         {
-            if (GdInterop.GetString(serviceData, "action_id").Trim() != action_id)
+            return SettlementServiceEntryResolution.Missing();
+        }
+        foreach (GDictionary sourceServiceData in Dictionaries(serviceOptions))
+        {
+            GDictionary serviceData = (GDictionary)sourceServiceData.Duplicate(true);
+            if (ReadString(serviceData, "action_id").Trim() != action_id)
             {
                 continue;
             }
-            return (GDictionary)serviceData.Duplicate(true);
+            SettlementServiceMetadata metadata = BuildServiceMetadataTyped(
+                settlement,
+                serviceData,
+                settlementState
+            );
+            string disabledReason = metadata.DisabledReason.Trim();
+            serviceData["cost_label"] = metadata.CostLabel.Trim();
+            serviceData["is_enabled"] = metadata.IsEnabled;
+            serviceData["disabled_reason"] = disabledReason;
+            serviceData["state_label"] = _build_service_state_label(
+                metadata.IsEnabled,
+                disabledReason
+            );
+            serviceData["summary_text"] = _build_service_summary_text(serviceData);
+            string panelKind = _resolve_service_panel_kind(serviceData);
+            if (!string.IsNullOrEmpty(panelKind))
+            {
+                serviceData["panel_kind"] = panelKind;
+            }
+            return SettlementServiceEntryResolution.FromServiceData(serviceData, metadata);
         }
-        return new GDictionary();
+        return SettlementServiceEntryResolution.Missing();
     }
 
     public string _build_unknown_settlement_action_message(string settlement_id, string action_id)
     {
         GDictionary settlement = _get_settlement_record(settlement_id);
-        string settlementLabel = GdInterop
-            .GetString(settlement, "display_name", settlement_id)
-            .Trim();
+        string settlementLabel = ReadString(settlement, "display_name", settlement_id).Trim();
         if (string.IsNullOrEmpty(settlementLabel))
         {
             settlementLabel = "当前据点";
@@ -911,16 +1087,16 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
 
     public string _build_disabled_settlement_action_message(GDictionary service_entry)
     {
-        string serviceLabel = GdInterop.GetString(service_entry, "service_type").Trim();
+        string serviceLabel = ReadString(service_entry, "service_type").Trim();
         if (string.IsNullOrEmpty(serviceLabel))
         {
-            serviceLabel = GdInterop.GetString(service_entry, "facility_name").Trim();
+            serviceLabel = ReadString(service_entry, "facility_name").Trim();
         }
         if (string.IsNullOrEmpty(serviceLabel))
         {
-            serviceLabel = GdInterop.GetString(service_entry, "action_id", "该服务").Trim();
+            serviceLabel = ReadString(service_entry, "action_id", "该服务").Trim();
         }
-        string disabledReason = GdInterop.GetString(service_entry, "disabled_reason").Trim();
+        string disabledReason = ReadString(service_entry, "disabled_reason").Trim();
         if (string.IsNullOrEmpty(disabledReason))
         {
             return $"{serviceLabel} 当前不可用。";
@@ -935,19 +1111,18 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         {
             return "";
         }
-        StringName leaderMemberId = GdInterop.GetStringName(partyState, "leader_member_id");
+        StringName leaderMemberId = partyState.leader_member_id;
         if (
-            !GdInterop.IsEmpty(leaderMemberId)
+            leaderMemberId != ""
             && partyState.get_member_state(leaderMemberId) != null
         )
         {
             return leaderMemberId;
         }
-        foreach (object memberIdValue in GdInterop.GetArray(partyState, "active_member_ids"))
+        foreach (StringName memberId in partyState.active_member_ids)
         {
-            StringName memberId = ProgressionDataUtils.to_string_name(memberIdValue);
             if (
-                !GdInterop.IsEmpty(memberId)
+                memberId != ""
                 && partyState.get_member_state(memberId) != null
             )
             {
@@ -961,25 +1136,31 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         string settlement_id,
         string action_id,
         GDictionary payload
+    ) => ExecuteSettlementActionTyped(settlement_id, action_id, payload).ToDictionary();
+
+    public SettlementServiceResult ExecuteSettlementActionTyped(
+        string settlement_id,
+        string action_id,
+        GDictionary payload
     )
     {
         GDictionary settlement = _get_settlement_record(settlement_id);
         if (settlement.Count == 0)
         {
-            return _build_settlement_service_result(false, "未找到据点数据。");
+            return BuildSettlementServiceResultTyped(false, "未找到据点数据。");
         }
-        string interactionScriptId = GdInterop.GetString(payload, "interaction_script_id");
+        string interactionScriptId = ReadString(payload, "interaction_script_id");
         if (interactionScriptId == "service_rest_basic")
         {
-            return _execute_rest_basic(settlement, action_id, payload);
+            return ExecuteRestBasicTyped(settlement, action_id, payload);
         }
         if (interactionScriptId == "service_rest_full")
         {
-            return _execute_rest_full(settlement, action_id, payload);
+            return ExecuteRestFullTyped(settlement, action_id, payload);
         }
         if (interactionScriptId == "service_village_rumor")
         {
-            return _execute_fog_reveal(
+            return ExecuteFogRevealTyped(
                 settlement,
                 action_id,
                 payload,
@@ -990,7 +1171,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         }
         if (interactionScriptId == "service_intel_network")
         {
-            return _execute_fog_reveal(
+            return ExecuteFogRevealTyped(
                 settlement,
                 action_id,
                 payload,
@@ -1001,7 +1182,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         }
         if (_is_forge_interaction(interactionScriptId))
         {
-            return _forge_service.execute_recipe(
+            return _forge_service.ExecuteRecipeResultTyped(
                 settlement,
                 payload,
                 _get_item_defs(),
@@ -1015,10 +1196,10 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         }
         if (_is_research_interaction(interactionScriptId))
         {
-            return _research_service.execute(
+            return _research_service.ExecuteTyped(
                 settlement,
                 payload,
-                _get_party_state() as PartyState,
+                _get_party_state(),
                 ToUntypedDictArray(
                     _extract_quest_progress_events(payload, action_id, settlement_id)
                 )
@@ -1026,7 +1207,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         }
         if (UNIMPLEMENTED_INTERACTION_IDS.Contains(interactionScriptId))
         {
-            return _build_settlement_service_result(
+            return BuildSettlementServiceResultTyped(
                 true,
                 "该据点服务入口已接通，但其配套系统尚未开放。",
                 new GDictArray(),
@@ -1041,13 +1222,13 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         GDictArray pendingCharacterRewards = extract_pending_character_rewards(
             action_id,
             payload,
-            GdInterop.GetString(payload, "facility_name"),
-            GdInterop.GetString(payload, "npc_name"),
-            GdInterop.GetString(payload, "service_type", "服务")
+            ReadString(payload, "facility_name"),
+            ReadString(payload, "npc_name"),
+            ReadString(payload, "service_type", "服务")
         );
-        return _build_settlement_service_result(
+        return BuildSettlementServiceResultTyped(
             true,
-            $"{GdInterop.GetString(settlement, "display_name", settlement_id)} 的 {GdInterop.GetString(payload, "npc_name", "值守人员")} 在 {GdInterop.GetString(payload, "facility_name", "设施")} 中为你处理了“{GdInterop.GetString(payload, "service_type", "服务")}”事务。首版窗口流程已接通。",
+            $"{ReadString(settlement, "display_name", settlement_id)} 的 {ReadString(payload, "npc_name", "值守人员")} 在 {ReadString(payload, "facility_name", "设施")} 中为你处理了“{ReadString(payload, "service_type", "服务")}”事务。首版窗口流程已接通。",
             pendingCharacterRewards,
             true,
             false,
@@ -1077,37 +1258,21 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             npc_name,
             service_type
         );
-        if (
-            TryAsArray(
-                GdInterop.GetArray(payload, "pending_character_rewards"),
-                out GArray explicitRewards
-            )
-        )
+        GArray explicitRewards = ReadArray(payload, "pending_character_rewards");
+        if (explicitRewards.Count != 0)
         {
             foreach (GDictionary sourceReward in Dictionaries(explicitRewards))
             {
-                GDictionary rewardData = (GDictionary)sourceReward.Duplicate(true);
-                if (string.IsNullOrEmpty(GdInterop.GetString(rewardData, "member_id")))
+                GDictionary rewardData = BuildPendingCharacterRewardPayload(
+                    sourceReward,
+                    payload,
+                    defaultSourceType,
+                    defaultSourceLabel
+                );
+                if (rewardData.Count != 0)
                 {
-                    rewardData["member_id"] = GdInterop.GetString(payload, "member_id");
+                    rewards.Add(rewardData);
                 }
-                if (string.IsNullOrEmpty(GdInterop.GetString(rewardData, "source_type")))
-                {
-                    rewardData["source_type"] = defaultSourceType.ToString();
-                }
-                if (string.IsNullOrEmpty(GdInterop.GetString(rewardData, "source_id")))
-                {
-                    rewardData["source_id"] = defaultSourceType.ToString();
-                }
-                if (string.IsNullOrEmpty(GdInterop.GetString(rewardData, "source_label")))
-                {
-                    rewardData["source_label"] = defaultSourceLabel;
-                }
-                if (!GdInterop.HasArray(rewardData, "entries"))
-                {
-                    rewardData["entries"] = new GArray();
-                }
-                rewards.Add(rewardData);
             }
         }
         if (Runtime != null)
@@ -1116,12 +1281,9 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
                 new GDictionary
                 {
                     ["action_id"] = action_id,
-                    ["facility_id"] = GdInterop.GetString(payload, "facility_id"),
+                    ["facility_id"] = ReadString(payload, "facility_id"),
                     ["facility_name"] = facility_name,
-                    ["interaction_script_id"] = GdInterop.GetString(
-                        payload,
-                        "interaction_script_id"
-                    ),
+                    ["interaction_script_id"] = ReadString(payload, "interaction_script_id"),
                     ["npc_name"] = npc_name,
                     ["payload"] = payload.Duplicate(true),
                     ["service_type"] = service_type,
@@ -1129,21 +1291,76 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             );
             if (TryAsDictionary(lowLuckResultValue, out GDictionary lowLuckResult))
             {
-                if (
-                    TryAsArray(
-                        GdInterop.GetArray(lowLuckResult, "pending_character_rewards"),
-                        out GArray lowLuckRewards
-                    )
-                )
+                GArray lowLuckRewards = ReadArray(lowLuckResult, "pending_character_rewards");
+                if (lowLuckRewards.Count != 0)
                 {
                     foreach (GDictionary rewardData in Dictionaries(lowLuckRewards))
                     {
-                        rewards.Add((GDictionary)rewardData.Duplicate(true));
+                        GDictionary normalizedRewardData = BuildPendingCharacterRewardPayload(
+                            rewardData,
+                            payload,
+                            defaultSourceType,
+                            defaultSourceLabel
+                        );
+                        if (normalizedRewardData.Count != 0)
+                        {
+                            rewards.Add(normalizedRewardData);
+                        }
                     }
                 }
             }
         }
         return rewards;
+    }
+
+    private GDictionary BuildPendingCharacterRewardPayload(
+        GDictionary source_reward,
+        GDictionary payload,
+        StringName default_source_type,
+        string default_source_label
+    )
+    {
+        if (source_reward == null || source_reward.Count == 0)
+        {
+            return new GDictionary();
+        }
+        CharacterManagementModule characterManagement = Runtime?.get_character_management();
+        if (characterManagement == null)
+        {
+            return new GDictionary();
+        }
+
+        StringName memberId = ReadStringName(source_reward, "member_id");
+        if (memberId == "")
+        {
+            memberId = ReadStringName(payload, "member_id");
+        }
+        StringName sourceType = ReadStringName(source_reward, "source_type");
+        if (sourceType == "")
+        {
+            sourceType = default_source_type;
+        }
+        StringName sourceId = ReadStringName(source_reward, "source_id");
+        if (sourceId == "")
+        {
+            sourceId = sourceType;
+        }
+        string sourceLabel = ReadString(source_reward, "source_label", default_source_label);
+        if (string.IsNullOrEmpty(sourceLabel))
+        {
+            sourceLabel = default_source_label;
+        }
+        GArray entries = ReadArray(source_reward, "entries");
+        PendingCharacterReward reward = characterManagement.build_pending_character_reward(
+            memberId,
+            ReadStringName(source_reward, "reward_id"),
+            sourceType,
+            sourceId,
+            sourceLabel,
+            entries,
+            ReadString(source_reward, "summary_text")
+        );
+        return reward != null ? reward.to_dict() : new GDictionary();
     }
 
     public StringName resolve_default_reward_source_type(
@@ -1152,7 +1369,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         GDictionary payload
     )
     {
-        string explicitSourceType = GdInterop.GetString(payload, "reward_source_type").Trim();
+        string explicitSourceType = ReadString(payload, "reward_source_type").Trim();
         if (!string.IsNullOrEmpty(explicitSourceType))
         {
             return new StringName(explicitSourceType);
@@ -1186,26 +1403,31 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         GDictionary settlement,
         string action_id,
         GDictionary payload
+    ) => ExecuteRestBasicTyped(settlement, action_id, payload).ToDictionary();
+
+    private SettlementServiceResult ExecuteRestBasicTyped(
+        GDictionary settlement,
+        string action_id,
+        GDictionary payload
     )
     {
         GDictionary memberEffects = _restore_party_resources(0.3f, false);
         var summaryLines = new List<string>();
         foreach (object memberIdValue in memberEffects.Keys)
         {
-            GDictionary effect = GdInterop.GetDictionary(memberEffects, memberIdValue);
-            summaryLines.Add(
-                $"{_get_member_display_name(new StringName(memberIdValue.ToString()))} +{GdInterop.GetInt(effect, "hp_restored", 0)} HP"
-            );
+            string memberId = memberIdValue.ToString();
+            GDictionary effect = ReadDictionary(memberEffects, memberId);
+            summaryLines.Add($"{_get_member_display_name(new StringName(memberId))} +{ReadInt(effect, "hp_restored")} HP");
         }
-        return _build_settlement_service_result(
+        return BuildSettlementServiceResultTyped(
             true,
-            $"{GdInterop.GetString(settlement, "display_name", "据点")} 的篝火让全队稍作歇脚。{(summaryLines.Count != 0 ? string.Join("；", summaryLines) : "体力恢复有限。")}",
+            $"{ReadString(settlement, "display_name", "据点")} 的篝火让全队稍作歇脚。{(summaryLines.Count != 0 ? string.Join("；", summaryLines) : "体力恢复有限。")}",
             extract_pending_character_rewards(
                 action_id,
                 payload,
-                GdInterop.GetString(payload, "facility_name"),
-                GdInterop.GetString(payload, "npc_name"),
-                GdInterop.GetString(payload, "service_type", "歇脚")
+                ReadString(payload, "facility_name"),
+                ReadString(payload, "npc_name"),
+                ReadString(payload, "service_type", "歇脚")
             ),
             true,
             false,
@@ -1215,7 +1437,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             _extract_quest_progress_events(
                 payload,
                 action_id,
-                GdInterop.GetString(settlement, "settlement_id")
+                ReadString(settlement, "settlement_id")
             ),
             new GDictionary
             {
@@ -1228,36 +1450,41 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         GDictionary settlement,
         string action_id,
         GDictionary payload
+    ) => ExecuteRestFullTyped(settlement, action_id, payload).ToDictionary();
+
+    private SettlementServiceResult ExecuteRestFullTyped(
+        GDictionary settlement,
+        string action_id,
+        GDictionary payload
     )
     {
         PartyState partyState = _get_party_state();
         if (partyState == null)
         {
-            return _build_settlement_service_result(false, "当前不存在队伍数据。");
+            return BuildSettlementServiceResultTyped(false, "当前不存在队伍数据。");
         }
         if (!partyState.spend_gold(REST_FULL_COST))
         {
-            return _build_settlement_service_result(false, "金币不足，无法在旅店整备。");
+            return BuildSettlementServiceResultTyped(false, "金币不足，无法在旅店整备。");
         }
         GDictionary memberEffects = _restore_party_resources(1.0f, true);
         _advance_world_time_by_steps(1);
         var summaryLines = new List<string>();
         foreach (object memberIdValue in memberEffects.Keys)
         {
-            GDictionary effect = GdInterop.GetDictionary(memberEffects, memberIdValue);
-            summaryLines.Add(
-                $"{_get_member_display_name(new StringName(memberIdValue.ToString()))} HP+{GdInterop.GetInt(effect, "hp_restored", 0)} MP+{GdInterop.GetInt(effect, "mp_restored", 0)}"
-            );
+            string memberId = memberIdValue.ToString();
+            GDictionary effect = ReadDictionary(memberEffects, memberId);
+            summaryLines.Add($"{_get_member_display_name(new StringName(memberId))} HP+{ReadInt(effect, "hp_restored")} MP+{ReadInt(effect, "mp_restored")}");
         }
-        return _build_settlement_service_result(
+        return BuildSettlementServiceResultTyped(
             true,
-            $"{GdInterop.GetString(settlement, "display_name", "据点")} 的旅店让全队完成整备，花费 {REST_FULL_COST} 金。{(summaryLines.Count != 0 ? string.Join("；", summaryLines) : "状态恢复如初。")}",
+            $"{ReadString(settlement, "display_name", "据点")} 的旅店让全队完成整备，花费 {REST_FULL_COST} 金。{(summaryLines.Count != 0 ? string.Join("；", summaryLines) : "状态恢复如初。")}",
             extract_pending_character_rewards(
                 action_id,
                 payload,
-                GdInterop.GetString(payload, "facility_name"),
-                GdInterop.GetString(payload, "npc_name"),
-                GdInterop.GetString(payload, "service_type", "整备")
+                ReadString(payload, "facility_name"),
+                ReadString(payload, "npc_name"),
+                ReadString(payload, "service_type", "整备")
             ),
             true,
             true,
@@ -1267,7 +1494,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             _extract_quest_progress_events(
                 payload,
                 action_id,
-                GdInterop.GetString(settlement, "settlement_id")
+                ReadString(settlement, "settlement_id")
             ),
             new GDictionary
             {
@@ -1285,36 +1512,52 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         int reveal_range,
         int gold_cost,
         string message_prefix
+    ) => ExecuteFogRevealTyped(
+        settlement,
+        action_id,
+        payload,
+        reveal_range,
+        gold_cost,
+        message_prefix
+    ).ToDictionary();
+
+    private SettlementServiceResult ExecuteFogRevealTyped(
+        GDictionary settlement,
+        string action_id,
+        GDictionary payload,
+        int reveal_range,
+        int gold_cost,
+        string message_prefix
     )
     {
         PartyState partyState = _get_party_state();
         if (partyState == null)
         {
-            return _build_settlement_service_result(false, "当前不存在队伍数据。");
+            return BuildSettlementServiceResultTyped(false, "当前不存在队伍数据。");
         }
         if (gold_cost > 0 && !partyState.spend_gold(gold_cost))
         {
-            return _build_settlement_service_result(false, "金币不足，无法购买情报。");
+            return BuildSettlementServiceResultTyped(false, "金币不足，无法购买情报。");
         }
         GArray revealedCoords = _reveal_world_fog(
-            GdInterop.GetVector2I(settlement, "origin"),
+            ReadVector2I(settlement, "origin"),
             reveal_range
         );
         string message = $"{message_prefix} 共揭示了 {revealedCoords.Count} 个周边格子。";
         if (gold_cost > 0)
         {
             message =
-                $"{GdInterop.GetString(settlement, "display_name", "据点")} 花费 {gold_cost} 金。{message}";
+                $"{ReadString(settlement, "display_name", "据点")} 花费 {gold_cost} 金。{message}";
         }
-        return _build_settlement_service_result(
+        return BuildSettlementServiceResultTyped(
             true,
             message,
             extract_pending_character_rewards(
                 action_id,
                 payload,
-                GdInterop.GetString(payload, "facility_name"),
-                GdInterop.GetString(payload, "npc_name"),
-                GdInterop.GetString(payload, "service_type", "情报")
+                ReadString(payload, "facility_name"),
+                ReadString(payload, "npc_name"),
+                ReadString(payload, "service_type", "情报")
             ),
             gold_cost > 0,
             true,
@@ -1324,7 +1567,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             _extract_quest_progress_events(
                 payload,
                 action_id,
-                GdInterop.GetString(settlement, "settlement_id")
+                ReadString(settlement, "settlement_id")
             ),
             new GDictionary { ["fog_revealed"] = revealedCoords }
         );
@@ -1335,19 +1578,19 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         var entries = new GDictArray();
         foreach (
             GDictionary sourceService in Dictionaries(
-                GdInterop.GetArray(settlement, "available_services")
+                ReadArray(settlement, "available_services")
             )
         )
         {
             GDictionary serviceData = (GDictionary)sourceService.Duplicate(true);
-            GDictionary metadata = _build_service_metadata(
+            SettlementServiceMetadata metadata = BuildServiceMetadataTyped(
                 settlement,
                 serviceData,
                 settlement_state
             );
-            bool isEnabled = GdInterop.GetBool(metadata, "is_enabled", true);
-            string disabledReason = GdInterop.GetString(metadata, "disabled_reason").Trim();
-            serviceData["cost_label"] = GdInterop.GetString(metadata, "cost_label").Trim();
+            bool isEnabled = metadata.IsEnabled;
+            string disabledReason = metadata.DisabledReason.Trim();
+            serviceData["cost_label"] = metadata.CostLabel.Trim();
             serviceData["is_enabled"] = isEnabled;
             serviceData["disabled_reason"] = disabledReason;
             serviceData["state_label"] = _build_service_state_label(isEnabled, disabledReason);
@@ -1377,14 +1620,12 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
 
     public string _build_service_summary_text(GDictionary service_data)
     {
-        return $"{GdInterop.GetString(service_data, "facility_name").Trim()} · {GdInterop.GetString(service_data, "npc_name").Trim()} · {GdInterop.GetString(service_data, "service_type").Trim()}";
+        return $"{ReadString(service_data, "facility_name").Trim()} · {ReadString(service_data, "npc_name").Trim()} · {ReadString(service_data, "service_type").Trim()}";
     }
 
     public string _resolve_service_panel_kind(GDictionary service_data)
     {
-        string interactionScriptId = GdInterop
-            .GetString(service_data, "interaction_script_id")
-            .Trim();
+        string interactionScriptId = ReadString(service_data, "interaction_script_id").Trim();
         if (SHOP_INTERACTION_IDS.Contains(interactionScriptId))
         {
             return "shop";
@@ -1408,69 +1649,69 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         GDictionary settlement,
         GDictionary service_data,
         GDictionary settlement_state
+    ) =>
+        BuildServiceMetadataTyped(settlement, service_data, settlement_state).ToDictionary();
+
+    private SettlementServiceMetadata BuildServiceMetadataTyped(
+        GDictionary settlement,
+        GDictionary service_data,
+        GDictionary settlement_state
     )
     {
-        string interactionScriptId = GdInterop.GetString(service_data, "interaction_script_id");
+        string interactionScriptId = ReadString(service_data, "interaction_script_id");
         PartyState typedPartyState = _get_party_state();
         if (interactionScriptId == "party_warehouse")
         {
-            return new GDictionary { ["cost_label"] = "免费", ["is_enabled"] = true };
+            return new SettlementServiceMetadata("免费", true);
         }
         if (interactionScriptId == "service_rest_basic")
         {
-            return new GDictionary { ["cost_label"] = "免费", ["is_enabled"] = true };
+            return new SettlementServiceMetadata("免费", true);
         }
         if (interactionScriptId == "service_rest_full")
         {
             bool canAffordRest =
                 typedPartyState != null && typedPartyState.can_afford(REST_FULL_COST);
-            return new GDictionary
-            {
-                ["cost_label"] = $"{REST_FULL_COST} 金",
-                ["is_enabled"] = canAffordRest,
-                ["disabled_reason"] = canAffordRest ? "" : "金币不足",
-            };
+            return new SettlementServiceMetadata(
+                $"{REST_FULL_COST} 金",
+                canAffordRest,
+                canAffordRest ? "" : "金币不足"
+            );
         }
         if (interactionScriptId == "service_village_rumor")
         {
-            return new GDictionary { ["cost_label"] = "免费", ["is_enabled"] = true };
+            return new SettlementServiceMetadata("免费", true);
         }
         if (interactionScriptId == "service_intel_network")
         {
             bool canAffordIntel =
                 typedPartyState != null && typedPartyState.can_afford(INTEL_NETWORK_COST);
-            return new GDictionary
-            {
-                ["cost_label"] = $"{INTEL_NETWORK_COST} 金",
-                ["is_enabled"] = canAffordIntel,
-                ["disabled_reason"] = canAffordIntel ? "" : "金币不足",
-            };
+            return new SettlementServiceMetadata(
+                $"{INTEL_NETWORK_COST} 金",
+                canAffordIntel,
+                canAffordIntel ? "" : "金币不足"
+            );
         }
         if (QuestProviderContentRules.is_supported_provider_id(interactionScriptId))
         {
-            return new GDictionary
-            {
-                ["cost_label"] = "查看任务",
-                ["is_enabled"] = true,
-                ["disabled_reason"] = "",
-            };
+            return new SettlementServiceMetadata("查看任务", true);
         }
         if (SHOP_INTERACTION_IDS.Contains(interactionScriptId))
         {
-            return new GDictionary { ["cost_label"] = "按商品计价", ["is_enabled"] = true };
+            return new SettlementServiceMetadata("按商品计价", true);
         }
         if (STAGECOACH_INTERACTION_IDS.Contains(interactionScriptId))
         {
-            GDictArray destinations = _build_stagecoach_destinations(
+            List<StagecoachDestinationData> destinations = BuildStagecoachDestinationData(
                 settlement,
                 interactionScriptId
             );
-            return new GDictionary
-            {
-                ["cost_label"] = $"{STAGECOACH_COST_PER_STEP} 金/格",
-                ["is_enabled"] = destinations.Count != 0,
-                ["disabled_reason"] = destinations.Count != 0 ? "" : "暂无已访问路线",
-            };
+            bool hasDestinations = destinations.Count != 0;
+            return new SettlementServiceMetadata(
+                $"{STAGECOACH_COST_PER_STEP} 金/格",
+                hasDestinations,
+                hasDestinations ? "" : "暂无已访问路线"
+            );
         }
         if (_is_forge_interaction(interactionScriptId))
         {
@@ -1480,50 +1721,34 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
                 _get_item_defs(),
                 _get_recipe_defs()
             );
-            return new GDictionary
-            {
-                ["cost_label"] = "按配方材料",
-                ["is_enabled"] = hasRecipe,
-                ["disabled_reason"] = hasRecipe
-                    ? ""
-                    : _build_forge_unavailable_reason(interactionScriptId),
-            };
+            return new SettlementServiceMetadata(
+                "按配方材料",
+                hasRecipe,
+                hasRecipe ? "" : _build_forge_unavailable_reason(interactionScriptId)
+            );
         }
         if (_is_research_interaction(interactionScriptId))
         {
-            return _research_service.build_service_metadata(typedPartyState);
+            return _research_service.BuildServiceMetadataTyped(typedPartyState);
         }
         if (UNIMPLEMENTED_INTERACTION_IDS.Contains(interactionScriptId))
         {
-            return new GDictionary
-            {
-                ["cost_label"] = "未开放",
-                ["is_enabled"] = false,
-                ["disabled_reason"] = "系统未开放",
-            };
+            return new SettlementServiceMetadata("未开放", false, "系统未开放");
         }
-        return new GDictionary
-        {
-            ["cost_label"] = "",
-            ["is_enabled"] = true,
-            ["disabled_reason"] = "",
-        };
+        return new SettlementServiceMetadata("", true);
     }
 
     public string _build_settlement_state_summary(GDictionary settlement_state)
     {
-        GArray activeConditions = GdInterop.GetArray(settlement_state, "active_conditions");
-        var conditionStrings = new List<string>();
-        foreach (object c in activeConditions)
-        {
-            conditionStrings.Add(c.ToString());
-        }
+        WorldMapSettlementStateData stateData =
+            WorldMapSettlementStateData.FromDictionary(settlement_state);
+        IReadOnlyList<string> conditionStrings = stateData.ActiveConditions;
         return string.Join(
             "\n",
             new[]
             {
-                $"访问：{(GdInterop.GetBool(settlement_state, "visited", false) ? "是" : "否")}",
-                $"声望：{GdInterop.GetInt(settlement_state, "reputation", 0)}",
+                $"访问：{(stateData.Visited ? "是" : "否")}",
+                $"声望：{stateData.Reputation}",
                 $"活跃条件：{(conditionStrings.Count != 0 ? string.Join("、", conditionStrings) : "无")}",
             }
         );
@@ -1548,11 +1773,10 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             return options;
         }
         var seenMemberIds = new GDictionary();
-        foreach (object memberIdValue in GdInterop.GetArray(partyState, "active_member_ids"))
+        foreach (StringName memberId in partyState.active_member_ids)
         {
-            StringName memberId = ProgressionDataUtils.to_string_name(memberIdValue);
             if (
-                GdInterop.IsEmpty(memberId)
+                memberId == ""
                 || seenMemberIds.ContainsKey(memberId)
                 || partyState.get_member_state(memberId) == null
             )
@@ -1562,11 +1786,10 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             seenMemberIds[memberId] = true;
             options.Add(_build_member_option(partyState, memberId, "上阵"));
         }
-        foreach (object memberIdValue in GdInterop.GetArray(partyState, "reserve_member_ids"))
+        foreach (StringName memberId in partyState.reserve_member_ids)
         {
-            StringName memberId = ProgressionDataUtils.to_string_name(memberIdValue);
             if (
-                GdInterop.IsEmpty(memberId)
+                memberId == ""
                 || seenMemberIds.ContainsKey(memberId)
                 || partyState.get_member_state(memberId) == null
             )
@@ -1595,9 +1818,9 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             ["member_id"] = member_id.ToString(),
             ["display_name"] = _get_member_display_name(member_id),
             ["roster_role"] = roster_role,
-            ["is_leader"] = GdInterop.GetStringName(party_state, "leader_member_id") == member_id,
-            ["current_hp"] = GdInterop.GetInt(memberState, "current_hp"),
-            ["current_mp"] = GdInterop.GetInt(memberState, "current_mp"),
+            ["is_leader"] = party_state.leader_member_id == member_id,
+            ["current_hp"] = memberState.current_hp,
+            ["current_mp"] = memberState.current_mp,
         };
     }
 
@@ -1607,16 +1830,16 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         _set_active_contract_board_context(windowData);
         _set_active_modal_id("contract_board");
         _update_status(
-            $"已打开 {GdInterop.GetString(payload, "facility_name", "据点任务板")} 的任务板。"
+            $"已打开 {ReadString(payload, "facility_name", "据点任务板")} 的任务板。"
         );
     }
 
     public GDictionary _build_contract_board_window_data(string settlement_id, GDictionary payload)
     {
         GDictionary settlement = _get_settlement_record(settlement_id);
-        string providerInteractionId = GdInterop.GetString(payload, "interaction_script_id").Trim();
+        string providerInteractionId = ReadString(payload, "interaction_script_id").Trim();
         GDictArray entries = _build_contract_board_entries(providerInteractionId);
-        string summaryText = GdInterop.GetString(payload, "feedback_text").Trim();
+        string summaryText = ReadString(payload, "feedback_text").Trim();
         if (string.IsNullOrEmpty(summaryText))
         {
             summaryText =
@@ -1625,21 +1848,21 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         return new GDictionary
         {
             ["title"] =
-                $"{GdInterop.GetString(settlement, "display_name", settlement_id)} · 任务板",
+                $"{ReadString(settlement, "display_name", settlement_id)} · 任务板",
             ["meta"] =
-                $"{GdInterop.GetString(payload, "facility_name", "任务板")} · {GdInterop.GetString(payload, "npc_name", "值守人员")} · {GdInterop.GetString(payload, "service_type", "契约")}",
+                $"{ReadString(payload, "facility_name", "任务板")} · {ReadString(payload, "npc_name", "值守人员")} · {ReadString(payload, "service_type", "契约")}",
             ["summary_text"] = summaryText,
             ["state_summary_text"] = _build_contract_board_state_summary(entries),
-            ["service_name"] = GdInterop.GetString(payload, "service_type", "任务板"),
+            ["service_name"] = ReadString(payload, "service_type", "任务板"),
             ["settlement_id"] = settlement_id,
-            ["action_id"] = GdInterop.GetString(payload, "action_id"),
+            ["action_id"] = ReadString(payload, "action_id"),
             ["interaction_script_id"] = providerInteractionId,
             ["provider_interaction_id"] = providerInteractionId,
-            ["facility_id"] = GdInterop.GetString(payload, "facility_id"),
-            ["facility_name"] = GdInterop.GetString(payload, "facility_name"),
-            ["npc_id"] = GdInterop.GetString(payload, "npc_id"),
-            ["npc_name"] = GdInterop.GetString(payload, "npc_name"),
-            ["service_type"] = GdInterop.GetString(payload, "service_type"),
+            ["facility_id"] = ReadString(payload, "facility_id"),
+            ["facility_name"] = ReadString(payload, "facility_name"),
+            ["npc_id"] = ReadString(payload, "npc_id"),
+            ["npc_name"] = ReadString(payload, "npc_name"),
+            ["service_type"] = ReadString(payload, "service_type"),
             ["panel_kind"] = "contract_board",
             ["show_member_selector"] = false,
             ["confirm_label"] = "确认操作",
@@ -1730,9 +1953,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         {
             return new GDictionary();
         }
-        string providerInteractionId = GdInterop
-            .GetString(questData, "provider_interaction_id")
-            .Trim();
+        string providerInteractionId = ReadString(questData, "provider_interaction_id").Trim();
         if (
             string.IsNullOrEmpty(providerInteractionId)
             || providerInteractionId != interaction_script_id
@@ -1740,8 +1961,8 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         {
             return new GDictionary();
         }
-        StringName questId = GdInterop.GetStringName(questData, "quest_id");
-        if (GdInterop.IsEmpty(questId))
+        StringName questId = ReadStringName(questData, "quest_id");
+        if (questId == "")
         {
             return new GDictionary();
         }
@@ -1761,7 +1982,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             ),
             ["is_enabled"] = true,
             ["disabled_reason"] = "",
-            ["is_repeatable"] = GdInterop.GetBool(questData, "is_repeatable", false),
+            ["is_repeatable"] = IsContractBoardQuestRepeatable(questData),
         };
     }
 
@@ -1786,7 +2007,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         }
         if (partyState.has_completed_quest(quest_id))
         {
-            if (GdInterop.GetBool(quest_data, "is_repeatable", false))
+            if (IsContractBoardQuestRepeatable(quest_data))
             {
                 return "repeatable";
             }
@@ -1823,7 +2044,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         int completedCount = 0;
         foreach (GDictionary entry in entries)
         {
-            switch (GdInterop.GetString(entry, "state_id"))
+            switch (ReadString(entry, "state_id"))
             {
                 case "active":
                     activeCount += 1;
@@ -1874,7 +2095,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             _build_contract_board_objective_summary(quest_id, quest_data),
             _build_contract_board_reward_label(quest_data["reward_entries"].AsGodotArray()),
         };
-        if (GdInterop.GetBool(quest_data, "is_repeatable", false))
+        if (IsContractBoardQuestRepeatable(quest_data))
         {
             lines.Add("说明：该契约完成后可再次接取。");
         }
@@ -2019,8 +2240,8 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
     {
         GDictionary settlementState = _get_or_create_settlement_state(settlement_id);
         settlementState["world_step"] = _get_world_step();
-        GDictionary windowData = _shop_service.build_window_data(
-            GdInterop.GetString(payload, "interaction_script_id"),
+        GDictionary windowData = _shop_service.BuildWindowDataTyped(
+            ReadString(payload, "interaction_script_id"),
             _get_settlement_record(settlement_id),
             settlementState,
             _get_item_defs(),
@@ -2029,18 +2250,18 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         );
         _set_active_settlement_state(settlement_id, settlementState);
         windowData["settlement_id"] = settlement_id;
-        windowData["interaction_script_id"] = GdInterop.GetString(payload, "interaction_script_id");
+        windowData["interaction_script_id"] = ReadString(payload, "interaction_script_id");
         _set_active_shop_context(windowData);
         _set_active_modal_id("shop");
         _update_status(
-            $"已打开 {GdInterop.GetString(payload, "facility_name", "据点商店")} 的商店。"
+            $"已打开 {ReadString(payload, "facility_name", "据点商店")} 的商店。"
         );
     }
 
     public void _open_forge_modal(string settlement_id, GDictionary payload)
     {
-        GDictionary windowData = _forge_service.build_window_data(
-            GdInterop.GetString(payload, "interaction_script_id"),
+        GDictionary windowData = _forge_service.BuildWindowDataTyped(
+            ReadString(payload, "interaction_script_id"),
             _get_settlement_record(settlement_id),
             payload,
             _get_item_defs(),
@@ -2048,11 +2269,11 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             _get_party_warehouse_service()
         );
         windowData["settlement_id"] = settlement_id;
-        windowData["interaction_script_id"] = GdInterop.GetString(payload, "interaction_script_id");
+        windowData["interaction_script_id"] = ReadString(payload, "interaction_script_id");
         windowData["service_payload"] = payload.Duplicate(true);
         windowData["member_options"] = _build_member_options();
-        StringName selectedMemberId = GdInterop.GetStringName(payload, "member_id");
-        if (GdInterop.IsEmpty(selectedMemberId))
+        StringName selectedMemberId = ReadStringName(payload, "member_id");
+        if (selectedMemberId == "")
         {
             selectedMemberId = resolve_default_settlement_member_id();
         }
@@ -2061,7 +2282,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         _set_active_forge_context(windowData);
         _set_active_modal_id("forge");
         _update_status(
-            $"已打开 {GdInterop.GetString(payload, "facility_name", "据点工坊")} 的{_resolve_forge_service_label(payload)}窗口。"
+            $"已打开 {ReadString(payload, "facility_name", "据点工坊")} 的{_resolve_forge_service_label(payload)}窗口。"
         );
     }
 
@@ -2071,14 +2292,14 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         _set_active_stagecoach_context(
             new GDictionary
             {
-                ["title"] = $"{GdInterop.GetString(settlement, "display_name", "据点")} · 驿站路线",
+                ["title"] = $"{ReadString(settlement, "display_name", "据点")} · 驿站路线",
                 ["settlement_id"] = settlement_id,
-                ["origin_name"] = GdInterop.GetString(settlement, "display_name", "据点"),
-                ["interaction_script_id"] = GdInterop.GetString(payload, "interaction_script_id"),
+                ["origin_name"] = ReadString(settlement, "display_name", "据点"),
+                ["interaction_script_id"] = ReadString(payload, "interaction_script_id"),
                 ["gold"] = _get_party_gold(),
                 ["destinations"] = _build_stagecoach_destinations(
                     settlement,
-                    GdInterop.GetString(payload, "interaction_script_id")
+                    ReadString(payload, "interaction_script_id")
                 ),
                 ["feedback_text"] = "选择一个已访问据点并支付路费后即可启程。",
             }
@@ -2094,11 +2315,11 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         {
             return;
         }
-        string settlementId = GdInterop.GetString(context, "settlement_id");
+        string settlementId = ReadString(context, "settlement_id");
         GDictionary settlementState = _get_or_create_settlement_state(settlementId);
         settlementState["world_step"] = _get_world_step();
-        GDictionary nextContext = _shop_service.build_window_data(
-            GdInterop.GetString(context, "interaction_script_id"),
+        GDictionary nextContext = _shop_service.BuildWindowDataTyped(
+            ReadString(context, "interaction_script_id"),
             _get_settlement_record(settlementId),
             settlementState,
             _get_item_defs(),
@@ -2107,10 +2328,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         );
         _set_active_settlement_state(settlementId, settlementState);
         nextContext["settlement_id"] = settlementId;
-        nextContext["interaction_script_id"] = GdInterop.GetString(
-            context,
-            "interaction_script_id"
-        );
+        nextContext["interaction_script_id"] = ReadString(context, "interaction_script_id");
         _set_active_shop_context(nextContext);
     }
 
@@ -2121,7 +2339,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         {
             return;
         }
-        string settlementId = GdInterop.GetString(context, "settlement_id");
+        string settlementId = ReadString(context, "settlement_id");
         GDictionary nextPayload = (GDictionary)context.Duplicate(true);
         if (!string.IsNullOrEmpty(feedback_text))
         {
@@ -2138,14 +2356,14 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         {
             return;
         }
-        string settlementId = GdInterop.GetString(context, "settlement_id");
-        GDictionary servicePayload = (GDictionary)GdInterop.GetDictionary(context, "service_payload").Duplicate(true);
-        string interactionScriptId = GdInterop.GetString(context, "interaction_script_id");
+        string settlementId = ReadString(context, "settlement_id");
+        GDictionary servicePayload = (GDictionary)ReadDictionary(context, "service_payload").Duplicate(true);
+        string interactionScriptId = ReadString(context, "interaction_script_id");
         if (string.IsNullOrEmpty(interactionScriptId))
         {
-            interactionScriptId = GdInterop.GetString(servicePayload, "interaction_script_id");
+            interactionScriptId = ReadString(servicePayload, "interaction_script_id");
         }
-        GDictionary nextContext = _forge_service.build_window_data(
+        GDictionary nextContext = _forge_service.BuildWindowDataTyped(
             interactionScriptId,
             _get_settlement_record(settlementId),
             servicePayload,
@@ -2154,19 +2372,19 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             _get_party_warehouse_service(),
             !string.IsNullOrEmpty(feedback_text)
                 ? feedback_text
-                : GdInterop.GetString(context, "feedback_text")
+                : ReadString(context, "feedback_text")
         );
         nextContext["settlement_id"] = settlementId;
         nextContext["interaction_script_id"] = interactionScriptId;
         nextContext["service_payload"] = servicePayload;
-        nextContext["member_options"] = GdInterop.GetArray(context, "member_options");
-        string defaultMemberId = GdInterop.GetString(context, "default_member_id");
+        nextContext["member_options"] = ReadArray(context, "member_options");
+        string defaultMemberId = ReadString(context, "default_member_id");
         if (string.IsNullOrEmpty(defaultMemberId))
         {
-            defaultMemberId = GdInterop.GetString(servicePayload, "member_id");
+            defaultMemberId = ReadString(servicePayload, "member_id");
         }
         nextContext["default_member_id"] = defaultMemberId;
-        string selectedMemberId = GdInterop.GetString(context, "selected_member_id");
+        string selectedMemberId = ReadString(context, "selected_member_id");
         if (string.IsNullOrEmpty(selectedMemberId))
         {
             selectedMemberId = defaultMemberId;
@@ -2181,40 +2399,53 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
     )
     {
         var entries = new GDictArray();
-        string originSettlementId = GdInterop.GetString(origin_settlement, "settlement_id");
-        Vector2I originCoord = GdInterop.GetVector2I(origin_settlement, "origin");
+        foreach (
+            StagecoachDestinationData destination in BuildStagecoachDestinationData(
+                origin_settlement,
+                interaction_script_id
+            )
+        )
+        {
+            entries.Add(destination.ToDictionary());
+        }
+        return entries;
+    }
+
+    private List<StagecoachDestinationData> BuildStagecoachDestinationData(
+        GDictionary origin_settlement,
+        string interaction_script_id
+    )
+    {
+        var entries = new List<StagecoachDestinationData>();
+        string originSettlementId = ReadString(origin_settlement, "settlement_id");
+        Vector2I originCoord = ReadVector2I(origin_settlement, "origin");
         foreach (GDictionary settlement in Dictionaries(_get_all_settlement_records()))
         {
-            string settlementId = GdInterop.GetString(settlement, "settlement_id");
+            string settlementId = ReadString(settlement, "settlement_id");
             if (string.IsNullOrEmpty(settlementId) || settlementId == originSettlementId)
             {
                 continue;
             }
-            if (!GdInterop.GetBool(_get_or_create_settlement_state(settlementId), "visited", false))
+            if (!IsSettlementVisited(settlementId))
             {
                 continue;
             }
-            Vector2I targetCoord = GdInterop.GetVector2I(settlement, "origin");
+            Vector2I targetCoord = ReadVector2I(settlement, "origin");
             int travelCost =
                 (Math.Abs(targetCoord.X - originCoord.X) + Math.Abs(targetCoord.Y - originCoord.Y))
                 * STAGECOACH_COST_PER_STEP;
             bool canTravel = _get_party_gold() >= travelCost;
             entries.Add(
-                new GDictionary
-                {
-                    ["settlement_id"] = settlementId,
-                    ["display_name"] = GdInterop.GetString(
-                        settlement,
-                        "display_name",
-                        settlementId
-                    ),
-                    ["tier_name"] = GdInterop.GetString(settlement, "tier_name"),
-                    ["travel_cost"] = travelCost,
-                    ["can_travel"] = canTravel,
-                    ["disabled_reason"] = canTravel ? "" : "金币不足",
-                    ["coord"] = new GDictionary { ["x"] = targetCoord.X, ["y"] = targetCoord.Y },
-                    ["interaction_script_id"] = interaction_script_id,
-                }
+                new StagecoachDestinationData(
+                    settlementId,
+                    ReadString(settlement, "display_name", settlementId),
+                    ReadString(settlement, "tier_name"),
+                    travelCost,
+                    canTravel,
+                    canTravel ? "" : "金币不足",
+                    targetCoord,
+                    interaction_script_id
+                )
             );
         }
         return entries;
@@ -2227,16 +2458,47 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
     {
         foreach (
             GDictionary destination in Dictionaries(
-                GdInterop.GetArray(stagecoach_context, "destinations")
+                ReadArray(stagecoach_context, "destinations")
             )
         )
         {
-            if (GdInterop.GetString(destination, "settlement_id") == settlement_id)
+            if (ReadString(destination, "settlement_id") == settlement_id)
             {
                 return destination;
             }
         }
         return new GDictionary();
+    }
+
+    private StagecoachDestinationData ResolveStagecoachDestinationTyped(
+        GDictionary stagecoach_context,
+        string settlement_id
+    )
+    {
+        string originSettlementId = ReadString(stagecoach_context, "settlement_id");
+        if (string.IsNullOrEmpty(originSettlementId) || string.IsNullOrEmpty(settlement_id))
+        {
+            return null;
+        }
+        GDictionary originSettlement = _get_settlement_record(originSettlementId);
+        if (originSettlement.Count == 0)
+        {
+            return null;
+        }
+        string interactionScriptId = ReadString(stagecoach_context, "interaction_script_id");
+        foreach (
+            StagecoachDestinationData destination in BuildStagecoachDestinationData(
+                originSettlement,
+                interactionScriptId
+            )
+        )
+        {
+            if (destination.SettlementId == settlement_id)
+            {
+                return destination;
+            }
+        }
+        return null;
     }
 
     public GDictionary _restore_party_resources(float restore_ratio, bool restore_full)
@@ -2247,9 +2509,8 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         {
             return effects;
         }
-        foreach (object memberIdValue in GdInterop.GetArray(partyState, "active_member_ids"))
+        foreach (StringName memberId in partyState.active_member_ids)
         {
-            StringName memberId = ProgressionDataUtils.to_string_name(memberIdValue);
             PartyMemberState memberState = partyState.get_member_state(memberId);
             if (memberState == null)
             {
@@ -2259,13 +2520,13 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             int hpMax =
                 attributeSnapshot != null
                     ? attributeSnapshot.get_value(new StringName("hp_max"))
-                    : Math.Max(GdInterop.GetInt(memberState, "current_hp"), 1);
+                    : Math.Max(memberState.current_hp, 1);
             int mpMax =
                 attributeSnapshot != null
                     ? attributeSnapshot.get_value(new StringName("mp_max"))
-                    : Math.Max(GdInterop.GetInt(memberState, "current_mp"), 0);
-            int oldHp = GdInterop.GetInt(memberState, "current_hp");
-            int oldMp = GdInterop.GetInt(memberState, "current_mp");
+                    : Math.Max(memberState.current_mp, 0);
+            int oldHp = memberState.current_hp;
+            int oldMp = memberState.current_mp;
             double recoveryMultiplier = 1.0;
             if (
                 attributeSnapshot != null
@@ -2278,14 +2539,14 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
                 ? hpMax - oldHp
                 : (int)Math.Ceiling(hpMax * (double)restore_ratio);
             hpRestoreAmount = (int)Math.Ceiling(Math.Max(hpRestoreAmount, 0) * recoveryMultiplier);
-            memberState.Set("current_hp", Math.Min(oldHp + hpRestoreAmount, hpMax));
+            memberState.current_hp = Math.Min(oldHp + hpRestoreAmount, hpMax);
             int mpRestoreAmount = restore_full ? mpMax - oldMp : 0;
             mpRestoreAmount = (int)Math.Ceiling(Math.Max(mpRestoreAmount, 0) * recoveryMultiplier);
-            memberState.Set("current_mp", Math.Min(oldMp + mpRestoreAmount, mpMax));
+            memberState.current_mp = Math.Min(oldMp + mpRestoreAmount, mpMax);
             effects[memberId.ToString()] = new GDictionary
             {
-                ["hp_restored"] = Math.Max(GdInterop.GetInt(memberState, "current_hp") - oldHp, 0),
-                ["mp_restored"] = Math.Max(GdInterop.GetInt(memberState, "current_mp") - oldMp, 0),
+                ["hp_restored"] = Math.Max(memberState.current_hp - oldHp, 0),
+                ["mp_restored"] = Math.Max(memberState.current_mp - oldMp, 0),
             };
         }
         return effects;
@@ -2307,14 +2568,15 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
 
     public void _mark_settlement_visited(string settlement_id)
     {
-        GDictionary settlementState = _get_or_create_settlement_state(settlement_id);
-        if (GdInterop.GetBool(settlementState, "visited", false))
+        if (!_has_runtime())
         {
             return;
         }
-        settlementState["visited"] = true;
-        _set_active_settlement_state(settlement_id, settlementState);
+        Runtime.MarkSettlementVisited(settlement_id);
     }
+
+    private bool IsSettlementVisited(string settlementId) =>
+        Runtime?.IsSettlementVisited(settlementId) ?? false;
 
     public GDictionary _get_or_create_settlement_state(string settlement_id)
     {
@@ -2340,12 +2602,33 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         string action_id,
         GDictionary payload,
         GDictionary result
+    ) =>
+        FinalizeSuccessfulActionTyped(
+            action_id,
+            payload,
+            SettlementServiceResult.FromDictionary(result)
+        ).ToDictionary();
+
+    public GDictionary _finalize_successful_action(
+        string action_id,
+        GDictionary payload,
+        SettlementServiceResult result
+    ) =>
+        FinalizeSuccessfulActionTyped(action_id, payload, result).ToDictionary();
+
+    private SettlementPersistResult FinalizeSuccessfulActionTyped(
+        string action_id,
+        GDictionary payload,
+        SettlementServiceResult result
     )
     {
-        _enqueue_pending_character_rewards(_result_pending_character_rewards(result));
-        _apply_quest_progress_events(_result_quest_progress_events(result));
-        StringName memberId = GdInterop.GetStringName(payload, "member_id");
-        if (!GdInterop.IsEmpty(memberId))
+        if (result == null)
+            return PersistChangesTyped(false, false, false);
+
+        _enqueue_pending_character_rewards(ResultPendingCharacterRewards(result));
+        _apply_quest_progress_events(ResultQuestProgressEvents(result));
+        StringName memberId = ReadStringName(payload, "member_id");
+        if (memberId != "")
         {
             _notify_misfortune_guidance_of_forge_result(memberId, result);
             _record_member_achievement_event(
@@ -2356,43 +2639,55 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             );
         }
         _sync_party_state_from_character_management();
-        return _persist_changes(
-            GdInterop.GetBool(result, "persist_party_state", true),
-            GdInterop.GetBool(result, "persist_world_data", false),
-            GdInterop.GetBool(result, "persist_player_coord", false)
+        return PersistChangesTyped(
+            result.PersistPartyState,
+            result.PersistWorldData,
+            result.PersistPlayerCoord
         );
     }
 
     public void _notify_misfortune_guidance_of_forge_result(
         StringName member_id,
-        GDictionary result
+        SettlementServiceResult result
     )
     {
-        if (GdInterop.IsEmpty(member_id) || _runtime == null || result.Count == 0)
+        if (member_id == "" || Runtime == null || result == null)
         {
             return;
         }
-        if (
-            !TryAsDictionary(
-                GdInterop.GetDictionary(result, "inventory_delta"),
-                out GDictionary inventoryDelta
-            )
-        )
+        GDictionary inventoryDelta = result.InventoryDelta;
+        if (ReadStringName(inventoryDelta, "recipe_id") == "")
         {
             return;
         }
-        if (
-            GdInterop.IsEmpty(
-                GdInterop.GetStringName(inventoryDelta, "recipe_id")
-            )
-        )
-        {
-            return;
-        }
-        Runtime?.handle_misfortune_forge_result(member_id, result);
+        Runtime?.HandleMisfortuneForgeResult(member_id, result);
     }
 
     public GDictionary _build_settlement_service_result(
+        bool success,
+        string message,
+        GDictArray pending_character_rewards = null,
+        bool persist_party_state = false,
+        bool persist_world_data = false,
+        bool persist_player_coord = false,
+        int gold_delta = 0,
+        GDictionary inventory_delta = null,
+        GDictArray quest_progress_events = null,
+        GDictionary service_side_effects = null
+    ) => BuildSettlementServiceResultTyped(
+        success,
+        message,
+        pending_character_rewards,
+        persist_party_state,
+        persist_world_data,
+        persist_player_coord,
+        gold_delta,
+        inventory_delta,
+        quest_progress_events,
+        service_side_effects
+    ).ToDictionary();
+
+    private SettlementServiceResult BuildSettlementServiceResultTyped(
         bool success,
         string message,
         GDictArray pending_character_rewards = null,
@@ -2426,28 +2721,26 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             ToUntypedDictArray(_duplicate_dictionary_array(ToUntypedDictArray(quest_progress_events)))
         );
         result.SetServiceSideEffects(service_side_effects);
-        return result.ToDictionary();
+        return result;
     }
 
     public GArray _result_pending_character_rewards(GDictionary result)
     {
-        return TryAsArray(
-            GdInterop.GetArray(result, "pending_character_rewards"),
-            out GArray rewards
-        )
-            ? rewards
-            : new GArray();
+        var parsed = SettlementServiceResult.FromDictionary(result);
+        return parsed != null ? ResultPendingCharacterRewards(parsed) : new GArray();
     }
 
     public GArray _result_quest_progress_events(GDictionary result)
     {
-        return TryAsArray(
-            GdInterop.GetArray(result, "quest_progress_events"),
-            out GArray events
-        )
-            ? events
-            : new GArray();
+        var parsed = SettlementServiceResult.FromDictionary(result);
+        return parsed != null ? ResultQuestProgressEvents(parsed) : new GArray();
     }
+
+    private static GArray ResultPendingCharacterRewards(SettlementServiceResult result) =>
+        result != null ? ToUntypedDictArray(result.PendingCharacterRewards) : new GArray();
+
+    private static GArray ResultQuestProgressEvents(SettlementServiceResult result) =>
+        result != null ? ToUntypedDictArray(result.QuestProgressEvents) : new GArray();
 
     public GDictArray _extract_quest_progress_events(
         GDictionary payload,
@@ -2456,7 +2749,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
     )
     {
         GDictArray questProgressEvents = _duplicate_dictionary_array(
-            GdInterop.GetArray(payload, "quest_progress_events")
+            ReadArray(payload, "quest_progress_events")
         );
         int worldStep = _get_world_step();
         foreach (GDictionary eventData in questProgressEvents)
@@ -2466,7 +2759,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
                 eventData["world_step"] = worldStep;
             }
         }
-        if (!GdInterop.GetBool(payload, "emit_default_quest_progress_event", true))
+        if (!ReadBool(payload, "emit_default_quest_progress_event", true))
         {
             return questProgressEvents;
         }
@@ -2480,7 +2773,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
                 ["world_step"] = worldStep,
                 ["action_id"] = action_id,
                 ["settlement_id"] = settlement_id,
-                ["member_id"] = GdInterop.GetString(payload, "member_id"),
+                ["member_id"] = ReadString(payload, "member_id"),
             }
         );
         return questProgressEvents;
@@ -2515,21 +2808,28 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         foreach (object memberIdValue in member_effects.Keys)
         {
             string memberId = memberIdValue.ToString();
-            if (
-                !TryAsDictionary(
-                    GdInterop.GetDictionary(member_effects, memberIdValue),
-                    out GDictionary effect
-                )
-            )
+            GDictionary effect = ReadDictionary(member_effects, memberId);
+            if (effect.Count == 0)
             {
                 continue;
             }
-            values[memberId] = GdInterop.GetInt(effect, value_key, 0);
+            values[memberId] = ReadInt(effect, value_key);
         }
         return values;
     }
 
     public GDictionary _persist_changes(
+        bool persist_party_state,
+        bool persist_world_data,
+        bool persist_player_coord
+    ) =>
+        PersistChangesTyped(
+            persist_party_state,
+            persist_world_data,
+            persist_player_coord
+        ).ToDictionary();
+
+    private SettlementPersistResult PersistChangesTyped(
         bool persist_party_state,
         bool persist_world_data,
         bool persist_player_coord
@@ -2550,21 +2850,12 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         {
             playerError = _persist_player_coord();
         }
-        return new GDictionary
-        {
-            ["ok"] =
-                partyError == (int)Error.Ok
-                && worldError == (int)Error.Ok
-                && playerError == (int)Error.Ok,
-            ["party_error"] = partyError,
-            ["world_error"] = worldError,
-            ["player_error"] = playerError,
-        };
+        return new SettlementPersistResult(partyError, worldError, playerError);
     }
 
     public bool _has_runtime()
     {
-        return _runtime != null;
+        return Runtime != null;
     }
 
     public GDictionary _command_ok(string message = "")
@@ -2707,12 +2998,12 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
 
     public bool _is_forge_modal_submission(GDictionary payload)
     {
-        return GdInterop.GetString(payload, "submission_source") == "forge";
+        return ReadString(payload, "submission_source") == "forge";
     }
 
     public bool _is_contract_board_modal_submission(GDictionary payload)
     {
-        return GdInterop.GetString(payload, "submission_source").Trim() == "contract_board";
+        return ReadString(payload, "submission_source").Trim() == "contract_board";
     }
 
     public GDictionary _submit_contract_board_quest_action(
@@ -2725,8 +3016,8 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         {
             return _command_error("运行时尚未初始化。");
         }
-        StringName questId = GdInterop.GetStringName(payload, "quest_id");
-        if (GdInterop.IsEmpty(questId))
+        StringName questId = ReadStringName(payload, "quest_id");
+        if (questId == "")
         {
             string missingIdMessage = "当前契约条目缺少 quest_id，无法接取。";
             _set_settlement_feedback_text(missingIdMessage);
@@ -2743,9 +3034,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             _update_status(missingQuestMessage);
             return _command_error(missingQuestMessage);
         }
-        string providerInteractionId = GdInterop
-            .GetString(payload, "provider_interaction_id")
-            .Trim();
+        string providerInteractionId = ReadString(payload, "provider_interaction_id").Trim();
         if (string.IsNullOrEmpty(providerInteractionId))
         {
             string missingProviderMessage =
@@ -2755,9 +3044,10 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             _update_status(missingProviderMessage);
             return _command_error(missingProviderMessage);
         }
-        string questProviderInteractionId = GdInterop
-            .GetString(questData, "provider_interaction_id")
-            .Trim();
+        string questProviderInteractionId = ReadString(
+            questData,
+            "provider_interaction_id"
+        ).Trim();
         if (questProviderInteractionId != providerInteractionId)
         {
             string providerMismatchMessage =
@@ -2780,7 +3070,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
                 questData
             );
             if (
-                !GdInterop.IsEmpty(submitItemObjectiveId)
+                submitItemObjectiveId != ""
                 || _quest_has_submit_item_objective(questData)
             )
             {
@@ -2788,21 +3078,25 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             }
             else
             {
-                bool allowReaccept = GdInterop.GetBool(questData, "is_repeatable", false);
+                bool allowReaccept = IsContractBoardQuestRepeatable(questData);
                 commandResult = Runtime.command_accept_quest(questId, allowReaccept);
             }
         }
         else
         {
-            bool allowReaccept = GdInterop.GetBool(questData, "is_repeatable", false);
+            bool allowReaccept = IsContractBoardQuestRepeatable(questData);
             commandResult = Runtime.command_accept_quest(questId, allowReaccept);
         }
-        string message = GdInterop.GetString(commandResult, "message", "任务处理失败。");
+        RuntimeCommandResultSnapshot commandSnapshot =
+            RuntimeCommandResultSnapshot.FromDictionary(commandResult);
+        string message = string.IsNullOrEmpty(commandSnapshot.Message)
+            ? "任务处理失败。"
+            : commandSnapshot.Message;
         _set_active_settlement_id(settlement_id);
         _set_active_modal_id("contract_board");
         _set_settlement_feedback_text(message);
         _refresh_active_contract_board_context(message);
-        if (GdInterop.GetBool(commandResult, "ok", false))
+        if (commandSnapshot.Ok)
         {
             return _command_ok(message);
         }
@@ -2813,7 +3107,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
     {
         GDictionary questDefs = _get_quest_defs();
         object questValue = null;
-        if (!GdInterop.IsEmpty(quest_id))
+        if (quest_id != "")
         {
             foreach (object valueKey in questDefs.Keys)
             {
@@ -2858,8 +3152,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             }
         )
         {
-            GdInterop.TryGet(questData, fieldName, out var _fieldV);
-            if (!TryAsString(_fieldV, out string fieldValue))
+            if (!questData.ContainsKey(fieldName) || !TryAsString(questData[fieldName], out string fieldValue))
             {
                 return new GDictionary();
             }
@@ -2882,21 +3175,35 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         }
         questData["objective_defs"] = objectiveDefs;
         questData["reward_entries"] = rewardEntries;
+        if (!TryReadContractBoardRepeatable(questData, out bool isRepeatable))
+        {
+            return new GDictionary();
+        }
+        questData["is_repeatable"] = isRepeatable;
         return questData;
+    }
+
+    private static bool IsContractBoardQuestRepeatable(GDictionary questData)
+    {
+        return TryReadContractBoardRepeatable(questData, out bool isRepeatable)
+            && isRepeatable;
+    }
+
+    private static bool TryReadContractBoardRepeatable(
+        GDictionary questData,
+        out bool isRepeatable
+    )
+    {
+        isRepeatable = false;
+        return questData != null
+            && questData.ContainsKey("is_repeatable")
+            && TryAsBool(questData["is_repeatable"], out isRepeatable);
     }
 
     public GDictArray _normalize_contract_board_objective_defs(GDictionary quest_data)
     {
         var normalizedObjectives = new GDictArray();
-        if (
-            !TryAsArray(
-                GdInterop.GetArray(quest_data, "objective_defs"),
-                out GArray objectiveDefs
-            )
-        )
-        {
-            return normalizedObjectives;
-        }
+        GArray objectiveDefs = ReadArray(quest_data, "objective_defs");
         if (objectiveDefs.Count == 0)
         {
             return normalizedObjectives;
@@ -2913,7 +3220,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
                 objectiveData,
                 "objective_id"
             );
-            if (GdInterop.IsEmpty(objectiveId) || seenObjectiveIds.ContainsKey(objectiveId))
+            if (objectiveId == "" || seenObjectiveIds.ContainsKey(objectiveId))
             {
                 return new GDictArray();
             }
@@ -2922,7 +3229,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
                 objectiveData,
                 "objective_type"
             );
-            if (GdInterop.IsEmpty(objectiveType))
+            if (objectiveType == "")
             {
                 return new GDictArray();
             }
@@ -2931,16 +3238,15 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
                 return new GDictArray();
             }
             if (
-                !TryAsStringLike(
-                    GdInterop.TryGet(objectiveData, "target_id", out var _targetIdV) ? _targetIdV : default,
-                    out StringName targetId
-                )
+                !TryAsStringLike(objectiveData["target_id"], out StringName targetId)
             )
             {
                 return new GDictArray();
             }
-            GdInterop.TryGet(objectiveData, "target_value", out var _targetValV);
-            if (!TryAsInt(_targetValV, out int targetValue))
+            if (
+                !objectiveData.ContainsKey("target_value")
+                || !TryAsInt(objectiveData["target_value"], out int targetValue)
+            )
             {
                 return new GDictArray();
             }
@@ -2950,14 +3256,14 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             }
             if (objectiveType == QuestDef.OBJECTIVE_SETTLEMENT_ACTION())
             {
-                if (GdInterop.IsEmpty(targetId))
+                if (targetId == "")
                 {
                     return new GDictArray();
                 }
             }
             else if (objectiveType == QuestDef.OBJECTIVE_SUBMIT_ITEM())
             {
-                if (GdInterop.IsEmpty(targetId))
+                if (targetId == "")
                 {
                     return new GDictArray();
                 }
@@ -2982,15 +3288,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
     public GDictArray _normalize_contract_board_reward_entries(GDictionary quest_data)
     {
         var normalizedRewards = new GDictArray();
-        if (
-            !TryAsArray(
-                GdInterop.GetArray(quest_data, "reward_entries"),
-                out GArray rewardEntries
-            )
-        )
-        {
-            return normalizedRewards;
-        }
+        GArray rewardEntries = ReadArray(quest_data, "reward_entries");
         if (rewardEntries.Count == 0)
         {
             return normalizedRewards;
@@ -3006,14 +3304,16 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
                 rewardData,
                 "reward_type"
             );
-            if (GdInterop.IsEmpty(rewardType))
+            if (rewardType == "")
             {
                 return new GDictArray();
             }
             if (rewardType == QuestDef.REWARD_GOLD())
             {
-                GdInterop.TryGet(rewardData, "amount", out var _amountV);
-                if (!TryAsInt(_amountV, out int goldAmount))
+                if (
+                    !rewardData.ContainsKey("amount")
+                    || !TryAsInt(rewardData["amount"], out int goldAmount)
+                )
                 {
                     return new GDictArray();
                 }
@@ -3029,12 +3329,14 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
                     rewardData,
                     "item_id"
                 );
-                if (GdInterop.IsEmpty(rewardItemId))
+                if (rewardItemId == "")
                 {
                     return new GDictArray();
                 }
-                GdInterop.TryGet(rewardData, "quantity", out var _quantityV);
-                if (!TryAsInt(_quantityV, out int rewardQuantity))
+                if (
+                    !rewardData.ContainsKey("quantity")
+                    || !TryAsInt(rewardData["quantity"], out int rewardQuantity)
+                )
                 {
                     return new GDictArray();
                 }
@@ -3064,16 +3366,11 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
 
     public bool _is_contract_board_pending_character_reward_valid(GDictionary reward_data)
     {
-        if (GdInterop.IsEmpty(_read_contract_board_required_string_name(reward_data, "member_id")))
+        if (_read_contract_board_required_string_name(reward_data, "member_id") == "")
         {
             return false;
         }
-        if (
-            !TryAsArray(GdInterop.GetArray(reward_data, "entries"), out GArray entries)
-        )
-        {
-            return false;
-        }
+        GArray entries = ReadArray(reward_data, "entries");
         if (entries.Count == 0)
         {
             return false;
@@ -3085,21 +3382,20 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
                 return false;
             }
             if (
-                GdInterop.IsEmpty(
-                    _read_contract_board_required_string_name(entryData, "entry_type")
-                )
+                _read_contract_board_required_string_name(entryData, "entry_type") == ""
             )
             {
                 return false;
             }
             if (
-                GdInterop.IsEmpty(_read_contract_board_required_string_name(entryData, "target_id"))
+                _read_contract_board_required_string_name(entryData, "target_id") == ""
             )
             {
                 return false;
             }
             if (
-                !(GdInterop.TryGet(entryData, "amount", out var _entryAmtV) && TryAsInt(_entryAmtV, out int amount))
+                !entryData.ContainsKey("amount")
+                || !TryAsInt(entryData["amount"], out int amount)
                 || amount == 0
             )
             {
@@ -3148,13 +3444,13 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
 
     public string _resolve_forge_service_label(GDictionary payload)
     {
-        string serviceType = GdInterop.GetString(payload, "service_type").Trim();
+        string serviceType = ReadString(payload, "service_type").Trim();
         if (!string.IsNullOrEmpty(serviceType))
         {
             return serviceType;
         }
         return
-            GdInterop.GetString(payload, "interaction_script_id").Trim() == "service_master_reforge"
+            ReadString(payload, "interaction_script_id").Trim() == "service_master_reforge"
             ? "大师重铸"
             : "锻造";
     }
@@ -3234,8 +3530,8 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         {
             return false;
         }
-        Vector2I origin = GdInterop.GetVector2I(settlement, "origin");
-        Vector2I footprintSize = GdInterop.GetVector2I(settlement, "footprint_size", Vector2I.One);
+        Vector2I origin = ReadVector2I(settlement, "origin");
+        Vector2I footprintSize = ReadVector2I(settlement, "footprint_size", Vector2I.One);
         int width = Math.Max(footprintSize.X, 1);
         int height = Math.Max(footprintSize.Y, 1);
         string factionId = _get_player_faction_id();
@@ -3421,25 +3717,51 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
 
     private static bool TryAsArray(object rawValue, out GArray value)
     {
-        if (GdInterop.TryUnboxToArray(rawValue, out value))
+        if (rawValue is GArray array)
+        {
+            value = array;
             return true;
+        }
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Array)
+        {
+            value = variant.AsGodotArray();
+            return true;
+        }
         value = new GArray();
         return false;
     }
 
     private static bool TryAsDictionary(object rawValue, out GDictionary value)
     {
-        if (GdInterop.TryUnboxToDictionary(rawValue, out value))
+        if (rawValue is GDictionary dictionary)
+        {
+            value = dictionary;
             return true;
+        }
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Dictionary)
+        {
+            value = variant.AsGodotDictionary();
+            return true;
+        }
         value = new GDictionary();
         return false;
     }
 
     private static bool TryAsObject<T>(object rawValue, out T value)
-        where T : GodotObject
+        where T : class
     {
-        value = GdInterop.UnboxToObject<T>(rawValue);
-        return value != null;
+        if (rawValue is T typedValue)
+        {
+            value = typedValue;
+            return true;
+        }
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Object)
+        {
+            value = variant.AsGodotObject() as T;
+            return value != null;
+        }
+        value = null;
+        return false;
     }
 
     private static bool TryAsString(object rawValue, out string value)
@@ -3460,6 +3782,69 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         return false;
     }
 
+    private static string ReadString(GDictionary data, string key, string fallback = "")
+    {
+        if (data == null || string.IsNullOrEmpty(key) || !data.ContainsKey(key))
+            return fallback;
+        return TryAsString(data[key], out string value) ? value : fallback;
+    }
+
+    private static Variant ReadVariant(GDictionary data, string key)
+    {
+        if (data == null || string.IsNullOrEmpty(key) || !data.ContainsKey(key))
+            return default;
+        return data[key];
+    }
+
+    private static bool ReadBool(GDictionary data, string key, bool fallback = false)
+    {
+        if (data == null || string.IsNullOrEmpty(key) || !data.ContainsKey(key))
+            return fallback;
+        object rawValue = data[key];
+        if (rawValue is bool boolValue)
+            return boolValue;
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Bool)
+            return variant.AsBool();
+        return fallback;
+    }
+
+    private static int ReadInt(GDictionary data, string key, int fallback = 0)
+    {
+        if (data == null || string.IsNullOrEmpty(key) || !data.ContainsKey(key))
+            return fallback;
+        return TryAsInt(data[key], out int value) ? value : fallback;
+    }
+
+    private static GArray ReadArray(GDictionary data, string key)
+    {
+        if (data == null || string.IsNullOrEmpty(key) || !data.ContainsKey(key))
+            return new GArray();
+        return TryAsArray(data[key], out GArray value) ? value : new GArray();
+    }
+
+    private static GDictionary ReadDictionary(GDictionary data, string key)
+    {
+        if (data == null || string.IsNullOrEmpty(key) || !data.ContainsKey(key))
+            return new GDictionary();
+        return TryAsDictionary(data[key], out GDictionary value) ? value : new GDictionary();
+    }
+
+    private static Vector2I ReadVector2I(
+        GDictionary data,
+        string key,
+        Vector2I fallback = default
+    )
+    {
+        if (data == null || string.IsNullOrEmpty(key) || !data.ContainsKey(key))
+            return fallback;
+        object rawValue = data[key];
+        if (rawValue is Vector2I vector)
+            return vector;
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Vector2I)
+            return variant.AsVector2I();
+        return fallback;
+    }
+
     private static bool TryAsStringName(object rawValue, out StringName value)
     {
         if (rawValue is StringName stringName)
@@ -3476,6 +3861,13 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
             return true;
         value = "";
         return false;
+    }
+
+    private static StringName ReadStringName(GDictionary data, string key)
+    {
+        if (data == null || string.IsNullOrEmpty(key) || !data.ContainsKey(key))
+            return "";
+        return TryAsStringName(data[key], out StringName value) ? value : "";
     }
 
     private static bool TryAsStrictStringNameKey(object rawValue, out StringName value)
@@ -3522,9 +3914,27 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         return false;
     }
 
-    private static GArray ToUntypedDictArray(GDictArray src)
+    private static bool TryAsBool(object rawValue, out bool value)
+    {
+        if (rawValue is bool boolValue)
+        {
+            value = boolValue;
+            return true;
+        }
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Bool)
+        {
+            value = variant.AsBool();
+            return true;
+        }
+        value = false;
+        return false;
+    }
+
+    private static GArray ToUntypedDictArray(IEnumerable<GDictionary> src)
     {
         var result = new GArray();
+        if (src == null)
+            return result;
         foreach (GDictionary d in src)
         {
             result.Add(d);
@@ -3532,11 +3942,11 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         return result;
     }
 
-    private static GodotObject ResolveWeakRef(WeakReference<GodotObject> weakRef)
+    private static GameRuntimeFacade ResolveWeakRef(WeakReference<GameRuntimeFacade> weakRef)
     {
         if (
             weakRef == null
-            || !weakRef.TryGetTarget(out GodotObject target)
+            || !weakRef.TryGetTarget(out GameRuntimeFacade target)
             || !GodotObject.IsInstanceValid(target)
         )
         {

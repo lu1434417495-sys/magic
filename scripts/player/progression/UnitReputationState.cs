@@ -23,6 +23,15 @@ public partial class UnitReputationState : RefCounted
             custom_states[state_id] = value;
     }
 
+    public UnitReputationState duplicate_state()
+    {
+        return new UnitReputationState
+        {
+            morality = morality,
+            custom_states = custom_states?.Duplicate(true) ?? new Godot.Collections.Dictionary(),
+        };
+    }
+
     public Godot.Collections.Dictionary to_dict() =>
         new()
         {

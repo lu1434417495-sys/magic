@@ -30,28 +30,28 @@ public partial class BattleBarrierOutcomeState : RefCounted
         }
 
         outcome.outcome_type = ProgressionDataUtils.to_string_name(
-            GdInterop.GetStringName(
+            ReadStringName(
                 source,
                 "outcome_type",
-                GdInterop.GetStringName(source, "outcome", "")
+                ReadStringName(source, "outcome")
             )
         );
-        outcome.amount = GdInterop.GetInt(source, "amount", 0);
-        outcome.damage_tag = GdInterop.GetStringName(source, "damage_tag", "");
-        outcome.half_on_success = GdInterop.GetBool(source, "half_on_success", false);
-        outcome.success_amount = GdInterop.GetInt(source, "success_amount", 0);
+        outcome.amount = ReadInt(source, "amount", 0);
+        outcome.damage_tag = ReadStringName(source, "damage_tag");
+        outcome.half_on_success = ReadBool(source, "half_on_success", false);
+        outcome.success_amount = ReadInt(source, "success_amount", 0);
         outcome.success_damage_tag = ProgressionDataUtils.to_string_name(
-            GdInterop.GetStringName(source, "success_damage_tag", "")
+            ReadStringName(source, "success_damage_tag")
         );
         outcome.fatal_damage = Mathf.Max(
-            GdInterop.GetInt(source, "fatal_damage", DefaultFatalDamage),
+            ReadInt(source, "fatal_damage", DefaultFatalDamage),
             1
         );
-        outcome.status_id = GdInterop.GetStringName(source, "status_id", "");
-        outcome.save_ability = GdInterop.GetStringName(source, "save_ability", "");
-        outcome.save_tag = GdInterop.GetStringName(source, "save_tag", "");
-        outcome.save_dc = GdInterop.GetInt(source, "save_dc", 0);
-        outcome.@params = (GDictionary)GdInterop.GetDictionary(source, "params").Duplicate(true);
+        outcome.status_id = ReadStringName(source, "status_id");
+        outcome.save_ability = ReadStringName(source, "save_ability");
+        outcome.save_tag = ReadStringName(source, "save_tag");
+        outcome.save_dc = ReadInt(source, "save_dc", 0);
+        outcome.@params = (GDictionary)ReadDictionary(source, "params").Duplicate(true);
         return outcome;
     }
 
@@ -72,6 +72,54 @@ public partial class BattleBarrierOutcomeState : RefCounted
             ["save_dc"] = save_dc,
             ["params"] = @params?.Duplicate(true) ?? new GDictionary(),
         };
+    }
+
+    private static StringName ReadStringName(GDictionary data, string key, StringName fallback = default)
+    {
+        if (data == null || string.IsNullOrEmpty(key) || !data.ContainsKey(key))
+        {
+            return fallback == default ? new StringName("") : fallback;
+        }
+        Variant value = data[key];
+        if (value.VariantType == Variant.Type.StringName)
+        {
+            return value.AsStringName();
+        }
+        if (value.VariantType == Variant.Type.String)
+        {
+            return new StringName(value.AsString());
+        }
+        return fallback == default ? new StringName("") : fallback;
+    }
+
+    private static int ReadInt(GDictionary data, string key, int fallback = 0)
+    {
+        if (data == null || string.IsNullOrEmpty(key) || !data.ContainsKey(key))
+        {
+            return fallback;
+        }
+        Variant value = data[key];
+        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+    }
+
+    private static bool ReadBool(GDictionary data, string key, bool fallback = false)
+    {
+        if (data == null || string.IsNullOrEmpty(key) || !data.ContainsKey(key))
+        {
+            return fallback;
+        }
+        Variant value = data[key];
+        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
+    }
+
+    private static GDictionary ReadDictionary(GDictionary data, string key)
+    {
+        if (data == null || string.IsNullOrEmpty(key) || !data.ContainsKey(key))
+        {
+            return new GDictionary();
+        }
+        Variant value = data[key];
+        return value.VariantType == Variant.Type.Dictionary ? value.AsGodotDictionary() : new GDictionary();
     }
 
 }

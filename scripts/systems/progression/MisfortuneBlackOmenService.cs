@@ -216,9 +216,7 @@ public partial class MisfortuneBlackOmenService : RefCounted
     }
 
     private static bool _is_payload_bool_true(Godot.Collections.Dictionary payload, string fn) =>
-        payload.ContainsKey(fn)
-        && payload[fn].VariantType == Variant.Type.Bool
-        && payload[fn].AsBool();
+        _read_bool(payload, fn, false);
 
     private bool _has_cursed_relic(
         PartyMemberState memberState,
@@ -226,14 +224,13 @@ public partial class MisfortuneBlackOmenService : RefCounted
     )
     {
         if (payload.ContainsKey("has_cursed_relic"))
-            return payload["has_cursed_relic"].VariantType == Variant.Type.Bool
-                && payload["has_cursed_relic"].AsBool();
+            return _read_bool(payload, "has_cursed_relic", false);
         if (memberState?.equipment_state == null || _item_defs.Count == 0)
             return false;
         foreach (var esId in memberState.equipment_state.get_entry_slot_ids())
         {
             var entry = memberState.equipment_state.get_entry(esId);
-            var itemId = ProgressionDataUtils.to_string_name(entry?.Get("item_id") ?? "");
+            var itemId = entry?.item_id ?? new StringName("");
             if (entry == null || itemId == "")
                 continue;
             var itemDef = _get_item_def(itemId);
@@ -258,8 +255,7 @@ public partial class MisfortuneBlackOmenService : RefCounted
     private static bool _has_boss_curse(Godot.Collections.Dictionary payload)
     {
         if (payload.ContainsKey("has_boss_curse"))
-            return payload["has_boss_curse"].VariantType == Variant.Type.Bool
-                && payload["has_boss_curse"].AsBool();
+            return _read_bool(payload, "has_boss_curse", false);
         var curseIds = ProgressionDataUtils.to_string_name_array(
             payload.ContainsKey("boss_curse_status_ids")
                 ? payload["boss_curse_status_ids"]
@@ -317,5 +313,17 @@ public partial class MisfortuneBlackOmenService : RefCounted
             { "doom_marked", doomMarked },
             { "error_code", errorCode },
         };
+    }
+
+    private static bool _read_bool(
+        Godot.Collections.Dictionary payload,
+        string key,
+        bool fallback
+    )
+    {
+        if (payload == null || !payload.ContainsKey(key))
+            return fallback;
+        Variant value = payload[key];
+        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
     }
 }

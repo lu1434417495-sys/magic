@@ -91,16 +91,8 @@ public partial class FortunaGuidanceService : RefCounted
         if (memberIds.Count == 0)
             return unlockedIds;
         bool hadPermDeath =
-            (
-                payload.ContainsKey("had_permanent_death")
-                && payload["had_permanent_death"].VariantType == Variant.Type.Bool
-                && payload["had_permanent_death"].AsBool()
-            )
-            || (
-                payload.ContainsKey("has_permanent_death")
-                && payload["has_permanent_death"].VariantType == Variant.Type.Bool
-                && payload["has_permanent_death"].AsBool()
-            );
+            _payload_bool(payload, "had_permanent_death", false)
+            || _payload_bool(payload, "has_permanent_death", false);
         foreach (var mid in memberIds)
         {
             var flagId = _build_chapter_event_flag_id(mid);
@@ -128,8 +120,7 @@ public partial class FortunaGuidanceService : RefCounted
     private void _handle_critical_success_under_disadvantage(Godot.Collections.Dictionary payload)
     {
         if (
-            !payload.ContainsKey("defender_is_elite_or_boss")
-            || !payload["defender_is_elite_or_boss"].AsBool()
+            !_payload_bool(payload, "defender_is_elite_or_boss", false)
         )
             return;
         var mid = _resolve_attacker_member_id(payload);
@@ -143,8 +134,7 @@ public partial class FortunaGuidanceService : RefCounted
     private void _handle_high_threat_critical_hit(Godot.Collections.Dictionary payload)
     {
         if (
-            !payload.ContainsKey("defender_is_elite_or_boss")
-            || !payload["defender_is_elite_or_boss"].AsBool()
+            !_payload_bool(payload, "defender_is_elite_or_boss", false)
         )
             return;
         var mid = _resolve_attacker_member_id(payload);
@@ -168,8 +158,7 @@ public partial class FortunaGuidanceService : RefCounted
         if (!_is_fortuna_devotee(_get_member_state(mid)))
             return;
         if (
-            !payload.ContainsKey("attacker_low_hp_hardship")
-            || !payload["attacker_low_hp_hardship"].AsBool()
+            !_payload_bool(payload, "attacker_low_hp_hardship", false)
         )
             return;
         var sdIds = ProgressionDataUtils.to_string_name_array(
@@ -192,7 +181,7 @@ public partial class FortunaGuidanceService : RefCounted
 
     private static Godot.Collections.Array<StringName> _resolve_chapter_member_ids(
         Godot.Collections.Dictionary payload,
-        GodotObject partyState
+        PartyState partyState
     )
     {
         var emIds = ProgressionDataUtils.to_string_name_array(
@@ -203,7 +192,7 @@ public partial class FortunaGuidanceService : RefCounted
         if (emIds.Count > 0)
             return emIds;
         var r = new Godot.Collections.Array<StringName>();
-        var mss = partyState.Get("member_states").AsGodotDictionary();
+        var mss = partyState.member_states;
         foreach (var mk in ProgressionDataUtils.sorted_string_keys(mss))
             r.Add(new StringName(mk));
         return r;
@@ -229,7 +218,7 @@ public partial class FortunaGuidanceService : RefCounted
 
     private static bool _is_fortuna_marked(PartyMemberState ms)
     {
-        if (ms?.progression?.Get("unit_base_attributes").AsGodotObject() == null)
+        if (ms?.progression?.unit_base_attributes == null)
             return false;
         return ms.progression?.unit_base_attributes?.get_attribute_value(FORTUNE_MARKED_STAT_ID) > 0;
     }
@@ -271,5 +260,17 @@ public partial class FortunaGuidanceService : RefCounted
     {
         if (value != "" && !values.Contains(value))
             values.Add(value);
+    }
+
+    private static bool _payload_bool(
+        Godot.Collections.Dictionary payload,
+        string key,
+        bool fallback
+    )
+    {
+        if (payload == null || !payload.ContainsKey(key))
+            return fallback;
+        Variant value = payload[key];
+        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
     }
 }

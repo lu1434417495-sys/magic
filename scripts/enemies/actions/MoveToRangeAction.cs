@@ -104,43 +104,25 @@ public partial class MoveToRangeAction : EnemyAiAction
         )
         {
             source ??= new GDictionary();
-            int configuredMin = GdInterop.GetInt(
+            int configuredMin = ReadInt(
                 source,
                 "configured_desired_min_distance",
                 fallbackMin
             );
-            int configuredMax = GdInterop.GetInt(
+            int configuredMax = ReadInt(
                 source,
                 "configured_desired_max_distance",
                 fallbackMax
             );
-            int desiredMin = GdInterop.GetInt(source, "desired_min_distance", configuredMin);
-            int desiredMax = GdInterop.GetInt(source, "desired_max_distance", configuredMax);
+            int desiredMin = ReadInt(source, "desired_min_distance", configuredMin);
+            int desiredMax = ReadInt(source, "desired_max_distance", configuredMax);
             return new MoveDistanceContract
             {
                 ConfiguredMinDistance = configuredMin,
                 ConfiguredMaxDistance = configuredMax,
                 DesiredMinDistance = desiredMin,
                 DesiredMaxDistance = desiredMax,
-                EffectiveAttackRange = GdInterop.GetInt(source, "effective_attack_range", -1),
-            };
-        }
-    }
-
-    private sealed class MovePathResult
-    {
-        public bool Allowed;
-        public int Cost;
-        public Godot.Collections.Array<Vector2I> Path = new();
-
-        public static MovePathResult FromDictionary(GDictionary source)
-        {
-            source ??= new GDictionary();
-            return new MovePathResult
-            {
-                Allowed = GdInterop.GetBool(source, "allowed", false),
-                Cost = GdInterop.GetInt(source, "cost", 0),
-                Path = ReadVector2IArray(source, "path"),
+                EffectiveAttackRange = ReadInt(source, "effective_attack_range", -1),
             };
         }
     }
@@ -178,41 +160,31 @@ public partial class MoveToRangeAction : EnemyAiAction
         public bool IncludeOrigin;
         public bool PreferProgress;
 
-        public GDictionary ToDictionary()
+        public MoveToRangePathSearchBudget ToCandidateBudget()
         {
-            return new GDictionary
+            return new MoveToRangePathSearchBudget
             {
-                ["max_cost"] = MaxCost,
-                ["max_nodes"] = MaxNodes,
-                ["max_destinations"] = MaxDestinations,
-                ["path_tree_min_destination_count"] = PathTreeMinDestinationCount,
-                ["include_origin"] = IncludeOrigin,
-                ["prefer_progress"] = PreferProgress,
+                MaxCost = MaxCost,
+                MaxNodes = MaxNodes,
+                MaxDestinations = MaxDestinations,
+                PathTreeMinDestinationCount = PathTreeMinDestinationCount,
+                IncludeOrigin = IncludeOrigin,
+                PreferProgress = PreferProgress,
             };
         }
 
-        public static MovePathSearchBudget FromDictionary(
-            GDictionary source,
-            int fallbackMaxDestinations
+        public static MovePathSearchBudget FromSnapshot(
+            BattleMovementQueryService.PathSearchBudgetSnapshot source
         )
         {
-            source ??= new GDictionary();
             return new MovePathSearchBudget
             {
-                MaxCost = GdInterop.GetInt(source, "max_cost", 0),
-                MaxNodes = GdInterop.GetInt(source, "max_nodes", 0),
-                MaxDestinations = GdInterop.GetInt(
-                    source,
-                    "max_destinations",
-                    fallbackMaxDestinations
-                ),
-                PathTreeMinDestinationCount = GdInterop.GetInt(
-                    source,
-                    "path_tree_min_destination_count",
-                    0
-                ),
-                IncludeOrigin = GdInterop.GetBool(source, "include_origin", false),
-                PreferProgress = GdInterop.GetBool(source, "prefer_progress", true),
+                MaxCost = source.MaxCost,
+                MaxNodes = source.MaxNodes,
+                MaxDestinations = source.MaxDestinations,
+                PathTreeMinDestinationCount = source.PathTreeMinDestinationCount,
+                IncludeOrigin = source.IncludeOrigin,
+                PreferProgress = source.PreferProgress,
             };
         }
     }
@@ -242,12 +214,12 @@ public partial class MoveToRangeAction : EnemyAiAction
             source ??= new GDictionary();
             return new MoveSkillRecord
             {
-                TargetMode = GdInterop.GetStringName(source, "target_mode"),
-                TargetSelectionMode = GdInterop.GetStringName(source, "target_selection_mode"),
-                AreaPattern = GdInterop.GetStringName(source, "area_pattern"),
-                AreaValue = GdInterop.GetInt(source, "area_value", 0),
-                ActorEffectiveRange = GdInterop.GetInt(source, "actor_effective_range", -1),
-                ActorEffectiveCastRange = GdInterop.GetInt(
+                TargetMode = ReadStringName(source, "target_mode"),
+                TargetSelectionMode = ReadStringName(source, "target_selection_mode"),
+                AreaPattern = ReadStringName(source, "area_pattern"),
+                AreaValue = ReadInt(source, "area_value", 0),
+                ActorEffectiveRange = ReadInt(source, "actor_effective_range", -1),
+                ActorEffectiveCastRange = ReadInt(
                     source,
                     "actor_effective_cast_range",
                     -1
@@ -442,8 +414,8 @@ public partial class MoveToRangeAction : EnemyAiAction
 
         var result = new ScreeningContext
         {
-            Enabled = GdInterop.GetBool(source, "enabled", false),
-            Reason = GdInterop.GetString(source, "reason", ""),
+            Enabled = ReadBool(source, "enabled", false),
+            Reason = ReadString(source, "reason", ""),
         };
         foreach (ScreeningThreatEntry threatEntry in ReadScreeningThreatEntries(source))
         {
@@ -460,12 +432,12 @@ public partial class MoveToRangeAction : EnemyAiAction
     {
         return new ScreeningThreatEntry
         {
-            ThreatUnit = GdInterop.GetObject(source, "threat_unit") as BattleUnitState,
-            ProtectedUnit = GdInterop.GetObject(source, "protected_unit") as BattleUnitState,
-            ContactRange = GdInterop.GetInt(source, "contact_range", 1),
-            ThreatDistance = GdInterop.GetInt(source, "threat_distance", 999999),
-            ThreatReach = GdInterop.GetInt(source, "threat_reach", 0),
-            BasePathCost = GdInterop.GetInt(
+            ThreatUnit = ReadObject<BattleUnitState>(source, "threat_unit"),
+            ProtectedUnit = ReadObject<BattleUnitState>(source, "protected_unit"),
+            ContactRange = ReadInt(source, "contact_range", 1),
+            ThreatDistance = ReadInt(source, "threat_distance", 999999),
+            ThreatReach = ReadInt(source, "threat_reach", 0),
+            BasePathCost = ReadInt(
                 source,
                 "base_path_cost",
                 ScreeningPathUnreachableCost
@@ -509,7 +481,7 @@ public partial class MoveToRangeAction : EnemyAiAction
             maxCandidateCount = Mathf.Min(maxCandidateCount, pathBudget.MaxDestinations);
         }
 
-        return new BattleAiCandidateRequest
+        var request = new BattleAiCandidateRequest
         {
             FamilyId = "move_to_range",
             ActionId = action_id,
@@ -521,31 +493,31 @@ public partial class MoveToRangeAction : EnemyAiAction
             DesiredMinDistance = resolvedMinDistance,
             DesiredMaxDistance = resolvedMaxDistance,
             MaxCandidateCount = Mathf.Max(maxCandidateCount, 1),
-            PathSearchBudget = pathBudget.ToDictionary(),
-            TacticalParams = new GDictionary
+        };
+        request.SetMoveToRangeSections(
+            pathBudget.ToCandidateBudget(),
+            new MoveToRangeTacticalParams
             {
-                ["target_selector"] = target_selector,
-                ["range_skill_ids"] = range_skill_ids.Duplicate(),
-                ["position_objective_kind"] = new StringName("distance_band_progress"),
-                ["aoe_setup_enabled"] = aoeSetupEnabled,
-                ["aoe_setup_min_target_count"] = Mathf.Max(aoe_setup_min_target_count, 1),
-                ["aoe_setup_target_count_weight"] = Mathf.Max(
-                    aoe_setup_target_count_weight,
-                    0
-                ),
-                ["aoe_setup_improvement_weight"] = Mathf.Max(aoe_setup_improvement_weight, 0),
-                ["aoe_setup_friendly_fire_penalty"] = Mathf.Max(
+                TargetSelector = target_selector,
+                RangeSkillIds = new List<StringName>(range_skill_ids),
+                PositionObjectiveKind = "distance_band_progress",
+                AoeSetupEnabled = aoeSetupEnabled,
+                AoeSetupMinTargetCount = Mathf.Max(aoe_setup_min_target_count, 1),
+                AoeSetupTargetCountWeight = Mathf.Max(aoe_setup_target_count_weight, 0),
+                AoeSetupImprovementWeight = Mathf.Max(aoe_setup_improvement_weight, 0),
+                AoeSetupFriendlyFirePenalty = Mathf.Max(
                     aoe_setup_friendly_fire_penalty,
                     0
                 ),
             },
-            RuntimeMetadata = new GDictionary
+            new MoveToRangeRuntimeMetadata
             {
-                ["configured_desired_min_distance"] = desired_min_distance,
-                ["configured_desired_max_distance"] = desired_max_distance,
-                ["effective_attack_range"] = effectiveAttackRange,
-            },
-        };
+                ConfiguredDesiredMinDistance = desired_min_distance,
+                ConfiguredDesiredMaxDistance = desired_max_distance,
+                EffectiveAttackRange = effectiveAttackRange,
+            }
+        );
+        return request;
     }
 
     public override Godot.Collections.Array<string> validate_schema()
@@ -838,7 +810,10 @@ public partial class MoveToRangeAction : EnemyAiAction
         while (frontier.Count > 0)
         {
             (Vector2I currentCoord, int currentCost) = frontier.Dequeue();
-            if (currentCost != bestCosts.GetValueOrDefault(currentCoord, int.MaxValue))
+            if (
+                !bestCosts.TryGetValue(currentCoord, out int bestCurrentCost)
+                || currentCost != bestCurrentCost
+            )
             {
                 continue;
             }
@@ -853,7 +828,10 @@ public partial class MoveToRangeAction : EnemyAiAction
                 {
                     continue;
                 }
-                if (nextCost >= bestCosts.GetValueOrDefault(neighbor, int.MaxValue))
+                if (
+                    bestCosts.TryGetValue(neighbor, out int bestNeighborCost)
+                    && nextCost >= bestNeighborCost
+                )
                 {
                     continue;
                 }
@@ -1112,7 +1090,7 @@ public partial class MoveToRangeAction : EnemyAiAction
             {
                 continue;
             }
-            SkillDef skillDef = GdInterop.GetObject<SkillDef>(skillDefs, skillId);
+            SkillDef skillDef = ReadObject<SkillDef>(skillDefs, skillId);
             if (skillDef?.combat_profile is not CombatSkillDef combatProfile)
             {
                 continue;
@@ -1458,7 +1436,7 @@ public partial class MoveToRangeAction : EnemyAiAction
             int pathBudget = BuildPathSearchBudget(context);
             foreach (Vector2I destination in destinations)
             {
-                GDictionary pathResult = grid.resolve_unit_move_path(
+                BattleMovePathResult resolvedPath = grid.resolve_unit_move_path_typed(
                     state,
                     threatUnit,
                     threatUnit.coord,
@@ -1466,7 +1444,6 @@ public partial class MoveToRangeAction : EnemyAiAction
                     pathBudget,
                     BuildMoveCostProvider(context)
                 );
-                MovePathResult resolvedPath = MovePathResult.FromDictionary(pathResult);
                 if (!resolvedPath.Allowed)
                 {
                     continue;
@@ -1714,7 +1691,7 @@ public partial class MoveToRangeAction : EnemyAiAction
             }
 
             AiTraceRecorder.enter("grid_service.resolve_unit_move_path");
-            GDictionary pathResult = grid.resolve_unit_move_path(
+            BattleMovePathResult resolvedPath = grid.resolve_unit_move_path_typed(
                 state,
                 actor,
                 actor.coord,
@@ -1723,7 +1700,6 @@ public partial class MoveToRangeAction : EnemyAiAction
                 BuildMoveCostProvider(context)
             );
             AiTraceRecorder.exit("grid_service.resolve_unit_move_path");
-            MovePathResult resolvedPath = MovePathResult.FromDictionary(pathResult);
             if (!resolvedPath.Allowed)
             {
                 continue;
@@ -2274,12 +2250,144 @@ public partial class MoveToRangeAction : EnemyAiAction
         return result;
     }
 
+    private static int ReadInt(GDictionary source, object key, int fallback = 0)
+    {
+        if (!TryReadValue(source, key, out Variant value))
+        {
+            return fallback;
+        }
+        return value.VariantType switch
+        {
+            Variant.Type.Int => value.AsInt32(),
+            Variant.Type.Float => (int)value.AsDouble(),
+            Variant.Type.Bool => value.AsBool() ? 1 : 0,
+            Variant.Type.String => int.TryParse(value.AsString(), out int parsed)
+                ? parsed
+                : fallback,
+            Variant.Type.StringName
+                => int.TryParse(value.AsStringName().ToString(), out int parsed)
+                    ? parsed
+                    : fallback,
+            _ => fallback,
+        };
+    }
+
+    private static bool ReadBool(GDictionary source, object key, bool fallback = false)
+    {
+        if (!TryReadValue(source, key, out Variant value))
+        {
+            return fallback;
+        }
+        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
+    }
+
+    private static string ReadString(GDictionary source, object key, string fallback = "")
+    {
+        if (!TryReadValue(source, key, out Variant value))
+        {
+            return fallback;
+        }
+        return value.VariantType switch
+        {
+            Variant.Type.String => value.AsString(),
+            Variant.Type.StringName => value.AsStringName().ToString(),
+            Variant.Type.Int => value.AsInt32().ToString(),
+            Variant.Type.Float
+                => value.AsDouble().ToString(System.Globalization.CultureInfo.InvariantCulture),
+            Variant.Type.Bool => value.AsBool() ? "True" : "False",
+            _ => fallback,
+        };
+    }
+
+    private static StringName ReadStringName(
+        GDictionary source,
+        object key,
+        StringName fallback = default
+    )
+    {
+        return TryReadValue(source, key, out Variant value)
+            ? ProgressionDataUtils.to_string_name(value)
+            : fallback;
+    }
+
+    private static T ReadObject<T>(GDictionary source, object key)
+        where T : GodotObject
+    {
+        return TryReadValue(source, key, out Variant value)
+            && value.VariantType == Variant.Type.Object
+            ? value.AsGodotObject() as T
+            : null;
+    }
+
+    private static GArray ReadArray(GDictionary source, object key)
+    {
+        return TryReadValue(source, key, out Variant value)
+            && value.VariantType == Variant.Type.Array
+            ? value.AsGodotArray()
+            : new GArray();
+    }
+
+    private static bool TryReadValue(GDictionary source, object key, out Variant value)
+    {
+        if (source == null)
+        {
+            value = default;
+            return false;
+        }
+        Variant variantKey = ToVariantKey(key);
+        if (source.ContainsKey(variantKey))
+        {
+            value = source[variantKey];
+            return true;
+        }
+        if (key is StringName stringNameKey)
+        {
+            string keyText = stringNameKey.ToString();
+            if (source.ContainsKey(keyText))
+            {
+                value = source[keyText];
+                return true;
+            }
+        }
+        else if (key is string stringKey)
+        {
+            var stringName = new StringName(stringKey);
+            if (source.ContainsKey(stringName))
+            {
+                value = source[stringName];
+                return true;
+            }
+        }
+        value = default;
+        return false;
+    }
+
+    private static Variant ToVariantKey(object key)
+    {
+        return key switch
+        {
+            Variant variant => variant,
+            StringName stringName => Variant.From(stringName),
+            string text => Variant.From(text),
+            int intValue => Variant.From(intValue),
+            long longValue => Variant.From(longValue),
+            float floatValue => Variant.From(floatValue),
+            double doubleValue => Variant.From(doubleValue),
+            bool boolValue => Variant.From(boolValue),
+            Vector2I coord => Variant.From(coord),
+            _ => Variant.From(key?.ToString() ?? ""),
+        };
+    }
+
     private static List<GDictionary> ReadDictionaryArray(GDictionary source, string key)
     {
         var result = new List<GDictionary>();
-        foreach (GDictionary value in GdInterop.ReadDictionaryItems(GdInterop.GetArray(source, key)))
+        foreach (Variant value in ReadArray(source, key))
         {
-            result.Add(value);
+            if (value.VariantType == Variant.Type.Dictionary)
+            {
+                result.Add(value.AsGodotDictionary());
+            }
         }
         return result;
     }
@@ -2290,9 +2398,12 @@ public partial class MoveToRangeAction : EnemyAiAction
     )
     {
         var result = new Godot.Collections.Array<Vector2I>();
-        foreach (Vector2I coord in GdInterop.GetArray(source, key))
+        foreach (Variant value in ReadArray(source, key))
         {
-            result.Add(coord);
+            if (value.VariantType == Variant.Type.Vector2I)
+            {
+                result.Add(value.AsVector2I());
+            }
         }
         return result;
     }
@@ -2306,18 +2417,19 @@ public partial class MoveToRangeAction : EnemyAiAction
         BattleMovementQueryService movementQuery = query.get_movement_query_service();
         if (movementQuery != null)
         {
-            GDictionary budget = movementQuery.build_path_search_budget(
+            BattleMovementQueryService.MovementQueryOptions options =
+                BattleMovementQueryService.MovementQueryOptions.ForPathSearchBudget(
+                    maxCandidateCount,
+                    includeOrigin: false,
+                    preferProgress: true
+                );
+            if (movementQuery.TryBuildPathSearchBudgetTyped(
                 actorId,
-                new GDictionary
-                {
-                    ["max_candidate_count"] = maxCandidateCount,
-                    ["include_origin"] = false,
-                    ["prefer_progress"] = true,
-                }
-            );
-            if (budget.Count > 0)
+                options,
+                out BattleMovementQueryService.PathSearchBudgetSnapshot budget
+            ))
             {
-                return MovePathSearchBudget.FromDictionary(budget, maxCandidateCount);
+                return MovePathSearchBudget.FromSnapshot(budget);
             }
         }
         return new MovePathSearchBudget

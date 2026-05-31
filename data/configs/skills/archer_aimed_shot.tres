@@ -11,13 +11,13 @@ script = ExtResource("3_dmnkm")
 effect_type = &"damage"
 power = 0
 max_skill_level = 0
+add_weapon_dice = true
+requires_weapon = true
+use_weapon_physical_damage_tag = true
+resolve_as_weapon_attack = true
 params = {
-"add_weapon_dice": true,
 "dice_count": 1,
-"dice_sides": 4,
-"requires_weapon": true,
-"resolve_as_weapon_attack": true,
-"use_weapon_physical_damage_tag": true
+"dice_sides": 4
 }
 
 [sub_resource type="Resource" id="Resource_aim_l1"]
@@ -26,13 +26,13 @@ effect_type = &"damage"
 power = 0
 min_skill_level = 1
 max_skill_level = 2
+add_weapon_dice = true
+requires_weapon = true
+use_weapon_physical_damage_tag = true
+resolve_as_weapon_attack = true
 params = {
-"add_weapon_dice": true,
 "dice_count": 1,
-"dice_sides": 6,
-"requires_weapon": true,
-"resolve_as_weapon_attack": true,
-"use_weapon_physical_damage_tag": true
+"dice_sides": 6
 }
 
 [sub_resource type="Resource" id="Resource_aim_l3"]
@@ -41,13 +41,13 @@ effect_type = &"damage"
 power = 0
 min_skill_level = 3
 max_skill_level = 4
+add_weapon_dice = true
+requires_weapon = true
+use_weapon_physical_damage_tag = true
+resolve_as_weapon_attack = true
 params = {
-"add_weapon_dice": true,
 "dice_count": 1,
-"dice_sides": 8,
-"requires_weapon": true,
-"resolve_as_weapon_attack": true,
-"use_weapon_physical_damage_tag": true
+"dice_sides": 8
 }
 
 [sub_resource type="Resource" id="Resource_aim_l5"]
@@ -56,13 +56,13 @@ effect_type = &"damage"
 power = 0
 min_skill_level = 5
 max_skill_level = -1
+add_weapon_dice = true
+requires_weapon = true
+use_weapon_physical_damage_tag = true
+resolve_as_weapon_attack = true
 params = {
-"add_weapon_dice": true,
 "dice_count": 2,
-"dice_sides": 4,
-"requires_weapon": true,
-"resolve_as_weapon_attack": true,
-"use_weapon_physical_damage_tag": true
+"dice_sides": 4
 }
 
 [sub_resource type="Resource" id="Resource_u1vsk"]

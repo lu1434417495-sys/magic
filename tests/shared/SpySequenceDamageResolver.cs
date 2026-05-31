@@ -1,4 +1,5 @@
 using Godot;
+using System;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
@@ -14,22 +15,37 @@ public partial class SpySequenceDamageResolver : BattleDamageResolver
         GDictionary options = null
     )
     {
+        return preview_damage_sequence_typed(
+            source_unit,
+            target_unit,
+            effect_defs,
+            damage_context,
+            options
+        ).ToDictionary();
+    }
+
+    internal override BattleDamagePreviewResult preview_damage_sequence_typed(
+        BattleUnitState source_unit,
+        BattleUnitState target_unit,
+        Godot.Collections.Array effect_defs,
+        GDictionary damage_context = null,
+        GDictionary options = null
+    )
+    {
         sequence_preview_call_count += 1;
-        return new GDictionary
-        {
-            ["is_empty"] = false,
-            ["applied"] = true,
-            ["hp_damage"] = 7,
-            ["post_save_damage"] = 7,
-            ["incoming_budget_damage"] = 7,
-            ["shield_absorbed"] = 0,
-            ["shield_broken"] = false,
-            ["stable_lethal"] = false,
-            ["lethal_probability_basis_points"] = 0,
-            ["save_estimates"] = new GArray(),
-            ["damage_events"] = new GArray(),
-            ["branches"] = new GArray(),
-            ["diagnostics"] = new GArray(),
-        };
+        return BattleDamagePreviewResult.Create(
+            applied: true,
+            hpDamage: 7,
+            damage: 7,
+            postSaveDamage: 7,
+            incomingBudgetDamage: 7,
+            shieldAbsorbed: 0,
+            shieldBroken: false,
+            stableLethal: false,
+            lethalProbabilityBasisPoints: 0,
+            saveEstimates: Array.Empty<BattleDamagePreviewSaveEstimate>(),
+            damageEvents: new GArray(),
+            diagnostics: new GArray()
+        );
     }
 }

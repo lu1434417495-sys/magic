@@ -22,7 +22,7 @@ public partial class BattleDeathResolutionRules : RefCounted
         {
             return false;
         }
-        var sourceValue = GdInterop.TryGet(context, KEY_DEATH_SOURCE(), out Variant rawValue)
+        var sourceValue = TryGetValue(context, KEY_DEATH_SOURCE(), out Variant rawValue)
             ? rawValue
             : Variant.From("");
         return ToStringNameLikeProgressionDataUtils(sourceValue) == DEATH_SOURCE_POWER_WORD_KILL_EXECUTE();
@@ -55,5 +55,46 @@ public partial class BattleDeathResolutionRules : RefCounted
         }
 
         return new StringName(trimmed);
+    }
+
+    private static bool TryGetValue(GDictionary source, object key, out Variant value)
+    {
+        if (source == null)
+        {
+            value = default;
+            return false;
+        }
+        Variant variantKey = key switch
+        {
+            Variant variant => variant,
+            StringName stringName => Variant.From(stringName),
+            string text => Variant.From(text),
+            _ => Variant.From(key?.ToString() ?? ""),
+        };
+        if (source.ContainsKey(variantKey))
+        {
+            value = source[variantKey];
+            return true;
+        }
+        if (key is string stringKey)
+        {
+            var stringNameKey = new StringName(stringKey);
+            if (source.ContainsKey(stringNameKey))
+            {
+                value = source[stringNameKey];
+                return true;
+            }
+        }
+        else if (key is StringName stringNameKey)
+        {
+            string keyText = stringNameKey.ToString();
+            if (source.ContainsKey(keyText))
+            {
+                value = source[keyText];
+                return true;
+            }
+        }
+        value = default;
+        return false;
     }
 }

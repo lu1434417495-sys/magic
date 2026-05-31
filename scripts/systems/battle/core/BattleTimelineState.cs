@@ -32,6 +32,17 @@ public partial class BattleTimelineState : RefCounted
         ready_unit_ids.Clear();
     }
 
+    public BattleTimelineState duplicate_state()
+    {
+        return new BattleTimelineState
+        {
+            current_tu = current_tu,
+            tu_per_tick = tu_per_tick,
+            frozen = frozen,
+            ready_unit_ids = new Godot.Collections.Array<StringName>(ready_unit_ids),
+        };
+    }
+
     public GDictionary to_dict()
     {
         return new GDictionary
@@ -60,7 +71,7 @@ public partial class BattleTimelineState : RefCounted
         {
             return null;
         }
-        if (!TryGetBool(payload, "frozen", out bool isFrozen))
+        if (!TryReadBoolField(payload, "frozen", out bool isFrozen))
         {
             return null;
         }
@@ -143,7 +154,7 @@ public partial class BattleTimelineState : RefCounted
         return false;
     }
 
-    private static bool TryGetBool(GDictionary data, string key, out bool value)
+    private static bool TryReadBoolField(GDictionary data, string key, out bool value)
     {
         if (TryGetExactValue(data, key, out Variant rawValue) && TryAsBool(rawValue, out value))
         {

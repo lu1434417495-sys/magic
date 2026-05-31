@@ -19,6 +19,7 @@ public partial class BattleMeteorSwarmResolver : RefCounted
     private static readonly StringName STATUS_METEOR_CONCUSSED = "meteor_concussed";
     private static readonly StringName MITIGATION_TIER_NORMAL = "normal";
     private static readonly StringName SAVE_PROFILE_METEOR_DEX_HALF = "meteor_dex_half";
+    private static readonly StringName SUMMARY_HARD_REJECT = "hard_reject";
 
     // 镜像 BattleDamageResolver.cs 的预览常量。
     private static readonly StringName DAMAGE_PREVIEW_ROLL_MODE_AVERAGE = "average";
@@ -64,15 +65,17 @@ public partial class BattleMeteorSwarmResolver : RefCounted
             return;
         }
         CombatCastVariantDef castVariant = _resolve_ground_cast_variant(active_unit, command, skill_def);
-        GDictionary validation = _runtime._validate_ground_skill_command(
+        BattleGroundSkillValidationResult validation = _runtime._validate_ground_skill_command_result(
             active_unit,
             skill_def,
             castVariant,
             command
         );
-        if (!GdInterop.GetBool(validation, "allowed", false))
+        if (!validation.Allowed)
         {
-            preview.log_lines.Add(GdInterop.GetString(validation, "message", "技能或目标无效。"));
+            preview.log_lines.Add(
+                string.IsNullOrEmpty(validation.Message) ? "技能或目标无效。" : validation.Message
+            );
             return;
         }
         GVector2IArray targetCoords = _extract_target_coords(validation);
@@ -161,6 +164,9 @@ public partial class BattleMeteorSwarmResolver : RefCounted
     public MeteorSwarmPreviewFacts build_preview_facts(MeteorSwarmCastContext context)
     {
         MeteorSwarmTargetPlan plan = BuildTargetPlanTyped(context);
+        List<MeteorSwarmNumericSummary> targetSummaries = BuildTargetNumericSummariesTyped(plan);
+        List<MeteorSwarmNumericSummary> friendlyFireSummaries =
+            BuildFriendlyFireNumericSummariesTyped(plan);
         var facts = new MeteorSwarmPreviewFacts
         {
             profile_id = PROFILE_ID,
@@ -172,16 +178,18 @@ public partial class BattleMeteorSwarmResolver : RefCounted
             target_unit_ids = (GStringNameArray)plan.target_unit_ids.Duplicate(),
             target_coords = (GVector2IArray)plan.affected_coords.Duplicate(),
             terrain_summary = _build_terrain_summary(plan),
-            target_numeric_summary = _build_target_numeric_summary(plan),
-            friendly_fire_numeric_summary = _build_friendly_fire_numeric_summary(plan),
+            target_numeric_summary = MeteorSwarmNumericSummary.ToDictionaryArray(targetSummaries),
+            target_numeric_summaries = targetSummaries,
+            friendly_fire_numeric_summary = MeteorSwarmNumericSummary.ToDictionaryArray(
+                friendlyFireSummaries
+            ),
+            friendly_fire_numeric_summaries = friendlyFireSummaries,
             attack_roll_modifier_breakdown = _build_future_attack_roll_modifier_breakdown(plan),
             impact_count = plan.affected_coords.Count,
             expected_target_count = plan.target_unit_ids.Count,
         };
         facts.expected_terrain_effect_count = _count_expected_terrain_effects(plan);
-        facts.friendly_fire_risk_percent = _resolve_friendly_fire_risk_percent(
-            facts.friendly_fire_numeric_summary
-        );
+        facts.friendly_fire_risk_percent = ResolveFriendlyFireRiskPercent(friendlyFireSummaries);
         facts.component_preview = _build_component_preview(plan);
         return facts;
     }
@@ -222,7 +230,7 @@ public partial class BattleMeteorSwarmResolver : RefCounted
         }
 
         BattleGridService gridService = GridService();
-        var seenUnitIds = new GDictionary();
+        var seenUnitIds = new HashSet<StringName>();
         for (int dy = -plan.radius; dy <= plan.radius; dy++)
         {
             for (int dx = -plan.radius; dx <= plan.radius; dx++)
@@ -242,8 +250,8 @@ public partial class BattleMeteorSwarmResolver : RefCounted
                         : new StringName("");
                 if (
                     cell == null
-                    || GdInterop.IsEmpty(occupantId)
-                    || seenUnitIds.ContainsKey(occupantId)
+                    || StringNameIsEmpty(occupantId)
+                    || seenUnitIds.Contains(occupantId)
                 )
                 {
                     continue;
@@ -253,7 +261,7 @@ public partial class BattleMeteorSwarmResolver : RefCounted
                 {
                     continue;
                 }
-                seenUnitIds[occupantId] = true;
+                seenUnitIds.Add(occupantId);
                 plan.target_unit_ids.Add(occupantId);
                 plan.unit_primary_coord_by_id[occupantId] = coord;
             }
@@ -288,7 +296,7 @@ public partial class BattleMeteorSwarmResolver : RefCounted
         foreach (GDictionary terrainEffect in terrainEffects)
         {
             result.terrain_effects.Add(terrainEffect.Duplicate(true));
-            Vector2I terrainCoord = GdInterop.GetVector2I(
+            Vector2I terrainCoord = DictVector2I(
                 terrainEffect,
                 "coord",
                 new Vector2I(-1, -1)
@@ -334,7 +342,7 @@ public partial class BattleMeteorSwarmResolver : RefCounted
         );
         GDictionary terrainSummary = _build_terrain_summary(plan);
         result.log_lines.Add(
-            $"陨击留下地形：陨坑 {GdInterop.GetInt(terrainSummary, "crater_count", 0)} 格，碎石 {GdInterop.GetInt(terrainSummary, "rubble_count", 0)} 格，尘土 {GdInterop.GetInt(terrainSummary, "dust_count", 0)} 格。"
+            $"陨击留下地形：陨坑 {DictInt(terrainSummary, "crater_count", 0)} 格，碎石 {DictInt(terrainSummary, "rubble_count", 0)} 格，尘土 {DictInt(terrainSummary, "dust_count", 0)} 格。"
         );
         return result;
     }
@@ -382,10 +390,10 @@ public partial class BattleMeteorSwarmResolver : RefCounted
                 );
             _tag_damage_events(damageResult, component, outcome.distance_from_anchor);
             outcome.add_component(component);
-            outcome.total_damage += GdInterop.GetInt(damageResult, "damage", 0);
-            outcome.total_healing += GdInterop.GetInt(damageResult, "healing", 0);
-            foreach (GDictionary damageEvent in GdInterop.ReadDictionaryItems(
-                GdInterop.GetArray(damageResult, "damage_events")
+            outcome.total_damage += DictInt(damageResult, "damage", 0);
+            outcome.total_healing += DictInt(damageResult, "healing", 0);
+            foreach (GDictionary damageEvent in ReadDictionaryItems(
+                DictArray(damageResult, "damage_events")
             ))
             {
                 outcome.damage_events.Add(damageEvent.Duplicate(true));
@@ -400,12 +408,12 @@ public partial class BattleMeteorSwarmResolver : RefCounted
         }
         if (
             outcome.distance_from_anchor <= 1
-            && !GdInterop.IsEmpty(plan.profile.concussed_status_id)
+            && !StringNameIsEmpty(plan.profile.concussed_status_id)
             && target_unit.is_alive
         )
         {
             GDictionary statusResult = _apply_concussed_status(plan, target_unit);
-            foreach (StringName statusId in NormalizeStatusIds(GdInterop.GetArray(statusResult, "status_effect_ids")))
+            foreach (StringName statusId in NormalizeStatusIds(DictArray(statusResult, "status_effect_ids")))
             {
                 outcome.add_status_effect_id(statusId);
             }
@@ -450,21 +458,21 @@ public partial class BattleMeteorSwarmResolver : RefCounted
                     {
                         ["coord"] = coord,
                         ["ring"] = ring,
-                        ["terrain_profile_id"] = GdInterop.GetString(
+                        ["terrain_profile_id"] = DictString(
                             terrainProfile,
                             "terrain_profile_id"
                         ),
                         ["terrain_effect_id"] = effectDef.terrain_effect_id.ToString(),
-                        ["lifetime_policy"] = GdInterop.GetString(
+                        ["lifetime_policy"] = DictString(
                             effectDef.@params,
                             "lifetime_policy"
                         ),
-                        ["move_cost_delta"] = GdInterop.GetInt(
+                        ["move_cost_delta"] = DictInt(
                             effectDef.@params,
                             "move_cost_delta",
                             0
                         ),
-                        ["render_overlay_id"] = GdInterop.GetString(
+                        ["render_overlay_id"] = DictString(
                             effectDef.@params,
                             "render_overlay_id"
                         ),
@@ -505,40 +513,40 @@ public partial class BattleMeteorSwarmResolver : RefCounted
     {
         var effect = new CombatEffectDef();
         StringName terrainProfileId = ProgressionDataUtils.to_string_name(
-            GdInterop.GetStringName(terrain_profile, "terrain_profile_id")
+            DictStringName(terrain_profile, "terrain_profile_id")
         );
         effect.effect_type = "terrain_effect";
         effect.tick_effect_type = ProgressionDataUtils.to_string_name(
-            GdInterop.GetStringName(terrain_profile, "tick_effect_type", "none")
+            DictStringName(terrain_profile, "tick_effect_type", "none")
         );
         effect.terrain_effect_id = terrainProfileId;
-        effect.duration_tu = GdInterop.GetInt(terrain_profile, "duration_tu", 0);
-        effect.tick_interval_tu = GdInterop.GetInt(terrain_profile, "tick_interval_tu", 0);
+        effect.duration_tu = DictInt(terrain_profile, "duration_tu", 0);
+        effect.tick_interval_tu = DictInt(terrain_profile, "tick_interval_tu", 0);
         effect.stack_behavior = "refresh";
         effect.effect_target_team_filter = "any";
         effect.@params = new GDictionary
         {
-            ["lifetime_policy"] = GdInterop.GetStringName(
+            ["lifetime_policy"] = DictStringName(
                 terrain_profile,
                 "lifetime_policy",
                 "timed"
             ),
-            ["move_cost_delta"] = GdInterop.GetInt(terrain_profile, "move_cost_delta", 0),
-            ["move_cost_stack_key"] = GdInterop.GetStringName(
+            ["move_cost_delta"] = DictInt(terrain_profile, "move_cost_delta", 0),
+            ["move_cost_stack_key"] = DictStringName(
                 terrain_profile,
                 "move_cost_stack_key",
                 ""
             ),
-            ["move_cost_stack_mode"] = GdInterop.GetStringName(
+            ["move_cost_stack_mode"] = DictStringName(
                 terrain_profile,
                 "move_cost_stack_mode",
                 ""
             ),
-            ["render_overlay_id"] = GdInterop.GetString(terrain_profile, "render_overlay_id"),
-            ["overlay_priority"] = GdInterop.GetInt(terrain_profile, "overlay_priority", 0),
+            ["render_overlay_id"] = DictString(terrain_profile, "render_overlay_id"),
+            ["overlay_priority"] = DictInt(terrain_profile, "overlay_priority", 0),
             ["display_name"] = _terrain_profile_display_name(terrainProfileId),
         };
-        GDictionary accuracySpec = GdInterop.GetDictionary(
+        GDictionary accuracySpec = DictDictionary(
             terrain_profile,
             "accuracy_modifier_spec"
         );
@@ -584,7 +592,7 @@ public partial class BattleMeteorSwarmResolver : RefCounted
         var componentBreakdown = new GDictArray();
         foreach (string componentKey in ProgressionDataUtils.sorted_string_keys(component_totals))
         {
-            GDictionary entryDict = GdInterop.GetDictionary(component_totals, componentKey);
+            GDictionary entryDict = DictDictionary(component_totals, componentKey);
             componentBreakdown.Add((GDictionary)entryDict.Duplicate(true));
         }
         var targetSummaries = new GDictArray();
@@ -632,18 +640,18 @@ public partial class BattleMeteorSwarmResolver : RefCounted
             ["role_label"] = component.role_label.ToString(),
             ["damage_tag"] = component.damage_tag.ToString(),
             ["distance_from_anchor"] = distance_from_anchor,
-            ["damage"] = GdInterop.GetInt(damage_result, "damage", 0),
-            ["healing"] = GdInterop.GetInt(damage_result, "healing", 0),
-            ["damage_events"] = GdInterop.GetArray(damage_result, "damage_events").Duplicate(true),
+            ["damage"] = DictInt(damage_result, "damage", 0),
+            ["healing"] = DictInt(damage_result, "healing", 0),
+            ["damage_events"] = DictArray(damage_result, "damage_events").Duplicate(true),
         };
     }
 
     public void _add_component_total(GDictionary component_totals, GDictionary component_fact)
     {
         StringName componentId = ProgressionDataUtils.to_string_name(
-            GdInterop.GetStringName(component_fact, "component_id")
+            DictStringName(component_fact, "component_id")
         );
-        if (GdInterop.IsEmpty(componentId))
+        if (StringNameIsEmpty(componentId))
         {
             return;
         }
@@ -652,16 +660,16 @@ public partial class BattleMeteorSwarmResolver : RefCounted
             : new GDictionary
             {
                 ["component_id"] = componentId.ToString(),
-                ["role_label"] = GdInterop.GetString(component_fact, "role_label"),
-                ["damage_tag"] = GdInterop.GetString(component_fact, "damage_tag"),
+                ["role_label"] = DictString(component_fact, "role_label"),
+                ["damage_tag"] = DictString(component_fact, "damage_tag"),
                 ["damage"] = 0,
                 ["healing"] = 0,
             };
         existing["damage"] =
-            GdInterop.GetInt(existing, "damage", 0) + GdInterop.GetInt(component_fact, "damage", 0);
+            DictInt(existing, "damage", 0) + DictInt(component_fact, "damage", 0);
         existing["healing"] =
-            GdInterop.GetInt(existing, "healing", 0)
-            + GdInterop.GetInt(component_fact, "healing", 0);
+            DictInt(existing, "healing", 0)
+            + DictInt(component_fact, "healing", 0);
         component_totals[componentId] = existing;
     }
 
@@ -671,8 +679,8 @@ public partial class BattleMeteorSwarmResolver : RefCounted
         int distance_from_anchor
     )
     {
-        foreach (GDictionary eventDict in GdInterop.ReadDictionaryItems(
-            GdInterop.GetArray(damage_result, "damage_events")
+        foreach (GDictionary eventDict in ReadDictionaryItems(
+            DictArray(damage_result, "damage_events")
         ))
         {
             eventDict["meteor_component_id"] = component.component_id.ToString();
@@ -697,7 +705,7 @@ public partial class BattleMeteorSwarmResolver : RefCounted
             foreach (GDictionary terrainProfile in TerrainProfilesForRing(plan.profile, ring))
             {
                 terrainEffectCount += 1;
-                string profileId = GdInterop.GetString(
+                string profileId = DictString(
                     terrainProfile,
                     "terrain_profile_id"
                 );
@@ -729,7 +737,16 @@ public partial class BattleMeteorSwarmResolver : RefCounted
 
     public GDictArray _build_friendly_fire_numeric_summary(MeteorSwarmTargetPlan plan)
     {
-        var summaries = new GDictArray();
+        return MeteorSwarmNumericSummary.ToDictionaryArray(
+            BuildFriendlyFireNumericSummariesTyped(plan)
+        );
+    }
+
+    private List<MeteorSwarmNumericSummary> BuildFriendlyFireNumericSummariesTyped(
+        MeteorSwarmTargetPlan plan
+    )
+    {
+        var summaries = new List<MeteorSwarmNumericSummary>();
         if (plan == null || _runtime == null || State() == null)
         {
             return summaries;
@@ -745,14 +762,21 @@ public partial class BattleMeteorSwarmResolver : RefCounted
             {
                 continue;
             }
-            summaries.Add(_build_friendly_fire_summary_for_unit(plan, targetUnit));
+            summaries.Add(BuildFriendlyFireSummaryForUnitTyped(plan, targetUnit));
         }
         return summaries;
     }
 
     public GDictArray _build_target_numeric_summary(MeteorSwarmTargetPlan plan)
     {
-        var summaries = new GDictArray();
+        return MeteorSwarmNumericSummary.ToDictionaryArray(BuildTargetNumericSummariesTyped(plan));
+    }
+
+    private List<MeteorSwarmNumericSummary> BuildTargetNumericSummariesTyped(
+        MeteorSwarmTargetPlan plan
+    )
+    {
+        var summaries = new List<MeteorSwarmNumericSummary>();
         if (plan == null || _runtime == null || State() == null)
         {
             return summaries;
@@ -764,12 +788,20 @@ public partial class BattleMeteorSwarmResolver : RefCounted
             {
                 continue;
             }
-            summaries.Add(_build_friendly_fire_summary_for_unit(plan, targetUnit));
+            summaries.Add(BuildFriendlyFireSummaryForUnitTyped(plan, targetUnit));
         }
         return summaries;
     }
 
     public GDictionary _build_friendly_fire_summary_for_unit(
+        MeteorSwarmTargetPlan plan,
+        BattleUnitState target_unit
+    )
+    {
+        return BuildFriendlyFireSummaryForUnitTyped(plan, target_unit).ToDictionary();
+    }
+
+    private MeteorSwarmNumericSummary BuildFriendlyFireSummaryForUnitTyped(
         MeteorSwarmTargetPlan plan,
         BattleUnitState target_unit
     )
@@ -810,36 +842,36 @@ public partial class BattleMeteorSwarmResolver : RefCounted
                 DAMAGE_PREVIEW_ROLL_MODE_MAXIMUM,
                 DAMAGE_PREVIEW_SAVE_MODE_WORST
             );
-            GDictionary expectedOutcome = GdInterop.GetDictionary(
+            GDictionary expectedOutcome = DictDictionary(
                 expectedPreview,
                 "damage_outcome"
             );
             StringName resistanceTier = ProgressionDataUtils.to_string_name(
-                GdInterop.GetStringName(expectedOutcome, "mitigation_tier", MITIGATION_TIER_NORMAL)
+                DictStringName(expectedOutcome, "mitigation_tier", MITIGATION_TIER_NORMAL)
             );
             resistanceTiers[component.damage_tag.ToString()] = resistanceTier.ToString();
             guardBlockEstimate = Math.Max(
                 guardBlockEstimate,
-                GdInterop.GetInt(expectedOutcome, "guard_block", 0)
+                DictInt(expectedOutcome, "guard_block", 0)
             );
-            int preSaveExpectedDamage = GdInterop.GetInt(expectedPreview, "pre_save_damage", 0);
-            int preSaveWorstDamage = GdInterop.GetInt(worstPreview, "pre_save_damage", 0);
-            int expectedComponentDamage = GdInterop.GetInt(
+            int preSaveExpectedDamage = DictInt(expectedPreview, "pre_save_damage", 0);
+            int preSaveWorstDamage = DictInt(worstPreview, "pre_save_damage", 0);
+            int expectedComponentDamage = DictInt(
                 expectedPreview,
                 "post_save_damage",
                 preSaveExpectedDamage
             );
-            int worstComponentDamage = GdInterop.GetInt(
+            int worstComponentDamage = DictInt(
                 worstPreview,
                 "post_save_damage",
                 preSaveWorstDamage
             );
-            int expectedAfterShield = GdInterop.GetInt(
+            int expectedAfterShield = DictInt(
                 expectedPreview,
                 "hp_damage",
                 expectedComponentDamage
             );
-            int worstAfterShield = GdInterop.GetInt(
+            int worstAfterShield = DictInt(
                 worstPreview,
                 "hp_damage",
                 worstComponentDamage
@@ -847,13 +879,13 @@ public partial class BattleMeteorSwarmResolver : RefCounted
             expectedDamage += expectedAfterShield;
             worstCaseDamage += worstAfterShield;
             var nextExpectedSource =
-                GdInterop.GetObject(expectedPreview, "source_preview_after") as BattleUnitState;
+                DictObject(expectedPreview, "source_preview_after") as BattleUnitState;
             var nextExpectedTarget =
-                GdInterop.GetObject(expectedPreview, "target_preview_after") as BattleUnitState;
+                DictObject(expectedPreview, "target_preview_after") as BattleUnitState;
             var nextWorstSource =
-                GdInterop.GetObject(worstPreview, "source_preview_after") as BattleUnitState;
+                DictObject(worstPreview, "source_preview_after") as BattleUnitState;
             var nextWorstTarget =
-                GdInterop.GetObject(worstPreview, "target_preview_after") as BattleUnitState;
+                DictObject(worstPreview, "target_preview_after") as BattleUnitState;
             if (nextExpectedSource != null)
             {
                 expectedSourcePreview = nextExpectedSource;
@@ -884,26 +916,24 @@ public partial class BattleMeteorSwarmResolver : RefCounted
                     ["pre_save_worst_case_damage"] = preSaveWorstDamage,
                     ["resistance_tier"] = resistanceTier.ToString(),
                     ["save_profile_id"] = component.save_profile_id.ToString(),
-                    ["save_estimate"] = GdInterop
-                        .GetDictionary(expectedPreview, "save_estimate")
+                    ["save_estimate"] = DictDictionary(expectedPreview, "save_estimate")
                         .Duplicate(true),
-                    ["worst_save_estimate"] = GdInterop
-                        .GetDictionary(worstPreview, "save_estimate")
+                    ["worst_save_estimate"] = DictDictionary(worstPreview, "save_estimate")
                         .Duplicate(true),
-                    ["mitigation_sources"] = GdInterop.GetArray(
+                    ["mitigation_sources"] = DictArray(
                         expectedOutcome,
                         "mitigation_sources"
                     ),
-                    ["fixed_mitigation_sources"] = GdInterop.GetArray(
+                    ["fixed_mitigation_sources"] = DictArray(
                         expectedOutcome,
                         "fixed_mitigation_sources"
                     ),
-                    ["shield_absorbed_estimate"] = GdInterop.GetInt(
+                    ["shield_absorbed_estimate"] = DictInt(
                         expectedPreview,
                         "shield_absorbed",
                         0
                     ),
-                    ["shield_absorbed_worst"] = GdInterop.GetInt(
+                    ["shield_absorbed_worst"] = DictInt(
                         worstPreview,
                         "shield_absorbed",
                         0
@@ -930,32 +960,43 @@ public partial class BattleMeteorSwarmResolver : RefCounted
             || worstHpPercent >= plan.profile.friendly_fire_hard_worst_case_hp_percent;
         bool isAlly =
             plan.source_unit != null && target_unit.faction_id == plan.source_unit.faction_id;
-        return new GDictionary
+        var summary = new MeteorSwarmNumericSummary
         {
-            ["candidate_anchor_coord"] = plan.final_anchor_coord,
-            ["target_unit_id"] = target_unit.unit_id.ToString(),
-            ["ally_unit_id"] = target_unit.unit_id.ToString(),
-            ["target_faction_id"] = target_unit.faction_id.ToString(),
-            ["is_ally"] = isAlly,
-            ["distance_from_anchor"] = distance,
-            ["component_expected_damage"] = expectedDamage,
-            ["component_worst_case_damage"] = worstCaseDamage,
-            ["component_breakdown"] = componentBreakdown,
-            ["lethal_probability_percent"] = worstCaseDamage >= currentHp ? 100 : 0,
-            ["save_profile_ids"] = _collect_component_save_profile_ids(componentBreakdown),
-            ["resistance_tiers_by_damage_tag"] = resistanceTiers,
-            ["shield_hp"] = target_unit.current_shield_hp,
-            ["guard_block_estimate"] = guardBlockEstimate,
-            ["status_effect_ids"] = (GStringNameArray)statusEffectIds.Duplicate(),
-            ["ap_penalty"] = apPenalty,
-            ["hostile_terrain_consequence"] = _build_hostile_terrain_consequence(plan, distance),
-            ["expected_damage_hp_percent"] = expectedHpPercent,
-            ["worst_case_damage_hp_percent"] = worstHpPercent,
-            ["hard_reject"] = hardReject,
-            ["soft_penalty"] =
+            CandidateAnchorCoord = plan.final_anchor_coord,
+            TargetUnitId = target_unit.unit_id,
+            AllyUnitId = target_unit.unit_id,
+            TargetFactionId = target_unit.faction_id,
+            IsAlly = isAlly,
+            DistanceFromAnchor = distance,
+            ComponentExpectedDamage = expectedDamage,
+            ComponentWorstCaseDamage = worstCaseDamage,
+            ComponentBreakdown = componentBreakdown,
+            LethalProbabilityPercent = worstCaseDamage >= currentHp ? 100 : 0,
+            SaveProfileIds = _collect_component_save_profile_ids(componentBreakdown),
+            ResistanceTiersByDamageTag = resistanceTiers,
+            ShieldHp = target_unit.current_shield_hp,
+            GuardBlockEstimate = guardBlockEstimate,
+            StatusEffectIds = (GStringNameArray)statusEffectIds.Duplicate(),
+            ApPenalty = apPenalty,
+            HostileTerrain = BuildHostileTerrainConsequenceTyped(plan, distance),
+            ExpectedDamageHpPercent = expectedHpPercent,
+            WorstCaseDamageHpPercent = worstHpPercent,
+            HardReject = hardReject,
+            SoftPenalty =
                 !hardReject
                 && expectedHpPercent > plan.profile.friendly_fire_soft_expected_hp_percent,
         };
+        foreach (GDictionary component in componentBreakdown)
+        {
+            summary.Components.Add(
+                new MeteorSwarmComponentBreakdownEntry
+                {
+                    ComponentId = DictStringName(component, "component_id", ""),
+                    ExpectedDamage = DictInt(component, "expected_damage", 0),
+                }
+            );
+        }
+        return summary;
     }
 
     public GDictArray _build_future_attack_roll_modifier_breakdown(MeteorSwarmTargetPlan plan)
@@ -965,9 +1006,9 @@ public partial class BattleMeteorSwarmResolver : RefCounted
         {
             return breakdown;
         }
-        foreach (GDictionary terrainProfile in GdInterop.ReadDictionaryItems(plan.profile.terrain_profiles))
+        foreach (GDictionary terrainProfile in ReadDictionaryItems(plan.profile.terrain_profiles))
         {
-            GDictionary accuracySpec = GdInterop.GetDictionary(
+            GDictionary accuracySpec = DictDictionary(
                 terrainProfile,
                 "accuracy_modifier_spec"
             );
@@ -976,8 +1017,8 @@ public partial class BattleMeteorSwarmResolver : RefCounted
                 continue;
             }
             GDictionary spec = (GDictionary)accuracySpec.Duplicate(true);
-            spec["source_instance_id"] = GdInterop.GetString(terrainProfile, "terrain_profile_id");
-            spec["effective_modifier_delta"] = GdInterop.GetInt(spec, "modifier_delta", 0);
+            spec["source_instance_id"] = DictString(terrainProfile, "terrain_profile_id");
+            spec["effective_modifier_delta"] = DictInt(spec, "modifier_delta", 0);
             breakdown.Add(spec);
         }
         return breakdown;
@@ -1003,19 +1044,31 @@ public partial class BattleMeteorSwarmResolver : RefCounted
 
     public int _count_expected_terrain_effects(MeteorSwarmTargetPlan plan)
     {
-        return GdInterop.GetInt(_build_terrain_summary(plan), "terrain_effect_count", 0);
+        return DictInt(_build_terrain_summary(plan), "terrain_effect_count", 0);
     }
 
     public int _resolve_friendly_fire_risk_percent(GDictArray summaries)
     {
-        if (summaries.Count == 0)
+        var typedSummaries = new List<MeteorSwarmNumericSummary>();
+        foreach (GDictionary summary in summaries ?? new GDictArray())
+        {
+            typedSummaries.Add(MeteorSwarmNumericSummary.FromDictionary(summary));
+        }
+        return ResolveFriendlyFireRiskPercent(typedSummaries);
+    }
+
+    private static int ResolveFriendlyFireRiskPercent(
+        IReadOnlyList<MeteorSwarmNumericSummary> summaries
+    )
+    {
+        if (summaries == null || summaries.Count == 0)
         {
             return 0;
         }
         int hardCount = 0;
-        foreach (GDictionary summary in summaries)
+        foreach (MeteorSwarmNumericSummary summary in summaries)
         {
-            if (GdInterop.GetBool(summary, "hard_reject", false))
+            if (summary?.HardReject == true)
             {
                 hardCount += 1;
             }
@@ -1028,31 +1081,33 @@ public partial class BattleMeteorSwarmResolver : RefCounted
         int distance_from_anchor
     )
     {
-        var consequence = new GDictionary
-        {
-            ["move_cost_delta"] = 0,
-            ["creates_dust"] = false,
-            ["creates_crater"] = false,
-            ["creates_rubble"] = false,
-        };
+        return BuildHostileTerrainConsequenceTyped(plan, distance_from_anchor).ToDictionary();
+    }
+
+    private MeteorSwarmHostileTerrainConsequence BuildHostileTerrainConsequenceTyped(
+        MeteorSwarmTargetPlan plan,
+        int distance_from_anchor
+    )
+    {
+        var consequence = new MeteorSwarmHostileTerrainConsequence();
         foreach (GDictionary terrainProfile in TerrainProfilesForRing(plan.profile, distance_from_anchor))
         {
-            consequence["move_cost_delta"] = Math.Max(
-                GdInterop.GetInt(consequence, "move_cost_delta", 0),
-                GdInterop.GetInt(terrainProfile, "move_cost_delta", 0)
+            consequence.MoveCostDelta = Math.Max(
+                consequence.MoveCostDelta,
+                DictInt(terrainProfile, "move_cost_delta", 0)
             );
-            string profileId = GdInterop.GetString(terrainProfile, "terrain_profile_id");
+            string profileId = DictString(terrainProfile, "terrain_profile_id");
             if (profileId.Contains("dust"))
             {
-                consequence["creates_dust"] = true;
+                consequence.CreatesDust = true;
             }
             if (profileId.Contains("crater"))
             {
-                consequence["creates_crater"] = true;
+                consequence.CreatesCrater = true;
             }
             if (profileId.Contains("rubble"))
             {
-                consequence["creates_rubble"] = true;
+                consequence.CreatesRubble = true;
             }
         }
         return consequence;
@@ -1063,7 +1118,7 @@ public partial class BattleMeteorSwarmResolver : RefCounted
         var ids = new GStringArray();
         foreach (GDictionary component in component_breakdown)
         {
-            string saveProfileId = GdInterop.GetString(component, "save_profile_id");
+            string saveProfileId = DictString(component, "save_profile_id");
             if (!string.IsNullOrEmpty(saveProfileId) && !ids.Contains(saveProfileId))
             {
                 ids.Add(saveProfileId);
@@ -1232,10 +1287,10 @@ public partial class BattleMeteorSwarmResolver : RefCounted
         return $"{plan.skill_id}:{plan.coverage_shape_id}:r{plan.radius}:{anchor_coord.X},{anchor_coord.Y}:{plan.affected_coords.Count}:{string.Join(",", unitParts)}";
     }
 
-    public GVector2IArray _extract_target_coords(GDictionary validation)
+    public GVector2IArray _extract_target_coords(BattleGroundSkillValidationResult validation)
     {
         var targetCoords = new GVector2IArray();
-        foreach (Vector2I coord in GdInterop.GetArray(validation, "target_coords"))
+        foreach (Vector2I coord in validation.TargetCoords)
         {
             targetCoords.Add(coord);
         }
@@ -1249,13 +1304,13 @@ public partial class BattleMeteorSwarmResolver : RefCounted
             return null;
         }
         GDictionary snapshot = _runtime._special_profile_registry_snapshot;
-        GDictionary profiles = GdInterop.GetDictionary(snapshot, "profiles");
-        GDictionary meteorProfileSnapshot = GdInterop.GetDictionary(profiles, "meteor_swarm");
+        GDictionary profiles = DictDictionary(snapshot, "profiles");
+        GDictionary meteorProfileSnapshot = DictDictionary(profiles, "meteor_swarm");
         if (meteorProfileSnapshot.Count == 0)
         {
             return null;
         }
-        return GdInterop.GetObject(meteorProfileSnapshot, "profile_resource") as MeteorSwarmProfile;
+        return DictObject(meteorProfileSnapshot, "profile_resource") as MeteorSwarmProfile;
     }
 
     public CombatCastVariantDef _resolve_ground_cast_variant(
@@ -1410,6 +1465,128 @@ public partial class BattleMeteorSwarmResolver : RefCounted
         return unitState;
     }
 
+    private static GArray DictArray(GDictionary dictionary, object key)
+    {
+        if (!TryGetDictionaryValue(dictionary, key, out Variant value))
+            return new GArray();
+        return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : new GArray();
+    }
+
+    private static GDictionary DictDictionary(GDictionary dictionary, object key)
+    {
+        if (!TryGetDictionaryValue(dictionary, key, out Variant value))
+            return new GDictionary();
+        return value.VariantType == Variant.Type.Dictionary
+            ? value.AsGodotDictionary()
+            : new GDictionary();
+    }
+
+    private static GodotObject DictObject(GDictionary dictionary, object key)
+    {
+        if (!TryGetDictionaryValue(dictionary, key, out Variant value))
+            return null;
+        return value.VariantType == Variant.Type.Object ? value.AsGodotObject() : null;
+    }
+
+    private static int DictInt(GDictionary dictionary, object key, int fallback = 0)
+    {
+        if (!TryGetDictionaryValue(dictionary, key, out Variant value))
+            return fallback;
+        return value.VariantType == Variant.Type.Nil ? fallback : value.AsInt32();
+    }
+
+    private static string DictString(GDictionary dictionary, object key, string fallback = "")
+    {
+        if (!TryGetDictionaryValue(dictionary, key, out Variant value))
+            return fallback;
+        return value.VariantType == Variant.Type.Nil ? fallback : value.ToString();
+    }
+
+    private static StringName DictStringName(
+        GDictionary dictionary,
+        object key,
+        StringName fallback = default
+    )
+    {
+        if (!TryGetDictionaryValue(dictionary, key, out Variant value))
+            return fallback ?? new StringName("");
+        return ProgressionDataUtils.to_string_name(value);
+    }
+
+    private static Vector2I DictVector2I(
+        GDictionary dictionary,
+        object key,
+        Vector2I fallback = default
+    )
+    {
+        if (!TryGetDictionaryValue(dictionary, key, out Variant value))
+            return fallback;
+        return value.VariantType == Variant.Type.Vector2I ? value.AsVector2I() : fallback;
+    }
+
+    private static IEnumerable<GDictionary> ReadDictionaryItems(GArray values)
+    {
+        if (values == null)
+            yield break;
+        foreach (Variant value in values)
+        {
+            if (value.VariantType == Variant.Type.Dictionary)
+                yield return value.AsGodotDictionary();
+        }
+    }
+
+    private static bool TryGetDictionaryValue(
+        GDictionary dictionary,
+        object key,
+        out Variant value
+    )
+    {
+        if (dictionary == null)
+        {
+            value = default;
+            return false;
+        }
+        Variant variantKey = key switch
+        {
+            Variant valueKey => valueKey,
+            string stringKey => stringKey,
+            StringName stringNameKey => stringNameKey,
+            int intKey => intKey,
+            long longKey => longKey,
+            _ => default,
+        };
+        if (dictionary.ContainsKey(variantKey))
+        {
+            value = dictionary[variantKey];
+            return true;
+        }
+        if (variantKey.VariantType == Variant.Type.String)
+        {
+            StringName stringNameKey = new(variantKey.AsString());
+            if (dictionary.ContainsKey(stringNameKey))
+            {
+                value = dictionary[stringNameKey];
+                return true;
+            }
+        }
+        else if (variantKey.VariantType == Variant.Type.StringName)
+        {
+            string stringKey = variantKey.AsStringName().ToString();
+            if (dictionary.ContainsKey(stringKey))
+            {
+                value = dictionary[stringKey];
+                return true;
+            }
+        }
+        value = default;
+        return false;
+    }
+
+    private static bool StringNameIsEmpty(StringName value)
+    {
+        return value == null || string.IsNullOrEmpty(value.ToString());
+    }
+
     private static IEnumerable<GDictionary> TerrainProfilesForRing(
         MeteorSwarmProfile profile,
         int ring
@@ -1419,7 +1596,7 @@ public partial class BattleMeteorSwarmResolver : RefCounted
         {
             yield break;
         }
-        foreach (GDictionary profileValue in GdInterop.ReadDictionaryItems(
+        foreach (GDictionary profileValue in ReadDictionaryItems(
             profile.get_terrain_profiles_for_ring(ring)
         ))
         {
@@ -1432,7 +1609,7 @@ public partial class BattleMeteorSwarmResolver : RefCounted
         foreach (var statusIdValue in statusEffectIds ?? new GArray())
         {
             StringName statusId = ProgressionDataUtils.to_string_name(statusIdValue);
-            if (!GdInterop.IsEmpty(statusId))
+            if (!StringNameIsEmpty(statusId))
             {
                 yield return statusId;
             }

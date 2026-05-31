@@ -25,22 +25,22 @@ script = ExtResource("3_l0y4u")
 effect_type = &"path_step_aoe"
 power = 0
 damage_tag = &"physical_slash"
+add_weapon_dice = true
+requires_weapon = true
+use_weapon_physical_damage_tag = true
+resolve_as_weapon_attack = true
+allow_repeat_hits_across_steps = true
 params = {
-"add_weapon_dice": true,
-"allow_repeat_hits_across_steps": true,
 "apply_on_successful_step_only": true,
 "path_step_log_label": "旋斩",
-"requires_weapon": true,
 "repeat_hit_status_duration_tu": 60,
 "repeat_hit_status_id": "staggered",
 "repeat_hit_status_log_template": "{target} 被{skill}连续命中 {hit_count} 次，陷入踉跄。",
 "repeat_hit_status_min_skill_level": 9,
 "repeat_hit_status_power": 1,
 "repeat_hit_status_threshold": 4,
-"resolve_as_weapon_attack": true,
 "step_radius": 1,
-"step_shape": "diamond",
-"use_weapon_physical_damage_tag": true
+"step_shape": "diamond"
 }
 
 [sub_resource type="Resource" id="Resource_xn254"]

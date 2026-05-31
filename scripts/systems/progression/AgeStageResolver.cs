@@ -1,5 +1,4 @@
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
 [GlobalClass]
 public partial class AgeStageResolver : RefCounted
@@ -7,7 +6,19 @@ public partial class AgeStageResolver : RefCounted
     private static readonly StringName SourceTypeAscension = "ascension";
     private static readonly StringName SourceTypeStageAdvancement = "stage_advancement";
 
-    public static GDictionary resolve_effective_stage(
+    private readonly struct StageCandidate
+    {
+        public readonly StringName StageId;
+        public readonly int StageIndex;
+
+        public StageCandidate(StringName stageId, int stageIndex)
+        {
+            StageId = stageId;
+            StageIndex = stageIndex;
+        }
+    }
+
+    public static AgeStageResolution resolve_effective_stage(
         PartyMemberState member_state,
         AgeProfileDef age_profile,
         Godot.Collections.Array<StageAdvancementModifier> stage_advancement_modifiers = null,
@@ -38,9 +49,8 @@ public partial class AgeStageResolver : RefCounted
         var best_stage_index = base_stage_index;
         if (stage_advancement_modifiers != null)
         {
-            foreach (var modifier_option in stage_advancement_modifiers)
+            foreach (var modifier in stage_advancement_modifiers)
             {
-                var modifier = modifier_option as StageAdvancementModifier;
                 if (modifier == null)
                     continue;
                 if (!_modifier_applies_to_member(modifier, member_state))
@@ -51,14 +61,10 @@ public partial class AgeStageResolver : RefCounted
                     base_stage_index,
                     stage_order
                 );
-                var modifier_stage_id = ProgressionDataUtils.to_string_name(
-                    modifier_result.ContainsKey("stage_id") ? modifier_result["stage_id"] : ""
-                );
+                var modifier_stage_id = modifier_result.StageId;
                 if (modifier_stage_id == "" || modifier_stage_id == base_stage_id)
                     continue;
-                var modifier_stage_index = (int)(
-                    modifier_result.ContainsKey("stage_index") ? modifier_result["stage_index"] : -1
-                );
+                var modifier_stage_index = modifier_result.StageIndex;
                 if (
                     modifier_stage_index >= 0
                     && best_stage_index >= 0
@@ -108,7 +114,7 @@ public partial class AgeStageResolver : RefCounted
         return stage_order;
     }
 
-    private static GDictionary _resolve_modifier_stage_result(
+    private static StageCandidate _resolve_modifier_stage_result(
         StageAdvancementModifier modifier,
         StringName base_stage_id,
         int base_stage_index,
@@ -116,25 +122,14 @@ public partial class AgeStageResolver : RefCounted
     )
     {
         if (modifier == null || (int)modifier.stage_offset <= 0)
-        {
-            return new GDictionary
-            {
-                ["stage_id"] = base_stage_id,
-                ["stage_index"] = base_stage_index,
-            };
-        }
+            return new StageCandidate(base_stage_id, base_stage_index);
         if (_uses_identity_stage_axis(modifier.target_axis))
-        {
-            return new GDictionary { ["stage_id"] = modifier.max_stage_id, ["stage_index"] = -1 };
-        }
+            return new StageCandidate(modifier.max_stage_id, -1);
         if (base_stage_index < 0 || stage_order.Count == 0)
-        {
-            return new GDictionary
-            {
-                ["stage_id"] = modifier.max_stage_id != "" ? modifier.max_stage_id : base_stage_id,
-                ["stage_index"] = -1,
-            };
-        }
+            return new StageCandidate(
+                modifier.max_stage_id != "" ? modifier.max_stage_id : base_stage_id,
+                -1
+            );
 
         var target_index = Mathf.Min(
             base_stage_index + (int)modifier.stage_offset,
@@ -146,11 +141,7 @@ public partial class AgeStageResolver : RefCounted
             if (max_stage_index >= 0)
                 target_index = Mathf.Min(target_index, max_stage_index);
         }
-        return new GDictionary
-        {
-            ["stage_id"] = stage_order[target_index],
-            ["stage_index"] = target_index,
-        };
+        return new StageCandidate(stage_order[target_index], target_index);
     }
 
     private static bool _uses_identity_stage_axis(StringName target_axis)
@@ -189,17 +180,10 @@ public partial class AgeStageResolver : RefCounted
         return true;
     }
 
-    private static GDictionary _build_result(
+    private static AgeStageResolution _build_result(
         StringName stage_id,
         StringName source_type,
         StringName source_id
-    )
-    {
-        return new GDictionary
-        {
-            ["stage_id"] = stage_id,
-            ["source_type"] = source_type,
-            ["source_id"] = source_id,
-        };
-    }
+    ) =>
+        new(stage_id, source_type, source_id);
 }

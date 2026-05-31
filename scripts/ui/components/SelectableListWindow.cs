@@ -79,7 +79,7 @@ public partial class SelectableListWindow : Control
         _items.Clear();
         _itemList.Clear();
 
-        foreach (GDictionary item in GdInterop.ReadDictionaryItems(items))
+        foreach (GDictionary item in ReadDictionaryItems(items))
         {
             _items.Add(item);
             _itemList.AddItem(_format_item_label(item));
@@ -257,5 +257,16 @@ public partial class SelectableListWindow : Control
             style.BorderWidthLeft = borderWidthLeft;
         }
         return style;
+    }
+
+    private static IEnumerable<GDictionary> ReadDictionaryItems(GArray items)
+    {
+        if (items == null)
+            yield break;
+        foreach (Variant item in items)
+        {
+            if (item.VariantType == Variant.Type.Dictionary)
+                yield return item.AsGodotDictionary();
+        }
     }
 }

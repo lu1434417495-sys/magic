@@ -36,7 +36,7 @@ public partial class WarehouseState : RefCounted
         foreach (var stack in get_non_empty_stacks())
             copy.stacks.Add(stack.duplicate_state());
         foreach (var instance in get_non_empty_instances())
-            copy.equipment_instances.Add(EquipmentInstanceState.from_dict(instance.to_dict()));
+            copy.equipment_instances.Add(instance.duplicate_state());
         return copy;
     }
 

@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using static GdInterop;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
@@ -123,40 +122,34 @@ public partial class BattleAiScoreService
             };
         }
 
-        public static DamageSaveEstimate FromDictionary(GDictionary source)
+        public static DamageSaveEstimate FromPreviewSaveEstimate(
+            BattleDamagePreviewSaveEstimate source
+        )
         {
-            if (source == null || !DictBool(source, "has_save", false))
+            if (source == null || !source.HasSave)
             {
                 return null;
             }
             return new DamageSaveEstimate
             {
                 HasSave = true,
-                DamageBeforeSave = DictInt(source, "damage_before_save", 0),
-                DamageAfterSaveEstimate = DictInt(source, "damage_after_save_estimate", 0),
-                DamageOnSaveFailure = DictInt(source, "damage_on_save_failure", 0),
-                DamageOnSaveSuccess = DictInt(source, "damage_on_save_success", 0),
-                SavePartialOnSuccess = DictBool(source, "save_partial_on_success", false),
-                SaveSuccessProbabilityBasisPoints = DictInt(
-                    source,
-                    "save_success_probability_basis_points",
-                    0
-                ),
-                SaveSuccessRatePercent = DictInt(source, "save_success_rate_percent", 0),
-                SaveFailureProbabilityBasisPoints = DictInt(
-                    source,
-                    "save_failure_probability_basis_points",
-                    0
-                ),
-                Dc = DictInt(source, "dc", 0),
-                Ability = DictString(source, "ability", ""),
-                SaveTag = DictString(source, "save_tag", ""),
-                AdvantageState = DictString(source, "advantage_state", ""),
-                AbilityValue = DictInt(source, "ability_value", 0),
-                AbilityModifier = DictInt(source, "ability_modifier", 0),
-                Bonus = DictInt(source, "bonus", 0),
-                Immune = DictBool(source, "immune", false),
-                HitCount = Math.Max(DictInt(source, "hit_count", 1), 1),
+                DamageBeforeSave = source.DamageBeforeSave,
+                DamageAfterSaveEstimate = source.DamageAfterSaveEstimate,
+                DamageOnSaveFailure = source.DamageOnSaveFailure,
+                DamageOnSaveSuccess = source.DamageOnSaveSuccess,
+                SavePartialOnSuccess = source.SavePartialOnSuccess,
+                SaveSuccessProbabilityBasisPoints = source.SaveSuccessProbabilityBasisPoints,
+                SaveSuccessRatePercent = source.SaveSuccessRatePercent,
+                SaveFailureProbabilityBasisPoints = source.SaveFailureProbabilityBasisPoints,
+                Dc = source.Dc,
+                Ability = source.Ability,
+                SaveTag = source.SaveTag,
+                AdvantageState = source.AdvantageState,
+                AbilityValue = source.AbilityValue,
+                AbilityModifier = source.AbilityModifier,
+                Bonus = source.Bonus,
+                Immune = source.Immune,
+                HitCount = 1,
             };
         }
     }
@@ -208,6 +201,58 @@ public partial class BattleAiScoreService
                 ["save_estimates"] = SaveEstimatesToArray(SaveEstimates),
                 ["damage_events"] = DamageEvents?.Duplicate(true) ?? new GArray(),
                 ["diagnostics"] = Diagnostics?.Duplicate(true) ?? new GArray(),
+            };
+        }
+    }
+
+    private sealed class DamagePreviewSnapshot
+    {
+        public int HpDamage;
+        public int Damage;
+        public int PostSaveDamage;
+        public int IncomingBudgetDamage;
+        public int ShieldAbsorbed;
+        public bool ShieldBroken;
+        public bool StableLethal;
+        public int LethalProbabilityBasisPoints;
+        public DamageSaveEstimate PrimarySaveEstimate;
+        public List<DamageSaveEstimate> SaveEstimates = new();
+        public GArray DamageEvents = new();
+        public GArray Diagnostics = new();
+        public BattleUnitState TargetPreviewAfter;
+
+        public static DamagePreviewSnapshot FromPreviewResult(BattleDamagePreviewResult preview)
+        {
+            if (preview == null)
+            {
+                return new DamagePreviewSnapshot();
+            }
+            int hpDamage = preview.HpDamage;
+            DamageSaveEstimate primarySaveEstimate = DamageSaveEstimate.FromPreviewSaveEstimate(
+                preview.SaveEstimate
+            );
+            List<DamageSaveEstimate> saveEstimates = ReadSaveEstimatesFromPreviewList(
+                preview.SaveEstimates
+            );
+            if (saveEstimates.Count == 0 && primarySaveEstimate != null)
+            {
+                saveEstimates.Add(primarySaveEstimate);
+            }
+            return new DamagePreviewSnapshot
+            {
+                HpDamage = hpDamage,
+                Damage = hpDamage,
+                PostSaveDamage = preview.PostSaveDamage,
+                IncomingBudgetDamage = preview.IncomingBudgetDamage,
+                ShieldAbsorbed = preview.ShieldAbsorbed,
+                ShieldBroken = preview.ShieldBroken,
+                StableLethal = preview.StableLethal,
+                LethalProbabilityBasisPoints = preview.LethalProbabilityBasisPoints,
+                PrimarySaveEstimate = primarySaveEstimate,
+                SaveEstimates = saveEstimates,
+                DamageEvents = preview.DamageEvents?.Duplicate(true) ?? new GArray(),
+                Diagnostics = preview.Diagnostics?.Duplicate(true) ?? new GArray(),
+                TargetPreviewAfter = preview.TargetPreviewAfter,
             };
         }
     }
@@ -264,12 +309,18 @@ public partial class BattleAiScoreService
         return result;
     }
 
-    private static List<DamageSaveEstimate> ReadSaveEstimatesFromArray(GArray estimates)
+    private static List<DamageSaveEstimate> ReadSaveEstimatesFromPreviewList(
+        IReadOnlyList<BattleDamagePreviewSaveEstimate> estimates
+    )
     {
         var result = new List<DamageSaveEstimate>();
-        foreach (GDictionary estimateData in ReadDictionaryItems(estimates))
+        if (estimates == null)
         {
-            DamageSaveEstimate estimate = DamageSaveEstimate.FromDictionary(estimateData);
+            return result;
+        }
+        foreach (BattleDamagePreviewSaveEstimate estimateData in estimates)
+        {
+            DamageSaveEstimate estimate = DamageSaveEstimate.FromPreviewSaveEstimate(estimateData);
             if (estimate != null)
             {
                 result.Add(estimate);
@@ -650,14 +701,16 @@ public partial class BattleAiScoreService
             {
                 damageContext["skill_id"] = skillId;
             }
-            GDictionary sequence = _damageResolver.preview_damage_sequence(
+            BattleDamagePreviewResult sequence = _damageResolver.preview_damage_sequence_typed(
                 sourceUnit,
                 targetUnit,
                 ToEffectArray(effectDefs),
                 damageContext,
                 new GDictionary()
             );
-            return NormalizeDamageSequenceEstimate(sequence);
+            return NormalizeDamageSequenceEstimate(
+                DamagePreviewSnapshot.FromPreviewResult(sequence)
+            );
         }
 
         int total = 0;
@@ -670,10 +723,11 @@ public partial class BattleAiScoreService
             {
                 continue;
             }
-            GDictionary damagePreview = BattleDamagePreviewRangeService.build_skill_damage_preview(
-                sourceUnit,
-                new GArray { effectDef }
-            );
+            BattleDamagePreviewRangeService.SkillDamagePreview damagePreview =
+                BattleDamagePreviewRangeService.build_skill_damage_preview_typed(
+                    sourceUnit,
+                    new GArray { effectDef }
+                );
             int baseDamage = EstimateDamageFromPreview(damagePreview);
             int bonusDamage = EstimateConditionalBonusDamage(effectDef, targetUnit);
             double multiplier = ResolveEffectDamageMultiplier(effectDef, targetUnit);
@@ -757,7 +811,7 @@ public partial class BattleAiScoreService
                 workingTarget?.current_hp ?? targetUnit?.current_hp ?? 1,
                 1
             );
-            GDictionary effectPreview = _damageResolver.preview_damage_effect(
+            BattleDamagePreviewResult effectPreview = _damageResolver.preview_damage_effect_typed(
                 sourceUnit,
                 workingTarget,
                 effectDef,
@@ -765,8 +819,11 @@ public partial class BattleAiScoreService
                 new StringName("average"),
                 new StringName("expected")
             );
-            DamageEstimateResult normalized = NormalizeDamageSequenceEstimate(effectPreview);
-            ApplyBranchLethalEstimate(normalized, effectPreview, targetHpBefore);
+            DamagePreviewSnapshot previewSnapshot = DamagePreviewSnapshot.FromPreviewResult(
+                effectPreview
+            );
+            DamageEstimateResult normalized = NormalizeDamageSequenceEstimate(previewSnapshot);
+            ApplyBranchLethalEstimate(normalized, previewSnapshot, targetHpBefore);
             int hpDamage = normalized.Damage;
             int postSaveDamage = normalized.PostSaveDamage;
             int incomingBudgetDamage = normalized.IncomingBudgetDamage;
@@ -782,8 +839,7 @@ public partial class BattleAiScoreService
             );
             saveEstimates.AddRange(CloneSaveEstimates(normalized.SaveEstimates));
             damageEstimates.AddRange(CloneDamageEstimates(normalized.DamageEstimates));
-            GodotObject targetAfter = DictObject(effectPreview, "target_preview_after");
-            if (targetAfter is BattleUnitState nextTarget)
+            if (previewSnapshot.TargetPreviewAfter is BattleUnitState nextTarget)
             {
                 workingTarget = nextTarget;
             }
@@ -802,69 +858,47 @@ public partial class BattleAiScoreService
         };
     }
 
-    private static DamageEstimateResult NormalizeDamageSequenceEstimate(GDictionary preview)
+    private static DamageEstimateResult NormalizeDamageSequenceEstimate(
+        DamagePreviewSnapshot preview
+    )
     {
-        int hpDamage = DictInt(preview, "hp_damage", DictInt(preview, "damage", 0));
-        int postSaveDamage = DictInt(preview, "post_save_damage", hpDamage);
-        int incomingBudgetDamage = DictInt(preview, "incoming_budget_damage", postSaveDamage);
-        int shieldAbsorbed = DictInt(preview, "shield_absorbed", 0);
-        bool stableLethal = DictBool(preview, "stable_lethal", false);
-        int lethalProbabilityBasisPoints = DictInt(
-            preview,
-            "lethal_probability_basis_points",
-            stableLethal ? 10000 : 0
-        );
-        List<DamageSaveEstimate> saveEstimates = ReadSaveEstimatesFromArray(
-            DictArray(preview, "save_estimates", new GArray())
-        );
-        if (saveEstimates.Count == 0)
-        {
-            DamageSaveEstimate saveEstimate = DamageSaveEstimate.FromDictionary(
-                DictDictionary(preview, "save_estimate", new GDictionary())
-            );
-            if (saveEstimate != null)
-            {
-                saveEstimates.Add(saveEstimate);
-            }
-        }
+        preview ??= new DamagePreviewSnapshot();
         var damageEstimate = new DamageEstimateBreakdown
         {
-            HpDamage = hpDamage,
-            Damage = hpDamage,
-            PostSaveDamage = postSaveDamage,
-            IncomingBudgetDamage = incomingBudgetDamage,
-            ShieldAbsorbed = shieldAbsorbed,
-            ShieldBroken = DictBool(preview, "shield_broken", false),
-            StableLethal = stableLethal,
-            LethalProbabilityBasisPoints = lethalProbabilityBasisPoints,
-            SaveEstimates = CloneSaveEstimates(saveEstimates),
-            DamageEvents = DictArray(preview, "damage_events", new GArray()).Duplicate(true),
-            Diagnostics = DictArray(preview, "diagnostics", new GArray()).Duplicate(true),
+            HpDamage = preview.HpDamage,
+            Damage = preview.Damage,
+            PostSaveDamage = preview.PostSaveDamage,
+            IncomingBudgetDamage = preview.IncomingBudgetDamage,
+            ShieldAbsorbed = preview.ShieldAbsorbed,
+            ShieldBroken = preview.ShieldBroken,
+            StableLethal = preview.StableLethal,
+            LethalProbabilityBasisPoints = preview.LethalProbabilityBasisPoints,
+            SaveEstimates = CloneSaveEstimates(preview.SaveEstimates),
+            DamageEvents = preview.DamageEvents?.Duplicate(true) ?? new GArray(),
+            Diagnostics = preview.Diagnostics?.Duplicate(true) ?? new GArray(),
         };
         return new DamageEstimateResult
         {
-            Damage = hpDamage,
-            HpDamage = hpDamage,
-            PostSaveDamage = postSaveDamage,
-            IncomingBudgetDamage = incomingBudgetDamage,
-            ShieldAbsorbed = shieldAbsorbed,
-            ShieldBroken = DictBool(preview, "shield_broken", false),
-            StableLethal = stableLethal,
-            LethalProbabilityBasisPoints = lethalProbabilityBasisPoints,
-            SaveEstimates = saveEstimates,
+            Damage = preview.Damage,
+            HpDamage = preview.HpDamage,
+            PostSaveDamage = preview.PostSaveDamage,
+            IncomingBudgetDamage = preview.IncomingBudgetDamage,
+            ShieldAbsorbed = preview.ShieldAbsorbed,
+            ShieldBroken = preview.ShieldBroken,
+            StableLethal = preview.StableLethal,
+            LethalProbabilityBasisPoints = preview.LethalProbabilityBasisPoints,
+            SaveEstimates = CloneSaveEstimates(preview.SaveEstimates),
             DamageEstimates = new List<DamageEstimateBreakdown> { damageEstimate },
         };
     }
 
     private static void ApplyBranchLethalEstimate(
         DamageEstimateResult normalized,
-        GDictionary preview,
+        DamagePreviewSnapshot preview,
         int targetHpBefore
     )
     {
-        DamageSaveEstimate saveEstimate = DamageSaveEstimate.FromDictionary(
-            DictDictionary(preview, "save_estimate", new GDictionary())
-        );
+        DamageSaveEstimate saveEstimate = preview?.PrimarySaveEstimate;
         if (saveEstimate == null)
         {
             return;
@@ -906,13 +940,14 @@ public partial class BattleAiScoreService
         {
             saveContext["skill_id"] = skillId;
         }
-        GDictionary probability = BattleSaveResolver.estimate_save_success_probability(
+        BattleSaveProbabilityResult probability =
+            BattleSaveResolver.estimate_save_success_probability_result(
             sourceUnit,
             targetUnit,
             effectDef,
             saveContext
         );
-        if (!DictBool(probability, "has_save", false))
+        if (!probability.HasSave)
         {
             return new DamageSaveEstimate
             {
@@ -925,13 +960,13 @@ public partial class BattleAiScoreService
             };
         }
         int successBasisPoints = Mathf.Clamp(
-            DictInt(probability, "success_probability_basis_points", 0),
+            probability.SuccessProbabilityBasisPoints,
             0,
             10000
         );
-        int failureBasisPoints = Math.Max(10000 - successBasisPoints, 0);
+        int failureBasisPoints = Mathf.Clamp(probability.FailureProbabilityBasisPoints, 0, 10000);
         int damageOnSaveSuccess = 0;
-        if (effectDef.save_partial_on_success && !DictBool(probability, "immune", false))
+        if (effectDef.save_partial_on_success && !probability.Immune)
         {
             damageOnSaveSuccess = damageBeforeSave / 2;
         }
@@ -952,14 +987,14 @@ public partial class BattleAiScoreService
             SaveSuccessProbabilityBasisPoints = successBasisPoints,
             SaveSuccessRatePercent = RoundToInt(successBasisPoints / 100.0),
             SaveFailureProbabilityBasisPoints = failureBasisPoints,
-            Dc = DictInt(probability, "dc", 0),
-            Ability = DictString(probability, "ability", ""),
-            SaveTag = DictString(probability, "save_tag", ""),
-            AdvantageState = DictString(probability, "advantage_state", ""),
-            AbilityValue = DictInt(probability, "ability_value", 0),
-            AbilityModifier = DictInt(probability, "ability_modifier", 0),
-            Bonus = DictInt(probability, "bonus", 0),
-            Immune = DictBool(probability, "immune", false),
+            Dc = probability.Dc,
+            Ability = probability.Ability.ToString(),
+            SaveTag = probability.SaveTag.ToString(),
+            AdvantageState = probability.AdvantageState.ToString(),
+            AbilityValue = probability.AbilityValue,
+            AbilityModifier = probability.AbilityModifier,
+            Bonus = probability.Bonus,
+            Immune = probability.Immune,
             HitCount = 1,
         };
     }
@@ -1052,23 +1087,16 @@ public partial class BattleAiScoreService
         return skillDef != null ? skillDef.skill_id : "";
     }
 
-    private static int EstimateDamageFromPreview(GDictionary damagePreview)
+    private static int EstimateDamageFromPreview(
+        BattleDamagePreviewRangeService.SkillDamagePreview damagePreview
+    )
     {
-        if (
-            damagePreview == null
-            || damagePreview.Count == 0
-            || !DictBool(damagePreview, "has_damage", false)
-        )
+        if (!damagePreview.HasDamage)
         {
             return 0;
         }
         return Math.Max(
-            RoundToInt(
-                (
-                    DictDouble(damagePreview, "min_damage", 0)
-                    + DictDouble(damagePreview, "max_damage", 0)
-                ) / 2.0
-            ),
+            RoundToInt((damagePreview.MinDamage + damagePreview.MaxDamage) / 2.0),
             0
         );
     }

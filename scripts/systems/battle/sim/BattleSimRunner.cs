@@ -289,7 +289,7 @@ public partial class BattleSimRunner : RefCounted
         if (reportFile != null)
         {
             reportFile.StoreString(
-                Json.Stringify(GdInterop.GetValueOrDefault(null, "", _NormalizeValue(report)), "\t")
+                Json.Stringify(ToVariant(_NormalizeValue(report)), "\t")
             );
             reportFile.Close();
         }
@@ -334,7 +334,7 @@ public partial class BattleSimRunner : RefCounted
                         flattenedTrace["seed"] = (int)runEntry.GetValueOrDefault("seed", 0);
                         traceFile.StoreLine(
                             Json.Stringify(
-                                GdInterop.GetValueOrDefault(null, "", _NormalizeValue(flattenedTrace))
+                                ToVariant(_NormalizeValue(flattenedTrace))
                             )
                         );
                     }
@@ -351,7 +351,7 @@ public partial class BattleSimRunner : RefCounted
                 var traceSummary = _traceSummaryBuilder.Build(report, reportPath);
                 summaryFile.StoreString(
                     Json.Stringify(
-                        GdInterop.GetValueOrDefault(null, "", _NormalizeValue(traceSummary)),
+                        ToVariant(_NormalizeValue(traceSummary)),
                         "\t"
                     )
                 );
@@ -397,18 +397,14 @@ public partial class BattleSimRunner : RefCounted
         {
             var normalized = new Dictionary();
             foreach (var key in rawDictionary.Keys)
-                normalized[key.ToString()] = GdInterop.GetValueOrDefault(
-                    null,
-                    "",
-                    _NormalizeValue(rawDictionary[key])
-                );
+                normalized[key.ToString()] = ToVariant(_NormalizeValue(rawDictionary[key]));
             return normalized;
         }
         if (rawValue is Godot.Collections.Array rawArray)
         {
             var normalized = new Godot.Collections.Array();
             foreach (var entry in rawArray)
-                normalized.Add(GdInterop.GetValueOrDefault(null, "", _NormalizeValue(entry)));
+                normalized.Add(ToVariant(_NormalizeValue(entry)));
             return normalized;
         }
         if (rawValue is not Variant value)
@@ -426,7 +422,7 @@ public partial class BattleSimRunner : RefCounted
             var arr = value.AsGodotArray();
             var normalized = new Godot.Collections.Array();
             foreach (var entry in arr)
-                normalized.Add(GdInterop.GetValueOrDefault(null, "", _NormalizeValue(entry)));
+                normalized.Add(ToVariant(_NormalizeValue(entry)));
             return normalized;
         }
         if (value.VariantType == Variant.Type.Dictionary)
@@ -434,11 +430,7 @@ public partial class BattleSimRunner : RefCounted
             var dict = value.AsGodotDictionary();
             var normalized = new Dictionary();
             foreach (var key in dict.Keys)
-                normalized[key.ToString()] = GdInterop.GetValueOrDefault(
-                    null,
-                    "",
-                    _NormalizeValue(dict[key])
-                );
+                normalized[key.ToString()] = ToVariant(_NormalizeValue(dict[key]));
             return normalized;
         }
         if (value.VariantType == Variant.Type.Object)
@@ -454,6 +446,24 @@ public partial class BattleSimRunner : RefCounted
         }
         return value;
     }
+
+    private static Variant ToVariant(object value) =>
+        value switch
+        {
+            Variant variant => variant,
+            string text => text,
+            StringName stringName => stringName,
+            int intValue => intValue,
+            long longValue => longValue,
+            bool boolValue => boolValue,
+            float floatValue => floatValue,
+            double doubleValue => doubleValue,
+            Vector2I coord => coord,
+            Godot.Collections.Array array => array,
+            Dictionary dictionary => dictionary,
+            GodotObject godotObject => godotObject,
+            _ => default,
+        };
 
     private static Dictionary GetDictionary(Dictionary dictionary, object key)
     {

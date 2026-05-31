@@ -10,7 +10,7 @@ public partial class GameRuntimeWarehouseHandler : RefCounted
     private sealed class WarehouseTransactionSnapshot
     {
         public Dictionary RuntimeState { get; set; } = new();
-        public Dictionary PartyStatePayload { get; set; } = new();
+        public PartyState PartyState { get; set; }
         public Dictionary WorldData { get; set; } = new();
         public StringName SelectedMemberId { get; set; } = "";
     }
@@ -450,27 +450,27 @@ public partial class GameRuntimeWarehouseHandler : RefCounted
             && partyState.get_member_state(selectedMemberId) != null
         )
             return selectedMemberId;
-        var leaderMemberId = partyState.Get("leader_member_id").AsStringName();
+        var leaderMemberId = partyState.leader_member_id;
         if (
             leaderMemberId != ""
             && partyState.get_member_state(leaderMemberId) != null
         )
             return leaderMemberId;
-        var activeMemberIds = partyState.Get("active_member_ids").AsGodotArray();
+        var activeMemberIds = partyState.active_member_ids;
         foreach (var memberId in activeMemberIds)
         {
             if (
-                partyState.get_member_state(memberId.AsStringName()) != null
+                partyState.get_member_state(memberId) != null
             )
-                return memberId.AsStringName();
+                return memberId;
         }
-        var reserveMemberIds = partyState.Get("reserve_member_ids").AsGodotArray();
+        var reserveMemberIds = partyState.reserve_member_ids;
         foreach (var memberId in reserveMemberIds)
         {
             if (
-                partyState.get_member_state(memberId.AsStringName()) != null
+                partyState.get_member_state(memberId) != null
             )
-                return memberId.AsStringName();
+                return memberId;
         }
         return "";
     }
@@ -483,10 +483,10 @@ public partial class GameRuntimeWarehouseHandler : RefCounted
         if (!HasRuntime() || partyState == null)
             return entries;
 
-        var activeMemberIds = partyState.Get("active_member_ids").AsGodotArray();
+        var activeMemberIds = partyState.active_member_ids;
         foreach (var memberId in activeMemberIds)
         {
-            var id = memberId.AsStringName();
+            var id = memberId;
             if (id == "" || seenMemberIds.ContainsKey(id))
                 continue;
             if (partyState.get_member_state(id) == null)
@@ -502,10 +502,10 @@ public partial class GameRuntimeWarehouseHandler : RefCounted
             );
         }
 
-        var reserveMemberIds = partyState.Get("reserve_member_ids").AsGodotArray();
+        var reserveMemberIds = partyState.reserve_member_ids;
         foreach (var memberId in reserveMemberIds)
         {
-            var id = memberId.AsStringName();
+            var id = memberId;
             if (id == "" || seenMemberIds.ContainsKey(id))
                 continue;
             if (partyState.get_member_state(id) == null)
@@ -804,11 +804,7 @@ public partial class GameRuntimeWarehouseHandler : RefCounted
 
         var partyState = GetPartyState();
         if (partyState != null)
-        {
-            var partyPayload = partyState.to_dict();
-            if (partyPayload != null)
-                snapshot.PartyStatePayload = partyPayload.Duplicate(true);
-        }
+            snapshot.PartyState = partyState.duplicate_state();
 
         if (gameSession != null)
         {
@@ -822,10 +818,10 @@ public partial class GameRuntimeWarehouseHandler : RefCounted
 
     private bool RollbackWarehouseTransaction(WarehouseTransactionSnapshot snapshot)
     {
-        if (snapshot == null || snapshot.PartyStatePayload.Count == 0)
+        if (snapshot == null || snapshot.PartyState == null)
             return false;
 
-        var restoredPartyState = PartyState.from_dict(snapshot.PartyStatePayload);
+        var restoredPartyState = snapshot.PartyState.duplicate_state();
         if (restoredPartyState == null)
             return false;
 
@@ -869,7 +865,7 @@ public partial class GameRuntimeWarehouseHandler : RefCounted
             return;
 
         dataContext.bind_root_world_data(restoredWorldData);
-        dataContext.sync_active_world_context(
+        dataContext.SyncActiveWorldContext(
             _runtime.get_generation_config(),
             _runtime.get_grid_system(),
             _runtime.get_player_coord(),
@@ -912,23 +908,37 @@ public partial class GameRuntimeWarehouseHandler : RefCounted
 
     private static bool DictionaryBool(Dictionary dictionary, string key, bool fallback)
     {
-        if (dictionary == null || !dictionary.ContainsKey(key))
+        if (!TryRead(dictionary, key, out Variant value) || value.VariantType != Variant.Type.Bool)
             return fallback;
-        return dictionary[key].AsBool();
+        return value.AsBool();
     }
 
     private static int DictionaryInt(Dictionary dictionary, string key, int fallback)
     {
-        if (dictionary == null || !dictionary.ContainsKey(key))
+        if (!TryRead(dictionary, key, out Variant value) || value.VariantType != Variant.Type.Int)
             return fallback;
-        return dictionary[key].AsInt32();
+        return value.AsInt32();
     }
 
     private static string DictionaryString(Dictionary dictionary, string key, string fallback)
     {
-        if (dictionary == null || !dictionary.ContainsKey(key))
+        if (!TryRead(dictionary, key, out Variant value))
             return fallback;
-        return dictionary[key].AsString();
+        return value.VariantType switch
+        {
+            Variant.Type.String => value.AsString(),
+            Variant.Type.StringName => value.AsStringName().ToString(),
+            _ => fallback,
+        };
+    }
+
+    private static bool TryRead(Dictionary dictionary, string key, out Variant value)
+    {
+        value = default;
+        if (dictionary == null || !dictionary.ContainsKey(key))
+            return false;
+        value = dictionary[key];
+        return value.VariantType != Variant.Type.Nil;
     }
 
     private static StringName DictionaryStringName(

@@ -87,7 +87,13 @@ public partial class PartyState : RefCounted
         var next = new Dictionary<StringName, bool>();
         if (flags != null)
             foreach (var key in flags.Keys)
-                next[ProgressionDataUtils.to_string_name(key)] = flags[key].AsBool();
+            {
+                var flagId = ProgressionDataUtils.to_string_name(key);
+                if (flagId == "")
+                    continue;
+                if (TryReadBool(flags, key, out bool value))
+                    next[flagId] = value;
+            }
         fate_run_flags = next;
     }
 
@@ -136,6 +142,27 @@ public partial class PartyState : RefCounted
         completed_quest_ids.Duplicate();
 
     public int get_gold() => Mathf.Max(gold, 0);
+
+    public PartyState duplicate_state()
+    {
+        return new PartyState
+        {
+            version = version,
+            gold = gold,
+            leader_member_id = leader_member_id,
+            main_character_member_id = main_character_member_id,
+            fate_run_flags = DuplicateBoolMap(fate_run_flags),
+            meta_flags = DuplicateBoolMap(meta_flags),
+            active_member_ids = DuplicateStringNameArray(active_member_ids),
+            reserve_member_ids = DuplicateStringNameArray(reserve_member_ids),
+            member_states = DuplicateMemberStates(member_states),
+            pending_character_rewards = DuplicatePendingCharacterRewards(pending_character_rewards),
+            active_quests = DuplicateQuestStates(active_quests),
+            claimable_quests = DuplicateQuestStates(claimable_quests),
+            completed_quest_ids = DuplicateStringNameArray(completed_quest_ids),
+            warehouse_state = warehouse_state?.duplicate_state() ?? new WarehouseState(),
+        };
+    }
 
     public void set_gold(int v) => gold = Mathf.Max(v, 0);
 
@@ -612,6 +639,69 @@ public partial class PartyState : RefCounted
         return r;
     }
 
+    private static Dictionary<StringName, bool> DuplicateBoolMap(
+        Dictionary<StringName, bool> values
+    )
+    {
+        return values != null ? new Dictionary<StringName, bool>(values) : new Dictionary<StringName, bool>();
+    }
+
+    private static Godot.Collections.Array<StringName> DuplicateStringNameArray(
+        Godot.Collections.Array<StringName> values
+    )
+    {
+        return values != null
+            ? new Godot.Collections.Array<StringName>(values)
+            : new Godot.Collections.Array<StringName>();
+    }
+
+    private static Godot.Collections.Dictionary DuplicateMemberStates(
+        Godot.Collections.Dictionary values
+    )
+    {
+        var result = new Godot.Collections.Dictionary();
+        if (values == null)
+            return result;
+
+        foreach (var rawKey in values.Keys)
+        {
+            var memberId = ProgressionDataUtils.to_string_name(rawKey);
+            if (memberId == "")
+                continue;
+            var memberState = values[rawKey].AsGodotObject() as PartyMemberState;
+            var duplicate = memberState?.duplicate_state();
+            if (duplicate != null)
+                result[memberId] = duplicate;
+        }
+        return result;
+    }
+
+    private static Godot.Collections.Array<PendingCharacterReward> DuplicatePendingCharacterRewards(
+        Godot.Collections.Array<PendingCharacterReward> values
+    )
+    {
+        var result = new Godot.Collections.Array<PendingCharacterReward>();
+        if (values == null)
+            return result;
+        foreach (var reward in values)
+            if (reward != null)
+                result.Add(reward.duplicate_state());
+        return result;
+    }
+
+    private static Godot.Collections.Array<QuestState> DuplicateQuestStates(
+        Godot.Collections.Array<QuestState> values
+    )
+    {
+        var result = new Godot.Collections.Array<QuestState>();
+        if (values == null)
+            return result;
+        foreach (var questState in values)
+            if (questState != null)
+                result.Add(questState.duplicate_state());
+        return result;
+    }
+
     private static Godot.Collections.Array<StringName> _nusna(Godot.Collections.Array<StringName> v)
     {
         var r = new Godot.Collections.Array<StringName>();
@@ -697,11 +787,27 @@ public partial class PartyState : RefCounted
             var flagId = ProgressionDataUtils.to_string_name(rawKey);
             if (flagId == "" || parsedFlags.ContainsKey(flagId))
                 return null;
-            if (values[rawKey].VariantType != Variant.Type.Bool)
+            if (!TryReadBool(values, rawKey, out bool flagValue))
                 return null;
-            parsedFlags[flagId] = values[rawKey].AsBool();
+            parsedFlags[flagId] = flagValue;
         }
         return parsedFlags;
+    }
+
+    private static bool TryReadBool(
+        Godot.Collections.Dictionary data,
+        Variant key,
+        out bool result
+    )
+    {
+        result = false;
+        if (data == null || !data.ContainsKey(key))
+            return false;
+        Variant value = data[key];
+        if (value.VariantType != Variant.Type.Bool)
+            return false;
+        result = value.AsBool();
+        return true;
     }
 
     private static bool _has_unique_equipment_instance_ids(PartyState partyState)

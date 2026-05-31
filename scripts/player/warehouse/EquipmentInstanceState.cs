@@ -79,6 +79,17 @@ public partial class EquipmentInstanceState : RefCounted
         };
     }
 
+    public EquipmentInstanceState duplicate_state()
+    {
+        return new EquipmentInstanceState
+        {
+            instance_id = instance_id,
+            item_id = item_id,
+            rarity = rarity,
+            current_durability = current_durability,
+        };
+    }
+
     public static EquipmentInstanceState from_dict(Godot.Collections.Dictionary data) =>
         _from_dict(data, false, SAVE_PAYLOAD_LABEL);
 

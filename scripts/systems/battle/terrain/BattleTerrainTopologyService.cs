@@ -92,7 +92,7 @@ public partial class BattleTerrainTopologyService : RefCounted
             if (coordValue.VariantType != Variant.Type.Vector2I)
                 continue;
             var coord = coordValue.AsVector2I();
-            var cell = cells.GetValueOrDefault(coord).AsGodotObject() as BattleCellState;
+            var cell = _get_cell(cells, coord);
             if (_is_water_like(cell))
                 results.Add(coord);
         }
@@ -114,7 +114,7 @@ public partial class BattleTerrainTopologyService : RefCounted
                 if (seen.ContainsKey(coord))
                     continue;
                 seen[coord] = true;
-                var cell = cells.GetValueOrDefault(coord).AsGodotObject() as BattleCellState;
+                var cell = _get_cell(cells, coord);
                 if (_is_water_like(cell))
                     results.Add(coord);
             }
@@ -129,7 +129,7 @@ public partial class BattleTerrainTopologyService : RefCounted
         Godot.Collections.Dictionary visited
     )
     {
-        var startCell = cells.GetValueOrDefault(start).AsGodotObject() as BattleCellState;
+        var startCell = _get_cell(cells, start);
         if (!_is_water_like(startCell))
             return new Godot.Collections.Array<Vector2I>();
 
@@ -141,7 +141,7 @@ public partial class BattleTerrainTopologyService : RefCounted
             frontier.RemoveAt(0);
             if (visited.ContainsKey(current))
                 continue;
-            var currentCell = cells.GetValueOrDefault(current).AsGodotObject() as BattleCellState;
+            var currentCell = _get_cell(cells, current);
             if (!_is_water_like(currentCell))
                 continue;
             visited[current] = true;
@@ -165,13 +165,12 @@ public partial class BattleTerrainTopologyService : RefCounted
         {
             if (_is_edge_coord(mapSize, coord))
                 return true;
-            var cell = cells.GetValueOrDefault(coord).AsGodotObject() as BattleCellState;
+            var cell = _get_cell(cells, coord);
             if (cell == null)
                 continue;
             foreach (var neighbor in _get_neighbors_4(mapSize, coord))
             {
-                var neighborCell =
-                    cells.GetValueOrDefault(neighbor).AsGodotObject() as BattleCellState;
+                var neighborCell = _get_cell(cells, neighbor);
                 if (_is_water_like(neighborCell))
                     continue;
                 if (neighborCell != null && neighborCell.current_height <= cell.current_height)
@@ -188,7 +187,7 @@ public partial class BattleTerrainTopologyService : RefCounted
         Godot.Collections.Dictionary componentLookup
     )
     {
-        var cell = cells.GetValueOrDefault(coord).AsGodotObject() as BattleCellState;
+        var cell = _get_cell(cells, coord);
         if (cell == null)
             return Vector2I.Zero;
 
@@ -200,8 +199,7 @@ public partial class BattleTerrainTopologyService : RefCounted
             var neighborCoord = coord + direction;
             if (!_is_inside(mapSize, neighborCoord))
                 return direction;
-            var neighborCell =
-                cells.GetValueOrDefault(neighborCoord).AsGodotObject() as BattleCellState;
+            var neighborCell = _get_cell(cells, neighborCoord);
             if (_is_water_like(neighborCell))
                 continue;
             if (neighborCell == null)
@@ -223,8 +221,7 @@ public partial class BattleTerrainTopologyService : RefCounted
             var neighborCoord = coord + direction;
             if (componentLookup.ContainsKey(neighborCoord))
             {
-                var neighborCell =
-                    cells.GetValueOrDefault(neighborCoord).AsGodotObject() as BattleCellState;
+                var neighborCell = _get_cell(cells, neighborCoord);
                 if (
                     neighborCell != null
                     && neighborCell.base_terrain == BattleTerrainRules.TERRAIN_FLOWING_WATER()
@@ -241,13 +238,13 @@ public partial class BattleTerrainTopologyService : RefCounted
         Vector2I coord
     )
     {
-        var cell = cells.GetValueOrDefault(coord).AsGodotObject() as BattleCellState;
+        var cell = _get_cell(cells, coord);
         if (cell == null)
             return false;
         int minBankDelta = int.MaxValue;
         foreach (var neighbor in _get_neighbors_4(mapSize, coord))
         {
-            var neighborCell = cells.GetValueOrDefault(neighbor).AsGodotObject() as BattleCellState;
+            var neighborCell = _get_cell(cells, neighbor);
             if (_is_water_like(neighborCell))
                 continue;
             if (neighborCell == null)

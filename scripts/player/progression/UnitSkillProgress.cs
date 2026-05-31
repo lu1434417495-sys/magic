@@ -90,6 +90,30 @@ public partial class UnitSkillProgress : RefCounted
 
     public void clear_profession_assignment() => assigned_profession_id = "";
 
+    public UnitSkillProgress duplicate_state()
+    {
+        return new UnitSkillProgress
+        {
+            skill_id = skill_id,
+            is_learned = is_learned,
+            skill_level = skill_level,
+            current_mastery = current_mastery,
+            total_mastery_earned = total_mastery_earned,
+            is_core = is_core,
+            assigned_profession_id = assigned_profession_id,
+            merged_from_skill_ids = new Godot.Collections.Array<StringName>(merged_from_skill_ids),
+            mastery_from_training = mastery_from_training,
+            mastery_from_battle = mastery_from_battle,
+            profession_granted_by = profession_granted_by,
+            granted_source_type = granted_source_type,
+            granted_source_id = granted_source_id,
+            core_max_growth_claimed = core_max_growth_claimed,
+            is_level_trigger_active = is_level_trigger_active,
+            is_level_trigger_locked = is_level_trigger_locked,
+            bonus_to_hit_from_lock = bonus_to_hit_from_lock,
+        };
+    }
+
     public Godot.Collections.Dictionary to_dict()
     {
         return new Godot.Collections.Dictionary
@@ -203,7 +227,7 @@ public partial class UnitSkillProgress : RefCounted
         if (mergedIds == null)
             return null;
 
-        bool isLearned = data["is_learned"].AsBool();
+        bool isLearned = _read_bool(data, "is_learned");
 
         if (!isLearned)
         {
@@ -222,7 +246,7 @@ public partial class UnitSkillProgress : RefCounted
             if (data["mastery_from_battle"].AsInt32() != 0)
                 return null;
 
-            if (data["is_core"].AsBool())
+            if (_read_bool(data, "is_core"))
                 return null;
 
             if (assignedProf != "")
@@ -234,7 +258,7 @@ public partial class UnitSkillProgress : RefCounted
             if (profGrantedBy != "")
                 return null;
 
-            if (data["core_max_growth_claimed"].AsBool())
+            if (_read_bool(data, "core_max_growth_claimed"))
                 return null;
         }
 
@@ -260,7 +284,7 @@ public partial class UnitSkillProgress : RefCounted
 
             current_mastery = curMastery,
             total_mastery_earned = totalMastery,
-            is_core = data["is_core"].AsBool(),
+            is_core = _read_bool(data, "is_core"),
 
             assigned_profession_id = assignedProf,
             merged_from_skill_ids = mergedIds,
@@ -272,11 +296,11 @@ public partial class UnitSkillProgress : RefCounted
             granted_source_type = grantSourceType,
             granted_source_id = grantSourceId,
 
-            core_max_growth_claimed = data["core_max_growth_claimed"].AsBool(),
+            core_max_growth_claimed = _read_bool(data, "core_max_growth_claimed"),
 
-            is_level_trigger_active = data["is_level_trigger_active"].AsBool(),
+            is_level_trigger_active = _read_bool(data, "is_level_trigger_active"),
 
-            is_level_trigger_locked = data["is_level_trigger_locked"].AsBool(),
+            is_level_trigger_locked = _read_bool(data, "is_level_trigger_locked"),
 
             bonus_to_hit_from_lock = data["bonus_to_hit_from_lock"].AsInt32(),
         };
@@ -328,9 +352,10 @@ public partial class UnitSkillProgress : RefCounted
     {
         if (data.Count != expected.Count)
             return false;
-        var el = new Godot.Collections.Dictionary();
+        var expectedFields = new System.Collections.Generic.HashSet<string>();
+        var seenFields = new System.Collections.Generic.HashSet<string>();
         foreach (string fn in expected)
-            el[fn] = true;
+            expectedFields.Add(fn);
         foreach (var key in data.Keys)
         {
             if (
@@ -338,12 +363,21 @@ public partial class UnitSkillProgress : RefCounted
                 && key.VariantType != Variant.Type.StringName
             )
                 return false;
-            if (!el.ContainsKey(key.AsString()))
+            string fieldName = key.AsString();
+            if (!expectedFields.Contains(fieldName))
                 return false;
-            if (!el[key.AsString()].AsBool())
+            if (seenFields.Contains(fieldName))
                 return false;
-            el[key.AsString()] = false;
+            seenFields.Add(fieldName);
         }
-        return true;
+        return seenFields.Count == expectedFields.Count;
+    }
+
+    private static bool _read_bool(Godot.Collections.Dictionary data, string key)
+    {
+        if (data == null || !data.ContainsKey(key))
+            return false;
+        Variant value = data[key];
+        return value.VariantType == Variant.Type.Bool && value.AsBool();
     }
 }

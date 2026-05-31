@@ -60,8 +60,8 @@ public partial class GameTextCommandRunner : RefCounted
 
         GDictionary commandResult = ExecuteCommand(tokens);
         _session.settle_frames();
-        result.ok = GdInterop.GetBool(commandResult, "ok", false);
-        result.message = GdInterop.GetString(commandResult, "message");
+        result.ok = ResultOk(commandResult);
+        result.message = ReadString(commandResult, "message");
         result.snapshot = _session.build_snapshot();
         result.human_log = $"{(result.ok ? "OK" : "ERR")} {result.command_text}";
         result.snapshot_text = _session.build_text_snapshot();
@@ -72,8 +72,8 @@ public partial class GameTextCommandRunner : RefCounted
     {
         result.snapshot = _session.build_snapshot();
         GDictionary assertionResult = ExecuteExpect(tokens, result.snapshot);
-        result.ok = GdInterop.GetBool(assertionResult, "ok", false);
-        result.message = GdInterop.GetString(assertionResult, "message");
+        result.ok = ResultOk(assertionResult);
+        result.message = ReadString(assertionResult, "message");
         result.assertions.Add(assertionResult);
         result.snapshot_text = _session.build_text_snapshot();
     }
@@ -135,7 +135,7 @@ public partial class GameTextCommandRunner : RefCounted
     private GDictionary ExecuteWorldCommand(List<string> tokens)
     {
         GDictionary ensureResult = EnsureWorldContext();
-        if (!GdInterop.GetBool(ensureResult, "ok", false))
+        if (!ResultOk(ensureResult))
             return ensureResult;
         GodotObject runtime = _session.get_runtime_facade();
         if (runtime == null)
@@ -154,9 +154,9 @@ public partial class GameTextCommandRunner : RefCounted
                 if (tokens.Count >= 4)
                 {
                     GDictionary countResult = ParseIntArgument(tokens[3], "移动次数");
-                    if (!GdInterop.GetBool(countResult, "ok", false))
+                    if (!ResultOk(countResult))
                         return countResult;
-                    count = GdInterop.GetInt(countResult, "value", 1);
+                    count = ReadInt(countResult, "value", 1);
                 }
                 return ToDictionary(Call(runtime, "command_world_move", direction, count));
             }
@@ -165,13 +165,13 @@ public partial class GameTextCommandRunner : RefCounted
                 if (tokens.Count < 4)
                     return Result(false, "用法: world select <x> <y>");
                 GDictionary coordResult = ParseCoordArgument(tokens[2], tokens[3], "世界坐标");
-                if (!GdInterop.GetBool(coordResult, "ok", false))
+                if (!ResultOk(coordResult))
                     return coordResult;
                 return ToDictionary(
                     Call(
                         runtime,
                         "command_world_select",
-                        GdInterop.GetVector2I(coordResult, "value")
+                        ReadVector2I(coordResult, "value")
                     )
                 );
             }
@@ -180,13 +180,13 @@ public partial class GameTextCommandRunner : RefCounted
                 if (tokens.Count >= 4)
                 {
                     GDictionary coordResult = ParseCoordArgument(tokens[2], tokens[3], "聚落坐标");
-                    if (!GdInterop.GetBool(coordResult, "ok", false))
+                    if (!ResultOk(coordResult))
                         return coordResult;
                     return ToDictionary(
                         Call(
                             runtime,
                             "command_open_settlement",
-                            GdInterop.GetVector2I(coordResult, "value")
+                            ReadVector2I(coordResult, "value")
                         )
                     );
                 }
@@ -197,13 +197,13 @@ public partial class GameTextCommandRunner : RefCounted
                 if (tokens.Count < 4)
                     return Result(false, "用法: world inspect <x> <y>");
                 GDictionary coordResult = ParseCoordArgument(tokens[2], tokens[3], "世界坐标");
-                if (!GdInterop.GetBool(coordResult, "ok", false))
+                if (!ResultOk(coordResult))
                     return coordResult;
                 return ToDictionary(
                     Call(
                         runtime,
                         "command_world_inspect",
-                        GdInterop.GetVector2I(coordResult, "value")
+                        ReadVector2I(coordResult, "value")
                     )
                 );
             }
@@ -212,10 +212,10 @@ public partial class GameTextCommandRunner : RefCounted
                 if (tokens.Count < 4)
                     return Result(false, "用法: world click <x> <y>");
                 GDictionary coordResult = ParseCoordArgument(tokens[2], tokens[3], "世界坐标");
-                if (!GdInterop.GetBool(coordResult, "ok", false))
+                if (!ResultOk(coordResult))
                     return coordResult;
                 return ToDictionary(
-                    Call(runtime, "select_world_cell", GdInterop.GetVector2I(coordResult, "value"))
+                    Call(runtime, "select_world_cell", ReadVector2I(coordResult, "value"))
                 );
             }
             default:
@@ -226,7 +226,7 @@ public partial class GameTextCommandRunner : RefCounted
     private GDictionary ExecuteSubmapCommand(List<string> tokens)
     {
         GDictionary ensureResult = EnsureWorldContext();
-        if (!GdInterop.GetBool(ensureResult, "ok", false))
+        if (!ResultOk(ensureResult))
             return ensureResult;
         GodotObject runtime = _session.get_runtime_facade();
         if (runtime == null)
@@ -245,7 +245,7 @@ public partial class GameTextCommandRunner : RefCounted
     private GDictionary ExecutePartyCommand(List<string> tokens)
     {
         GDictionary ensureResult = EnsureWorldContext();
-        if (!GdInterop.GetBool(ensureResult, "ok", false))
+        if (!ResultOk(ensureResult))
             return ensureResult;
         GodotObject runtime = _session.get_runtime_facade();
         if (runtime == null)
@@ -306,7 +306,7 @@ public partial class GameTextCommandRunner : RefCounted
                         new StringName(tokens[2]),
                         new StringName(tokens[3]),
                         slotId,
-                        new StringName(GdInterop.GetString(args, "instance_id"))
+                        new StringName(ReadString(args, "instance_id"))
                     )
                 );
             }
@@ -331,7 +331,7 @@ public partial class GameTextCommandRunner : RefCounted
     private GDictionary ExecuteQuestCommand(List<string> tokens)
     {
         GDictionary ensureResult = EnsureWorldContext();
-        if (!GdInterop.GetBool(ensureResult, "ok", false))
+        if (!ResultOk(ensureResult))
             return ensureResult;
         GodotObject runtime = _session.get_runtime_facade();
         if (runtime == null)
@@ -354,7 +354,7 @@ public partial class GameTextCommandRunner : RefCounted
                         "用法: quest progress <quest_id> <objective_id> <amount> [key=value ...]"
                     );
                 GDictionary amountResult = ParseIntArgument(tokens[4], "任务进度增量");
-                if (!GdInterop.GetBool(amountResult, "ok", false))
+                if (!ResultOk(amountResult))
                     return amountResult;
                 return ToDictionary(
                     Call(
@@ -362,7 +362,7 @@ public partial class GameTextCommandRunner : RefCounted
                         "command_progress_quest",
                         new StringName(tokens[2]),
                         new StringName(tokens[3]),
-                        GdInterop.GetInt(amountResult, "value"),
+                        ReadInt(amountResult, "value"),
                         ParseNamedArgs(tokens, 5)
                     )
                 );
@@ -381,7 +381,7 @@ public partial class GameTextCommandRunner : RefCounted
     private GDictionary ExecuteSettlementCommand(List<string> tokens)
     {
         GDictionary ensureResult = EnsureWorldContext();
-        if (!GdInterop.GetBool(ensureResult, "ok", false))
+        if (!ResultOk(ensureResult))
             return ensureResult;
         GodotObject runtime = _session.get_runtime_facade();
         if (runtime == null)
@@ -396,7 +396,7 @@ public partial class GameTextCommandRunner : RefCounted
     private GDictionary ExecuteShopCommand(List<string> tokens)
     {
         GDictionary ensureResult = EnsureWorldContext();
-        if (!GdInterop.GetBool(ensureResult, "ok", false))
+        if (!ResultOk(ensureResult))
             return ensureResult;
         GodotObject runtime = _session.get_runtime_facade();
         if (runtime == null)
@@ -412,9 +412,9 @@ public partial class GameTextCommandRunner : RefCounted
         if (tokens.Count >= 4 && !tokens[3].Contains('='))
         {
             GDictionary quantityResult = ParseIntArgument(tokens[3], "商品数量");
-            if (!GdInterop.GetBool(quantityResult, "ok", false))
+            if (!ResultOk(quantityResult))
                 return quantityResult;
-            quantity = GdInterop.GetInt(quantityResult, "value", 1);
+            quantity = ReadInt(quantityResult, "value", 1);
             argsStart = 4;
         }
         GDictionary args = ParseNamedArgs(tokens, argsStart);
@@ -429,7 +429,7 @@ public partial class GameTextCommandRunner : RefCounted
                     "command_shop_sell",
                     new StringName(tokens[2]),
                     quantity,
-                    new StringName(GdInterop.GetString(args, "instance_id"))
+                    new StringName(ReadString(args, "instance_id"))
                 )
             ),
             _ => Result(false, $"未知 shop 子命令 {tokens[1]}。"),
@@ -439,7 +439,7 @@ public partial class GameTextCommandRunner : RefCounted
     private GDictionary ExecuteStagecoachCommand(List<string> tokens)
     {
         GDictionary ensureResult = EnsureWorldContext();
-        if (!GdInterop.GetBool(ensureResult, "ok", false))
+        if (!ResultOk(ensureResult))
             return ensureResult;
         GodotObject runtime = _session.get_runtime_facade();
         if (runtime == null)
@@ -452,7 +452,7 @@ public partial class GameTextCommandRunner : RefCounted
     private GDictionary ExecuteWarehouseCommand(List<string> tokens)
     {
         GDictionary ensureResult = EnsureWorldContext();
-        if (!GdInterop.GetBool(ensureResult, "ok", false))
+        if (!ResultOk(ensureResult))
             return ensureResult;
         GodotObject runtime = _session.get_runtime_facade();
         if (runtime == null)
@@ -470,14 +470,14 @@ public partial class GameTextCommandRunner : RefCounted
                 if (tokens.Count < 4)
                     return Result(false, "用法: warehouse add <item_id> <quantity>");
                 GDictionary quantityResult = ParseIntArgument(tokens[3], "仓库数量");
-                if (!GdInterop.GetBool(quantityResult, "ok", false))
+                if (!ResultOk(quantityResult))
                     return quantityResult;
                 return ToDictionary(
                     Call(
                         runtime,
                         "command_warehouse_add_item",
                         new StringName(tokens[2]),
-                        GdInterop.GetInt(quantityResult, "value")
+                        ReadInt(quantityResult, "value")
                     )
                 );
             }
@@ -502,10 +502,10 @@ public partial class GameTextCommandRunner : RefCounted
             case "capacity":
             {
                 GDictionary capacityResult = ParseIntArgument(tokens[2], "仓库容量");
-                if (!GdInterop.GetBool(capacityResult, "ok", false))
+                if (!ResultOk(capacityResult))
                     return capacityResult;
                 return _session.set_party_storage_capacity(
-                    GdInterop.GetInt(capacityResult, "value")
+                    ReadInt(capacityResult, "value")
                 );
             }
             case "discard-one":
@@ -516,7 +516,7 @@ public partial class GameTextCommandRunner : RefCounted
                         runtime,
                         "command_warehouse_discard_one",
                         new StringName(tokens[2]),
-                        new StringName(GdInterop.GetString(args, "instance_id"))
+                        new StringName(ReadString(args, "instance_id"))
                     )
                 );
             }
@@ -528,7 +528,7 @@ public partial class GameTextCommandRunner : RefCounted
                         runtime,
                         "command_warehouse_discard_all",
                         new StringName(tokens[2]),
-                        new StringName(GdInterop.GetString(args, "instance_id"))
+                        new StringName(ReadString(args, "instance_id"))
                     )
                 );
             }
@@ -540,7 +540,7 @@ public partial class GameTextCommandRunner : RefCounted
     private GDictionary ExecuteBattleCommand(List<string> tokens)
     {
         GDictionary ensureResult = EnsureWorldContext();
-        if (!GdInterop.GetBool(ensureResult, "ok", false))
+        if (!ResultOk(ensureResult))
             return ensureResult;
         GodotObject runtime = _session.get_runtime_facade();
         if (runtime == null)
@@ -564,10 +564,10 @@ public partial class GameTextCommandRunner : RefCounted
                 if (tokens.Count < 3)
                     return Result(false, "用法: battle tick <ticks>");
                 GDictionary tickResult = ParseIntArgument(tokens[2], "战斗推进 tick");
-                if (!GdInterop.GetBool(tickResult, "ok", false))
+                if (!ResultOk(tickResult))
                     return tickResult;
                 return ToDictionary(
-                    Call(runtime, "command_battle_tick", GdInterop.GetInt(tickResult, "value"))
+                    Call(runtime, "command_battle_tick", ReadInt(tickResult, "value"))
                 );
             }
             case "skill":
@@ -575,13 +575,13 @@ public partial class GameTextCommandRunner : RefCounted
                 if (tokens.Count < 3)
                     return Result(false, "用法: battle skill <slot>");
                 GDictionary slotResult = ParseIntArgument(tokens[2], "技能栏位");
-                if (!GdInterop.GetBool(slotResult, "ok", false))
+                if (!ResultOk(slotResult))
                     return slotResult;
                 return ToDictionary(
                     Call(
                         runtime,
                         "command_battle_select_skill",
-                        GdInterop.GetInt(slotResult, "value") - 1
+                        ReadInt(slotResult, "value") - 1
                     )
                 );
             }
@@ -599,13 +599,13 @@ public partial class GameTextCommandRunner : RefCounted
                 if (tokens.Count >= 4)
                 {
                     GDictionary coordResult = ParseCoordArgument(tokens[2], tokens[3], "战斗坐标");
-                    if (!GdInterop.GetBool(coordResult, "ok", false))
+                    if (!ResultOk(coordResult))
                         return coordResult;
                     return ToDictionary(
                         Call(
                             runtime,
                             "command_battle_move_to",
-                            GdInterop.GetVector2I(coordResult, "value")
+                            ReadVector2I(coordResult, "value")
                         )
                     );
                 }
@@ -625,7 +625,7 @@ public partial class GameTextCommandRunner : RefCounted
                     "equip",
                     new StringName(tokens[2]),
                     new StringName(tokens[3]),
-                    new StringName(GdInterop.GetString(args, "instance_id")),
+                    new StringName(ReadString(args, "instance_id")),
                     args
                 );
             }
@@ -645,7 +645,7 @@ public partial class GameTextCommandRunner : RefCounted
                 }
                 GDictionary args = ParseNamedArgs(tokens, argsStart);
                 if (string.IsNullOrEmpty(instanceId))
-                    instanceId = GdInterop.GetString(args, "instance_id");
+                    instanceId = ReadString(args, "instance_id");
                 return _session.change_battle_equipment(
                     "unequip",
                     new StringName(tokens[2]),
@@ -661,13 +661,13 @@ public partial class GameTextCommandRunner : RefCounted
                 if (tokens.Count < 4)
                     return Result(false, "用法: battle inspect <x> <y>");
                 GDictionary coordResult = ParseCoordArgument(tokens[2], tokens[3], "战斗坐标");
-                if (!GdInterop.GetBool(coordResult, "ok", false))
+                if (!ResultOk(coordResult))
                     return coordResult;
                 return ToDictionary(
                     Call(
                         runtime,
                         "command_battle_inspect",
-                        GdInterop.GetVector2I(coordResult, "value")
+                        ReadVector2I(coordResult, "value")
                     )
                 );
             }
@@ -685,7 +685,7 @@ public partial class GameTextCommandRunner : RefCounted
     private GDictionary ExecuteRewardCommand(List<string> tokens)
     {
         GDictionary ensureResult = EnsureWorldContext();
-        if (!GdInterop.GetBool(ensureResult, "ok", false))
+        if (!ResultOk(ensureResult))
             return ensureResult;
         GodotObject runtime = _session.get_runtime_facade();
         if (runtime == null)
@@ -698,7 +698,7 @@ public partial class GameTextCommandRunner : RefCounted
     private GDictionary ExecutePromotionCommand(List<string> tokens)
     {
         GDictionary ensureResult = EnsureWorldContext();
-        if (!GdInterop.GetBool(ensureResult, "ok", false))
+        if (!ResultOk(ensureResult))
             return ensureResult;
         GodotObject runtime = _session.get_runtime_facade();
         if (runtime == null)
@@ -711,7 +711,7 @@ public partial class GameTextCommandRunner : RefCounted
     private GDictionary ExecuteCloseCommand(List<string> tokens)
     {
         GDictionary ensureResult = EnsureWorldContext();
-        if (!GdInterop.GetBool(ensureResult, "ok", false))
+        if (!ResultOk(ensureResult))
             return ensureResult;
         GodotObject runtime = _session.get_runtime_facade();
         return runtime == null
@@ -729,8 +729,8 @@ public partial class GameTextCommandRunner : RefCounted
             {
                 if (tokens.Count < 4 || tokens[2] != "contains")
                     return ExpectError("expect status contains <text>", "", "");
-                string statusText = GdInterop.GetString(
-                    GdInterop.GetDictionary(snapshot, "status"),
+                string statusText = ReadString(
+                    ReadDictionary(snapshot, "status"),
                     "text"
                 );
                 string expectedText = JoinTokens(tokens, 3);
@@ -742,8 +742,8 @@ public partial class GameTextCommandRunner : RefCounted
             {
                 if (tokens.Count < 4 || tokens[2] != "==")
                     return ExpectError("expect window == <id>", "", "");
-                string actualWindow = GdInterop.GetString(
-                    GdInterop.GetDictionary(snapshot, "modal"),
+                string actualWindow = ReadString(
+                    ReadDictionary(snapshot, "modal"),
                     "id"
                 );
                 string expectedWindow = tokens[3];
@@ -756,11 +756,11 @@ public partial class GameTextCommandRunner : RefCounted
                 if (tokens.Count < 5 || tokens[3] != "==")
                     return ExpectError("expect field <path> == <value>", "", "");
                 GDictionary actualField = ResolvePath(snapshot, tokens[2]);
-                if (!GdInterop.GetBool(actualField, "ok", false))
-                    return ExpectError(GdInterop.GetString(actualField, "message"), "", tokens[4]);
+                if (!ResultOk(actualField))
+                    return ExpectError(ReadString(actualField, "message"), "", tokens[4]);
                 object expectedValue = ParseScalar(JoinTokens(tokens, 4));
                 object actualValue = VariantToObject(
-                    GdInterop.TryGet(actualField, "value", out var _fieldVal) ? _fieldVal : default
+                    TryRead(actualField, "value", out var _fieldVal) ? _fieldVal : default
                 );
                 return ValuesEqual(actualValue, expectedValue)
                     ? ExpectOk(
@@ -779,10 +779,10 @@ public partial class GameTextCommandRunner : RefCounted
                 if (tokens.Count < 5 || tokens[3] != "contains")
                     return ExpectError("expect list <path> contains <value>", "", "");
                 GDictionary actualList = ResolvePath(snapshot, tokens[2]);
-                if (!GdInterop.GetBool(actualList, "ok", false))
-                    return ExpectError(GdInterop.GetString(actualList, "message"), "", tokens[4]);
+                if (!ResultOk(actualList))
+                    return ExpectError(ReadString(actualList, "message"), "", tokens[4]);
                 object listValue = VariantToObject(
-                    GdInterop.TryGet(actualList, "value", out var _listVal) ? _listVal : default
+                    TryRead(actualList, "value", out var _listVal) ? _listVal : default
                 );
                 if (listValue is not GArray array)
                     return ExpectError(
@@ -815,13 +815,13 @@ public partial class GameTextCommandRunner : RefCounted
                     JoinTokens(tokens, 4),
                     "期望仓库数量"
                 );
-                if (!GdInterop.GetBool(expectedQuantityResult, "ok", false))
+                if (!ResultOk(expectedQuantityResult))
                     return ExpectError(
-                        GdInterop.GetString(expectedQuantityResult, "message"),
+                        ReadString(expectedQuantityResult, "message"),
                         "",
                         JoinTokens(tokens, 4)
                     );
-                int expectedQuantity = GdInterop.GetInt(expectedQuantityResult, "value");
+                int expectedQuantity = ReadInt(expectedQuantityResult, "value");
                 int actualQuantity = GetWarehouseItemTotal(snapshot, itemId);
                 return actualQuantity == expectedQuantity
                     ? ExpectOk(
@@ -913,17 +913,17 @@ public partial class GameTextCommandRunner : RefCounted
     private static GDictionary ParseCoordArgument(string xToken, string yToken, string label)
     {
         GDictionary xResult = ParseIntArgument(xToken, $"{label} X");
-        if (!GdInterop.GetBool(xResult, "ok", false))
+        if (!ResultOk(xResult))
             return xResult;
         GDictionary yResult = ParseIntArgument(yToken, $"{label} Y");
-        if (!GdInterop.GetBool(yResult, "ok", false))
+        if (!ResultOk(yResult))
             return yResult;
         return new GDictionary
         {
             ["ok"] = true,
             ["value"] = new Vector2I(
-                GdInterop.GetInt(xResult, "value"),
-                GdInterop.GetInt(yResult, "value")
+                ReadInt(xResult, "value"),
+                ReadInt(yResult, "value")
             ),
         };
     }
@@ -939,7 +939,7 @@ public partial class GameTextCommandRunner : RefCounted
                 continue;
             string key = token[..equalsIndex];
             string valueText = token[(equalsIndex + 1)..];
-            result[key] = GdInterop.ToVariant(ObjectToValue(ParseScalar(valueText)));
+            result[key] = ToVariant(ObjectToValue(ParseScalar(valueText)));
         }
         return result;
     }
@@ -980,7 +980,7 @@ public partial class GameTextCommandRunner : RefCounted
             current = UnwrapValue(current);
             if (current is GDictionary dictionary)
             {
-                if (!GdInterop.TryGet(dictionary, segment, out var value))
+                if (!TryRead(dictionary, segment, out var value))
                     return Result(false, $"path {path} is missing at {segment}");
                 current = value;
                 continue;
@@ -1006,7 +1006,7 @@ public partial class GameTextCommandRunner : RefCounted
         return new GDictionary
         {
             ["ok"] = true,
-            ["value"] = GdInterop.ToVariant(ObjectToValue(UnwrapValue(current))),
+            ["value"] = ToVariant(ObjectToValue(UnwrapValue(current))),
         };
     }
 
@@ -1060,16 +1060,114 @@ public partial class GameTextCommandRunner : RefCounted
         return string.Join(" ", tokens.GetRange(startIndex, tokens.Count - startIndex));
     }
 
+    private static bool TryRead(GDictionary source, object key, out Variant value)
+    {
+        if (source == null || key == null)
+        {
+            value = default;
+            return false;
+        }
+        Variant variantKey = key switch
+        {
+            Variant valueKey => valueKey,
+            string stringKey => stringKey,
+            StringName stringNameKey => stringNameKey,
+            int intKey => intKey,
+            long longKey => longKey,
+            _ => default,
+        };
+        if (source.ContainsKey(variantKey))
+        {
+            value = source[variantKey];
+            return true;
+        }
+        if (variantKey.VariantType == Variant.Type.String)
+        {
+            StringName stringNameKey = new(variantKey.AsString());
+            if (source.ContainsKey(stringNameKey))
+            {
+                value = source[stringNameKey];
+                return true;
+            }
+        }
+        else if (variantKey.VariantType == Variant.Type.StringName)
+        {
+            string stringKey = variantKey.AsStringName().ToString();
+            if (source.ContainsKey(stringKey))
+            {
+                value = source[stringKey];
+                return true;
+            }
+        }
+        value = default;
+        return false;
+    }
+
+    private static int ReadInt(GDictionary source, object key, int fallback = 0)
+    {
+        if (!TryRead(source, key, out Variant value))
+            return fallback;
+        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+    }
+
+    private static string ReadString(GDictionary source, object key, string fallback = "")
+    {
+        if (!TryRead(source, key, out Variant value))
+            return fallback;
+        return value.VariantType switch
+        {
+            Variant.Type.String => value.AsString(),
+            Variant.Type.StringName => value.AsStringName().ToString(),
+            _ => fallback,
+        };
+    }
+
+    private static Vector2I ReadVector2I(
+        GDictionary source,
+        object key,
+        Vector2I fallback = default
+    )
+    {
+        if (!TryRead(source, key, out Variant value))
+            return fallback;
+        return value.VariantType == Variant.Type.Vector2I ? value.AsVector2I() : fallback;
+    }
+
+    private static GDictionary ReadDictionary(GDictionary source, object key)
+    {
+        if (!TryRead(source, key, out Variant value))
+            return new GDictionary();
+        return value.VariantType == Variant.Type.Dictionary
+            ? value.AsGodotDictionary()
+            : new GDictionary();
+    }
+
+    private static GArray ReadArray(GDictionary source, object key)
+    {
+        if (!TryRead(source, key, out Variant value))
+            return new GArray();
+        return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : new GArray();
+    }
+
+    private static IEnumerable<GDictionary> ReadDictionaryItems(GArray values)
+    {
+        foreach (Variant value in values ?? new GArray())
+        {
+            if (value.VariantType == Variant.Type.Dictionary)
+                yield return value.AsGodotDictionary();
+        }
+    }
+
     private static int GetWarehouseItemTotal(GDictionary snapshot, string itemId)
     {
-        GDictionary warehouse = GdInterop.GetDictionary(snapshot, "warehouse");
-        GDictionary windowData = GdInterop.GetDictionary(warehouse, "window_data");
-        GArray entries = GdInterop.GetArray(windowData, "entries");
-        foreach (GDictionary entry in GdInterop.ReadDictionaryItems(entries))
+        GDictionary warehouse = ReadDictionary(snapshot, "warehouse");
+        GDictionary windowData = ReadDictionary(warehouse, "window_data");
+        GArray entries = ReadArray(windowData, "entries");
+        foreach (GDictionary entry in ReadDictionaryItems(entries))
         {
-            if (GdInterop.GetString(entry, "item_id") != itemId)
+            if (ReadString(entry, "item_id") != itemId)
                 continue;
-            return GdInterop.GetInt(entry, "total_quantity");
+            return ReadInt(entry, "total_quantity");
         }
         return 0;
     }
@@ -1103,6 +1201,13 @@ public partial class GameTextCommandRunner : RefCounted
         return new GDictionary { ["ok"] = ok, ["message"] = message ?? "" };
     }
 
+    private static bool ResultOk(GDictionary result)
+    {
+        if (!TryRead(result, "ok", out Variant value))
+            return false;
+        return value.VariantType == Variant.Type.Bool && value.AsBool();
+    }
+
     private static Variant Call(GodotObject target, StringName method, params object[] args)
     {
         if (target == null)
@@ -1112,7 +1217,7 @@ public partial class GameTextCommandRunner : RefCounted
         var values = new Variant[args?.Length ?? 0];
         for (int index = 0; index < values.Length; index++)
         {
-            values[index] = GdInterop.ToVariant(args[index]);
+            values[index] = ToVariant(args[index]);
         }
         return target.Call(method, values);
     }
@@ -1152,6 +1257,27 @@ public partial class GameTextCommandRunner : RefCounted
         return value switch
         {
             null => null,
+            bool boolValue => boolValue,
+            int intValue => intValue,
+            float floatValue => floatValue,
+            double doubleValue => doubleValue,
+            string stringValue => stringValue,
+            Vector2I vector2IValue => vector2IValue,
+            GDictionary dictionary => dictionary,
+            GArray array => array,
+            StringName stringName => stringName,
+            GodotObject godotObject => godotObject,
+            _ => value.ToString(),
+        };
+    }
+
+    private static Variant ToVariant(object value)
+    {
+        value = ObjectToValue(value);
+        return value switch
+        {
+            null => default,
+            Variant variantValue => variantValue,
             bool boolValue => boolValue,
             int intValue => intValue,
             float floatValue => floatValue,

@@ -51,6 +51,24 @@ public partial class UnitProfessionProgress : RefCounted
             promotion_history.Add(record);
     }
 
+    public UnitProfessionProgress duplicate_state()
+    {
+        var copy = new UnitProfessionProgress
+        {
+            profession_id = profession_id,
+            rank = rank,
+            is_active = is_active,
+            is_hidden = is_hidden,
+            core_skill_ids = new Godot.Collections.Array<StringName>(core_skill_ids),
+            granted_skill_ids = new Godot.Collections.Array<StringName>(granted_skill_ids),
+            inactive_reason = inactive_reason,
+        };
+        foreach (var record in promotion_history)
+            if (record != null)
+                copy.promotion_history.Add(record.duplicate_state());
+        return copy;
+    }
+
     public Godot.Collections.Dictionary to_dict()
     {
         var promoData = new Godot.Collections.Array<Godot.Collections.Dictionary>();
@@ -129,8 +147,8 @@ public partial class UnitProfessionProgress : RefCounted
         {
             profession_id = profId,
             rank = rankVar.AsInt32(),
-            is_active = data["is_active"].AsBool(),
-            is_hidden = data["is_hidden"].AsBool(),
+            is_active = _read_bool(data, "is_active"),
+            is_hidden = _read_bool(data, "is_hidden"),
             core_skill_ids = coreIds,
             granted_skill_ids = grantedIds,
             inactive_reason = inactiveReason,
@@ -203,5 +221,13 @@ public partial class UnitProfessionProgress : RefCounted
             result.Add(parsed);
         }
         return result;
+    }
+
+    private static bool _read_bool(Godot.Collections.Dictionary data, string key)
+    {
+        if (data == null || !data.ContainsKey(key))
+            return false;
+        Variant value = data[key];
+        return value.VariantType == Variant.Type.Bool && value.AsBool();
     }
 }

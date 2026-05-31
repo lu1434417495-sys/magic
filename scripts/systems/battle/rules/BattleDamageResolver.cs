@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using static GdInterop;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
@@ -52,8 +51,545 @@ public partial class BattleDamageResolver : RefCounted
     private const int NaturalHitRoll = 20;
     private const int BlackStarBrandGuardIgnoreFlat = 4;
 
+    private readonly record struct DamageEffectRuntimeParameters(
+        GDictionary RawParams,
+        bool UseWeaponPhysicalDamageTag,
+        bool AddWeaponDice,
+        bool RemoveHarmful,
+        bool RemoveHarmfulFromAllies,
+        bool RemoveBeneficial,
+        bool RemoveBeneficialFromEnemies,
+        bool RequireDamageApplied,
+        bool StagedExecution
+    )
+    {
+        public static DamageEffectRuntimeParameters FromEffect(CombatEffectDef effectDef)
+        {
+            GDictionary parameters = effectDef?.@params ?? new GDictionary();
+            return new DamageEffectRuntimeParameters(
+                parameters,
+                effectDef?.use_weapon_physical_damage_tag ?? false,
+                effectDef?.add_weapon_dice ?? false,
+                effectDef?.remove_harmful ?? false,
+                effectDef?.remove_harmful_from_allies ?? true,
+                effectDef?.remove_beneficial ?? false,
+                effectDef?.remove_beneficial_from_enemies ?? true,
+                effectDef?.require_damage_applied ?? false,
+                effectDef?.staged_execution ?? false
+            );
+        }
+    }
+
+    private readonly record struct EquipmentDurabilitySaveResolution(
+        GDictionary Payload,
+        bool HasSave,
+        bool Success
+    );
+
+    private readonly record struct EquipmentDurabilityDamageEffectResult(
+        GDictionary Payload,
+        bool HasEvent,
+        int DurabilityLoss,
+        bool Destroyed,
+        EquipmentDurabilitySaveResolution SaveResult
+    )
+    {
+        public static EquipmentDurabilityDamageEffectResult Empty => new(
+            new GDictionary(),
+            false,
+            0,
+            false,
+            default
+        );
+
+        public GDictionary ToDictionary() => Payload?.Duplicate(true) ?? new GDictionary();
+    }
+
+    private readonly record struct DamagePreviewSaveEstimate(
+        bool HasSave,
+        int DamageBeforeSave,
+        int DamageAfterSave,
+        int DamageAfterSaveEstimate,
+        int DamageAfterSaveWorst,
+        int DamageOnSaveFailure,
+        int DamageOnSaveSuccess,
+        bool SavePartialOnSuccess,
+        int SaveSuccessProbabilityBasisPoints,
+        int SaveSuccessRatePercent,
+        int SaveFailureProbabilityBasisPoints,
+        int Dc,
+        string Ability,
+        string SaveTag,
+        string AdvantageState,
+        int AbilityValue,
+        int AbilityModifier,
+        int Bonus,
+        bool Immune,
+        IReadOnlyList<BattleSaveSource> Sources
+    )
+    {
+        public static DamagePreviewSaveEstimate None(int damageBeforeSave)
+        {
+            return new DamagePreviewSaveEstimate(
+                false,
+                damageBeforeSave,
+                damageBeforeSave,
+                damageBeforeSave,
+                damageBeforeSave,
+                damageBeforeSave,
+                damageBeforeSave,
+                false,
+                0,
+                0,
+                10000,
+                0,
+                "",
+                "",
+                "",
+                0,
+                0,
+                0,
+                false,
+                Array.Empty<BattleSaveSource>()
+            );
+        }
+
+        public GDictionary ToDictionary()
+        {
+            if (!HasSave)
+            {
+                return new GDictionary
+                {
+                    ["has_save"] = false,
+                    ["damage_before_save"] = DamageBeforeSave,
+                    ["damage_after_save"] = DamageAfterSave,
+                    ["damage_after_save_estimate"] = DamageAfterSaveEstimate,
+                    ["damage_after_save_worst"] = DamageAfterSaveWorst,
+                };
+            }
+            return new GDictionary
+            {
+                ["has_save"] = true,
+                ["damage_before_save"] = DamageBeforeSave,
+                ["damage_after_save"] = DamageAfterSave,
+                ["damage_after_save_estimate"] = DamageAfterSaveEstimate,
+                ["damage_after_save_worst"] = DamageAfterSaveWorst,
+                ["damage_on_save_failure"] = DamageOnSaveFailure,
+                ["damage_on_save_success"] = DamageOnSaveSuccess,
+                ["save_partial_on_success"] = SavePartialOnSuccess,
+                ["save_success_probability_basis_points"] = SaveSuccessProbabilityBasisPoints,
+                ["save_success_rate_percent"] = SaveSuccessRatePercent,
+                ["save_failure_probability_basis_points"] = SaveFailureProbabilityBasisPoints,
+                ["dc"] = Dc,
+                ["ability"] = Ability ?? "",
+                ["save_tag"] = SaveTag ?? "",
+                ["advantage_state"] = AdvantageState ?? "",
+                ["ability_value"] = AbilityValue,
+                ["ability_modifier"] = AbilityModifier,
+                ["bonus"] = Bonus,
+                ["immune"] = Immune,
+                ["sources"] = BuildSaveSourceArray(Sources),
+            };
+        }
+
+        public BattleDamagePreviewSaveEstimate ToPreviewSaveEstimate()
+        {
+            return BattleDamagePreviewSaveEstimate.Create(
+                HasSave,
+                DamageBeforeSave,
+                DamageAfterSave,
+                DamageAfterSaveEstimate,
+                DamageAfterSaveWorst,
+                DamageOnSaveFailure,
+                DamageOnSaveSuccess,
+                SavePartialOnSuccess,
+                SaveSuccessProbabilityBasisPoints,
+                SaveSuccessRatePercent,
+                SaveFailureProbabilityBasisPoints,
+                Dc,
+                Ability,
+                SaveTag,
+                AdvantageState,
+                AbilityValue,
+                AbilityModifier,
+                Bonus,
+                Immune,
+                Sources
+            );
+        }
+    }
+
+    private readonly record struct DamagePreviewBranchLethalEstimate(
+        bool FailureKills,
+        bool SuccessKills,
+        int FailureHpDamage,
+        int SuccessHpDamage,
+        bool StableLethal,
+        int LethalProbabilityBasisPoints
+    );
+
+    private readonly record struct AppliedDamageResult(
+        GDictionary Payload,
+        int Damage,
+        int HpDamage,
+        int ShieldAbsorbed,
+        bool ShieldBroken,
+        bool LowLuckBlackStarWedgeTriggered,
+        DamageDiceEventSnapshot DamageDiceEvent
+    )
+    {
+        public bool HasAppliedDamage => Damage > 0 || ShieldAbsorbed > 0;
+
+        public GDictionary ToDictionary() => Payload?.Duplicate(true) ?? new GDictionary();
+
+        public AppliedDamageResult WithHpDamage(int hpDamage)
+        {
+            int normalizedHpDamage = Math.Max(hpDamage, 0);
+            GDictionary payload = ToDictionary();
+            payload["damage"] = normalizedHpDamage;
+            payload["hp_damage"] = normalizedHpDamage;
+            payload["fully_absorbed_by_shield"] =
+                normalizedHpDamage <= 0 && ShieldAbsorbed > 0;
+            return new AppliedDamageResult(
+                payload,
+                normalizedHpDamage,
+                normalizedHpDamage,
+                ShieldAbsorbed,
+                ShieldBroken,
+                LowLuckBlackStarWedgeTriggered,
+                DamageDiceEvent
+            );
+        }
+    }
+
+    private readonly record struct DamageOutcomeResult(
+        GDictionary Payload,
+        bool InvalidDamageTag,
+        string ErrorCode,
+        string Reason,
+        string DamageTagSource,
+        StringName DamageTag,
+        int ResolvedDamage,
+        bool BypassShield,
+        bool BypassDeathPrevention,
+        double ShieldAbsorptionPercent,
+        int MinHpAfterDamage,
+        bool LowLuckBlackStarWedgeTriggered,
+        DamageDiceEventSnapshot DamageDiceEvent
+    )
+    {
+        public GDictionary ToDictionary() => Payload?.Duplicate(true) ?? new GDictionary();
+
+        public DamageOutcomeResult WithResolvedDamage(int resolvedDamage)
+        {
+            int normalizedDamage = Math.Max(resolvedDamage, 0);
+            GDictionary payload = ToDictionary();
+            payload["resolved_damage"] = normalizedDamage;
+            return this with { Payload = payload, ResolvedDamage = normalizedDamage };
+        }
+
+        public DamageApplicationInput ToDamageApplicationInput()
+        {
+            return new DamageApplicationInput(
+                Payload ?? new GDictionary(),
+                Math.Max(ResolvedDamage, 0),
+                BypassShield,
+                BypassDeathPrevention,
+                ShieldAbsorptionPercent,
+                MinHpAfterDamage,
+                LowLuckBlackStarWedgeTriggered,
+                DamageDiceEvent
+            );
+        }
+    }
+
+    private readonly record struct DamageApplicationInput(
+        GDictionary Payload,
+        int ResolvedDamage,
+        bool BypassShield,
+        bool BypassDeathPrevention,
+        double ShieldAbsorptionPercent,
+        int MinHpAfterDamage,
+        bool LowLuckBlackStarWedgeTriggered,
+        DamageDiceEventSnapshot DamageDiceEvent
+    )
+    {
+        public static DamageApplicationInput Empty => new(
+            new GDictionary(),
+            0,
+            false,
+            false,
+            100.0,
+            0,
+            false,
+            DamageDiceEventSnapshot.Empty
+        );
+
+        public static DamageApplicationInput Create(
+            GDictionary payload,
+            int resolvedDamage,
+            bool bypassShield = false,
+            bool bypassDeathPrevention = false,
+            double shieldAbsorptionPercent = 100.0,
+            int minHpAfterDamage = 0,
+            bool lowLuckBlackStarWedgeTriggered = false,
+            DamageDiceEventSnapshot damageDiceEvent = default
+        )
+        {
+            return new DamageApplicationInput(
+                payload ?? new GDictionary(),
+                Math.Max(resolvedDamage, 0),
+                bypassShield,
+                bypassDeathPrevention,
+                shieldAbsorptionPercent,
+                Math.Max(minHpAfterDamage, 0),
+                lowLuckBlackStarWedgeTriggered,
+                damageDiceEvent
+            );
+        }
+
+        public static DamageApplicationInput FromDictionary(GDictionary payload)
+        {
+            GDictionary normalized = payload ?? new GDictionary();
+            return new DamageApplicationInput(
+                normalized,
+                Math.Max(GetInt(normalized, "resolved_damage"), 0),
+                ReadBool(normalized, "bypass_shield"),
+                ReadBool(normalized, "bypass_death_prevention"),
+                GetFloat(normalized, "shield_absorption_percent", 100.0),
+                Math.Max(GetInt(normalized, "min_hp_after_damage"), 0),
+                ReadBool(normalized, "low_luck_black_star_wedge_triggered"),
+                DamageDiceEventSnapshot.FromDictionary(normalized)
+            );
+        }
+
+        public static bool ReadBool(GDictionary payload, string key)
+        {
+            return TryGet(payload, key, out Variant value)
+                && value.VariantType == Variant.Type.Bool
+                && value.AsBool();
+        }
+    }
+
+    private readonly record struct DamageResolutionContext(
+        GDictionary Payload,
+        StringName DamageRollMode,
+        bool CriticalHit,
+        bool AttackSuccess,
+        bool SecondaryHitSuccess
+    )
+    {
+        public static DamageResolutionContext FromDictionary(GDictionary payload)
+        {
+            GDictionary normalized = payload ?? new GDictionary();
+            return new DamageResolutionContext(
+                normalized,
+                DictStringName(normalized, "damage_roll_mode", DamagePreviewRollModeRandom),
+                DamageApplicationInput.ReadBool(normalized, "critical_hit"),
+                DamageApplicationInput.ReadBool(normalized, "attack_success"),
+                DamageApplicationInput.ReadBool(normalized, "secondary_hit_success")
+            );
+        }
+    }
+
+    private readonly record struct SpellControlCheckContext(
+        BattleState BattleState,
+        StringName SkillId,
+        bool DispatchEvents,
+        bool HasIsDisadvantage,
+        bool IsDisadvantage
+    )
+    {
+        public static SpellControlCheckContext ForSkill(BattleState battleState, StringName skillId)
+        {
+            return new SpellControlCheckContext(
+                battleState,
+                skillId,
+                true,
+                false,
+                false
+            );
+        }
+
+        public static SpellControlCheckContext FromDictionary(GDictionary payload)
+        {
+            GDictionary normalized = payload ?? new GDictionary();
+            bool hasDisadvantage = false;
+            bool isDisadvantage = false;
+            if (TryGetStatusParam(normalized, "is_disadvantage", out object disadvantageValue))
+            {
+                hasDisadvantage = true;
+                isDisadvantage = ToBool(disadvantageValue, false);
+            }
+            return new SpellControlCheckContext(
+                DictObject<BattleState>(normalized, "battle_state"),
+                DictStringNameLocal(normalized, "skill_id"),
+                ReadDispatchEvents(normalized),
+                hasDisadvantage,
+                isDisadvantage
+            );
+        }
+
+        public AttackContext ToAttackContext()
+        {
+            var result = new AttackContext
+            {
+                BattleState = BattleState,
+                SkillId = SkillId,
+            };
+            if (HasIsDisadvantage)
+            {
+                result.HasIsDisadvantage = true;
+                result.IsDisadvantage = IsDisadvantage;
+            }
+            return result;
+        }
+
+        private static bool ReadDispatchEvents(GDictionary payload)
+        {
+            if (!TryGet(payload, "dispatch_events", out Variant value))
+            {
+                return true;
+            }
+            return value.VariantType == Variant.Type.Bool ? value.AsBool() : true;
+        }
+    }
+
+    private readonly record struct ExecuteEffectResult(
+        GDictionary Payload,
+        bool Applied,
+        int ExecuteStage,
+        StringName ExecuteOutcome,
+        IReadOnlyList<AppliedDamageResult> DamageResults
+    )
+    {
+        public static ExecuteEffectResult Empty => new(
+            new GDictionary(),
+            false,
+            -1,
+            "",
+            Array.Empty<AppliedDamageResult>()
+        );
+
+        public GDictionary ToDictionary() => Payload?.Duplicate(true) ?? new GDictionary();
+    }
+
+    private readonly record struct TraitTriggerResultSnapshot(
+        GDictionary Payload,
+        bool Triggered,
+        int ExtraWeaponDiceCount,
+        int ExtraWeaponDiceSides,
+        int ClampToHp
+    )
+    {
+        public static TraitTriggerResultSnapshot FromDictionary(GDictionary payload)
+        {
+            GDictionary normalized = payload ?? new GDictionary();
+            return new TraitTriggerResultSnapshot(
+                normalized,
+                DamageApplicationInput.ReadBool(normalized, "triggered"),
+                Math.Max(GetInt(normalized, "extra_weapon_dice_count"), 0),
+                Math.Max(GetInt(normalized, "extra_weapon_dice_sides"), 0),
+                Math.Max(GetInt(normalized, "clamp_to_hp"), 0)
+            );
+        }
+
+        public static TraitTriggerResultSnapshot FromAttackTraitTriggerResult(
+            AttackTraitTriggerResult result
+        )
+        {
+            if (!result.Triggered)
+            {
+                return new TraitTriggerResultSnapshot(new GDictionary(), false, 0, 0, 0);
+            }
+            GDictionary payload = new()
+            {
+                ["triggered"] = true,
+                ["event"] = result.Event,
+                ["trait_id"] = result.TraitId,
+                ["effect_type"] = result.EffectType,
+                ["extra_weapon_dice_count"] = Math.Max(result.ExtraWeaponDiceCount, 0),
+                ["extra_weapon_dice_sides"] = Math.Max(result.ExtraWeaponDiceSides, 0),
+                ["clamp_to_hp"] = Math.Max(result.ClampToHp, 0),
+                ["projected_hp"] = result.ProjectedHp,
+                ["hp_damage"] = Math.Max(result.HpDamage, 0),
+                ["charge_key"] = result.ChargeKey,
+                ["charges_remaining"] = Math.Max(result.ChargesRemaining, 0),
+            };
+            return new TraitTriggerResultSnapshot(
+                payload,
+                true,
+                Math.Max(result.ExtraWeaponDiceCount, 0),
+                Math.Max(result.ExtraWeaponDiceSides, 0),
+                Math.Max(result.ClampToHp, 0)
+            );
+        }
+
+        public GDictionary ToDictionary() => Payload?.Duplicate(true) ?? new GDictionary();
+    }
+
+    private readonly record struct DicePoolRollResult(
+        GDictionary Payload,
+        int Count,
+        int Sides,
+        GArray Rolls,
+        int Total,
+        int Bonus,
+        int MaxTotal,
+        bool IsMax
+    )
+    {
+        public static DicePoolRollResult Empty => new(
+            new GDictionary(),
+            0,
+            0,
+            new GArray(),
+            0,
+            0,
+            0,
+            false
+        );
+
+        public bool HasDice => Count > 0 && Sides > 0;
+
+        public int TotalWithBonus => Total + Bonus;
+
+        public GDictionary ToDictionary() => Payload?.Duplicate(true) ?? new GDictionary();
+    }
+
+    private readonly record struct DamageDiceEventSnapshot(
+        bool DamageDiceHighTotalRoll,
+        bool SkillDamageDiceIsMax,
+        bool WeaponDamageDiceIsMax
+    )
+    {
+        public static DamageDiceEventSnapshot Empty => new(false, false, false);
+
+        public static DamageDiceEventSnapshot FromDictionary(GDictionary payload)
+        {
+            GDictionary normalized = EnsureDamageDiceEventDefaults(payload);
+            return new DamageDiceEventSnapshot(
+                ReadDamageDiceFlag(normalized, "damage_dice_high_total_roll"),
+                ReadDamageDiceFlag(normalized, "skill_damage_dice_is_max"),
+                ReadDamageDiceFlag(normalized, "weapon_damage_dice_is_max")
+            );
+        }
+
+        private static bool ReadDamageDiceFlag(GDictionary payload, string key)
+        {
+            return TryGet(payload, key, out Variant value)
+                && value.VariantType == Variant.Type.Bool
+                && value.AsBool();
+        }
+    }
+
+    private readonly record struct DamageDiceEventFlags(
+        GDictionary Payload,
+        DamageDiceEventSnapshot Snapshot
+    );
+
     private GDictionary _skill_defs = new();
-    private readonly GArray _last_stand_mastery_records = new();
+    private readonly List<BattleSkillMasteryGrant> _last_stand_mastery_records = new();
     private readonly BattleFateEventBus _fate_event_bus = new();
     private readonly BattleReportFormatter _report_formatter = new();
     private readonly TraitTriggerHooks _trait_trigger_hooks = new();
@@ -79,7 +615,21 @@ public partial class BattleDamageResolver : RefCounted
 
     public GArray get_and_clear_last_stand_mastery_records()
     {
-        GArray records = (GArray)_last_stand_mastery_records.Duplicate(true);
+        List<BattleSkillMasteryGrant> typedRecords = GetAndClearLastStandMasteryRecordsTyped();
+        GArray records = new();
+        foreach (BattleSkillMasteryGrant record in typedRecords)
+        {
+            if (record != null)
+            {
+                records.Add(record.ToDictionary());
+            }
+        }
+        return records;
+    }
+
+    internal List<BattleSkillMasteryGrant> GetAndClearLastStandMasteryRecordsTyped()
+    {
+        List<BattleSkillMasteryGrant> records = new(_last_stand_mastery_records);
         _last_stand_mastery_records.Clear();
         return records;
     }
@@ -164,7 +714,7 @@ public partial class BattleDamageResolver : RefCounted
                 BuildEmptyResult(),
                 attackMetadata
             );
-            AttachAttackReportEntry(failedResult, source_unit, target_unit);
+            AttachAttackReportEntry(failedResult, source_unit, target_unit, attackMetadata);
             DispatchAttackResolutionEvents(
                 source_unit,
                 target_unit,
@@ -201,7 +751,7 @@ public partial class BattleDamageResolver : RefCounted
             resolve_effects(source_unit, target_unit, resolvedEffectDefs, attackEffectContext),
             attackMetadata
         );
-        AttachAttackReportEntry(resolvedResult, source_unit, target_unit);
+        AttachAttackReportEntry(resolvedResult, source_unit, target_unit, attackMetadata);
         DispatchAttackResolutionEvents(
             source_unit,
             target_unit,
@@ -216,15 +766,48 @@ public partial class BattleDamageResolver : RefCounted
         GDictionary attack_context = null
     )
     {
+        return resolve_spell_control_check_typed(source_unit, attack_context).ToDictionary();
+    }
+
+    public BattleSpellControlMetadata resolve_spell_control_check_typed(
+        BattleUnitState source_unit,
+        GDictionary attack_context = null
+    )
+    {
+        return ResolveSpellControlCheck(
+            source_unit,
+            SpellControlCheckContext.FromDictionary(attack_context)
+        );
+    }
+
+    public BattleSpellControlMetadata resolve_spell_control_check_typed(
+        BattleUnitState source_unit,
+        BattleState battle_state,
+        StringName skill_id
+    )
+    {
+        return ResolveSpellControlCheck(
+            source_unit,
+            SpellControlCheckContext.ForSkill(battle_state, skill_id)
+        );
+    }
+
+    private BattleSpellControlMetadata ResolveSpellControlCheck(
+        BattleUnitState source_unit,
+        SpellControlCheckContext context
+    )
+    {
         if (source_unit == null)
         {
-            return new GDictionary();
+            return BattleSpellControlMetadata.Empty();
         }
-        GDictionary normalizedContext = attack_context ?? new GDictionary();
-        GDictionary controlMetadata = ResolveSpellControlMetadata(source_unit, normalizedContext);
-        if (DictBool(normalizedContext, "dispatch_events", true))
+        BattleSpellControlMetadata controlMetadata = ResolveSpellControlMetadata(
+            source_unit,
+            context
+        );
+        if (context.DispatchEvents)
         {
-            DispatchSpellControlResolutionEvents(source_unit, controlMetadata, normalizedContext);
+            DispatchSpellControlResolutionEvents(source_unit, controlMetadata, context);
         }
         return controlMetadata;
     }
@@ -243,9 +826,28 @@ public partial class BattleDamageResolver : RefCounted
         StringName save_mode = default
     )
     {
+        return preview_damage_effect_typed(
+            source_unit,
+            target_unit,
+            effect_def,
+            damage_context,
+            roll_mode,
+            save_mode
+        ).ToDictionary();
+    }
+
+    internal virtual BattleDamagePreviewResult preview_damage_effect_typed(
+        BattleUnitState source_unit,
+        BattleUnitState target_unit,
+        CombatEffectDef effect_def,
+        GDictionary damage_context = null,
+        StringName roll_mode = default,
+        StringName save_mode = default
+    )
+    {
         if (source_unit == null || target_unit == null || effect_def == null)
         {
-            return new GDictionary();
+            return BattleDamagePreviewResult.Empty();
         }
         StringName resolvedRollMode = IsEmpty(roll_mode) ? DamagePreviewRollModeAverage : roll_mode;
         StringName resolvedSaveMode = IsEmpty(save_mode)
@@ -255,35 +857,31 @@ public partial class BattleDamageResolver : RefCounted
         BattleUnitState targetPreview = target_unit.clone();
         if (sourcePreview == null || targetPreview == null)
         {
-            return new GDictionary();
+            return BattleDamagePreviewResult.Empty();
         }
 
         GDictionary previewContext = DuplicateDictionary(damage_context);
         previewContext["damage_roll_mode"] = resolvedRollMode;
-        GDictionary damageOutcome = ResolveDamageOutcome(
+        DamageResolutionContext previewContextFlags =
+            DamageResolutionContext.FromDictionary(previewContext);
+        DamageOutcomeResult damageOutcome = ResolveDamageOutcome(
             sourcePreview,
             targetPreview,
             effect_def,
-            previewContext
+            previewContextFlags
         );
-        if (DictBool(damageOutcome, "invalid_damage_tag"))
+        if (damageOutcome.InvalidDamageTag)
         {
-            return new GDictionary
-            {
-                ["roll_mode"] = resolvedRollMode.ToString(),
-                ["save_mode"] = resolvedSaveMode.ToString(),
-                ["pre_save_damage"] = 0,
-                ["post_save_damage"] = 0,
-                ["hp_damage"] = 0,
-                ["damage"] = 0,
-                ["shield_absorbed"] = 0,
-                ["shield_hp_before"] = target_unit.current_shield_hp,
-                ["shield_hp_after"] = targetPreview.current_shield_hp,
-                ["damage_outcome"] = DuplicateDictionary(damageOutcome),
-                ["damage_result"] = new GDictionary(),
-                ["save_estimate"] = new GDictionary(),
-                ["error_code"] = DictString(damageOutcome, "error_code"),
-                ["diagnostics"] = new GArray
+            return BattleDamagePreviewResult.Create(
+                rollMode: resolvedRollMode,
+                saveMode: resolvedSaveMode,
+                shieldHpBefore: target_unit.current_shield_hp,
+                shieldHpAfter: targetPreview.current_shield_hp,
+                errorCode: damageOutcome.ErrorCode,
+                damageOutcome: damageOutcome.ToDictionary(),
+                damageResult: new GDictionary(),
+                saveEstimate: BattleDamagePreviewSaveEstimate.None(0),
+                diagnostics: new GArray
                 {
                     BuildInvalidDamageTagDiagnostic(
                         source_unit,
@@ -292,39 +890,45 @@ public partial class BattleDamageResolver : RefCounted
                         damageOutcome
                     ),
                 },
-                ["source_preview_after"] = sourcePreview,
-                ["target_preview_after"] = targetPreview,
-            };
+                sourcePreviewAfter: sourcePreview,
+                targetPreviewAfter: targetPreview
+            );
         }
 
-        int preSaveDamage = DictInt(damageOutcome, "resolved_damage");
-        GDictionary saveEstimate = BuildDamagePreviewSaveEstimate(
+        int preSaveDamage = damageOutcome.ResolvedDamage;
+        DamagePreviewSaveEstimate saveEstimate = BuildDamagePreviewSaveEstimate(
             sourcePreview,
             targetPreview,
             effect_def,
-            previewContext,
+            previewContextFlags.Payload,
             preSaveDamage,
             resolvedSaveMode
         );
-        ApplyDamagePreviewSaveEstimate(damageOutcome, saveEstimate);
-        GDictionary damageResult = ApplyDamageToTarget(targetPreview, damageOutcome, sourcePreview);
-        return new GDictionary
-        {
-            ["roll_mode"] = resolvedRollMode.ToString(),
-            ["save_mode"] = resolvedSaveMode.ToString(),
-            ["pre_save_damage"] = preSaveDamage,
-            ["post_save_damage"] = DictInt(damageOutcome, "resolved_damage"),
-            ["hp_damage"] = DictInt(damageResult, "hp_damage", DictInt(damageResult, "damage")),
-            ["damage"] = DictInt(damageResult, "damage"),
-            ["shield_absorbed"] = DictInt(damageResult, "shield_absorbed"),
-            ["shield_hp_before"] = target_unit.current_shield_hp,
-            ["shield_hp_after"] = targetPreview.current_shield_hp,
-            ["damage_outcome"] = DuplicateDictionary(damageOutcome),
-            ["damage_result"] = DuplicateDictionary(damageResult),
-            ["save_estimate"] = DuplicateDictionary(saveEstimate),
-            ["source_preview_after"] = sourcePreview,
-            ["target_preview_after"] = targetPreview,
-        };
+        damageOutcome = WithDamagePreviewSaveEstimate(damageOutcome, saveEstimate);
+        AppliedDamageResult damageResult = ApplyDamageToTargetResult(
+            targetPreview,
+            damageOutcome,
+            sourcePreview
+        );
+        return BattleDamagePreviewResult.Create(
+            applied: damageResult.HasAppliedDamage,
+            rollMode: resolvedRollMode,
+            saveMode: resolvedSaveMode,
+            preSaveDamage: preSaveDamage,
+            postSaveDamage: saveEstimate.DamageAfterSave,
+            hpDamage: damageResult.HpDamage,
+            damage: damageResult.Damage,
+            incomingBudgetDamage: saveEstimate.DamageAfterSave,
+            shieldAbsorbed: damageResult.ShieldAbsorbed,
+            shieldBroken: damageResult.ShieldBroken,
+            shieldHpBefore: target_unit.current_shield_hp,
+            shieldHpAfter: targetPreview.current_shield_hp,
+            damageOutcome: damageOutcome.ToDictionary(),
+            damageResult: damageResult.ToDictionary(),
+            saveEstimate: saveEstimate.ToPreviewSaveEstimate(),
+            sourcePreviewAfter: sourcePreview,
+            targetPreviewAfter: targetPreview
+        );
     }
 
     public virtual GDictionary preview_damage_sequence(
@@ -335,9 +939,28 @@ public partial class BattleDamageResolver : RefCounted
         GDictionary options = null
     )
     {
+        GDictionary result = preview_damage_sequence_typed(
+            source_unit,
+            target_unit,
+            effect_defs,
+            damage_context,
+            options
+        ).ToDictionary();
+        AttachDamageEventAggregates(result);
+        return result;
+    }
+
+    internal virtual BattleDamagePreviewResult preview_damage_sequence_typed(
+        BattleUnitState source_unit,
+        BattleUnitState target_unit,
+        GArray effect_defs,
+        GDictionary damage_context = null,
+        GDictionary options = null
+    )
+    {
         if (source_unit == null || target_unit == null)
         {
-            return BuildEmptyResult();
+            return BattleDamagePreviewResult.Empty();
         }
 
         GDictionary normalizedOptions = options ?? new GDictionary();
@@ -353,11 +976,13 @@ public partial class BattleDamageResolver : RefCounted
         );
         GDictionary previewContext = DuplicateDictionary(damage_context);
         previewContext["damage_roll_mode"] = rollMode;
+        DamageResolutionContext previewContextFlags =
+            DamageResolutionContext.FromDictionary(previewContext);
         BattleUnitState sourcePreview = source_unit.clone();
         BattleUnitState targetPreview = target_unit.clone();
         if (sourcePreview == null || targetPreview == null)
         {
-            return BuildEmptyResult();
+            return BattleDamagePreviewResult.Empty();
         }
 
         int totalPreSaveDamage = 0;
@@ -370,7 +995,7 @@ public partial class BattleDamageResolver : RefCounted
         int lethalProbabilityBasisPoints = 0;
         var damageEvents = new GArray();
         var diagnostics = new GArray();
-        var saveEstimates = new GArray();
+        var saveEstimates = new List<BattleDamagePreviewSaveEstimate>();
 
         bool previousSuppression = _suppress_last_stand_mastery_records;
         _suppress_last_stand_mastery_records = true;
@@ -379,7 +1004,7 @@ public partial class BattleDamageResolver : RefCounted
             foreach (var effectValue in CoerceEffectDefs(effect_defs))
             {
                 CombatEffectDef effectDef = effectValue.AsGodotObject() as CombatEffectDef;
-                if (effectDef == null || !_does_effect_trigger(effectDef, previewContext))
+                if (effectDef == null || !DoesEffectTrigger(effectDef, previewContextFlags))
                 {
                     continue;
                 }
@@ -387,13 +1012,13 @@ public partial class BattleDamageResolver : RefCounted
                 {
                     continue;
                 }
-                GDictionary damageOutcome = ResolveDamageOutcome(
+                DamageOutcomeResult damageOutcome = ResolveDamageOutcome(
                     sourcePreview,
                     targetPreview,
                     effectDef,
-                    previewContext
+                    previewContextFlags
                 );
-                if (DictBool(damageOutcome, "invalid_damage_tag"))
+                if (damageOutcome.InvalidDamageTag)
                 {
                     diagnostics.Add(
                         BuildInvalidDamageTagDiagnostic(
@@ -405,20 +1030,20 @@ public partial class BattleDamageResolver : RefCounted
                     );
                     continue;
                 }
-                int preSaveDamage = DictInt(damageOutcome, "resolved_damage");
+                int preSaveDamage = damageOutcome.ResolvedDamage;
                 int targetHpBeforeEffect = Math.Max(targetPreview.current_hp, 1);
-                GDictionary saveEstimate = BuildDamagePreviewSaveEstimate(
+                DamagePreviewSaveEstimate saveEstimate = BuildDamagePreviewSaveEstimate(
                     sourcePreview,
                     targetPreview,
                     effectDef,
-                    previewContext,
+                    previewContextFlags.Payload,
                     preSaveDamage,
                     saveMode
                 );
-                GDictionary branchLethal = new();
-                if (DictBool(saveEstimate, "has_save"))
+                DamagePreviewBranchLethalEstimate branchLethal = default;
+                if (saveEstimate.HasSave)
                 {
-                    saveEstimates.Add(DuplicateDictionary(saveEstimate));
+                    saveEstimates.Add(saveEstimate.ToPreviewSaveEstimate());
                     branchLethal = BuildSaveBranchLethalEstimate(
                         targetPreview,
                         damageOutcome,
@@ -426,17 +1051,17 @@ public partial class BattleDamageResolver : RefCounted
                         sourcePreview
                     );
                     stableLethalFromBranches =
-                        stableLethalFromBranches || DictBool(branchLethal, "stable_lethal");
+                        stableLethalFromBranches || branchLethal.StableLethal;
                     lethalProbabilityBasisPoints = Math.Max(
                         lethalProbabilityBasisPoints,
-                        DictInt(branchLethal, "lethal_probability_basis_points")
+                        branchLethal.LethalProbabilityBasisPoints
                     );
                 }
                 totalPreSaveDamage += preSaveDamage;
-                totalPostSaveDamage += DictInt(saveEstimate, "damage_after_save", preSaveDamage);
+                totalPostSaveDamage += saveEstimate.DamageAfterSave;
 
-                GDictionary damageResult;
-                if (saveMode == DamagePreviewSaveModeExpected && DictBool(saveEstimate, "has_save"))
+                AppliedDamageResult damageResult;
+                if (saveMode == DamagePreviewSaveModeExpected && saveEstimate.HasSave)
                 {
                     damageResult = BuildExpectedSaveBranchDamageResult(
                         targetPreview,
@@ -444,29 +1069,34 @@ public partial class BattleDamageResolver : RefCounted
                         saveEstimate,
                         sourcePreview
                     );
-                    ApplyDamagePreviewSaveEstimate(damageOutcome, saveEstimate);
                 }
                 else
                 {
-                    ApplyDamagePreviewSaveEstimate(damageOutcome, saveEstimate);
-                    damageResult = ApplyDamageToTarget(targetPreview, damageOutcome, sourcePreview);
+                    damageOutcome = WithDamagePreviewSaveEstimate(
+                        damageOutcome,
+                        saveEstimate
+                    );
+                    damageResult = ApplyDamageToTargetResult(
+                        targetPreview,
+                        damageOutcome,
+                        sourcePreview
+                    );
                 }
 
-                int hpDamage = DictInt(damageResult, "hp_damage", DictInt(damageResult, "damage"));
+                int hpDamage = damageResult.HpDamage;
                 if (
-                    DictBool(branchLethal, "failure_kills")
-                    && !DictBool(branchLethal, "success_kills")
+                    branchLethal.FailureKills
+                    && !branchLethal.SuccessKills
                     && hpDamage >= targetHpBeforeEffect
                 )
                 {
-                    hpDamage = Math.Max(DictInt(branchLethal, "success_hp_damage"), 0);
-                    damageResult["hp_damage"] = hpDamage;
-                    damageResult["damage"] = hpDamage;
+                    hpDamage = Math.Max(branchLethal.SuccessHpDamage, 0);
+                    damageResult = damageResult.WithHpDamage(hpDamage);
                 }
                 totalHpDamage += hpDamage;
-                totalShieldAbsorbed += DictInt(damageResult, "shield_absorbed");
-                shieldBroken = shieldBroken || DictBool(damageResult, "shield_broken");
-                damageEvents.Add(DuplicateDictionary(damageResult));
+                totalShieldAbsorbed += damageResult.ShieldAbsorbed;
+                shieldBroken = shieldBroken || damageResult.ShieldBroken;
+                damageEvents.Add(damageResult.ToDictionary());
                 applied = true;
             }
         }
@@ -475,24 +1105,30 @@ public partial class BattleDamageResolver : RefCounted
             _suppress_last_stand_mastery_records = previousSuppression;
         }
 
-        GDictionary result = BuildEmptyResult();
-        result["applied"] = applied;
-        result["pre_save_damage"] = totalPreSaveDamage;
-        result["post_save_damage"] = totalPostSaveDamage;
-        result["damage"] = totalHpDamage;
-        result["hp_damage"] = totalHpDamage;
-        result["shield_absorbed"] = totalShieldAbsorbed;
-        result["shield_broken"] = shieldBroken;
-        result["damage_events"] = damageEvents;
-        result["diagnostics"] = diagnostics;
-        result["save_estimates"] = saveEstimates;
-        result["stable_lethal"] = targetPreview.current_hp <= 0 || stableLethalFromBranches;
-        result["lethal_probability_basis_points"] =
-            targetPreview.current_hp <= 0 ? 10000 : lethalProbabilityBasisPoints;
-        result["source_preview_after"] = sourcePreview;
-        result["target_preview_after"] = targetPreview;
-        AttachDamageEventAggregates(result);
-        return result;
+        bool stableLethal = targetPreview.current_hp <= 0 || stableLethalFromBranches;
+        return BattleDamagePreviewResult.Create(
+            applied: applied,
+            rollMode: rollMode,
+            saveMode: saveMode,
+            preSaveDamage: totalPreSaveDamage,
+            postSaveDamage: totalPostSaveDamage,
+            hpDamage: totalHpDamage,
+            damage: totalHpDamage,
+            incomingBudgetDamage: totalPostSaveDamage,
+            shieldAbsorbed: totalShieldAbsorbed,
+            shieldBroken: shieldBroken,
+            shieldHpBefore: target_unit.current_shield_hp,
+            shieldHpAfter: targetPreview.current_shield_hp,
+            stableLethal: stableLethal,
+            lethalProbabilityBasisPoints: targetPreview.current_hp <= 0
+                ? 10000
+                : lethalProbabilityBasisPoints,
+            saveEstimates: saveEstimates,
+            damageEvents: damageEvents,
+            diagnostics: diagnostics,
+            sourcePreviewAfter: sourcePreview,
+            targetPreviewAfter: targetPreview
+        );
     }
 
     public virtual GDictionary resolve_effects(
@@ -518,10 +1154,12 @@ public partial class BattleDamageResolver : RefCounted
 
         GArray resolvedEffectDefs = CoerceEffectDefs(effect_defs);
         GDictionary context = damage_context ?? new GDictionary();
+        DamageResolutionContext contextFlags = DamageResolutionContext.FromDictionary(context);
         int totalDamage = 0;
         int totalHealing = 0;
         int totalShieldAbsorbed = 0;
         var damageEvents = new GArray();
+        var damageDiceEvents = new List<DamageDiceEventSnapshot>();
         var equipmentDurabilityEvents = new GArray();
         var dispelEvents = new GArray();
         var statusEffectIds = new GStringNameArray();
@@ -540,7 +1178,7 @@ public partial class BattleDamageResolver : RefCounted
         foreach (var effectValue in resolvedEffectDefs)
         {
             CombatEffectDef effectDef = effectValue.AsGodotObject() as CombatEffectDef;
-            if (effectDef == null || !_does_effect_trigger(effectDef, context))
+            if (effectDef == null || !DoesEffectTrigger(effectDef, contextFlags))
             {
                 continue;
             }
@@ -548,13 +1186,13 @@ public partial class BattleDamageResolver : RefCounted
             StringName effectType = ProgressionDataUtils.to_string_name(effectDef.effect_type);
             if (effectType == "damage")
             {
-                GDictionary damageOutcome = ResolveDamageOutcome(
+                DamageOutcomeResult damageOutcome = ResolveDamageOutcome(
                     source_unit,
                     target_unit,
                     effectDef,
-                    context
+                    contextFlags
                 );
-                if (DictBool(damageOutcome, "invalid_damage_tag"))
+                if (damageOutcome.InvalidDamageTag)
                 {
                     diagnostics.Add(
                         BuildInvalidDamageTagDiagnostic(
@@ -566,61 +1204,60 @@ public partial class BattleDamageResolver : RefCounted
                     );
                     continue;
                 }
-                GDictionary damageSaveResult = BattleSaveResolver.resolve_save(
+                BattleSaveResult damageSaveResult = BattleSaveResolver.resolve_save_result(
                     source_unit,
                     target_unit,
                     effectDef,
                     context
                 );
-                if (DictBool(damageSaveResult, "has_save"))
+                if (damageSaveResult.HasSave)
                 {
-                    saveResults.Add(DuplicateDictionary(damageSaveResult));
+                    saveResults.Add(damageSaveResult.ToDictionary());
                 }
-                ApplySaveResultToDamageOutcome(damageOutcome, damageSaveResult, effectDef);
-                GDictionary damageResult = ApplyDamageToTarget(
+                damageOutcome = WithSaveResult(
+                    damageOutcome,
+                    damageSaveResult,
+                    effectDef
+                );
+                AppliedDamageResult damageResult = ApplyDamageToTargetResult(
                     target_unit,
                     damageOutcome,
                     source_unit
                 );
-                int hpDamage = DictInt(damageResult, "damage");
+                int hpDamage = damageResult.Damage;
                 totalDamage += hpDamage;
-                totalShieldAbsorbed += DictInt(damageResult, "shield_absorbed");
-                damageEvents.Add(DuplicateDictionary(damageResult));
+                totalShieldAbsorbed += damageResult.ShieldAbsorbed;
+                damageEvents.Add(damageResult.ToDictionary());
+                damageDiceEvents.Add(damageResult.DamageDiceEvent);
                 blackStarWedgeTriggered =
                     blackStarWedgeTriggered
-                    || DictBool(damageResult, "low_luck_black_star_wedge_triggered");
-                shieldBroken = shieldBroken || DictBool(damageResult, "shield_broken");
+                    || damageResult.LowLuckBlackStarWedgeTriggered;
+                shieldBroken = shieldBroken || damageResult.ShieldBroken;
                 applied = true;
-                if (hpDamage > 0 || DictInt(damageResult, "shield_absorbed") > 0)
+                if (damageResult.HasAppliedDamage)
                 {
                     GrantStatusOnHitToSource(source_unit, effectDef, context);
                 }
             }
             else if (effectType == EffectEquipmentDurabilityDamage)
             {
-                GDictionary durabilityResult = ApplyEquipmentDurabilityDamageEffect(
+                EquipmentDurabilityDamageEffectResult durabilityResult =
+                    ApplyEquipmentDurabilityDamageEffect(
                     source_unit,
                     target_unit,
                     effectDef,
-                    context,
+                    contextFlags,
                     totalDamage,
                     totalShieldAbsorbed
                 );
-                if (durabilityResult.Count > 0)
+                if (durabilityResult.HasEvent)
                 {
-                    equipmentDurabilityEvents.Add(DuplicateDictionary(durabilityResult));
-                    GDictionary equipmentSaveResult = GetDictionary(
-                        durabilityResult,
-                        "save_result"
-                    );
-                    if (DictBool(equipmentSaveResult, "has_save"))
+                    equipmentDurabilityEvents.Add(durabilityResult.ToDictionary());
+                    if (durabilityResult.SaveResult.HasSave)
                     {
-                        saveResults.Add(DuplicateDictionary(equipmentSaveResult));
+                        saveResults.Add(DuplicateDictionary(durabilityResult.SaveResult.Payload));
                     }
-                    if (
-                        DictInt(durabilityResult, "durability_loss") > 0
-                        || DictBool(durabilityResult, "destroyed")
-                    )
+                    if (durabilityResult.DurabilityLoss > 0 || durabilityResult.Destroyed)
                     {
                         applied = true;
                     }
@@ -708,15 +1345,15 @@ public partial class BattleDamageResolver : RefCounted
             }
             else if (effectType == "status" || effectType == "apply_status")
             {
-                GDictionary statusSaveResult = BattleSaveResolver.resolve_save(
+                BattleSaveResult statusSaveResult = BattleSaveResolver.resolve_save_result(
                     source_unit,
                     target_unit,
                     effectDef,
                     context
                 );
-                if (DictBool(statusSaveResult, "has_save"))
+                if (statusSaveResult.HasSave)
                 {
-                    saveResults.Add(DuplicateDictionary(statusSaveResult));
+                    saveResults.Add(statusSaveResult.ToDictionary());
                 }
                 if (DoesSaveBlockEffect(statusSaveResult))
                 {
@@ -750,7 +1387,7 @@ public partial class BattleDamageResolver : RefCounted
             }
             else if (effectType == "execute")
             {
-                GDictionary executeResult = ResolveExecuteEffect(
+                ExecuteEffectResult executeResult = ResolveExecuteEffect(
                     source_unit,
                     target_unit,
                     effectDef,
@@ -758,33 +1395,25 @@ public partial class BattleDamageResolver : RefCounted
                     statusEffectIds,
                     saveResults
                 );
-                executeStage = DictInt(executeResult, "execute_stage", executeStage);
-                executeOutcome = DictStringName(executeResult, "execute_outcome", executeOutcome);
-                if (DictBool(executeResult, "applied"))
+                if (executeResult.ExecuteStage >= 0)
+                {
+                    executeStage = executeResult.ExecuteStage;
+                }
+                if (!IsEmpty(executeResult.ExecuteOutcome))
+                {
+                    executeOutcome = executeResult.ExecuteOutcome;
+                }
+                if (executeResult.Applied)
                 {
                     applied = true;
                 }
-                GArray executeDamageResults = GetArray(executeResult, "damage_results");
-                if (executeDamageResults.Count > 0)
+                foreach (AppliedDamageResult damageResult in executeResult.DamageResults)
                 {
-                    foreach (GDictionary damageResult in ReadDictionaryItems(executeDamageResults))
-                    {
-                        totalDamage += DictInt(damageResult, "damage");
-                        totalShieldAbsorbed += DictInt(damageResult, "shield_absorbed");
-                        shieldBroken = shieldBroken || DictBool(damageResult, "shield_broken");
-                        damageEvents.Add(DuplicateDictionary(damageResult));
-                    }
-                }
-                else
-                {
-                    GDictionary fatalResult = GetDictionary(executeResult, "damage_result");
-                    if (fatalResult.Count > 0)
-                    {
-                        totalDamage += DictInt(fatalResult, "damage");
-                        totalShieldAbsorbed += DictInt(fatalResult, "shield_absorbed");
-                        shieldBroken = shieldBroken || DictBool(fatalResult, "shield_broken");
-                        damageEvents.Add(DuplicateDictionary(fatalResult));
-                    }
+                    totalDamage += damageResult.Damage;
+                    totalShieldAbsorbed += damageResult.ShieldAbsorbed;
+                    shieldBroken = shieldBroken || damageResult.ShieldBroken;
+                    damageEvents.Add(damageResult.ToDictionary());
+                    damageDiceEvents.Add(damageResult.DamageDiceEvent);
                 }
             }
         }
@@ -828,7 +1457,7 @@ public partial class BattleDamageResolver : RefCounted
             result["execute_stage"] = executeStage;
             result["execute_outcome"] = executeOutcome.ToString();
         }
-        AttachDamageEventAggregates(result);
+        AttachDamageEventAggregates(result, damageDiceEvents);
         return result;
     }
 
@@ -844,7 +1473,10 @@ public partial class BattleDamageResolver : RefCounted
             maxHp = Math.Max(target_unit.current_hp, 1);
         }
         int damagePerLayer = Math.Max((maxHp + 19) / 20, 1);
-        GDictionary damageResult = ApplyDamageToTarget(target_unit, damagePerLayer * fall_layers);
+        AppliedDamageResult damageResult = ApplyDamageToTargetResult(
+            target_unit,
+            damagePerLayer * fall_layers
+        );
         target_unit.is_alive = target_unit.current_hp > 0;
         return BuildEnvironmentalDamageResult(damageResult);
     }
@@ -860,12 +1492,15 @@ public partial class BattleDamageResolver : RefCounted
             return BuildEmptyResult();
         }
         int sizeGap = Math.Max(source_body_size - target_body_size, 0);
-        GDictionary damageResult = ApplyDamageToTarget(target_unit, 10 + sizeGap * 10);
+        AppliedDamageResult damageResult = ApplyDamageToTargetResult(
+            target_unit,
+            10 + sizeGap * 10
+        );
         target_unit.is_alive = target_unit.current_hp > 0;
         return BuildEnvironmentalDamageResult(damageResult);
     }
 
-    private GDictionary ApplyDamageToTarget(
+    private AppliedDamageResult ApplyDamageToTargetResult(
         BattleUnitState targetUnit,
         int rawDamage,
         BattleUnitState sourceUnit = null
@@ -874,7 +1509,12 @@ public partial class BattleDamageResolver : RefCounted
         int normalizedDamage = Math.Max(rawDamage, 0);
         if (targetUnit == null || normalizedDamage <= 0)
         {
-            return BuildAppliedDamageResult(null, 0, 0, false);
+            return BuildAppliedDamageResult(
+                DamageApplicationInput.Empty,
+                0,
+                0,
+                false
+            );
         }
         GDictionary damageOutcome = new()
         {
@@ -891,7 +1531,15 @@ public partial class BattleDamageResolver : RefCounted
             ["min_hp_after_damage"] = 0,
             ["resolved_damage"] = normalizedDamage,
         };
-        return ApplyDamageToTarget(targetUnit, damageOutcome, sourceUnit);
+        return ApplyDamageToTargetResult(
+            targetUnit,
+            DamageApplicationInput.Create(
+                damageOutcome,
+                normalizedDamage,
+                shieldAbsorptionPercent: 100.0
+            ),
+            sourceUnit
+        );
     }
 
     public GDictionary apply_direct_damage_to_target(
@@ -900,35 +1548,49 @@ public partial class BattleDamageResolver : RefCounted
         BattleUnitState source_unit = null
     )
     {
-        return ApplyDamageToTarget(target_unit, resolved_damage_input, source_unit);
+        return ApplyDamageToTargetResult(
+            target_unit,
+            resolved_damage_input,
+            source_unit
+        ).ToDictionary();
     }
 
     public bool _does_effect_trigger(CombatEffectDef effect_def, GDictionary damage_context)
     {
-        if (effect_def == null)
+        return DoesEffectTrigger(
+            effect_def,
+            DamageResolutionContext.FromDictionary(damage_context)
+        );
+    }
+
+    private static bool DoesEffectTrigger(
+        CombatEffectDef effectDef,
+        DamageResolutionContext context
+    )
+    {
+        if (effectDef == null)
         {
             return false;
         }
-        GDictionary context = damage_context ?? new GDictionary();
-        StringName triggerEvent = ProgressionDataUtils.to_string_name(effect_def.trigger_event);
+        StringName triggerEvent = ProgressionDataUtils.to_string_name(effectDef.trigger_event);
         if (triggerEvent == "")
         {
             return true;
         }
         if (triggerEvent == AttackResolutionCriticalHit)
         {
-            return DictBool(context, "critical_hit");
+            return context.CriticalHit;
         }
         if (triggerEvent == TriggerEventOrdinaryHit)
         {
-            return DictBool(context, "attack_success") && !DictBool(context, "critical_hit");
+            return context.AttackSuccess && !context.CriticalHit;
         }
         if (triggerEvent == "secondary_hit")
         {
-            return DictBool(context, "secondary_hit_success");
+            return context.SecondaryHitSuccess;
         }
         GameLog.Warning(
-            $"Unsupported combat effect trigger_event '{triggerEvent}' for effect_type '{ProgressionDataUtils.to_string_name(effect_def.effect_type)}'.",
+            $"Unsupported combat effect trigger_event '{triggerEvent}' for effect_type '{ProgressionDataUtils.to_string_name(effectDef.effect_type)}'.",
             "battle.damage.unsupported_trigger",
             "battle"
         );
@@ -977,7 +1639,10 @@ public partial class BattleDamageResolver : RefCounted
             {
                 continue;
             }
-            if (GetBoolParam(statusEntry.@params, param_key, false))
+            if (
+                TryGetStatusBoolParam(statusEntry.@params, param_key, out bool boolValue)
+                && boolValue
+            )
             {
                 return true;
             }
@@ -985,11 +1650,26 @@ public partial class BattleDamageResolver : RefCounted
         return false;
     }
 
-    private static bool GetBoolParam(GDictionary @params, StringName key, bool fallback = false)
+    private static bool TryGetStatusBoolParam(
+        GDictionary @params,
+        StringName key,
+        out bool value
+    )
     {
-        if (@params == null || !@params.ContainsKey(key))
-            return fallback;
-        return (bool)@params[key];
+        value = false;
+        if (!TryGetStatusParam(@params, key, out object rawValue))
+            return false;
+        if (rawValue is bool boolValue)
+        {
+            value = boolValue;
+            return true;
+        }
+        if (rawValue is Variant variantValue && variantValue.VariantType == Variant.Type.Bool)
+        {
+            value = variantValue.AsBool();
+            return true;
+        }
+        return false;
     }
 
     private static int GetIntParam(GDictionary @params, StringName key, int fallback = 0)
@@ -1036,11 +1716,11 @@ public partial class BattleDamageResolver : RefCounted
     }
 
 
-    private GDictionary ResolveDamageOutcome(
+    private DamageOutcomeResult ResolveDamageOutcome(
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
         CombatEffectDef effectDef,
-        GDictionary damageContext = null
+        DamageResolutionContext damageContext
     )
     {
         StringName damageTag = ResolveDamageTag(sourceUnit, effectDef);
@@ -1048,31 +1728,26 @@ public partial class BattleDamageResolver : RefCounted
         {
             return BuildInvalidDamageTagOutcome(sourceUnit, effectDef);
         }
-        GDictionary context = damageContext ?? new GDictionary();
-        StringName rollMode = DictStringName(
-            context,
-            "damage_roll_mode",
-            DamagePreviewRollModeRandom
-        );
-        GDictionary damageRoll = RollDamageDice(effectDef, true, "damage_dice", rollMode);
-        GDictionary weaponRoll = RollWeaponDice(
+        StringName rollMode = damageContext.DamageRollMode;
+        DicePoolRollResult damageRoll = RollDamageDice(effectDef, true, "damage_dice", rollMode);
+        DicePoolRollResult weaponRoll = RollWeaponDice(
             sourceUnit,
             effectDef,
             true,
             "weapon_damage_dice",
             rollMode
         );
-        bool criticalHit = DictBool(context, "critical_hit");
+        bool criticalHit = damageContext.CriticalHit;
         bool bonusConditionMet = HasBonusCondition(effectDef, targetUnit);
-        GDictionary bonusDamageRoll = bonusConditionMet
+        DicePoolRollResult bonusDamageRoll = bonusConditionMet
             ? RollBonusDamageDice(effectDef, true, "bonus_damage_dice", rollMode)
-            : new GDictionary();
-        GDictionary criticalDamageRoll =
-            criticalHit && damageRoll.Count > 0
+            : DicePoolRollResult.Empty;
+        DicePoolRollResult criticalDamageRoll =
+            criticalHit && damageRoll.HasDice
                 ? RollDamageDice(effectDef, false, "critical_extra_damage_dice", rollMode)
-                : new GDictionary();
-        GDictionary criticalWeaponRoll =
-            criticalHit && weaponRoll.Count > 0
+                : DicePoolRollResult.Empty;
+        DicePoolRollResult criticalWeaponRoll =
+            criticalHit && weaponRoll.HasDice
                 ? RollWeaponDice(
                     sourceUnit,
                     effectDef,
@@ -1080,43 +1755,47 @@ public partial class BattleDamageResolver : RefCounted
                     "critical_extra_weapon_damage_dice",
                     rollMode
                 )
-                : new GDictionary();
-        GDictionary criticalBonusDamageRoll =
-            criticalHit && bonusDamageRoll.Count > 0
+                : DicePoolRollResult.Empty;
+        DicePoolRollResult criticalBonusDamageRoll =
+            criticalHit && bonusDamageRoll.HasDice
                 ? RollBonusDamageDice(
                     effectDef,
                     false,
                     "critical_extra_bonus_damage_dice",
                     rollMode
                 )
-                : new GDictionary();
-        GDictionary traitCritResult = ResolveCritTraitResult(
+                : DicePoolRollResult.Empty;
+        TraitTriggerResultSnapshot traitCritResult = ResolveCritTraitResult(
             sourceUnit,
             targetUnit,
             effectDef,
             criticalHit
         );
-        GDictionary traitExtraWeaponRoll = DictBool(traitCritResult, "triggered")
+        DicePoolRollResult traitExtraWeaponRoll = traitCritResult.Triggered
             ? RollDicePool(
-                Math.Max(DictInt(traitCritResult, "extra_weapon_dice_count"), 0),
-                Math.Max(DictInt(traitCritResult, "extra_weapon_dice_sides"), 0),
+                traitCritResult.ExtraWeaponDiceCount,
+                traitCritResult.ExtraWeaponDiceSides,
                 0,
                 "trait_extra_weapon_damage_dice",
                 rollMode
             )
-            : new GDictionary();
-        GDictionary consumedStackRoll = RollConsumedStackDice(sourceUnit, effectDef, rollMode);
+            : DicePoolRollResult.Empty;
+        DicePoolRollResult consumedStackRoll = RollConsumedStackDice(
+            sourceUnit,
+            effectDef,
+            rollMode
+        );
 
         int baseDamage =
             Math.Max(effectDef?.power ?? 0, 0)
-            + GetRollTotalWithBonus(weaponRoll, "weapon_damage_dice")
-            + GetRollTotalWithBonus(damageRoll, "damage_dice")
-            + GetRollTotalWithBonus(bonusDamageRoll, "bonus_damage_dice")
-            + GetRollTotal(criticalWeaponRoll, "critical_extra_weapon_damage_dice")
-            + GetRollTotal(criticalDamageRoll, "critical_extra_damage_dice")
-            + GetRollTotal(criticalBonusDamageRoll, "critical_extra_bonus_damage_dice")
-            + GetRollTotal(traitExtraWeaponRoll, "trait_extra_weapon_damage_dice")
-            + GetRollTotal(consumedStackRoll, "consumed_stack_damage_dice");
+            + weaponRoll.TotalWithBonus
+            + damageRoll.TotalWithBonus
+            + bonusDamageRoll.TotalWithBonus
+            + criticalWeaponRoll.Total
+            + criticalDamageRoll.Total
+            + criticalBonusDamageRoll.Total
+            + traitExtraWeaponRoll.Total
+            + consumedStackRoll.Total;
         double offenseMultiplier = BuildOffenseMultiplier(sourceUnit, targetUnit, effectDef);
         int rolledDamage = Math.Max(RoundToInt(baseDamage * offenseMultiplier), 0);
         GDictionary mitigationTierResult = ResolveMitigationTierResult(targetUnit, damageTag);
@@ -1141,7 +1820,10 @@ public partial class BattleDamageResolver : RefCounted
 
         GDictionary mitigation = BuildFixedMitigation(targetUnit, effectDef, damageTag);
         ApplyBlackStarBrandGuardIgnore(mitigation, targetUnit);
-        ApplyLowLuckBlackStarWedgeGuardIgnore(mitigation, sourceUnit);
+        bool lowLuckBlackStarWedgeTriggered = ApplyLowLuckBlackStarWedgeGuardIgnore(
+            mitigation,
+            sourceUnit
+        );
         TrimFixedMitigationSources(mitigation);
         int buffReduction = DictInt(mitigation, "buff_reduction");
         int stanceReduction = DictInt(mitigation, "stance_reduction");
@@ -1152,7 +1834,7 @@ public partial class BattleDamageResolver : RefCounted
         int fixedMitigationTotal =
             buffReduction + stanceReduction + passiveReduction + contentDr + guardBlock;
         int resolvedDamage = Math.Max(tierAdjustedDamage - fixedMitigationTotal, MinDamageFloor);
-        GDictionary damageDiceEventFlags = BuildDamageDiceEventFlags(
+        DamageDiceEventFlags damageDiceEventFlags = BuildDamageDiceEventFlags(
             criticalHit,
             damageRoll,
             weaponRoll,
@@ -1167,111 +1849,48 @@ public partial class BattleDamageResolver : RefCounted
             ["base_damage"] = baseDamage,
             ["critical_hit"] = criticalHit,
             ["add_weapon_dice"] = ShouldAddWeaponDice(effectDef),
-            ["damage_dice_count"] = DictInt(damageRoll, "damage_dice_count"),
-            ["damage_dice_sides"] = DictInt(damageRoll, "damage_dice_sides"),
-            ["damage_dice_rolls"] = GetArray(damageRoll, "damage_dice_rolls"),
-            ["damage_dice_total"] = DictInt(damageRoll, "damage_dice_total"),
-            ["damage_dice_bonus"] = DictInt(damageRoll, "damage_dice_bonus"),
-            ["damage_dice_max_total"] = DictInt(damageRoll, "damage_dice_max_total"),
-            ["damage_dice_is_max"] = DictBool(damageRoll, "damage_dice_is_max"),
+            ["damage_dice_count"] = damageRoll.Count,
+            ["damage_dice_sides"] = damageRoll.Sides,
+            ["damage_dice_rolls"] = damageRoll.Rolls,
+            ["damage_dice_total"] = damageRoll.Total,
+            ["damage_dice_bonus"] = damageRoll.Bonus,
+            ["damage_dice_max_total"] = damageRoll.MaxTotal,
+            ["damage_dice_is_max"] = damageRoll.IsMax,
             ["bonus_condition_met"] = bonusConditionMet,
-            ["bonus_damage_dice_count"] = DictInt(bonusDamageRoll, "bonus_damage_dice_count"),
-            ["bonus_damage_dice_sides"] = DictInt(bonusDamageRoll, "bonus_damage_dice_sides"),
-            ["bonus_damage_dice_rolls"] = GetArray(bonusDamageRoll, "bonus_damage_dice_rolls"),
-            ["bonus_damage_dice_total"] = DictInt(bonusDamageRoll, "bonus_damage_dice_total"),
-            ["bonus_damage_dice_bonus"] = DictInt(bonusDamageRoll, "bonus_damage_dice_bonus"),
-            ["bonus_damage_dice_max_total"] = DictInt(
-                bonusDamageRoll,
-                "bonus_damage_dice_max_total"
-            ),
-            ["bonus_damage_dice_is_max"] = DictBool(bonusDamageRoll, "bonus_damage_dice_is_max"),
-            ["weapon_damage_dice_count"] = DictInt(weaponRoll, "weapon_damage_dice_count"),
-            ["weapon_damage_dice_sides"] = DictInt(weaponRoll, "weapon_damage_dice_sides"),
-            ["weapon_damage_dice_rolls"] = GetArray(weaponRoll, "weapon_damage_dice_rolls"),
-            ["weapon_damage_dice_total"] = DictInt(weaponRoll, "weapon_damage_dice_total"),
-            ["weapon_damage_dice_bonus"] = DictInt(weaponRoll, "weapon_damage_dice_bonus"),
-            ["weapon_damage_dice_max_total"] = DictInt(weaponRoll, "weapon_damage_dice_max_total"),
-            ["weapon_damage_dice_is_max"] = DictBool(weaponRoll, "weapon_damage_dice_is_max"),
-            ["critical_extra_damage_dice_count"] = DictInt(
-                criticalDamageRoll,
-                "critical_extra_damage_dice_count"
-            ),
-            ["critical_extra_damage_dice_sides"] = DictInt(
-                criticalDamageRoll,
-                "critical_extra_damage_dice_sides"
-            ),
-            ["critical_extra_damage_dice_rolls"] = GetArray(
-                criticalDamageRoll,
-                "critical_extra_damage_dice_rolls"
-            ),
-            ["critical_extra_damage_dice_total"] = DictInt(
-                criticalDamageRoll,
-                "critical_extra_damage_dice_total"
-            ),
-            ["critical_extra_damage_dice_max_total"] = DictInt(
-                criticalDamageRoll,
-                "critical_extra_damage_dice_max_total"
-            ),
-            ["critical_extra_bonus_damage_dice_count"] = DictInt(
-                criticalBonusDamageRoll,
-                "critical_extra_bonus_damage_dice_count"
-            ),
-            ["critical_extra_bonus_damage_dice_sides"] = DictInt(
-                criticalBonusDamageRoll,
-                "critical_extra_bonus_damage_dice_sides"
-            ),
-            ["critical_extra_bonus_damage_dice_rolls"] = GetArray(
-                criticalBonusDamageRoll,
-                "critical_extra_bonus_damage_dice_rolls"
-            ),
-            ["critical_extra_bonus_damage_dice_total"] = DictInt(
-                criticalBonusDamageRoll,
-                "critical_extra_bonus_damage_dice_total"
-            ),
-            ["critical_extra_bonus_damage_dice_max_total"] = DictInt(
-                criticalBonusDamageRoll,
-                "critical_extra_bonus_damage_dice_max_total"
-            ),
-            ["critical_extra_weapon_damage_dice_count"] = DictInt(
-                criticalWeaponRoll,
-                "critical_extra_weapon_damage_dice_count"
-            ),
-            ["critical_extra_weapon_damage_dice_sides"] = DictInt(
-                criticalWeaponRoll,
-                "critical_extra_weapon_damage_dice_sides"
-            ),
-            ["critical_extra_weapon_damage_dice_rolls"] = GetArray(
-                criticalWeaponRoll,
-                "critical_extra_weapon_damage_dice_rolls"
-            ),
-            ["critical_extra_weapon_damage_dice_total"] = DictInt(
-                criticalWeaponRoll,
-                "critical_extra_weapon_damage_dice_total"
-            ),
-            ["critical_extra_weapon_damage_dice_max_total"] = DictInt(
-                criticalWeaponRoll,
-                "critical_extra_weapon_damage_dice_max_total"
-            ),
-            ["trait_extra_weapon_damage_dice_count"] = DictInt(
-                traitExtraWeaponRoll,
-                "trait_extra_weapon_damage_dice_count"
-            ),
-            ["trait_extra_weapon_damage_dice_sides"] = DictInt(
-                traitExtraWeaponRoll,
-                "trait_extra_weapon_damage_dice_sides"
-            ),
-            ["trait_extra_weapon_damage_dice_rolls"] = GetArray(
-                traitExtraWeaponRoll,
-                "trait_extra_weapon_damage_dice_rolls"
-            ),
-            ["trait_extra_weapon_damage_dice_total"] = DictInt(
-                traitExtraWeaponRoll,
-                "trait_extra_weapon_damage_dice_total"
-            ),
-            ["trait_extra_weapon_damage_dice_max_total"] = DictInt(
-                traitExtraWeaponRoll,
-                "trait_extra_weapon_damage_dice_max_total"
-            ),
+            ["bonus_damage_dice_count"] = bonusDamageRoll.Count,
+            ["bonus_damage_dice_sides"] = bonusDamageRoll.Sides,
+            ["bonus_damage_dice_rolls"] = bonusDamageRoll.Rolls,
+            ["bonus_damage_dice_total"] = bonusDamageRoll.Total,
+            ["bonus_damage_dice_bonus"] = bonusDamageRoll.Bonus,
+            ["bonus_damage_dice_max_total"] = bonusDamageRoll.MaxTotal,
+            ["bonus_damage_dice_is_max"] = bonusDamageRoll.IsMax,
+            ["weapon_damage_dice_count"] = weaponRoll.Count,
+            ["weapon_damage_dice_sides"] = weaponRoll.Sides,
+            ["weapon_damage_dice_rolls"] = weaponRoll.Rolls,
+            ["weapon_damage_dice_total"] = weaponRoll.Total,
+            ["weapon_damage_dice_bonus"] = weaponRoll.Bonus,
+            ["weapon_damage_dice_max_total"] = weaponRoll.MaxTotal,
+            ["weapon_damage_dice_is_max"] = weaponRoll.IsMax,
+            ["critical_extra_damage_dice_count"] = criticalDamageRoll.Count,
+            ["critical_extra_damage_dice_sides"] = criticalDamageRoll.Sides,
+            ["critical_extra_damage_dice_rolls"] = criticalDamageRoll.Rolls,
+            ["critical_extra_damage_dice_total"] = criticalDamageRoll.Total,
+            ["critical_extra_damage_dice_max_total"] = criticalDamageRoll.MaxTotal,
+            ["critical_extra_bonus_damage_dice_count"] = criticalBonusDamageRoll.Count,
+            ["critical_extra_bonus_damage_dice_sides"] = criticalBonusDamageRoll.Sides,
+            ["critical_extra_bonus_damage_dice_rolls"] = criticalBonusDamageRoll.Rolls,
+            ["critical_extra_bonus_damage_dice_total"] = criticalBonusDamageRoll.Total,
+            ["critical_extra_bonus_damage_dice_max_total"] = criticalBonusDamageRoll.MaxTotal,
+            ["critical_extra_weapon_damage_dice_count"] = criticalWeaponRoll.Count,
+            ["critical_extra_weapon_damage_dice_sides"] = criticalWeaponRoll.Sides,
+            ["critical_extra_weapon_damage_dice_rolls"] = criticalWeaponRoll.Rolls,
+            ["critical_extra_weapon_damage_dice_total"] = criticalWeaponRoll.Total,
+            ["critical_extra_weapon_damage_dice_max_total"] = criticalWeaponRoll.MaxTotal,
+            ["trait_extra_weapon_damage_dice_count"] = traitExtraWeaponRoll.Count,
+            ["trait_extra_weapon_damage_dice_sides"] = traitExtraWeaponRoll.Sides,
+            ["trait_extra_weapon_damage_dice_rolls"] = traitExtraWeaponRoll.Rolls,
+            ["trait_extra_weapon_damage_dice_total"] = traitExtraWeaponRoll.Total,
+            ["trait_extra_weapon_damage_dice_max_total"] = traitExtraWeaponRoll.MaxTotal,
             ["offense_multiplier"] = offenseMultiplier,
             ["rolled_damage"] = rolledDamage,
             ["tier_adjusted_damage"] = tierAdjustedDamage,
@@ -1283,10 +1902,7 @@ public partial class BattleDamageResolver : RefCounted
             ["guard_block"] = guardBlock,
             ["guard_ignore_applied"] = guardIgnoreApplied,
             ["fixed_mitigation_sources"] = GetArray(mitigation, "fixed_mitigation_sources"),
-            ["low_luck_black_star_wedge_triggered"] = DictBool(
-                mitigation,
-                "low_luck_black_star_wedge_triggered"
-            ),
+            ["low_luck_black_star_wedge_triggered"] = lowLuckBlackStarWedgeTriggered,
             ["fixed_mitigation_total"] = fixedMitigationTotal,
             ["fully_absorbed_by_mitigation"] =
                 resolvedDamage <= 0
@@ -1295,31 +1911,66 @@ public partial class BattleDamageResolver : RefCounted
             ["trait_trigger_results"] = new GArray(),
         };
         AppendTraitTriggerResult(result, traitCritResult);
-        ApplyDamageDiceEventFlags(result, damageDiceEventFlags);
-        return result;
+        ApplyDamageDiceEventFlags(result, damageDiceEventFlags.Payload);
+        return new DamageOutcomeResult(
+            result,
+            false,
+            "",
+            "",
+            "",
+            damageTag,
+            resolvedDamage,
+            false,
+            false,
+            100.0,
+            0,
+            lowLuckBlackStarWedgeTriggered,
+            damageDiceEventFlags.Snapshot
+        );
     }
 
-    private GDictionary ApplyDamageToTarget(
+    private AppliedDamageResult ApplyDamageToTargetResult(
         BattleUnitState targetUnit,
         GDictionary damageOutcome,
         BattleUnitState sourceUnit = null
     )
     {
-        if (damageOutcome == null)
-        {
-            damageOutcome = new GDictionary();
-        }
-        int normalizedDamage = Math.Max(DictInt(damageOutcome, "resolved_damage"), 0);
+        return ApplyDamageToTargetResult(
+            targetUnit,
+            DamageApplicationInput.FromDictionary(damageOutcome),
+            sourceUnit
+        );
+    }
+
+    private AppliedDamageResult ApplyDamageToTargetResult(
+        BattleUnitState targetUnit,
+        DamageOutcomeResult damageOutcome,
+        BattleUnitState sourceUnit = null
+    )
+    {
+        return ApplyDamageToTargetResult(
+            targetUnit,
+            damageOutcome.ToDamageApplicationInput(),
+            sourceUnit
+        );
+    }
+
+    private AppliedDamageResult ApplyDamageToTargetResult(
+        BattleUnitState targetUnit,
+        DamageApplicationInput damageInput,
+        BattleUnitState sourceUnit = null
+    )
+    {
+        int normalizedDamage = damageInput.ResolvedDamage;
         if (targetUnit == null || normalizedDamage <= 0)
         {
-            return BuildAppliedDamageResult(damageOutcome, 0, 0, false);
+            return BuildAppliedDamageResult(damageInput, 0, 0, false);
         }
 
-        bool bypassShield = DictBool(damageOutcome, "bypass_shield");
-        bool bypassDeathPrevention = DictBool(damageOutcome, "bypass_death_prevention");
-        double shieldEfficiency =
-            DictFloat(damageOutcome, "shield_absorption_percent", 100.0) / 100.0;
-        int minHpAfterDamage = Math.Max(DictInt(damageOutcome, "min_hp_after_damage"), 0);
+        bool bypassShield = damageInput.BypassShield;
+        bool bypassDeathPrevention = damageInput.BypassDeathPrevention;
+        double shieldEfficiency = damageInput.ShieldAbsorptionPercent / 100.0;
+        int minHpAfterDamage = damageInput.MinHpAfterDamage;
         targetUnit.normalize_shield_state();
 
         int shieldAbsorbed = 0;
@@ -1371,23 +2022,23 @@ public partial class BattleDamageResolver : RefCounted
                 }
                 else
                 {
-                    GDictionary fatalTraitResult = ResolveFatalDamageTraitResult(
-                        targetUnit,
-                        sourceUnit,
-                        damageOutcome,
-                        hpDamage,
-                        projectedHp
-                    );
+                    TraitTriggerResultSnapshot fatalTraitResult =
+                        ResolveFatalDamageTraitResult(
+                            targetUnit,
+                            sourceUnit,
+                            hpDamage,
+                            projectedHp
+                        );
                     if (
-                        DictBool(fatalTraitResult, "triggered")
-                        && DictInt(fatalTraitResult, "clamp_to_hp") > 0
+                        fatalTraitResult.Triggered
+                        && fatalTraitResult.ClampToHp > 0
                     )
                     {
                         targetUnit.current_hp = Math.Max(
-                            DictInt(fatalTraitResult, "clamp_to_hp", 1),
+                            fatalTraitResult.ClampToHp,
                             1
                         );
-                        AppendTraitTriggerResult(damageOutcome, fatalTraitResult);
+                        AppendTraitTriggerResult(damageInput.Payload, fatalTraitResult);
                     }
                     else if (targetUnit.has_status_effect("death_ward"))
                     {
@@ -1409,37 +2060,31 @@ public partial class BattleDamageResolver : RefCounted
             }
         }
 
-        return BuildAppliedDamageResult(damageOutcome, hpDamage, shieldAbsorbed, shieldBroken);
+        return BuildAppliedDamageResult(damageInput, hpDamage, shieldAbsorbed, shieldBroken);
     }
 
-    private GDictionary BuildExpectedSaveBranchDamageResult(
+    private AppliedDamageResult BuildExpectedSaveBranchDamageResult(
         BattleUnitState targetPreview,
-        GDictionary damageOutcome,
-        GDictionary saveEstimate,
+        DamageOutcomeResult damageOutcome,
+        DamagePreviewSaveEstimate saveEstimate,
         BattleUnitState sourcePreview
     )
     {
-        int successBasis = Math.Clamp(
-            DictInt(saveEstimate, "save_success_probability_basis_points"),
-            0,
-            10000
-        );
-        int failureBasis = Math.Max(10000 - successBasis, 0);
-        int failureDamage = Math.Max(DictInt(saveEstimate, "damage_on_save_failure"), 0);
-        int successDamage = Math.Max(DictInt(saveEstimate, "damage_on_save_success"), 0);
+        int successBasis = Math.Clamp(saveEstimate.SaveSuccessProbabilityBasisPoints, 0, 10000);
+        int failureBasis = Math.Clamp(saveEstimate.SaveFailureProbabilityBasisPoints, 0, 10000);
+        int failureDamage = Math.Max(saveEstimate.DamageOnSaveFailure, 0);
+        int successDamage = Math.Max(saveEstimate.DamageOnSaveSuccess, 0);
 
         BattleUnitState failureTarget = targetPreview.clone();
         BattleUnitState successTarget = targetPreview.clone();
-        GDictionary failureOutcome = DuplicateDictionary(damageOutcome);
-        failureOutcome["resolved_damage"] = failureDamage;
-        GDictionary successOutcome = DuplicateDictionary(damageOutcome);
-        successOutcome["resolved_damage"] = successDamage;
-        GDictionary failureResult = ApplyDamageToTarget(
+        DamageOutcomeResult failureOutcome = damageOutcome.WithResolvedDamage(failureDamage);
+        DamageOutcomeResult successOutcome = damageOutcome.WithResolvedDamage(successDamage);
+        AppliedDamageResult failureResult = ApplyDamageToTargetResult(
             failureTarget,
             failureOutcome,
             sourcePreview
         );
-        GDictionary successResult = ApplyDamageToTarget(
+        AppliedDamageResult successResult = ApplyDamageToTargetResult(
             successTarget,
             successOutcome,
             sourcePreview
@@ -1447,56 +2092,59 @@ public partial class BattleDamageResolver : RefCounted
 
         int expectedHpDamage = RoundToInt(
             (
-                DictInt(failureResult, "hp_damage", DictInt(failureResult, "damage")) * failureBasis
-                + DictInt(successResult, "hp_damage", DictInt(successResult, "damage"))
-                    * successBasis
+                failureResult.HpDamage * failureBasis
+                + successResult.HpDamage * successBasis
             ) / 10000.0
         );
         int expectedShieldAbsorbed = RoundToInt(
             (
-                DictInt(failureResult, "shield_absorbed") * failureBasis
-                + DictInt(successResult, "shield_absorbed") * successBasis
+                failureResult.ShieldAbsorbed * failureBasis
+                + successResult.ShieldAbsorbed * successBasis
             ) / 10000.0
         );
 
-        GDictionary result = DuplicateDictionary(damageOutcome);
-        ApplyDamagePreviewSaveEstimate(result, saveEstimate);
+        GDictionary result = WithDamagePreviewSaveEstimate(
+            damageOutcome,
+            saveEstimate
+        ).ToDictionary();
         result["damage"] = expectedHpDamage;
         result["hp_damage"] = expectedHpDamage;
         result["shield_absorbed"] = expectedShieldAbsorbed;
-        result["shield_broken"] = DictBool(failureResult, "shield_broken") && failureBasis > 0;
+        result["shield_broken"] = failureResult.ShieldBroken && failureBasis > 0;
         result["fully_absorbed_by_shield"] = expectedHpDamage <= 0 && expectedShieldAbsorbed > 0;
-        return result;
+        return new AppliedDamageResult(
+            result,
+            expectedHpDamage,
+            expectedHpDamage,
+            expectedShieldAbsorbed,
+            failureResult.ShieldBroken && failureBasis > 0,
+            failureResult.LowLuckBlackStarWedgeTriggered
+                || successResult.LowLuckBlackStarWedgeTriggered,
+            damageOutcome.DamageDiceEvent
+        );
     }
 
-    private GDictionary BuildSaveBranchLethalEstimate(
+    private DamagePreviewBranchLethalEstimate BuildSaveBranchLethalEstimate(
         BattleUnitState targetPreview,
-        GDictionary damageOutcome,
-        GDictionary saveEstimate,
+        DamageOutcomeResult damageOutcome,
+        DamagePreviewSaveEstimate saveEstimate,
         BattleUnitState sourcePreview
     )
     {
-        int successBasis = Math.Clamp(
-            DictInt(saveEstimate, "save_success_probability_basis_points"),
-            0,
-            10000
-        );
-        int failureBasis = Math.Max(10000 - successBasis, 0);
-        int failureDamage = Math.Max(DictInt(saveEstimate, "damage_on_save_failure"), 0);
-        int successDamage = Math.Max(DictInt(saveEstimate, "damage_on_save_success"), 0);
+        int failureBasis = Math.Clamp(saveEstimate.SaveFailureProbabilityBasisPoints, 0, 10000);
+        int failureDamage = Math.Max(saveEstimate.DamageOnSaveFailure, 0);
+        int successDamage = Math.Max(saveEstimate.DamageOnSaveSuccess, 0);
 
         BattleUnitState failureTarget = targetPreview.clone();
         BattleUnitState successTarget = targetPreview.clone();
-        GDictionary failureOutcome = DuplicateDictionary(damageOutcome);
-        failureOutcome["resolved_damage"] = failureDamage;
-        GDictionary successOutcome = DuplicateDictionary(damageOutcome);
-        successOutcome["resolved_damage"] = successDamage;
-        GDictionary failureResult = ApplyDamageToTarget(
+        DamageOutcomeResult failureOutcome = damageOutcome.WithResolvedDamage(failureDamage);
+        DamageOutcomeResult successOutcome = damageOutcome.WithResolvedDamage(successDamage);
+        AppliedDamageResult failureResult = ApplyDamageToTargetResult(
             failureTarget,
             failureOutcome,
             sourcePreview
         );
-        GDictionary successResult = ApplyDamageToTarget(
+        AppliedDamageResult successResult = ApplyDamageToTargetResult(
             successTarget,
             successOutcome,
             sourcePreview
@@ -1504,28 +2152,19 @@ public partial class BattleDamageResolver : RefCounted
 
         bool failureKills = failureTarget != null && failureTarget.current_hp <= 0;
         bool successKills = successTarget != null && successTarget.current_hp <= 0;
-        return new GDictionary
-        {
-            ["failure_kills"] = failureKills,
-            ["success_kills"] = successKills,
-            ["failure_hp_damage"] = DictInt(
-                failureResult,
-                "hp_damage",
-                DictInt(failureResult, "damage")
-            ),
-            ["success_hp_damage"] = DictInt(
-                successResult,
-                "hp_damage",
-                DictInt(successResult, "damage")
-            ),
-            ["stable_lethal"] = failureKills && successKills,
-            ["lethal_probability_basis_points"] = failureKills
+        return new DamagePreviewBranchLethalEstimate(
+            failureKills,
+            successKills,
+            failureResult.HpDamage,
+            successResult.HpDamage,
+            failureKills && successKills,
+            failureKills
                 ? (successKills ? 10000 : failureBasis)
-                : 0,
-        };
+                : 0
+        );
     }
 
-    private GDictionary BuildDamagePreviewSaveEstimate(
+    private DamagePreviewSaveEstimate BuildDamagePreviewSaveEstimate(
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
         CombatEffectDef effectDef,
@@ -1534,33 +2173,23 @@ public partial class BattleDamageResolver : RefCounted
         StringName saveMode
     )
     {
-        GDictionary probability = BattleSaveResolver.estimate_save_success_probability(
+        BattleSaveProbabilityResult probability =
+            BattleSaveResolver.estimate_save_success_probability_result(
             sourceUnit,
             targetUnit,
             effectDef,
             damageContext ?? new GDictionary()
         );
-        if (!DictBool(probability, "has_save"))
+        if (!probability.HasSave)
         {
-            return new GDictionary
-            {
-                ["has_save"] = false,
-                ["damage_before_save"] = damageBeforeSave,
-                ["damage_after_save"] = damageBeforeSave,
-                ["damage_after_save_estimate"] = damageBeforeSave,
-                ["damage_after_save_worst"] = damageBeforeSave,
-            };
+            return DamagePreviewSaveEstimate.None(damageBeforeSave);
         }
-        int successBasisPoints = Math.Clamp(
-            DictInt(probability, "success_probability_basis_points"),
-            0,
-            10000
-        );
-        int failureBasisPoints = Math.Max(10000 - successBasisPoints, 0);
+        int successBasisPoints = Math.Clamp(probability.SuccessProbabilityBasisPoints, 0, 10000);
+        int failureBasisPoints = Math.Clamp(probability.FailureProbabilityBasisPoints, 0, 10000);
         int damageOnSaveSuccess =
             effectDef != null
             && effectDef.save_partial_on_success
-            && !DictBool(probability, "immune")
+            && !probability.Immune
                 ? damageBeforeSave / 2
                 : 0;
         int expectedDamage = RoundToInt(
@@ -1569,99 +2198,137 @@ public partial class BattleDamageResolver : RefCounted
         );
         int worstDamage = failureBasisPoints <= 0 ? damageOnSaveSuccess : damageBeforeSave;
         int damageAfterSave = saveMode == DamagePreviewSaveModeWorst ? worstDamage : expectedDamage;
-        return new GDictionary
+        return new DamagePreviewSaveEstimate(
+            true,
+            damageBeforeSave,
+            Math.Max(damageAfterSave, 0),
+            Math.Max(expectedDamage, 0),
+            Math.Max(worstDamage, 0),
+            damageBeforeSave,
+            damageOnSaveSuccess,
+            effectDef != null && effectDef.save_partial_on_success,
+            successBasisPoints,
+            RoundToInt(successBasisPoints / 100.0),
+            failureBasisPoints,
+            probability.Dc,
+            probability.Ability.ToString(),
+            probability.SaveTag.ToString(),
+            probability.AdvantageState.ToString(),
+            probability.AbilityValue,
+            probability.AbilityModifier,
+            probability.Bonus,
+            probability.Immune,
+            probability.Sources ?? Array.Empty<BattleSaveSource>()
+        );
+    }
+
+    private static GArray BuildSaveSourceArray(IReadOnlyList<BattleSaveSource> sources)
+    {
+        var result = new GArray();
+        if (sources == null)
         {
-            ["has_save"] = true,
-            ["damage_before_save"] = damageBeforeSave,
-            ["damage_after_save"] = Math.Max(damageAfterSave, 0),
-            ["damage_after_save_estimate"] = Math.Max(expectedDamage, 0),
-            ["damage_after_save_worst"] = Math.Max(worstDamage, 0),
-            ["damage_on_save_failure"] = damageBeforeSave,
-            ["damage_on_save_success"] = damageOnSaveSuccess,
-            ["save_partial_on_success"] = effectDef != null && effectDef.save_partial_on_success,
-            ["save_success_probability_basis_points"] = successBasisPoints,
-            ["save_success_rate_percent"] = RoundToInt(successBasisPoints / 100.0),
-            ["save_failure_probability_basis_points"] = failureBasisPoints,
-            ["dc"] = DictInt(probability, "dc"),
-            ["ability"] = DictString(probability, "ability"),
-            ["save_tag"] = DictString(probability, "save_tag"),
-            ["advantage_state"] = DictString(probability, "advantage_state"),
-            ["ability_value"] = DictInt(probability, "ability_value"),
-            ["ability_modifier"] = DictInt(probability, "ability_modifier"),
-            ["bonus"] = DictInt(probability, "bonus"),
-            ["immune"] = DictBool(probability, "immune"),
-            ["sources"] = GetArray(probability, "sources"),
+            return result;
+        }
+        foreach (BattleSaveSource source in sources)
+        {
+            result.Add(source.ToDictionary());
+        }
+        return result;
+    }
+
+    private static DamageOutcomeResult WithDamagePreviewSaveEstimate(
+        DamageOutcomeResult damageOutcome,
+        DamagePreviewSaveEstimate saveEstimate
+    )
+    {
+        GDictionary payload = damageOutcome.ToDictionary();
+        int resolvedDamage = ApplyDamagePreviewSaveEstimate(payload, saveEstimate);
+        return damageOutcome with
+        {
+            Payload = payload,
+            ResolvedDamage = Math.Max(resolvedDamage, 0),
         };
     }
 
-    private static void ApplyDamagePreviewSaveEstimate(
+    private static int ApplyDamagePreviewSaveEstimate(
         GDictionary damageOutcome,
-        GDictionary saveEstimate
+        DamagePreviewSaveEstimate saveEstimate
     )
     {
-        if (damageOutcome == null || saveEstimate == null)
+        if (damageOutcome == null)
         {
-            return;
+            return Math.Max(saveEstimate.DamageAfterSave, 0);
         }
-        damageOutcome["pre_save_damage"] = DictInt(
-            saveEstimate,
-            "damage_before_save",
-            DictInt(damageOutcome, "resolved_damage")
-        );
-        if (!DictBool(saveEstimate, "has_save"))
+        damageOutcome["pre_save_damage"] = saveEstimate.DamageBeforeSave;
+        if (!saveEstimate.HasSave)
         {
-            damageOutcome["save_adjusted_damage"] = DictInt(damageOutcome, "resolved_damage");
+            damageOutcome["save_adjusted_damage"] = saveEstimate.DamageAfterSave;
             damageOutcome["fully_absorbed_by_save"] = false;
-            return;
+            return Math.Max(saveEstimate.DamageAfterSave, 0);
         }
-        int adjustedDamage = Math.Max(
-            DictInt(saveEstimate, "damage_after_save", DictInt(damageOutcome, "resolved_damage")),
-            0
-        );
-        damageOutcome["save_result"] = DuplicateDictionary(saveEstimate);
-        damageOutcome["save_success_probability_basis_points"] = DictInt(
-            saveEstimate,
-            "save_success_probability_basis_points"
-        );
-        damageOutcome["save_failure_probability_basis_points"] = DictInt(
-            saveEstimate,
-            "save_failure_probability_basis_points"
-        );
-        damageOutcome["save_immune"] = DictBool(saveEstimate, "immune");
-        damageOutcome["save_partial_applied"] = DictBool(saveEstimate, "save_partial_on_success");
+        int adjustedDamage = Math.Max(saveEstimate.DamageAfterSave, 0);
+        damageOutcome["save_result"] = saveEstimate.ToDictionary();
+        damageOutcome["save_success_probability_basis_points"] =
+            saveEstimate.SaveSuccessProbabilityBasisPoints;
+        damageOutcome["save_failure_probability_basis_points"] =
+            saveEstimate.SaveFailureProbabilityBasisPoints;
+        damageOutcome["save_immune"] = saveEstimate.Immune;
+        damageOutcome["save_partial_applied"] = saveEstimate.SavePartialOnSuccess;
         damageOutcome["resolved_damage"] = adjustedDamage;
         damageOutcome["save_adjusted_damage"] = adjustedDamage;
         damageOutcome["fully_absorbed_by_save"] =
-            DictInt(damageOutcome, "pre_save_damage") > 0 && adjustedDamage <= 0;
+            saveEstimate.DamageBeforeSave > 0 && adjustedDamage <= 0;
+        return adjustedDamage;
     }
 
-    private static void ApplySaveResultToDamageOutcome(
-        GDictionary damageOutcome,
-        GDictionary saveResult,
+    private static DamageOutcomeResult WithSaveResult(
+        DamageOutcomeResult damageOutcome,
+        BattleSaveResult saveResult,
         CombatEffectDef effectDef
     )
     {
-        if (damageOutcome == null || saveResult == null || !DictBool(saveResult, "has_save"))
+        GDictionary payload = damageOutcome.ToDictionary();
+        int resolvedDamage = ApplySaveResultToDamageOutcome(
+            payload,
+            saveResult,
+            effectDef,
+            damageOutcome.ResolvedDamage
+        );
+        return damageOutcome with
         {
-            return;
+            Payload = payload,
+            ResolvedDamage = Math.Max(resolvedDamage, 0),
+        };
+    }
+
+    private static int ApplySaveResultToDamageOutcome(
+        GDictionary damageOutcome,
+        BattleSaveResult saveResult,
+        CombatEffectDef effectDef,
+        int preSaveDamage
+    )
+    {
+        if (damageOutcome == null || !saveResult.HasSave)
+        {
+            return Math.Max(preSaveDamage, 0);
         }
-        damageOutcome["save_result"] = DuplicateDictionary(saveResult);
-        damageOutcome["save_success"] = DictBool(saveResult, "success");
-        damageOutcome["save_immune"] = DictBool(saveResult, "immune");
+        preSaveDamage = Math.Max(preSaveDamage, 0);
+        damageOutcome["save_result"] = saveResult.ToDictionary();
+        damageOutcome["save_success"] = saveResult.Success;
+        damageOutcome["save_immune"] = saveResult.Immune;
         damageOutcome["save_partial_applied"] = false;
-        damageOutcome["pre_save_damage"] = DictInt(damageOutcome, "resolved_damage");
-        if (!DictBool(saveResult, "success"))
+        damageOutcome["pre_save_damage"] = preSaveDamage;
+        if (!saveResult.Success)
         {
-            damageOutcome["save_adjusted_damage"] = DictInt(damageOutcome, "resolved_damage");
+            damageOutcome["save_adjusted_damage"] = preSaveDamage;
             damageOutcome["fully_absorbed_by_save"] = false;
-            return;
+            return preSaveDamage;
         }
-        int preSaveDamage = Math.Max(DictInt(damageOutcome, "resolved_damage"), 0);
         int adjustedDamage = 0;
         if (
             effectDef != null
             && effectDef.save_partial_on_success
-            && !DictBool(saveResult, "immune")
+            && !saveResult.Immune
         )
         {
             adjustedDamage = preSaveDamage / 2;
@@ -1670,9 +2337,10 @@ public partial class BattleDamageResolver : RefCounted
         damageOutcome["resolved_damage"] = adjustedDamage;
         damageOutcome["save_adjusted_damage"] = adjustedDamage;
         damageOutcome["fully_absorbed_by_save"] = preSaveDamage > 0 && adjustedDamage <= 0;
+        return adjustedDamage;
     }
 
-    private GDictionary RollDamageDice(
+    private DicePoolRollResult RollDamageDice(
         CombatEffectDef effectDef,
         bool includeBonus = true,
         string fieldPrefix = "damage_dice",
@@ -1681,7 +2349,7 @@ public partial class BattleDamageResolver : RefCounted
     {
         if (effectDef?.@params == null)
         {
-            return new GDictionary();
+            return DicePoolRollResult.Empty;
         }
         int diceCount = Math.Max(DictInt(effectDef.@params, "dice_count"), 0);
         int diceSides = Math.Max(DictInt(effectDef.@params, "dice_sides"), 0);
@@ -1695,7 +2363,7 @@ public partial class BattleDamageResolver : RefCounted
         );
     }
 
-    private GDictionary RollBonusDamageDice(
+    private DicePoolRollResult RollBonusDamageDice(
         CombatEffectDef effectDef,
         bool includeBonus = true,
         string fieldPrefix = "bonus_damage_dice",
@@ -1704,7 +2372,7 @@ public partial class BattleDamageResolver : RefCounted
     {
         if (effectDef?.@params == null)
         {
-            return new GDictionary();
+            return DicePoolRollResult.Empty;
         }
         int diceCount = Math.Max(DictInt(effectDef.@params, "bonus_damage_dice_count"), 0);
         int diceSides = Math.Max(DictInt(effectDef.@params, "bonus_damage_dice_sides"), 0);
@@ -1718,7 +2386,7 @@ public partial class BattleDamageResolver : RefCounted
         );
     }
 
-    private GDictionary RollWeaponDice(
+    private DicePoolRollResult RollWeaponDice(
         BattleUnitState sourceUnit,
         CombatEffectDef effectDef,
         bool includeBonus = true,
@@ -1728,12 +2396,12 @@ public partial class BattleDamageResolver : RefCounted
     {
         if (!ShouldAddWeaponDice(effectDef))
         {
-            return new GDictionary();
+            return DicePoolRollResult.Empty;
         }
         GDictionary dice = GetCurrentWeaponDamageDice(sourceUnit);
         if (dice.Count == 0)
         {
-            return new GDictionary();
+            return DicePoolRollResult.Empty;
         }
         int diceCount = Math.Max(DictInt(dice, "dice_count"), 0);
         int diceSides = Math.Max(DictInt(dice, "dice_sides"), 0);
@@ -1747,7 +2415,7 @@ public partial class BattleDamageResolver : RefCounted
         );
     }
 
-    private GDictionary RollDicePool(
+    private DicePoolRollResult RollDicePool(
         int diceCount,
         int diceSides,
         int diceBonus,
@@ -1757,7 +2425,7 @@ public partial class BattleDamageResolver : RefCounted
     {
         if (diceCount <= 0 || diceSides <= 0 || string.IsNullOrEmpty(fieldPrefix))
         {
-            return new GDictionary();
+            return DicePoolRollResult.Empty;
         }
         StringName resolvedRollMode = IsEmpty(rollMode) ? DamagePreviewRollModeRandom : rollMode;
         var rolls = new GArray();
@@ -1777,7 +2445,7 @@ public partial class BattleDamageResolver : RefCounted
             rolls = BuildPreviewDiceRolls(diceCount, diceSides, diceTotal);
         }
         int maxTotal = diceCount * diceSides;
-        return new GDictionary
+        GDictionary payload = new()
         {
             [$"{fieldPrefix}_count"] = diceCount,
             [$"{fieldPrefix}_sides"] = diceSides,
@@ -1787,6 +2455,16 @@ public partial class BattleDamageResolver : RefCounted
             [$"{fieldPrefix}_max_total"] = maxTotal,
             [$"{fieldPrefix}_is_max"] = diceTotal == maxTotal,
         };
+        return new DicePoolRollResult(
+            payload,
+            diceCount,
+            diceSides,
+            rolls,
+            diceTotal,
+            diceBonus,
+            maxTotal,
+            diceTotal == maxTotal
+        );
     }
 
     private int RollDamageDieVirtual(int diceSides)
@@ -1825,37 +2503,39 @@ public partial class BattleDamageResolver : RefCounted
         return rolls;
     }
 
-    private static GDictionary BuildDamageDiceEventFlags(
+    private static DamageDiceEventFlags BuildDamageDiceEventFlags(
         bool criticalHit,
-        GDictionary skillRoll,
-        GDictionary weaponRoll,
-        GDictionary bonusSkillRoll = null
+        DicePoolRollResult skillRoll,
+        DicePoolRollResult weaponRoll,
+        DicePoolRollResult bonusSkillRoll = default
     )
     {
-        bonusSkillRoll ??= new GDictionary();
-        int skillDiceCount = DictInt(skillRoll, "damage_dice_count");
-        int skillDiceSides = DictInt(skillRoll, "damage_dice_sides");
-        int skillDiceTotal = DictInt(skillRoll, "damage_dice_total");
-        int skillDiceMaxTotal = DictInt(skillRoll, "damage_dice_max_total");
-        int bonusSkillDiceCount = DictInt(bonusSkillRoll, "bonus_damage_dice_count");
-        int bonusSkillDiceSides = DictInt(bonusSkillRoll, "bonus_damage_dice_sides");
-        int bonusSkillDiceTotal = DictInt(bonusSkillRoll, "bonus_damage_dice_total");
-        int bonusSkillDiceMaxTotal = DictInt(bonusSkillRoll, "bonus_damage_dice_max_total");
+        int skillDiceCount = skillRoll.Count;
+        int skillDiceSides = skillRoll.Sides;
+        int skillDiceTotal = skillRoll.Total;
+        int skillDiceMaxTotal = skillRoll.MaxTotal;
+        int bonusSkillDiceCount = bonusSkillRoll.Count;
+        int bonusSkillDiceSides = bonusSkillRoll.Sides;
+        int bonusSkillDiceTotal = bonusSkillRoll.Total;
+        int bonusSkillDiceMaxTotal = bonusSkillRoll.MaxTotal;
         bool hasSkillDice =
             (skillDiceCount > 0 && skillDiceSides > 0 && skillDiceMaxTotal > 0)
             || (bonusSkillDiceCount > 0 && bonusSkillDiceSides > 0 && bonusSkillDiceMaxTotal > 0);
         skillDiceTotal += bonusSkillDiceTotal;
         skillDiceMaxTotal += bonusSkillDiceMaxTotal;
 
-        int weaponDiceCount = DictInt(weaponRoll, "weapon_damage_dice_count");
-        int weaponDiceSides = DictInt(weaponRoll, "weapon_damage_dice_sides");
-        int weaponDiceTotal = DictInt(weaponRoll, "weapon_damage_dice_total");
-        int weaponDiceMaxTotal = DictInt(weaponRoll, "weapon_damage_dice_max_total");
+        int weaponDiceCount = weaponRoll.Count;
+        int weaponDiceSides = weaponRoll.Sides;
+        int weaponDiceTotal = weaponRoll.Total;
+        int weaponDiceMaxTotal = weaponRoll.MaxTotal;
         bool hasWeaponDice = weaponDiceCount > 0 && weaponDiceSides > 0 && weaponDiceMaxTotal > 0;
         bool hasAnyRegularDice = hasSkillDice || hasWeaponDice;
         int regularDiceTotal = skillDiceTotal + weaponDiceTotal;
         int regularDiceMaxTotal = skillDiceMaxTotal + weaponDiceMaxTotal;
 
+        bool damageDiceHighTotalRoll = false;
+        bool skillDamageDiceIsMax = false;
+        bool weaponDamageDiceIsMax = false;
         GDictionary result = new()
         {
             ["damage_dice_high_total_roll"] = false,
@@ -1867,6 +2547,7 @@ public partial class BattleDamageResolver : RefCounted
         };
         if (criticalHit && hasAnyRegularDice)
         {
+            damageDiceHighTotalRoll = true;
             result["damage_dice_high_total_roll"] = true;
             result["damage_dice_high_total_roll_reason"] = DiceEventReasonCriticalHit;
         }
@@ -1876,30 +2557,42 @@ public partial class BattleDamageResolver : RefCounted
                 >= regularDiceMaxTotal * DamageDiceHighTotalThresholdNumerator
         )
         {
+            damageDiceHighTotalRoll = true;
             result["damage_dice_high_total_roll"] = true;
             result["damage_dice_high_total_roll_reason"] = DiceEventReasonDiceThreshold;
         }
         if (criticalHit && hasSkillDice)
         {
+            skillDamageDiceIsMax = true;
             result["skill_damage_dice_is_max"] = true;
             result["skill_damage_dice_is_max_reason"] = DiceEventReasonCriticalHit;
         }
         else if (hasSkillDice && skillDiceTotal == skillDiceMaxTotal)
         {
+            skillDamageDiceIsMax = true;
             result["skill_damage_dice_is_max"] = true;
             result["skill_damage_dice_is_max_reason"] = DiceEventReasonSkillDiceMax;
         }
         if (criticalHit && hasWeaponDice)
         {
+            weaponDamageDiceIsMax = true;
             result["weapon_damage_dice_is_max"] = true;
             result["weapon_damage_dice_is_max_reason"] = DiceEventReasonCriticalHit;
         }
         else if (hasWeaponDice && weaponDiceTotal == weaponDiceMaxTotal)
         {
+            weaponDamageDiceIsMax = true;
             result["weapon_damage_dice_is_max"] = true;
             result["weapon_damage_dice_is_max_reason"] = DiceEventReasonWeaponDiceMax;
         }
-        return result;
+        return new DamageDiceEventFlags(
+            result,
+            new DamageDiceEventSnapshot(
+                damageDiceHighTotalRoll,
+                skillDamageDiceIsMax,
+                weaponDamageDiceIsMax
+            )
+        );
     }
 
     private static void ApplyDamageDiceEventFlags(GDictionary result, GDictionary eventFlags)
@@ -1936,12 +2629,37 @@ public partial class BattleDamageResolver : RefCounted
         GArray damageEvents = GetArray(result, "damage_events");
         foreach (GDictionary eventValue in ReadDictionaryItems(damageEvents))
         {
-            GDictionary damageEvent = EnsureDamageDiceEventDefaults(eventValue);
-            if (DictBool(damageEvent, "damage_dice_high_total_roll"))
+            DamageDiceEventSnapshot damageEvent = DamageDiceEventSnapshot.FromDictionary(
+                eventValue
+            );
+            if (damageEvent.DamageDiceHighTotalRoll)
                 result["damage_dice_high_total_roll"] = true;
-            if (DictBool(damageEvent, "skill_damage_dice_is_max"))
+            if (damageEvent.SkillDamageDiceIsMax)
                 result["skill_damage_dice_is_max"] = true;
-            if (DictBool(damageEvent, "weapon_damage_dice_is_max"))
+            if (damageEvent.WeaponDamageDiceIsMax)
+                result["weapon_damage_dice_is_max"] = true;
+        }
+    }
+
+    private static void AttachDamageEventAggregates(
+        GDictionary result,
+        IEnumerable<DamageDiceEventSnapshot> damageEvents
+    )
+    {
+        result["damage_dice_high_total_roll"] = false;
+        result["skill_damage_dice_is_max"] = false;
+        result["weapon_damage_dice_is_max"] = false;
+        if (damageEvents == null)
+        {
+            return;
+        }
+        foreach (DamageDiceEventSnapshot damageEvent in damageEvents)
+        {
+            if (damageEvent.DamageDiceHighTotalRoll)
+                result["damage_dice_high_total_roll"] = true;
+            if (damageEvent.SkillDamageDiceIsMax)
+                result["skill_damage_dice_is_max"] = true;
+            if (damageEvent.WeaponDamageDiceIsMax)
                 result["weapon_damage_dice_is_max"] = true;
         }
     }
@@ -1992,8 +2710,7 @@ public partial class BattleDamageResolver : RefCounted
 
     private static bool ShouldUseWeaponPhysicalDamageTag(CombatEffectDef effectDef)
     {
-        return effectDef?.@params != null
-            && DictBool(effectDef.@params, "use_weapon_physical_damage_tag");
+        return DamageEffectRuntimeParameters.FromEffect(effectDef).UseWeaponPhysicalDamageTag;
     }
 
     private static StringName GetUnitWeaponPhysicalDamageTag(BattleUnitState unitState)
@@ -2423,25 +3140,25 @@ public partial class BattleDamageResolver : RefCounted
         return ignored;
     }
 
-    private void ApplyLowLuckBlackStarWedgeGuardIgnore(
+    private bool ApplyLowLuckBlackStarWedgeGuardIgnore(
         GDictionary mitigation,
         BattleUnitState sourceUnit
     )
     {
         if (mitigation == null || sourceUnit == null)
         {
-            return;
+            return false;
         }
         if (!LowLuckRelicRules.unit_has_flag(sourceUnit, LowLuckRelicRules.attr_black_star_wedge()))
         {
-            return;
+            return false;
         }
-        string flag = LowLuckRelicRules.battle_flag_black_star_wedge_used();
-        if (DictBool(sourceUnit.ai_blackboard, flag))
+        BattleAiBlackboard aiBlackboard = sourceUnit.ai_blackboard;
+        if (aiBlackboard == null || aiBlackboard.low_luck_black_star_wedge_used)
         {
-            return;
+            return false;
         }
-        sourceUnit.ai_blackboard[flag] = true;
+        aiBlackboard.low_luck_black_star_wedge_used = true;
         int remainingIgnore = LowLuckRelicRules.black_star_wedge_guard_ignore_flat();
         int ignoredTotal = ApplyIgnoreToMitigationField(
             mitigation,
@@ -2456,6 +3173,7 @@ public partial class BattleDamageResolver : RefCounted
         mitigation["guard_ignore_applied"] =
             DictInt(mitigation, "guard_ignore_applied") + ignoredTotal;
         mitigation["low_luck_black_star_wedge_triggered"] = true;
+        return true;
     }
 
     private static void TrimFixedMitigationSources(GDictionary mitigation)
@@ -2580,7 +3298,7 @@ public partial class BattleDamageResolver : RefCounted
 
     private static bool ShouldAddWeaponDice(CombatEffectDef effectDef)
     {
-        return effectDef?.@params != null && DictBool(effectDef.@params, "add_weapon_dice");
+        return DamageEffectRuntimeParameters.FromEffect(effectDef).AddWeaponDice;
     }
 
     private static GDictionary GetCurrentWeaponDamageDice(BattleUnitState unitState)
@@ -2594,19 +3312,13 @@ public partial class BattleDamageResolver : RefCounted
             : unitState.weapon_one_handed_dice;
     }
 
-    private static int GetRollTotalWithBonus(GDictionary rollData, string fieldPrefix)
+    private static int GetCurrentWeaponDamageDiceSides(BattleUnitState unitState)
     {
-        return GetRollTotal(rollData, fieldPrefix) + DictInt(rollData, $"{fieldPrefix}_bonus");
+        GDictionary dice = GetCurrentWeaponDamageDice(unitState);
+        return Math.Max(DictInt(dice, "dice_sides"), 0);
     }
 
-    private static int GetRollTotal(GDictionary rollData, string fieldPrefix)
-    {
-        return rollData == null || rollData.Count == 0 || string.IsNullOrEmpty(fieldPrefix)
-            ? 0
-            : DictInt(rollData, $"{fieldPrefix}_total");
-    }
-
-    private GDictionary BuildInvalidDamageTagOutcome(
+    private DamageOutcomeResult BuildInvalidDamageTagOutcome(
         BattleUnitState sourceUnit,
         CombatEffectDef effectDef
     )
@@ -2631,7 +3343,7 @@ public partial class BattleDamageResolver : RefCounted
             );
         }
         StringName reason = configuredTag == "" ? "missing_damage_tag" : "unsupported_damage_tag";
-        return new GDictionary
+        GDictionary payload = new()
         {
             ["invalid_damage_tag"] = true,
             ["error_code"] = "invalid_damage_tag",
@@ -2648,21 +3360,36 @@ public partial class BattleDamageResolver : RefCounted
             ["fixed_mitigation_total"] = 0,
             ["fully_absorbed_by_mitigation"] = false,
         };
+        return new DamageOutcomeResult(
+            payload,
+            true,
+            "invalid_damage_tag",
+            reason.ToString(),
+            sourceLabel.ToString(),
+            configuredTag,
+            0,
+            false,
+            false,
+            100.0,
+            0,
+            false,
+            DamageDiceEventSnapshot.Empty
+        );
     }
 
     private static GDictionary BuildInvalidDamageTagDiagnostic(
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
         CombatEffectDef effectDef,
-        GDictionary damageOutcome
+        DamageOutcomeResult damageOutcome
     )
     {
         return new GDictionary
         {
             ["error_code"] = "invalid_damage_tag",
-            ["reason"] = DictString(damageOutcome, "reason"),
-            ["damage_tag_source"] = DictString(damageOutcome, "damage_tag_source"),
-            ["damage_tag"] = DictString(damageOutcome, "damage_tag"),
+            ["reason"] = damageOutcome.Reason,
+            ["damage_tag_source"] = damageOutcome.DamageTagSource,
+            ["damage_tag"] = damageOutcome.DamageTag,
             ["effect_type"] = ProgressionDataUtils
                 .to_string_name(
                     effectDef != null
@@ -2675,7 +3402,7 @@ public partial class BattleDamageResolver : RefCounted
         };
     }
 
-    private GDictionary ResolveCritTraitResult(
+    private TraitTriggerResultSnapshot ResolveCritTraitResult(
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
         CombatEffectDef effectDef,
@@ -2684,51 +3411,47 @@ public partial class BattleDamageResolver : RefCounted
     {
         if (!criticalHit)
         {
-            return new GDictionary();
+            return TraitTriggerResultSnapshot.FromAttackTraitTriggerResult(
+                new AttackTraitTriggerResult(@event: TraitTriggerHooks.TRIGGER_ON_CRIT())
+            );
         }
-        return _trait_trigger_hooks.on_crit(
-            sourceUnit,
-            targetUnit,
-            new GDictionary
-            {
-                ["critical_hit"] = criticalHit,
-                ["add_weapon_dice"] = ShouldAddWeaponDice(effectDef),
-                ["weapon_attack_range"] = sourceUnit != null ? sourceUnit.weapon_attack_range : 0,
-                ["weapon_dice"] = GetCurrentWeaponDamageDice(sourceUnit),
-            }
+        return TraitTriggerResultSnapshot.FromAttackTraitTriggerResult(
+            _trait_trigger_hooks.on_crit_typed(
+                sourceUnit,
+                targetUnit,
+                criticalHit,
+                ShouldAddWeaponDice(effectDef),
+                sourceUnit != null ? sourceUnit.weapon_attack_range : 0,
+                GetCurrentWeaponDamageDiceSides(sourceUnit)
+            )
         );
     }
 
-    private GDictionary ResolveFatalDamageTraitResult(
+    private TraitTriggerResultSnapshot ResolveFatalDamageTraitResult(
         BattleUnitState targetUnit,
         BattleUnitState sourceUnit,
-        GDictionary damageOutcome,
         int hpDamage,
         int projectedHp
     )
     {
-        return _trait_trigger_hooks.on_fatal_damage(
-            targetUnit,
-            sourceUnit,
-            new GDictionary
-            {
-                ["damage_outcome"] = damageOutcome,
-                ["hp_damage"] = hpDamage,
-                ["projected_hp"] = projectedHp,
-            }
+        return TraitTriggerResultSnapshot.FromAttackTraitTriggerResult(
+            _trait_trigger_hooks.on_fatal_damage_typed(
+                targetUnit,
+                sourceUnit,
+                hpDamage,
+                projectedHp
+            )
         );
     }
 
-    private static bool DoesSaveBlockEffect(GDictionary saveResult)
+    private static bool DoesSaveBlockEffect(BattleSaveResult saveResult)
     {
-        return saveResult != null
-            && DictBool(saveResult, "has_save")
-            && DictBool(saveResult, "success");
+        return saveResult.HasSave && saveResult.Success;
     }
 
     private static StringName ResolveStatusIdForSave(
         CombatEffectDef effectDef,
-        GDictionary saveResult
+        BattleSaveResult saveResult
     )
     {
         if (effectDef == null)
@@ -2736,9 +3459,8 @@ public partial class BattleDamageResolver : RefCounted
             return "";
         }
         if (
-            saveResult != null
-            && DictBool(saveResult, "has_save")
-            && !DictBool(saveResult, "success")
+            saveResult.HasSave
+            && !saveResult.Success
             && effectDef.save_failure_status_id != ""
         )
         {
@@ -2757,14 +3479,16 @@ public partial class BattleDamageResolver : RefCounted
         {
             return new GDictionary();
         }
-        GDictionary @params = effectDef.@params ?? new GDictionary();
+        DamageEffectRuntimeParameters parameters = DamageEffectRuntimeParameters.FromEffect(
+            effectDef
+        );
+        GDictionary @params = parameters.RawParams;
         bool sameFaction = sourceUnit != null && sourceUnit.faction_id == targetUnit.faction_id;
         bool removeHarmful =
-            DictBool(@params, "remove_harmful")
-            || (sameFaction && DictBool(@params, "remove_harmful_from_allies", true));
+            parameters.RemoveHarmful || (sameFaction && parameters.RemoveHarmfulFromAllies);
         bool removeBeneficial =
-            DictBool(@params, "remove_beneficial")
-            || (!sameFaction && DictBool(@params, "remove_beneficial_from_enemies", true));
+            parameters.RemoveBeneficial
+            || (!sameFaction && parameters.RemoveBeneficialFromEnemies);
         int maxRemoved = Math.Max(
             DictInt(@params, "max_status_removed", Math.Max(effectDef.power, 1)),
             1
@@ -2827,58 +3551,61 @@ public partial class BattleDamageResolver : RefCounted
         };
     }
 
-    private GDictionary ApplyEquipmentDurabilityDamageEffect(
+    private EquipmentDurabilityDamageEffectResult ApplyEquipmentDurabilityDamageEffect(
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
         CombatEffectDef effectDef,
-        GDictionary damageContext,
+        DamageResolutionContext damageContext,
         int totalDamage,
         int totalShieldAbsorbed
     )
     {
         if (targetUnit == null || effectDef == null)
         {
-            return new GDictionary();
+            return EquipmentDurabilityDamageEffectResult.Empty;
         }
-        GDictionary @params = effectDef.@params ?? new GDictionary();
-        bool attackSuccess = DictBool(damageContext, "attack_success");
+        DamageEffectRuntimeParameters parameters = DamageEffectRuntimeParameters.FromEffect(
+            effectDef
+        );
+        bool attackSuccess = damageContext.AttackSuccess;
         if (
-            DictBool(@params, "require_damage_applied")
+            parameters.RequireDamageApplied
             && !attackSuccess
             && totalDamage <= 0
             && totalShieldAbsorbed <= 0
         )
         {
-            return new GDictionary();
+            return EquipmentDurabilityDamageEffectResult.Empty;
         }
         GDictionary selection = SelectEquipmentForDurabilityDamage(
             targetUnit,
             effectDef,
-            damageContext
+            damageContext.Payload
         );
         if (selection.Count == 0)
         {
-            return new GDictionary();
+            return EquipmentDurabilityDamageEffectResult.Empty;
         }
         EquipmentState equipmentView = targetUnit.get_equipment_view();
         StringName entrySlotId = DictStringName(selection, "entry_slot_id");
-        GodotObject equipmentInstance = GetObject(selection, "equipment_instance");
+        EquipmentInstanceState equipmentInstance =
+            GetObject(selection, "equipment_instance") as EquipmentInstanceState;
         if (equipmentView == null || entrySlotId == "" || equipmentInstance == null)
         {
-            return new GDictionary();
+            return EquipmentDurabilityDamageEffectResult.Empty;
         }
-        int before = Math.Max(GetInt(equipmentInstance, "current_durability"), 0);
+        int before = Math.Max(equipmentInstance.current_durability, 0);
         if (before <= 0)
         {
             equipmentView.clear_entry_slot(entrySlotId);
-            return new GDictionary();
+            return EquipmentDurabilityDamageEffectResult.Empty;
         }
-        int rarity = GetInt(equipmentInstance, "rarity");
-        GDictionary saveResult = ResolveEquipmentDurabilitySave(
+        int rarity = equipmentInstance.rarity;
+        EquipmentDurabilitySaveResolution saveResult = ResolveEquipmentDurabilitySave(
             sourceUnit,
             targetUnit,
             effectDef,
-            damageContext,
+            damageContext.Payload,
             rarity
         );
         GDictionary @event = new()
@@ -2887,18 +3614,18 @@ public partial class BattleDamageResolver : RefCounted
             ["target_unit_id"] = targetUnit.unit_id.ToString(),
             ["entry_slot_id"] = entrySlotId.ToString(),
             ["slot_id"] = DictString(selection, "slot_id", entrySlotId.ToString()),
-            ["item_id"] = GetString(equipmentInstance, "item_id"),
-            ["instance_id"] = GetString(equipmentInstance, "instance_id"),
+            ["item_id"] = equipmentInstance.item_id.ToString(),
+            ["instance_id"] = equipmentInstance.instance_id.ToString(),
             ["rarity"] = rarity,
             ["durability_before"] = before,
             ["durability_after"] = before,
             ["durability_loss"] = 0,
             ["destroyed"] = false,
-            ["save_result"] = DuplicateDictionary(saveResult),
+            ["save_result"] = DuplicateDictionary(saveResult.Payload),
         };
-        if (DictBool(saveResult, "has_save") && DictBool(saveResult, "success"))
+        if (saveResult.HasSave && saveResult.Success)
         {
-            return @event;
+            return new EquipmentDurabilityDamageEffectResult(@event, true, 0, false, saveResult);
         }
         int durabilityLoss = Math.Min(Math.Max(effectDef.power, 0), before);
         int after = before - durabilityLoss;
@@ -2911,12 +3638,18 @@ public partial class BattleDamageResolver : RefCounted
         }
         else
         {
-            equipmentInstance.Set("current_durability", after);
+            equipmentInstance.current_durability = after;
         }
-        return @event;
+        return new EquipmentDurabilityDamageEffectResult(
+            @event,
+            true,
+            durabilityLoss,
+            after <= 0,
+            saveResult
+        );
     }
 
-    private static GDictionary ResolveEquipmentDurabilitySave(
+    private static EquipmentDurabilitySaveResolution ResolveEquipmentDurabilitySave(
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
         CombatEffectDef effectDef,
@@ -2924,34 +3657,35 @@ public partial class BattleDamageResolver : RefCounted
         int rarity
     )
     {
-        GDictionary saveResult = BattleSaveResolver.resolve_save(
+        BattleSaveResult baseSaveResult = BattleSaveResolver.resolve_save_result(
             sourceUnit,
             targetUnit,
             effectDef,
             damageContext ?? new GDictionary()
         );
+        GDictionary saveResult = baseSaveResult.ToDictionary();
         int rarityBonus = EquipmentDurabilityRules.GetDisjunctionSaveBonusForRarity(rarity);
         saveResult["equipment_rarity_bonus"] = rarityBonus;
-        if (!DictBool(saveResult, "has_save"))
+        if (!baseSaveResult.HasSave)
         {
-            return saveResult;
+            return new EquipmentDurabilitySaveResolution(saveResult, false, false);
         }
-        saveResult["status_save_bonus"] = DictInt(saveResult, "bonus");
-        saveResult["bonus"] = DictInt(saveResult, "bonus") + rarityBonus;
-        if (DictBool(saveResult, "immune"))
+        saveResult["status_save_bonus"] = baseSaveResult.Bonus;
+        saveResult["bonus"] = baseSaveResult.Bonus + rarityBonus;
+        if (baseSaveResult.Immune)
         {
-            return saveResult;
+            return new EquipmentDurabilitySaveResolution(saveResult, true, true);
         }
-        int naturalRoll = DictInt(saveResult, "natural_roll");
-        int rollTotal = DictInt(saveResult, "roll_total") + rarityBonus;
+        int naturalRoll = baseSaveResult.NaturalRoll;
+        int rollTotal = baseSaveResult.RollTotal + rarityBonus;
         saveResult["roll_total"] = rollTotal;
-        bool success = rollTotal >= DictInt(saveResult, "dc");
+        bool success = rollTotal >= baseSaveResult.Dc;
         if (naturalRoll <= 1)
             success = false;
         else if (naturalRoll >= 20)
             success = true;
         saveResult["success"] = success;
-        return saveResult;
+        return new EquipmentDurabilitySaveResolution(saveResult, true, success);
     }
 
     private GDictionary SelectEquipmentForDurabilityDamage(
@@ -3051,7 +3785,7 @@ public partial class BattleDamageResolver : RefCounted
             return new GDictionary();
         }
         EquipmentInstanceState equipmentInstance = entry.get_equipment_instance();
-        if (equipmentInstance == null || GetInt(equipmentInstance, "current_durability") <= 0)
+        if (equipmentInstance == null || equipmentInstance.current_durability <= 0)
         {
             return new GDictionary();
         }
@@ -3059,7 +3793,7 @@ public partial class BattleDamageResolver : RefCounted
         {
             ["entry_slot_id"] = normalizedEntrySlot,
             ["slot_id"] = ProgressionDataUtils.to_string_name(slotId),
-            ["occupied_slot_ids"] = GetArray(entry, "occupied_slot_ids").Duplicate(),
+            ["occupied_slot_ids"] = entry.occupied_slot_ids.Duplicate(),
             ["entry"] = entry,
             ["equipment_instance"] = equipmentInstance,
         };
@@ -3145,7 +3879,7 @@ public partial class BattleDamageResolver : RefCounted
         return 0;
     }
 
-    private GDictionary ResolveExecuteEffect(
+    private ExecuteEffectResult ResolveExecuteEffect(
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
         CombatEffectDef effectDef,
@@ -3154,8 +3888,11 @@ public partial class BattleDamageResolver : RefCounted
         GArray saveResults
     )
     {
-        GDictionary @params = effectDef.@params ?? new GDictionary();
-        if (DictBool(@params, "staged_execution"))
+        DamageEffectRuntimeParameters parameters = DamageEffectRuntimeParameters.FromEffect(
+            effectDef
+        );
+        GDictionary @params = parameters.RawParams;
+        if (parameters.StagedExecution)
         {
             return ResolveStagedExecuteEffect(
                 sourceUnit,
@@ -3177,20 +3914,20 @@ public partial class BattleDamageResolver : RefCounted
             == BattleExecutionRules.BRANCH_INVALID_TARGET()
         )
         {
-            return new GDictionary();
+            return ExecuteEffectResult.Empty;
         }
-        GDictionary saveResult = BattleSaveResolver.resolve_save(
+        BattleSaveResult saveResult = BattleSaveResolver.resolve_save_result(
             sourceUnit,
             targetUnit,
             effectDef,
             context ?? new GDictionary()
         );
-        if (DictBool(saveResult, "has_save"))
+        if (saveResult.HasSave)
         {
-            saveResults.Add(DuplicateDictionary(saveResult));
+            saveResults.Add(saveResult.ToDictionary());
         }
         GDictionary soulFractureParams = GetDictionary(executePlan, "soul_fracture_params");
-        if (DictBool(saveResult, "success", true))
+        if (saveResult.Success)
         {
             var tempEffectDef = new CombatEffectDef
             {
@@ -3202,45 +3939,58 @@ public partial class BattleDamageResolver : RefCounted
             if (ApplyStatusEffect(targetUnit, sourceUnit, tempEffectDef, tempEffectDef.status_id))
             {
                 AddUnique(statusEffectIds, tempEffectDef.status_id);
-                return new GDictionary
+                return new ExecuteEffectResult(
+                    new GDictionary
+                    {
+                        ["applied"] = true,
+                        ["execute_stage"] = 0,
+                        ["execute_outcome"] = "resisted",
+                    },
+                    true,
+                    0,
+                    "resisted",
+                    Array.Empty<AppliedDamageResult>()
+                );
+            }
+            return new ExecuteEffectResult(
+                new GDictionary
                 {
-                    ["applied"] = true,
+                    ["applied"] = false,
                     ["execute_stage"] = 0,
                     ["execute_outcome"] = "resisted",
-                };
-            }
-            return new GDictionary
-            {
-                ["applied"] = false,
-                ["execute_stage"] = 0,
-                ["execute_outcome"] = "resisted",
-            };
+                },
+                false,
+                0,
+                "resisted",
+                Array.Empty<AppliedDamageResult>()
+            );
         }
         int fatalDamage = Math.Max(DictInt(executePlan, "fatal_damage", targetUnit.current_hp), 0);
-        GDictionary fatalOutcome = new()
-        {
-            ["damage_tag"] = ProgressionDataUtils.to_string_name(effectDef.damage_tag),
-            ["resolved_damage"] = fatalDamage,
-            ["min_hp_after_damage"] = 0,
-            ["bypass_shield"] = true,
-            ["bypass_death_prevention"] = true,
-            ["shield_absorption_percent"] = 0.0,
-            ["execute_stage"] = 2,
-            ["execute_outcome"] = "failed_save_fatal",
-            ["death_source"] = "power_word_kill_execute",
-            ["death_source_priority"] = 900,
-        };
-        GDictionary fatalResult = ApplyDamageToTarget(targetUnit, fatalOutcome, sourceUnit);
-        return new GDictionary
-        {
-            ["applied"] = true,
-            ["execute_stage"] = 2,
-            ["execute_outcome"] = "failed_save_fatal",
-            ["damage_result"] = fatalResult,
-        };
+        DamageApplicationInput fatalDamageInput = BuildFatalExecuteDamageInput(
+            effectDef,
+            fatalDamage
+        );
+        AppliedDamageResult fatalResult = ApplyDamageToTargetResult(
+            targetUnit,
+            fatalDamageInput,
+            sourceUnit
+        );
+        return new ExecuteEffectResult(
+            new GDictionary
+            {
+                ["applied"] = true,
+                ["execute_stage"] = 2,
+                ["execute_outcome"] = "failed_save_fatal",
+                ["damage_result"] = fatalResult.ToDictionary(),
+            },
+            true,
+            2,
+            "failed_save_fatal",
+            new[] { fatalResult }
+        );
     }
 
-    private GDictionary ResolveStagedExecuteEffect(
+    private ExecuteEffectResult ResolveStagedExecuteEffect(
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
         CombatEffectDef effectDef,
@@ -3250,21 +4000,22 @@ public partial class BattleDamageResolver : RefCounted
         GDictionary @params
     )
     {
-        GDictionary saveResult = BattleSaveResolver.resolve_save(
+        BattleSaveResult saveResult = BattleSaveResolver.resolve_save_result(
             sourceUnit,
             targetUnit,
             effectDef,
             context ?? new GDictionary()
         );
-        if (DictBool(saveResult, "has_save"))
+        if (saveResult.HasSave)
         {
-            saveResults.Add(DuplicateDictionary(saveResult));
+            saveResults.Add(saveResult.ToDictionary());
         }
 
         int threshold = BattleExecutionRules.resolve_threshold(sourceUnit, targetUnit, @params);
         bool isVulnerable = targetUnit.current_hp <= threshold;
         bool isBoss = BattleExecutionRules.is_boss_target(targetUnit);
         var damageResults = new GArray();
+        var typedDamageResults = new List<AppliedDamageResult>();
         bool applied = false;
 
         if (!isVulnerable || isBoss)
@@ -3275,23 +4026,21 @@ public partial class BattleDamageResolver : RefCounted
                 @params,
                 isBoss
             );
-            GDictionary nonLethalOutcome = BuildStagedExecuteDamageOutcome(
+            DamageApplicationInput nonLethalInput = BuildStagedExecuteDamageInput(
                 effectDef,
                 @params,
                 nonLethalDamage,
                 1
             );
-            GDictionary nonLethalResult = ApplyDamageToTarget(
+            AppliedDamageResult nonLethalResult = ApplyDamageToTargetResult(
                 targetUnit,
-                nonLethalOutcome,
+                nonLethalInput,
                 sourceUnit
             );
-            damageResults.Add(DuplicateDictionary(nonLethalResult));
+            damageResults.Add(nonLethalResult.ToDictionary());
+            typedDamageResults.Add(nonLethalResult);
             applied = true;
-            if (
-                DictInt(nonLethalResult, "damage") > 0
-                || DictInt(nonLethalResult, "shield_absorbed") > 0
-            )
+            if (nonLethalResult.HasAppliedDamage)
             {
                 GrantStatusOnHitToSource(sourceUnit, effectDef, context);
             }
@@ -3299,39 +4048,42 @@ public partial class BattleDamageResolver : RefCounted
         else
         {
             int burstDamage = Math.Max(DictInt(@params, "burst_damage", 9999), 0);
-            GDictionary burstOutcome = BuildStagedExecuteDamageOutcome(
+            DamageApplicationInput burstInput = BuildStagedExecuteDamageInput(
                 effectDef,
                 @params,
                 burstDamage,
                 1
             );
-            GDictionary burstResult = ApplyDamageToTarget(targetUnit, burstOutcome, sourceUnit);
-            damageResults.Add(DuplicateDictionary(burstResult));
+            AppliedDamageResult burstResult = ApplyDamageToTargetResult(
+                targetUnit,
+                burstInput,
+                sourceUnit
+            );
+            damageResults.Add(burstResult.ToDictionary());
+            typedDamageResults.Add(burstResult);
             applied = true;
-            if (DictInt(burstResult, "damage") > 0 || DictInt(burstResult, "shield_absorbed") > 0)
+            if (burstResult.HasAppliedDamage)
             {
                 GrantStatusOnHitToSource(sourceUnit, effectDef, context);
             }
 
-            if (!DictBool(saveResult, "success", true) && targetUnit.current_hp <= 1)
+            if (!saveResult.Success && targetUnit.current_hp <= 1)
             {
                 int finisherDamage = Math.Max(DictInt(@params, "finisher_damage", 1), 0);
-                GDictionary finisherOutcome = BuildStagedExecuteDamageOutcome(
+                DamageApplicationInput finisherInput = BuildStagedExecuteDamageInput(
                     effectDef,
                     @params,
                     finisherDamage,
                     0
                 );
-                GDictionary finisherResult = ApplyDamageToTarget(
+                AppliedDamageResult finisherResult = ApplyDamageToTargetResult(
                     targetUnit,
-                    finisherOutcome,
+                    finisherInput,
                     sourceUnit
                 );
-                damageResults.Add(DuplicateDictionary(finisherResult));
-                if (
-                    DictInt(finisherResult, "damage") > 0
-                    || DictInt(finisherResult, "shield_absorbed") > 0
-                )
+                damageResults.Add(finisherResult.ToDictionary());
+                typedDamageResults.Add(finisherResult);
+                if (finisherResult.HasAppliedDamage)
                 {
                     GrantStatusOnHitToSource(sourceUnit, effectDef, context);
                 }
@@ -3355,21 +4107,58 @@ public partial class BattleDamageResolver : RefCounted
             }
         }
 
-        return new GDictionary { ["applied"] = applied, ["damage_results"] = damageResults };
+        return new ExecuteEffectResult(
+            new GDictionary { ["applied"] = applied, ["damage_results"] = damageResults },
+            applied,
+            -1,
+            "",
+            typedDamageResults
+        );
     }
 
-    private static GDictionary BuildStagedExecuteDamageOutcome(
+    private static DamageApplicationInput BuildFatalExecuteDamageInput(
+        CombatEffectDef effectDef,
+        int resolvedDamage
+    )
+    {
+        int normalizedDamage = Math.Max(resolvedDamage, 0);
+        GDictionary payload = new()
+        {
+            ["damage_tag"] = ProgressionDataUtils.to_string_name(effectDef?.damage_tag ?? ""),
+            ["resolved_damage"] = normalizedDamage,
+            ["min_hp_after_damage"] = 0,
+            ["bypass_shield"] = true,
+            ["bypass_death_prevention"] = true,
+            ["shield_absorption_percent"] = 0.0,
+            ["execute_stage"] = 2,
+            ["execute_outcome"] = "failed_save_fatal",
+            ["death_source"] = "power_word_kill_execute",
+            ["death_source_priority"] = 900,
+        };
+        return DamageApplicationInput.Create(
+            payload,
+            normalizedDamage,
+            bypassShield: true,
+            bypassDeathPrevention: true,
+            shieldAbsorptionPercent: 0.0
+        );
+    }
+
+    private static DamageApplicationInput BuildStagedExecuteDamageInput(
         CombatEffectDef effectDef,
         GDictionary @params,
         int resolvedDamage,
         int minHpAfterDamage
     )
     {
+        int normalizedDamage = Math.Max(resolvedDamage, 0);
+        int normalizedMinHpAfterDamage = Math.Max(minHpAfterDamage, 0);
+        double shieldAbsorptionPercent = DictFloat(@params, "shield_absorption_percent", 50.0);
         GDictionary outcome = new()
         {
-            ["resolved_damage"] = Math.Max(resolvedDamage, 0),
-            ["min_hp_after_damage"] = Math.Max(minHpAfterDamage, 0),
-            ["shield_absorption_percent"] = DictFloat(@params, "shield_absorption_percent", 50.0),
+            ["resolved_damage"] = normalizedDamage,
+            ["min_hp_after_damage"] = normalizedMinHpAfterDamage,
+            ["shield_absorption_percent"] = shieldAbsorptionPercent,
         };
         if (HasKey(@params, "damage_tag"))
         {
@@ -3381,7 +4170,12 @@ public partial class BattleDamageResolver : RefCounted
         {
             outcome["damage_tag"] = effectDef.damage_tag;
         }
-        return outcome;
+        return DamageApplicationInput.Create(
+            outcome,
+            normalizedDamage,
+            shieldAbsorptionPercent: shieldAbsorptionPercent,
+            minHpAfterDamage: normalizedMinHpAfterDamage
+        );
     }
 
     private int ResolveHealAmount(BattleUnitState sourceUnit, CombatEffectDef effectDef)
@@ -3401,14 +4195,14 @@ public partial class BattleDamageResolver : RefCounted
             long diceSidesRaw =
                 (long)baseSides + (long)conMod * conModSides + (long)willMod * willModSides;
             int diceSides = (int)Math.Clamp(diceSidesRaw, 4L, int.MaxValue);
-            GDictionary diceRoll = RollDicePool(diceCount, diceSides, 0, "heal");
-            return Math.Max(DictInt(diceRoll, "heal_total"), 1);
+            DicePoolRollResult diceRoll = RollDicePool(diceCount, diceSides, 0, "heal");
+            return Math.Max(diceRoll.Total, 1);
         }
         int healAmount = Math.Max(effectDef?.power ?? 0, 0);
-        GDictionary healDiceRoll = RollDamageDice(effectDef);
-        if (healDiceRoll.Count > 0)
+        DicePoolRollResult healDiceRoll = RollDamageDice(effectDef);
+        if (healDiceRoll.HasDice)
         {
-            healAmount += DictInt(healDiceRoll, "damage_dice_total");
+            healAmount += healDiceRoll.Total;
         }
         return Math.Max(healAmount, 1);
     }
@@ -3440,10 +4234,16 @@ public partial class BattleDamageResolver : RefCounted
         int conModSides = DictInt(effectDef.@params, "con_mod_sides", 2);
         int willModSides = DictInt(effectDef.@params, "will_mod_sides", 1);
         int diceSides = Math.Max(baseSides + conMod * conModSides + willMod * willModSides, 4);
-        GDictionary diceRoll = RollDicePool(diceCount, diceSides, 0, "stamina_restore");
-        int staminaAmount = Math.Max(DictInt(diceRoll, "stamina_restore_total"), 1);
-        int maxStamina = Math.Max(GetAttributeValue(targetUnit, AttributeService.STAMINA_MAX_ID()), 0);
-        targetUnit.current_stamina = Math.Min(targetUnit.current_stamina + staminaAmount, maxStamina);
+        DicePoolRollResult diceRoll = RollDicePool(diceCount, diceSides, 0, "stamina_restore");
+        int staminaAmount = Math.Max(diceRoll.Total, 1);
+        int maxStamina = Math.Max(
+            GetAttributeValue(targetUnit, AttributeService.STAMINA_MAX_ID()),
+            0
+        );
+        targetUnit.current_stamina = Math.Min(
+            targetUnit.current_stamina + staminaAmount,
+            maxStamina
+        );
     }
 
     private int ResolveHealFatalAmount(BattleUnitState targetUnit, CombatEffectDef effectDef)
@@ -3493,7 +4293,7 @@ public partial class BattleDamageResolver : RefCounted
             return false;
         }
         runtimeEffectDef.status_id = resolvedStatusId;
-        BattleStatusEffectState statusEntry = BattleStatusSemanticTable.merge_status(
+        BattleStatusEffectState statusEntry = BattleStatusSemanticTable.merge_status_typed(
             runtimeEffectDef,
             sourceUnit != null ? sourceUnit.unit_id : new StringName(""),
             targetUnit.get_status_effect(resolvedStatusId)
@@ -3719,7 +4519,7 @@ public partial class BattleDamageResolver : RefCounted
         sourceUnit.set_status_effect(statusEntry);
     }
 
-    private GDictionary RollConsumedStackDice(
+    private DicePoolRollResult RollConsumedStackDice(
         BattleUnitState sourceUnit,
         CombatEffectDef effectDef,
         StringName rollMode = default
@@ -3727,7 +4527,7 @@ public partial class BattleDamageResolver : RefCounted
     {
         if (sourceUnit == null || effectDef == null)
         {
-            return new GDictionary();
+            return DicePoolRollResult.Empty;
         }
         StringName consumedId = ProgressionDataUtils.to_string_name(effectDef.consumed_status_id);
         int dicePerStack = Math.Max(effectDef.dice_per_consumed_stack, 0);
@@ -3739,13 +4539,13 @@ public partial class BattleDamageResolver : RefCounted
             || !sourceUnit.has_status_effect(consumedId)
         )
         {
-            return new GDictionary();
+            return DicePoolRollResult.Empty;
         }
         BattleStatusEffectState statusEntry = sourceUnit.get_status_effect(consumedId);
         int stackCount = Math.Max(statusEntry?.stacks ?? 0, 0);
         if (stackCount <= 0)
         {
-            return new GDictionary();
+            return DicePoolRollResult.Empty;
         }
         sourceUnit.erase_status_effect(consumedId);
         return RollDicePool(
@@ -3777,15 +4577,15 @@ public partial class BattleDamageResolver : RefCounted
             return;
         }
         _last_stand_mastery_records.Add(
-            new GDictionary
+            new BattleSkillMasteryGrant
             {
-                ["member_id"] = targetUnit.source_member_id,
-                ["skill_id"] = "warrior_last_stand",
-                ["amount"] = baseAmount,
-                ["source_type"] = sourceType,
-                ["source_label"] = "不屈",
-                ["reason_text"] = sourceType == "last_stand_triggered" ? "触发免死" : "极限承伤",
-                ["allow_unlocks"] = true,
+                MemberId = targetUnit.source_member_id,
+                SkillId = "warrior_last_stand",
+                Amount = baseAmount,
+                SourceType = sourceType,
+                SourceLabel = "不屈",
+                ReasonText = sourceType == "last_stand_triggered" ? "触发免死" : "极限承伤",
+                AllowUnlocks = true,
             }
         );
     }
@@ -3845,34 +4645,41 @@ public partial class BattleDamageResolver : RefCounted
     }
 
 
-    private static GDictionary BuildAppliedDamageResult(
-        GDictionary damageOutcome,
+    private static AppliedDamageResult BuildAppliedDamageResult(
+        DamageApplicationInput damageInput,
         int hpDamage,
         int shieldAbsorbed,
         bool shieldBroken
     )
     {
-        GDictionary result = DuplicateDictionary(damageOutcome);
+        GDictionary result = DuplicateDictionary(damageInput.Payload);
         EnsureDamageDiceEventDefaults(result);
         result["damage"] = hpDamage;
         result["hp_damage"] = hpDamage;
         result["shield_absorbed"] = shieldAbsorbed;
         result["shield_broken"] = shieldBroken;
         result["fully_absorbed_by_shield"] = hpDamage <= 0 && shieldAbsorbed > 0;
-        return result;
+        return new AppliedDamageResult(
+            result,
+            hpDamage,
+            hpDamage,
+            shieldAbsorbed,
+            shieldBroken,
+            damageInput.LowLuckBlackStarWedgeTriggered,
+            damageInput.DamageDiceEvent
+        );
     }
 
-    private static GDictionary BuildEnvironmentalDamageResult(GDictionary damageResult)
+    private static GDictionary BuildEnvironmentalDamageResult(AppliedDamageResult damageResult)
     {
         GDictionary result = BuildEmptyResult();
-        result["applied"] =
-            DictInt(damageResult, "damage") > 0 || DictInt(damageResult, "shield_absorbed") > 0;
-        result["damage"] = DictInt(damageResult, "damage");
-        result["hp_damage"] = DictInt(damageResult, "hp_damage", DictInt(result, "damage"));
-        result["shield_absorbed"] = DictInt(damageResult, "shield_absorbed");
-        result["shield_broken"] = DictBool(damageResult, "shield_broken");
-        result["damage_events"] = new GArray { DuplicateDictionary(damageResult) };
-        AttachDamageEventAggregates(result);
+        result["applied"] = damageResult.HasAppliedDamage;
+        result["damage"] = damageResult.Damage;
+        result["hp_damage"] = damageResult.HpDamage;
+        result["shield_absorbed"] = damageResult.ShieldAbsorbed;
+        result["shield_broken"] = damageResult.ShieldBroken;
+        result["damage_events"] = new GArray { damageResult.ToDictionary() };
+        AttachDamageEventAggregates(result, new[] { damageResult.DamageDiceEvent });
         return result;
     }
 
@@ -3917,24 +4724,15 @@ public partial class BattleDamageResolver : RefCounted
         );
     }
 
-    private GDictionary ResolveSpellControlMetadata(
+    private BattleSpellControlMetadata ResolveSpellControlMetadata(
         BattleUnitState sourceUnit,
-        GDictionary attackContext
+        SpellControlCheckContext context
     )
     {
         _hit_resolver ??= new BattleHitResolver();
-        var ctx = new AttackContext();
-        if (attackContext != null)
-        {
-            ctx.BattleState = GdInterop.GetObject(attackContext, "battle_state") as BattleState;
-            ctx.SkillId = GdInterop.GetStringName(attackContext, "skill_id", new StringName(""));
-            if (attackContext.ContainsKey("is_disadvantage"))
-            {
-                ctx.HasIsDisadvantage = true;
-                ctx.IsDisadvantage = GdInterop.GetBool(attackContext, "is_disadvantage", false);
-            }
-        }
-        return _hit_resolver.resolve_spell_control_metadata(sourceUnit, ctx);
+        return BattleSpellControlMetadata.FromDictionary(
+            _hit_resolver.resolve_spell_control_metadata(sourceUnit, context.ToAttackContext())
+        );
     }
 
     private GDictionary BuildAttackMetadataResult(
@@ -4041,17 +4839,20 @@ public partial class BattleDamageResolver : RefCounted
     private void AttachAttackReportEntry(
         GDictionary result,
         BattleUnitState sourceUnit,
-        BattleUnitState targetUnit
+        BattleUnitState targetUnit,
+        AttackResolutionMetadata attackMetadata
     )
     {
         if (result == null || result.Count == 0)
         {
             return;
         }
-        GDictionary reportEntry = _report_formatter.build_attack_report_entry(
+        GDictionary reportEntry = _report_formatter.BuildAttackReportEntry(
             sourceUnit,
             targetUnit,
-            result
+            attackMetadata,
+            ResolveCriticalSource(attackMetadata),
+            BuildAttackEventTags(attackMetadata)
         );
         if (reportEntry.Count > 0)
         {
@@ -4084,18 +4885,18 @@ public partial class BattleDamageResolver : RefCounted
 
     private void DispatchSpellControlResolutionEvents(
         BattleUnitState sourceUnit,
-        GDictionary controlMetadata,
-        GDictionary attackContext
+        BattleSpellControlMetadata controlMetadata,
+        SpellControlCheckContext context
     )
     {
-        if (controlMetadata == null || controlMetadata.Count == 0)
+        if (controlMetadata == null || !controlMetadata.HasPayload)
         {
             return;
         }
         GDictionary payload = BuildSpellControlEventPayload(
             sourceUnit,
             controlMetadata,
-            attackContext
+            context
         );
         foreach (StringName eventType in BuildSpellControlEventTags(controlMetadata))
         {
@@ -4136,14 +4937,15 @@ public partial class BattleDamageResolver : RefCounted
 
     private GDictionary BuildSpellControlEventPayload(
         BattleUnitState sourceUnit,
-        GDictionary controlMetadata,
-        GDictionary attackContext
+        BattleSpellControlMetadata controlMetadata,
+        SpellControlCheckContext context
     )
     {
-        BattleState battleState = GetObject(attackContext, "battle_state") as BattleState;
+        controlMetadata ??= BattleSpellControlMetadata.Empty();
         return new GDictionary
         {
-            ["battle_id"] = battleState != null ? battleState.battle_id : new StringName(""),
+            ["battle_id"] =
+                context.BattleState != null ? context.BattleState.battle_id : new StringName(""),
             ["attacker_id"] = sourceUnit != null ? sourceUnit.unit_id : new StringName(""),
             ["attacker_member_id"] =
                 sourceUnit != null ? sourceUnit.source_member_id : new StringName(""),
@@ -4152,31 +4954,16 @@ public partial class BattleDamageResolver : RefCounted
             ["defender_id"] = new StringName(""),
             ["defender_member_id"] = new StringName(""),
             ["defender_is_elite_or_boss"] = false,
-            ["attack_resolution"] = DictStringName(controlMetadata, "attack_resolution"),
-            ["spell_control_resolution"] = DictStringName(
-                controlMetadata,
-                "spell_control_resolution"
-            ),
+            ["attack_resolution"] = controlMetadata.AttackResolution,
+            ["spell_control_resolution"] = controlMetadata.SpellControlResolution,
             ["critical_source"] = ResolveCriticalSource(controlMetadata),
-            ["is_disadvantage"] = DictBool(controlMetadata, "is_disadvantage"),
-            ["crit_gate_die"] = DictInt(controlMetadata, "crit_gate_die"),
-            ["crit_gate_roll"] = DictInt(controlMetadata, "crit_gate_roll"),
-            ["hit_roll"] = DictInt(controlMetadata, "hit_roll"),
+            ["is_disadvantage"] = controlMetadata.IsDisadvantage,
+            ["crit_gate_die"] = controlMetadata.CritGateDie,
+            ["crit_gate_roll"] = controlMetadata.CritGateRoll,
+            ["hit_roll"] = controlMetadata.HitRoll,
             ["luck_snapshot"] = BuildAttackLuckSnapshot(controlMetadata),
             ["event_family"] = "spell_control",
-            ["skill_id"] = DictStringName(attackContext, "skill_id"),
-        };
-    }
-
-    private static GDictionary BuildAttackLuckSnapshot(GDictionary attackMetadata)
-    {
-        return new GDictionary
-        {
-            ["hidden_luck_at_birth"] = DictInt(attackMetadata, "hidden_luck_at_birth"),
-            ["faith_luck_bonus"] = DictInt(attackMetadata, "faith_luck_bonus"),
-            ["effective_luck"] = DictInt(attackMetadata, "effective_luck"),
-            ["fumble_low_end"] = DictInt(attackMetadata, "fumble_low_end"),
-            ["crit_threshold"] = DictInt(attackMetadata, "crit_threshold"),
+            ["skill_id"] = context.SkillId,
         };
     }
 
@@ -4193,11 +4980,17 @@ public partial class BattleDamageResolver : RefCounted
         };
     }
 
-    private static StringName ResolveCriticalSource(GDictionary attackMetadata)
+    private static GDictionary BuildAttackLuckSnapshot(BattleSpellControlMetadata attackMetadata)
     {
-        return !DictBool(attackMetadata, "critical_hit") ? new StringName("")
-            : IsHighThreatCriticalHit(attackMetadata) ? new StringName("high_threat")
-            : new StringName("gate_die");
+        attackMetadata ??= BattleSpellControlMetadata.Empty();
+        return new GDictionary
+        {
+            ["hidden_luck_at_birth"] = attackMetadata.HiddenLuckAtBirth,
+            ["faith_luck_bonus"] = attackMetadata.FaithLuckBonus,
+            ["effective_luck"] = attackMetadata.EffectiveLuck,
+            ["fumble_low_end"] = attackMetadata.FumbleLowEnd,
+            ["crit_threshold"] = attackMetadata.CritThreshold,
+        };
     }
 
     private static StringName ResolveCriticalSource(AttackResolutionMetadata attackMetadata)
@@ -4207,13 +5000,21 @@ public partial class BattleDamageResolver : RefCounted
             : new StringName("gate_die");
     }
 
-    private static bool IsHighThreatCriticalHit(GDictionary attackMetadata)
+    private static StringName ResolveCriticalSource(BattleSpellControlMetadata attackMetadata)
     {
-        return DictBool(attackMetadata, "critical_hit")
-            && DictInt(attackMetadata, "crit_gate_die") == NaturalHitRoll;
+        return attackMetadata == null || !attackMetadata.CriticalHit ? new StringName("")
+            : IsHighThreatCriticalHit(attackMetadata) ? new StringName("high_threat")
+            : new StringName("gate_die");
     }
 
     private static bool IsHighThreatCriticalHit(AttackResolutionMetadata attackMetadata)
+    {
+        return attackMetadata != null
+            && attackMetadata.CriticalHit
+            && attackMetadata.CritGateDie == NaturalHitRoll;
+    }
+
+    private static bool IsHighThreatCriticalHit(BattleSpellControlMetadata attackMetadata)
     {
         return attackMetadata != null
             && attackMetadata.CriticalHit
@@ -4252,26 +5053,6 @@ public partial class BattleDamageResolver : RefCounted
         return GetAttributeValue(unitState, FortuneMarkTargetStatId) > 0;
     }
 
-    private static GStringNameArray BuildAttackEventTags(GDictionary attackMetadata)
-    {
-        var tags = new GStringNameArray();
-        if (DictBool(attackMetadata, "critical_fail"))
-            tags.Add("critical_fail");
-        if (IsHighThreatCriticalHit(attackMetadata))
-            tags.Add("high_threat_critical_hit");
-        if (DictBool(attackMetadata, "critical_hit") && DictBool(attackMetadata, "is_disadvantage"))
-            tags.Add("critical_success_under_disadvantage");
-        if (DictBool(attackMetadata, "ordinary_miss"))
-            tags.Add("ordinary_miss");
-        if (
-            DictBool(attackMetadata, "attack_success")
-            && DictBool(attackMetadata, "is_disadvantage")
-            && !DictBool(attackMetadata, "critical_hit")
-        )
-            tags.Add("hardship_survival");
-        return tags;
-    }
-
     private static GStringNameArray BuildAttackEventTags(AttackResolutionMetadata attackMetadata)
     {
         var tags = new GStringNameArray();
@@ -4296,17 +5077,20 @@ public partial class BattleDamageResolver : RefCounted
         return tags;
     }
 
-    private static GStringNameArray BuildSpellControlEventTags(GDictionary controlMetadata)
+    private static GStringNameArray BuildSpellControlEventTags(
+        BattleSpellControlMetadata controlMetadata
+    )
     {
         var tags = new GStringNameArray();
-        if (DictBool(controlMetadata, "critical_fail"))
+        if (controlMetadata == null)
+        {
+            return tags;
+        }
+        if (controlMetadata.CriticalFail)
             tags.Add("critical_fail");
         if (IsHighThreatCriticalHit(controlMetadata))
             tags.Add("high_threat_critical_hit");
-        if (
-            DictBool(controlMetadata, "critical_hit")
-            && DictBool(controlMetadata, "is_disadvantage")
-        )
+        if (controlMetadata.CriticalHit && controlMetadata.IsDisadvantage)
             tags.Add("critical_success_under_disadvantage");
         return tags;
     }
@@ -4381,6 +5165,134 @@ public partial class BattleDamageResolver : RefCounted
         return source != null ? source.Duplicate(deep) : new GDictionary();
     }
 
+    private static bool TryGet(GDictionary source, object key, out Variant value)
+    {
+        value = default;
+        if (source == null || key == null)
+            return false;
+        Variant variantKey = key switch
+        {
+            Variant valueKey => valueKey,
+            string stringKey => stringKey,
+            StringName stringNameKey => stringNameKey,
+            int intKey => intKey,
+            long longKey => longKey,
+            _ => default,
+        };
+        if (variantKey.VariantType == Variant.Type.Nil)
+            return false;
+        if (source.ContainsKey(variantKey))
+        {
+            value = source[variantKey];
+            return value.VariantType != Variant.Type.Nil;
+        }
+        if (variantKey.VariantType == Variant.Type.String)
+        {
+            StringName stringNameKey = new(variantKey.AsString());
+            if (source.ContainsKey(stringNameKey))
+            {
+                value = source[stringNameKey];
+                return value.VariantType != Variant.Type.Nil;
+            }
+        }
+        else if (variantKey.VariantType == Variant.Type.StringName)
+        {
+            string stringKey = variantKey.AsStringName().ToString();
+            if (source.ContainsKey(stringKey))
+            {
+                value = source[stringKey];
+                return value.VariantType != Variant.Type.Nil;
+            }
+        }
+        return false;
+    }
+
+    private static GDictionary GetDictionary(GDictionary source, object key)
+    {
+        if (!TryGet(source, key, out Variant value))
+            return new GDictionary();
+        return value.VariantType == Variant.Type.Dictionary
+            ? value.AsGodotDictionary()
+            : new GDictionary();
+    }
+
+    private static GArray GetArray(GDictionary source, object key)
+    {
+        if (!TryGet(source, key, out Variant value))
+            return new GArray();
+        return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : new GArray();
+    }
+
+    private static GodotObject GetObject(GDictionary source, object key)
+    {
+        if (!TryGet(source, key, out Variant value))
+            return null;
+        return value.VariantType == Variant.Type.Object ? value.AsGodotObject() : null;
+    }
+
+    private static int GetInt(GDictionary source, object key, int fallback = 0)
+    {
+        if (!TryGet(source, key, out Variant value))
+            return fallback;
+        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+    }
+
+    private static double GetFloat(GDictionary source, object key, double fallback = 0.0)
+    {
+        if (!TryGet(source, key, out Variant value))
+            return fallback;
+        return value.VariantType switch
+        {
+            Variant.Type.Int => value.AsInt64(),
+            Variant.Type.Float => value.AsDouble(),
+            _ => fallback,
+        };
+    }
+
+    private static string GetString(GDictionary source, object key, string fallback = "")
+    {
+        if (!TryGet(source, key, out Variant value))
+            return fallback;
+        return value.VariantType switch
+        {
+            Variant.Type.String => value.AsString(),
+            Variant.Type.StringName => value.AsStringName().ToString(),
+            _ => fallback,
+        };
+    }
+
+    private static StringName GetStringName(
+        GDictionary source,
+        object key,
+        StringName fallback = default
+    )
+    {
+        if (!TryGet(source, key, out Variant value))
+            return fallback ?? "";
+        return value.VariantType switch
+        {
+            Variant.Type.StringName => value.AsStringName(),
+            Variant.Type.String => new StringName(value.AsString()),
+            _ => fallback ?? "",
+        };
+    }
+
+    private static IEnumerable<GDictionary> ReadDictionaryItems(GArray values)
+    {
+        if (values == null)
+            yield break;
+        foreach (Variant value in values)
+        {
+            if (value.VariantType == Variant.Type.Dictionary)
+                yield return value.AsGodotDictionary();
+        }
+    }
+
+    private static bool IsEmpty(StringName value)
+    {
+        return value == null || string.IsNullOrEmpty(value.ToString());
+    }
+
     private static bool HasKey(GDictionary source, object key)
     {
         return TryGet(source, key, out _);
@@ -4389,11 +5301,6 @@ public partial class BattleDamageResolver : RefCounted
     private static int DictInt(GDictionary source, object key, int fallback = 0)
     {
         return GetInt(source, key, fallback);
-    }
-
-    private static bool DictBool(GDictionary source, object key, bool fallback = false)
-    {
-        return GetBool(source, key, fallback);
     }
 
     private static double DictFloat(GDictionary source, object key, double fallback = 0.0)
@@ -4449,6 +5356,64 @@ public partial class BattleDamageResolver : RefCounted
         return false;
     }
 
+    private static T DictObject<T>(GDictionary source, StringName key)
+        where T : GodotObject
+    {
+        return TryGetStatusParam(source, key, out object rawValue)
+            ? ToGodotObject<T>(rawValue)
+            : null;
+    }
+
+    private static T ToGodotObject<T>(object rawValue)
+        where T : GodotObject
+    {
+        if (rawValue is T typedValue)
+        {
+            return typedValue;
+        }
+        if (rawValue is Variant variantValue && variantValue.VariantType == Variant.Type.Object)
+        {
+            return variantValue.AsGodotObject() as T;
+        }
+        return null;
+    }
+
+    private static StringName DictStringNameLocal(
+        GDictionary source,
+        StringName key,
+        StringName fallback = default
+    )
+    {
+        if (!TryGetStatusParam(source, key, out object rawValue))
+        {
+            return fallback ?? "";
+        }
+        StringName normalized = ProgressionDataUtils.to_string_name(rawValue);
+        return normalized == "" ? fallback ?? "" : normalized;
+    }
+
+    private static bool ToBool(object rawValue, bool fallback)
+    {
+        if (rawValue is bool boolValue)
+        {
+            return boolValue;
+        }
+        if (rawValue is not Variant variantValue)
+        {
+            return rawValue != null ? rawValue.ToString()?.ToLowerInvariant() == "true" : fallback;
+        }
+        return variantValue.VariantType switch
+        {
+            Variant.Type.Bool => variantValue.AsBool(),
+            Variant.Type.Int => variantValue.AsInt32() != 0,
+            Variant.Type.Float => !Mathf.IsZeroApprox((float)variantValue.AsDouble()),
+            Variant.Type.String => variantValue.AsString().ToLowerInvariant() == "true",
+            Variant.Type.StringName
+                => variantValue.AsStringName().ToString().ToLowerInvariant() == "true",
+            _ => fallback,
+        };
+    }
+
     private static void AddUnique(GStringNameArray target, StringName value)
     {
         if (value != "" && !target.Contains(value))
@@ -4499,15 +5464,18 @@ public partial class BattleDamageResolver : RefCounted
         return (int)Math.Round(value, MidpointRounding.AwayFromZero);
     }
 
-    private static void AppendTraitTriggerResult(GDictionary target, GDictionary triggerResult)
+    private static void AppendTraitTriggerResult(
+        GDictionary target,
+        TraitTriggerResultSnapshot triggerResult
+    )
     {
-        if (target == null || triggerResult == null || !DictBool(triggerResult, "triggered"))
+        if (target == null || !triggerResult.Triggered)
         {
             return;
         }
         GArray results = GetArray(target, "trait_trigger_results");
         results = (GArray)results.Duplicate(true);
-        results.Add(DuplicateDictionary(triggerResult));
+        results.Add(triggerResult.ToDictionary());
         target["trait_trigger_results"] = results;
     }
 }

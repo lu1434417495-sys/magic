@@ -117,13 +117,13 @@ public partial class run_warrior_repeat_attack_mastery_bonus_regression : SceneT
         var repeatEffect = new CombatEffectDef
         {
             effect_type = "repeat_attack_until_fail",
+            stop_on_miss = true,
+            stop_on_target_down = true,
             @params = new GDictionary
             {
                 ["cost_resource"] = "aura",
                 ["follow_up_fixed_cost"] = 0,
                 ["follow_up_attack_penalty"] = 0,
-                ["stop_on_miss"] = true,
-                ["stop_on_target_down"] = true,
             },
         };
         var skillDef = new SkillDef

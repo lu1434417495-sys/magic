@@ -161,11 +161,11 @@ public sealed class SettlementServiceResult
 
         var result = new SettlementServiceResult
         {
-            Success = payload["success"].AsBool(),
+            Success = ReadBool(payload, "success"),
             Message = payload["message"].AsString(),
-            PersistPartyState = payload["persist_party_state"].AsBool(),
-            PersistWorldData = payload["persist_world_data"].AsBool(),
-            PersistPlayerCoord = payload["persist_player_coord"].AsBool(),
+            PersistPartyState = ReadBool(payload, "persist_party_state"),
+            PersistWorldData = ReadBool(payload, "persist_world_data"),
+            PersistPlayerCoord = ReadBool(payload, "persist_player_coord"),
             GoldDelta = payload["gold_delta"].AsInt32(),
         };
         result.SetInventoryDelta(payload["inventory_delta"].AsGodotDictionary());
@@ -561,12 +561,7 @@ public sealed class SettlementServiceResult
 
     private static bool IsBoolValue(object rawValue)
     {
-        return rawValue switch
-        {
-            Variant variant => variant.VariantType == Variant.Type.Bool,
-            bool => true,
-            _ => false,
-        };
+        return TryAsBool(rawValue, out _);
     }
 
     private static bool IsIntValue(object rawValue)
@@ -587,6 +582,30 @@ public sealed class SettlementServiceResult
             return true;
         }
         value = 0;
+        return false;
+    }
+
+    private static bool ReadBool(GDictionary payload, string key)
+    {
+        return payload != null
+            && payload.ContainsKey(key)
+            && TryAsBool(payload[key], out bool value)
+            && value;
+    }
+
+    private static bool TryAsBool(object rawValue, out bool value)
+    {
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Bool)
+        {
+            value = variant.AsBool();
+            return true;
+        }
+        if (rawValue is bool boolValue)
+        {
+            value = boolValue;
+            return true;
+        }
+        value = false;
         return false;
     }
 }

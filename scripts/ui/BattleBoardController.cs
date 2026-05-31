@@ -816,7 +816,7 @@ public partial class BattleBoardController : RefCounted
             if (coordValue.VariantType != Variant.Type.Vector2I)
                 continue;
             Vector2I coord = coordValue.AsVector2I();
-            string badgeText = GdInterop.GetString(target_hit_badges, coordValue);
+            string badgeText = DictString(target_hit_badges, coordValue);
             if (!string.IsNullOrEmpty(badgeText))
                 _target_hit_badges[coord] = badgeText;
         }
@@ -835,7 +835,7 @@ public partial class BattleBoardController : RefCounted
                 continue;
             Control badge = _create_target_hit_badge(
                 coord,
-                GdInterop.GetString(_target_hit_badges, coord)
+                DictString(_target_hit_badges, coord)
             );
             if (badge == null)
                 continue;
@@ -1246,13 +1246,13 @@ public partial class BattleBoardController : RefCounted
         }
         if (_tileset_cache.ContainsKey(cacheKey))
         {
-            GDictionary cachedProfile = GdInterop.GetDictionary(_tileset_cache, cacheKey);
+            GDictionary cachedProfile = DictDictionary(_tileset_cache, cacheKey);
             if (cachedProfile.Count > 0)
             {
                 _tile_profile_id = renderProfile.terrain_profile_id;
                 _render_profile = renderProfile;
-                _tile_set = GdInterop.GetObject(cachedProfile, "tile_set") as TileSet;
-                _source_ids = (GDictionary)GdInterop.GetDictionary(cachedProfile, "source_ids").Duplicate(true);
+                _tile_set = DictObject<TileSet>(cachedProfile, "tile_set");
+                _source_ids = (GDictionary)DictDictionary(cachedProfile, "source_ids").Duplicate(true);
                 return;
             }
         }
@@ -1282,7 +1282,7 @@ public partial class BattleBoardController : RefCounted
         string tileDir = render_profile.asset_dir;
         foreach (GDictionary sourceSpec in render_profile.get_source_specs())
         {
-            GArray fileNames = GdInterop.GetArray(sourceSpec, "files");
+            GArray fileNames = DictArray(sourceSpec, "files");
             var textures = new GArray();
             foreach (var fileNameValue in fileNames)
             {
@@ -1295,20 +1295,25 @@ public partial class BattleBoardController : RefCounted
                 }
                 textures.Add(texture);
             }
-            if (
-                textures.Count == 0
-                && GdInterop.GetBool(sourceSpec, "allow_generated_fallback", true)
-            )
+            bool allowGeneratedFallback = true;
+            if (TryRead(sourceSpec, "allow_generated_fallback", out Variant allowFallbackValue))
+            {
+                allowGeneratedFallback =
+                    allowFallbackValue.VariantType == Variant.Type.Bool
+                        ? allowFallbackValue.AsBool()
+                        : allowGeneratedFallback;
+            }
+            if (textures.Count == 0 && allowGeneratedFallback)
             {
                 Texture2D fallbackTexture = _build_missing_source_texture(
-                    GdInterop.GetStringName(sourceSpec, "key"),
+                    DictStringName(sourceSpec, "key"),
                     sourceSpec
                 );
                 if (fallbackTexture != null)
                     textures.Add(fallbackTexture);
             }
             _register_source_options(
-                GdInterop.GetStringName(sourceSpec, "key"),
+                DictStringName(sourceSpec, "key"),
                 textures,
                 sourceSpec
             );
@@ -1331,16 +1336,16 @@ public partial class BattleBoardController : RefCounted
         var source = new TileSetAtlasSource
         {
             Texture = texture,
-            TextureRegionSize = GdInterop.GetVector2I(source_spec, "atlas_region_size", _get_board_tile_size()),
+            TextureRegionSize = DictVector2I(source_spec, "atlas_region_size", _get_board_tile_size()),
             UseTexturePadding = false,
         };
         source.CreateTile(Vector2I.Zero, Vector2I.One);
         TileData tileData = source.GetTileData(Vector2I.Zero, 0);
         if (tileData != null)
-            tileData.TextureOrigin = GdInterop.GetVector2I(
+            tileData.TextureOrigin = DictVector2I(
                 source_spec,
                 "visual_origin",
-                GdInterop.GetVector2I(source_spec, "texture_origin")
+                DictVector2I(source_spec, "texture_origin")
             );
         return _tile_set.AddSource(source);
     }
@@ -1488,7 +1493,7 @@ public partial class BattleBoardController : RefCounted
             var key when key == SOURCE_PREVIEW => new Color(0.88f, 0.82f, 0.36f, 0.34f),
             _ => new Color(0.5f, 0.42f, 0.32f, 0.9f),
         };
-        Vector2I tileSize = GdInterop.GetVector2I(source_spec, "board_tile_size", _get_board_tile_size());
+        Vector2I tileSize = DictVector2I(source_spec, "board_tile_size", _get_board_tile_size());
         return _build_diamond_texture(color, color.A, tileSize);
     }
 
@@ -1833,5 +1838,115 @@ public partial class BattleBoardController : RefCounted
     private static float CalcLuminance(Color color)
     {
         return color.R * 0.2126f + color.G * 0.7152f + color.B * 0.0722f;
+    }
+
+    private static string DictString(GDictionary dict, object key, string fallback = "")
+    {
+        if (!TryRead(dict, key, out Variant value))
+            return fallback;
+        return value.VariantType switch
+        {
+            Variant.Type.String => value.AsString(),
+            Variant.Type.StringName => value.AsStringName().ToString(),
+            _ => fallback,
+        };
+    }
+
+    private static StringName DictStringName(
+        GDictionary dict,
+        object key,
+        StringName fallback = default
+    )
+    {
+        if (!TryRead(dict, key, out Variant value))
+            return fallback ?? new StringName("");
+        return value.VariantType switch
+        {
+            Variant.Type.StringName => value.AsStringName(),
+            Variant.Type.String => new StringName(value.AsString()),
+            _ => fallback ?? new StringName(""),
+        };
+    }
+
+    private static Vector2I DictVector2I(
+        GDictionary dict,
+        object key,
+        Vector2I fallback = default
+    )
+    {
+        return TryRead(dict, key, out Variant value) && value.VariantType == Variant.Type.Vector2I
+            ? value.AsVector2I()
+            : fallback;
+    }
+
+    private static GArray DictArray(GDictionary dict, object key)
+    {
+        return TryRead(dict, key, out Variant value) && value.VariantType == Variant.Type.Array
+            ? value.AsGodotArray()
+            : new GArray();
+    }
+
+    private static GDictionary DictDictionary(GDictionary dict, object key)
+    {
+        return
+            TryRead(dict, key, out Variant value)
+            && value.VariantType == Variant.Type.Dictionary
+            ? value.AsGodotDictionary()
+            : new GDictionary();
+    }
+
+    private static T DictObject<T>(GDictionary dict, object key)
+        where T : GodotObject
+    {
+        return TryRead(dict, key, out Variant value) ? value.AsGodotObject() as T : null;
+    }
+
+    private static bool TryRead(GDictionary dict, object key, out Variant value)
+    {
+        if (dict == null)
+        {
+            value = default;
+            return false;
+        }
+        Variant variantKey = KeyToVariant(key);
+        if (dict.ContainsKey(variantKey))
+        {
+            value = dict[variantKey];
+            return true;
+        }
+        if (key is StringName stringNameKey)
+        {
+            string stringKey = stringNameKey.ToString();
+            if (dict.ContainsKey(stringKey))
+            {
+                value = dict[stringKey];
+                return true;
+            }
+        }
+        else if (key is string stringKey)
+        {
+            StringName alternateStringNameKey = new(stringKey);
+            if (dict.ContainsKey(alternateStringNameKey))
+            {
+                value = dict[alternateStringNameKey];
+                return true;
+            }
+        }
+        value = default;
+        return false;
+    }
+
+    private static Variant KeyToVariant(object key)
+    {
+        return key switch
+        {
+            Variant variantKey => variantKey,
+            StringName stringNameKey => stringNameKey,
+            string stringKey => stringKey,
+            Vector2I vectorKey => vectorKey,
+            int intKey => intKey,
+            long longKey => longKey,
+            _ => default,
+        };
     }
 }

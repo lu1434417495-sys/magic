@@ -7,7 +7,6 @@ public partial class BattleUnitFactory : RefCounted
     private static readonly StringName BASIC_ATTACK_SKILL_ID = "basic_attack";
     private static readonly StringName DEFAULT_ENEMY_MELEE_DAMAGE_TAG = "physical_slash";
     private BattleRuntimeModule _runtime;
-    private GodotObject _runtimeObject;
 
     private static AttributeSnapshot _snap(BattleUnitState us) =>
         us?.attribute_snapshot as AttributeSnapshot;
@@ -28,70 +27,21 @@ public partial class BattleUnitFactory : RefCounted
     public void setup(GodotObject runtime)
     {
         _runtime = runtime as BattleRuntimeModule;
-        _runtimeObject = runtime;
     }
 
     public void dispose()
     {
         _runtime = null;
-        _runtimeObject = null;
     }
 
-    private IBattleRuntimeCharacterGateway GetCharacterGateway()
-    {
-        if (_runtime != null)
-            return _runtime.GetCharacterGatewayTyped();
-        return GetRuntimeObject("_character_gateway", "character_gateway") as IBattleRuntimeCharacterGateway;
-    }
+    private IBattleRuntimeCharacterGateway GetCharacterGateway() =>
+        _runtime?.GetCharacterGatewayTyped();
 
-    private GodotObject GetFallbackCharacterGateway() =>
-        GetRuntimeObject("_character_gateway", "character_gateway");
+    private Godot.Collections.Dictionary GetSkillDefs() =>
+        _runtime?.get_skill_defs() ?? new Godot.Collections.Dictionary();
 
-    private GodotObject GetRuntimeObject(string primaryName, string fallbackName = null)
-    {
-        if (_runtimeObject == null)
-            return null;
-        Variant value = _runtimeObject.Get(primaryName);
-        if (value.VariantType == Variant.Type.Object)
-            return value.AsGodotObject();
-        if (!string.IsNullOrEmpty(fallbackName))
-        {
-            value = _runtimeObject.Get(fallbackName);
-            if (value.VariantType == Variant.Type.Object)
-                return value.AsGodotObject();
-        }
-        return null;
-    }
-
-    private Godot.Collections.Dictionary GetSkillDefs()
-    {
-        if (_runtime != null)
-            return _runtime.get_skill_defs() ?? new Godot.Collections.Dictionary();
-        return GetRuntimeDictionary("_skill_defs", "skill_defs");
-    }
-
-    private Godot.Collections.Dictionary GetItemDefs()
-    {
-        if (_runtime != null)
-            return _runtime.get_item_defs() ?? new Godot.Collections.Dictionary();
-        return GetRuntimeDictionary("_item_defs", "item_defs");
-    }
-
-    private Godot.Collections.Dictionary GetRuntimeDictionary(string primaryName, string fallbackName = null)
-    {
-        if (_runtimeObject == null)
-            return new Godot.Collections.Dictionary();
-        Variant value = _runtimeObject.Get(primaryName);
-        if (value.VariantType == Variant.Type.Dictionary)
-            return value.AsGodotDictionary();
-        if (!string.IsNullOrEmpty(fallbackName))
-        {
-            value = _runtimeObject.Get(fallbackName);
-            if (value.VariantType == Variant.Type.Dictionary)
-                return value.AsGodotDictionary();
-        }
-        return new Godot.Collections.Dictionary();
-    }
+    private Godot.Collections.Dictionary GetItemDefs() =>
+        _runtime?.get_item_defs() ?? new Godot.Collections.Dictionary();
 
     private BattleTerrainGenerator GetTerrainGenerator() => _runtime?.get_terrain_generator();
 
@@ -100,15 +50,7 @@ public partial class BattleUnitFactory : RefCounted
         IBattleRuntimeCharacterGateway gateway = GetCharacterGateway();
         if (gateway != null)
             return gateway.get_member_state(memberId);
-        GodotObject fallbackGateway = GetFallbackCharacterGateway();
-        if (fallbackGateway == null)
-            return null;
-        Variant memberValue = fallbackGateway.Get("member_state");
-        PartyMemberState memberState =
-            memberValue.VariantType == Variant.Type.Object
-                ? memberValue.AsGodotObject() as PartyMemberState
-                : null;
-        return memberState != null && memberState.member_id == memberId ? memberState : null;
+        return null;
     }
 
     private AttributeSnapshot GetMemberAttributeSnapshot(
@@ -119,13 +61,7 @@ public partial class BattleUnitFactory : RefCounted
         IBattleRuntimeCharacterGateway gateway = GetCharacterGateway();
         if (gateway != null)
             return gateway.get_member_attribute_snapshot_for_equipment_view(memberId, equipmentView);
-        GodotObject fallbackGateway = GetFallbackCharacterGateway();
-        if (fallbackGateway == null)
-            return null;
-        Variant snapshotValue = fallbackGateway.Get("attribute_snapshot");
-        return snapshotValue.VariantType == Variant.Type.Object
-            ? snapshotValue.AsGodotObject() as AttributeSnapshot
-            : null;
+        return null;
     }
 
     private Godot.Collections.Dictionary GetMemberWeaponProjection(
@@ -137,13 +73,7 @@ public partial class BattleUnitFactory : RefCounted
         if (gateway != null)
             return gateway.get_member_weapon_projection_for_equipment_view(memberId, equipmentView)
                 ?? new Godot.Collections.Dictionary();
-        GodotObject fallbackGateway = GetFallbackCharacterGateway();
-        if (fallbackGateway == null)
-            return new Godot.Collections.Dictionary();
-        Variant fallback = fallbackGateway.Get("weapon_projection");
-        return fallback.VariantType == Variant.Type.Dictionary
-            ? fallback.AsGodotDictionary()
-            : new Godot.Collections.Dictionary();
+        return new Godot.Collections.Dictionary();
     }
 
     private PassiveSourceContext BuildPassiveSourceContext(StringName memberId, UnitProgress progression)
@@ -187,7 +117,7 @@ public partial class BattleUnitFactory : RefCounted
 
     public void refresh_battle_unit(BattleUnitState us)
     {
-        if (us == null || (string)us.source_member_id == "" || _runtimeObject == null)
+        if (us == null || (string)us.source_member_id == "" || _runtime == null)
             return;
         PartyMemberState ms = GetMemberState(us.source_member_id);
         if (ms == null)
@@ -231,7 +161,7 @@ public partial class BattleUnitFactory : RefCounted
 
     public void refresh_known_skills(BattleUnitState us)
     {
-        if (us == null || (string)us.source_member_id == "" || _runtimeObject == null)
+        if (us == null || (string)us.source_member_id == "" || _runtime == null)
             return;
         PartyMemberState ms = GetMemberState(us.source_member_id);
         if (ms == null)
@@ -255,7 +185,7 @@ public partial class BattleUnitFactory : RefCounted
 
     public void refresh_equipment_projection(BattleUnitState us)
     {
-        if (us == null || (string)us.source_member_id == "" || _runtimeObject == null)
+        if (us == null || (string)us.source_member_id == "" || _runtime == null)
             return;
         PartyMemberState ms = GetMemberState(us.source_member_id);
         if (ms == null)
@@ -314,7 +244,7 @@ public partial class BattleUnitFactory : RefCounted
     }
 
     public Godot.Collections.Array build_enemy_units(
-        GodotObject enc,
+        EncounterAnchorData enc,
         Godot.Collections.Dictionary ctx
     )
     {
@@ -324,7 +254,7 @@ public partial class BattleUnitFactory : RefCounted
             if (eu.VariantType == Variant.Type.Array && eu.AsGodotArray().Count > 0)
                 return _normalize_unit_payloads(eu.AsGodotArray());
         }
-        var aid = enc != null ? (string)enc.Get("entity_id").AsStringName() : "unknown";
+        var aid = enc != null ? (string)enc.entity_id : "unknown";
         GameLog.Error($"BattleUnitFactory cannot build fallback enemy units for {aid}.", "battle.factory.fallback_failed", "battle");
         return new Godot.Collections.Array();
     }
@@ -347,19 +277,16 @@ public partial class BattleUnitFactory : RefCounted
     }
 
     public Godot.Collections.Dictionary build_terrain_data(
-        GodotObject enc,
+        EncounterAnchorData enc,
         int seed,
         Godot.Collections.Dictionary ctx
     )
     {
         var tc = ctx.Duplicate(true);
         tc.Remove("map_size");
-        if (_runtimeObject != null)
-        {
-            BattleTerrainGenerator terrainGenerator = GetTerrainGenerator();
-            if (terrainGenerator != null)
-                return _atgo(terrainGenerator.generate(enc, seed, tc), tc);
-        }
+        BattleTerrainGenerator terrainGenerator = GetTerrainGenerator();
+        if (terrainGenerator != null)
+            return _atgo(terrainGenerator.generate(enc, seed, tc), tc);
         return _atgo(new Godot.Collections.Dictionary(), tc);
     }
 
@@ -456,20 +383,20 @@ public partial class BattleUnitFactory : RefCounted
     }
 
     private BattleUnitState _build_runtime_enemy_unit(
-        GodotObject enc,
+        EncounterAnchorData enc,
         string mn,
         int idx,
         Godot.Collections.Dictionary ctx
     )
     {
         var us = new BattleUnitState();
-        var aid = enc != null ? (string)enc.Get("entity_id").AsStringName() : "wild";
+        var aid = enc != null ? (string)enc.entity_id : "wild";
         us.unit_id = $"{aid}_{(idx + 1):D2}";
         us.source_member_id = "";
         us.display_name = idx == 0 ? mn : $"{mn}·从属{idx + 1}";
         us.faction_id =
-            enc != null && (string)enc.Get("faction_id").AsStringName() != ""
-                ? enc.Get("faction_id").AsStringName()
+            enc != null && (string)enc.faction_id != ""
+                ? enc.faction_id
                 : "hostile";
         us.control_mode = "ai";
         us.body_size = BattleUnitState.BODY_SIZE_MEDIUM();
@@ -912,7 +839,7 @@ public partial class BattleUnitFactory : RefCounted
     {
         if (us == null)
             return;
-        if ((string)mid == "" || _runtimeObject == null)
+        if ((string)mid == "" || _runtime == null)
         {
             us.clear_weapon_projection();
             return;

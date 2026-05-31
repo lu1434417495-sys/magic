@@ -193,7 +193,9 @@ internal static class BattleTypedNames
             return BattleAreaPattern.NarrowCone;
         if (value == AreaPatternFrontArc)
             return BattleAreaPattern.FrontArc;
-        return GdInterop.IsEmpty(value) ? BattleAreaPattern.Unknown : BattleAreaPattern.Other;
+        return value == null || value.ToString().Length == 0
+            ? BattleAreaPattern.Unknown
+            : BattleAreaPattern.Other;
     }
 
     public static int GetAreaPatternDistanceContractBonus(BattleAreaPattern pattern, int areaValue)

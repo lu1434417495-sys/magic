@@ -54,7 +54,7 @@ public partial class ProfessionDef : Resource
     {
         foreach (var r in rank_requirements)
         {
-            if (r != null && (int)r.Get("target_rank") == target_rank)
+            if (r != null && r.target_rank == target_rank)
                 return r;
         }
         return null;
@@ -67,7 +67,7 @@ public partial class ProfessionDef : Resource
         var result = new Godot.Collections.Array<ProfessionGrantedSkill>();
         foreach (var gs in granted_skills)
         {
-            if (gs != null && (int)gs.Get("unlock_rank") == target_rank)
+            if (gs != null && gs.unlock_rank == target_rank)
                 result.Add(gs);
         }
         return result;

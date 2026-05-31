@@ -127,11 +127,15 @@ public partial class PartyMemberOptionUtils : RefCounted
 
     public static string get_member_variant_display_name(GDictionary member_option)
     {
-        if (member_option == null || !member_option.ContainsKey("display_name"))
+        if (!TryRead(member_option, "display_name", out Variant value))
             return "";
-        return GdInterop.HasString(member_option, "display_name")
-            ? GdInterop.GetString(member_option, "display_name").StripEdges()
-            : "";
+        string displayName = value.VariantType switch
+        {
+            Variant.Type.String => value.AsString(),
+            Variant.Type.StringName => value.AsStringName().ToString(),
+            _ => "",
+        };
+        return displayName.StripEdges();
     }
 
     private static void _append_member_option(
@@ -170,7 +174,7 @@ public partial class PartyMemberOptionUtils : RefCounted
     private static GDictionaryArray _build_explicit_member_options(GArray value)
     {
         var options = new GDictionaryArray();
-        foreach (GDictionary optionData in GdInterop.ReadDictionaryItems(value))
+        foreach (GDictionary optionData in ReadDictionaryItems(value))
         {
             var option = (GDictionary)optionData.Duplicate(true);
             string displayName = get_member_variant_display_name(option);
@@ -190,36 +194,68 @@ public partial class PartyMemberOptionUtils : RefCounted
 
     private static GArray DictArray(GDictionary dict, string key)
     {
-        if (dict == null || !dict.ContainsKey(key))
+        if (!TryRead(dict, key, out Variant value) || value.VariantType != Variant.Type.Array)
             return new GArray();
-        return GdInterop.GetArray(dict, key);
+        return value.AsGodotArray();
     }
 
     private static StringName DictStringName(GDictionary dict, string key)
     {
-        if (dict == null || !dict.ContainsKey(key))
+        if (!TryRead(dict, key, out Variant value))
             return "";
-        return ProgressionDataUtils.to_string_name(dict[key]);
+        return value.VariantType switch
+        {
+            Variant.Type.StringName => value.AsStringName(),
+            Variant.Type.String => new StringName(value.AsString()),
+            _ => new StringName(""),
+        };
     }
 
     private static string DictString(GDictionary dict, string key, string defaultValue)
     {
-        if (dict == null || !dict.ContainsKey(key))
+        if (!TryRead(dict, key, out Variant value))
             return defaultValue;
-        return dict[key].AsString();
+        return value.VariantType switch
+        {
+            Variant.Type.String => value.AsString(),
+            Variant.Type.StringName => value.AsStringName().ToString(),
+            _ => defaultValue,
+        };
     }
 
     private static bool DictBool(GDictionary dict, string key, bool defaultValue)
     {
-        if (dict == null || !dict.ContainsKey(key))
+        if (!TryRead(dict, key, out Variant value) || value.VariantType != Variant.Type.Bool)
             return defaultValue;
-        return dict[key].AsBool();
+        return value.AsBool();
     }
 
     private static int DictInt(GDictionary dict, string key, int defaultValue)
     {
-        if (dict == null || !dict.ContainsKey(key))
+        if (!TryRead(dict, key, out Variant value) || value.VariantType != Variant.Type.Int)
             return defaultValue;
-        return dict[key].AsInt32();
+        return value.AsInt32();
+    }
+
+    private static GDictionaryArray ReadDictionaryItems(GArray items)
+    {
+        var result = new GDictionaryArray();
+        if (items == null)
+            return result;
+        foreach (Variant item in items)
+        {
+            if (item.VariantType == Variant.Type.Dictionary)
+                result.Add(item.AsGodotDictionary());
+        }
+        return result;
+    }
+
+    private static bool TryRead(GDictionary dict, string key, out Variant value)
+    {
+        value = default;
+        if (dict == null || !dict.ContainsKey(key))
+            return false;
+        value = dict[key];
+        return value.VariantType != Variant.Type.Nil;
     }
 }

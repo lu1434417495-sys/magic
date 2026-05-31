@@ -1121,8 +1121,16 @@ public partial class EncounterRosterBuilder : RefCounted
 
     private static bool TryAsDictionary(object rawValue, out GDictionary value)
     {
-        if (GdInterop.TryUnboxToDictionary(rawValue, out value))
+        if (rawValue is GDictionary dictionary)
+        {
+            value = dictionary;
             return true;
+        }
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Dictionary)
+        {
+            value = variant.AsGodotDictionary();
+            return true;
+        }
         value = new GDictionary();
         return false;
     }
@@ -1130,8 +1138,18 @@ public partial class EncounterRosterBuilder : RefCounted
     private static bool TryAsObject<T>(object rawValue, out T value)
         where T : GodotObject
     {
-        value = GdInterop.UnboxToObject<T>(rawValue);
-        return value != null;
+        if (rawValue is T typedValue)
+        {
+            value = typedValue;
+            return true;
+        }
+        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Object)
+        {
+            value = variant.AsGodotObject() as T;
+            return value != null;
+        }
+        value = null;
+        return false;
     }
 
     private static bool TryAsStrictInt(object rawValue, out int value)

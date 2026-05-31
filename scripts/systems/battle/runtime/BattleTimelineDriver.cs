@@ -92,15 +92,18 @@ public sealed class BattleTimelineDriver : IDisposable
         runtime._advance_unit_turn_timers(unitState, batch);
     }
 
-    private GDictionary _ApplyTurnStartStatuses(BattleUnitState unitState, BattleEventBatch batch)
+    private BattleStatusTickResult _ApplyTurnStartStatuses(
+        BattleUnitState unitState,
+        BattleEventBatch batch
+    )
     {
         var runtime = _ResolveRuntime();
         if (runtime == null)
-            return new GDictionary();
-        return runtime._apply_turn_start_statuses(unitState, batch);
+            return BattleStatusTickResult.Empty();
+        return runtime._apply_turn_start_statuses_result(unitState, batch);
     }
 
-    private GDictionary _ApplyUnitStatusPeriodicTicks(
+    private BattleStatusTickResult _ApplyUnitStatusPeriodicTicks(
         BattleUnitState unitState,
         int elapsedTu,
         BattleEventBatch batch
@@ -108,8 +111,8 @@ public sealed class BattleTimelineDriver : IDisposable
     {
         var runtime = _ResolveRuntime();
         if (runtime == null)
-            return new GDictionary();
-        return runtime._apply_unit_status_periodic_ticks(unitState, elapsedTu, batch);
+            return BattleStatusTickResult.Empty();
+        return runtime._apply_unit_status_periodic_ticks_result(unitState, elapsedTu, batch);
     }
 
     private bool _AdvanceUnitStatusDurations(
@@ -196,13 +199,11 @@ public sealed class BattleTimelineDriver : IDisposable
             if (unitState == null || !unitState.is_alive)
                 continue;
             var statusTickResult = _ApplyUnitStatusPeriodicTicks(unitState, tuDelta, batch);
-            if (statusTickResult.GetValueOrDefault("changed", false).AsBool())
+            if (statusTickResult.Changed)
                 _AppendChangedUnitId(batch, unitState.unit_id);
             if (!unitState.is_alive)
             {
-                var defeatSourceUnitId = ProgressionDataUtils.to_string_name(
-                    statusTickResult.GetValueOrDefault("defeat_source_unit_id", "")
-                );
+                var defeatSourceUnitId = statusTickResult.DefeatSourceUnitId;
                 var defeatSourceUnit =
                     (
                         !string.IsNullOrEmpty(defeatSourceUnitId.ToString())
@@ -216,10 +217,9 @@ public sealed class BattleTimelineDriver : IDisposable
                     defeatSourceUnit,
                     batch,
                     $"{unitState.display_name} 因持续效果倒下。",
-                    new GDictionary
-                    {
-                        ["record_enemy_defeated_achievement"] = defeatSourceUnit != null,
-                    }
+                    new BattleDefeatHandlingOptions(
+                        recordEnemyDefeatedAchievement: defeatSourceUnit != null
+                    )
                 );
                 continue;
             }
@@ -405,7 +405,12 @@ public sealed class BattleTimelineDriver : IDisposable
 
     public int ResolveTimelineTuPerTick(GDictionary context)
     {
-        var tuPerTick = GdInterop.GetInt(context, "tu_per_tick", TuGranularity);
+        var tuPerTick =
+            context != null
+            && context.ContainsKey("tu_per_tick")
+            && context["tu_per_tick"].VariantType == Variant.Type.Int
+                ? context["tu_per_tick"].AsInt32()
+                : TuGranularity;
         if (tuPerTick <= 0)
             return TuGranularity;
         if (tuPerTick % TuGranularity != 0)
@@ -533,13 +538,13 @@ public sealed class BattleTimelineDriver : IDisposable
             unitState.can_use_locked_move_points_this_turn = false;
             unitState.reset_per_turn_charges();
             var traitTriggerHooks = runtime?._trait_trigger_hooks;
-            GDictionary traitTurnStartResult = new();
+            TraitDispatchResult traitTurnStartResult = default;
             if (traitTriggerHooks != null)
-                traitTurnStartResult = traitTriggerHooks.on_turn_start(
+                traitTurnStartResult = traitTriggerHooks.OnTurnStartResult(
                     unitState,
                     new GDictionary { ["battle_state"] = state }
                 );
-            if (traitTurnStartResult.GetValueOrDefault("changed", false).AsBool())
+            if (traitTurnStartResult.Changed)
                 _AppendChangedUnitId(batch, unitState.unit_id);
             _AdvanceUnitTurnTimers(unitState, batch);
             _RecordTurnStarted(unitState);
@@ -553,9 +558,7 @@ public sealed class BattleTimelineDriver : IDisposable
             var turnStartResult = _ApplyTurnStartStatuses(unitState, batch);
             if (!unitState.is_alive)
             {
-                var defeatSourceUnitId = ProgressionDataUtils.to_string_name(
-                    turnStartResult.GetValueOrDefault("defeat_source_unit_id", "")
-                );
+                var defeatSourceUnitId = turnStartResult.DefeatSourceUnitId;
                 var defeatSourceUnit =
                     (
                         !string.IsNullOrEmpty(defeatSourceUnitId.ToString())
@@ -568,11 +571,10 @@ public sealed class BattleTimelineDriver : IDisposable
                     defeatSourceUnit,
                     batch,
                     $"{unitState.display_name} 因持续效果倒下。",
-                    new GDictionary
-                    {
-                        ["record_enemy_defeated_achievement"] = defeatSourceUnit != null,
-                        ["check_battle_end"] = false,
-                    }
+                    new BattleDefeatHandlingOptions(
+                        recordEnemyDefeatedAchievement: defeatSourceUnit != null,
+                        checkBattleEnd: false
+                    )
                 );
                 state.phase = "timeline_running";
                 state.active_unit_id = "";
@@ -584,10 +586,14 @@ public sealed class BattleTimelineDriver : IDisposable
                 continue;
             }
             var skillTurnResolver = runtime?._skill_turn_resolver;
-            GDictionary controlStatusResult = new();
+            BattleTurnControlStatusResult controlStatusResult =
+                BattleTurnControlStatusResult.Empty();
             if (skillTurnResolver != null)
-                controlStatusResult = skillTurnResolver.resolve_turn_control_status(unitState, batch);
-            if (controlStatusResult.GetValueOrDefault("skip_turn", false).AsBool())
+                controlStatusResult = skillTurnResolver.ResolveTurnControlStatusResult(
+                    unitState,
+                    batch
+                );
+            if (controlStatusResult.SkipTurn)
             {
                 state.phase = "timeline_running";
                 state.active_unit_id = "";
@@ -597,7 +603,7 @@ public sealed class BattleTimelineDriver : IDisposable
             }
             if (
                 unitState.control_mode != "manual"
-                || controlStatusResult.GetValueOrDefault("ai_controlled", false).AsBool()
+                || controlStatusResult.AiControlled
             )
                 _PrepareAiTurn(unitState);
             batch.phase_changed = true;

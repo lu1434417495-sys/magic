@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using static GdInterop;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
@@ -572,7 +571,7 @@ public partial class BattleAiScoreService : RefCounted
         scoreInput.attack_roll_modifier_breakdown = ToUntypedArray(
             facts.attack_roll_modifier_breakdown
         );
-        List<TargetNumericSummaryEntry> targetSummaries = ReadTargetNumericSummaries(facts);
+        List<MeteorSwarmNumericSummary> targetSummaries = ReadTargetNumericSummaries(facts);
         scoreInput.target_numeric_summary = TargetNumericSummariesToArray(targetSummaries);
 
         scoreInput.estimated_terrain_effect_count += Math.Max(
@@ -597,7 +596,7 @@ public partial class BattleAiScoreService : RefCounted
         }
         else
         {
-            foreach (TargetNumericSummaryEntry summary in targetSummaries)
+            foreach (MeteorSwarmNumericSummary summary in targetSummaries)
             {
                 PopulateSpecialProfileTargetSummary(scoreInput, context, summary);
             }
@@ -608,7 +607,7 @@ public partial class BattleAiScoreService : RefCounted
     private void PopulateSpecialProfileTargetSummary(
         BattleAiScoreInput scoreInput,
         IBattleAiScoreContext context,
-        TargetNumericSummaryEntry summary
+        MeteorSwarmNumericSummary summary
     )
     {
         StringName targetUnitId = summary.TargetUnitId;
@@ -693,7 +692,7 @@ public partial class BattleAiScoreService : RefCounted
     private void PopulateSpecialProfileAllyRisk(
         BattleAiScoreInput scoreInput,
         BattleUnitState targetUnit,
-        TargetNumericSummaryEntry summary,
+        MeteorSwarmNumericSummary summary,
         int estimatedDamage,
         int worstCaseDamage,
         int statusCount

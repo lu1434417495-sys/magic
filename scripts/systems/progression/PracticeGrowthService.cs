@@ -81,26 +81,38 @@ public partial class PracticeGrowthService : RefCounted
 
     public GDictionary can_learn_practice_skill(StringName skillId, UnitProgress unitProgress)
     {
+        return can_learn_practice_skill_typed(skillId, unitProgress).ToCanLearnDictionary();
+    }
+
+    public PracticeSkillLearnStatus can_learn_practice_skill_typed(
+        StringName skillId,
+        UnitProgress unitProgress
+    )
+    {
         StringName trackType = get_track_type_for_skill(skillId);
         if (trackType == "")
-            return PracticeLearnResult(false, false, "");
+            return PracticeSkillLearnStatus.NonPractice();
         if (!HasValidPracticeTier(skillId))
-            return PracticeLearnResult(false, false, "");
+            return PracticeSkillLearnStatus.Practice(trackType, false, false, "");
 
         GStringNameArray existingSkillIds = GetActivePracticeSkillIds(unitProgress, trackType);
         if (existingSkillIds.Count > 1)
         {
-            GDictionary result = PracticeLearnResult(false, false, "");
-            result["error_code"] = "ambiguous_existing_practice_track";
-            return result;
+            return PracticeSkillLearnStatus.Practice(
+                trackType,
+                false,
+                false,
+                "",
+                "ambiguous_existing_practice_track"
+            );
         }
 
         StringName existingSkillId = existingSkillIds.Count == 1 ? existingSkillIds[0] : "";
         if (existingSkillId == "")
-            return PracticeLearnResult(true, false, "");
+            return PracticeSkillLearnStatus.Practice(trackType, true, false, "");
         if (existingSkillId == skillId)
-            return PracticeLearnResult(false, false, existingSkillId);
-        return PracticeLearnResult(false, true, existingSkillId);
+            return PracticeSkillLearnStatus.Practice(trackType, false, false, existingSkillId);
+        return PracticeSkillLearnStatus.Practice(trackType, false, true, existingSkillId);
     }
 
     public int calculate_replacement_level(
@@ -152,11 +164,14 @@ public partial class PracticeGrowthService : RefCounted
         if (trackType == "")
             return false;
 
-        GDictionary learnResult = can_learn_practice_skill(newSkillId, unitProgress);
-        if (!GdInterop.GetBool(learnResult, "needs_replacement"))
+        PracticeSkillLearnStatus learnResult = can_learn_practice_skill_typed(
+            newSkillId,
+            unitProgress
+        );
+        if (!learnResult.NeedsReplacement)
             return false;
 
-        StringName oldSkillId = GdInterop.GetStringName(learnResult, "existing_skill_id");
+        StringName oldSkillId = learnResult.ExistingSkillId;
         if (oldSkillId == "")
             return false;
 
@@ -179,32 +194,24 @@ public partial class PracticeGrowthService : RefCounted
 
     public GDictionary get_skill_learned_status(StringName skillId, UnitProgress unitProgress)
     {
+        return get_skill_learned_status_typed(skillId, unitProgress).ToLearnedStatusDictionary();
+    }
+
+    public PracticeSkillLearnStatus get_skill_learned_status_typed(
+        StringName skillId,
+        UnitProgress unitProgress
+    )
+    {
         StringName trackType = get_track_type_for_skill(skillId);
         if (trackType == "")
-        {
-            return new GDictionary
-            {
-                ["is_practice_skill"] = false,
-                ["track_type"] = "",
-                ["is_learned_direct"] = false,
-                ["needs_replacement"] = false,
-                ["existing_skill_id"] = "",
-                ["predicted_level"] = 0,
-            };
-        }
+            return PracticeSkillLearnStatus.NonPractice();
 
-        GDictionary result = can_learn_practice_skill(skillId, unitProgress);
-        result["is_practice_skill"] = true;
-        result["track_type"] = trackType;
-        if (GdInterop.GetBool(result, "needs_replacement"))
-        {
-            result["predicted_level"] = calculate_replacement_level(
-                GdInterop.GetStringName(result, "existing_skill_id"),
-                skillId,
-                unitProgress
-            );
-        }
-        return result;
+        PracticeSkillLearnStatus result = can_learn_practice_skill_typed(skillId, unitProgress);
+        return result.NeedsReplacement
+            ? result.WithPredictedLevel(
+                calculate_replacement_level(result.ExistingSkillId, skillId, unitProgress)
+            )
+            : result;
     }
 
     public void inject_first_unlock_starting_values(
@@ -358,20 +365,6 @@ public partial class PracticeGrowthService : RefCounted
                 activeSkillIds.Add(skillId);
         }
         return activeSkillIds;
-    }
-
-    private static GDictionary PracticeLearnResult(
-        bool canLearn,
-        bool needsReplacement,
-        StringName existingSkillId
-    )
-    {
-        return new GDictionary
-        {
-            ["can_learn"] = canLearn,
-            ["needs_replacement"] = needsReplacement,
-            ["existing_skill_id"] = existingSkillId,
-        };
     }
 
     private static void ClearReplacedSkillReferences(

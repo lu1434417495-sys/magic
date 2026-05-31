@@ -161,7 +161,21 @@ public partial class EquipmentState : RefCounted
 
     public int get_equipped_count() => get_entry_slot_ids().Count;
 
-    public EquipmentState duplicate_state() => from_dict(to_dict());
+    public EquipmentState duplicate_state()
+    {
+        var state = new EquipmentState();
+        foreach (StringName entrySlotId in get_entry_slot_ids())
+        {
+            EquipmentEntryState entry = get_entry(entrySlotId)?.duplicate_state();
+            if (entry == null || entry.is_empty())
+            {
+                continue;
+            }
+            state.equipped_slots[entrySlotId] = entry;
+            state._register_entry_slots(entrySlotId, entry);
+        }
+        return state;
+    }
 
     public Godot.Collections.Dictionary to_dict()
     {
@@ -280,9 +294,7 @@ public partial class EquipmentState : RefCounted
         if (equipment_instance == null)
             return null;
         var ni = ProgressionDataUtils.to_string_name(item_id);
-        return equipment_instance.item_id == ni
-            ? EquipmentInstanceState.from_dict(equipment_instance.to_dict())
-            : null;
+        return equipment_instance.item_id == ni ? equipment_instance.duplicate_state() : null;
     }
 
     private void _store_entry(StringName entry_slot_id, EquipmentEntryState entry)

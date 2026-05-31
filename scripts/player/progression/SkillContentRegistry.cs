@@ -117,6 +117,24 @@ public partial class SkillContentRegistry : RefCounted
         "execute",
     };
 
+    private static readonly string[] TypedEffectFlagParamNames =
+    {
+        "add_weapon_dice",
+        "requires_weapon",
+        "use_weapon_physical_damage_tag",
+        "resolve_as_weapon_attack",
+        "allow_repeat_hits_across_steps",
+        "prevent_repeat_target",
+        "stop_on_miss",
+        "stop_on_target_down",
+        "remove_harmful",
+        "remove_harmful_from_allies",
+        "remove_beneficial",
+        "remove_beneficial_from_enemies",
+        "require_damage_applied",
+        "staged_execution",
+    };
+
     private static readonly StringName[] PracticeTrackTags = { "meditation", "cultivation" };
     private static readonly HashSet<StringName> ValidPracticeTiers = new()
     {
@@ -128,6 +146,32 @@ public partial class SkillContentRegistry : RefCounted
 
     public Dictionary _skill_defs { get; set; } = new();
     public Array<string> _validation_errors { get; set; } = new();
+
+    private readonly record struct EquipmentDurabilityDamageValidationParameters(
+        int MaxDamagedItems,
+        bool RequireDamageApplied,
+        bool TargetSlotsMissingOrEmpty
+    )
+    {
+        public static EquipmentDurabilityDamageValidationParameters FromEffect(
+            CombatEffectDef effectDef
+        )
+        {
+            Dictionary parameters = effectDef?.@params ?? new Dictionary();
+            return new EquipmentDurabilityDamageValidationParameters(
+                DictInt(parameters, "max_damaged_items", 1),
+                effectDef?.require_damage_applied ?? false,
+                ReadTargetSlotsMissingOrEmpty(parameters)
+            );
+        }
+
+        private static bool ReadTargetSlotsMissingOrEmpty(Dictionary parameters)
+        {
+            if (!TryGetParameter(parameters, "target_slots", out object rawTargetSlots))
+                return true;
+            return TryAsArray(rawTargetSlots, out Array targetSlots) && targetSlots.Count == 0;
+        }
+    }
 
     public SkillContentRegistry()
     {
@@ -395,7 +439,7 @@ public partial class SkillContentRegistry : RefCounted
                 continue;
             }
             var attributeId = ProgressionDataUtils.to_string_name(attributeKey);
-            GdInterop.TryGet(skillDef.attribute_growth_progress, attributeKey, out Variant amountValue);
+            TryGetDictionaryValue(skillDef.attribute_growth_progress, attributeKey, out object amountValue);
             if (!TryStrictInt(amountValue, out int amount))
             {
                 errors.Add(
@@ -538,7 +582,7 @@ public partial class SkillContentRegistry : RefCounted
                 );
                 continue;
             }
-            GdInterop.TryGet(combatProfile.level_overrides, overrideLevelKey, out Variant overrideData);
+            TryGetDictionaryValue(combatProfile.level_overrides, overrideLevelKey, out object overrideData);
             if (!TryAsDictionary(overrideData, out Dictionary overrideDict))
             {
                 errors.Add(
@@ -990,27 +1034,24 @@ public partial class SkillContentRegistry : RefCounted
             return;
         Dictionary parameters = effectDef.@params ?? new Dictionary();
         var damageTag = effectDef.damage_tag;
-        bool hasWeaponDamageTagParam = parameters.ContainsKey("use_weapon_physical_damage_tag");
-        bool usesWeaponDamageTag = false;
-        bool weaponDamageTagParamIsBool = hasWeaponDamageTagParam
-            && TryStrictBool(parameters["use_weapon_physical_damage_tag"], out usesWeaponDamageTag);
+        bool usesWeaponDamageTag = effectDef.use_weapon_physical_damage_tag;
 
         if (parameters.ContainsKey("damage_tag"))
             errors.Add(
-                $"Skill {skillId} damage effect in {contextLabel} params.damage_tag is unsupported on damage effects; use damage_tag or params.use_weapon_physical_damage_tag."
+                $"Skill {skillId} damage effect in {contextLabel} params.damage_tag is unsupported on damage effects; use damage_tag or use_weapon_physical_damage_tag."
             );
         if (usesWeaponDamageTag)
         {
             if (damageTag != "")
                 errors.Add(
-                    $"Skill {skillId} damage effect in {contextLabel} cannot combine damage_tag with params.use_weapon_physical_damage_tag."
+                    $"Skill {skillId} damage effect in {contextLabel} cannot combine damage_tag with use_weapon_physical_damage_tag."
                 );
         }
-        else if (!hasWeaponDamageTagParam || weaponDamageTagParamIsBool)
+        else
         {
             if (damageTag == "")
                 errors.Add(
-                    $"Skill {skillId} damage effect in {contextLabel} must declare damage_tag or set params.use_weapon_physical_damage_tag = true."
+                    $"Skill {skillId} damage effect in {contextLabel} must declare damage_tag or set use_weapon_physical_damage_tag = true."
                 );
             else if (!DamageTagContentRules.is_valid_damage_tag(damageTag))
                 errors.Add(
@@ -1152,23 +1193,19 @@ public partial class SkillContentRegistry : RefCounted
             errors.Add(
                 $"Skill {skillId} equipment_durability_damage effect in {contextLabel} must configure a save DC."
             );
-        int maxDamagedItems = DictInt(parameters, "max_damaged_items", 1);
-        if (maxDamagedItems != 1)
+        var validationParameters = EquipmentDurabilityDamageValidationParameters.FromEffect(
+            effectDef
+        );
+        if (validationParameters.MaxDamagedItems != 1)
             errors.Add(
                 $"Skill {skillId} equipment_durability_damage effect in {contextLabel} currently supports max_damaged_items = 1 only."
             );
-        if (!DictBool(parameters, "require_damage_applied"))
+        if (!validationParameters.RequireDamageApplied)
             errors.Add(
-                $"Skill {skillId} equipment_durability_damage effect in {contextLabel} must set params.require_damage_applied = true."
+                $"Skill {skillId} equipment_durability_damage effect in {contextLabel} must set require_damage_applied = true."
             );
 
-        if (
-            !parameters.ContainsKey("target_slots")
-            || (
-                TryAsArray(parameters["target_slots"], out Array targetSlots)
-                && targetSlots.Count == 0
-            )
-        )
+        if (validationParameters.TargetSlotsMissingOrEmpty)
             errors.Add(
                 $"Skill {skillId} equipment_durability_damage effect in {contextLabel} params.target_slots must include at least one slot."
             );
@@ -1249,7 +1286,7 @@ public partial class SkillContentRegistry : RefCounted
                 errors.Add(
                     $"Skill {skillId} equipment_durability_damage effect in {contextLabel} params.{paramName} uses unsupported slot {slotId}."
                 );
-            GdInterop.TryGet(weightMap, key, out Variant weightVariant);
+            TryGetDictionaryValue(weightMap, key, out object weightVariant);
             if (!TryStrictInt(weightVariant, out int weight) || weight <= 0)
                 errors.Add(
                     $"Skill {skillId} equipment_durability_damage effect in {contextLabel} params.{paramName}.{slotId} must be a positive int."
@@ -1459,27 +1496,13 @@ public partial class SkillContentRegistry : RefCounted
     )
     {
         Dictionary parameters = effectDef.@params ?? new Dictionary();
-        if (
-            parameters.ContainsKey("requires_weapon")
-            && !TryStrictBool(parameters["requires_weapon"], out _)
-        )
-            errors.Add(
-                $"Skill {skillId} effect {contextLabel} params.requires_weapon must be a bool."
-            );
-        if (
-            parameters.ContainsKey("use_weapon_physical_damage_tag")
-            && !TryStrictBool(parameters["use_weapon_physical_damage_tag"], out _)
-        )
-            errors.Add(
-                $"Skill {skillId} effect {contextLabel} params.use_weapon_physical_damage_tag must be a bool."
-            );
-        if (
-            parameters.ContainsKey("resolve_as_weapon_attack")
-            && !TryStrictBool(parameters["resolve_as_weapon_attack"], out _)
-        )
-            errors.Add(
-                $"Skill {skillId} effect {contextLabel} params.resolve_as_weapon_attack must be a bool."
-            );
+        foreach (string flagName in TypedEffectFlagParamNames)
+        {
+            if (parameters.ContainsKey(flagName))
+                errors.Add(
+                    $"Skill {skillId} effect {contextLabel} params.{flagName} is unsupported; use CombatEffectDef.{flagName}."
+                );
+        }
     }
 
     public void _append_string_name_array_validation_errors(
@@ -1549,38 +1572,6 @@ public partial class SkillContentRegistry : RefCounted
                 ? parsed
                 : 0,
             _ => 0,
-        };
-    }
-
-    private static bool DictBool(Dictionary dictionary, string key, bool fallback = false)
-    {
-        if (!TryGetParameter(dictionary, key, out object value))
-            return fallback;
-        if (value is Variant variant)
-        {
-            return variant.VariantType switch
-            {
-                Variant.Type.Bool => variant.AsBool(),
-                Variant.Type.Int => variant.AsInt32() != 0,
-                Variant.Type.Float => !Mathf.IsZeroApprox((float)variant.AsDouble()),
-                Variant.Type.String
-                    => variant.AsString()
-                        .ToLower(System.Globalization.CultureInfo.GetCultureInfo(""))
-                        == "true",
-                _ => false,
-            };
-        }
-        return value switch
-        {
-            bool boolValue => boolValue,
-            int intValue => intValue != 0,
-            long longValue => longValue != 0,
-            float floatValue => !Mathf.IsZeroApprox(floatValue),
-            double doubleValue => !Mathf.IsZeroApprox((float)doubleValue),
-            string stringValue
-                => stringValue.ToLower(System.Globalization.CultureInfo.GetCultureInfo(""))
-                    == "true",
-            _ => false,
         };
     }
 
@@ -1691,6 +1682,35 @@ public partial class SkillContentRegistry : RefCounted
         }
         value = null;
         return false;
+    }
+
+    private static bool TryGetDictionaryValue(Dictionary dictionary, object key, out object value)
+    {
+        Variant variantKey = ToVariantKey(key);
+        if (dictionary != null && dictionary.ContainsKey(variantKey))
+        {
+            value = dictionary[variantKey];
+            return true;
+        }
+        value = null;
+        return false;
+    }
+
+    private static Variant ToVariantKey(object key)
+    {
+        return key switch
+        {
+            Variant variant => variant,
+            StringName stringName => Variant.From(stringName),
+            string text => Variant.From(text),
+            int intValue => Variant.From(intValue),
+            long longValue => Variant.From(longValue),
+            float floatValue => Variant.From(floatValue),
+            double doubleValue => Variant.From(doubleValue),
+            bool boolValue => Variant.From(boolValue),
+            Vector2I coord => Variant.From(coord),
+            _ => Variant.From(key?.ToString() ?? ""),
+        };
     }
 
     private static T GetTyped<T>(Dictionary dictionary, StringName key)

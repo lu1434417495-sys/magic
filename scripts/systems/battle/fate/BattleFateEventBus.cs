@@ -42,11 +42,7 @@ public partial class BattleFateEventBus : RefCounted
         {
             var readonlyDict = new Godot.Collections.Dictionary();
             foreach (var key in rawDictionary.Keys)
-                readonlyDict[key] = GdInterop.GetValueOrDefault(
-                    null,
-                    "",
-                    MakeReadOnlyValue(rawDictionary[key])
-                );
+                readonlyDict[key] = ToVariant(MakeReadOnlyValue(rawDictionary[key]));
             readonlyDict.MakeReadOnly();
             return readonlyDict;
         }
@@ -54,7 +50,7 @@ public partial class BattleFateEventBus : RefCounted
         {
             var readonlyArray = new Godot.Collections.Array();
             foreach (var entry in rawArray)
-                readonlyArray.Add(GdInterop.GetValueOrDefault(null, "", MakeReadOnlyValue(entry)));
+                readonlyArray.Add(ToVariant(MakeReadOnlyValue(entry)));
             readonlyArray.MakeReadOnly();
             return readonlyArray;
         }
@@ -68,11 +64,7 @@ public partial class BattleFateEventBus : RefCounted
             var readonlyDict = new Godot.Collections.Dictionary();
 
             foreach (var key in dict.Keys)
-                readonlyDict[key] = GdInterop.GetValueOrDefault(
-                    null,
-                    "",
-                    MakeReadOnlyValue(dict[key])
-                );
+                readonlyDict[key] = ToVariant(MakeReadOnlyValue(dict[key]));
 
             readonlyDict.MakeReadOnly();
 
@@ -86,7 +78,7 @@ public partial class BattleFateEventBus : RefCounted
             var readonlyArray = new Godot.Collections.Array();
 
             foreach (var entry in arr)
-                readonlyArray.Add(GdInterop.GetValueOrDefault(null, "", MakeReadOnlyValue(entry)));
+                readonlyArray.Add(ToVariant(MakeReadOnlyValue(entry)));
 
             readonlyArray.MakeReadOnly();
 
@@ -94,5 +86,25 @@ public partial class BattleFateEventBus : RefCounted
         }
 
         return value;
+    }
+
+    private static Variant ToVariant(object value)
+    {
+        return value switch
+        {
+            Variant variant => variant,
+            string text => text,
+            StringName stringName => stringName,
+            bool boolValue => boolValue,
+            int intValue => intValue,
+            long longValue => longValue,
+            float floatValue => floatValue,
+            double doubleValue => doubleValue,
+            Vector2I coord => coord,
+            Godot.Collections.Dictionary dictionary => dictionary,
+            Godot.Collections.Array array => array,
+            GodotObject godotObject => godotObject,
+            _ => default,
+        };
     }
 }

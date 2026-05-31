@@ -1,6 +1,14 @@
+using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
+
+public readonly record struct BattleCommonSkillTargetResult(
+    StringName TargetUnitId,
+    int Damage,
+    int Healing,
+    bool Defeated
+);
 
 [GlobalClass]
 public partial class BattleCommonSkillOutcome : RefCounted
@@ -14,8 +22,8 @@ public partial class BattleCommonSkillOutcome : RefCounted
     public Godot.Collections.Array<Vector2I> changed_coords { get; set; } = new();
     public Godot.Collections.Array<string> log_lines { get; set; } = new();
     public Godot.Collections.Array<GDictionary> report_entries { get; set; } = new();
-    public Godot.Collections.Array<GDictionary> target_results { get; set; } = new();
-    public GDictionary status_effect_ids_by_unit_id { get; set; } = new();
+    public List<BattleCommonSkillTargetResult> target_results { get; } = new();
+    public Dictionary<StringName, List<StringName>> status_effect_ids_by_unit_id { get; } = new();
 
     public void add_changed_unit_id(StringName unit_id)
     {
@@ -51,13 +59,7 @@ public partial class BattleCommonSkillOutcome : RefCounted
             return;
         }
         target_results.Add(
-            new GDictionary
-            {
-                ["target_unit_id"] = target_unit_id,
-                ["damage"] = damage,
-                ["healing"] = healing,
-                ["defeated"] = defeated,
-            }
+            new BattleCommonSkillTargetResult(target_unit_id, damage, healing, defeated)
         );
     }
 
@@ -71,20 +73,10 @@ public partial class BattleCommonSkillOutcome : RefCounted
             return;
         }
 
-        Godot.Collections.Array<StringName> existing = new();
-        if (
-            GdInterop.TryGet(status_effect_ids_by_unit_id, unit_id, out Variant existingValue)
-            && existingValue.VariantType == Variant.Type.Array
-        )
+        if (!status_effect_ids_by_unit_id.TryGetValue(unit_id, out List<StringName> existing))
         {
-            foreach (var statusValue in existingValue.AsGodotArray())
-            {
-                StringName statusId = GdInterop.ToStringName(statusValue, "");
-                if (!IsEmpty(statusId) && !existing.Contains(statusId))
-                {
-                    existing.Add(statusId);
-                }
-            }
+            existing = new List<StringName>();
+            status_effect_ids_by_unit_id[unit_id] = existing;
         }
 
         foreach (StringName statusId in status_effect_ids)
@@ -94,7 +86,6 @@ public partial class BattleCommonSkillOutcome : RefCounted
                 existing.Add(statusId);
             }
         }
-        status_effect_ids_by_unit_id[unit_id] = existing;
     }
 
     private static bool IsEmpty(StringName value)

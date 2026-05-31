@@ -72,7 +72,17 @@ public partial class BattleEdgeFeatureState : RefCounted
 
     public BattleEdgeFeatureState duplicate_feature()
     {
-        return from_dict(to_dict());
+        return new BattleEdgeFeatureState
+        {
+            feature_kind = feature_kind,
+            render_kind = render_kind,
+            render_layers = render_layers,
+            blocks_move = blocks_move,
+            blocks_occupancy = blocks_occupancy,
+            blocks_los = blocks_los,
+            interaction_kind = interaction_kind,
+            state_tag = state_tag,
+        };
     }
 
     public GDictionary to_dict()
@@ -112,9 +122,9 @@ public partial class BattleEdgeFeatureState : RefCounted
             return null;
         if (!TryGetStrictInt(featureDict, "render_layers", out int renderLayers) || renderLayers < 0)
             return null;
-        if (!TryGetBool(featureDict, "blocks_move", out bool blocksMove)
-            || !TryGetBool(featureDict, "blocks_occupancy", out bool blocksOccupancy)
-            || !TryGetBool(featureDict, "blocks_los", out bool blocksLos))
+        if (!TryReadBoolField(featureDict, "blocks_move", out bool blocksMove)
+            || !TryReadBoolField(featureDict, "blocks_occupancy", out bool blocksOccupancy)
+            || !TryReadBoolField(featureDict, "blocks_los", out bool blocksLos))
         {
             return null;
         }
@@ -224,7 +234,7 @@ public partial class BattleEdgeFeatureState : RefCounted
         return false;
     }
 
-    private static bool TryGetBool(GDictionary data, string key, out bool value)
+    private static bool TryReadBoolField(GDictionary data, string key, out bool value)
     {
         if (TryGetExactValue(data, key, out Variant rawValue) && TryAsBool(rawValue, out value))
         {

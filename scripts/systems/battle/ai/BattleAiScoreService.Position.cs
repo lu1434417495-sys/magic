@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using static GdInterop;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
@@ -491,7 +490,7 @@ public partial class BattleAiScoreService
 
     private static int ReadKnownSkillLevel(BattleUnitState unitState, StringName skillId)
     {
-        if (TryGet(unitState.known_skill_level_map, skillId, out var levelValue))
+        if (TryRead(unitState.known_skill_level_map, skillId, out var levelValue))
         {
             return levelValue.AsInt32();
         }

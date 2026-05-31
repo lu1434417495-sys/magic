@@ -62,7 +62,7 @@ public partial class BattleMovementQueryService : RefCounted
         }
     }
 
-    private readonly record struct PathSearchBudget(
+    internal readonly record struct PathSearchBudget(
         int MaxCost,
         int MaxNodes,
         int MaxDestinations,
@@ -83,19 +83,56 @@ public partial class BattleMovementQueryService : RefCounted
                 ["prefer_progress"] = PreferProgress,
             };
         }
+
+        public PathSearchBudgetSnapshot ToSnapshot()
+        {
+            return new PathSearchBudgetSnapshot(
+                MaxCost,
+                MaxNodes,
+                MaxDestinations,
+                PathTreeMinDestinationCount,
+                IncludeOrigin,
+                PreferProgress
+            );
+        }
     }
 
-    private sealed class MovementQueryOptions
+    internal readonly record struct PathSearchBudgetSnapshot(
+        int MaxCost,
+        int MaxNodes,
+        int MaxDestinations,
+        int PathTreeMinDestinationCount,
+        bool IncludeOrigin,
+        bool PreferProgress
+    );
+
+    internal sealed class MovementQueryOptions
     {
         public int MaxCandidateCount;
         public bool IncludeOrigin;
         public bool PreferProgress;
         public bool HasIncludeOrigin;
         public bool HasPreferProgress;
-        public readonly PathSearchBudgetOverride PathBudget = new();
+        internal readonly PathSearchBudgetOverride PathBudget = new();
+
+        public static MovementQueryOptions ForPathSearchBudget(
+            int maxCandidateCount,
+            bool includeOrigin,
+            bool preferProgress
+        )
+        {
+            return new MovementQueryOptions
+            {
+                MaxCandidateCount = Math.Max(maxCandidateCount, 0),
+                IncludeOrigin = includeOrigin,
+                PreferProgress = preferProgress,
+                HasIncludeOrigin = true,
+                HasPreferProgress = true,
+            };
+        }
     }
 
-    private sealed class PathSearchBudgetOverride
+    internal sealed class PathSearchBudgetOverride
     {
         public bool HasMaxCost;
         public bool HasMaxNodes;
@@ -880,18 +917,52 @@ public partial class BattleMovementQueryService : RefCounted
         Dictionary options = null
     )
     {
-        RebuildSnapshot();
+        return TryBuildPathSearchBudgetTyped(unit_id, options, out PathSearchBudgetSnapshot budget)
+            ? new Dictionary
+            {
+                ["max_cost"] = budget.MaxCost,
+                ["max_nodes"] = budget.MaxNodes,
+                ["max_destinations"] = budget.MaxDestinations,
+                ["path_tree_min_destination_count"] = budget.PathTreeMinDestinationCount,
+                ["include_origin"] = budget.IncludeOrigin,
+                ["prefer_progress"] = budget.PreferProgress,
+            }
+            : new Dictionary();
+    }
+
+    internal bool TryBuildPathSearchBudgetTyped(
+        StringName unitId,
+        Dictionary options,
+        out PathSearchBudgetSnapshot budget
+    )
+    {
         if (!TryParseOptions(options, out MovementQueryOptions queryOptions))
         {
-            return new Dictionary();
+            budget = default;
+            return false;
         }
-        if (!TryGetUnit(unit_id, out UnitInfo unit))
+        return TryBuildPathSearchBudgetTyped(unitId, queryOptions, out budget);
+    }
+
+    internal bool TryBuildPathSearchBudgetTyped(
+        StringName unitId,
+        MovementQueryOptions queryOptions,
+        out PathSearchBudgetSnapshot budget
+    )
+    {
+        budget = default;
+        RebuildSnapshot();
+        queryOptions ??= new MovementQueryOptions();
+        if (!TryGetUnit(unitId, out UnitInfo unit))
         {
             unit = null;
         }
-        return TryResolveBudget(unit, queryOptions, out PathSearchBudget resolvedBudget)
-            ? resolvedBudget.ToDictionary()
-            : new Dictionary();
+        if (!TryResolveBudget(unit, queryOptions, out PathSearchBudget resolvedBudget))
+        {
+            return false;
+        }
+        budget = resolvedBudget.ToSnapshot();
+        return true;
     }
 
     private void RebuildSnapshot()
@@ -1976,9 +2047,17 @@ public partial class BattleMovementQueryService : RefCounted
         BattleVirtualBoardOverlay overlay
     )
     {
-        int overlayOverrideCount = overlay != null
-            ? GdInterop.GetInt(overlay.describe(), "override_count")
-            : 0;
+        int overlayOverrideCount = 0;
+        Dictionary overlayDescription = overlay?.describe();
+        int parsedOverrideCount = 0;
+        if (
+            overlayDescription != null
+            && overlayDescription.ContainsKey("override_count")
+            && TryReadNonNegativeInt(overlayDescription["override_count"], out parsedOverrideCount)
+        )
+        {
+            overlayOverrideCount = parsedOverrideCount;
+        }
         Dictionary telemetry = new()
         {
             ["query_kind"] = queryKind,

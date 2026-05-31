@@ -474,8 +474,8 @@ public partial class ProgressionService : RefCounted
     private static int RollProfessionHitDie(int hitDieSides, GDictionary selection)
     {
         int normalizedSides = Mathf.Max(hitDieSides, 1);
-        if (selection != null && GdInterop.TryGet(selection, SELECTION_KEY_HP_ROLL_OVERRIDE, out Variant overrideValue)
-            && overrideValue.VariantType == Variant.Type.Int)
+        Variant overrideValue = ReadValue(selection, SELECTION_KEY_HP_ROLL_OVERRIDE);
+        if (overrideValue.VariantType == Variant.Type.Int)
         {
             return Mathf.Clamp(overrideValue.AsInt32(), 1, normalizedSides);
         }
@@ -1468,9 +1468,9 @@ public partial class ProgressionService : RefCounted
             return;
 
         GDictionary costs = skillDef.combat_profile.get_effective_resource_costs(skillLevel);
-        if (GdInterop.GetInt(costs, "mp_cost") > 0)
+        if (ReadInt(costs, "mp_cost") > 0)
             _unit_progress.unlock_combat_resource(UnitProgress.COMBAT_RESOURCE_MP());
-        if (GdInterop.GetInt(costs, "aura_cost") > 0)
+        if (ReadInt(costs, "aura_cost") > 0)
             _unit_progress.unlock_combat_resource(UnitProgress.COMBAT_RESOURCE_AURA());
     }
 
@@ -1523,5 +1523,23 @@ public partial class ProgressionService : RefCounted
             indexedDefs[indexedId] = professionDef;
         }
         return indexedDefs;
+    }
+
+    private static int ReadInt(GDictionary data, string key, int fallback = 0)
+    {
+        var value = ReadValue(data, key);
+        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+    }
+
+    private static Variant ReadValue(GDictionary data, string key)
+    {
+        if (data == null)
+            return default;
+        if (data.ContainsKey(key))
+            return data[key];
+        var stringNameKey = new StringName(key);
+        if (data.ContainsKey(stringNameKey))
+            return data[stringNameKey];
+        return default;
     }
 }

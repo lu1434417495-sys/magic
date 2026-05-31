@@ -28,10 +28,7 @@ public partial class BattleSpecialProfileCommitAdapter : RefCounted
         }
 
         GDictionary commitPayload = result.to_common_outcome_payload().Duplicate(true);
-        if (
-            GdInterop.GetString(commitPayload, "commit_schema_id", "")
-            != "meteor_swarm_ground_commit"
-        )
+        if (ReadString(commitPayload, "commit_schema_id") != "meteor_swarm_ground_commit")
         {
             return false;
         }
@@ -55,12 +52,8 @@ public partial class BattleSpecialProfileCommitAdapter : RefCounted
             outcome.skill_id = result.plan.skill_id;
         }
 
-        outcome.total_damage = GdInterop.GetInt(commitPayload, "total_damage", result.total_damage);
-        outcome.total_healing = GdInterop.GetInt(
-            commitPayload,
-            "total_healing",
-            result.total_healing
-        );
+        outcome.total_damage = ReadInt(commitPayload, "total_damage", result.total_damage);
+        outcome.total_healing = ReadInt(commitPayload, "total_healing", result.total_healing);
         foreach (StringName unitId in result.changed_unit_ids)
         {
             outcome.add_changed_unit_id(unitId);
@@ -109,5 +102,33 @@ public partial class BattleSpecialProfileCommitAdapter : RefCounted
             outcome.report_entries.Add(reportEntryValue.AsGodotDictionary().Duplicate(true));
         }
         return outcome;
+    }
+
+    private static int ReadInt(GDictionary data, string key, int fallback = 0)
+    {
+        var value = ReadValue(data, key);
+        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+    }
+
+    private static string ReadString(GDictionary data, string key, string fallback = "")
+    {
+        var value = ReadValue(data, key);
+        if (value.VariantType == Variant.Type.String)
+            return value.AsString();
+        if (value.VariantType == Variant.Type.StringName)
+            return value.AsStringName().ToString();
+        return fallback;
+    }
+
+    private static Variant ReadValue(GDictionary data, string key)
+    {
+        if (data == null)
+            return default;
+        if (data.ContainsKey(key))
+            return data[key];
+        var stringNameKey = new StringName(key);
+        if (data.ContainsKey(stringNameKey))
+            return data[stringNameKey];
+        return default;
     }
 }

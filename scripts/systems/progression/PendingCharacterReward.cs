@@ -51,6 +51,24 @@ public partial class PendingCharacterReward : RefCounted
         return true;
     }
 
+    public PendingCharacterReward duplicate_state()
+    {
+        var copy = new PendingCharacterReward
+        {
+            reward_id = reward_id,
+            member_id = member_id,
+            member_name = member_name,
+            source_type = source_type,
+            source_id = source_id,
+            source_label = source_label,
+            summary_text = summary_text,
+        };
+        foreach (var entry in entries)
+            if (entry != null)
+                copy.entries.Add(entry.duplicate_state());
+        return copy;
+    }
+
     public Godot.Collections.Dictionary to_dict()
     {
         var entryData = new Godot.Collections.Array<Godot.Collections.Dictionary>();

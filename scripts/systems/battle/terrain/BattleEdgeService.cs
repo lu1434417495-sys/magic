@@ -35,21 +35,6 @@ public partial class BattleEdgeService : RefCounted
         {
             return;
         }
-        EnsureCellColumns(state);
-        GDictionary runtimeEdgeFaces = GdInterop.GetDictionary(state, "runtime_edge_faces");
-        if (!GdInterop.GetBool(state, "runtime_edges_dirty", true) && runtimeEdgeFaces.Count > 0)
-        {
-            return;
-        }
-        state.Set(
-            "runtime_edge_faces",
-            build_edge_faces_for_cells(
-                GdInterop.GetDictionary(state, "cells"),
-                GdInterop.GetVector2I(state, "map_size"),
-                GdInterop.GetDictionary(state, "cell_columns")
-            )
-        );
-        state.Set("runtime_edges_dirty", false);
     }
 
     public void ensure_runtime_edge_faces(BattleState state)
@@ -82,16 +67,6 @@ public partial class BattleEdgeService : RefCounted
         {
             return;
         }
-        EnsureCellColumns(state);
-        state.Set(
-            "runtime_edge_faces",
-            build_edge_faces_for_cells(
-                GdInterop.GetDictionary(state, "cells"),
-                GdInterop.GetVector2I(state, "map_size"),
-                GdInterop.GetDictionary(state, "cell_columns")
-            )
-        );
-        state.Set("runtime_edges_dirty", false);
     }
 
     public void rebuild_runtime_edge_faces(BattleState state)
@@ -116,7 +91,6 @@ public partial class BattleEdgeService : RefCounted
             mark_runtime_edge_faces_dirty(battleState);
             return;
         }
-        state?.Set("runtime_edges_dirty", true);
     }
 
     public void mark_runtime_edge_faces_dirty(BattleState state)
@@ -138,8 +112,6 @@ public partial class BattleEdgeService : RefCounted
         {
             return;
         }
-        GdInterop.GetDictionary(state, "runtime_edge_faces").Clear();
-        state.Set("runtime_edges_dirty", true);
     }
 
     public void clear_runtime_edge_faces(BattleState state)
@@ -205,19 +177,6 @@ public partial class BattleEdgeService : RefCounted
         {
             return results;
         }
-        ensure_runtime_edge_faces(state);
-        foreach (
-            Variant edgeFaceValue in GdInterop.GetDictionary(state, "runtime_edge_faces").Values
-        )
-        {
-            if (
-                edgeFaceValue.VariantType == Variant.Type.Object
-                && edgeFaceValue.AsGodotObject() is BattleEdgeFaceState edgeFace
-            )
-            {
-                results.Add(edgeFace);
-            }
-        }
         return results;
     }
 
@@ -256,12 +215,7 @@ public partial class BattleEdgeService : RefCounted
         {
             return null;
         }
-        ensure_runtime_edge_faces(state);
-        return get_edge_face_from_cache(
-            GdInterop.GetDictionary(state, "runtime_edge_faces"),
-            from_coord,
-            to_coord
-        );
+        return null;
     }
 
     public BattleEdgeFaceState get_edge_face(
@@ -292,11 +246,7 @@ public partial class BattleEdgeService : RefCounted
         {
             return null;
         }
-        ensure_runtime_edge_faces(state);
-        return GetEdgeFaceFromDictionary(
-            GdInterop.GetDictionary(state, "runtime_edge_faces"),
-            BuildEdgeKey(origin_coord, GetDirectionIndex(direction))
-        );
+        return null;
     }
 
     public BattleEdgeFaceState get_edge_face_by_origin(
@@ -509,20 +459,6 @@ public partial class BattleEdgeService : RefCounted
             return DirectionIndexSouth;
         }
         return DirectionIndexEast;
-    }
-
-    private static void EnsureCellColumns(GodotObject state)
-    {
-        if (state == null)
-        {
-            return;
-        }
-        GDictionary cellColumns = GdInterop.GetDictionary(state, "cell_columns");
-        GDictionary cells = GdInterop.GetDictionary(state, "cells");
-        if (cellColumns.Count == 0 && cells.Count > 0)
-        {
-            state.Set("cell_columns", BattleCellState.build_columns_from_surface_cells(cells));
-        }
     }
 
     private static void EnsureCellColumns(BattleState state)

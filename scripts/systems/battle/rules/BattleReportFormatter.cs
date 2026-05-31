@@ -24,6 +24,98 @@ public partial class BattleReportFormatter : RefCounted
 
     public static readonly StringName TAG_DOOM_SENTENCE = "doom_sentence";
 
+    private sealed class DamageResultSummary
+    {
+        public int Damage;
+        public int Healing;
+        public int ShieldAbsorbed;
+        public bool ShieldBroken;
+        public bool HasDamageEvent;
+        public bool AnyImmune;
+        public bool AnyHalf;
+        public bool AnyDouble;
+        public int FixedMitigationTotal;
+        public Godot.Collections.Array<string> AbsorbLabels = new();
+        public Godot.Collections.Array<string> HalfSourceLabels = new();
+        public Godot.Collections.Array<string> DoubleSourceLabels = new();
+        public Godot.Collections.Array<string> ImmuneSourceLabels = new();
+        public Godot.Collections.Array<string> FixedMitigationSourceLabels = new();
+        public string AbsorbReasonText = "";
+        public string FixedMitigationSourceText = "";
+
+        public Dictionary ToDictionary()
+        {
+            return new Dictionary
+            {
+                ["damage"] = Damage,
+                ["healing"] = Healing,
+                ["shield_absorbed"] = ShieldAbsorbed,
+                ["shield_broken"] = ShieldBroken,
+                ["has_damage_event"] = HasDamageEvent,
+                ["any_immune"] = AnyImmune,
+                ["any_half"] = AnyHalf,
+                ["any_double"] = AnyDouble,
+                ["fixed_mitigation_total"] = FixedMitigationTotal,
+                ["absorb_labels"] = AbsorbLabels,
+                ["half_source_labels"] = HalfSourceLabels,
+                ["double_source_labels"] = DoubleSourceLabels,
+                ["immune_source_labels"] = ImmuneSourceLabels,
+                ["fixed_mitigation_source_labels"] = FixedMitigationSourceLabels,
+                ["absorb_reason_text"] = AbsorbReasonText,
+                ["fixed_mitigation_source_text"] = FixedMitigationSourceText,
+            };
+        }
+
+        public static DamageResultSummary FromDictionary(Dictionary summary)
+        {
+            summary ??= new Dictionary();
+            return new DamageResultSummary
+            {
+                Damage = (int)summary.GetValueOrDefault("damage", 0),
+                Healing = (int)summary.GetValueOrDefault("healing", 0),
+                ShieldAbsorbed = (int)summary.GetValueOrDefault("shield_absorbed", 0),
+                ShieldBroken = DictBool(summary, "shield_broken", false),
+                HasDamageEvent = DictBool(summary, "has_damage_event", false),
+                AnyImmune = DictBool(summary, "any_immune", false),
+                AnyHalf = DictBool(summary, "any_half", false),
+                AnyDouble = DictBool(summary, "any_double", false),
+                FixedMitigationTotal = (int)summary.GetValueOrDefault(
+                    "fixed_mitigation_total",
+                    0
+                ),
+                AbsorbLabels = ReadStringArray(summary, "absorb_labels"),
+                HalfSourceLabels = ReadStringArray(summary, "half_source_labels"),
+                DoubleSourceLabels = ReadStringArray(summary, "double_source_labels"),
+                ImmuneSourceLabels = ReadStringArray(summary, "immune_source_labels"),
+                FixedMitigationSourceLabels = ReadStringArray(
+                    summary,
+                    "fixed_mitigation_source_labels"
+                ),
+                AbsorbReasonText = summary.GetValueOrDefault("absorb_reason_text", "").AsString(),
+                FixedMitigationSourceText = summary
+                    .GetValueOrDefault("fixed_mitigation_source_text", "")
+                    .AsString(),
+            };
+        }
+
+        private static Godot.Collections.Array<string> ReadStringArray(
+            Dictionary source,
+            string key
+        )
+        {
+            var result = new Godot.Collections.Array<string>();
+            if (source == null || !source.ContainsKey(key))
+                return result;
+            foreach (Variant value in source[key].AsGodotArray())
+            {
+                string normalized = value.AsString();
+                if (!string.IsNullOrEmpty(normalized))
+                    result.Add(normalized);
+            }
+            return result;
+        }
+    }
+
     public Dictionary BuildAttackReportEntry(
         BattleUnitState attacker,
         BattleUnitState defender,
@@ -57,7 +149,7 @@ public partial class BattleReportFormatter : RefCounted
             ["critical_source"] = ProgressionDataUtils
                 .to_string_name(attackResult.GetValueOrDefault("critical_source", ""))
                 .ToString(),
-            ["is_disadvantage"] = attackResult.GetValueOrDefault("is_disadvantage", false).AsBool(),
+            ["is_disadvantage"] = DictBool(attackResult, "is_disadvantage", false),
             ["crit_gate_die"] = (int)attackResult.GetValueOrDefault("crit_gate_die", 0),
             ["crit_gate_roll"] = (int)attackResult.GetValueOrDefault("crit_gate_roll", 0),
             ["hit_roll"] = (int)attackResult.GetValueOrDefault("hit_roll", 0),
@@ -76,6 +168,53 @@ public partial class BattleReportFormatter : RefCounted
                 ["effective_luck"] = (int)attackResult.GetValueOrDefault("effective_luck", 0),
                 ["fumble_low_end"] = (int)attackResult.GetValueOrDefault("fumble_low_end", 0),
                 ["crit_threshold"] = (int)attackResult.GetValueOrDefault("crit_threshold", 0),
+            },
+        };
+        entry["text"] = _BuildAttackReportText(entry);
+        return entry;
+    }
+
+    internal Dictionary BuildAttackReportEntry(
+        BattleUnitState attacker,
+        BattleUnitState defender,
+        AttackResolutionMetadata attackMetadata,
+        StringName criticalSource,
+        Godot.Collections.Array<StringName> eventTags
+    )
+    {
+        attackMetadata ??= new AttackResolutionMetadata();
+        var reasonId = _ResolveAttackReasonId(attackMetadata, criticalSource);
+        if (reasonId == "")
+            return new Dictionary();
+        var normalizedTags = _NormalizeStringNameArray(eventTags);
+        var entry = new Dictionary
+        {
+            ["entry_type"] = ENTRY_TYPE_FATE_ATTACK.ToString(),
+            ["reason_id"] = reasonId.ToString(),
+            ["text"] = "",
+            ["event_tags"] = ProgressionDataUtils.string_name_array_to_string_array(normalizedTags),
+            ["attacker_id"] = attacker != null ? attacker.unit_id.ToString() : "",
+            ["attacker_member_id"] = attacker != null ? attacker.source_member_id.ToString() : "",
+            ["attacker_name"] = attacker != null ? attacker.display_name : "",
+            ["defender_id"] = defender != null ? defender.unit_id.ToString() : "",
+            ["defender_member_id"] = defender != null ? defender.source_member_id.ToString() : "",
+            ["defender_name"] = defender != null ? defender.display_name : "",
+            ["defender_is_elite_or_boss"] = _IsEliteOrBoss(defender),
+            ["attack_resolution"] = attackMetadata.AttackResolution.ToString(),
+            ["critical_source"] = criticalSource.ToString(),
+            ["is_disadvantage"] = attackMetadata.IsDisadvantage,
+            ["crit_gate_die"] = attackMetadata.CritGateDie,
+            ["crit_gate_roll"] = attackMetadata.CritGateRoll,
+            ["hit_roll"] = attackMetadata.HitRoll,
+            ["required_roll"] = attackMetadata.RequiredRoll,
+            ["display_required_roll"] = attackMetadata.DisplayRequiredRoll,
+            ["luck_snapshot"] = new Dictionary
+            {
+                ["hidden_luck_at_birth"] = attackMetadata.HiddenLuckAtBirth,
+                ["faith_luck_bonus"] = attackMetadata.FaithLuckBonus,
+                ["effective_luck"] = attackMetadata.EffectiveLuck,
+                ["fumble_low_end"] = attackMetadata.FumbleLowEnd,
+                ["crit_threshold"] = attackMetadata.CritThreshold,
             },
         };
         entry["text"] = _BuildAttackReportText(entry);
@@ -157,29 +296,18 @@ public partial class BattleReportFormatter : RefCounted
 
     public Dictionary SummarizeDamageResult(Dictionary result)
     {
-        var absorbLabels = new Godot.Collections.Array<string>();
-        var halfSourceLabels = new Godot.Collections.Array<string>();
-        var doubleSourceLabels = new Godot.Collections.Array<string>();
-        var immuneSourceLabels = new Godot.Collections.Array<string>();
-        var fixedMitigationSourceLabels = new Godot.Collections.Array<string>();
-        var summary = new Dictionary
+        return BuildDamageResultSummary(result).ToDictionary();
+    }
+
+    private DamageResultSummary BuildDamageResultSummary(Dictionary result)
+    {
+        result ??= new Dictionary();
+        var summary = new DamageResultSummary
         {
-            ["damage"] = (int)result.GetValueOrDefault("damage", 0),
-            ["healing"] = (int)result.GetValueOrDefault("healing", 0),
-            ["shield_absorbed"] = (int)result.GetValueOrDefault("shield_absorbed", 0),
-            ["shield_broken"] = result.GetValueOrDefault("shield_broken", false).AsBool(),
-            ["has_damage_event"] = false,
-            ["any_immune"] = false,
-            ["any_half"] = false,
-            ["any_double"] = false,
-            ["fixed_mitigation_total"] = 0,
-            ["absorb_labels"] = absorbLabels,
-            ["half_source_labels"] = halfSourceLabels,
-            ["double_source_labels"] = doubleSourceLabels,
-            ["immune_source_labels"] = immuneSourceLabels,
-            ["fixed_mitigation_source_labels"] = fixedMitigationSourceLabels,
-            ["absorb_reason_text"] = "",
-            ["fixed_mitigation_source_text"] = "",
+            Damage = (int)result.GetValueOrDefault("damage", 0),
+            Healing = (int)result.GetValueOrDefault("healing", 0),
+            ShieldAbsorbed = (int)result.GetValueOrDefault("shield_absorbed", 0),
+            ShieldBroken = DictBool(result, "shield_broken", false),
         };
         var damageEvents = result.GetValueOrDefault("damage_events", new Godot.Collections.Array())
             .AsGodotArray();
@@ -188,52 +316,53 @@ public partial class BattleReportFormatter : RefCounted
             if (eventValue.VariantType != Variant.Type.Dictionary)
                 continue;
             var evt = eventValue.AsGodotDictionary();
-            summary["has_damage_event"] = true;
-            summary["fixed_mitigation_total"] =
-                (int)summary.GetValueOrDefault("fixed_mitigation_total", 0)
-                + (int)evt.GetValueOrDefault("fixed_mitigation_total", 0);
+            summary.HasDamageEvent = true;
+            summary.FixedMitigationTotal += (int)evt.GetValueOrDefault(
+                "fixed_mitigation_total",
+                0
+            );
             var mitigationTier = ProgressionDataUtils.to_string_name(
                 evt.GetValueOrDefault("mitigation_tier", "")
             );
             switch (mitigationTier)
             {
                 case "immune":
-                    summary["any_immune"] = true;
+                    summary.AnyImmune = true;
                     break;
                 case "half":
-                    summary["any_half"] = true;
+                    summary.AnyHalf = true;
                     break;
                 case "double":
-                    summary["any_double"] = true;
+                    summary.AnyDouble = true;
                     break;
             }
             _AppendDamageMitigationSourceLabels(
                 evt.GetValueOrDefault("mitigation_sources", new Godot.Collections.Array())
                     .AsGodotArray(),
-                halfSourceLabels,
-                doubleSourceLabels,
-                immuneSourceLabels
+                summary.HalfSourceLabels,
+                summary.DoubleSourceLabels,
+                summary.ImmuneSourceLabels
             );
             _AppendDamageFixedSourceLabels(
                 evt.GetValueOrDefault("fixed_mitigation_sources", new Godot.Collections.Array())
                     .AsGodotArray(),
-                fixedMitigationSourceLabels
+                summary.FixedMitigationSourceLabels
             );
             if (
                 (int)evt.GetValueOrDefault("buff_reduction", 0) > 0
                 || (int)evt.GetValueOrDefault("passive_reduction", 0) > 0
                 || (int)evt.GetValueOrDefault("content_dr", 0) > 0
             )
-                _AppendUniqueDamageAbsorbLabel(absorbLabels, "减伤");
+                _AppendUniqueDamageAbsorbLabel(summary.AbsorbLabels, "减伤");
             if (
                 (int)evt.GetValueOrDefault("stance_reduction", 0) > 0
                 || (int)evt.GetValueOrDefault("guard_block", 0) > 0
             )
-                _AppendUniqueDamageAbsorbLabel(absorbLabels, "格挡");
+                _AppendUniqueDamageAbsorbLabel(summary.AbsorbLabels, "格挡");
         }
-        summary["absorb_reason_text"] = BuildDamageAbsorbReasonText(summary);
-        summary["fixed_mitigation_source_text"] = _FormatDamageSourceLabels(
-            (Godot.Collections.Array)fixedMitigationSourceLabels
+        summary.AbsorbReasonText = BuildDamageAbsorbReasonText(summary);
+        summary.FixedMitigationSourceText = _FormatDamageSourceLabels(
+            summary.FixedMitigationSourceLabels
         );
         return summary;
     }
@@ -245,45 +374,30 @@ public partial class BattleReportFormatter : RefCounted
 
     public string BuildDamageAbsorbReasonText(Dictionary summary)
     {
-        if (summary.GetValueOrDefault("any_immune", false).AsBool())
-            return _FormatDamageSourceLabels(
-                summary.GetValueOrDefault("immune_source_labels", new Godot.Collections.Array())
-                    .AsGodotArray(),
-                "免疫"
-            );
+        return BuildDamageAbsorbReasonText(DamageResultSummary.FromDictionary(summary));
+    }
+
+    private string BuildDamageAbsorbReasonText(DamageResultSummary summary)
+    {
+        summary ??= new DamageResultSummary();
+        if (summary.AnyImmune)
+            return _FormatDamageSourceLabels(summary.ImmuneSourceLabels, "免疫");
         var labels = new Godot.Collections.Array<string>();
-        if (summary.GetValueOrDefault("any_half", false).AsBool())
+        if (summary.AnyHalf)
         {
-            var halfSourceText = _FormatDamageSourceLabels(
-                summary.GetValueOrDefault("half_source_labels", new Godot.Collections.Array())
-                    .AsGodotArray()
-            );
+            var halfSourceText = _FormatDamageSourceLabels(summary.HalfSourceLabels);
             labels.Add(string.IsNullOrEmpty(halfSourceText) ? "减半" : halfSourceText);
         }
-        var absorbLabels = summary.GetValueOrDefault("absorb_labels", new Godot.Collections.Array())
-            .AsGodotArray();
-        if (
-            _FormatDamageSourceLabels(
-                summary.GetValueOrDefault(
-                        "fixed_mitigation_source_labels",
-                        new Godot.Collections.Array()
-                    )
-                    .AsGodotArray()
-            ).Length == 0
-        )
+        if (_FormatDamageSourceLabels(summary.FixedMitigationSourceLabels).Length == 0)
         {
-            foreach (var labelValue in absorbLabels)
+            foreach (var label in summary.AbsorbLabels)
             {
-                var label = labelValue.AsString();
                 if (string.IsNullOrEmpty(label))
                     continue;
                 labels.Add(label);
             }
         }
-        var fixedSourceText = _FormatDamageSourceLabels(
-            summary.GetValueOrDefault("fixed_mitigation_source_labels", new Godot.Collections.Array())
-                .AsGodotArray()
-        );
+        var fixedSourceText = _FormatDamageSourceLabels(summary.FixedMitigationSourceLabels);
         if (!string.IsNullOrEmpty(fixedSourceText))
             labels.Add(fixedSourceText);
         if (labels.Count == 0)
@@ -313,12 +427,12 @@ public partial class BattleReportFormatter : RefCounted
             batch.log_lines.Add("目标抵抗死亡律令。");
             return;
         }
-        var summary = SummarizeDamageResult(result);
-        if (!summary.GetValueOrDefault("has_damage_event", false).AsBool())
+        DamageResultSummary summary = BuildDamageResultSummary(result);
+        if (!summary.HasDamageEvent)
             return;
-        var damage = (int)summary.GetValueOrDefault("damage", 0);
-        var shieldAbsorbed = (int)summary.GetValueOrDefault("shield_absorbed", 0);
-        var fixedMitigationTotal = (int)summary.GetValueOrDefault("fixed_mitigation_total", 0);
+        var damage = summary.Damage;
+        var shieldAbsorbed = summary.ShieldAbsorbed;
+        var fixedMitigationTotal = summary.FixedMitigationTotal;
         if (damage > 0)
         {
             var damageLine =
@@ -332,11 +446,11 @@ public partial class BattleReportFormatter : RefCounted
             }
             if (fixedMitigationTotal > 0)
             {
-                var fixedSourceText = summary.GetValueOrDefault("fixed_mitigation_source_text", "")
-                    .AsString();
+                var fixedSourceText = summary.FixedMitigationSourceText;
                 if (string.IsNullOrEmpty(fixedSourceText))
-                    fixedSourceText = summary.GetValueOrDefault("absorb_reason_text", "防护")
-                        .AsString();
+                    fixedSourceText = string.IsNullOrEmpty(summary.AbsorbReasonText)
+                        ? "防护"
+                        : summary.AbsorbReasonText;
                 batch.log_lines.Add(
                     $"{targetDisplayName} 的 {fixedSourceText} 吸收了 {fixedMitigationTotal} 点伤害。"
                 );
@@ -346,12 +460,9 @@ public partial class BattleReportFormatter : RefCounted
         }
         else
         {
-            if (summary.GetValueOrDefault("any_immune", false).AsBool())
+            if (summary.AnyImmune)
             {
-                var immuneSourceText = _FormatDamageSourceLabels(
-                    summary.GetValueOrDefault("immune_source_labels", new Godot.Collections.Array())
-                        .AsGodotArray()
-                );
+                var immuneSourceText = _FormatDamageSourceLabels(summary.ImmuneSourceLabels);
                 if (string.IsNullOrEmpty(immuneSourceText))
                     batch.log_lines.Add(
                         $"{subjectLabel} 命中 {targetDisplayName}，但其免疫该伤害。"
@@ -367,10 +478,10 @@ public partial class BattleReportFormatter : RefCounted
                 );
             else
                 batch.log_lines.Add(
-                    $"{subjectLabel} 命中 {targetDisplayName}，但被 {summary.GetValueOrDefault("absorb_reason_text", "防护")} 完全吸收。"
+                    $"{subjectLabel} 命中 {targetDisplayName}，但被 {(string.IsNullOrEmpty(summary.AbsorbReasonText) ? "防护" : summary.AbsorbReasonText)} 完全吸收。"
                 );
         }
-        if (summary.GetValueOrDefault("shield_broken", false).AsBool())
+        if (summary.ShieldBroken)
             batch.log_lines.Add($"{targetDisplayName} 的护盾被击碎。");
     }
 
@@ -499,7 +610,7 @@ public partial class BattleReportFormatter : RefCounted
             if (eventValue.VariantType != Variant.Type.Dictionary)
                 continue;
             var evt = eventValue.AsGodotDictionary();
-            if (evt.GetValueOrDefault("bypass_shield", false).AsBool())
+            if (DictBool(evt, "bypass_shield", false))
                 return true;
         }
         return false;
@@ -526,8 +637,40 @@ public partial class BattleReportFormatter : RefCounted
             return REASON_ORDINARY_HIT_GATE_DIE_PENDING;
         if (
             attackResolution == "miss"
-            && attackResult.GetValueOrDefault("reverse_fate_downgraded", false).AsBool()
+            && DictBool(attackResult, "reverse_fate_downgraded", false)
         )
+            return REASON_ORDINARY_MISS_FUMBLE_DOWNGRADED;
+        if (attackResolution == "critical_fail")
+            return REASON_CRITICAL_FAIL_FUMBLE_BAND;
+        if (attackResolution == "miss")
+            return REASON_ORDINARY_MISS_THRESHOLD;
+        return "";
+    }
+
+    private StringName _ResolveAttackReasonId(
+        AttackResolutionMetadata attackMetadata,
+        StringName criticalSource
+    )
+    {
+        attackMetadata ??= new AttackResolutionMetadata();
+        var attackResolution = ProgressionDataUtils.to_string_name(
+            attackMetadata.AttackResolution
+        );
+        var normalizedCriticalSource = ProgressionDataUtils.to_string_name(criticalSource);
+        if (attackResolution == "critical_hit")
+        {
+            if (normalizedCriticalSource == "high_threat")
+                return REASON_CRITICAL_SUCCESS_HIGH_THREAT;
+            if (normalizedCriticalSource == "gate_die")
+                return REASON_CRITICAL_SUCCESS_GATE_DIE;
+        }
+        if (
+            attackResolution == "hit"
+            && attackMetadata.HitRoll >= 20
+            && attackMetadata.CritGateDie > 20
+        )
+            return REASON_ORDINARY_HIT_GATE_DIE_PENDING;
+        if (attackResolution == "miss" && attackMetadata.ReverseFateDowngraded)
             return REASON_ORDINARY_MISS_FUMBLE_DOWNGRADED;
         if (attackResolution == "critical_fail")
             return REASON_CRITICAL_FAIL_FUMBLE_BAND;
@@ -690,24 +833,37 @@ public partial class BattleReportFormatter : RefCounted
         return string.Join("、", labels);
     }
 
-    private string _FormatDamageTierLogSuffix(Dictionary summary)
+    private string _FormatDamageSourceLabels(
+        Godot.Collections.Array<string> labelsValue,
+        string fallback = ""
+    )
     {
-        if (summary.GetValueOrDefault("any_double", false).AsBool())
+        if (labelsValue == null)
+            return fallback;
+        var labels = new Godot.Collections.Array<string>();
+        foreach (string label in labelsValue)
         {
-            var doubleSourceText = _FormatDamageSourceLabels(
-                summary.GetValueOrDefault("double_source_labels", new Godot.Collections.Array())
-                    .AsGodotArray()
-            );
+            if (string.IsNullOrEmpty(label) || labels.Contains(label))
+                continue;
+            labels.Add(label);
+        }
+        if (labels.Count == 0)
+            return fallback;
+        return string.Join("、", labels);
+    }
+
+    private string _FormatDamageTierLogSuffix(DamageResultSummary summary)
+    {
+        if (summary != null && summary.AnyDouble)
+        {
+            var doubleSourceText = _FormatDamageSourceLabels(summary.DoubleSourceLabels);
             if (!string.IsNullOrEmpty(doubleSourceText))
                 return $"（因 {doubleSourceText} 触发易伤）";
             return "（触发易伤）";
         }
-        if (summary.GetValueOrDefault("any_half", false).AsBool())
+        if (summary != null && summary.AnyHalf)
         {
-            var halfSourceText = _FormatDamageSourceLabels(
-                summary.GetValueOrDefault("half_source_labels", new Godot.Collections.Array())
-                    .AsGodotArray()
-            );
+            var halfSourceText = _FormatDamageSourceLabels(summary.HalfSourceLabels);
             if (!string.IsNullOrEmpty(halfSourceText))
                 return $"（因 {halfSourceText} 减半后结算）";
             return "（减半后结算）";
@@ -751,4 +907,11 @@ public partial class BattleReportFormatter : RefCounted
         return BattleExecutionRules.is_elite_or_boss_target(unitState);
     }
 
+    private static bool DictBool(Dictionary dictionary, string key, bool fallback)
+    {
+        if (dictionary == null || !dictionary.ContainsKey(key))
+            return fallback;
+        Variant value = dictionary[key];
+        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
+    }
 }

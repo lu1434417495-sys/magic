@@ -20,8 +20,11 @@ public partial class TestSettlementResearchCatalogOverrideService : SettlementRe
     private static GArray DuplicateDictionaryArray(GArray value)
     {
         var result = new GArray();
-        foreach (GDictionary entry in GdInterop.ReadDictionaryItems(value))
+        foreach (Variant entryValue in value)
         {
+            if (entryValue.VariantType != Variant.Type.Dictionary)
+                continue;
+            GDictionary entry = entryValue.AsGodotDictionary();
             result.Add((GDictionary)entry.Duplicate(true));
         }
         return result;

@@ -19,38 +19,75 @@ public partial class RaceTraitResolver : RefCounted
 
     private static void _apply_identity_def_projection(
         BattleUnitState unitState,
-        GodotObject identityDef,
+        RaceDef identityDef,
         Godot.Collections.Array<StringName> traitTarget
     )
     {
         if (identityDef == null)
             return;
 
-        _append_unique_string_names(traitTarget, _get_array_property(identityDef, "trait_ids"));
+        _append_unique_string_names(traitTarget, V(identityDef.trait_ids));
 
         _append_unique_string_names(
             unitState.vision_tags,
-            _get_array_property(identityDef, "vision_tags")
+            V(identityDef.vision_tags)
         );
 
         _append_unique_string_names(
             unitState.proficiency_tags,
-            _get_array_property(identityDef, "proficiency_tags")
+            V(identityDef.proficiency_tags)
         );
 
         _append_unique_string_names(
             unitState.save_advantage_tags,
-            _get_array_property(identityDef, "save_advantage_tags")
+            V(identityDef.save_advantage_tags)
         );
 
         _merge_damage_resistances(
             unitState.damage_resistances,
-            _get_dictionary_property(identityDef, "damage_resistances")
+            identityDef.damage_resistances
         );
 
         _initialize_racial_skill_charges(
             unitState,
-            _get_array_property(identityDef, "racial_granted_skills")
+            V(identityDef.racial_granted_skills)
+        );
+    }
+
+    private static void _apply_identity_def_projection(
+        BattleUnitState unitState,
+        SubraceDef identityDef,
+        Godot.Collections.Array<StringName> traitTarget
+    )
+    {
+        if (identityDef == null)
+            return;
+
+        _append_unique_string_names(traitTarget, V(identityDef.trait_ids));
+
+        _append_unique_string_names(
+            unitState.vision_tags,
+            V(identityDef.vision_tags)
+        );
+
+        _append_unique_string_names(
+            unitState.proficiency_tags,
+            V(identityDef.proficiency_tags)
+        );
+
+        _append_unique_string_names(
+            unitState.save_advantage_tags,
+            V(identityDef.save_advantage_tags)
+        );
+
+        _merge_damage_resistances(
+            unitState.damage_resistances,
+            identityDef.damage_resistances
+        );
+
+        _initialize_racial_skill_charges(
+            unitState,
+            V(identityDef.racial_granted_skills)
         );
     }
 
@@ -82,11 +119,14 @@ public partial class RaceTraitResolver : RefCounted
                 if (!unitState.per_turn_charges.ContainsKey(chargeKey))
                     unitState.per_turn_charges[chargeKey] = chargeCount;
                 else
+                {
+                    int currentChargeCount = unitState.per_turn_charges[chargeKey].AsInt32();
                     unitState.per_turn_charges[chargeKey] = Mathf.Clamp(
-                        unitState.per_turn_charges.GetValueOrDefault(chargeKey, 0).AsInt32(),
+                        currentChargeCount,
                         0,
                         chargeCount
                     );
+                }
             }
         }
     }
@@ -125,33 +165,13 @@ public partial class RaceTraitResolver : RefCounted
         }
     }
 
-    private static Godot.Collections.Array _get_array_property(
-        GodotObject source,
-        string propertyName
-    )
+    private static Godot.Collections.Array V<[MustBeVariant] T>(Godot.Collections.Array<T> values)
     {
-        if (source == null)
-            return new Godot.Collections.Array();
-
-        var rawValue = source.Get(propertyName);
-
-        return rawValue.VariantType == Variant.Type.Array
-            ? rawValue.AsGodotArray()
-            : new Godot.Collections.Array();
-    }
-
-    private static Godot.Collections.Dictionary _get_dictionary_property(
-        GodotObject source,
-        string propertyName
-    )
-    {
-        if (source == null)
-            return new Godot.Collections.Dictionary();
-
-        var rawValue = source.Get(propertyName);
-
-        return rawValue.VariantType == Variant.Type.Dictionary
-            ? rawValue.AsGodotDictionary()
-            : new Godot.Collections.Dictionary();
+        var result = new Godot.Collections.Array();
+        if (values == null)
+            return result;
+        foreach (T value in values)
+            result.Add(Variant.From(value));
+        return result;
     }
 }

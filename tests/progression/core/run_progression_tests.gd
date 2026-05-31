@@ -1179,13 +1179,13 @@ func _test_active_level_trigger_promotion_ignores_invalid_attribute_growth_entri
 		var trigger_skill_id := _prepare_ready_active_level_trigger(
 			member_state.progression,
 			skill_defs,
-			ProgressionDataUtils.to_string_name(case.get("skill_id", ""))
+			StringName(String(case.get("skill_id", "")))
 		)
 		var trigger_skill_def: SkillDef = skill_defs.get(trigger_skill_id) as SkillDef
 		trigger_skill_def.growth_tier = &"basic"
 		trigger_skill_def.attribute_growth_progress = (case.get("growth", {}) as Dictionary).duplicate(true)
 		var profession := _make_test_initial_profession(
-			ProgressionDataUtils.to_string_name("test_invalid_growth_profession_%s" % String(case.get("skill_id", "")))
+			StringName("test_invalid_growth_profession_%s" % String(case.get("skill_id", "")))
 		)
 		var manager := CharacterManagementModule.new()
 		manager.setup(party_state, skill_defs, {profession.profession_id: profession}, {})

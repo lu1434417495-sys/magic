@@ -181,8 +181,8 @@ public partial class CharacterCreationService : RefCounted
         if (payload.ContainsKey((string)at))
             ba.set_attribute_value(at, payload[(string)at].AsInt32());
         if (
-            options.ContainsKey(CreationOptionBakeRerollLuck)
-            && options[CreationOptionBakeRerollLuck].AsBool()
+            TryReadBool(options, CreationOptionBakeRerollLuck, out bool bakeRerollLuck)
+            && bakeRerollLuck
         )
         {
             var asv = new AttributeService();
@@ -250,6 +250,22 @@ public partial class CharacterCreationService : RefCounted
             return false;
         }
         rerollCount = value.AsInt32();
+        return true;
+    }
+
+    private static bool TryReadBool(
+        Godot.Collections.Dictionary data,
+        string key,
+        out bool result
+    )
+    {
+        result = false;
+        if (data == null || !data.ContainsKey(key))
+            return false;
+        Variant value = data[key];
+        if (value.VariantType != Variant.Type.Bool)
+            return false;
+        result = value.AsBool();
         return true;
     }
 

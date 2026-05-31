@@ -290,7 +290,7 @@ public partial class GameSession : Node
         if (readError != (int)Error.Ok)
             return readError;
 
-        if (!GdInterop.TryGet(readResult, "payload", out var payloadValue)
+        if (!TryRead(readResult, "payload", out var payloadValue)
             || payloadValue.VariantType != Variant.Type.Dictionary)
         {
             throw new InvalidOperationException(
@@ -383,7 +383,7 @@ public partial class GameSession : Node
         return get_content_validation_snapshot();
     }
 
-    public bool is_content_validation_ok() => GetBool(_content_validation_snapshot, "ok", false);
+    public bool is_content_validation_ok() => ReadExactBool(_content_validation_snapshot, "ok", false);
 
     public GDictionary log_event(
         string level,
@@ -945,7 +945,7 @@ public partial class GameSession : Node
             return decodeError;
 
         PartyState decodedPartyState =
-            (GdInterop.GetObject(decodeResult, "party_state") ?? new PartyState()) as PartyState
+            (ReadGodotObject(decodeResult, "party_state") ?? new PartyState()) as PartyState
             ?? new PartyState();
         int identityError = _validate_decoded_party_identity_for_save(
             decodedPartyState,
@@ -965,7 +965,7 @@ public partial class GameSession : Node
             generation_config_path
         );
         _generation_config =
-            (GdInterop.GetObject(decodeResult, "generation_config") ?? generation_config)
+            (ReadGodotObject(decodeResult, "generation_config") ?? generation_config)
                 as WorldMapGenerationConfig
             ?? generation_config;
         _world_data = GetDictionary(decodeResult, "world_data").Duplicate(true);
@@ -1295,8 +1295,8 @@ public partial class GameSession : Node
                 indexFile.Close();
                 if (hasIndexPayload)
                 {
-                    GdInterop.TryGet(rawPayloadDict, "version", out var indexVersionValue);
-                    GdInterop.TryGet(rawPayloadDict, "saves", out var savesValue);
+                    TryRead(rawPayloadDict, "version", out var indexVersionValue);
+                    TryRead(rawPayloadDict, "saves", out var savesValue);
                     if (
                         !_is_save_index_integer_value(indexVersionValue)
                         || indexVersionValue.AsInt32() != SaveIndexVersion
@@ -1346,8 +1346,8 @@ public partial class GameSession : Node
         if (!hasIndexPayload)
             return new GDictionaryArray();
 
-        GdInterop.TryGet(rawPayloadDict, "version", out var indexVersionValue);
-        GdInterop.TryGet(rawPayloadDict, "saves", out var savesValue);
+        TryRead(rawPayloadDict, "version", out var indexVersionValue);
+        TryRead(rawPayloadDict, "saves", out var savesValue);
         if (
             !_is_save_index_integer_value(indexVersionValue)
             || indexVersionValue.AsInt32() != SaveIndexVersion
@@ -1398,7 +1398,7 @@ public partial class GameSession : Node
         if (!_save_index_cache_valid)
             return false;
         GDictionary currentSignature = _get_save_index_file_signature();
-        return GetBool(_save_index_cache_signature, "exists") == GetBool(currentSignature, "exists")
+        return ReadExactBool(_save_index_cache_signature, "exists") == ReadExactBool(currentSignature, "exists")
             && GetInt(_save_index_cache_signature, "modified_time", -1)
                 == GetInt(currentSignature, "modified_time", -1)
             && GetInt(_save_index_cache_signature, "size", -1)
@@ -1508,8 +1508,8 @@ public partial class GameSession : Node
         };
         foreach (string key in keys)
         {
-            GdInterop.TryGet(left_entry, key, out var leftVal);
-            GdInterop.TryGet(right_entry, key, out var rightVal);
+            TryRead(left_entry, key, out var leftVal);
+            TryRead(right_entry, key, out var rightVal);
             if (!VariantEquals(leftVal, rightVal))
                 return false;
         }
@@ -1521,7 +1521,7 @@ public partial class GameSession : Node
         GDictionaryArray entries = new();
         if (raw_entries == null)
             return entries;
-        foreach (GDictionary rawEntry in GdInterop.ReadDictionaryItems(raw_entries))
+        foreach (GDictionary rawEntry in ReadDictionaryItems(raw_entries))
         {
             GDictionary entry = _normalize_save_meta(
                 _deserialize_save_index_entry(rawEntry)
@@ -1591,7 +1591,7 @@ public partial class GameSession : Node
             GDictionary readResult = _read_save_payload(savePath, false);
             if (GetInt(readResult, "error", (int)Error.InvalidData) != (int)Error.Ok)
                 continue;
-            if (!GdInterop.TryGet(readResult, "payload", out var payloadValue)
+            if (!TryRead(readResult, "payload", out var payloadValue)
                 || payloadValue.VariantType != Variant.Type.Dictionary)
                 continue;
             GDictionary payload = payloadValue.AsGodotDictionary();
@@ -1616,7 +1616,7 @@ public partial class GameSession : Node
             {
                 if (
                     _validate_decoded_party_identity_for_save(
-                        GdInterop.GetObject(decodeResult, "party_state") as PartyState,
+                        ReadGodotObject(decodeResult, "party_state") as PartyState,
                         GetString(saveMeta, "save_id"),
                         "index_rebuild"
                     ) != (int)Error.Ok
@@ -1636,7 +1636,7 @@ public partial class GameSession : Node
         GDictionaryArray rebuiltEntries = new();
         foreach (var saveMetaValue in rebuiltById.Values)
         {
-            if (GdInterop.TryUnboxToDictionary(saveMetaValue, out GDictionary saveMeta))
+            if (TryUnboxToDictionary(saveMetaValue, out GDictionary saveMeta))
                 rebuiltEntries.Add(saveMeta);
         }
         SortSaveMetaNewestFirst(rebuiltEntries);
@@ -1843,7 +1843,7 @@ public partial class GameSession : Node
         );
         if (
             payload.ContainsKey("active_stage_advancement_modifier_ids")
-            && GdInterop.HasArray(payload, "active_stage_advancement_modifier_ids")
+            && HasArray(payload, "active_stage_advancement_modifier_ids")
         )
             member_state.active_stage_advancement_modifier_ids =
                 ProgressionDataUtils.to_string_name_array(
@@ -1875,7 +1875,7 @@ public partial class GameSession : Node
         );
         if (
             payload.ContainsKey("ascension_started_at_world_step")
-            && GdInterop.HasInt(payload, "ascension_started_at_world_step")
+            && HasInt(payload, "ascension_started_at_world_step")
         )
             member_state.ascension_started_at_world_step = Mathf.Max(
                 payload["ascension_started_at_world_step"].AsInt32(),
@@ -1980,9 +1980,9 @@ public partial class GameSession : Node
     {
         if (payload == null || !payload.ContainsKey(field_name))
             return fallback;
-        if (!GdInterop.HasString(payload, field_name))
+        if (!HasString(payload, field_name))
             return fallback;
-        StringName parsed = GdInterop.GetStringName(payload, field_name);
+        StringName parsed = GetStringName(payload, field_name);
         if (parsed == "" && !allow_empty)
             return fallback;
         return parsed;
@@ -1993,7 +1993,7 @@ public partial class GameSession : Node
         if (
             payload == null
             || !payload.ContainsKey(field_name)
-            || !GdInterop.HasInt(payload, field_name)
+            || !HasInt(payload, field_name)
         )
             return fallback;
         return Mathf.Max(payload[field_name].AsInt32(), 0);
@@ -2456,27 +2456,27 @@ public partial class GameSession : Node
         _active_save_meta = GetDictionary(state, "active_save_meta").Duplicate(true);
         _generation_config_path = GetString(state, "generation_config_path");
         _generation_config =
-            GdInterop.GetObject(state, "generation_config") as WorldMapGenerationConfig;
+            ReadGodotObject(state, "generation_config") as WorldMapGenerationConfig;
         _world_data = GetDictionary(state, "world_data").Duplicate(true);
         _player_coord = GetVector2I(state, "player_coord", Vector2I.Zero);
         _player_faction_id = GetString(state, "player_faction_id", "player");
         _party_state =
-            (GdInterop.GetObject(state, "party_state") ?? new PartyState()) as PartyState
+            (ReadGodotObject(state, "party_state") ?? new PartyState()) as PartyState
             ?? new PartyState();
-        _has_active_world = GetBool(state, "has_active_world", false);
-        _battle_save_lock_enabled = GetBool(state, "battle_save_lock_enabled", false);
-        _battle_save_dirty = GetBool(state, "battle_save_dirty", false);
-        _runtime_save_dirty = GetBool(state, "runtime_save_dirty", false);
+        _has_active_world = ReadExactBool(state, "has_active_world", false);
+        _battle_save_lock_enabled = ReadExactBool(state, "battle_save_lock_enabled", false);
+        _battle_save_dirty = ReadExactBool(state, "battle_save_dirty", false);
+        _runtime_save_dirty = ReadExactBool(state, "runtime_save_dirty", false);
         _runtime_save_dirty_scopes = ProgressionDataUtils.to_string_name_array(
-            GdInterop.GetArray(state, "runtime_save_dirty_scopes")
+            GetArray(state, "runtime_save_dirty_scopes")
         );
         _last_save_error = GetInt(state, "last_save_error", (int)Error.Ok);
         _last_save_error_reason = ProgressionDataUtils.to_string_name(
-            GdInterop.GetString(state, "last_save_error_reason")
+            GetString(state, "last_save_error_reason")
         );
-        _post_decode_save_pending = GetBool(state, "post_decode_save_pending", false);
+        _post_decode_save_pending = ReadExactBool(state, "post_decode_save_pending", false);
         _post_decode_save_reasons = ProgressionDataUtils.to_string_name_array(
-            GdInterop.GetArray(state, "post_decode_save_reasons")
+            GetArray(state, "post_decode_save_reasons")
         );
     }
 
@@ -2704,7 +2704,7 @@ public partial class GameSession : Node
         foreach (string domainId in ContentValidationDomainOrder)
         {
             GDictionary domainSnapshot = GetDictionary(domains, domainId);
-            GArray errorsArray = GdInterop.GetArray(domainSnapshot, "errors");
+            GArray errorsArray = GetArray(domainSnapshot, "errors");
             foreach (var validationErrorValue in errorsArray)
                 _report_content_validation_error(domainId, validationErrorValue.AsString());
         }
@@ -2781,38 +2781,156 @@ public partial class GameSession : Node
 
     private static GDictionary GetDictionary(GDictionary dictionary, object key)
     {
-        return GdInterop.GetDictionary(dictionary, key);
+        if (!TryRead(dictionary, key, out Variant value))
+            return new GDictionary();
+        return value.VariantType == Variant.Type.Dictionary
+            ? value.AsGodotDictionary()
+            : new GDictionary();
     }
 
     private static GArray GetArray(GDictionary dictionary, object key)
     {
-        return GdInterop.GetArray(dictionary, key);
+        if (!TryRead(dictionary, key, out Variant value))
+            return new GArray();
+        return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : new GArray();
     }
 
     private static string GetString(GDictionary dictionary, object key, string fallback = "")
     {
-        return GdInterop.GetString(dictionary, key, fallback);
+        if (!TryRead(dictionary, key, out Variant value))
+            return fallback;
+        return value.VariantType switch
+        {
+            Variant.Type.String => value.AsString(),
+            Variant.Type.StringName => value.AsStringName().ToString(),
+            _ => fallback,
+        };
+    }
+
+    private static StringName GetStringName(
+        GDictionary dictionary,
+        object key,
+        StringName fallback = default
+    )
+    {
+        if (!TryRead(dictionary, key, out Variant value))
+            return fallback ?? new StringName("");
+        return value.VariantType switch
+        {
+            Variant.Type.StringName => value.AsStringName(),
+            Variant.Type.String => new StringName(value.AsString()),
+            _ => fallback ?? new StringName(""),
+        };
     }
 
     private static int GetInt(GDictionary dictionary, object key, int fallback = 0)
     {
-        return GdInterop.GetInt(dictionary, key, fallback);
+        if (!TryRead(dictionary, key, out Variant value))
+            return fallback;
+        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
     }
 
-    private static bool GetBool(GDictionary dictionary, object key, bool fallback = false)
+    private static bool ReadExactBool(GDictionary dictionary, object key, bool fallback = false)
     {
-        return GdInterop.GetBool(dictionary, key, fallback);
+        if (!TryRead(dictionary, key, out Variant value))
+            return fallback;
+        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
     }
 
     private static Vector2I GetVector2I(GDictionary dictionary, object key, Vector2I fallback)
     {
-        return GdInterop.GetVector2I(dictionary, key, fallback);
+        if (!TryRead(dictionary, key, out Variant value))
+            return fallback;
+        return value.VariantType == Variant.Type.Vector2I ? value.AsVector2I() : fallback;
     }
 
     private static T GetObject<T>(GDictionary dictionary, object key)
         where T : GodotObject
     {
-        return GdInterop.GetObject(dictionary, key) as T;
+        return ReadGodotObject(dictionary, key) as T;
+    }
+
+    private static bool TryRead(GDictionary dictionary, object key, out Variant value)
+    {
+        if (dictionary == null || key == null)
+        {
+            value = default;
+            return false;
+        }
+        Variant variantKey = key switch
+        {
+            Variant valueKey => valueKey,
+            string stringKey => stringKey,
+            StringName stringNameKey => stringNameKey,
+            int intKey => intKey,
+            long longKey => longKey,
+            _ => default,
+        };
+        if (dictionary.ContainsKey(variantKey))
+        {
+            value = dictionary[variantKey];
+            return true;
+        }
+        if (variantKey.VariantType == Variant.Type.String)
+        {
+            StringName stringNameKey = new(variantKey.AsString());
+            if (dictionary.ContainsKey(stringNameKey))
+            {
+                value = dictionary[stringNameKey];
+                return true;
+            }
+        }
+        else if (variantKey.VariantType == Variant.Type.StringName)
+        {
+            string stringKey = variantKey.AsStringName().ToString();
+            if (dictionary.ContainsKey(stringKey))
+            {
+                value = dictionary[stringKey];
+                return true;
+            }
+        }
+        value = default;
+        return false;
+    }
+
+    private static bool HasArray(GDictionary dictionary, object key) =>
+        TryRead(dictionary, key, out Variant value) && value.VariantType == Variant.Type.Array;
+
+    private static bool HasInt(GDictionary dictionary, object key) =>
+        TryRead(dictionary, key, out Variant value) && value.VariantType == Variant.Type.Int;
+
+    private static bool HasString(GDictionary dictionary, object key) =>
+        TryRead(dictionary, key, out Variant value)
+        && (
+            value.VariantType == Variant.Type.String
+            || value.VariantType == Variant.Type.StringName
+        );
+
+    private static bool TryUnboxToDictionary(Variant value, out GDictionary dictionary)
+    {
+        if (value.VariantType == Variant.Type.Dictionary)
+        {
+            dictionary = value.AsGodotDictionary();
+            return true;
+        }
+        dictionary = default;
+        return false;
+    }
+
+    private static GodotObject ReadGodotObject(GDictionary dictionary, object key)
+    {
+        if (!TryRead(dictionary, key, out Variant value))
+            return null;
+        return value.VariantType == Variant.Type.Object ? value.AsGodotObject() : null;
+    }
+
+    private static IEnumerable<GDictionary> ReadDictionaryItems(GArray values)
+    {
+        foreach (Variant value in values ?? new GArray())
+        {
+            if (value.VariantType == Variant.Type.Dictionary)
+                yield return value.AsGodotDictionary();
+        }
     }
 
     private static GArray ToUntypedArray(GDictionaryArray entries)
@@ -2853,10 +2971,31 @@ public partial class GameSession : Node
             entries.Add(entry);
     }
 
+    private static Variant ToVariant(object value)
+    {
+        return value switch
+        {
+            null => default,
+            Variant variantValue => variantValue,
+            bool boolValue => boolValue,
+            int intValue => intValue,
+            long longValue => longValue,
+            float floatValue => floatValue,
+            double doubleValue => doubleValue,
+            string stringValue => stringValue,
+            StringName stringNameValue => stringNameValue,
+            Vector2I vectorValue => vectorValue,
+            GDictionary dictionaryValue => dictionaryValue,
+            GArray arrayValue => arrayValue,
+            GodotObject objectValue => objectValue,
+            _ => value.ToString(),
+        };
+    }
+
     private static bool VariantEquals(object leftValue, object rightValue)
     {
-        var left = GdInterop.ToVariant(leftValue);
-        var right = GdInterop.ToVariant(rightValue);
+        var left = ToVariant(leftValue);
+        var right = ToVariant(rightValue);
         if (left.VariantType != right.VariantType)
             return false;
         return left.Obj == right.Obj;

@@ -24,11 +24,16 @@ public partial class AscensionApplyService : RefCounted
             || currentWorldStep < 0
         )
             return false;
-        var ascensionDef =
-            _get_content_def("ascension_defs", "ascension", ascensionId) as AscensionDef;
-        var stageDef =
-            _get_content_def("ascension_stage_defs", "ascension_stage", ascensionStageId)
-            as AscensionStageDef;
+        AscensionDef ascensionDef = _get_content_def<AscensionDef>(
+            "ascension_defs",
+            "ascension",
+            ascensionId
+        );
+        AscensionStageDef stageDef = _get_content_def<AscensionStageDef>(
+            "ascension_stage_defs",
+            "ascension_stage",
+            ascensionStageId
+        );
         if (!_is_valid_ascension_stage_pair(ascensionDef, stageDef, ascensionId, ascensionStageId))
             return false;
         if (!_member_matches_allowed_identity(memberState, ascensionDef))
@@ -106,17 +111,17 @@ public partial class AscensionApplyService : RefCounted
         return true;
     }
 
-    private GodotObject _get_content_def(
+    private T _get_content_def<T>(
         string primaryBucket,
         string aliasBucket,
         StringName entryId
-    )
+    ) where T : class
     {
         if (entryId == "")
             return null;
         var bucket = _get_content_bucket(primaryBucket, aliasBucket);
         return bucket != null && bucket.ContainsKey(entryId)
-            ? bucket[entryId].AsGodotObject()
+            ? bucket[entryId].AsGodotObject() as T
             : null;
     }
 

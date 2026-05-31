@@ -24,26 +24,56 @@ public partial class BattleMagicBacklashResolver : RefCounted
         BattleEventBatch batch = null
     )
     {
-        GDictionary result = new()
-        {
-            ["skip_effects"] = false,
-            ["backlash_triggered"] = false,
-            ["fumble_protected"] = false,
-            ["mp_refund"] = 0,
-            ["extra_mp_drained"] = 0,
-            ["spell_control"] = control_metadata?.Duplicate(true) ?? new GDictionary(),
-        };
+        return apply_spell_control_after_cost_result(
+            source_unit,
+            skill_def,
+            skill_level,
+            spent_mp,
+            control_metadata,
+            batch
+        ).ToDictionary();
+    }
+
+    public BattleSpellControlResult apply_spell_control_after_cost_result(
+        BattleUnitState source_unit,
+        SkillDef skill_def,
+        int skill_level,
+        int spent_mp,
+        GDictionary control_metadata,
+        BattleEventBatch batch = null
+    )
+    {
+        return apply_spell_control_after_cost_result(
+            source_unit,
+            skill_def,
+            skill_level,
+            spent_mp,
+            BattleSpellControlMetadata.FromDictionary(control_metadata),
+            batch
+        );
+    }
+
+    public BattleSpellControlResult apply_spell_control_after_cost_result(
+        BattleUnitState source_unit,
+        SkillDef skill_def,
+        int skill_level,
+        int spent_mp,
+        BattleSpellControlMetadata control_metadata,
+        BattleEventBatch batch = null
+    )
+    {
+        BattleSpellControlResult result = BattleSpellControlResult.None(control_metadata);
 
         CombatSkillDef combatProfile = GetCombatProfile(skill_def);
         if (
             source_unit == null
             || combatProfile == null
             || control_metadata == null
-            || control_metadata.Count == 0
+            || !control_metadata.HasPayload
         )
             return result;
 
-        if (GdInterop.GetBool(control_metadata, "reverse_fate_downgraded"))
+        if (control_metadata.ReverseFateDowngraded)
         {
             AppendLog(
                 batch,
@@ -52,19 +82,18 @@ public partial class BattleMagicBacklashResolver : RefCounted
             return result;
         }
 
-        if (GdInterop.GetBool(control_metadata, "critical_hit"))
+        if (control_metadata.CriticalHit)
         {
             int refund = ApplySpellCriticalBonus(source_unit, skill_def, spent_mp);
-            result["mp_refund"] = refund;
             if (refund > 0)
                 AppendLog(
                     batch,
                     $"{UnitLabel(source_unit)} 的魔力回路大成功，返还 {refund} 点法力。"
                 );
-            return result;
+            return result with { MpRefund = refund };
         }
 
-        if (!GdInterop.GetBool(control_metadata, "critical_fail"))
+        if (!control_metadata.CriticalFail)
             return result;
 
         int protectionLimit = combatProfile.get_fumble_protection_limit(skill_level);
@@ -73,19 +102,20 @@ public partial class BattleMagicBacklashResolver : RefCounted
         {
             SetFumbleProtectionUsed(source_unit, skill_def.skill_id, protectionUsed + 1);
             int drained = ApplyFumbleProtectionMpDrain(source_unit, skill_def, spent_mp);
-            result["skip_effects"] = true;
-            result["fumble_protected"] = true;
-            result["extra_mp_drained"] = drained;
             AppendLog(
                 batch,
                 $"{UnitLabel(source_unit)} 压制了魔力大失败，本场 {SkillLabel(skill_def)} 保护次数 {protectionUsed + 1}/{protectionLimit}，额外吞噬 {drained} 点法力。"
             );
-            return result;
+            return result with
+            {
+                SkipEffects = true,
+                FumbleProtected = true,
+                ExtraMpDrained = drained,
+            };
         }
 
-        result["backlash_triggered"] = true;
         AppendLog(batch, $"{UnitLabel(source_unit)} 的魔力控制大失败，法术落点开始偏移。");
-        return result;
+        return result with { BacklashTriggered = true };
     }
 
     public GDictionary build_ground_backlash_target_coords(
@@ -96,18 +126,34 @@ public partial class BattleMagicBacklashResolver : RefCounted
         GDictionary control_context
     )
     {
-        Godot.Collections.Array<Vector2I> safeTargetCoords = DuplicateCoords(target_coords);
-        GDictionary result = new()
-        {
-            ["target_coords"] = safeTargetCoords,
-            ["backlash_triggered"] = GdInterop.GetBool(control_context, "backlash_triggered"),
-            ["original_target_coord"] = new Vector2I(-1, -1),
-            ["resolved_target_coord"] = new Vector2I(-1, -1),
-            ["offset_delta"] = Vector2I.Zero,
-            ["backlash_offset_fallback"] = false,
-        };
+        return build_ground_backlash_target_coords_result(
+            skill_def,
+            target_coords,
+            state,
+            grid_service,
+            ToSpellControlResult(control_context)
+        ).ToDictionary();
+    }
 
-        if (!GdInterop.GetBool(result, "backlash_triggered"))
+    public BattleGroundBacklashTargetResult build_ground_backlash_target_coords_result(
+        SkillDef skill_def,
+        Godot.Collections.Array<Vector2I> target_coords,
+        BattleState state,
+        BattleGridService grid_service,
+        BattleSpellControlResult control_context
+    )
+    {
+        Godot.Collections.Array<Vector2I> safeTargetCoords = DuplicateCoords(target_coords);
+        BattleGroundBacklashTargetResult result = new(
+            ToVector2IList(safeTargetCoords),
+            control_context.BacklashTriggered,
+            new Vector2I(-1, -1),
+            new Vector2I(-1, -1),
+            Vector2I.Zero,
+            false
+        );
+
+        if (!result.BacklashTriggered)
             return result;
 
         CombatSkillDef combatProfile = GetCombatProfile(skill_def);
@@ -116,18 +162,19 @@ public partial class BattleMagicBacklashResolver : RefCounted
 
         if (state == null || grid_service == null || safeTargetCoords.Count != 1)
         {
-            result["backlash_offset_fallback"] = true;
-            return result;
+            return result with { BacklashOffsetFallback = true };
         }
 
         int radius = Mathf.Max(combatProfile.backlash_offset_radius, 0);
         Vector2I originalCoord = safeTargetCoords[0];
-        result["original_target_coord"] = originalCoord;
+        result = result with { OriginalTargetCoord = originalCoord };
         if (radius <= 0)
         {
-            result["resolved_target_coord"] = originalCoord;
-            result["backlash_offset_fallback"] = true;
-            return result;
+            return result with
+            {
+                ResolvedTargetCoord = originalCoord,
+                BacklashOffsetFallback = true,
+            };
         }
 
         List<Vector2I> candidates = CollectGroundAnchorDriftCandidates(
@@ -138,17 +185,21 @@ public partial class BattleMagicBacklashResolver : RefCounted
         );
         if (candidates.Count == 0)
         {
-            result["resolved_target_coord"] = originalCoord;
-            result["backlash_offset_fallback"] = true;
-            return result;
+            return result with
+            {
+                ResolvedTargetCoord = originalCoord,
+                BacklashOffsetFallback = true,
+            };
         }
 
         int pickedIndex = TrueRandomSeedService.randi_range(0, candidates.Count - 1);
         Vector2I resolvedCoord = candidates[pickedIndex];
-        result["target_coords"] = new Godot.Collections.Array<Vector2I> { resolvedCoord };
-        result["resolved_target_coord"] = resolvedCoord;
-        result["offset_delta"] = resolvedCoord - originalCoord;
-        return result;
+        return result with
+        {
+            TargetCoords = new[] { resolvedCoord },
+            ResolvedTargetCoord = resolvedCoord,
+            OffsetDelta = resolvedCoord - originalCoord,
+        };
     }
 
     public void append_ground_backlash_log(
@@ -158,21 +209,31 @@ public partial class BattleMagicBacklashResolver : RefCounted
         BattleEventBatch batch
     )
     {
-        if (batch == null || !GdInterop.GetBool(drift_context, "backlash_triggered"))
+        append_ground_backlash_log(
+            source_unit,
+            skill_def,
+            ToGroundBacklashTargetResult(drift_context),
+            batch
+        );
+    }
+
+    public void append_ground_backlash_log(
+        BattleUnitState source_unit,
+        SkillDef skill_def,
+        BattleGroundBacklashTargetResult drift_context,
+        BattleEventBatch batch
+    )
+    {
+        if (batch == null || !drift_context.BacklashTriggered)
             return;
 
-        Vector2I originalCoord = GdInterop.GetVector2I(
-            drift_context,
-            "original_target_coord",
-            new Vector2I(-1, -1)
-        );
-        Vector2I resolvedCoord = GdInterop.GetVector2I(
-            drift_context,
-            "resolved_target_coord",
-            originalCoord
-        );
+        Vector2I originalCoord = drift_context.OriginalTargetCoord;
+        Vector2I resolvedCoord =
+            drift_context.ResolvedTargetCoord != new Vector2I(-1, -1)
+                ? drift_context.ResolvedTargetCoord
+                : originalCoord;
         if (
-            GdInterop.GetBool(drift_context, "backlash_offset_fallback")
+            drift_context.BacklashOffsetFallback
             || originalCoord == resolvedCoord
         )
         {
@@ -278,9 +339,9 @@ public partial class BattleMagicBacklashResolver : RefCounted
 
     private static int GetFumbleProtectionUsed(BattleUnitState sourceUnit, StringName skillId)
     {
-        if (sourceUnit == null || GdInterop.IsEmpty(skillId))
+        if (sourceUnit == null || IsEmpty(skillId))
             return 0;
-        return Mathf.Max(GdInterop.GetInt(sourceUnit.fumble_protection_used, skillId), 0);
+        return Mathf.Max(ReadInt(sourceUnit.fumble_protection_used, skillId), 0);
     }
 
     private static void SetFumbleProtectionUsed(
@@ -289,7 +350,7 @@ public partial class BattleMagicBacklashResolver : RefCounted
         int value
     )
     {
-        if (sourceUnit == null || GdInterop.IsEmpty(skillId))
+        if (sourceUnit == null || IsEmpty(skillId))
             return;
         sourceUnit.fumble_protection_used[skillId] = Mathf.Max(value, 0);
     }
@@ -321,7 +382,7 @@ public partial class BattleMagicBacklashResolver : RefCounted
             return "法术";
         if (!string.IsNullOrEmpty(skillDef.display_name.StripEdges()))
             return skillDef.display_name;
-        if (!GdInterop.IsEmpty(skillDef.skill_id))
+        if (!IsEmpty(skillDef.skill_id))
             return skillDef.skill_id.ToString();
         return "法术";
     }
@@ -342,4 +403,35 @@ public partial class BattleMagicBacklashResolver : RefCounted
             result.Add(value);
         return result;
     }
+
+    private static List<Vector2I> ToVector2IList(Godot.Collections.Array<Vector2I> values)
+    {
+        var result = new List<Vector2I>();
+        if (values == null)
+            return result;
+        foreach (Vector2I value in values)
+            result.Add(value);
+        return result;
+    }
+
+    private static BattleSpellControlResult ToSpellControlResult(GDictionary data) =>
+        BattleSpellControlResult.FromDictionary(data);
+
+    private static BattleGroundBacklashTargetResult ToGroundBacklashTargetResult(
+        GDictionary data
+    ) => BattleGroundBacklashTargetResult.FromDictionary(data);
+
+    private static bool IsEmpty(StringName value)
+    {
+        return value == null || value == "";
+    }
+
+    private static int ReadInt(GDictionary data, StringName key, int fallback = 0)
+    {
+        if (data == null || IsEmpty(key) || !data.ContainsKey(key))
+            return fallback;
+        var value = data[key];
+        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+    }
+
 }

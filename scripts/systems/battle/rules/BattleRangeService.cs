@@ -227,8 +227,7 @@ public partial class BattleRangeService : RefCounted
 
     public static bool effect_uses_weapon_physical_damage_tag(CombatEffectDef effect_def)
     {
-        return effect_def != null
-            && GdInterop.GetBool(effect_def.@params, "use_weapon_physical_damage_tag");
+        return effect_def?.use_weapon_physical_damage_tag ?? false;
     }
 
     public static bool effect_requires_weapon(CombatEffectDef effect_def)
@@ -315,7 +314,7 @@ public partial class BattleRangeService : RefCounted
         {
             return 0;
         }
-        int skillLevel = GdInterop.GetInt(unitState.known_skill_level_map, skillId, 0);
+        int skillLevel = ReadInt(unitState.known_skill_level_map, skillId);
         if (skillLevel > 0)
         {
             return skillLevel;
@@ -325,7 +324,7 @@ public partial class BattleRangeService : RefCounted
 
     private static bool EffectRequiresWeapon(CombatEffectDef effectDef)
     {
-        return effectDef != null && GdInterop.GetBool(effectDef.@params, "requires_weapon");
+        return effectDef?.requires_weapon ?? false;
     }
 
     private static bool EffectListRequiresWeapon(
@@ -438,7 +437,7 @@ public partial class BattleRangeService : RefCounted
 
     private static StatusEffectData BuildStatusEffectData(int power, GDictionary parameters)
     {
-        int rangeBonus = GdInterop.GetInt(parameters, "range_bonus", power);
+        int rangeBonus = ReadInt(parameters, "range_bonus", power);
         return new StatusEffectData(power, rangeBonus);
     }
 
@@ -454,7 +453,7 @@ public partial class BattleRangeService : RefCounted
             StringName key = ToStringName(keyValue);
             if (!IsEmpty(key))
             {
-                result[key] = GdInterop.GetInt(rawMap, keyValue);
+                result[key] = ReadInt(rawMap, keyValue);
             }
         }
         return result;
@@ -570,6 +569,44 @@ public partial class BattleRangeService : RefCounted
     {
         return rawValue == null
             || rawValue is Variant variant && variant.VariantType == Variant.Type.Nil;
+    }
+
+    private static int ReadInt(GDictionary data, object key, int fallback = 0)
+    {
+        var value = ReadValue(data, key);
+        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+    }
+
+    private static Variant ReadValue(GDictionary data, object key)
+    {
+        if (data == null || key == null)
+            return default;
+        Variant variantKey = key switch
+        {
+            Variant valueKey => valueKey,
+            StringName stringNameKey => stringNameKey,
+            string stringKey => stringKey,
+            int intKey => intKey,
+            long longKey => longKey,
+            _ => default,
+        };
+        if (variantKey.VariantType == Variant.Type.Nil)
+            return default;
+        if (data.ContainsKey(variantKey))
+            return data[variantKey];
+        if (variantKey.VariantType == Variant.Type.String)
+        {
+            var stringNameKey = new StringName(variantKey.AsString());
+            if (data.ContainsKey(stringNameKey))
+                return data[stringNameKey];
+        }
+        else if (variantKey.VariantType == Variant.Type.StringName)
+        {
+            string stringKey = variantKey.AsStringName().ToString();
+            if (data.ContainsKey(stringKey))
+                return data[stringKey];
+        }
+        return default;
     }
 
     private static bool IsEmpty(StringName value)

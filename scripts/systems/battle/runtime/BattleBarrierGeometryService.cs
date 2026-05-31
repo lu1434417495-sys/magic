@@ -4,6 +4,21 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
+public readonly record struct BattleBarrierFootprintTransition(
+    bool CrossesBoundary,
+    bool FromInside,
+    bool ToInside
+)
+{
+    public GDictionary ToDictionary() =>
+        new()
+        {
+            ["crosses_boundary"] = CrossesBoundary,
+            ["from_inside"] = FromInside,
+            ["to_inside"] = ToInside,
+        };
+}
+
 [GlobalClass]
 public partial class BattleBarrierGeometryService : RefCounted
 {
@@ -14,15 +29,25 @@ public partial class BattleBarrierGeometryService : RefCounted
         GArray barrier_coords
     )
     {
-        HashSet<Vector2I> barrierLookup = CoordLookup(barrier_coords);
-        bool fromInside = FootprintOverlapsLookup(from_footprint, barrierLookup);
-        bool toInside = FootprintOverlapsLookup(to_footprint, barrierLookup);
-        return new GDictionary
-        {
-            ["crosses_boundary"] = fromInside != toInside,
-            ["from_inside"] = fromInside,
-            ["to_inside"] = toInside,
-        };
+        return ClassifyFootprintTransition(
+            state,
+            from_footprint,
+            to_footprint,
+            barrier_coords
+        ).ToDictionary();
+    }
+
+    public BattleBarrierFootprintTransition ClassifyFootprintTransition(
+        BattleState state,
+        GArray fromFootprint,
+        GArray toFootprint,
+        GArray barrierCoords
+    )
+    {
+        HashSet<Vector2I> barrierLookup = CoordLookup(barrierCoords);
+        bool fromInside = FootprintOverlapsLookup(fromFootprint, barrierLookup);
+        bool toInside = FootprintOverlapsLookup(toFootprint, barrierLookup);
+        return new BattleBarrierFootprintTransition(fromInside != toInside, fromInside, toInside);
     }
 
     public bool line_crosses_barrier_area(

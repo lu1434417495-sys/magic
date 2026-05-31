@@ -83,27 +83,23 @@ public partial class AgeContentRegistry : IdentityContentRegistryBase
         _append_string_name_field_error(errors, ownerLabel, "profile_id", profileDef.profile_id);
         _append_string_name_field_error(errors, ownerLabel, "race_id", profileDef.race_id);
 
-        var ageFields = new string[]
+        var ageFields = new (string Label, int Value)[]
         {
-            "child_age",
-            "teen_age",
-            "young_adult_age",
-            "adult_age",
-            "middle_age",
-            "old_age",
-            "venerable_age",
-            "max_natural_age",
+            ("child_age", profileDef.child_age),
+            ("teen_age", profileDef.teen_age),
+            ("young_adult_age", profileDef.young_adult_age),
+            ("adult_age", profileDef.adult_age),
+            ("middle_age", profileDef.middle_age),
+            ("old_age", profileDef.old_age),
+            ("venerable_age", profileDef.venerable_age),
+            ("max_natural_age", profileDef.max_natural_age),
         };
         var previousValue = -1;
         var previousField = "";
-        foreach (var fieldLabel in ageFields)
+        foreach (var field in ageFields)
         {
-            var value = profileDef.Get(fieldLabel);
-            if (value.VariantType != Variant.Type.Int)
-                errors.Add($"{ownerLabel}.{fieldLabel} must be an int.");
-            if (value.VariantType != Variant.Type.Int)
-                continue;
-            var intValue = value.AsInt32();
+            string fieldLabel = field.Label;
+            int intValue = field.Value;
             if (intValue < 0)
                 errors.Add($"{ownerLabel}.{fieldLabel} must be >= 0.");
             else if (previousValue >= 0 && intValue < previousValue)
@@ -114,9 +110,7 @@ public partial class AgeContentRegistry : IdentityContentRegistryBase
             previousField = fieldLabel;
         }
 
-        var maxNaturalAgeValue = profileDef.Get("max_natural_age");
-        var maxNaturalAgeInt =
-            maxNaturalAgeValue.VariantType == Variant.Type.Int ? maxNaturalAgeValue.AsInt32() : -1;
+        int maxNaturalAgeInt = profileDef.max_natural_age;
         _append_age_stage_rule_errors(errors, ownerLabel, V(profileDef.stage_rules), "stage_rules");
 
         var selectableStageIds = new Godot.Collections.Dictionary();

@@ -243,7 +243,7 @@ public partial class RuntimeLogDock : PanelContainer
     private static List<DisplayLogEntry> _build_runtime_log_entries(GArray entries)
     {
         var displayEntries = new List<DisplayLogEntry>();
-        foreach (GDictionary entry in GdInterop.ReadDictionaryItems(entries))
+        foreach (GDictionary entry in ReadDictionaryItems(entries))
         {
             string message = DictString(entry, "message", "").StripEdges();
             if (string.IsNullOrEmpty(message))
@@ -456,22 +456,47 @@ public partial class RuntimeLogDock : PanelContainer
 
     private static GArray DictArray(GDictionary dict, string key)
     {
-        if (dict == null || !dict.ContainsKey(key))
+        if (!TryRead(dict, key, out Variant value) || value.VariantType != Variant.Type.Array)
             return new GArray();
-        return GdInterop.GetArray(dict, key);
+        return value.AsGodotArray();
     }
 
     private static string DictString(GDictionary dict, string key, string defaultValue)
     {
-        if (dict == null || !dict.ContainsKey(key))
+        if (!TryRead(dict, key, out Variant value))
             return defaultValue;
-        return dict[key].AsString();
+        return value.VariantType switch
+        {
+            Variant.Type.String => value.AsString(),
+            Variant.Type.StringName => value.AsStringName().ToString(),
+            _ => defaultValue,
+        };
     }
 
     private static int DictInt(GDictionary dict, string key, int defaultValue)
     {
-        if (dict == null || !dict.ContainsKey(key))
+        if (!TryRead(dict, key, out Variant value) || value.VariantType != Variant.Type.Int)
             return defaultValue;
-        return dict[key].AsInt32();
+        return value.AsInt32();
+    }
+
+    private static IEnumerable<GDictionary> ReadDictionaryItems(GArray items)
+    {
+        if (items == null)
+            yield break;
+        foreach (Variant item in items)
+        {
+            if (item.VariantType == Variant.Type.Dictionary)
+                yield return item.AsGodotDictionary();
+        }
+    }
+
+    private static bool TryRead(GDictionary dict, string key, out Variant value)
+    {
+        value = default;
+        if (dict == null || !dict.ContainsKey(key))
+            return false;
+        value = dict[key];
+        return value.VariantType != Variant.Type.Nil;
     }
 }

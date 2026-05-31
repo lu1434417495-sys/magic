@@ -18,11 +18,16 @@ public partial class BloodlineApplyService : RefCounted
     {
         if (memberState == null || bloodlineId == "" || bloodlineStageId == "")
             return false;
-        var bloodlineDef =
-            _get_content_def("bloodline_defs", "bloodline", bloodlineId) as BloodlineDef;
-        var stageDef =
-            _get_content_def("bloodline_stage_defs", "bloodline_stage", bloodlineStageId)
-            as BloodlineStageDef;
+        BloodlineDef bloodlineDef = _get_content_def<BloodlineDef>(
+            "bloodline_defs",
+            "bloodline",
+            bloodlineId
+        );
+        BloodlineStageDef stageDef = _get_content_def<BloodlineStageDef>(
+            "bloodline_stage_defs",
+            "bloodline_stage",
+            bloodlineStageId
+        );
         if (!_is_valid_bloodline_stage_pair(bloodlineDef, stageDef, bloodlineId, bloodlineStageId))
             return false;
         memberState.bloodline_id = bloodlineId;
@@ -59,17 +64,17 @@ public partial class BloodlineApplyService : RefCounted
         return bloodlineDef.stage_ids.Contains(bloodlineStageId);
     }
 
-    private GodotObject _get_content_def(
+    private T _get_content_def<T>(
         string primaryBucket,
         string aliasBucket,
         StringName entryId
-    )
+    ) where T : class
     {
         if (entryId == "")
             return null;
         var bucket = _get_content_bucket(primaryBucket, aliasBucket);
         return bucket != null && bucket.ContainsKey(entryId)
-            ? bucket[entryId].AsGodotObject()
+            ? bucket[entryId].AsGodotObject() as T
             : null;
     }
 

@@ -17,7 +17,7 @@ public partial class EquipmentEntryState : RefCounted
     {
         if (instance == null)
             return false;
-        var ni = EquipmentInstanceState.from_dict(instance.to_dict());
+        var ni = instance.duplicate_state();
         if (ni == null)
             return false;
         if (ni.item_id == "" || ni.instance_id == "")
@@ -32,7 +32,14 @@ public partial class EquipmentEntryState : RefCounted
     {
         if (is_empty())
             return new EquipmentEntryState();
-        return from_dict(to_dict());
+        var entry = new EquipmentEntryState();
+        if (!entry.set_equipment_instance(equipment_instance))
+            return new EquipmentEntryState();
+        foreach (StringName slotId in occupied_slot_ids)
+        {
+            entry.occupied_slot_ids.Add(slotId);
+        }
+        return entry;
     }
 
     public Godot.Collections.Dictionary to_dict() =>

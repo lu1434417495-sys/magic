@@ -23,9 +23,9 @@ public partial class ProfessionAssignmentService : RefCounted
         SkillDef skillDef = GetSkillDef(skill_id);
         if (skillProgress == null || professionProgress == null || skillDef == null)
             return false;
-        if (!GdInterop.GetBool(skillProgress, "is_learned"))
+        if (!skillProgress.is_learned)
             return false;
-        if (!GdInterop.GetBool(skillProgress, "is_core"))
+        if (!skillProgress.is_core)
             return false;
         if (
             !SkillEffectiveMaxLevelRules.is_at_effective_max_level(
@@ -36,11 +36,8 @@ public partial class ProfessionAssignmentService : RefCounted
         )
             return false;
 
-        StringName assignedProfessionId = GdInterop.GetStringName(
-            skillProgress,
-            "assigned_profession_id"
-        );
-        if (!GdInterop.IsEmpty(assignedProfessionId) && assignedProfessionId != profession_id)
+        StringName assignedProfessionId = skillProgress.assigned_profession_id;
+        if (assignedProfessionId != "" && assignedProfessionId != profession_id)
             return false;
         return true;
     }
@@ -53,7 +50,7 @@ public partial class ProfessionAssignmentService : RefCounted
         UnitSkillProgress skillProgress = GetSkillProgress(skill_id);
         UnitProfessionProgress professionProgress = GetProfessionProgress(profession_id);
         RemoveSkillFromAllProfessions(skill_id, profession_id);
-        skillProgress.Set("assigned_profession_id", profession_id);
+        skillProgress.assigned_profession_id = profession_id;
         professionProgress.add_core_skill(skill_id);
         _unit_progress.sync_active_core_skill_ids();
         return true;
@@ -65,16 +62,12 @@ public partial class ProfessionAssignmentService : RefCounted
         if (professionProgress == null)
             return false;
 
-        GArray coreSkillIds = GdInterop.GetArray(professionProgress, "core_skill_ids");
-        if (!coreSkillIds.Contains(skill_id))
+        if (!professionProgress.core_skill_ids.Contains(skill_id))
             return false;
 
         professionProgress.remove_core_skill(skill_id);
         UnitSkillProgress skillProgress = GetSkillProgress(skill_id);
-        if (
-            skillProgress != null
-            && GdInterop.GetStringName(skillProgress, "assigned_profession_id") == profession_id
-        )
+        if (skillProgress != null && skillProgress.assigned_profession_id == profession_id)
             skillProgress.clear_profession_assignment();
 
         _unit_progress.sync_active_core_skill_ids();
@@ -101,22 +94,20 @@ public partial class ProfessionAssignmentService : RefCounted
         int currentCharacterLevel = GetEffectiveCharacterLevel();
         _unit_progress.sync_active_core_skill_ids();
         if (
-            GdInterop.GetArray(_unit_progress, "active_core_skill_ids").Count
-            >= currentCharacterLevel
+            _unit_progress.active_core_skill_ids.Count >= currentCharacterLevel
         )
             return false;
         if (
-            GdInterop.GetArray(professionProgress, "core_skill_ids").Count
-            >= GdInterop.GetInt(professionProgress, "rank")
+            professionProgress.core_skill_ids.Count >= professionProgress.rank
         )
             return false;
-        if (GdInterop.GetInt(professionProgress, "rank") <= 0)
+        if (professionProgress.rank <= 0)
             return false;
-        if (!GdInterop.GetBool(skillProgress, "is_learned"))
+        if (!skillProgress.is_learned)
             return false;
-        if (GdInterop.GetBool(skillProgress, "is_core"))
+        if (skillProgress.is_core)
             return false;
-        if (!GdInterop.IsEmpty(GdInterop.GetStringName(skillProgress, "assigned_profession_id")))
+        if (skillProgress.assigned_profession_id != "")
             return false;
         if (
             !SkillEffectiveMaxLevelRules.is_at_effective_max_level(
@@ -149,8 +140,8 @@ public partial class ProfessionAssignmentService : RefCounted
         if (skillProgress == null)
             return false;
 
-        skillProgress.Set("is_core", true);
-        skillProgress.Set("assigned_profession_id", profession_id);
+        skillProgress.is_core = true;
+        skillProgress.assigned_profession_id = profession_id;
 
         UnitProfessionProgress professionProgress = GetProfessionProgress(profession_id);
         professionProgress.add_core_skill(skill_id);
@@ -165,10 +156,10 @@ public partial class ProfessionAssignmentService : RefCounted
             return new Godot.Collections.Array<StringName>();
 
         Godot.Collections.Array<StringName> result = new();
-        foreach (var rawSkillId in GdInterop.GetArray(professionProgress, "core_skill_ids"))
+        foreach (var rawSkillId in professionProgress.core_skill_ids)
         {
             StringName skillId = ProgressionDataUtils.to_string_name(rawSkillId);
-            if (!GdInterop.IsEmpty(skillId))
+            if (skillId != "")
                 result.Add(skillId);
         }
         return result;
@@ -179,7 +170,7 @@ public partial class ProfessionAssignmentService : RefCounted
         UnitSkillProgress skillProgress = GetSkillProgress(skill_id);
         return skillProgress == null
             ? new StringName("")
-            : GdInterop.GetStringName(skillProgress, "assigned_profession_id");
+            : skillProgress.assigned_profession_id;
     }
 
     private static GDictionary IndexSkillDefs(GDictionary skillDefs)
@@ -192,7 +183,7 @@ public partial class ProfessionAssignmentService : RefCounted
         {
             if (skillDefs[key].AsGodotObject() is not SkillDef skillDef)
                 continue;
-            StringName indexedId = !GdInterop.IsEmpty(skillDef.skill_id)
+            StringName indexedId = skillDef.skill_id != ""
                 ? skillDef.skill_id
                 : ProgressionDataUtils.to_string_name(key);
             indexedDefs[indexedId] = skillDef;
@@ -210,7 +201,7 @@ public partial class ProfessionAssignmentService : RefCounted
         {
             if (professionDefs[key].AsGodotObject() is not ProfessionDef professionDef)
                 continue;
-            StringName indexedId = !GdInterop.IsEmpty(professionDef.profession_id)
+            StringName indexedId = professionDef.profession_id != ""
                 ? professionDef.profession_id
                 : ProgressionDataUtils.to_string_name(key);
             indexedDefs[indexedId] = professionDef;
@@ -250,11 +241,10 @@ public partial class ProfessionAssignmentService : RefCounted
         if (_unit_progress == null)
             return;
 
-        GDictionary professions = GdInterop.GetDictionary(_unit_progress, "professions");
-        foreach (var professionKey in professions.Keys)
+        foreach (var professionKey in _unit_progress.professions.Keys)
         {
             StringName professionId = ProgressionDataUtils.to_string_name(professionKey);
-            if (!GdInterop.IsEmpty(exceptProfessionId) && professionId == exceptProfessionId)
+            if (exceptProfessionId != "" && professionId == exceptProfessionId)
                 continue;
 
             UnitProfessionProgress professionProgress = GetProfessionProgress(professionId);
@@ -296,7 +286,7 @@ public partial class ProfessionAssignmentService : RefCounted
         {
             if (
                 tagRule == null
-                || GdInterop.IsEmpty(tagRule.tag)
+                || tagRule.tag == ""
                 || seenTags.ContainsKey(tagRule.tag)
             )
                 continue;

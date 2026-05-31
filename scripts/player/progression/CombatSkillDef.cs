@@ -182,28 +182,31 @@ public partial class CombatSkillDef : Resource
         return r;
     }
 
-    public Godot.Collections.Dictionary get_effective_resource_costs(int skillLevel)
+    public CombatSkillResourceCosts get_effective_resource_cost_values(int skillLevel)
     {
-        var costs = new Godot.Collections.Dictionary
-        {
-            { "ap_cost", ap_cost },
-            { "mp_cost", mp_cost },
-            { "stamina_cost", stamina_cost },
-            { "aura_cost", aura_cost },
-            { "cooldown_tu", cooldown_tu },
-        };
-
         var ov = get_level_override(skillLevel);
 
-        foreach (var key in costs.Keys)
-        {
-            var ks = key.AsString();
-            if (ov.ContainsKey(ks))
-                costs[ks] = ov[ks].AsInt32();
-        }
-
-        return costs;
+        return new CombatSkillResourceCosts(
+            TryReadResourceCostOverride(ov, "ap_cost", out int effectiveApCost)
+                ? effectiveApCost
+                : ap_cost,
+            TryReadResourceCostOverride(ov, "mp_cost", out int effectiveMpCost)
+                ? effectiveMpCost
+                : mp_cost,
+            TryReadResourceCostOverride(ov, "stamina_cost", out int effectiveStaminaCost)
+                ? effectiveStaminaCost
+                : stamina_cost,
+            TryReadResourceCostOverride(ov, "aura_cost", out int effectiveAuraCost)
+                ? effectiveAuraCost
+                : aura_cost,
+            TryReadResourceCostOverride(ov, "cooldown_tu", out int effectiveCooldownTu)
+                ? effectiveCooldownTu
+                : cooldown_tu
+        );
     }
+
+    public Godot.Collections.Dictionary get_effective_resource_costs(int skillLevel) =>
+        get_effective_resource_cost_values(skillLevel).ToDictionary();
 
     public Godot.Collections.Dictionary get_level_override(int skillLevel)
     {
@@ -240,6 +243,30 @@ public partial class CombatSkillDef : Resource
         }
 
         return merged;
+    }
+
+    private static bool TryReadResourceCostOverride(
+        Godot.Collections.Dictionary overrides,
+        string key,
+        out int value
+    )
+    {
+        if (overrides != null && overrides.ContainsKey(key))
+        {
+            Variant rawValue = overrides[key];
+            if (rawValue.VariantType == Variant.Type.Int)
+            {
+                value = rawValue.AsInt32();
+                return true;
+            }
+            if (rawValue.VariantType == Variant.Type.Float)
+            {
+                value = (int)rawValue.AsDouble();
+                return true;
+            }
+        }
+        value = 0;
+        return false;
     }
 
     public int get_effective_attack_roll_bonus(int sl)

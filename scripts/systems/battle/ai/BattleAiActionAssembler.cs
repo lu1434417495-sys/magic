@@ -29,7 +29,7 @@ public partial class BattleAiActionAssembler : RefCounted
         List<BattleAiSkillAffordanceRecord> skillRecords = ClassifyKnownActiveSkills(unit_state, skill_defs);
         foreach (BattleAiSkillAffordanceRecord record in skillRecords)
         {
-            plan.set_skill_affordance_record(record.skill_id, record.ToDictionary());
+            plan.SetSkillAffordanceRecordTyped(record);
         }
 
         foreach (EnemyAiStateDef stateDef in GetBrainStates(brain))
@@ -111,14 +111,22 @@ public partial class BattleAiActionAssembler : RefCounted
                                 actionFamily
                             )
                         );
-                        GDictionary metadata = BuildGeneratedActionMetadata(
+                        string identityKey = BuildIdentityKey(
                             stateId,
-                            slot,
+                            slot.slot_id,
+                            skillId,
+                            actionFamily
+                        );
+                        plan.AddGeneratedActionTyped(
+                            stateId,
+                            generatedAction,
+                            slot.slot_id,
+                            slot.slot_role,
                             skillId,
                             actionFamily,
-                            generatedAction
+                            slot.style_template_action_id,
+                            identityKey
                         );
-                        plan.add_action(stateId, generatedAction, metadata);
                     }
                 }
             }
@@ -385,10 +393,7 @@ public partial class BattleAiActionAssembler : RefCounted
         }
         else if (templateAction != null)
         {
-            StringName templateSelector = GdInterop.GetStringName(
-                templateAction,
-                "target_selector"
-            );
+            StringName templateSelector = GetTargetSelector(templateAction);
             if (templateSelector != "")
             {
                 SetTargetSelectorIfSupported(action, templateSelector);
@@ -410,46 +415,6 @@ public partial class BattleAiActionAssembler : RefCounted
         {
             SetDistanceReferenceIfSupported(action, distanceReference);
         }
-    }
-
-    private static GDictionary BuildGeneratedActionMetadata(
-        StringName stateId,
-        EnemyAiGenerationSlotDef slot,
-        StringName skillId,
-        StringName actionFamily,
-        EnemyAiAction action
-    )
-    {
-        StringName slotId = slot.slot_id;
-        StringName slotRole = slot.slot_role;
-        string identityKey = BuildIdentityKey(stateId, slotId, skillId, actionFamily);
-        var runtimeMetadata = new GDictionary
-        {
-            ["generated"] = true,
-            ["state_id"] = stateId,
-            ["slot_id"] = slotId,
-            ["slot_role"] = slotRole,
-            ["skill_id"] = skillId,
-            ["variant_id"] = new StringName(""),
-            ["action_family"] = actionFamily,
-            ["source_action_id"] = slot.style_template_action_id,
-            ["identity_key"] = identityKey,
-        };
-        return new GDictionary
-        {
-            ["generated"] = true,
-            ["state_id"] = stateId,
-            ["slot_id"] = slotId,
-            ["slot_role"] = slotRole,
-            ["skill_id"] = skillId,
-            ["variant_id"] = new StringName(""),
-            ["action_family"] = actionFamily,
-            ["source_action_id"] = runtimeMetadata["source_action_id"],
-            ["score_bucket_id"] = GetScoreBucket(action),
-            ["action_id"] = GetActionId(action),
-            ["identity_key"] = identityKey,
-            ["runtime_action_metadata"] = runtimeMetadata,
-        };
     }
 
     private static EnemyAiAction FindActionById(
@@ -706,16 +671,16 @@ public partial class BattleAiActionAssembler : RefCounted
             SetIntIfSupported(
                 action,
                 "desired_min_distance",
-                GdInterop.GetInt(templateAction, "desired_min_distance")
+                GetDesiredMinDistance(templateAction)
             );
             SetIntIfSupported(
                 action,
                 "desired_max_distance",
-                GdInterop.GetInt(templateAction, "desired_max_distance")
+                GetDesiredMaxDistance(templateAction)
             );
             SetDistanceReferenceIfSupported(
                 action,
-                GdInterop.GetStringName(templateAction, "distance_reference")
+                GetDistanceReference(templateAction)
             );
             return;
         }
@@ -749,9 +714,9 @@ public partial class BattleAiActionAssembler : RefCounted
             ?? FindActionByFamily(stateActions, "use_multi_unit_skill");
         if (templateAction != null)
         {
-            action.desired_min_distance = GdInterop.GetInt(templateAction, "desired_min_distance");
-            action.desired_max_distance = GdInterop.GetInt(templateAction, "desired_max_distance");
-            StringName reference = GdInterop.GetStringName(templateAction, "distance_reference");
+            action.desired_min_distance = GetDesiredMinDistance(templateAction);
+            action.desired_max_distance = GetDesiredMaxDistance(templateAction);
+            StringName reference = GetDistanceReference(templateAction);
             action.distance_reference =
                 reference == "candidate_pool" || reference == "enemy_frontline"
                     ? reference
@@ -777,12 +742,9 @@ public partial class BattleAiActionAssembler : RefCounted
         EnemyAiAction templateAction = FindActionByFamily(stateActions, "use_ground_skill");
         if (templateAction != null)
         {
-            action.desired_min_distance = GdInterop.GetInt(templateAction, "desired_min_distance");
-            action.desired_max_distance = GdInterop.GetInt(templateAction, "desired_max_distance");
-            action.distance_reference = GdInterop.GetStringName(
-                templateAction,
-                "distance_reference"
-            );
+            action.desired_min_distance = GetDesiredMinDistance(templateAction);
+            action.desired_max_distance = GetDesiredMaxDistance(templateAction);
+            action.distance_reference = GetDistanceReference(templateAction);
             return;
         }
         int effectiveRange = BattleRangeService.get_effective_skill_distance_contract_range(
@@ -826,7 +788,7 @@ public partial class BattleAiActionAssembler : RefCounted
     {
         foreach (EnemyAiAction action in stateActions)
         {
-            StringName selector = GdInterop.GetStringName(action, "target_selector");
+            StringName selector = GetTargetSelector(action);
             if (selector != "")
             {
                 return selector;
@@ -1040,6 +1002,65 @@ public partial class BattleAiActionAssembler : RefCounted
     private static StringName GetScoreBucket(EnemyAiAction action)
     {
         return action != null ? ProgressionDataUtils.to_string_name(action.score_bucket_id) : "";
+    }
+
+    private static StringName GetTargetSelector(EnemyAiAction action)
+    {
+        return action switch
+        {
+            UseUnitSkillAction unitAction => unitAction.target_selector,
+            UseMultiUnitSkillAction multiUnitAction => multiUnitAction.target_selector,
+            UseRandomChainSkillAction chainAction => chainAction.target_selector,
+            UseGroundRepositionSkillAction repositionAction => repositionAction.target_selector,
+            RetreatAction retreatAction => retreatAction.target_selector,
+            UseChargePathAoeAction chargePathAction => chargePathAction.target_selector,
+            UseChargeAction chargeAction => chargeAction.target_selector,
+            MoveToRangeAction moveAction => moveAction.target_selector,
+            MoveToAdvantagePositionAction advantageAction => advantageAction.target_selector,
+            _ => "",
+        };
+    }
+
+    private static int GetDesiredMinDistance(EnemyAiAction action, int fallback = 0)
+    {
+        return action switch
+        {
+            UseUnitSkillAction unitAction => unitAction.desired_min_distance,
+            UseGroundSkillAction groundAction => groundAction.desired_min_distance,
+            UseMultiUnitSkillAction multiUnitAction => multiUnitAction.desired_min_distance,
+            UseRandomChainSkillAction chainAction => chainAction.desired_min_distance,
+            MoveToRangeAction moveAction => moveAction.desired_min_distance,
+            UseChargePathAoeAction chargePathAction => chargePathAction.desired_min_distance,
+            MoveToAdvantagePositionAction advantageAction => advantageAction.desired_min_distance,
+            _ => fallback,
+        };
+    }
+
+    private static int GetDesiredMaxDistance(EnemyAiAction action, int fallback = 0)
+    {
+        return action switch
+        {
+            UseUnitSkillAction unitAction => unitAction.desired_max_distance,
+            UseGroundSkillAction groundAction => groundAction.desired_max_distance,
+            UseMultiUnitSkillAction multiUnitAction => multiUnitAction.desired_max_distance,
+            UseRandomChainSkillAction chainAction => chainAction.desired_max_distance,
+            MoveToRangeAction moveAction => moveAction.desired_max_distance,
+            UseChargePathAoeAction chargePathAction => chargePathAction.desired_max_distance,
+            MoveToAdvantagePositionAction advantageAction => advantageAction.desired_max_distance,
+            _ => fallback,
+        };
+    }
+
+    private static StringName GetDistanceReference(EnemyAiAction action)
+    {
+        return action switch
+        {
+            UseUnitSkillAction unitAction => unitAction.distance_reference,
+            UseGroundSkillAction groundAction => groundAction.distance_reference,
+            UseMultiUnitSkillAction multiUnitAction => multiUnitAction.distance_reference,
+            UseRandomChainSkillAction chainAction => chainAction.distance_reference,
+            _ => "",
+        };
     }
 
     private static void SetScoreBucket(EnemyAiAction action, StringName scoreBucketId)

@@ -1,5 +1,29 @@
 using Godot;
 
+public readonly struct EquipmentRequirementCheckResult
+{
+    public readonly bool Allowed;
+    public readonly Godot.Collections.Array<string> Blockers;
+
+    public EquipmentRequirementCheckResult(
+        bool allowed,
+        Godot.Collections.Array<string> blockers = null
+    )
+    {
+        Allowed = allowed;
+        Blockers = blockers ?? new Godot.Collections.Array<string>();
+    }
+
+    public Godot.Collections.Dictionary ToDictionary()
+    {
+        return new Godot.Collections.Dictionary
+        {
+            ["allowed"] = Allowed,
+            ["blockers"] = Blockers.Duplicate(),
+        };
+    }
+}
+
 [GlobalClass]
 public partial class EquipmentRequirement : Resource
 {
@@ -13,6 +37,11 @@ public partial class EquipmentRequirement : Resource
     public int max_body_size;
 
     public Godot.Collections.Dictionary Check(PartyMemberState member_state)
+    {
+        return CheckResult(member_state).ToDictionary();
+    }
+
+    public EquipmentRequirementCheckResult CheckResult(PartyMemberState member_state)
     {
         var blockers = new Godot.Collections.Array<string>();
         if (required_profession_ids.Count > 0)
@@ -34,10 +63,6 @@ public partial class EquipmentRequirement : Resource
             blockers.Add("body_size_too_small");
         if (max_body_size > 0 && (member_state == null || member_state.body_size > max_body_size))
             blockers.Add("body_size_too_large");
-        return new Godot.Collections.Dictionary
-        {
-            { "allowed", blockers.Count == 0 },
-            { "blockers", blockers },
-        };
+        return new EquipmentRequirementCheckResult(blockers.Count == 0, blockers);
     }
 }

@@ -756,9 +756,7 @@ public partial class EnemyAiAction : Resource
         if (context?.unit_state == null || us == null)
             return false;
         BattleUnitState cu = context.unit_state;
-        bool madness =
-            cu.ai_blackboard.ContainsKey("madness_target_any_team")
-            && cu.ai_blackboard["madness_target_any_team"].AsBool();
+        bool madness = cu.ai_blackboard?.madness_target_any_team == true;
         return BattleTargetTeamRules.is_unit_valid_for_filter(
             cu,
             us,
@@ -791,8 +789,7 @@ public partial class EnemyAiAction : Resource
         {
             BattleUnitState cu = context.unit_state;
             if (
-                cu.ai_blackboard.ContainsKey("madness_target_any_team")
-                && cu.ai_blackboard["madness_target_any_team"].AsBool()
+                cu.ai_blackboard?.madness_target_any_team == true
                 && selector != "self"
             )
                 ef = "any";
@@ -1395,4 +1392,5 @@ public partial class EnemyAiAction : Resource
 
     protected static Godot.Collections.Dictionary _build_command_summary(BattleCommand command) =>
         EnemyAiActionHelper.build_command_summary(command);
+
 }

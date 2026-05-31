@@ -35,8 +35,34 @@ public partial class LowLuckEventService : RefCounted
 
     private IBattleRuntimeCharacterGateway _characterGateway = null;
     private BattleFateEventBus _fateEventBus = null;
-    private readonly GDictionary _hardshipSurvivalByBattleId = new();
-    private readonly GDictionary _criticalFailByBattleId = new();
+    private readonly Dictionary<StringName, HashSet<StringName>> _hardshipSurvivalByBattleId =
+        new();
+    private readonly Dictionary<StringName, HashSet<StringName>> _criticalFailByBattleId = new();
+
+    private readonly record struct LowLuckFateEventPayload(
+        StringName BattleId,
+        StringName AttackerMemberId,
+        bool AttackerLowHpHardship,
+        GArray AttackerStrongAttackDebuffIds,
+        GDictionary RawPayload
+    )
+    {
+        public static LowLuckFateEventPayload FromDictionary(GDictionary payload)
+        {
+            GDictionary normalized = payload ?? new GDictionary();
+            return new LowLuckFateEventPayload(
+                ProgressionDataUtils.to_string_name(
+                    normalized.GetValueOrDefault("battle_id", "")
+                ),
+                ProgressionDataUtils.to_string_name(
+                    normalized.GetValueOrDefault("attacker_member_id", "")
+                ),
+                DictBool(normalized, "attacker_low_hp_hardship", false),
+                ReadArray(normalized, "attacker_strong_attack_debuff_ids"),
+                normalized
+            );
+        }
+    }
 
     public static StringName EVENT_BROKEN_BRIDGE_SURVIVAL() => EventBrokenBridgeSurvival;
 
@@ -100,8 +126,8 @@ public partial class LowLuckEventService : RefCounted
     }
 
     public GDictionary HandleBattleResolution(
-        GodotObject battleState,
-        GodotObject battleResolutionResult
+        BattleState battleState,
+        BattleResolutionResult battleResolutionResult
     )
     {
         var result = _NewResult();
@@ -111,7 +137,7 @@ public partial class LowLuckEventService : RefCounted
 
         bool playerWon =
             battleResolutionResult != null
-            && battleResolutionResult.Get("winner_faction_id").AsStringName() == "player";
+            && battleResolutionResult.winner_faction_id == "player";
         if (playerWon)
         {
             var hardshipMembers = _GetBattleMemberIds(_hardshipSurvivalByBattleId, battleId);
@@ -291,7 +317,10 @@ public partial class LowLuckEventService : RefCounted
         GodotObject battle_resolution_result
     )
     {
-        return HandleBattleResolution(battle_state, battle_resolution_result);
+        return HandleBattleResolution(
+            battle_state as BattleState,
+            battle_resolution_result as BattleResolutionResult
+        );
     }
 
     public GDictionary HandleSettlementAction(GDictionary context)
@@ -361,37 +390,31 @@ public partial class LowLuckEventService : RefCounted
 
     private void _TrackHardshipSurvival(GDictionary payload)
     {
-        var battleId = ProgressionDataUtils.to_string_name(
-            payload.GetValueOrDefault("battle_id", "")
-        );
-        var memberId = ProgressionDataUtils.to_string_name(
-            payload.GetValueOrDefault("attacker_member_id", "")
-        );
+        LowLuckFateEventPayload eventPayload = LowLuckFateEventPayload.FromDictionary(payload);
+        StringName battleId = eventPayload.BattleId;
+        StringName memberId = eventPayload.AttackerMemberId;
         if (battleId == "" || memberId == "")
             return;
-        if (!payload.GetValueOrDefault("attacker_low_hp_hardship", false).AsBool())
+        if (!eventPayload.AttackerLowHpHardship)
             return;
         var strongDebuffIds = ProgressionDataUtils.to_string_name_array(
-            payload.GetValueOrDefault("attacker_strong_attack_debuff_ids", new GArray())
+            eventPayload.AttackerStrongAttackDebuffIds
         );
         if (strongDebuffIds.Count == 0)
             return;
-        if (!_IsLowLuckMemberPayload(memberId, payload))
+        if (!_IsLowLuckMemberPayload(memberId, eventPayload.RawPayload))
             return;
         _MarkBattleMember(_hardshipSurvivalByBattleId, battleId, memberId);
     }
 
     private void _TrackCriticalFail(GDictionary payload)
     {
-        var battleId = ProgressionDataUtils.to_string_name(
-            payload.GetValueOrDefault("battle_id", "")
-        );
-        var memberId = ProgressionDataUtils.to_string_name(
-            payload.GetValueOrDefault("attacker_member_id", "")
-        );
+        LowLuckFateEventPayload eventPayload = LowLuckFateEventPayload.FromDictionary(payload);
+        StringName battleId = eventPayload.BattleId;
+        StringName memberId = eventPayload.AttackerMemberId;
         if (battleId == "" || memberId == "")
             return;
-        if (!_IsLowLuckMemberPayload(memberId, payload))
+        if (!_IsLowLuckMemberPayload(memberId, eventPayload.RawPayload))
             return;
         _MarkBattleMember(_criticalFailByBattleId, battleId, memberId);
     }
@@ -486,43 +509,48 @@ public partial class LowLuckEventService : RefCounted
         };
     }
 
-    private StringName _ResolveBattleId(GodotObject battleState, GodotObject battleResolutionResult)
+    private StringName _ResolveBattleId(
+        BattleState battleState,
+        BattleResolutionResult battleResolutionResult
+    )
     {
-        if (
-            battleResolutionResult != null
-            && battleResolutionResult.Get("battle_id").AsStringName() != ""
-        )
-            return battleResolutionResult.Get("battle_id").AsStringName();
-        return battleState != null ? battleState.Get("battle_id").AsStringName() : "";
+        if (battleResolutionResult != null && battleResolutionResult.battle_id != "")
+            return battleResolutionResult.battle_id;
+        return battleState != null ? battleState.battle_id : "";
     }
 
-    private void _MarkBattleMember(GDictionary store, StringName battleId, StringName memberId)
+    private void _MarkBattleMember(
+        Dictionary<StringName, HashSet<StringName>> store,
+        StringName battleId,
+        StringName memberId
+    )
     {
         if (battleId == "" || memberId == "")
             return;
-        if (!store.ContainsKey(battleId))
-            store[battleId] = new GDictionary();
-        var battleMembers = store[battleId].AsGodotDictionary();
-        battleMembers[memberId] = true;
+        if (!store.TryGetValue(battleId, out HashSet<StringName> battleMembers))
+        {
+            battleMembers = new HashSet<StringName>();
+            store[battleId] = battleMembers;
+        }
+        battleMembers.Add(memberId);
     }
 
-    private List<StringName> _GetBattleMemberIds(GDictionary store, StringName battleId)
+    private List<StringName> _GetBattleMemberIds(
+        Dictionary<StringName, HashSet<StringName>> store,
+        StringName battleId
+    )
     {
         var memberIds = new List<StringName>();
         if (battleId == "")
             return memberIds;
-        if (!store.ContainsKey(battleId))
+        if (!store.TryGetValue(battleId, out HashSet<StringName> battleMembers))
             return memberIds;
-        var battleMembers = store[battleId].AsGodotDictionary();
-        foreach (var memberKey in battleMembers.Keys)
+        foreach (StringName memberKey in battleMembers)
         {
-            if (memberKey.VariantType != Variant.Type.StringName)
-                continue;
             var memberId = ProgressionDataUtils.to_string_name(memberKey);
             if (memberId == "")
                 continue;
-            if (battleMembers[memberKey].AsBool())
-                memberIds.Add(memberId);
+            memberIds.Add(memberId);
         }
         memberIds.Sort((a, b) => a.ToString().CompareTo(b.ToString()));
         return memberIds;
@@ -558,15 +586,15 @@ public partial class LowLuckEventService : RefCounted
             return orderedMemberIds;
         _AppendUniqueMemberIds(
             orderedMemberIds,
-            ProgressionDataUtils.to_string_name_array(partyState.Get("active_member_ids"))
+            partyState.active_member_ids
         );
         _AppendUniqueMemberIds(
             orderedMemberIds,
-            ProgressionDataUtils.to_string_name_array(partyState.Get("reserve_member_ids"))
+            partyState.reserve_member_ids
         );
         foreach (
             var memberKey in ProgressionDataUtils.sorted_string_keys(
-                partyState.Get("member_states").AsGodotDictionary()
+                partyState.member_states
             )
         )
             _AppendUniqueMemberId(orderedMemberIds, new StringName(memberKey));
@@ -589,11 +617,11 @@ public partial class LowLuckEventService : RefCounted
         target.Add(value);
     }
 
-    private bool _IsBattleMemberAlive(GodotObject battleState, StringName memberId)
+    private bool _IsBattleMemberAlive(BattleState battleState, StringName memberId)
     {
         if (battleState == null || memberId == "")
             return false;
-        foreach (var unitValue in battleState.Get("units").AsGodotDictionary().Values)
+        foreach (var unitValue in battleState.units.Values)
         {
             var unitState = unitValue.AsGodotObject() as BattleUnitState;
             if (unitState == null)
@@ -609,7 +637,7 @@ public partial class LowLuckEventService : RefCounted
 
     private StringName _FindFirstAliveMemberIdInBattle(
         List<StringName> memberIds,
-        GodotObject battleState
+        BattleState battleState
     )
     {
         foreach (var memberId in memberIds)
@@ -632,12 +660,12 @@ public partial class LowLuckEventService : RefCounted
         return intersected;
     }
 
-    private bool _BattleHasEliteOrBossEnemy(GodotObject battleState)
+    private bool _BattleHasEliteOrBossEnemy(BattleState battleState)
     {
         if (battleState == null)
             return false;
         var targetUnitIds = new List<StringName>();
-        var enemyUnitIds = battleState.Get("enemy_unit_ids").AsGodotArray<StringName>();
+        var enemyUnitIds = battleState.enemy_unit_ids;
         if (enemyUnitIds.Count > 0)
         {
             foreach (var id in enemyUnitIds)
@@ -645,7 +673,7 @@ public partial class LowLuckEventService : RefCounted
         }
         else
         {
-            foreach (var unitValue in battleState.Get("units").AsGodotDictionary().Values)
+            foreach (var unitValue in battleState.units.Values)
             {
                 var unitState = unitValue.AsGodotObject() as BattleUnitState;
                 if (unitState == null || unitState.faction_id == "player")
@@ -653,7 +681,7 @@ public partial class LowLuckEventService : RefCounted
                 targetUnitIds.Add(unitState.unit_id);
             }
         }
-        var units = battleState.Get("units").AsGodotDictionary();
+        var units = battleState.units;
         foreach (var unitId in targetUnitIds)
         {
             var unitState = units.ContainsKey(unitId) ? units[unitId].As<BattleUnitState>() : null;
@@ -668,7 +696,7 @@ public partial class LowLuckEventService : RefCounted
         return false;
     }
 
-    private StringName _FindFirstBloodDebtCandidateId(GodotObject battleState)
+    private StringName _FindFirstBloodDebtCandidateId(BattleState battleState)
     {
         var partyState = _GetPartyState();
         if (battleState == null || partyState == null)
@@ -686,11 +714,11 @@ public partial class LowLuckEventService : RefCounted
         return "";
     }
 
-    private bool _BattleHasFallenPlayerAlly(GodotObject battleState, StringName survivingMemberId)
+    private bool _BattleHasFallenPlayerAlly(BattleState battleState, StringName survivingMemberId)
     {
         if (battleState == null)
             return false;
-        foreach (var unitValue in battleState.Get("units").AsGodotDictionary().Values)
+        foreach (var unitValue in battleState.units.Values)
         {
             var unitState = unitValue.AsGodotObject() as BattleUnitState;
             if (unitState == null || unitState.faction_id != "player")
@@ -769,5 +797,21 @@ public partial class LowLuckEventService : RefCounted
                 return;
         }
         values.Add(value);
+    }
+
+    private static bool DictBool(GDictionary dictionary, string key, bool fallback)
+    {
+        if (dictionary == null || !dictionary.ContainsKey(key))
+            return fallback;
+        Variant value = dictionary[key];
+        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
+    }
+
+    private static GArray ReadArray(GDictionary dictionary, string key)
+    {
+        if (dictionary == null || !dictionary.ContainsKey(key))
+            return new GArray();
+        Variant value = dictionary[key];
+        return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : new GArray();
     }
 }

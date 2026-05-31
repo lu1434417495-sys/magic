@@ -26,6 +26,18 @@ public partial class PendingCharacterRewardEntry : RefCounted
 
     public bool is_empty() => entry_type == "" || target_id == "" || amount == 0;
 
+    public PendingCharacterRewardEntry duplicate_state()
+    {
+        return new PendingCharacterRewardEntry
+        {
+            entry_type = entry_type,
+            target_id = target_id,
+            target_label = target_label,
+            amount = amount,
+            reason_text = reason_text,
+        };
+    }
+
     public Godot.Collections.Dictionary to_dict()
     {
         return new Godot.Collections.Dictionary
