@@ -1,14 +1,19 @@
+using System;
 using Godot;
 
-[GlobalClass]
-public partial class FateAttackFormula : RefCounted
+public static class FateAttackFormula
 {
     public const int D20_SIZE = 20;
     public const int COMBAT_LUCK_SCORE_MAX = 4;
 
+    public interface IRollSource
+    {
+        int RandiRange(int minValue, int maxValue);
+    }
+
     public static int CalcCritGateDieSize(int effectiveLuck, bool isDisadvantage)
     {
-        int growthSteps = Mathf.Max(0, -effectiveLuck - 3);
+        int growthSteps = Math.Max(0, -effectiveLuck - 3);
         if (isDisadvantage && effectiveLuck <= -5 && growthSteps > 0)
             growthSteps -= 1;
         return D20_SIZE << growthSteps;
@@ -16,14 +21,14 @@ public partial class FateAttackFormula : RefCounted
 
     public static int CalcFumbleLowEnd(int effectiveLuck)
     {
-        return 1 + Mathf.Clamp(-effectiveLuck - 4, 0, 2);
+        return 1 + Math.Clamp(-effectiveLuck - 4, 0, 2);
     }
 
     public static int CalcCombatLuckScore(int hiddenLuckAtBirth, int faithLuckBonus)
     {
-        int positiveHiddenLuck = Mathf.Max(0, hiddenLuckAtBirth);
-        int positiveFaithLuck = Mathf.Max(0, faithLuckBonus);
-        return Mathf.Min(
+        int positiveHiddenLuck = Math.Max(0, hiddenLuckAtBirth);
+        int positiveFaithLuck = Math.Max(0, faithLuckBonus);
+        return Math.Min(
             COMBAT_LUCK_SCORE_MAX,
             positiveHiddenLuck + (int)(positiveFaithLuck / 2.0)
         );
@@ -34,51 +39,58 @@ public partial class FateAttackFormula : RefCounted
         return D20_SIZE - CalcCombatLuckScore(hiddenLuckAtBirth, faithLuckBonus);
     }
 
+    public static int RollDieWithDisadvantageRule(int dieSize, bool isDisadvantage)
+    {
+        return RollDieWithDisadvantageRule(dieSize, isDisadvantage, (IRollSource)null);
+    }
+
     public static int RollDieWithDisadvantageRule(
         int dieSize,
         bool isDisadvantage,
-        RandomNumberGenerator rng = null
+        RandomNumberGenerator rng
     )
     {
-        int normalizedDieSize = Mathf.Max(dieSize, 1);
-        var resolvedRng = _ResolveRng(rng);
+        return RollDieWithDisadvantageRule(
+            dieSize,
+            isDisadvantage,
+            new GodotRandomRollSource(rng)
+        );
+    }
+
+    public static int RollDieWithDisadvantageRule(
+        int dieSize,
+        bool isDisadvantage,
+        IRollSource rng
+    )
+    {
+        int normalizedDieSize = Math.Max(dieSize, 1);
+        IRollSource resolvedRng = rng ?? new GodotRandomRollSource(null);
         int firstRoll = resolvedRng.RandiRange(1, normalizedDieSize);
         if (!isDisadvantage)
             return firstRoll;
         int secondRoll = resolvedRng.RandiRange(1, normalizedDieSize);
-        return Mathf.Min(firstRoll, secondRoll);
+        return Math.Min(firstRoll, secondRoll);
     }
 
-    public static int roll_die_with_disadvantage_rule(
-        int dieSize,
-        bool isDisadvantage,
-        RandomNumberGenerator rng = null
-    )
+    private sealed class GodotRandomRollSource : IRollSource
     {
-        return RollDieWithDisadvantageRule(dieSize, isDisadvantage, rng);
+        private readonly RandomNumberGenerator _rng;
+
+        public GodotRandomRollSource(RandomNumberGenerator rng)
+        {
+            _rng = rng ?? CreateRandomizedRng();
+        }
+
+        public int RandiRange(int minValue, int maxValue)
+        {
+            return _rng.RandiRange(minValue, maxValue);
+        }
     }
 
-    public static int calc_crit_gate_die_size(int effectiveLuck, bool isDisadvantage)
+    private static RandomNumberGenerator CreateRandomizedRng()
     {
-        return CalcCritGateDieSize(effectiveLuck, isDisadvantage);
-    }
-
-    public static int calc_fumble_low_end(int effectiveLuck)
-    {
-        return CalcFumbleLowEnd(effectiveLuck);
-    }
-
-    public static int calc_crit_threshold(int hiddenLuckAtBirth, int faithLuckBonus)
-    {
-        return CalcCritThreshold(hiddenLuckAtBirth, faithLuckBonus);
-    }
-
-    private static RandomNumberGenerator _ResolveRng(RandomNumberGenerator rng)
-    {
-        if (rng != null)
-            return rng;
-        var fallbackRng = new RandomNumberGenerator();
-        fallbackRng.Randomize();
-        return fallbackRng;
+        var rng = new RandomNumberGenerator();
+        rng.Randomize();
+        return rng;
     }
 }

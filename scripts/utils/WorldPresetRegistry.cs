@@ -1,13 +1,12 @@
+using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class WorldPresetRegistry : RefCounted
+public static class WorldPresetRegistry
 {
     public static readonly StringName DEFAULT_PRESET_ID = new("test");
 
-    private static readonly WorldPresetData[] Presets =
+    private static readonly WorldPresetInfo[] Presets =
     {
         new("test", "测试", "200 x 200", "res://data/configs/world_map/test_world_map_config.tres"),
         new(
@@ -36,70 +35,112 @@ public partial class WorldPresetRegistry : RefCounted
         ),
     };
 
+    public sealed class WorldPresetInfo
+    {
+        public StringName PresetId { get; }
+        public string DisplayName { get; }
+        public string SizeLabel { get; }
+        public string GenerationConfigPath { get; }
+
+        public WorldPresetInfo(
+            string presetId,
+            string displayName,
+            string sizeLabel,
+            string generationConfigPath
+        )
+        {
+            PresetId = new StringName(presetId ?? "");
+            DisplayName = displayName ?? "";
+            SizeLabel = sizeLabel ?? "";
+            GenerationConfigPath = generationConfigPath ?? "";
+        }
+
+        public GDictionary ToDictionary()
+        {
+            return new GDictionary
+            {
+                ["preset_id"] = PresetId,
+                ["display_name"] = DisplayName,
+                ["size_label"] = SizeLabel,
+                ["generation_config_path"] = GenerationConfigPath,
+            };
+        }
+    }
+
     public static StringName get_default_preset_id()
     {
         return DEFAULT_PRESET_ID;
     }
+
+    public static IReadOnlyList<WorldPresetInfo> ListPresetsTyped() => Presets;
 
     public static Godot.Collections.Array<GDictionary> list_presets()
     {
         var presets = new Godot.Collections.Array<GDictionary>();
         foreach (var preset in Presets)
         {
-            presets.Add(NormalizePreset(preset));
+            presets.Add(preset.ToDictionary());
         }
         return presets;
     }
 
-    public static GDictionary get_preset(StringName preset_id)
+    public static bool TryGetPresetTyped(StringName presetId, out WorldPresetInfo preset)
     {
-        var id = preset_id.ToString();
-        foreach (var preset in Presets)
+        foreach (var candidate in Presets)
         {
-            if (preset.PresetId == id)
+            if (candidate.PresetId == presetId)
             {
-                return NormalizePreset(preset);
+                preset = candidate;
+                return true;
             }
         }
-        return new GDictionary();
+        preset = null;
+        return false;
+    }
+
+    public static GDictionary get_preset(StringName preset_id)
+    {
+        return TryGetPresetTyped(preset_id, out WorldPresetInfo preset)
+            ? preset.ToDictionary()
+            : new GDictionary();
+    }
+
+    public static bool TryGetPresetForGenerationConfigTyped(
+        string generationConfigPath,
+        out WorldPresetInfo preset
+    )
+    {
+        foreach (var candidate in Presets)
+        {
+            if (candidate.GenerationConfigPath == generationConfigPath)
+            {
+                preset = candidate;
+                return true;
+            }
+        }
+        preset = null;
+        return false;
     }
 
     public static GDictionary get_preset_for_generation_config(string generation_config_path)
     {
-        foreach (var preset in Presets)
-        {
-            if (preset.GenerationConfigPath == generation_config_path)
-            {
-                return NormalizePreset(preset);
-            }
-        }
-        return new GDictionary();
+        return TryGetPresetForGenerationConfigTyped(generation_config_path, out WorldPresetInfo preset)
+            ? preset.ToDictionary()
+            : new GDictionary();
     }
 
     public static string get_fallback_preset_name(string generation_config_path)
     {
-        var preset = get_preset_for_generation_config(generation_config_path);
-        if (preset.Count > 0 && preset.ContainsKey("display_name"))
-        {
-            var displayName = preset["display_name"].ToString();
-            if (!string.IsNullOrEmpty(displayName))
-            {
-                return displayName;
-            }
-        }
+        if (
+            TryGetPresetForGenerationConfigTyped(
+                generation_config_path,
+                out WorldPresetInfo preset
+            )
+            && !string.IsNullOrEmpty(preset.DisplayName)
+        )
+            return preset.DisplayName;
         var fileName = GetBaseName(GetFileName(generation_config_path));
         return string.IsNullOrEmpty(fileName) ? "世界" : fileName;
-    }
-
-    private static GDictionary NormalizePreset(WorldPresetData preset)
-    {
-        return new GDictionary
-        {
-            ["preset_id"] = new StringName(preset.PresetId),
-            ["display_name"] = preset.DisplayName,
-            ["size_label"] = preset.SizeLabel,
-            ["generation_config_path"] = preset.GenerationConfigPath,
-        };
     }
 
     private static string GetFileName(string path)
@@ -123,24 +164,4 @@ public partial class WorldPresetRegistry : RefCounted
         return dotIndex > 0 ? fileName[..dotIndex] : fileName;
     }
 
-    private readonly struct WorldPresetData
-    {
-        public readonly string PresetId;
-        public readonly string DisplayName;
-        public readonly string SizeLabel;
-        public readonly string GenerationConfigPath;
-
-        public WorldPresetData(
-            string presetId,
-            string displayName,
-            string sizeLabel,
-            string generationConfigPath
-        )
-        {
-            PresetId = presetId;
-            DisplayName = displayName;
-            SizeLabel = sizeLabel;
-            GenerationConfigPath = generationConfigPath;
-        }
-    }
 }

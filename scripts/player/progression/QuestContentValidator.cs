@@ -280,7 +280,14 @@ public partial class QuestContentValidator : RefCounted
     private static GDictionary ResolveProviderIds(GDictionary providerIds)
     {
         if (providerIds.Count == 0)
-            return QuestProviderContentRules.supported_provider_ids();
+        {
+            var supportedProviderIds = new GDictionary();
+            foreach (StringName providerId in QuestProviderContentRules.SupportedProviderIds())
+            {
+                supportedProviderIds[providerId] = true;
+            }
+            return supportedProviderIds;
+        }
 
         var normalized = new GDictionary();
         foreach (var key in providerIds.Keys)

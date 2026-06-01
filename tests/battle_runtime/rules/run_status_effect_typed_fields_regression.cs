@@ -47,6 +47,17 @@ public partial class run_status_effect_typed_fields_regression : SceneTree
             "status params.lock_counterattack must not drive typed counterattack locks."
         );
 
+        BattleUnitState critLockUnit = BuildUnit("legacy_crit_lock");
+        SetStatusParams(
+            critLockUnit,
+            "legacy_crit_lock",
+            new GDictionary { ["lock_crit"] = true }
+        );
+        AssertFalse(
+            BattleFateAttackRules.IsAttackCritLocked(critLockUnit),
+            "status params.lock_crit must not drive typed crit locks."
+        );
+
         BattleUnitState mainSkillLockUnit = BuildUnit("legacy_main_skill_lock");
         SetStatusParams(
             mainSkillLockUnit,
@@ -111,6 +122,17 @@ public partial class run_status_effect_typed_fields_regression : SceneTree
             "typed main_skill_lock_other_debuff_count must drive main skill locks."
         );
 
+        BattleUnitState critLockUnit = BuildUnit("typed_crit_lock");
+        SetTypedStatus(
+            critLockUnit,
+            "typed_crit_lock",
+            lockCrit: true
+        );
+        AssertTrue(
+            BattleFateAttackRules.IsAttackCritLocked(critLockUnit),
+            "typed lock_crit must drive crit locks."
+        );
+
         BattleUnitState customDebuffUnit = BuildUnit("typed_custom_debuff");
         SetTypedStatus(
             customDebuffUnit,
@@ -153,6 +175,7 @@ public partial class run_status_effect_typed_fields_regression : SceneTree
             counts_as_debuff_override: true,
             counts_as_debuff: true,
             lock_counterattack: true,
+            lock_crit: true,
             main_skill_lock_other_debuff_count: 3
         );
 
@@ -166,6 +189,10 @@ public partial class run_status_effect_typed_fields_regression : SceneTree
             status?.lock_counterattack == true,
             "runtime wrapper should forward typed counterattack lock field."
         );
+        AssertTrue(
+            status?.lock_crit == true,
+            "runtime wrapper should forward typed crit lock field."
+        );
         AssertEq(
             status?.main_skill_lock_other_debuff_count ?? -1,
             3,
@@ -174,6 +201,10 @@ public partial class run_status_effect_typed_fields_regression : SceneTree
         AssertTrue(
             runtime.is_unit_counterattack_locked(unit),
             "runtime counterattack lock query should use typed status fields."
+        );
+        AssertTrue(
+            BattleFateAttackRules.IsAttackCritLocked(unit),
+            "runtime crit lock query should use typed status fields."
         );
         AssertEq(
             runtime._get_main_skill_lock_other_debuff_count(unit),
@@ -213,6 +244,7 @@ public partial class run_status_effect_typed_fields_regression : SceneTree
         string statusId,
         bool lockCounterattack = false,
         int mainSkillLockOtherDebuffCount = 0,
+        bool lockCrit = false,
         bool countsAsDebuffOverride = false,
         bool countsAsDebuff = false
     )
@@ -224,6 +256,7 @@ public partial class run_status_effect_typed_fields_regression : SceneTree
                 power = 1,
                 stacks = 1,
                 lock_counterattack = lockCounterattack,
+                lock_crit = lockCrit,
                 main_skill_lock_other_debuff_count = mainSkillLockOtherDebuffCount,
                 counts_as_debuff_override = countsAsDebuffOverride,
                 counts_as_debuff = countsAsDebuff,

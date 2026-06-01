@@ -1,7 +1,8 @@
 using Godot;
+using System;
+using System.Collections.Generic;
 
-[GlobalClass]
-public partial class PendingCharacterRewardContentRules : RefCounted
+public static class PendingCharacterRewardContentRules
 {
     public static readonly StringName ENTRY_KNOWLEDGE_UNLOCK = "knowledge_unlock";
 
@@ -13,28 +14,28 @@ public partial class PendingCharacterRewardContentRules : RefCounted
 
     public static readonly StringName ENTRY_ATTRIBUTE_PROGRESS = "attribute_progress";
 
-    private static readonly Godot.Collections.Dictionary SUPPORTED_ENTRY_TYPES = new()
+    private static readonly HashSet<StringName> SUPPORTED_ENTRY_TYPES = new()
     {
-        { ENTRY_KNOWLEDGE_UNLOCK, true },
-        { ENTRY_SKILL_UNLOCK, true },
-        { ENTRY_SKILL_MASTERY, true },
-        { ENTRY_ATTRIBUTE_DELTA, true },
-        { ENTRY_ATTRIBUTE_PROGRESS, true },
+        ENTRY_KNOWLEDGE_UNLOCK,
+        ENTRY_SKILL_UNLOCK,
+        ENTRY_SKILL_MASTERY,
+        ENTRY_ATTRIBUTE_DELTA,
+        ENTRY_ATTRIBUTE_PROGRESS,
     };
 
-    private static readonly Godot.Collections.Dictionary SKILL_TARGET_ENTRY_TYPES = new()
+    private static readonly HashSet<StringName> SKILL_TARGET_ENTRY_TYPES = new()
     {
-        { ENTRY_SKILL_UNLOCK, true },
-        { ENTRY_SKILL_MASTERY, true },
+        ENTRY_SKILL_UNLOCK,
+        ENTRY_SKILL_MASTERY,
     };
 
     public static StringName normalize_string_name(StringName value) => value;
 
     public static bool is_supported_entry_type(StringName value) =>
-        SUPPORTED_ENTRY_TYPES.ContainsKey(value);
+        SUPPORTED_ENTRY_TYPES.Contains(value);
 
     public static bool requires_skill_target(StringName value) =>
-        SKILL_TARGET_ENTRY_TYPES.ContainsKey(value);
+        SKILL_TARGET_ENTRY_TYPES.Contains(value);
 
     public static bool is_attribute_progress_entry(StringName value) =>
         value == ENTRY_ATTRIBUTE_PROGRESS;
@@ -46,12 +47,12 @@ public partial class PendingCharacterRewardContentRules : RefCounted
 
     public static string valid_entry_type_label()
     {
-        var labels = new Godot.Collections.Array<string>();
+        var labels = new List<string>();
 
-        foreach (var entryType in SUPPORTED_ENTRY_TYPES.Keys)
-            labels.Add(entryType.AsString());
+        foreach (var entryType in SUPPORTED_ENTRY_TYPES)
+            labels.Add(entryType.ToString());
 
-        labels.Sort();
+        labels.Sort(StringComparer.Ordinal);
 
         return string.Join(", ", labels);
     }

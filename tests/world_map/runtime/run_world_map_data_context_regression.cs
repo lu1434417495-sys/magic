@@ -85,7 +85,6 @@ public partial class run_world_map_data_context_regression : SceneTree
         }
         finally
         {
-            grid.Dispose();
             context.Dispose();
         }
     }
@@ -111,7 +110,6 @@ public partial class run_world_map_data_context_regression : SceneTree
         }
         finally
         {
-            grid.Dispose();
             context.Dispose();
         }
     }
@@ -160,7 +158,6 @@ public partial class run_world_map_data_context_regression : SceneTree
         }
         finally
         {
-            grid.Dispose();
             context.Dispose();
         }
     }
@@ -203,7 +200,6 @@ public partial class run_world_map_data_context_regression : SceneTree
         }
         finally
         {
-            grid.Dispose();
             context.Dispose();
         }
     }
@@ -278,7 +274,6 @@ public partial class run_world_map_data_context_regression : SceneTree
         }
         finally
         {
-            grid.Dispose();
             context.Dispose();
         }
     }
@@ -294,7 +289,7 @@ public partial class run_world_map_data_context_regression : SceneTree
             context.bind_root_world_data(BuildRootWorldData());
             context.SyncActiveWorldContext(BuildConfig(), grid, Vector2I.Zero, Vector2I.Zero);
             fogSystem.setup(new Vector2I(4, 4));
-            fogSystem.reveal_diamond(new Vector2I(1, 1), 1, "player");
+            fogSystem.RevealDiamond(new Vector2I(1, 1), 1, "player");
 
             AssertTrue(context.SaveActiveWorldFogState(fogSystem), "Context should save active fog state into active world data.");
             GDictionary savedFogState = context.GetActiveWorldFogState();
@@ -312,9 +307,6 @@ public partial class run_world_map_data_context_regression : SceneTree
         }
         finally
         {
-            restoredFogSystem.Dispose();
-            fogSystem.Dispose();
-            grid.Dispose();
             context.Dispose();
         }
     }
@@ -386,7 +378,6 @@ public partial class run_world_map_data_context_regression : SceneTree
         }
         finally
         {
-            grid.Dispose();
             context.Dispose();
         }
     }
@@ -412,7 +403,6 @@ public partial class run_world_map_data_context_regression : SceneTree
         }
         finally
         {
-            grid.Dispose();
             context.Dispose();
         }
     }
@@ -441,7 +431,6 @@ public partial class run_world_map_data_context_regression : SceneTree
         }
         finally
         {
-            grid.Dispose();
             context.Dispose();
         }
     }

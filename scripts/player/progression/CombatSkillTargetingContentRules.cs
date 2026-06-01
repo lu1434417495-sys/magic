@@ -1,90 +1,91 @@
 using Godot;
+using System;
+using System.Collections.Generic;
 
-[GlobalClass]
-public partial class CombatSkillTargetingContentRules : RefCounted
+public static class CombatSkillTargetingContentRules
 {
     public static readonly StringName TARGET_MODE_UNIT = "unit";
 
     public static readonly StringName TARGET_MODE_GROUND = "ground";
 
-    private static readonly Godot.Collections.Dictionary VALID_COMBAT_TARGET_MODES = new()
+    private static readonly HashSet<StringName> VALID_COMBAT_TARGET_MODES = new()
     {
-        { TARGET_MODE_UNIT, true },
-        { TARGET_MODE_GROUND, true },
+        TARGET_MODE_UNIT,
+        TARGET_MODE_GROUND,
     };
 
-    private static readonly Godot.Collections.Dictionary VALID_CAST_OPTION_TARGET_MODES = new()
+    private static readonly HashSet<StringName> VALID_CAST_OPTION_TARGET_MODES = new()
     {
-        { TARGET_MODE_UNIT, true },
-        { TARGET_MODE_GROUND, true },
+        TARGET_MODE_UNIT,
+        TARGET_MODE_GROUND,
     };
 
-    private static readonly Godot.Collections.Dictionary VALID_TARGET_SELECTION_MODES = new()
+    private static readonly HashSet<StringName> VALID_TARGET_SELECTION_MODES = new()
     {
-        { "single_unit", true },
-        { "multi_unit", true },
-        { "random_chain", true },
-        { "self", true },
-        { "single_coord", true },
-        { "coord_pair", true },
+        "single_unit",
+        "multi_unit",
+        "random_chain",
+        "self",
+        "single_coord",
+        "coord_pair",
     };
 
-    private static readonly Godot.Collections.Dictionary VALID_SELECTION_ORDER_MODES = new()
+    private static readonly HashSet<StringName> VALID_SELECTION_ORDER_MODES = new()
     {
-        { "stable", true },
-        { "manual", true },
+        "stable",
+        "manual",
     };
 
-    private static readonly Godot.Collections.Dictionary VALID_AREA_PATTERNS = new()
+    private static readonly HashSet<StringName> VALID_AREA_PATTERNS = new()
     {
-        { "single", true },
-        { "self", true },
-        { "diamond", true },
-        { "square", true },
-        { "radius", true },
-        { "cross", true },
-        { "line", true },
-        { "cone", true },
-        { "narrow_cone", true },
-        { "front_arc", true },
+        "single",
+        "self",
+        "diamond",
+        "square",
+        "radius",
+        "cross",
+        "line",
+        "cone",
+        "narrow_cone",
+        "front_arc",
     };
 
-    private static readonly Godot.Collections.Dictionary VALID_FOOTPRINT_PATTERNS = new()
+    private static readonly HashSet<StringName> VALID_FOOTPRINT_PATTERNS = new()
     {
-        { "single", true },
-        { "line2", true },
-        { "square2", true },
-        { "unordered", true },
+        "single",
+        "line2",
+        "square2",
+        "unordered",
     };
 
     public static bool is_valid_combat_target_mode(StringName value)
     {
-        return VALID_COMBAT_TARGET_MODES.ContainsKey(value);
+        return VALID_COMBAT_TARGET_MODES.Contains(value);
     }
 
     public static bool is_valid_cast_variant_target_mode(StringName value)
     {
-        return VALID_CAST_OPTION_TARGET_MODES.ContainsKey(value);
+        return VALID_CAST_OPTION_TARGET_MODES.Contains(value);
     }
 
     public static bool is_valid_target_selection_mode(StringName value)
     {
-        return VALID_TARGET_SELECTION_MODES.ContainsKey(value);
+        return VALID_TARGET_SELECTION_MODES.Contains(value);
     }
 
     public static bool is_valid_selection_order_mode(StringName value)
     {
-        return VALID_SELECTION_ORDER_MODES.ContainsKey(value);
+        return VALID_SELECTION_ORDER_MODES.Contains(value);
     }
 
     public static bool is_valid_area_pattern(StringName value)
     {
-        return VALID_AREA_PATTERNS.ContainsKey(value);
+        return VALID_AREA_PATTERNS.Contains(value);
     }
 
     public static bool is_valid_footprint_pattern(StringName value)
     {
-        return VALID_FOOTPRINT_PATTERNS.ContainsKey(value);
+        return VALID_FOOTPRINT_PATTERNS.Contains(value);
     }
 
     public static string valid_combat_target_mode_label()
@@ -117,14 +118,14 @@ public partial class CombatSkillTargetingContentRules : RefCounted
         return _sorted_key_label(VALID_FOOTPRINT_PATTERNS);
     }
 
-    private static string _sorted_key_label(Godot.Collections.Dictionary source)
+    private static string _sorted_key_label(HashSet<StringName> source)
     {
-        var labels = new Godot.Collections.Array<string>();
+        var labels = new List<string>();
 
-        foreach (var key in source.Keys)
-            labels.Add(key.AsString());
+        foreach (var key in source)
+            labels.Add(key.ToString());
 
-        labels.Sort();
+        labels.Sort(StringComparer.Ordinal);
 
         return string.Join(", ", labels);
     }

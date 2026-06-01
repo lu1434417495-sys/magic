@@ -1,8 +1,60 @@
+using System.Collections.Generic;
 using Godot;
-using Godot.Collections;
 
-[GlobalClass]
-public partial class MisfortuneGuidanceService : RefCounted
+public readonly struct MisfortuneForgeGuidanceItemEntry
+{
+    public MisfortuneForgeGuidanceItemEntry(StringName itemId, int quantity)
+    {
+        ItemId = ProgressionDataUtils.to_string_name(itemId);
+        Quantity = Mathf.Max(quantity, 0);
+    }
+
+    public StringName ItemId { get; }
+    public int Quantity { get; }
+    public bool IsValid => ItemId != "" && Quantity > 0;
+}
+
+public sealed class MisfortuneForgeGuidanceInput
+{
+    private readonly List<MisfortuneForgeGuidanceItemEntry> _removedEntries;
+    private readonly List<MisfortuneForgeGuidanceItemEntry> _addedEntries;
+
+    public MisfortuneForgeGuidanceInput(
+        bool success,
+        IEnumerable<MisfortuneForgeGuidanceItemEntry> removedEntries = null,
+        IEnumerable<MisfortuneForgeGuidanceItemEntry> addedEntries = null,
+        StringName outputItemId = default
+    )
+    {
+        Success = success;
+        _removedEntries = NormalizeEntries(removedEntries);
+        _addedEntries = NormalizeEntries(addedEntries);
+        OutputItemId = ProgressionDataUtils.to_string_name(outputItemId);
+    }
+
+    public static MisfortuneForgeGuidanceInput Empty { get; } = new(false);
+    public bool Success { get; }
+    public IReadOnlyList<MisfortuneForgeGuidanceItemEntry> RemovedEntries => _removedEntries;
+    public IReadOnlyList<MisfortuneForgeGuidanceItemEntry> AddedEntries => _addedEntries;
+    public StringName OutputItemId { get; }
+
+    private static List<MisfortuneForgeGuidanceItemEntry> NormalizeEntries(
+        IEnumerable<MisfortuneForgeGuidanceItemEntry> entries
+    )
+    {
+        var result = new List<MisfortuneForgeGuidanceItemEntry>();
+        if (entries == null)
+            return result;
+        foreach (var entry in entries)
+        {
+            if (entry.IsValid)
+                result.Add(entry);
+        }
+        return result;
+    }
+}
+
+public class MisfortuneGuidanceService
 {
     private static readonly StringName AchievementGuidanceTrue = "misfortune_guidance_true";
     private static readonly StringName AchievementGuidanceDevout = "misfortune_guidance_devout";
@@ -22,30 +74,19 @@ public partial class MisfortuneGuidanceService : RefCounted
         "misfortune_guidance_exalted_ready:";
     private static readonly StringName CalamityReasonCriticalFail = "critical_fail";
     private static readonly StringName CalamityReasonStrongDebuff = "strong_debuff";
+    private static readonly IReadOnlyDictionary<StringName, ItemDef> EmptyItemDefs =
+        new Dictionary<StringName, ItemDef>();
 
     private IBattleRuntimeCharacterGateway _characterGateway;
     private BattleRuntimeModule _battleRuntimeGateway;
 
-    public static StringName ACHIEVEMENT_GUIDANCE_TRUE_ID() => AchievementGuidanceTrue;
-
-    public static StringName ACHIEVEMENT_GUIDANCE_DEVOUT_ID() => AchievementGuidanceDevout;
-
-    public static StringName ACHIEVEMENT_GUIDANCE_EXALTED_ID() => AchievementGuidanceExalted;
-
-    public static StringName ACHIEVEMENT_GUIDANCE_BLESSED_ID() => AchievementGuidanceBlessed;
-
-    public void Setup(IBattleRuntimeCharacterGateway characterGateway = null, BattleRuntimeModule battleRuntimeGateway = null)
+    public void Setup(
+        IBattleRuntimeCharacterGateway characterGateway = null,
+        BattleRuntimeModule battleRuntimeGateway = null
+    )
     {
         _characterGateway = characterGateway;
         _battleRuntimeGateway = battleRuntimeGateway;
-    }
-
-    public void setup(
-        IBattleRuntimeCharacterGateway character_gateway = null,
-        BattleRuntimeModule battle_runtime_gateway = null
-    )
-    {
-        Setup(character_gateway, battle_runtime_gateway);
     }
 
     public void BindBattleRuntimeGateway(BattleRuntimeModule battleRuntimeGateway = null)
@@ -53,16 +94,7 @@ public partial class MisfortuneGuidanceService : RefCounted
         _battleRuntimeGateway = battleRuntimeGateway;
     }
 
-    public void bind_battle_runtime_gateway(GodotObject battle_runtime_gateway = null)
-    {
-        BindBattleRuntimeGateway(battle_runtime_gateway as BattleRuntimeModule);
-    }
-
-    public new void Dispose()
-    {
-        _characterGateway = null;
-        _battleRuntimeGateway = null;
-    }
+    public void Dispose() => dispose();
 
     public void dispose()
     {
@@ -70,12 +102,12 @@ public partial class MisfortuneGuidanceService : RefCounted
         _battleRuntimeGateway = null;
     }
 
-    public Array<StringName> HandleBattleResolution(
+    public List<StringName> HandleBattleResolution(
         BattleState battleState,
         BattleResolutionResult battleResolutionResult
     )
     {
-        var unlockedIds = new Array<StringName>();
+        var unlockedIds = new List<StringName>();
         var partyState = GetPartyState();
         if (partyState == null || battleState == null || battleResolutionResult == null)
             return unlockedIds;
@@ -124,57 +156,30 @@ public partial class MisfortuneGuidanceService : RefCounted
         return unlockedIds;
     }
 
-    public Array<StringName> handle_battle_resolution(
-        BattleState battle_state,
-        BattleResolutionResult battle_resolution_result
-    )
-    {
-        return HandleBattleResolution(battle_state, battle_resolution_result);
-    }
-
-    public Array<StringName> HandleForgeResult(
+    public List<StringName> HandleForgeResult(
         StringName memberId,
-        Dictionary result,
-        Dictionary itemDefs = null
+        MisfortuneForgeGuidanceInput result,
+        IReadOnlyDictionary<StringName, ItemDef> itemDefs = null
     )
     {
         return HandleForgeResultCore(
             memberId,
-            DictBool(result, "success", false),
-            DictDictionary(result, "inventory_delta"),
-            DictDictionary(result, "service_side_effects"),
-            itemDefs ?? new Dictionary()
+            result ?? MisfortuneForgeGuidanceInput.Empty,
+            itemDefs ?? EmptyItemDefs
         );
     }
 
-    public Array<StringName> HandleForgeResult(
+    private List<StringName> HandleForgeResultCore(
         StringName memberId,
-        SettlementServiceResult result,
-        Dictionary itemDefs = null
+        MisfortuneForgeGuidanceInput result,
+        IReadOnlyDictionary<StringName, ItemDef> itemDefs
     )
     {
-        return HandleForgeResultCore(
-            memberId,
-            result?.Success ?? false,
-            result?.InventoryDelta ?? new Dictionary(),
-            result?.ServiceSideEffects ?? new Dictionary(),
-            itemDefs ?? new Dictionary()
-        );
-    }
-
-    private Array<StringName> HandleForgeResultCore(
-        StringName memberId,
-        bool success,
-        Dictionary inventoryDelta,
-        Dictionary serviceSideEffects,
-        Dictionary itemDefs
-    )
-    {
-        var unlockedIds = new Array<StringName>();
+        var unlockedIds = new List<StringName>();
         var normalizedMemberId = ProgressionDataUtils.to_string_name(memberId);
         if (normalizedMemberId == "")
             return unlockedIds;
-        if (!success)
+        if (result == null || !result.Success)
             return unlockedIds;
         if (!HasExaltedReadyFlag(normalizedMemberId))
             return unlockedIds;
@@ -182,31 +187,24 @@ public partial class MisfortuneGuidanceService : RefCounted
         var memberState = GetMemberState(normalizedMemberId);
         if (!IsMisfortuneDevotee(memberState))
             return unlockedIds;
-        if (!ForgeResultUsesFixedMaterial(inventoryDelta))
+        if (!ForgeResultUsesFixedMaterial(result))
             return unlockedIds;
-        if (!ForgeResultOutputsDarkEquipment(inventoryDelta, serviceSideEffects, itemDefs))
+        if (!ForgeResultOutputsDarkEquipment(result, itemDefs ?? EmptyItemDefs))
             return unlockedIds;
         if (UnlockAchievement(normalizedMemberId, AchievementGuidanceExalted))
             AppendUniqueStringName(unlockedIds, AchievementGuidanceExalted);
-        ClearExaltedReadyFlags(new Godot.Collections.Array { normalizedMemberId });
+        ClearExaltedReadyFlags(new[] { normalizedMemberId });
         return unlockedIds;
     }
 
-    public Array<StringName> handle_forge_result(
-        StringName member_id,
-        Dictionary result,
-        Dictionary item_defs = null
-    )
-    {
-        return HandleForgeResult(member_id, result, item_defs);
-    }
-
-    public void ClearExaltedReadyFlags(Godot.Collections.Array memberIds = null)
+    public void ClearExaltedReadyFlags(IEnumerable<StringName> memberIds = null)
     {
         var partyState = GetPartyState();
         if (partyState == null)
             return;
-        if (memberIds == null || memberIds.Count == 0)
+
+        var normalizedMemberIds = NormalizeMemberIds(memberIds);
+        if (memberIds == null || normalizedMemberIds.Count == 0)
         {
             var fateFlags = partyState.fate_run_flags;
             foreach (var key in fateFlags.Keys)
@@ -221,36 +219,29 @@ public partial class MisfortuneGuidanceService : RefCounted
             }
             return;
         }
-        foreach (var memberId in memberIds)
-            partyState.clear_fate_run_flag(BuildExaltedReadyFlagId(memberId.AsStringName()));
-    }
 
-    public void clear_exalted_ready_flags(Godot.Collections.Array member_ids = null)
-    {
-        ClearExaltedReadyFlags(member_ids);
+        foreach (var memberId in normalizedMemberIds)
+            partyState.clear_fate_run_flag(BuildExaltedReadyFlagId(memberId));
     }
 
     private void MarkExaltedReadyFlags(BattleResolutionResult battleResolutionResult)
     {
         if (battleResolutionResult == null)
             return;
-        var convertedShards = battleResolutionResult
-            .party_resource_commit
-            .GetValueOrDefault("converted_calamity_shards", 0)
-            .AsInt32();
-        if (convertedShards <= 0)
+        if (battleResolutionResult.GetConvertedCalamityShards() <= 0)
             return;
         var partyState = GetPartyState();
         if (partyState == null)
             return;
-        var calamityByMemberId = GetCalamityByMemberId();
-        foreach (var memberKey in calamityByMemberId.Keys)
+        var calamityByMemberId =
+            _battleRuntimeGateway?.GetCalamityByMemberIdSnapshot()
+            ?? new Dictionary<StringName, int>();
+        foreach (var entry in calamityByMemberId)
         {
-            var memberId = ProgressionDataUtils.to_string_name(memberKey);
+            var memberId = ProgressionDataUtils.to_string_name(entry.Key);
             if (memberId == "")
                 continue;
-            var value = calamityByMemberId.GetValueOrDefault(memberKey, 0).AsInt32();
-            if (Mathf.Max(value, 0) <= 0)
+            if (Mathf.Max(entry.Value, 0) <= 0)
                 continue;
             partyState.set_fate_run_flag(BuildExaltedReadyFlagId(memberId), true);
         }
@@ -267,11 +258,6 @@ public partial class MisfortuneGuidanceService : RefCounted
         return _battleRuntimeGateway?.has_misfortune_reason(memberId, reasonId) ?? false;
     }
 
-    private Dictionary GetCalamityByMemberId()
-    {
-        return _battleRuntimeGateway?.get_calamity_by_member_id()?.Duplicate(true) ?? new Dictionary();
-    }
-
     private StringName ResolveEliteSealSourceMemberId(
         BattleState battleState,
         BattleUnitState defeatedUnit
@@ -279,7 +265,7 @@ public partial class MisfortuneGuidanceService : RefCounted
     {
         if (battleState == null || defeatedUnit == null || !IsEliteOrBossTarget(defeatedUnit))
             return "";
-        var statusIds = new Array<StringName>
+        var statusIds = new[]
         {
             StatusCrownBreakBrokenFang,
             StatusCrownBreakBrokenHand,
@@ -312,22 +298,13 @@ public partial class MisfortuneGuidanceService : RefCounted
             : "";
     }
 
-    private bool ForgeResultUsesFixedMaterial(Dictionary inventoryDelta)
+    private bool ForgeResultUsesFixedMaterial(MisfortuneForgeGuidanceInput result)
     {
-        var removedEntries = inventoryDelta
-            .GetValueOrDefault("removed_entries", new Godot.Collections.Array())
-            .AsGodotArray();
-        foreach (var entryValue in removedEntries)
+        foreach (var entry in result.RemovedEntries)
         {
-            if (entryValue.VariantType != Variant.Type.Dictionary)
-                continue;
-            var entry = entryValue.AsGodotDictionary();
-            var itemId = ProgressionDataUtils.to_string_name(
-                entry.GetValueOrDefault("item_id", "")
-            );
             if (
-                itemId == BattleLootConstants.ITEM_CALAMITY_SHARD()
-                || itemId == BattleLootConstants.ITEM_BLACK_CROWN_CORE()
+                entry.ItemId == BattleLootConstants.ITEM_CALAMITY_SHARD()
+                || entry.ItemId == BattleLootConstants.ITEM_BLACK_CROWN_CORE()
             )
                 return true;
         }
@@ -335,11 +312,11 @@ public partial class MisfortuneGuidanceService : RefCounted
     }
 
     private bool ForgeResultOutputsDarkEquipment(
-        Dictionary inventoryDelta,
-        Dictionary serviceSideEffects,
-        Dictionary itemDefs)
+        MisfortuneForgeGuidanceInput result,
+        IReadOnlyDictionary<StringName, ItemDef> itemDefs
+    )
     {
-        var outputItemId = ResolveForgeOutputItemId(inventoryDelta, serviceSideEffects);
+        var outputItemId = ResolveForgeOutputItemId(result);
         if (outputItemId == "")
             return false;
         var itemDef = GetItemDef(itemDefs, outputItemId);
@@ -360,69 +337,36 @@ public partial class MisfortuneGuidanceService : RefCounted
         return false;
     }
 
-    private StringName ResolveForgeOutputItemId(
-        Dictionary inventoryDelta,
-        Dictionary serviceSideEffects)
+    private StringName ResolveForgeOutputItemId(MisfortuneForgeGuidanceInput result)
     {
-        if (serviceSideEffects != null && serviceSideEffects.Count > 0)
+        if (result.OutputItemId != "")
+            return result.OutputItemId;
+        foreach (var entry in result.AddedEntries)
         {
-            var outputFromSideEffects = ProgressionDataUtils.to_string_name(
-                serviceSideEffects.GetValueOrDefault("output_item_id", "")
-            );
-            if (outputFromSideEffects != "")
-                return outputFromSideEffects;
-        }
-        if (inventoryDelta == null || inventoryDelta.Count == 0)
-            return "";
-        var addedEntries = inventoryDelta
-            .GetValueOrDefault("added_entries", new Godot.Collections.Array())
-            .AsGodotArray();
-        foreach (var entryValue in addedEntries)
-        {
-            if (entryValue.VariantType != Variant.Type.Dictionary)
-                continue;
-            var entry = entryValue.AsGodotDictionary();
-            var itemId = ProgressionDataUtils.to_string_name(
-                entry.GetValueOrDefault("item_id", "")
-            );
-            if (itemId != "")
-                return itemId;
+            if (entry.ItemId != "")
+                return entry.ItemId;
         }
         return "";
     }
 
-    private ItemDef GetItemDef(Dictionary itemDefs, StringName itemId)
+    private ItemDef GetItemDef(
+        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        StringName itemId
+    )
     {
-        if (itemDefs.Count == 0 || itemId == "")
+        if (itemDefs == null || itemDefs.Count == 0 || itemId == "")
             return null;
-        var itemDef = GetItemDefByStringNameKey(itemDefs, itemId);
-        if (itemDef != null && itemDef is ItemDef)
-            return (ItemDef)itemDef;
-        return null;
-    }
-
-    private GodotObject GetItemDefByStringNameKey(Dictionary itemDefs, StringName itemId)
-    {
-        if (itemId == "")
-            return null;
-        foreach (var key in itemDefs.Keys)
-        {
-            if (key.VariantType != Variant.Type.StringName)
-                continue;
-            if (key.AsStringName() == itemId)
-                return itemDefs[key].AsGodotObject();
-        }
-        return null;
+        return itemDefs.TryGetValue(itemId, out ItemDef itemDef) ? itemDef : null;
     }
 
     private bool UnlockAchievement(StringName memberId, StringName achievementId)
     {
         if (_characterGateway == null || memberId == "" || achievementId == "")
             return false;
-        return (_characterGateway as CharacterManagementModule)?.unlock_achievement(
+        return (_characterGateway as CharacterManagementModule)?.UnlockAchievement(
             memberId,
             achievementId,
-            new Dictionary { ["summary_text"] = BuildSummaryText(achievementId) }
+            BuildSummaryText(achievementId)
         ) ?? false;
     }
 
@@ -502,27 +446,23 @@ public partial class MisfortuneGuidanceService : RefCounted
         return unitState.attribute_snapshot.get_value(BossTargetStatId) > 0;
     }
 
-    private void AppendUniqueStringName(Array<StringName> values, StringName value)
+    private void AppendUniqueStringName(List<StringName> values, StringName value)
     {
         if (value != "" && !values.Contains(value))
             values.Add(value);
     }
 
-    private static bool DictBool(Dictionary dictionary, string key, bool fallback)
+    private static List<StringName> NormalizeMemberIds(IEnumerable<StringName> memberIds)
     {
-        if (dictionary == null || !dictionary.ContainsKey(key))
-            return fallback;
-        Variant value = dictionary[key];
-        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
-    }
-
-    private static Dictionary DictDictionary(Dictionary dictionary, string key)
-    {
-        if (dictionary == null || !dictionary.ContainsKey(key))
-            return new Dictionary();
-        Variant value = dictionary[key];
-        return value.VariantType == Variant.Type.Dictionary
-            ? value.AsGodotDictionary()
-            : new Dictionary();
+        var result = new List<StringName>();
+        if (memberIds == null)
+            return result;
+        foreach (var memberId in memberIds)
+        {
+            var normalizedMemberId = ProgressionDataUtils.to_string_name(memberId);
+            if (normalizedMemberId != "" && !result.Contains(normalizedMemberId))
+                result.Add(normalizedMemberId);
+        }
+        return result;
     }
 }

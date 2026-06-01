@@ -1427,7 +1427,7 @@ public partial class BattleDamageResolver : RefCounted
             && ApplyLowLuckBlackStarWedgeExposed(source_unit)
         )
         {
-            sourceStatusEffectIds.Add(LowLuckRelicRules.status_black_star_wedge_exposed());
+            sourceStatusEffectIds.Add(LowLuckRelicRules.STATUS_BLACK_STAR_WEDGE_EXPOSED);
         }
 
         GDictionary result = new()
@@ -3175,7 +3175,7 @@ public partial class BattleDamageResolver : RefCounted
         {
             return false;
         }
-        if (!LowLuckRelicRules.unit_has_flag(sourceUnit, LowLuckRelicRules.attr_black_star_wedge()))
+        if (!LowLuckRelicRules.UnitHasFlag(sourceUnit, LowLuckRelicRules.ATTR_BLACK_STAR_WEDGE))
         {
             return false;
         }
@@ -3185,7 +3185,7 @@ public partial class BattleDamageResolver : RefCounted
             return false;
         }
         aiBlackboard.low_luck_black_star_wedge_used = true;
-        int remainingIgnore = LowLuckRelicRules.black_star_wedge_guard_ignore_flat();
+        int remainingIgnore = LowLuckRelicRules.BLACK_STAR_WEDGE_GUARD_IGNORE_FLAT;
         int ignoredTotal = ApplyIgnoreToMitigationField(
             mitigation,
             "guard_block",
@@ -4449,15 +4449,15 @@ public partial class BattleDamageResolver : RefCounted
 
     private static double GetLowLuckBloodDebtMultiplier(BattleUnitState targetUnit)
     {
-        if (!LowLuckRelicRules.unit_has_flag(targetUnit, LowLuckRelicRules.attr_blood_debt_shawl()))
+        if (!LowLuckRelicRules.UnitHasFlag(targetUnit, LowLuckRelicRules.ATTR_BLOOD_DEBT_SHAWL))
         {
             return 1.0;
         }
-        if (!IsUnitBelowHpRatio(targetUnit, LowLuckRelicRules.blood_debt_low_hp_threshold_ratio()))
+        if (!IsUnitBelowHpRatio(targetUnit, LowLuckRelicRules.BLOOD_DEBT_LOW_HP_THRESHOLD_RATIO))
         {
             return 1.0;
         }
-        return LowLuckRelicRules.blood_debt_damage_multiplier();
+        return LowLuckRelicRules.BLOOD_DEBT_DAMAGE_MULTIPLIER;
     }
 
     private bool ApplyLowLuckBlackStarWedgeExposed(BattleUnitState sourceUnit)
@@ -4468,12 +4468,12 @@ public partial class BattleDamageResolver : RefCounted
         }
         ApplyRuntimeStatus(
             sourceUnit,
-            LowLuckRelicRules.status_black_star_wedge_exposed(),
-            LowLuckRelicRules.black_star_wedge_exposed_duration_tu(),
+            LowLuckRelicRules.STATUS_BLACK_STAR_WEDGE_EXPOSED,
+            LowLuckRelicRules.BLACK_STAR_WEDGE_EXPOSED_DURATION_TU,
             new GDictionary
             {
                 ["incoming_damage_multiplier"] =
-                    LowLuckRelicRules.black_star_wedge_exposed_incoming_damage_multiplier(),
+                    LowLuckRelicRules.BLACK_STAR_WEDGE_EXPOSED_INCOMING_DAMAGE_MULTIPLIER,
                 ["counts_as_debuff"] = true,
             }
         );

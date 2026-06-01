@@ -1,146 +1,144 @@
+using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class FaithService : RefCounted
+public sealed class FaithDevotionResult
+{
+    public bool Success { get; internal set; }
+    public string ErrorCode { get; internal set; } = "";
+    public StringName MemberId { get; internal set; } = "";
+    public StringName DeityId { get; internal set; } = "";
+    public int CurrentRank { get; internal set; }
+    public int TargetRank { get; internal set; }
+    public int GoldSpent { get; internal set; }
+    public PendingCharacterReward PendingReward { get; internal set; }
+    public StringName MissingCustomStatId { get; internal set; } = "";
+    public StringName MissingAchievementId { get; internal set; } = "";
+}
+
+public class FaithService
 {
     private const string ConfigDirectory = "res://data/configs/faith";
-    private static readonly StringName SourceTypeFaithRankReward = "faith_rank_reward";
-    private static readonly StringName FaithLuckBonusStatId = "faith_luck_bonus";
 
-    private readonly GDictionary _faithDeityDefs = new();
-    private readonly Godot.Collections.Array<string> _validationErrors = new();
+    public static readonly StringName SourceTypeFaithRankReward = "faith_rank_reward";
+    public static readonly StringName FaithLuckBonusStatId = "faith_luck_bonus";
+
+    private readonly Dictionary<StringName, FaithDeityDef> _faithDeityDefs = new();
+    private readonly List<string> _validationErrors = new();
 
     public FaithService()
     {
-        rebuild();
+        Rebuild();
     }
 
-    public static StringName SOURCE_TYPE_FAITH_RANK_REWARD() => SourceTypeFaithRankReward;
-
-    public static StringName FAITH_LUCK_BONUS_STAT_ID() => FaithLuckBonusStatId;
-
-    public void setup(GDictionary faith_deity_defs = null)
+    public void Setup(IEnumerable<FaithDeityDef> faithDeityDefs = null)
     {
         _faithDeityDefs.Clear();
         _validationErrors.Clear();
 
-        if (faith_deity_defs != null)
+        if (faithDeityDefs != null)
         {
-            foreach (var key in faith_deity_defs.Keys)
+            foreach (FaithDeityDef deityDef in faithDeityDefs)
             {
-                FaithDeityDef deityDef = faith_deity_defs[key].AsGodotObject() as FaithDeityDef;
                 if (deityDef == null || deityDef.deity_id == "")
                     continue;
                 _faithDeityDefs[deityDef.deity_id] = deityDef;
             }
         }
 
-        foreach (string error in CollectValidationErrors())
-            _validationErrors.Add(error);
+        CollectValidationErrorsInto(_validationErrors);
     }
 
-    public void rebuild()
+    public void Rebuild()
     {
         _faithDeityDefs.Clear();
         _validationErrors.Clear();
         ScanDirectory(ConfigDirectory);
-        foreach (string error in CollectValidationErrors())
-            _validationErrors.Add(error);
+        CollectValidationErrorsInto(_validationErrors);
     }
 
-    public GDictionary get_faith_deity_defs()
+    public IReadOnlyDictionary<StringName, FaithDeityDef> GetFaithDeityDefs()
     {
         return _faithDeityDefs;
     }
 
-    public FaithDeityDef get_faith_deity_def(StringName deity_id)
+    public FaithDeityDef GetFaithDeityDef(StringName deityId)
     {
-        return _faithDeityDefs.ContainsKey(deity_id)
-            ? _faithDeityDefs[deity_id].AsGodotObject() as FaithDeityDef
+        return _faithDeityDefs.TryGetValue(deityId, out FaithDeityDef deityDef)
+            ? deityDef
             : null;
     }
 
-    public Godot.Collections.Array<string> validate()
+    public IReadOnlyList<string> Validate()
     {
-        return _validationErrors.Duplicate();
+        return new List<string>(_validationErrors);
     }
 
-    public GDictionary execute_devotion(
-        PartyState party_state,
-        StringName member_id,
-        StringName deity_id
+    public FaithDevotionResult ExecuteDevotion(
+        PartyState partyState,
+        StringName memberId,
+        StringName deityId
     )
     {
-        var result = new GDictionary
+        var result = new FaithDevotionResult
         {
-            ["ok"] = false,
-            ["error_code"] = "",
-            ["member_id"] = member_id.ToString(),
-            ["deity_id"] = deity_id.ToString(),
-            ["current_rank"] = 0,
-            ["target_rank"] = 0,
-            ["gold_spent"] = 0,
-            ["pending_reward"] = new GDictionary(),
-            ["missing_custom_stat_id"] = "",
-            ["missing_achievement_id"] = "",
+            MemberId = memberId,
+            DeityId = deityId,
         };
 
-        if (party_state == null || member_id == "" || deity_id == "")
+        if (partyState == null || IsEmpty(memberId) || IsEmpty(deityId))
         {
-            result["error_code"] = "invalid_request";
+            result.ErrorCode = "invalid_request";
             return result;
         }
 
-        PartyMemberState memberState = party_state.get_member_state(member_id);
+        PartyMemberState memberState = partyState.get_member_state(memberId);
         UnitProgress progress = GetProgress(memberState);
         UnitBaseAttributes attributes = progress?.unit_base_attributes;
         if (memberState == null || progress == null || attributes == null)
         {
-            result["error_code"] = "member_not_found";
+            result.ErrorCode = "member_not_found";
             return result;
         }
 
-        FaithDeityDef deityDef = get_faith_deity_def(deity_id);
+        FaithDeityDef deityDef = GetFaithDeityDef(deityId);
         if (deityDef == null)
         {
-            result["error_code"] = "deity_not_found";
+            result.ErrorCode = "deity_not_found";
             return result;
         }
 
-        int currentRank = get_current_rank(party_state, member_id, deity_id, deityDef);
-        result["current_rank"] = currentRank;
+        int currentRank = GetCurrentRank(partyState, memberId, deityId, deityDef);
+        result.CurrentRank = currentRank;
         if (currentRank >= deityDef.get_max_rank())
         {
-            result["error_code"] = "max_rank_reached";
+            result.ErrorCode = "max_rank_reached";
             return result;
         }
 
         FaithRankDef nextRank = deityDef.get_rank_def(currentRank + 1);
         if (nextRank == null)
         {
-            result["error_code"] = "missing_rank_def";
+            result.ErrorCode = "missing_rank_def";
             return result;
         }
-        result["target_rank"] = nextRank.rank_index;
+        result.TargetRank = nextRank.rank_index;
 
-        if (!party_state.can_afford(nextRank.required_gold))
+        if (!partyState.can_afford(nextRank.required_gold))
         {
-            result["error_code"] = "insufficient_gold";
+            result.ErrorCode = "insufficient_gold";
             return result;
         }
         if (progress.character_level < nextRank.required_level)
         {
-            result["error_code"] = "level_too_low";
+            result.ErrorCode = "level_too_low";
             return result;
         }
         if (!MeetsPlaceholderRequirements(memberState, nextRank, result))
             return result;
 
-        if (!party_state.spend_gold(nextRank.required_gold))
+        if (!partyState.spend_gold(nextRank.required_gold))
         {
-            result["error_code"] = "insufficient_gold";
+            result.ErrorCode = "insufficient_gold";
             return result;
         }
 
@@ -148,42 +146,48 @@ public partial class FaithService : RefCounted
         PendingCharacterReward reward = BuildRankReward(memberState, deityDef, nextRank);
         if (reward == null || reward.is_empty())
         {
-            party_state.add_gold(nextRank.required_gold);
-            result["error_code"] = "invalid_rank_reward";
+            partyState.add_gold(nextRank.required_gold);
+            result.ErrorCode = "invalid_rank_reward";
             return result;
         }
 
-        party_state.enqueue_pending_character_reward(reward);
-        result["ok"] = true;
-        result["gold_spent"] = nextRank.required_gold;
-        result["pending_reward"] = reward.to_dict();
+        partyState.enqueue_pending_character_reward(reward);
+        result.Success = true;
+        result.GoldSpent = nextRank.required_gold;
+        result.PendingReward = reward;
         return result;
     }
 
-    public int get_current_rank(
-        PartyState party_state,
-        StringName member_id,
-        StringName deity_id,
-        FaithDeityDef deity_def = null
+    public int GetCurrentRank(
+        PartyState partyState,
+        StringName memberId,
+        StringName deityId,
+        FaithDeityDef deityDef = null
     )
     {
-        deity_def ??= get_faith_deity_def(deity_id);
-        if (deity_def == null || party_state == null)
+        deityDef ??= GetFaithDeityDef(deityId);
+        if (deityDef == null || partyState == null)
             return 0;
 
-        PartyMemberState memberState = party_state.get_member_state(member_id);
+        PartyMemberState memberState = partyState.get_member_state(memberId);
         if (memberState == null)
             return 0;
 
-        StringName rankProgressStatId = ResolveRankProgressStatId(deity_def);
+        StringName rankProgressStatId = ResolveRankProgressStatId(deityDef);
         int appliedRank = Mathf.Max(GetCustomStatValue(memberState, rankProgressStatId), 0);
         int pendingRank = CountPendingRankRewards(
-            party_state,
-            member_id,
-            deity_id,
+            partyState,
+            memberId,
+            deityId,
             rankProgressStatId
         );
-        return Mathf.Clamp(appliedRank + pendingRank, 0, deity_def.get_max_rank());
+        return Mathf.Clamp(appliedRank + pendingRank, 0, deityDef.get_max_rank());
+    }
+
+    public void Dispose()
+    {
+        _faithDeityDefs.Clear();
+        _validationErrors.Clear();
     }
 
     private void ScanDirectory(string directoryPath)
@@ -225,8 +229,7 @@ public partial class FaithService : RefCounted
             _validationErrors.Add($"Failed to load faith config {resourcePath}.");
             return;
         }
-        FaithDeityDef deityDef = resource as FaithDeityDef;
-        if (deityDef == null)
+        if (resource is not FaithDeityDef deityDef)
         {
             _validationErrors.Add($"Faith config {resourcePath} failed to cast to FaithDeityDef.");
             return;
@@ -245,30 +248,27 @@ public partial class FaithService : RefCounted
         _faithDeityDefs[deityDef.deity_id] = deityDef;
     }
 
-    private Godot.Collections.Array<string> CollectValidationErrors()
+    private void CollectValidationErrorsInto(List<string> errors)
     {
-        var errors = new Godot.Collections.Array<string>();
-        var sortedIds = new System.Collections.Generic.List<string>();
-        foreach (var key in _faithDeityDefs.Keys)
-            sortedIds.Add(ProgressionDataUtils.to_string_name(key).ToString());
+        var sortedIds = new List<string>();
+        foreach (StringName deityId in _faithDeityDefs.Keys)
+            sortedIds.Add(deityId.ToString());
         sortedIds.Sort();
 
         foreach (string deityIdText in sortedIds)
         {
-            var deityId = new StringName(deityIdText);
-            FaithDeityDef deityDef = get_faith_deity_def(deityId);
+            FaithDeityDef deityDef = GetFaithDeityDef(deityIdText);
             if (deityDef == null)
                 continue;
             foreach (string error in deityDef.validate())
                 errors.Add(error);
         }
-        return errors;
     }
 
-    private bool MeetsPlaceholderRequirements(
+    private static bool MeetsPlaceholderRequirements(
         PartyMemberState memberState,
         FaithRankDef rankDef,
-        GDictionary result
+        FaithDevotionResult result
     )
     {
         if (rankDef.has_custom_stat_requirement())
@@ -276,8 +276,8 @@ public partial class FaithService : RefCounted
             int currentValue = GetCustomStatValue(memberState, rankDef.required_custom_stat_id);
             if (currentValue < rankDef.required_custom_stat_min_value)
             {
-                result["error_code"] = "custom_stat_requirement_unmet";
-                result["missing_custom_stat_id"] = rankDef.required_custom_stat_id.ToString();
+                result.ErrorCode = "custom_stat_requirement_unmet";
+                result.MissingCustomStatId = rankDef.required_custom_stat_id;
                 return false;
             }
         }
@@ -285,8 +285,8 @@ public partial class FaithService : RefCounted
         {
             if (!IsAchievementUnlocked(memberState, rankDef.required_achievement_id))
             {
-                result["error_code"] = "achievement_requirement_unmet";
-                result["missing_achievement_id"] = rankDef.required_achievement_id.ToString();
+                result.ErrorCode = "achievement_requirement_unmet";
+                result.MissingAchievementId = rankDef.required_achievement_id;
                 return false;
             }
         }
@@ -305,7 +305,7 @@ public partial class FaithService : RefCounted
     )
     {
         UnitProgress progress = GetProgress(memberState);
-        if (achievementId == "" || progress == null)
+        if (IsEmpty(achievementId) || progress == null)
             return false;
         AchievementProgressState progressState = progress.get_achievement_progress_state(
             achievementId
@@ -320,7 +320,12 @@ public partial class FaithService : RefCounted
         StringName rankProgressStatId
     )
     {
-        if (partyState == null || memberId == "" || deityId == "" || rankProgressStatId == "")
+        if (
+            partyState == null
+            || IsEmpty(memberId)
+            || IsEmpty(deityId)
+            || IsEmpty(rankProgressStatId)
+        )
             return 0;
 
         int pendingBonus = 0;
@@ -350,14 +355,11 @@ public partial class FaithService : RefCounted
     {
         if (memberState == null || rankDef == null)
             return;
-        foreach (GDictionary rewardData in rankDef.reward_entries)
+        foreach (FaithRankRewardEntrySpec rewardEntry in rankDef.GetRewardEntrySpecs())
         {
-            if (rewardData == null)
+            if (rewardEntry.EntryType != "attribute_delta")
                 continue;
-            if (ReadStringName(rewardData, "entry_type") != "attribute_delta")
-                continue;
-            StringName attributeId = ReadStringName(rewardData, "target_id");
-            EnsureWritableCustomStatSeed(memberState, attributeId);
+            EnsureWritableCustomStatSeed(memberState, rewardEntry.TargetId);
         }
     }
 
@@ -366,7 +368,7 @@ public partial class FaithService : RefCounted
         StringName statId
     )
     {
-        if (statId == "" || UnitBaseAttributes.BASE_ATTRIBUTE_IDS().Contains(statId))
+        if (IsEmpty(statId) || IsBaseAttributeId(statId))
             return;
         UnitBaseAttributes attributes = GetProgress(memberState)?.unit_base_attributes;
         if (attributes == null || attributes.custom_stats.ContainsKey(statId))
@@ -406,48 +408,56 @@ public partial class FaithService : RefCounted
             summary_text = $"{sourceLabel} 晋升为 {rankDef.rank_name}",
         };
 
-        var normalizedEntries = new Godot.Collections.Array<PendingCharacterRewardEntry>();
-        foreach (GDictionary rewardData in rankDef.reward_entries)
+        reward.entries = new();
+        foreach (FaithRankRewardEntrySpec rewardSpec in rankDef.GetRewardEntrySpecs())
         {
-            if (rewardData != null)
-            {
-                StringName entryType = ReadStringName(rewardData, "entry_type");
-                StringName targetId = ReadStringName(rewardData, "target_id");
-                if (
-                    entryType != ""
-                    && !PendingCharacterRewardContentRules.is_supported_entry_type(entryType)
-                )
-                    return null;
-                if (
-                    PendingCharacterRewardContentRules.is_attribute_progress_entry(entryType)
-                    && !PendingCharacterRewardContentRules.is_valid_attribute_progress_target(
-                        targetId
-                    )
-                )
-                    return null;
-            }
-
-            PendingCharacterRewardEntry rewardEntry = PendingCharacterRewardEntry.from_dict(
-                rewardData
+            PendingCharacterRewardEntry rewardEntry = BuildRewardEntry(
+                rewardSpec,
+                reward.summary_text
             );
-            if (rewardEntry == null || rewardEntry.is_empty())
+            if (rewardEntry == null)
+                return null;
+            if (rewardEntry.is_empty())
                 continue;
-            if (string.IsNullOrEmpty(rewardEntry.reason_text))
-                rewardEntry.reason_text = reward.summary_text;
-            if (string.IsNullOrEmpty(rewardEntry.target_label))
-                rewardEntry.target_label = rewardEntry.target_id.ToString();
-            normalizedEntries.Add(rewardEntry);
+            reward.entries.Add(rewardEntry);
         }
-
-        reward.entries = normalizedEntries;
         return reward.is_empty() ? null : reward;
+    }
+
+    private static PendingCharacterRewardEntry BuildRewardEntry(
+        FaithRankRewardEntrySpec rewardSpec,
+        string defaultReasonText
+    )
+    {
+        if (rewardSpec.IsEmpty)
+            return null;
+        if (!PendingCharacterRewardContentRules.is_supported_entry_type(rewardSpec.EntryType))
+            return null;
+        if (
+            PendingCharacterRewardContentRules.is_attribute_progress_entry(rewardSpec.EntryType)
+            && !PendingCharacterRewardContentRules.is_valid_attribute_progress_target(
+                rewardSpec.TargetId
+            )
+        )
+            return null;
+
+        return new PendingCharacterRewardEntry
+        {
+            entry_type = rewardSpec.EntryType,
+            target_id = rewardSpec.TargetId,
+            amount = rewardSpec.Amount,
+            target_label = !string.IsNullOrEmpty(rewardSpec.TargetLabel)
+                ? rewardSpec.TargetLabel
+                : rewardSpec.TargetId.ToString(),
+            reason_text = !string.IsNullOrEmpty(rewardSpec.ReasonText)
+                ? rewardSpec.ReasonText
+                : defaultReasonText,
+        };
     }
 
     private static StringName BuildRewardId(StringName memberId, StringName deityId, int rankIndex)
     {
-        return ProgressionDataUtils.to_string_name(
-            $"{memberId}_{deityId}_rank_{rankIndex}_{Time.GetTicksUsec()}"
-        );
+        return new StringName($"{memberId}_{deityId}_rank_{rankIndex}_{Time.GetTicksUsec()}");
     }
 
     private static UnitProgress GetProgress(PartyMemberState memberState)
@@ -455,29 +465,18 @@ public partial class FaithService : RefCounted
         return memberState?.progression as UnitProgress;
     }
 
-    private static StringName ReadStringName(
-        GDictionary data,
-        string key,
-        StringName fallback = default
-    )
+    private static bool IsBaseAttributeId(StringName statId)
     {
-        var value = ReadValue(data, key);
-        if (value.VariantType == Variant.Type.StringName)
-            return value.AsStringName();
-        if (value.VariantType == Variant.Type.String)
-            return new StringName(value.AsString());
-        return fallback ?? new StringName("");
+        return statId == "strength"
+            || statId == "agility"
+            || statId == "constitution"
+            || statId == "perception"
+            || statId == "intelligence"
+            || statId == "willpower";
     }
 
-    private static Variant ReadValue(GDictionary data, string key)
+    private static bool IsEmpty(StringName value)
     {
-        if (data == null)
-            return default;
-        if (data.ContainsKey(key))
-            return data[key];
-        var stringNameKey = new StringName(key);
-        if (data.ContainsKey(stringNameKey))
-            return data[stringNameKey];
-        return default;
+        return value == null || value == "";
     }
 }

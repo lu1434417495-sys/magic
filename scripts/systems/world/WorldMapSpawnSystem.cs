@@ -4,8 +4,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class WorldMapSpawnSystem : RefCounted
+public sealed class WorldMapSpawnSystem
 {
     private const string EncounterKindSingle = "single";
     private const string EncounterKindSettlement = "settlement";

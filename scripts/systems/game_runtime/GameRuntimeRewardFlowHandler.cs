@@ -2,8 +2,7 @@ using System;
 using Godot;
 using Godot.Collections;
 
-[GlobalClass]
-public partial class GameRuntimeRewardFlowHandler : RefCounted
+public sealed class GameRuntimeRewardFlowHandler
 {
     private static readonly string RuntimeUnavailableMessage = "运行时尚未初始化。";
     private static readonly string InvalidPromotionChoiceMessage =
@@ -24,7 +23,7 @@ public partial class GameRuntimeRewardFlowHandler : RefCounted
 
     public void setup(GameRuntimeFacade runtime) => Setup(runtime);
 
-    public new void Dispose()
+    public void Dispose()
     {
         _runtime = null;
     }

@@ -130,7 +130,7 @@ func _test_submap_entry_return_and_reload() -> void:
 	_assert_true(bool(submap_move_result.get("ok", false)), "子地图内移动应成功。")
 	_assert_eq(facade.get_player_coord(), Vector2i(14, 15), "子地图内移动后坐标应更新。")
 	_assert_true(
-		facade.get_fog_system().is_visible(facade.get_player_coord(), facade.get_player_faction_id()),
+		facade.is_world_coord_visible(facade.get_player_coord(), facade.get_player_faction_id()),
 		"子地图内移动后 active fog 应立即刷新到玩家当前位置。"
 	)
 	_assert_true(
@@ -152,7 +152,7 @@ func _test_submap_entry_return_and_reload() -> void:
 	_assert_true(reloaded_facade.is_submap_active(), "重新载入后应仍停留在灰烬地图。")
 	_assert_eq(reloaded_facade.get_player_coord(), Vector2i(14, 15), "重新载入后应恢复子地图内坐标。")
 	_assert_true(
-		reloaded_facade.get_fog_system().is_visible(reloaded_facade.get_player_coord(), reloaded_facade.get_player_faction_id()),
+		reloaded_facade.is_world_coord_visible(reloaded_facade.get_player_coord(), reloaded_facade.get_player_faction_id()),
 		"重新载入 active submap 后 fog 应从 world_data 恢复并刷新当前位置。"
 	)
 
@@ -163,7 +163,7 @@ func _test_submap_entry_return_and_reload() -> void:
 	_assert_eq(String(game_session.get_world_data().get("active_submap_id", "")), "", "成功返回后应清空 active_submap_id。")
 	_assert_eq(game_session.get_player_coord(), Vector2i(52, 49), "成功返回后存档侧玩家坐标应同步回主世界原坐标。")
 	_assert_true(
-		reloaded_facade.get_fog_system().is_visible(reloaded_facade.get_player_coord(), reloaded_facade.get_player_faction_id()),
+		reloaded_facade.is_world_coord_visible(reloaded_facade.get_player_coord(), reloaded_facade.get_player_faction_id()),
 		"返回主世界后 active fog 应立即刷新到返回坐标。"
 	)
 	_assert_true(
@@ -333,7 +333,7 @@ func _enter_ashen_submap(facade) -> bool:
 	_assert_eq(facade.get_active_map_id(), "ashen_ashlands", "子地图 ID 应写入运行时。")
 	_assert_eq(facade.get_player_coord(), Vector2i(15, 15), "首次进入灰烬地图应落在子地图起点。")
 	_assert_true(
-		facade.get_fog_system().is_visible(facade.get_player_coord(), facade.get_player_faction_id()),
+		facade.is_world_coord_visible(facade.get_player_coord(), facade.get_player_faction_id()),
 		"首次进入子地图后 active fog 应立即可见玩家起点。"
 	)
 	return bool(confirm_result.get("ok", false))

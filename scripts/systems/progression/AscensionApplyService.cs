@@ -1,13 +1,24 @@
+using System.Collections.Generic;
 using Godot;
+using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class AscensionApplyService : RefCounted
+public sealed class AscensionApplyService
 {
-    private Godot.Collections.Dictionary _content_bundle = new();
+    private Dictionary<StringName, AscensionDef> _ascensionDefs = new();
+    private Dictionary<StringName, AscensionStageDef> _ascensionStageDefs = new();
 
-    public void setup(Godot.Collections.Dictionary contentBundle = null)
+    public void setup(GDictionary contentBundle = null)
     {
-        _content_bundle = contentBundle ?? new Godot.Collections.Dictionary();
+        _ascensionDefs = ProgressionContentBundleAdapter.ReadDefMap<AscensionDef>(
+            contentBundle,
+            "ascension_defs",
+            "ascension"
+        );
+        _ascensionStageDefs = ProgressionContentBundleAdapter.ReadDefMap<AscensionStageDef>(
+            contentBundle,
+            "ascension_stage_defs",
+            "ascension_stage"
+        );
     }
 
     public bool apply_ascension(
@@ -24,19 +35,11 @@ public partial class AscensionApplyService : RefCounted
             || currentWorldStep < 0
         )
             return false;
-        AscensionDef ascensionDef = _get_content_def<AscensionDef>(
-            "ascension_defs",
-            "ascension",
-            ascensionId
-        );
-        AscensionStageDef stageDef = _get_content_def<AscensionStageDef>(
-            "ascension_stage_defs",
-            "ascension_stage",
-            ascensionStageId
-        );
-        if (!_is_valid_ascension_stage_pair(ascensionDef, stageDef, ascensionId, ascensionStageId))
+        _ascensionDefs.TryGetValue(ascensionId, out AscensionDef ascensionDef);
+        _ascensionStageDefs.TryGetValue(ascensionStageId, out AscensionStageDef stageDef);
+        if (!IsValidAscensionStagePair(ascensionDef, stageDef, ascensionId, ascensionStageId))
             return false;
-        if (!_member_matches_allowed_identity(memberState, ascensionDef))
+        if (!MemberMatchesAllowedIdentity(memberState, ascensionDef))
             return false;
         if (memberState.original_race_id_before_ascension == "")
             memberState.original_race_id_before_ascension = memberState.race_id;
@@ -68,7 +71,7 @@ public partial class AscensionApplyService : RefCounted
         return true;
     }
 
-    private bool _is_valid_ascension_stage_pair(
+    private static bool IsValidAscensionStagePair(
         AscensionDef ascensionDef,
         AscensionStageDef stageDef,
         StringName ascensionId,
@@ -86,7 +89,7 @@ public partial class AscensionApplyService : RefCounted
         return ascensionDef.stage_ids.Contains(ascensionStageId);
     }
 
-    private bool _member_matches_allowed_identity(
+    private static bool MemberMatchesAllowedIdentity(
         PartyMemberState memberState,
         AscensionDef ascensionDef
     )
@@ -109,39 +112,5 @@ public partial class AscensionApplyService : RefCounted
         )
             return false;
         return true;
-    }
-
-    private T _get_content_def<T>(
-        string primaryBucket,
-        string aliasBucket,
-        StringName entryId
-    ) where T : class
-    {
-        if (entryId == "")
-            return null;
-        var bucket = _get_content_bucket(primaryBucket, aliasBucket);
-        return bucket != null && bucket.ContainsKey(entryId)
-            ? bucket[entryId].AsGodotObject() as T
-            : null;
-    }
-
-    private Godot.Collections.Dictionary _get_content_bucket(
-        string primaryBucket,
-        string aliasBucket
-    )
-    {
-        if (_content_bundle.ContainsKey(primaryBucket))
-        {
-            var bv = _content_bundle[primaryBucket];
-            if (bv.VariantType == Variant.Type.Dictionary)
-                return bv.AsGodotDictionary();
-        }
-        if (_content_bundle.ContainsKey(aliasBucket))
-        {
-            var bv = _content_bundle[aliasBucket];
-            if (bv.VariantType == Variant.Type.Dictionary)
-                return bv.AsGodotDictionary();
-        }
-        return null;
     }
 }

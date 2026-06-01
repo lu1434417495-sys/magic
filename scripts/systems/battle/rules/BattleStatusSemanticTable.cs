@@ -290,6 +290,7 @@ public partial class BattleStatusSemanticTable : RefCounted
         se.counts_as_debuff_override = effectDef.counts_as_debuff_override;
         se.counts_as_debuff = effectDef.counts_as_debuff;
         se.lock_counterattack = effectDef.lock_counterattack;
+        se.lock_crit = effectDef.lock_crit;
         se.main_skill_lock_other_debuff_count = Mathf.Max(
             effectDef.main_skill_lock_other_debuff_count,
             0

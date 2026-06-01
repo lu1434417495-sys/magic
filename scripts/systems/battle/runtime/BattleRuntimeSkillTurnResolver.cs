@@ -1223,7 +1223,7 @@ public partial class BattleRuntimeSkillTurnResolver : RefCounted
         StringName previousCategory = parameters.ContainsKey(StatusParamPreviousBodySizeCategory)
             ? ProgressionDataUtils.to_string_name(parameters[StatusParamPreviousBodySizeCategory])
             : Empty;
-        if (!BodySizeRules.is_valid_body_size_category(previousCategory))
+        if (!BodySizeContentRules.IsValidBodySizeCategory(previousCategory))
         {
             return false;
         }
@@ -1254,7 +1254,7 @@ public partial class BattleRuntimeSkillTurnResolver : RefCounted
         StringName previousCategory = parameters.ContainsKey(StatusParamPreviousBodySizeCategory)
             ? ProgressionDataUtils.to_string_name(parameters[StatusParamPreviousBodySizeCategory])
             : Empty;
-        if (!BodySizeRules.is_valid_body_size_category(previousCategory))
+        if (!BodySizeContentRules.IsValidBodySizeCategory(previousCategory))
         {
             return false;
         }

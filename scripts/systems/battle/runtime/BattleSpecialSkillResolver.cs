@@ -581,6 +581,7 @@ public partial class BattleSpecialSkillResolver : RefCounted
         bool counts_as_debuff_override = false,
         bool counts_as_debuff = false,
         bool lock_counterattack = false,
+        bool lock_crit = false,
         int main_skill_lock_other_debuff_count = 0
     )
     {
@@ -601,6 +602,7 @@ public partial class BattleSpecialSkillResolver : RefCounted
             counts_as_debuff_override = counts_as_debuff_override,
             counts_as_debuff = counts_as_debuff,
             lock_counterattack = lock_counterattack,
+            lock_crit = lock_crit,
             main_skill_lock_other_debuff_count = Math.Max(main_skill_lock_other_debuff_count, 0),
         };
         unit_state.set_status_effect(statusEntry);
@@ -854,7 +856,7 @@ public partial class BattleSpecialSkillResolver : RefCounted
         );
         if (
             IsEmpty(statusId)
-            || !BodySizeRules.is_valid_body_size_category(targetCategory)
+            || !BodySizeContentRules.IsValidBodySizeCategory(targetCategory)
         )
         {
             return result;
@@ -875,7 +877,7 @@ public partial class BattleSpecialSkillResolver : RefCounted
                     ""
                 )
             );
-            if (BodySizeRules.is_valid_body_size_category(existingRestoreCategory))
+            if (BodySizeContentRules.IsValidBodySizeCategory(existingRestoreCategory))
             {
                 restoreCategory = existingRestoreCategory;
             }
@@ -1351,7 +1353,7 @@ public partial class BattleSpecialSkillResolver : RefCounted
                 continue;
             }
             if (
-                !LowLuckRelicRules.snapshot_has_flag(
+                !LowLuckRelicRules.SnapshotHasFlag(
                     candidate.attribute_snapshot,
                     LowLuckRelicRules.ATTR_BLOOD_DEBT_SHAWL
                 )

@@ -1,20 +1,48 @@
+using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-[GlobalClass]
-public partial class ProfessionRuleService : RefCounted
+public sealed class ProfessionRuleService
 {
     private UnitProgress _unit_progress;
-    private GDictionary _skill_defs = new();
-    private GDictionary _profession_defs = new();
+    private readonly Dictionary<StringName, SkillDef> _skillDefs = new();
+    private readonly Dictionary<StringName, ProfessionDef> _professionDefs = new();
 
-    public void setup(UnitProgress unitProgress, GDictionary skillDefs, GDictionary professionDefs)
+    public void setup(
+        UnitProgress unitProgress,
+        Godot.Collections.Dictionary skillDefs,
+        Godot.Collections.Dictionary professionDefs
+    )
+    {
+        setup(unitProgress, IndexSkillDefs(skillDefs), IndexProfessionDefs(professionDefs));
+    }
+
+    public void setup(
+        UnitProgress unitProgress,
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, ProfessionDef> professionDefs
+    )
     {
         _unit_progress = unitProgress;
-        _skill_defs = IndexSkillDefs(skillDefs);
-        _profession_defs = IndexProfessionDefs(professionDefs);
+        _skillDefs.Clear();
+        _professionDefs.Clear();
+
+        if (skillDefs != null)
+        {
+            foreach (KeyValuePair<StringName, SkillDef> pair in skillDefs)
+            {
+                if (pair.Key != "" && pair.Value != null)
+                    _skillDefs[pair.Key] = pair.Value;
+            }
+        }
+
+        if (professionDefs != null)
+        {
+            foreach (KeyValuePair<StringName, ProfessionDef> pair in professionDefs)
+            {
+                if (pair.Key != "" && pair.Value != null)
+                    _professionDefs[pair.Key] = pair.Value;
+            }
+        }
     }
 
     public bool is_profession_knowledge_unlocked(StringName professionId)
@@ -75,7 +103,7 @@ public partial class ProfessionRuleService : RefCounted
         if (rankRequirement == null)
             return false;
 
-        GStringNameArray previewAssignedSkillIds = GetRankUpPreviewAssignedCoreSkillIds(
+        List<StringName> previewAssignedSkillIds = GetRankUpPreviewAssignedCoreSkillIds(
             professionId
         );
         if (
@@ -103,7 +131,7 @@ public partial class ProfessionRuleService : RefCounted
 
     public bool can_satisfy_tag_rules(
         StringName professionId,
-        Godot.Collections.Array<TagRequirement> tagRules
+        IEnumerable<TagRequirement> tagRules
     )
     {
         return CanSatisfyTagRulesWithSkillIds(
@@ -114,8 +142,11 @@ public partial class ProfessionRuleService : RefCounted
         );
     }
 
-    public bool can_satisfy_profession_gates(Godot.Collections.Array<ProfessionRankGate> gates)
+    public bool can_satisfy_profession_gates(IEnumerable<ProfessionRankGate> gates)
     {
+        if (gates == null)
+            return true;
+
         foreach (ProfessionRankGate gate in gates)
         {
             if (gate == null)
@@ -135,51 +166,56 @@ public partial class ProfessionRuleService : RefCounted
         return true;
     }
 
-    public bool can_satisfy_attribute_rules(Godot.Collections.Array<AttributeRequirement> rules)
+    public bool can_satisfy_attribute_rules(IEnumerable<AttributeRequirement> rules)
     {
         UnitBaseAttributes unitBaseAttributes = _unit_progress?.unit_base_attributes;
-        if (unitBaseAttributes == null)
-            return rules.Count == 0;
+        if (rules == null)
+            return true;
 
         foreach (AttributeRequirement rule in rules)
         {
             if (rule == null)
                 continue;
+            if (unitBaseAttributes == null)
+                return false;
             if (!rule.matches_value(unitBaseAttributes.get_attribute_value(rule.attribute_id)))
                 return false;
         }
         return true;
     }
 
-    public bool can_satisfy_reputation_rules(Godot.Collections.Array<ReputationRequirement> rules)
+    public bool can_satisfy_reputation_rules(IEnumerable<ReputationRequirement> rules)
     {
         UnitReputationState reputationState = _unit_progress?.reputation_state;
-        if (reputationState == null)
-            return rules.Count == 0;
+        if (rules == null)
+            return true;
 
         foreach (ReputationRequirement rule in rules)
         {
             if (rule == null)
                 continue;
+            if (reputationState == null)
+                return false;
             if (!rule.matches_value(reputationState.get_reputation_value(rule.state_id)))
                 return false;
         }
         return true;
     }
 
-    public GStringNameArray get_eligible_skill_ids(
+    public IReadOnlyList<StringName> get_eligible_skill_ids(
         StringName professionId,
-        Godot.Collections.Array<TagRequirement> tagRules,
+        IEnumerable<TagRequirement> tagRules,
         bool allowUnassigned
     )
     {
-        GStringNameArray eligibleSkillIds = new();
-        if (_unit_progress == null || tagRules.Count == 0)
+        List<TagRequirement> normalizedTagRules = NormalizeTagRules(tagRules);
+        List<StringName> eligibleSkillIds = new();
+        if (_unit_progress == null || normalizedTagRules.Count == 0)
             return eligibleSkillIds;
 
         foreach (StringName skillId in GetAllLearnedSkillIds())
         {
-            if (MatchesAnyTagRule(skillId, professionId, tagRules, allowUnassigned))
+            if (MatchesAnyTagRule(skillId, professionId, normalizedTagRules, allowUnassigned))
                 eligibleSkillIds.Add(skillId);
         }
         return eligibleSkillIds;
@@ -190,7 +226,7 @@ public partial class ProfessionRuleService : RefCounted
         StringName professionId,
         TagRequirement tagRule,
         bool allowUnassigned,
-        GStringNameArray previewAssignedSkillIds = null
+        IEnumerable<StringName> previewAssignedSkillIds = null
     )
     {
         return MatchesTagRequirement(
@@ -198,7 +234,7 @@ public partial class ProfessionRuleService : RefCounted
             professionId,
             tagRule,
             allowUnassigned,
-            previewAssignedSkillIds ?? new GStringNameArray()
+            previewAssignedSkillIds
         );
     }
 
@@ -267,9 +303,12 @@ public partial class ProfessionRuleService : RefCounted
 
     private bool CanSatisfyRequiredSkillIdsForUnlock(
         StringName professionId,
-        Godot.Collections.Array<StringName> requiredSkillIds
+        IEnumerable<StringName> requiredSkillIds
     )
     {
+        if (requiredSkillIds == null)
+            return true;
+
         foreach (StringName requiredSkillId in requiredSkillIds)
         {
             if (!IsSkillEligibleForUnlock(requiredSkillId, professionId))
@@ -280,7 +319,7 @@ public partial class ProfessionRuleService : RefCounted
 
     private bool CanSatisfyTagRulesForUnlock(
         StringName professionId,
-        Godot.Collections.Array<TagRequirement> tagRules
+        IEnumerable<TagRequirement> tagRules
     )
     {
         return CanSatisfyTagRulesWithSkillIds(
@@ -292,23 +331,22 @@ public partial class ProfessionRuleService : RefCounted
     }
 
     private bool CanSatisfyTagRulesWithSkillIds(
-        GStringNameArray candidateSkillIds,
+        IEnumerable<StringName> candidateSkillIds,
         StringName professionId,
-        Godot.Collections.Array<TagRequirement> tagRules,
+        IEnumerable<TagRequirement> tagRules,
         bool allowUnassigned,
-        GStringNameArray previewAssignedSkillIds = null
+        IEnumerable<StringName> previewAssignedSkillIds = null
     )
     {
-        if (tagRules.Count == 0)
+        List<TagRequirement> normalizedTagRules = NormalizeTagRules(tagRules);
+        if (normalizedTagRules.Count == 0)
             return true;
 
-        foreach (TagRequirement tagRule in tagRules)
+        List<StringName> normalizedCandidateSkillIds = NormalizeSkillIds(candidateSkillIds);
+        foreach (TagRequirement tagRule in normalizedTagRules)
         {
-            if (tagRule == null || tagRule.tag == "")
-                continue;
-
             int matchedCount = 0;
-            foreach (StringName skillId in candidateSkillIds)
+            foreach (StringName skillId in normalizedCandidateSkillIds)
             {
                 if (
                     MatchesTagRequirement(
@@ -316,7 +354,7 @@ public partial class ProfessionRuleService : RefCounted
                         professionId,
                         tagRule,
                         allowUnassigned,
-                        previewAssignedSkillIds ?? new GStringNameArray()
+                        previewAssignedSkillIds
                     )
                 )
                     matchedCount += 1;
@@ -327,23 +365,24 @@ public partial class ProfessionRuleService : RefCounted
         return true;
     }
 
-    private GStringNameArray GetUnlockCandidateSkillIds(StringName professionId)
+    private List<StringName> GetUnlockCandidateSkillIds(StringName professionId)
     {
         return GetAllLearnedSkillIds();
     }
 
-    private GStringNameArray GetRankUpCandidateSkillIds(
+    private List<StringName> GetRankUpCandidateSkillIds(
         StringName professionId,
-        GStringNameArray previewAssignedSkillIds = null
+        IEnumerable<StringName> previewAssignedSkillIds = null
     )
     {
-        GStringNameArray candidateSkillIds = new();
+        List<StringName> candidateSkillIds = new();
         UnitProfessionProgress professionProgress = GetProfessionProgress(professionId);
         if (professionProgress == null)
             return candidateSkillIds;
 
         foreach (StringName skillId in professionProgress.core_skill_ids)
-            candidateSkillIds.Add(skillId);
+            if (skillId != "" && !candidateSkillIds.Contains(skillId))
+                candidateSkillIds.Add(skillId);
 
         if (previewAssignedSkillIds != null)
         {
@@ -356,9 +395,9 @@ public partial class ProfessionRuleService : RefCounted
         return candidateSkillIds;
     }
 
-    private GStringNameArray GetRankUpPreviewAssignedCoreSkillIds(StringName professionId)
+    private List<StringName> GetRankUpPreviewAssignedCoreSkillIds(StringName professionId)
     {
-        GStringNameArray previewSkillIds = new();
+        List<StringName> previewSkillIds = new();
         StringName triggerSkillId = GetReadyActiveLevelTriggerSkillId();
         if (triggerSkillId == "")
             return previewSkillIds;
@@ -411,11 +450,11 @@ public partial class ProfessionRuleService : RefCounted
     private bool MatchesAnyTagRule(
         StringName skillId,
         StringName professionId,
-        Godot.Collections.Array<TagRequirement> tagRules,
+        IEnumerable<TagRequirement> tagRules,
         bool allowUnassigned
     )
     {
-        foreach (TagRequirement tagRule in tagRules)
+        foreach (TagRequirement tagRule in NormalizeTagRules(tagRules))
         {
             if (MatchesTagRequirement(skillId, professionId, tagRule, allowUnassigned))
                 return true;
@@ -428,7 +467,7 @@ public partial class ProfessionRuleService : RefCounted
         StringName professionId,
         TagRequirement tagRule,
         bool allowUnassigned,
-        GStringNameArray previewAssignedSkillIds = null
+        IEnumerable<StringName> previewAssignedSkillIds = null
     )
     {
         if (tagRule == null || tagRule.tag == "" || _unit_progress == null)
@@ -449,7 +488,7 @@ public partial class ProfessionRuleService : RefCounted
             skillProgress,
             professionId,
             allowUnassigned,
-            previewAssignedSkillIds ?? new GStringNameArray()
+            previewAssignedSkillIds
         );
     }
 
@@ -490,14 +529,14 @@ public partial class ProfessionRuleService : RefCounted
         UnitSkillProgress skillProgress,
         StringName professionId,
         bool allowUnassigned,
-        GStringNameArray previewAssignedSkillIds
+        IEnumerable<StringName> previewAssignedSkillIds
     )
     {
         if (professionId != "" && skillProgress.assigned_profession_id == professionId)
             return true;
         if (skillProgress.assigned_profession_id != "")
             return false;
-        return allowUnassigned || previewAssignedSkillIds.Contains(skillProgress.skill_id);
+        return allowUnassigned || ContainsSkillId(previewAssignedSkillIds, skillProgress.skill_id);
     }
 
     private StringName GetReadyActiveLevelTriggerSkillId()
@@ -530,9 +569,9 @@ public partial class ProfessionRuleService : RefCounted
         return triggerSkillId;
     }
 
-    private GStringNameArray GetAllLearnedSkillIds()
+    private List<StringName> GetAllLearnedSkillIds()
     {
-        GStringNameArray learnedSkillIds = new();
+        List<StringName> learnedSkillIds = new();
         if (_unit_progress == null)
             return learnedSkillIds;
 
@@ -609,15 +648,13 @@ public partial class ProfessionRuleService : RefCounted
 
     private SkillDef GetSkillDef(StringName skillId)
     {
-        return _skill_defs.ContainsKey(skillId)
-            ? _skill_defs[skillId].AsGodotObject() as SkillDef
-            : null;
+        return _skillDefs.TryGetValue(skillId, out SkillDef skillDef) ? skillDef : null;
     }
 
     private ProfessionDef GetProfessionDef(StringName professionId)
     {
-        return _profession_defs.ContainsKey(professionId)
-            ? _profession_defs[professionId].AsGodotObject() as ProfessionDef
+        return _professionDefs.TryGetValue(professionId, out ProfessionDef professionDef)
+            ? professionDef
             : null;
     }
 
@@ -626,9 +663,11 @@ public partial class ProfessionRuleService : RefCounted
         return _unit_progress?.get_profession_progress(professionId);
     }
 
-    private static GDictionary IndexSkillDefs(GDictionary skillDefs)
+    private static Dictionary<StringName, SkillDef> IndexSkillDefs(
+        Godot.Collections.Dictionary skillDefs
+    )
     {
-        GDictionary indexedDefs = new();
+        Dictionary<StringName, SkillDef> indexedDefs = new();
         if (skillDefs == null)
             return indexedDefs;
 
@@ -638,14 +677,17 @@ public partial class ProfessionRuleService : RefCounted
                 continue;
             StringName indexedId =
                 skillDef.skill_id != "" ? skillDef.skill_id : ProgressionDataUtils.to_string_name(key);
-            indexedDefs[indexedId] = skillDef;
+            if (indexedId != "")
+                indexedDefs[indexedId] = skillDef;
         }
         return indexedDefs;
     }
 
-    private static GDictionary IndexProfessionDefs(GDictionary professionDefs)
+    private static Dictionary<StringName, ProfessionDef> IndexProfessionDefs(
+        Godot.Collections.Dictionary professionDefs
+    )
     {
-        GDictionary indexedDefs = new();
+        Dictionary<StringName, ProfessionDef> indexedDefs = new();
         if (professionDefs == null)
             return indexedDefs;
 
@@ -657,8 +699,53 @@ public partial class ProfessionRuleService : RefCounted
                 professionDef.profession_id != ""
                     ? professionDef.profession_id
                     : ProgressionDataUtils.to_string_name(key);
-            indexedDefs[indexedId] = professionDef;
+            if (indexedId != "")
+                indexedDefs[indexedId] = professionDef;
         }
         return indexedDefs;
+    }
+
+    private static List<TagRequirement> NormalizeTagRules(IEnumerable<TagRequirement> tagRules)
+    {
+        List<TagRequirement> normalizedRules = new();
+        if (tagRules == null)
+            return normalizedRules;
+
+        foreach (TagRequirement tagRule in tagRules)
+        {
+            if (tagRule == null || tagRule.tag == "")
+                continue;
+            normalizedRules.Add(tagRule);
+        }
+        return normalizedRules;
+    }
+
+    private static List<StringName> NormalizeSkillIds(IEnumerable<StringName> skillIds)
+    {
+        List<StringName> normalizedSkillIds = new();
+        HashSet<StringName> seenSkillIds = new();
+        if (skillIds == null)
+            return normalizedSkillIds;
+
+        foreach (StringName skillId in skillIds)
+        {
+            if (skillId == "" || !seenSkillIds.Add(skillId))
+                continue;
+            normalizedSkillIds.Add(skillId);
+        }
+        return normalizedSkillIds;
+    }
+
+    private static bool ContainsSkillId(IEnumerable<StringName> skillIds, StringName targetSkillId)
+    {
+        if (targetSkillId == "" || skillIds == null)
+            return false;
+
+        foreach (StringName skillId in skillIds)
+        {
+            if (skillId == targetSkillId)
+                return true;
+        }
+        return false;
     }
 }

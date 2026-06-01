@@ -261,7 +261,6 @@ func _instantiate_world_map():
 func _find_visible_settlement_coord(runtime) -> Vector2i:
 	if runtime == null:
 		return Vector2i(-1, -1)
-	var fog_system = runtime.get_fog_system()
 	var faction_id := String(runtime.get_player_faction_id())
 	for settlement_option in runtime.get_world_data().get("settlements", []):
 		if settlement_option is not Dictionary:
@@ -272,7 +271,7 @@ func _find_visible_settlement_coord(runtime) -> Vector2i:
 		for offset_y in range(footprint_size.y):
 			for offset_x in range(footprint_size.x):
 				var coord := origin + Vector2i(offset_x, offset_y)
-				if fog_system != null and fog_system.is_visible(coord, faction_id):
+				if runtime.is_world_coord_visible(coord, faction_id):
 					return coord
 	return Vector2i(-1, -1)
 

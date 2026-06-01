@@ -2557,7 +2557,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
         WorldMapFogSystem fogSystem = _get_fog_system();
         GArray revealedCoords =
             fogSystem != null
-                ? new GArray(fogSystem.reveal_diamond(center, reveal_range, _get_player_faction_id()).Select(v => Variant.From(v)))
+                ? new GArray(fogSystem.RevealDiamond(center, reveal_range, _get_player_faction_id()).Select(v => Variant.From(v)))
                 : new GArray();
         if (revealedCoords.Count != 0)
         {
@@ -3520,7 +3520,7 @@ public partial class GameRuntimeSettlementCommandHandler : RefCounted
 
     public WorldMapFogSystem _get_fog_system()
     {
-        return _has_runtime() ? Runtime.get_fog_system() : null;
+        return _has_runtime() ? Runtime.GetFogSystem() : null;
     }
 
     public bool _is_settlement_visible_to_player(GDictionary settlement)

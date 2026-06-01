@@ -1,7 +1,33 @@
+using System;
+using System.Collections.Generic;
 using Godot;
 
-[GlobalClass]
-public partial class MisfortuneBlackOmenService : RefCounted
+public sealed class MisfortuneBlackOmenHookPayload
+{
+    public StringName MemberId { get; init; } = "";
+    public bool EncounterWon { get; init; }
+    public bool DefeatedEliteOrBoss { get; init; }
+    public bool BossEncounter { get; init; }
+    public bool MemberSurvived { get; init; }
+    public bool? HasCursedRelic { get; init; }
+    public bool? HasBossCurse { get; init; }
+    public IReadOnlyList<StringName> BossCurseStatusIds { get; init; } = Array.Empty<StringName>();
+    public IReadOnlyList<StringName> PathTags { get; init; } = Array.Empty<StringName>();
+}
+
+public sealed class MisfortuneBlackOmenResult
+{
+    public bool Ok { get; init; }
+    public StringName HookId { get; init; } = "";
+    public StringName MemberId { get; init; } = "";
+    public bool ConditionsMet { get; init; }
+    public bool Granted { get; init; }
+    public bool AlreadyMarked { get; init; }
+    public int DoomMarked { get; init; }
+    public string ErrorCode { get; init; } = "";
+}
+
+public sealed class MisfortuneBlackOmenService
 {
     public static readonly StringName DOOM_MARKED_STAT_ID = "doom_marked";
     public static readonly StringName HOOK_CURSED_RELIC_ELITE_OR_BOSS_VICTORY =
@@ -10,320 +36,281 @@ public partial class MisfortuneBlackOmenService : RefCounted
         "boss_curse_survival_victory";
     public static readonly StringName HOOK_DEAD_ROAD_LANTERN_BLACK_OMEN_PATH =
         "dead_road_lantern_black_omen_path";
-    public static readonly Godot.Collections.Array<StringName> CURSED_RELIC_REQUIRED_TAGS = new()
-    {
-        "cursed",
-        "relic",
-    };
 
-    public static StringName DOOM_MARKED_STAT_ID_VALUE() => DOOM_MARKED_STAT_ID;
+    private static readonly StringName[] CursedRelicRequiredTags = { "cursed", "relic" };
 
-    public static StringName HOOK_CURSED_RELIC_ELITE_OR_BOSS_VICTORY_VALUE() =>
-        HOOK_CURSED_RELIC_ELITE_OR_BOSS_VICTORY;
+    private CharacterManagementModule _characterGateway;
+    private readonly Dictionary<StringName, ItemDef> _itemDefs = new();
 
-    public static StringName HOOK_BOSS_CURSE_SURVIVAL_VICTORY_VALUE() =>
-        HOOK_BOSS_CURSE_SURVIVAL_VICTORY;
-
-    public static StringName HOOK_DEAD_ROAD_LANTERN_BLACK_OMEN_PATH_VALUE() =>
-        HOOK_DEAD_ROAD_LANTERN_BLACK_OMEN_PATH;
-
-    private CharacterManagementModule _character_gateway;
-    private Godot.Collections.Dictionary _item_defs = new();
-
-    public void setup(
+    public void Setup(
         CharacterManagementModule characterGateway = null,
-        Godot.Collections.Dictionary itemDefs = null
+        IReadOnlyDictionary<StringName, ItemDef> itemDefs = null
     )
     {
-        _character_gateway = characterGateway;
-        _item_defs = itemDefs ?? new Godot.Collections.Dictionary();
-    }
+        _characterGateway = characterGateway;
+        _itemDefs.Clear();
+        if (itemDefs == null)
+            return;
 
-    public void dispose()
-    {
-        _character_gateway = null;
-        _item_defs = new Godot.Collections.Dictionary();
-    }
-
-    public Godot.Collections.Dictionary try_run_hook(
-        StringName hookId,
-        Godot.Collections.Dictionary payload = null
-    )
-    {
-        payload ??= new Godot.Collections.Dictionary();
-        if (hookId == HOOK_CURSED_RELIC_ELITE_OR_BOSS_VICTORY)
-            return _try_grant_cursed_relic_elite_or_boss_victory(payload);
-        if (hookId == HOOK_BOSS_CURSE_SURVIVAL_VICTORY)
-            return _try_grant_boss_curse_survival_victory(payload);
-        if (hookId == HOOK_DEAD_ROAD_LANTERN_BLACK_OMEN_PATH)
-            return _try_grant_dead_road_lantern_black_omen_path(payload);
-        var memberId = _resolve_member_id(payload);
-        return _build_result(memberId, hookId, errorCode: "unknown_hook_id");
-    }
-
-    public Godot.Collections.Dictionary grant_doom_mark(
-        StringName memberId,
-        StringName sourceId,
-        Godot.Collections.Dictionary sourceContext = null
-    )
-    {
-        var result = _build_result(memberId, sourceId);
-        if (memberId == "" || sourceId == "")
+        foreach (var (itemId, itemDef) in itemDefs)
         {
-            result["error_code"] = "invalid_request";
-            return result;
+            if (itemId != "" && itemDef != null)
+                _itemDefs[itemId] = itemDef;
         }
-        var memberState = _get_member_state(memberId);
+    }
+
+    public void Dispose()
+    {
+        _characterGateway = null;
+        _itemDefs.Clear();
+    }
+
+    public MisfortuneBlackOmenResult TryRunHook(
+        StringName hookId,
+        MisfortuneBlackOmenHookPayload payload = null
+    )
+    {
+        payload ??= new MisfortuneBlackOmenHookPayload();
+        if (hookId == HOOK_CURSED_RELIC_ELITE_OR_BOSS_VICTORY)
+            return TryGrantCursedRelicEliteOrBossVictory(payload);
+        if (hookId == HOOK_BOSS_CURSE_SURVIVAL_VICTORY)
+            return TryGrantBossCurseSurvivalVictory(payload);
+        if (hookId == HOOK_DEAD_ROAD_LANTERN_BLACK_OMEN_PATH)
+            return TryGrantDeadRoadLanternBlackOmenPath(payload);
+        return BuildResult(payload.MemberId, hookId, errorCode: "unknown_hook_id");
+    }
+
+    public MisfortuneBlackOmenResult GrantDoomMark(StringName memberId, StringName sourceId)
+    {
+        if (memberId == "" || sourceId == "")
+            return BuildResult(memberId, sourceId, errorCode: "invalid_request");
+
+        var memberState = GetMemberState(memberId);
         if (
             memberState == null
             || memberState.progression == null
-            || _get_unit_base_attributes(memberState) == null
+            || GetUnitBaseAttributes(memberState) == null
         )
         {
-            result["error_code"] = "member_not_found";
-            return result;
+            return BuildResult(memberId, sourceId, errorCode: "member_not_found");
         }
-        result["ok"] = true;
-        result["conditions_met"] = true;
-        int currentValue = _get_doom_marked_value(memberState);
-        result["doom_marked"] = currentValue;
+
+        int currentValue = GetDoomMarkedValue(memberState);
         if (currentValue >= 1)
         {
-            result["already_marked"] = true;
-            return result;
+            return BuildResult(
+                memberId,
+                sourceId,
+                ok: true,
+                conditionsMet: true,
+                alreadyMarked: true,
+                doomMarked: currentValue
+            );
         }
-        _get_unit_base_attributes(memberState).set_attribute_value(DOOM_MARKED_STAT_ID, 1);
-        result["granted"] = true;
-        result["doom_marked"] = 1;
-        return result;
-    }
 
-    private Godot.Collections.Dictionary _try_grant_cursed_relic_elite_or_boss_victory(
-        Godot.Collections.Dictionary payload
-    )
-    {
-        var mid = _resolve_member_id(payload);
-        var r = _build_result(mid, HOOK_CURSED_RELIC_ELITE_OR_BOSS_VICTORY);
-        var ms = _get_member_state(mid);
-        if (mid == "")
-        {
-            r["error_code"] = "invalid_request";
-            return r;
-        }
-        if (ms == null)
-        {
-            r["error_code"] = "member_not_found";
-            return r;
-        }
-        r["ok"] = true;
-        bool met =
-            _is_payload_bool_true(payload, "encounter_won")
-            && _is_payload_bool_true(payload, "defeated_elite_or_boss")
-            && _has_cursed_relic(ms, payload);
-        r["conditions_met"] = met;
-        r["doom_marked"] = _get_doom_marked_value(ms);
-        if (!met)
-        {
-            r["error_code"] = "conditions_not_met";
-            return r;
-        }
-        return grant_doom_mark(mid, HOOK_CURSED_RELIC_ELITE_OR_BOSS_VICTORY, payload);
-    }
-
-    private Godot.Collections.Dictionary _try_grant_boss_curse_survival_victory(
-        Godot.Collections.Dictionary payload
-    )
-    {
-        var mid = _resolve_member_id(payload);
-        var r = _build_result(mid, HOOK_BOSS_CURSE_SURVIVAL_VICTORY);
-        var ms = _get_member_state(mid);
-        if (mid == "")
-        {
-            r["error_code"] = "invalid_request";
-            return r;
-        }
-        if (ms == null)
-        {
-            r["error_code"] = "member_not_found";
-            return r;
-        }
-        r["ok"] = true;
-        bool met =
-            _is_payload_bool_true(payload, "encounter_won")
-            && _is_payload_bool_true(payload, "boss_encounter")
-            && _is_payload_bool_true(payload, "member_survived")
-            && _has_boss_curse(payload);
-        r["conditions_met"] = met;
-        r["doom_marked"] = _get_doom_marked_value(ms);
-        if (!met)
-        {
-            r["error_code"] = "conditions_not_met";
-            return r;
-        }
-        return grant_doom_mark(mid, HOOK_BOSS_CURSE_SURVIVAL_VICTORY, payload);
-    }
-
-    private Godot.Collections.Dictionary _try_grant_dead_road_lantern_black_omen_path(
-        Godot.Collections.Dictionary payload
-    )
-    {
-        var mid = _resolve_member_id(payload);
-        var r = _build_result(mid, HOOK_DEAD_ROAD_LANTERN_BLACK_OMEN_PATH);
-        var ms = _get_member_state(mid);
-        if (mid == "")
-        {
-            r["error_code"] = "invalid_request";
-            return r;
-        }
-        if (ms == null)
-        {
-            r["error_code"] = "member_not_found";
-            return r;
-        }
-        r["ok"] = true;
-        var pathTagsValue = payload.ContainsKey("path_tags")
-            ? payload["path_tags"]
-            : Variant.From(new Godot.Collections.Array());
-        var pathTags = LowLuckRelicRules.normalize_path_tags(
-            pathTagsValue.VariantType == Variant.Type.Array
-                ? pathTagsValue.AsGodotArray()
-                : new Godot.Collections.Array()
+        GetUnitBaseAttributes(memberState).set_attribute_value(DOOM_MARKED_STAT_ID, 1);
+        return BuildResult(
+            memberId,
+            sourceId,
+            ok: true,
+            conditionsMet: true,
+            granted: true,
+            doomMarked: 1
         );
-        bool hasLantern = LowLuckRelicRules.member_has_item(
-            _item_defs,
-            ms,
-            LowLuckRelicRules.ITEM_DEAD_ROAD_LANTERN
-        );
-        bool met = hasLantern && pathTags.Contains(LowLuckRelicRules.PATH_TAG_BLACK_OMEN);
-        r["conditions_met"] = met;
-        r["doom_marked"] = _get_doom_marked_value(ms);
-        if (!met)
-        {
-            r["error_code"] = "conditions_not_met";
-            return r;
-        }
-        return grant_doom_mark(mid, HOOK_DEAD_ROAD_LANTERN_BLACK_OMEN_PATH, payload);
     }
 
-    private static StringName _resolve_member_id(Godot.Collections.Dictionary payload)
+    private MisfortuneBlackOmenResult TryGrantCursedRelicEliteOrBossVictory(
+        MisfortuneBlackOmenHookPayload payload
+    )
     {
-        if (!payload.ContainsKey("member_id"))
-            return new StringName("");
-        var mv = payload["member_id"];
-        if (mv.VariantType != Variant.Type.String && mv.VariantType != Variant.Type.StringName)
-            return new StringName("");
-        return ProgressionDataUtils.to_string_name(mv);
+        var memberId = payload.MemberId;
+        var memberState = GetMemberState(memberId);
+        if (memberId == "")
+            return BuildResult(memberId, HOOK_CURSED_RELIC_ELITE_OR_BOSS_VICTORY, errorCode: "invalid_request");
+        if (memberState == null)
+            return BuildResult(memberId, HOOK_CURSED_RELIC_ELITE_OR_BOSS_VICTORY, errorCode: "member_not_found");
+
+        bool conditionsMet =
+            payload.EncounterWon
+            && payload.DefeatedEliteOrBoss
+            && HasCursedRelic(memberState, payload);
+        if (!conditionsMet)
+        {
+            return BuildResult(
+                memberId,
+                HOOK_CURSED_RELIC_ELITE_OR_BOSS_VICTORY,
+                ok: true,
+                doomMarked: GetDoomMarkedValue(memberState),
+                errorCode: "conditions_not_met"
+            );
+        }
+        return GrantDoomMark(memberId, HOOK_CURSED_RELIC_ELITE_OR_BOSS_VICTORY);
     }
 
-    private static bool _is_payload_bool_true(Godot.Collections.Dictionary payload, string fn) =>
-        _read_bool(payload, fn, false);
+    private MisfortuneBlackOmenResult TryGrantBossCurseSurvivalVictory(
+        MisfortuneBlackOmenHookPayload payload
+    )
+    {
+        var memberId = payload.MemberId;
+        var memberState = GetMemberState(memberId);
+        if (memberId == "")
+            return BuildResult(memberId, HOOK_BOSS_CURSE_SURVIVAL_VICTORY, errorCode: "invalid_request");
+        if (memberState == null)
+            return BuildResult(memberId, HOOK_BOSS_CURSE_SURVIVAL_VICTORY, errorCode: "member_not_found");
 
-    private bool _has_cursed_relic(
+        bool conditionsMet =
+            payload.EncounterWon
+            && payload.BossEncounter
+            && payload.MemberSurvived
+            && HasBossCurse(payload);
+        if (!conditionsMet)
+        {
+            return BuildResult(
+                memberId,
+                HOOK_BOSS_CURSE_SURVIVAL_VICTORY,
+                ok: true,
+                doomMarked: GetDoomMarkedValue(memberState),
+                errorCode: "conditions_not_met"
+            );
+        }
+        return GrantDoomMark(memberId, HOOK_BOSS_CURSE_SURVIVAL_VICTORY);
+    }
+
+    private MisfortuneBlackOmenResult TryGrantDeadRoadLanternBlackOmenPath(
+        MisfortuneBlackOmenHookPayload payload
+    )
+    {
+        var memberId = payload.MemberId;
+        var memberState = GetMemberState(memberId);
+        if (memberId == "")
+            return BuildResult(memberId, HOOK_DEAD_ROAD_LANTERN_BLACK_OMEN_PATH, errorCode: "invalid_request");
+        if (memberState == null)
+            return BuildResult(memberId, HOOK_DEAD_ROAD_LANTERN_BLACK_OMEN_PATH, errorCode: "member_not_found");
+
+        bool conditionsMet =
+            MemberHasEquippedItem(memberState, LowLuckRelicRules.ITEM_DEAD_ROAD_LANTERN)
+            && ContainsId(payload.PathTags, LowLuckRelicRules.PATH_TAG_BLACK_OMEN);
+        if (!conditionsMet)
+        {
+            return BuildResult(
+                memberId,
+                HOOK_DEAD_ROAD_LANTERN_BLACK_OMEN_PATH,
+                ok: true,
+                doomMarked: GetDoomMarkedValue(memberState),
+                errorCode: "conditions_not_met"
+            );
+        }
+        return GrantDoomMark(memberId, HOOK_DEAD_ROAD_LANTERN_BLACK_OMEN_PATH);
+    }
+
+    private bool HasCursedRelic(
         PartyMemberState memberState,
-        Godot.Collections.Dictionary payload
+        MisfortuneBlackOmenHookPayload payload
     )
     {
-        if (payload.ContainsKey("has_cursed_relic"))
-            return _read_bool(payload, "has_cursed_relic", false);
-        if (memberState?.equipment_state == null || _item_defs.Count == 0)
+        if (payload.HasCursedRelic.HasValue)
+            return payload.HasCursedRelic.Value;
+        if (memberState?.equipment_state == null || _itemDefs.Count == 0)
             return false;
-        foreach (var esId in memberState.equipment_state.get_entry_slot_ids())
+
+        foreach (var slotId in memberState.equipment_state.get_entry_slot_ids())
         {
-            var entry = memberState.equipment_state.get_entry(esId);
+            var entry = memberState.equipment_state.get_entry(slotId);
             var itemId = entry?.item_id ?? new StringName("");
-            if (entry == null || itemId == "")
+            if (entry == null || itemId == "" || !_itemDefs.TryGetValue(itemId, out ItemDef itemDef))
                 continue;
-            var itemDef = _get_item_def(itemId);
-            if (itemDef == null)
-                continue;
-            var itemTags = itemDef.get_tags();
-            bool matched = true;
-            foreach (var rt in CURSED_RELIC_REQUIRED_TAGS)
-            {
-                if (!itemTags.Contains(rt))
-                {
-                    matched = false;
-                    break;
-                }
-            }
-            if (matched)
+            if (HasAllTags(itemDef, CursedRelicRequiredTags))
                 return true;
         }
         return false;
     }
 
-    private static bool _has_boss_curse(Godot.Collections.Dictionary payload)
+    private static bool HasBossCurse(MisfortuneBlackOmenHookPayload payload)
     {
-        if (payload.ContainsKey("has_boss_curse"))
-            return _read_bool(payload, "has_boss_curse", false);
-        var curseIds = ProgressionDataUtils.to_string_name_array(
-            payload.ContainsKey("boss_curse_status_ids")
-                ? payload["boss_curse_status_ids"]
-                : new Godot.Collections.Array()
-        );
-        return curseIds.Count > 0;
+        if (payload.HasBossCurse.HasValue)
+            return payload.HasBossCurse.Value;
+        return payload.BossCurseStatusIds != null && payload.BossCurseStatusIds.Count > 0;
     }
 
-    private ItemDef _get_item_def(StringName itemId)
+    private static bool MemberHasEquippedItem(PartyMemberState memberState, StringName itemId)
     {
-        if (itemId == "")
-            return null;
-        foreach (var key in _item_defs.Keys)
+        if (memberState?.equipment_state == null || itemId == "")
+            return false;
+
+        foreach (var slotId in memberState.equipment_state.get_entry_slot_ids())
         {
-            if (key.VariantType == Variant.Type.StringName && key.AsStringName() == itemId)
-                return _item_defs[key].AsGodotObject() as ItemDef;
+            var equippedItemId = ProgressionDataUtils.to_string_name(
+                memberState.equipment_state.get_equipped_item_id(slotId)
+            );
+            if (equippedItemId == itemId)
+                return true;
         }
-        return null;
+        return false;
     }
 
-    private PartyMemberState _get_member_state(StringName memberId)
+    private static bool HasAllTags(ItemDef itemDef, IReadOnlyList<StringName> requiredTags)
     {
-        if (_character_gateway == null || memberId == "")
+        if (itemDef == null || requiredTags == null || requiredTags.Count == 0)
+            return false;
+
+        var itemTags = itemDef.get_tags();
+        foreach (var requiredTag in requiredTags)
+        {
+            if (!itemTags.Contains(requiredTag))
+                return false;
+        }
+        return true;
+    }
+
+    private PartyMemberState GetMemberState(StringName memberId)
+    {
+        if (_characterGateway == null || memberId == "")
             return null;
-        return _character_gateway.get_member_state(memberId);
+        return _characterGateway.get_member_state(memberId);
     }
 
-    private int _get_doom_marked_value(PartyMemberState memberState)
+    private int GetDoomMarkedValue(PartyMemberState memberState)
     {
-        var uba = _get_unit_base_attributes(memberState);
-        return uba?.get_attribute_value(DOOM_MARKED_STAT_ID) ?? 0;
+        var attributes = GetUnitBaseAttributes(memberState);
+        return attributes?.get_attribute_value(DOOM_MARKED_STAT_ID) ?? 0;
     }
 
-    private static UnitBaseAttributes _get_unit_base_attributes(PartyMemberState memberState) =>
+    private static UnitBaseAttributes GetUnitBaseAttributes(PartyMemberState memberState) =>
         memberState?.progression?.unit_base_attributes;
 
-    private Godot.Collections.Dictionary _build_result(
+    private MisfortuneBlackOmenResult BuildResult(
         StringName memberId,
         StringName sourceId,
+        bool ok = false,
+        bool conditionsMet = false,
+        bool granted = false,
+        bool alreadyMarked = false,
+        int? doomMarked = null,
         string errorCode = ""
     )
     {
-        int doomMarked = 0;
-        var ms = _get_member_state(memberId);
-        if (ms != null)
-            doomMarked = _get_doom_marked_value(ms);
-        return new Godot.Collections.Dictionary
+        return new MisfortuneBlackOmenResult
         {
-            { "ok", false },
-            { "hook_id", (string)sourceId },
-            { "member_id", (string)memberId },
-            { "conditions_met", false },
-            { "granted", false },
-            { "already_marked", false },
-            { "doom_marked", doomMarked },
-            { "error_code", errorCode },
+            Ok = ok,
+            HookId = sourceId,
+            MemberId = memberId,
+            ConditionsMet = conditionsMet,
+            Granted = granted,
+            AlreadyMarked = alreadyMarked,
+            DoomMarked = doomMarked ?? GetDoomMarkedValue(GetMemberState(memberId)),
+            ErrorCode = errorCode ?? "",
         };
     }
 
-    private static bool _read_bool(
-        Godot.Collections.Dictionary payload,
-        string key,
-        bool fallback
-    )
+    private static bool ContainsId(IReadOnlyList<StringName> values, StringName expected)
     {
-        if (payload == null || !payload.ContainsKey(key))
-            return fallback;
-        Variant value = payload[key];
-        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
+        if (values == null || expected == "")
+            return false;
+        foreach (StringName value in values)
+        {
+            if (value == expected)
+                return true;
+        }
+        return false;
     }
 }

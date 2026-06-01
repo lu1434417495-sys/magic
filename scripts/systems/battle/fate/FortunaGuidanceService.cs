@@ -1,54 +1,73 @@
+using System;
+using System.Collections.Generic;
 using Godot;
 
-[GlobalClass]
-public partial class FortunaGuidanceService : RefCounted
+public sealed class FortunaGuidanceEventInput
 {
-    public static readonly StringName ACHIEVEMENT_GUIDANCE_TRUE = "fortuna_guidance_true",
-        ACHIEVEMENT_GUIDANCE_DEVOUT = "fortuna_guidance_devout",
-        ACHIEVEMENT_GUIDANCE_EXALTED = "fortuna_guidance_exalted",
-        ACHIEVEMENT_GUIDANCE_BLESSED = "fortuna_guidance_blessed";
-    private static readonly StringName FORTUNE_MARKED_STAT_ID = "fortune_marked";
-    private const string CHAPTER_EVENT_FLAG_PREFIX = "fortuna_guidance_chapter_seen:",
-        DEVOUT_BATTLE_FLAG_PREFIX = "fortuna_guidance_devout_battle:";
-    private IBattleRuntimeCharacterGateway _character_gateway;
-    private BattleFateEventBus _fate_event_bus;
+    public StringName EventType { get; init; } = "";
+    public StringName BattleId { get; init; } = "";
+    public StringName AttackerMemberId { get; init; } = "";
+    public bool DefenderIsEliteOrBoss { get; init; }
+    public bool AttackerLowHpHardship { get; init; }
+    public IReadOnlyList<StringName> AttackerStrongAttackDebuffIds { get; init; } =
+        Array.Empty<StringName>();
+}
 
-    public static StringName ACHIEVEMENT_GUIDANCE_TRUE_ID() => ACHIEVEMENT_GUIDANCE_TRUE;
+public sealed class FortunaChapterCompletionInput
+{
+    public IReadOnlyList<StringName> MemberIds { get; init; } = Array.Empty<StringName>();
+    public bool HadPermanentDeath { get; init; }
+}
 
-    public static StringName ACHIEVEMENT_GUIDANCE_DEVOUT_ID() => ACHIEVEMENT_GUIDANCE_DEVOUT;
+public class FortunaGuidanceService
+{
+    public static readonly StringName AchievementGuidanceTrue = "fortuna_guidance_true";
+    public static readonly StringName AchievementGuidanceDevout = "fortuna_guidance_devout";
+    public static readonly StringName AchievementGuidanceExalted = "fortuna_guidance_exalted";
+    public static readonly StringName AchievementGuidanceBlessed = "fortuna_guidance_blessed";
 
-    public static StringName ACHIEVEMENT_GUIDANCE_EXALTED_ID() => ACHIEVEMENT_GUIDANCE_EXALTED;
+    private static readonly StringName EventCriticalSuccessUnderDisadvantage =
+        "critical_success_under_disadvantage";
+    private static readonly StringName EventHighThreatCriticalHit = "high_threat_critical_hit";
+    private static readonly StringName EventHardshipSurvival = "hardship_survival";
+    private static readonly StringName FortuneMarkedStatId = "fortune_marked";
 
-    public static StringName ACHIEVEMENT_GUIDANCE_BLESSED_ID() => ACHIEVEMENT_GUIDANCE_BLESSED;
+    private const string ChapterEventFlagPrefix = "fortuna_guidance_chapter_seen:";
+    private const string DevoutBattleFlagPrefix = "fortuna_guidance_devout_battle:";
 
-    public void setup(IBattleRuntimeCharacterGateway characterGateway = null, BattleFateEventBus fateEventBus = null)
+    private IBattleRuntimeCharacterGateway _characterGateway;
+
+    public void Setup(IBattleRuntimeCharacterGateway characterGateway = null)
     {
-        _character_gateway = characterGateway;
-        bind_fate_event_bus(fateEventBus);
+        _characterGateway = characterGateway;
     }
 
-    public void bind_fate_event_bus(BattleFateEventBus fateEventBus = null)
-    {
-        if (_fate_event_bus != null)
-            _fate_event_bus.EventDispatched -= _on_fate_event;
-        _fate_event_bus = fateEventBus;
-        if (_fate_event_bus != null)
-            _fate_event_bus.EventDispatched += _on_fate_event;
-    }
+    public void Dispose() => dispose();
 
     public void dispose()
     {
-        bind_fate_event_bus(null);
-        _character_gateway = null;
+        _characterGateway = null;
     }
 
-    public Godot.Collections.Array<StringName> handle_battle_resolution(
+    public void HandleFateEvent(FortunaGuidanceEventInput payload)
+    {
+        if (payload == null || payload.EventType == "")
+            return;
+        if (payload.EventType == EventCriticalSuccessUnderDisadvantage)
+            HandleCriticalSuccessUnderDisadvantage(payload);
+        else if (payload.EventType == EventHighThreatCriticalHit)
+            HandleHighThreatCriticalHit(payload);
+        else if (payload.EventType == EventHardshipSurvival)
+            HandleHardshipSurvival(payload);
+    }
+
+    public List<StringName> HandleBattleResolution(
         BattleState battleState,
         BattleResolutionResult battleResolutionResult
     )
     {
-        var unlockedIds = new Godot.Collections.Array<StringName>();
-        var partyState = _get_party_state();
+        var unlockedIds = new List<StringName>();
+        var partyState = GetPartyState();
         if (partyState == null || battleState == null || battleResolutionResult == null)
             return unlockedIds;
         var battleId =
@@ -58,219 +77,191 @@ public partial class FortunaGuidanceService : RefCounted
         if (battleId == "")
             return unlockedIds;
         bool playerWon = battleResolutionResult.winner_faction_id == "player";
-        foreach (var auId in battleState.ally_unit_ids)
+        foreach (StringName allyUnitId in battleState.get_ally_unit_ids_typed())
         {
-            var us = battleState.units.ContainsKey(auId)
-                ? battleState.units[auId].AsGodotObject() as BattleUnitState
-                : null;
-            if (us == null || us.source_member_id == "")
+            if (!battleState.TryGetUnitTyped(allyUnitId, out BattleUnitState unitState))
                 continue;
-            var flagId = _build_devout_battle_flag_id(battleId, us.source_member_id);
+            if (unitState == null || unitState.source_member_id == "")
+                continue;
+
+            var flagId = BuildDevoutBattleFlagId(battleId, unitState.source_member_id);
             if (!partyState.has_fate_run_flag(flagId))
                 continue;
             if (
                 playerWon
-                && us.is_alive
-                && _unlock_achievement(us.source_member_id, ACHIEVEMENT_GUIDANCE_DEVOUT)
+                && unitState.is_alive
+                && UnlockAchievement(unitState.source_member_id, AchievementGuidanceDevout)
             )
-                _append_unique_string_name(unlockedIds, ACHIEVEMENT_GUIDANCE_DEVOUT);
+                AppendUniqueStringName(unlockedIds, AchievementGuidanceDevout);
             partyState.clear_fate_run_flag(flagId);
         }
         return unlockedIds;
     }
 
-    public Godot.Collections.Array<StringName> handle_chapter_completed(
-        Godot.Collections.Dictionary payload
-    )
+    public List<StringName> HandleChapterCompleted(FortunaChapterCompletionInput input = null)
     {
-        var unlockedIds = new Godot.Collections.Array<StringName>();
-        var partyState = _get_party_state();
+        input ??= new FortunaChapterCompletionInput();
+        var unlockedIds = new List<StringName>();
+        var partyState = GetPartyState();
         if (partyState == null)
             return unlockedIds;
-        var memberIds = _resolve_chapter_member_ids(payload, partyState);
+        List<StringName> memberIds = ResolveChapterMemberIds(input, partyState);
         if (memberIds.Count == 0)
             return unlockedIds;
-        bool hadPermDeath =
-            _payload_bool(payload, "had_permanent_death", false)
-            || _payload_bool(payload, "has_permanent_death", false);
-        foreach (var mid in memberIds)
+        foreach (var memberId in memberIds)
         {
-            var flagId = _build_chapter_event_flag_id(mid);
+            var flagId = BuildChapterEventFlagId(memberId);
             bool shouldUnlock =
-                !hadPermDeath
+                !input.HadPermanentDeath
                 && partyState.has_fate_run_flag(flagId)
-                && _is_fortuna_devotee(_get_member_state(mid));
-            if (shouldUnlock && _unlock_achievement(mid, ACHIEVEMENT_GUIDANCE_BLESSED))
-                _append_unique_string_name(unlockedIds, ACHIEVEMENT_GUIDANCE_BLESSED);
+                && IsFortunaDevotee(GetMemberState(memberId));
+            if (shouldUnlock && UnlockAchievement(memberId, AchievementGuidanceBlessed))
+                AppendUniqueStringName(unlockedIds, AchievementGuidanceBlessed);
             partyState.clear_fate_run_flag(flagId);
         }
         return unlockedIds;
     }
 
-    private void _on_fate_event(StringName eventType, Godot.Collections.Dictionary payload)
+    private void HandleCriticalSuccessUnderDisadvantage(FortunaGuidanceEventInput payload)
     {
-        if (eventType == "critical_success_under_disadvantage")
-            _handle_critical_success_under_disadvantage(payload);
-        else if (eventType == "high_threat_critical_hit")
-            _handle_high_threat_critical_hit(payload);
-        else if (eventType == "hardship_survival")
-            _handle_hardship_survival(payload);
+        if (!payload.DefenderIsEliteOrBoss)
+            return;
+        var memberId = ProgressionDataUtils.to_string_name(payload.AttackerMemberId);
+        if (memberId == "")
+            return;
+        MarkChapterEventSeen(memberId);
+        if (IsFortunaMarked(GetMemberState(memberId)))
+            UnlockAchievement(memberId, AchievementGuidanceTrue);
     }
 
-    private void _handle_critical_success_under_disadvantage(Godot.Collections.Dictionary payload)
+    private void HandleHighThreatCriticalHit(FortunaGuidanceEventInput payload)
     {
-        if (
-            !_payload_bool(payload, "defender_is_elite_or_boss", false)
-        )
+        if (!payload.DefenderIsEliteOrBoss)
             return;
-        var mid = _resolve_attacker_member_id(payload);
-        if (mid == "")
+        var memberId = ProgressionDataUtils.to_string_name(payload.AttackerMemberId);
+        if (memberId == "")
             return;
-        _mark_chapter_event_seen(mid);
-        if (_is_fortuna_marked(_get_member_state(mid)))
-            _unlock_achievement(mid, ACHIEVEMENT_GUIDANCE_TRUE);
+        var memberState = GetMemberState(memberId);
+        if (!IsFortunaDevotee(memberState))
+            return;
+        MarkChapterEventSeen(memberId);
+        UnlockAchievement(memberId, AchievementGuidanceExalted);
     }
 
-    private void _handle_high_threat_critical_hit(Godot.Collections.Dictionary payload)
+    private void HandleHardshipSurvival(FortunaGuidanceEventInput payload)
     {
-        if (
-            !_payload_bool(payload, "defender_is_elite_or_boss", false)
-        )
+        var battleId = ProgressionDataUtils.to_string_name(payload.BattleId);
+        var memberId = ProgressionDataUtils.to_string_name(payload.AttackerMemberId);
+        if (battleId == "" || memberId == "")
             return;
-        var mid = _resolve_attacker_member_id(payload);
-        if (mid == "")
+        if (!IsFortunaDevotee(GetMemberState(memberId)))
             return;
-        var ms = _get_member_state(mid);
-        if (!_is_fortuna_devotee(ms))
+        if (!payload.AttackerLowHpHardship)
             return;
-        _mark_chapter_event_seen(mid);
-        _unlock_achievement(mid, ACHIEVEMENT_GUIDANCE_EXALTED);
+        if (!HasAnyStringName(payload.AttackerStrongAttackDebuffIds))
+            return;
+        MarkChapterEventSeen(memberId);
+        var partyState = GetPartyState();
+        partyState?.set_fate_run_flag(BuildDevoutBattleFlagId(battleId, memberId), true);
     }
 
-    private void _handle_hardship_survival(Godot.Collections.Dictionary payload)
+    private void MarkChapterEventSeen(StringName memberId)
     {
-        var bid = ProgressionDataUtils.to_string_name(
-            payload.ContainsKey("battle_id") ? payload["battle_id"] : ""
-        );
-        var mid = _resolve_attacker_member_id(payload);
-        if (bid == "" || mid == "")
-            return;
-        if (!_is_fortuna_devotee(_get_member_state(mid)))
-            return;
-        if (
-            !_payload_bool(payload, "attacker_low_hp_hardship", false)
-        )
-            return;
-        var sdIds = ProgressionDataUtils.to_string_name_array(
-            payload.ContainsKey("attacker_strong_attack_debuff_ids")
-                ? payload["attacker_strong_attack_debuff_ids"]
-                : new Godot.Collections.Array()
-        );
-        if (sdIds.Count == 0)
-            return;
-        _mark_chapter_event_seen(mid);
-        var ps = _get_party_state();
-        if (ps != null)
-            ps.set_fate_run_flag(_build_devout_battle_flag_id(bid, mid), true);
+        var partyState = GetPartyState();
+        if (partyState != null && memberId != "")
+            partyState.set_fate_run_flag(BuildChapterEventFlagId(memberId), true);
     }
 
-    private static StringName _resolve_attacker_member_id(Godot.Collections.Dictionary payload) =>
-        ProgressionDataUtils.to_string_name(
-            payload.ContainsKey("attacker_member_id") ? payload["attacker_member_id"] : ""
-        );
-
-    private static Godot.Collections.Array<StringName> _resolve_chapter_member_ids(
-        Godot.Collections.Dictionary payload,
-        PartyState partyState
-    )
+    private bool UnlockAchievement(StringName memberId, StringName achievementId)
     {
-        var emIds = ProgressionDataUtils.to_string_name_array(
-            payload.ContainsKey("member_ids")
-                ? payload["member_ids"]
-                : new Godot.Collections.Array()
-        );
-        if (emIds.Count > 0)
-            return emIds;
-        var r = new Godot.Collections.Array<StringName>();
-        var mss = partyState.member_states;
-        foreach (var mk in ProgressionDataUtils.sorted_string_keys(mss))
-            r.Add(new StringName(mk));
-        return r;
-    }
-
-    private void _mark_chapter_event_seen(StringName mid)
-    {
-        var ps = _get_party_state();
-        if (ps != null && mid != "")
-            ps.set_fate_run_flag(_build_chapter_event_flag_id(mid), true);
-    }
-
-    private bool _unlock_achievement(StringName mid, StringName achId)
-    {
-        if (_character_gateway == null || mid == "" || achId == "")
+        if (_characterGateway == null || memberId == "" || achievementId == "")
             return false;
-        return (_character_gateway as CharacterManagementModule)?.unlock_achievement(
-            mid,
-            achId,
-            new Godot.Collections.Dictionary { { "summary_text", _build_summary_text(achId) } }
+        return (_characterGateway as CharacterManagementModule)?.UnlockAchievement(
+            memberId,
+            achievementId,
+            BuildSummaryText(achievementId)
         ) ?? false;
     }
 
-    private static bool _is_fortuna_marked(PartyMemberState ms)
+    private static bool IsFortunaMarked(PartyMemberState memberState)
     {
-        if (ms?.progression?.unit_base_attributes == null)
+        if (memberState?.progression?.unit_base_attributes == null)
             return false;
-        return ms.progression?.unit_base_attributes?.get_attribute_value(FORTUNE_MARKED_STAT_ID) > 0;
+        return memberState.progression.unit_base_attributes.get_attribute_value(FortuneMarkedStatId)
+            > 0;
     }
 
-    private static bool _is_fortuna_devotee(PartyMemberState ms) =>
-        ms != null && ms.get_faith_luck_bonus() > 0;
+    private static bool IsFortunaDevotee(PartyMemberState memberState) =>
+        memberState != null && memberState.get_faith_luck_bonus() > 0;
 
-    private static string _build_summary_text(StringName achId)
+    private static string BuildSummaryText(StringName achievementId)
     {
-        if (achId == ACHIEVEMENT_GUIDANCE_TRUE)
+        if (achievementId == AchievementGuidanceTrue)
             return "Fortuna 再次看见了这名角色。";
-        if (achId == ACHIEVEMENT_GUIDANCE_DEVOUT)
+        if (achievementId == AchievementGuidanceDevout)
             return "逆境中的胜利让 Fortuna 的怜悯有了回应。";
-        if (achId == ACHIEVEMENT_GUIDANCE_EXALTED)
+        if (achievementId == AchievementGuidanceExalted)
             return "好运不再只是门骰，而是被抬进了真正的高位威胁区间。";
-        if (achId == ACHIEVEMENT_GUIDANCE_BLESSED)
+        if (achievementId == AchievementGuidanceBlessed)
             return "整章旅程都被 Fortuna 的影子护住了。";
         return "";
     }
 
-    private PartyState _get_party_state() =>
-        _character_gateway?.get_party_state();
+    private PartyState GetPartyState() => _characterGateway?.get_party_state();
 
-    private PartyMemberState _get_member_state(StringName mid) =>
-        _character_gateway != null && mid != "" ? _character_gateway.get_member_state(mid) : null;
+    private PartyMemberState GetMemberState(StringName memberId) =>
+        _characterGateway != null && memberId != ""
+            ? _characterGateway.get_member_state(memberId)
+            : null;
 
-    private static StringName _build_chapter_event_flag_id(StringName mid) =>
-        ProgressionDataUtils.to_string_name($"{CHAPTER_EVENT_FLAG_PREFIX}{(string)mid}");
+    private static StringName BuildChapterEventFlagId(StringName memberId) =>
+        ProgressionDataUtils.to_string_name($"{ChapterEventFlagPrefix}{memberId}");
 
-    private static StringName _build_devout_battle_flag_id(StringName bid, StringName mid) =>
-        ProgressionDataUtils.to_string_name(
-            $"{DEVOUT_BATTLE_FLAG_PREFIX}{(string)bid}:{(string)mid}"
-        );
+    private static StringName BuildDevoutBattleFlagId(StringName battleId, StringName memberId) =>
+        ProgressionDataUtils.to_string_name($"{DevoutBattleFlagPrefix}{battleId}:{memberId}");
 
-    private static void _append_unique_string_name(
-        Godot.Collections.Array<StringName> values,
-        StringName value
-    )
+    private static void AppendUniqueStringName(List<StringName> values, StringName value)
     {
         if (value != "" && !values.Contains(value))
             values.Add(value);
     }
 
-    private static bool _payload_bool(
-        Godot.Collections.Dictionary payload,
-        string key,
-        bool fallback
+    private static bool HasAnyStringName(IReadOnlyList<StringName> values)
+    {
+        if (values == null)
+            return false;
+        foreach (var value in values)
+        {
+            if (ProgressionDataUtils.to_string_name(value) != "")
+                return true;
+        }
+        return false;
+    }
+
+    private static List<StringName> ResolveChapterMemberIds(
+        FortunaChapterCompletionInput input,
+        PartyState partyState
     )
     {
-        if (payload == null || !payload.ContainsKey(key))
-            return fallback;
-        Variant value = payload[key];
-        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
+        var result = new List<StringName>();
+        if (input?.MemberIds != null)
+        {
+            foreach (var rawMemberId in input.MemberIds)
+            {
+                var memberId = ProgressionDataUtils.to_string_name(rawMemberId);
+                if (memberId != "" && !result.Contains(memberId))
+                    result.Add(memberId);
+            }
+        }
+        if (result.Count > 0 || partyState == null)
+            return result;
+
+        foreach (var memberState in partyState.get_member_states())
+        {
+            var memberId = ProgressionDataUtils.to_string_name(memberState?.member_id);
+            if (memberId != "" && !result.Contains(memberId))
+                result.Add(memberId);
+        }
+        return result;
     }
 }

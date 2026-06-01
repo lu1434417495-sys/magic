@@ -1,7 +1,8 @@
 using Godot;
+using System;
+using System.Collections.Generic;
 
-[GlobalClass]
-public partial class TraitTriggerContentRules : RefCounted
+public static class TraitTriggerContentRules
 {
     private static readonly StringName TriggerPassive = "passive";
 
@@ -21,29 +22,31 @@ public partial class TraitTriggerContentRules : RefCounted
 
     private static readonly StringName TraitRelentlessEndurance = "relentless_endurance";
 
-    private static readonly Godot.Collections.Dictionary VALID_TRIGGER_TYPES = new()
+    private static readonly HashSet<StringName> VALID_TRIGGER_TYPES = new()
     {
-        { TriggerPassive, true },
-        { TriggerOnNaturalOne, true },
-        { TriggerOnCrit, true },
-        { TriggerOnFatalDamage, true },
-        { TriggerOnBattleStart, true },
-        { TriggerOnTurnStart, true },
+        TriggerPassive,
+        TriggerOnNaturalOne,
+        TriggerOnCrit,
+        TriggerOnFatalDamage,
+        TriggerOnBattleStart,
+        TriggerOnTurnStart,
     };
 
-    private static readonly Godot.Collections.Dictionary DISPATCH_TRIGGER_TYPES = new()
+    private static readonly IReadOnlyDictionary<StringName, IReadOnlyDictionary<StringName, string>>
+        DISPATCH_TRIGGER_TYPES =
+            new Dictionary<StringName, IReadOnlyDictionary<StringName, string>>
     {
         {
             TraitHalflingLuck,
-            new Godot.Collections.Dictionary { { TriggerOnNaturalOne, "_handle_halfling_luck" } }
+            new Dictionary<StringName, string> { { TriggerOnNaturalOne, "_handle_halfling_luck" } }
         },
         {
             TraitSavageAttacks,
-            new Godot.Collections.Dictionary { { TriggerOnCrit, "_handle_savage_attacks" } }
+            new Dictionary<StringName, string> { { TriggerOnCrit, "_handle_savage_attacks" } }
         },
         {
             TraitRelentlessEndurance,
-            new Godot.Collections.Dictionary
+            new Dictionary<StringName, string>
             {
                 { TriggerOnFatalDamage, "_handle_relentless_endurance" },
             }
@@ -68,19 +71,14 @@ public partial class TraitTriggerContentRules : RefCounted
 
     public static StringName TRAIT_RELENTLESS_ENDURANCE() => TraitRelentlessEndurance;
 
-    public static Godot.Collections.Dictionary get_valid_trigger_types()
-    {
-        return VALID_TRIGGER_TYPES.Duplicate(true);
-    }
+    public static IReadOnlySet<StringName> get_valid_trigger_types() => VALID_TRIGGER_TYPES;
 
-    public static Godot.Collections.Dictionary get_dispatch_trigger_types()
-    {
-        return DISPATCH_TRIGGER_TYPES.Duplicate(true);
-    }
+    public static IReadOnlyDictionary<StringName, IReadOnlyDictionary<StringName, string>>
+        get_dispatch_trigger_types() => DISPATCH_TRIGGER_TYPES;
 
     public static bool is_valid_trigger_type(StringName triggerType)
     {
-        return VALID_TRIGGER_TYPES.ContainsKey(triggerType);
+        return VALID_TRIGGER_TYPES.Contains(triggerType);
     }
 
     public static bool has_dispatch_for_trait_trigger(StringName traitId, StringName triggerType)
@@ -88,10 +86,8 @@ public partial class TraitTriggerContentRules : RefCounted
         if (traitId == "" || triggerType == "")
             return false;
 
-        if (!DISPATCH_TRIGGER_TYPES.ContainsKey(traitId))
+        if (!DISPATCH_TRIGGER_TYPES.TryGetValue(traitId, out var dispatchEntry))
             return false;
-
-        var dispatchEntry = DISPATCH_TRIGGER_TYPES[traitId].AsGodotDictionary();
 
         return dispatchEntry.ContainsKey(triggerType);
     }
@@ -101,30 +97,28 @@ public partial class TraitTriggerContentRules : RefCounted
         if (traitId == "" || triggerType == "")
             return "";
 
-        if (!DISPATCH_TRIGGER_TYPES.ContainsKey(traitId))
+        if (!DISPATCH_TRIGGER_TYPES.TryGetValue(traitId, out var dispatchEntry))
             return "";
 
-        var dispatchEntry = DISPATCH_TRIGGER_TYPES[traitId].AsGodotDictionary();
-
-        if (!dispatchEntry.ContainsKey(triggerType))
+        if (!dispatchEntry.TryGetValue(triggerType, out string methodName))
             return "";
 
-        return (string)dispatchEntry[triggerType];
+        return methodName;
     }
 
-    public static Godot.Collections.Array<StringName> get_dispatch_trait_ids()
+    public static IReadOnlyList<StringName> get_dispatch_trait_ids()
     {
-        var traitIds = new Godot.Collections.Array<StringName>();
+        var traitIds = new List<StringName>();
 
-        foreach (var traitIdValue in DISPATCH_TRIGGER_TYPES.Keys)
+        foreach (StringName traitId in DISPATCH_TRIGGER_TYPES.Keys)
         {
-            var traitId = traitIdValue.AsStringName();
-
             if (traitId != "")
                 traitIds.Add(traitId);
         }
 
-        traitIds.Sort();
+        traitIds.Sort((left, right) =>
+            string.Compare(left.ToString(), right.ToString(), StringComparison.Ordinal)
+        );
 
         return traitIds;
     }

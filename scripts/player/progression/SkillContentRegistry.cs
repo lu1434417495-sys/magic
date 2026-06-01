@@ -33,44 +33,6 @@ public partial class SkillContentRegistry : RefCounted
         "",
         "ground_anchor_drift",
     };
-    private static readonly HashSet<StringName> ValidSaveDcModes = new()
-    {
-        BattleSaveContentRules.SAVE_DC_MODE_STATIC,
-        BattleSaveContentRules.SAVE_DC_MODE_CASTER_SPELL,
-    };
-
-    private static readonly HashSet<StringName> ValidSaveAbilities = new()
-    {
-        UnitBaseAttributes.STRENGTH(),
-        UnitBaseAttributes.AGILITY(),
-        UnitBaseAttributes.CONSTITUTION(),
-        UnitBaseAttributes.PERCEPTION(),
-        UnitBaseAttributes.INTELLIGENCE(),
-        UnitBaseAttributes.WILLPOWER(),
-    };
-
-    private static readonly HashSet<StringName> ValidSaveTags = new()
-    {
-        BattleSaveContentRules.SAVE_TAG_SLEEP,
-        BattleSaveContentRules.SAVE_TAG_PARALYSIS,
-        BattleSaveContentRules.SAVE_TAG_CHARM,
-        BattleSaveContentRules.SAVE_TAG_POISON,
-        BattleSaveContentRules.SAVE_TAG_DRAGON_BREATH,
-        BattleSaveContentRules.SAVE_TAG_FIREBALL,
-        BattleSaveContentRules.SAVE_TAG_CHAIN_LIGHTNING,
-        BattleSaveContentRules.SAVE_TAG_EQUIPMENT_DISJUNCTION,
-        BattleSaveContentRules.SAVE_TAG_MAGIC,
-        BattleSaveContentRules.SAVE_TAG_ILLUSION,
-        BattleSaveContentRules.SAVE_TAG_FRIGHTENED,
-        BattleSaveContentRules.SAVE_TAG_EXECUTE,
-        UnitBaseAttributes.STRENGTH(),
-        UnitBaseAttributes.AGILITY(),
-        UnitBaseAttributes.CONSTITUTION(),
-        UnitBaseAttributes.PERCEPTION(),
-        UnitBaseAttributes.INTELLIGENCE(),
-        UnitBaseAttributes.WILLPOWER(),
-    };
-
     private static readonly HashSet<StringName> ValidEffectTriggerEvents = new()
     {
         "",
@@ -148,6 +110,11 @@ public partial class SkillContentRegistry : RefCounted
             { "remove_beneficial_from_enemies", "remove_beneficial_from_enemies" },
             { "require_damage_applied", "require_damage_applied" },
             { "staged_execution", "staged_execution" },
+            { "counts_as_debuff_override", "counts_as_debuff_override" },
+            { "counts_as_debuff", "counts_as_debuff" },
+            { "lock_counterattack", "lock_counterattack" },
+            { "lock_crit", "lock_crit" },
+            { "main_skill_lock_other_debuff_count", "main_skill_lock_other_debuff_count" },
             { "ap_gain", "ap_gain" },
             { "free_move_points_gain", "free_move_points_gain" },
         };
@@ -363,7 +330,15 @@ public partial class SkillContentRegistry : RefCounted
             errors.Add($"Skill {skillId} is active but missing combat_profile.");
         _append_practice_skill_validation_errors(errors, skillId, skillDef);
         _append_attribute_growth_validation_errors(errors, skillId, skillDef);
-        SkillLevelDescriptionContentRules.append_validation_errors(errors, skillId, skillDef);
+        foreach (
+            string error in SkillLevelDescriptionContentRules.CollectValidationErrors(
+                skillId,
+                skillDef
+            )
+        )
+        {
+            errors.Add(error);
+        }
 
         if (skillDef.combat_profile != null)
             AppendCombatProfileValidationErrors(errors, skillId, skillDef.combat_profile, skillDef);
@@ -1325,7 +1300,7 @@ public partial class SkillContentRegistry : RefCounted
             effectDef.save_dc_source_ability
         );
         var saveTag = ProgressionDataUtils.to_string_name(effectDef.save_tag);
-        if (!ValidSaveDcModes.Contains(saveDcMode))
+        if (!BattleSaveContentRules.is_valid_save_dc_mode(saveDcMode))
             errors.Add(
                 $"Skill {skillId} effect {contextLabel} uses unsupported save_dc_mode {saveDcMode}."
             );
@@ -1339,7 +1314,7 @@ public partial class SkillContentRegistry : RefCounted
             errors.Add(
                 $"Skill {skillId} effect {contextLabel} save_dc_source_ability requires caster_spell save_dc_mode."
             );
-        if (dynamicSaveDc && !ValidSaveAbilities.Contains(saveDcSourceAbility))
+        if (dynamicSaveDc && !BattleSaveContentRules.is_valid_save_ability(saveDcSourceAbility))
             errors.Add(
                 $"Skill {skillId} effect {contextLabel} uses unsupported save_dc_source_ability {saveDcSourceAbility}."
             );
@@ -1365,11 +1340,11 @@ public partial class SkillContentRegistry : RefCounted
             return;
         }
 
-        if (!ValidSaveAbilities.Contains(saveAbility))
+        if (!BattleSaveContentRules.is_valid_save_ability(saveAbility))
             errors.Add(
                 $"Skill {skillId} effect {contextLabel} uses unsupported save_ability {saveAbility}."
             );
-        if (!ValidSaveTags.Contains(saveTag))
+        if (!BattleSaveContentRules.is_valid_save_tag(saveTag))
             errors.Add(
                 $"Skill {skillId} effect {contextLabel} uses unsupported save_tag {saveTag}."
             );

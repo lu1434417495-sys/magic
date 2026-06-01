@@ -113,8 +113,8 @@ public partial class CharacterCreationWindow : Control
     private StyleBoxFlat _rowStyleNormal;
     private StyleBoxFlat _rowStyleMet;
     private ProgressionContentRegistry _progressionContentRegistry = new ProgressionContentRegistry();
-    private GStringNameArray _raceIds = new();
-    private GStringNameArray _subraceIds = new();
+    private List<StringName> _raceIds = new();
+    private List<StringName> _subraceIds = new();
     private GStringNameArray _ageStageIds = new();
 
     public override void _Ready()
@@ -902,8 +902,10 @@ public partial class CharacterCreationWindow : Control
             return;
         }
 
-        _raceIds = CharacterCreationIdentityOptionService.collect_creation_race_ids(
-            _progressionContentRegistry
+        _raceIds = new List<StringName>(
+            CharacterCreationIdentityOptionService.CollectCreationRaceIds(
+                _progressionContentRegistry
+            )
         );
         _selected_race_id = _choose_race_id(_selected_race_id);
         _selected_subrace_id = _choose_subrace_id(_selected_subrace_id);
@@ -924,7 +926,7 @@ public partial class CharacterCreationWindow : Control
 
     private StringName _choose_race_id(StringName currentId)
     {
-        return CharacterCreationIdentityOptionService.choose_race_id(
+        return CharacterCreationIdentityOptionService.ChooseRaceId(
             _progressionContentRegistry,
             currentId,
             DefaultCreationRaceId
@@ -934,18 +936,20 @@ public partial class CharacterCreationWindow : Control
     private StringName _choose_subrace_id(StringName currentId)
     {
         _subraceIds = _collect_subrace_ids_for_race(_selected_race_id);
-        return CharacterCreationIdentityOptionService.choose_subrace_id(
+        return CharacterCreationIdentityOptionService.ChooseSubraceId(
             _progressionContentRegistry,
             _selected_race_id,
             currentId
         );
     }
 
-    private GStringNameArray _collect_subrace_ids_for_race(StringName raceId)
+    private List<StringName> _collect_subrace_ids_for_race(StringName raceId)
     {
-        return CharacterCreationIdentityOptionService.collect_subrace_ids_for_race(
-            _progressionContentRegistry,
-            raceId
+        return new List<StringName>(
+            CharacterCreationIdentityOptionService.CollectSubraceIdsForRace(
+                _progressionContentRegistry,
+                raceId
+            )
         );
     }
 
@@ -1221,7 +1225,7 @@ public partial class CharacterCreationWindow : Control
     public GDictionary _build_selected_identity_payload()
     {
         if (
-            !CharacterCreationIdentityOptionService.is_valid_creation_race_subrace_pair(
+            !CharacterCreationIdentityOptionService.IsValidCreationRaceSubracePair(
                 _progressionContentRegistry,
                 _selected_race_id,
                 _selected_subrace_id
@@ -1242,7 +1246,7 @@ public partial class CharacterCreationWindow : Control
             raceDef,
             subraceDef
         );
-        int bodySize = BodySizeRules.get_body_size_for_category(bodySizeCategory);
+        int bodySize = BodySizeContentRules.GetBodySizeForCategory(bodySizeCategory);
         if (bodySizeCategory == (StringName)"" || bodySize <= 0)
             return new GDictionary();
 
@@ -1476,14 +1480,14 @@ public partial class CharacterCreationWindow : Control
         if (
             subraceDef != null
             && subraceDef.body_size_category_override != (StringName)""
-            && BodySizeRules.is_valid_body_size_category(subraceDef.body_size_category_override)
+            && BodySizeContentRules.IsValidBodySizeCategory(subraceDef.body_size_category_override)
         )
         {
             return subraceDef.body_size_category_override;
         }
         if (
             raceDef != null
-            && BodySizeRules.is_valid_body_size_category(raceDef.body_size_category)
+            && BodySizeContentRules.IsValidBodySizeCategory(raceDef.body_size_category)
         )
             return raceDef.body_size_category;
         return "";

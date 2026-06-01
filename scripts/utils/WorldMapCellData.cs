@@ -1,7 +1,6 @@
 using Godot;
 
-[GlobalClass]
-public partial class WorldMapCellData : RefCounted
+public sealed class WorldMapCellData
 {
     public Vector2I coord;
     public Vector2I chunk_coord;

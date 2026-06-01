@@ -7,7 +7,7 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
 [GlobalClass]
-public partial class GameRuntimeFacade : RefCounted
+public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
 {
     private static readonly StringName EncounterKindSettlement = "settlement";
     private const float WorldMoveRepeatInterval = 0.5f;
@@ -60,7 +60,6 @@ public partial class GameRuntimeFacade : RefCounted
     public PartyItemUseService _party_item_use_service = new();
     public PartyEquipmentService _party_equipment_service = new();
     public EncounterRosterBuilder _encounter_roster_builder = new();
-    public WorldTimeSystem _world_time_system = new();
     public WildEncounterGrowthSystem _wild_encounter_growth_system = new();
     public BattleRuntimeModule _battle_runtime;
     public Vector2I _player_coord = Vector2I.Zero;
@@ -83,7 +82,7 @@ public partial class GameRuntimeFacade : RefCounted
     public GameRuntimeCharacterInfoBuilder _character_info_builder = new();
     public BattleSessionFacade _battle_session_facade = new();
     public GameRuntimeBattleSelection _battle_selection = new();
-    public GameRuntimeBattleSelectionState _battle_selection_state = new();
+    private readonly GameRuntimeBattleSelectionState _battle_selection_state = new();
     public GameRuntimeSettlementCommandHandler _settlement_command_handler = new();
     public GameRuntimeWarehouseHandler _warehouse_handler = new();
     public GameRuntimePartyCommandHandler _party_command_handler = new();
@@ -107,12 +106,12 @@ public partial class GameRuntimeFacade : RefCounted
     public string _current_status_message = "";
     public string _last_advance_battle_refresh_mode = "";
     public GDictionary _last_battle_loot_snapshot = new();
-    public GDictionary _active_command_log_scope = new();
     public GArray _pending_command_battle_batches = new();
     public GDictionary _active_character_info_context = new();
     public GDictionary _active_game_over_context = new();
     public StringName _party_selected_member_id = "";
     public GDictionary _wild_encounter_rosters = new();
+    private readonly Dictionary<StringName, WildEncounterRosterDef> _wild_encounter_roster_defs = new();
 
     public Vector2I _battle_selected_coord
     {
@@ -134,14 +133,14 @@ public partial class GameRuntimeFacade : RefCounted
 
     public GVector2IArray _queued_battle_skill_target_coords
     {
-        get => _battle_selection_state.queued_target_coords;
-        set => _battle_selection_state.queued_target_coords = value ?? new GVector2IArray();
+        get => ToVector2IArray(_battle_selection_state.queued_target_coords);
+        set => _battle_selection_state.SetTargetCoords(value ?? new GVector2IArray());
     }
 
     public GStringNameArray _queued_battle_skill_target_unit_ids
     {
-        get => _battle_selection_state.queued_target_unit_ids;
-        set => _battle_selection_state.queued_target_unit_ids = value ?? new GStringNameArray();
+        get => ToStringNameArray(_battle_selection_state.queued_target_unit_ids);
+        set => _battle_selection_state.SetTargetUnitIds(value ?? new GStringNameArray());
     }
 
     public StringName _last_manual_battle_unit_id
@@ -170,6 +169,7 @@ public partial class GameRuntimeFacade : RefCounted
             _game_session.get_world_data()
         );
         _wild_encounter_rosters = _game_session.get_wild_encounter_rosters().Duplicate();
+        RebuildWildEncounterRosterDefIndex();
         _encounter_roster_builder.setup(
             _wild_encounter_rosters,
             _game_session.get_enemy_templates()
@@ -277,6 +277,22 @@ public partial class GameRuntimeFacade : RefCounted
         );
     }
 
+    private void RebuildWildEncounterRosterDefIndex()
+    {
+        _wild_encounter_roster_defs.Clear();
+        foreach (Variant rawKey in _wild_encounter_rosters.Keys)
+        {
+            if (
+                _wild_encounter_rosters[rawKey].AsGodotObject()
+                is not WildEncounterRosterDef roster
+            )
+                continue;
+            if (roster.profile_id == "")
+                continue;
+            _wild_encounter_roster_defs[roster.profile_id] = roster;
+        }
+    }
+
     public void dispose()
     {
         _commit_pending_runtime_state_on_dispose();
@@ -302,6 +318,7 @@ public partial class GameRuntimeFacade : RefCounted
         _pending_battle_start_prompt.Clear();
         _pending_battle_generation_request.Clear();
         _wild_encounter_rosters = new GDictionary();
+        _wild_encounter_roster_defs.Clear();
         _party_state = null;
         _battle_state = null;
         _pending_promotion_prompt.Clear();
@@ -453,7 +470,15 @@ public partial class GameRuntimeFacade : RefCounted
 
     public WorldMapGridSystem get_grid_system() => _grid_system;
 
-    public WorldMapFogSystem get_fog_system() => _fog_system;
+    internal WorldMapFogSystem GetFogSystem() => _fog_system;
+
+    public bool is_world_coord_visible(Vector2I coord, string faction_id = "")
+    {
+        string factionId = string.IsNullOrWhiteSpace(faction_id)
+            ? _player_faction_id
+            : faction_id.StripEdges();
+        return _fog_system.is_visible(coord, factionId);
+    }
 
     public GDictionary get_world_data() => _world_map_data_context.get_active_world_data();
 
@@ -2561,15 +2586,19 @@ public partial class GameRuntimeFacade : RefCounted
 
     public void _advance_world_time_by_steps(int delta_steps)
     {
-        WorldTimeAdvanceResult advanceResult = _world_time_system.AdvanceWorldData(
-            _world_map_data_context.active_world_data,
+        WorldTimeAdvanceResult advanceResult = WorldTimeSystem.AdvanceWorldStep(
+            _world_map_data_context.get_world_step(),
             delta_steps
         );
-        _wild_encounter_growth_system.apply_step_advance(
-            _world_map_data_context.active_world_data,
+        if (advanceResult.IsValid)
+        {
+            _world_map_data_context.active_world_data["world_step"] = advanceResult.new_step;
+        }
+        _wild_encounter_growth_system.ApplyStepAdvance(
+            _world_map_data_context.GetActiveEncounterAnchors(),
             advanceResult.old_step,
             advanceResult.new_step,
-            _wild_encounter_rosters
+            _wild_encounter_roster_defs
         );
         int daysElapsed = advanceResult.days_elapsed;
         if (daysElapsed > 0 && _character_management != null)
@@ -2594,10 +2623,10 @@ public partial class GameRuntimeFacade : RefCounted
             return;
         if (encounterAnchor.encounter_kind == EncounterKindSettlement)
         {
-            _wild_encounter_growth_system.apply_battle_victory(
+            _wild_encounter_growth_system.ApplyBattleVictory(
                 encounterAnchor,
                 _world_map_data_context.get_world_step(),
-                _wild_encounter_rosters
+                _wild_encounter_roster_defs
             );
             return;
         }
@@ -2635,8 +2664,7 @@ public partial class GameRuntimeFacade : RefCounted
             range = _world_map_data_context.active_generation_config.player_vision_range,
             faction_id = _player_faction_id,
         };
-        var sources = new GArray { visionSource };
-        _fog_system.rebuild_visibility_for_faction(_player_faction_id, sources);
+        _fog_system.RebuildVisibilityForFaction(_player_faction_id, new[] { visionSource });
         _save_active_fog_state_to_world_data();
     }
 
@@ -3486,6 +3514,34 @@ public partial class GameRuntimeFacade : RefCounted
         Math.Abs(from_coord.X - to_coord.X) + Math.Abs(from_coord.Y - to_coord.Y) == 1;
 
     public string _format_coord(Vector2I coord) => $"({coord.X}, {coord.Y})";
+
+    private static GVector2IArray ToVector2IArray(IEnumerable<Vector2I> values)
+    {
+        var result = new GVector2IArray();
+        if (values == null)
+        {
+            return result;
+        }
+        foreach (Vector2I value in values)
+        {
+            result.Add(value);
+        }
+        return result;
+    }
+
+    private static GStringNameArray ToStringNameArray(IEnumerable<StringName> values)
+    {
+        var result = new GStringNameArray();
+        if (values == null)
+        {
+            return result;
+        }
+        foreach (StringName value in values)
+        {
+            result.Add(value);
+        }
+        return result;
+    }
 
     public void _sync_active_world_context()
     {

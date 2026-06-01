@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.Reflection;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -15,6 +17,7 @@ public partial class run_character_management_practice_regression : SceneTree
 
     private void Run()
     {
+        TestPracticeGrowthServiceNoLongerRequiresGodotRegistration();
         TestPracticeReplacementRequiresConfirmation();
         TestPracticeReplacementUsesFormalLearningValidation();
         TestPracticeReplacementSucceedsAfterFormalLearningValidation();
@@ -33,6 +36,40 @@ public partial class run_character_management_practice_regression : SceneTree
             GD.PushError(failure);
         GD.Print($"Character management practice regression: FAIL ({_failures.Count})");
         Quit(1);
+    }
+
+    private void TestPracticeGrowthServiceNoLongerRequiresGodotRegistration()
+    {
+        Type serviceType = typeof(PracticeGrowthService);
+        AssertTrue(
+            !typeof(GodotObject).IsAssignableFrom(serviceType),
+            "PracticeGrowthService should be a plain C# service, not a GodotObject/RefCounted."
+        );
+        AssertTrue(
+            serviceType.GetCustomAttributes(typeof(GlobalClassAttribute), inherit: false).Length
+                == 0,
+            "PracticeGrowthService should not remain registered as a Godot GlobalClass."
+        );
+        AssertEq(
+            serviceType.GetField("PracticeTracks", BindingFlags.NonPublic | BindingFlags.Static)
+                ?.FieldType,
+            typeof(HashSet<StringName>),
+            "PracticeGrowthService should keep valid tracks in a C# HashSet."
+        );
+        AssertEq(
+            serviceType.GetField("_skillDefs", BindingFlags.NonPublic | BindingFlags.Instance)
+                ?.FieldType,
+            typeof(Dictionary<StringName, SkillDef>),
+            "PracticeGrowthService should cache skill defs in a typed C# dictionary."
+        );
+        AssertTrue(
+            serviceType.GetMethod("can_learn_practice_skill") == null,
+            "PracticeGrowthService should not keep the unused Godot Dictionary can-learn wrapper."
+        );
+        AssertTrue(
+            serviceType.GetMethod("get_skill_learned_status") == null,
+            "PracticeGrowthService should not keep the unused Godot Dictionary learned-status wrapper."
+        );
     }
 
     private void TestPracticeReplacementRequiresConfirmation()

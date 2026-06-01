@@ -1,8 +1,9 @@
+using System;
+using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using Godot;
 
-[GlobalClass]
-public partial class SkillLevelDescriptionFormatter : RefCounted
+public static class SkillLevelDescriptionFormatter
 {
     public static string build_level_description(
         SkillDef skillDef,
@@ -12,26 +13,30 @@ public partial class SkillLevelDescriptionFormatter : RefCounted
     {
         if (skillDef == null || skillDef.level_description_template.Length == 0)
             return "";
-        var config = new Godot.Collections.Dictionary();
+        var config = new Dictionary<string, Variant>(StringComparer.Ordinal);
         var rawConfig = skillDef.level_description_configs.ContainsKey(level.ToString())
             ? skillDef.level_description_configs[level.ToString()]
             : default(Variant);
         if (rawConfig.VariantType == Variant.Type.Dictionary)
-            config = rawConfig.AsGodotDictionary().Duplicate();
+            MergeVariantMap(config, rawConfig.AsGodotDictionary(), overwrite: true);
         _merge_matching_effect_params(config, skillDef, level);
         _merge_matching_effect_typed_fields(config, skillDef, level);
         _merge_level_overrides(config, skillDef, level);
         _resolve_charge_distance(config, level);
         if (runtimeContext != null)
-            foreach (var ck in runtimeContext.Keys)
-                config[ck] = runtimeContext[ck];
+            MergeVariantMap(config, runtimeContext, overwrite: true);
         _apply_description_derived_fields(config);
         if (config.Count == 0)
             return "";
-        return render_template(skillDef.level_description_template, config);
+        return RenderTemplate(skillDef.level_description_template, config);
     }
 
     public static string render_template(string template, Godot.Collections.Dictionary config)
+    {
+        return RenderTemplate(template, ToVariantMap(config));
+    }
+
+    private static string RenderTemplate(string template, Dictionary<string, Variant> config)
     {
         string result = template;
         var condRegex = new Regex(@"\{\{\?([^}]+)\}\}(.*?)\{\{/\1\}\}", RegexOptions.Singleline);
@@ -65,13 +70,37 @@ public partial class SkillLevelDescriptionFormatter : RefCounted
             if (!m.Success)
                 break;
             string key = m.Groups[1].Value.Trim();
-            string value = config.ContainsKey(key) ? config[key].AsString() : "";
+            string value = config.TryGetValue(key, out Variant rawValue) ? rawValue.AsString() : "";
             result = result.Substring(0, m.Index) + value + result.Substring(m.Index + m.Length);
         }
         return result;
     }
 
-    private static bool _is_optional_value_visible(Godot.Collections.Dictionary config, string key)
+    private static Dictionary<string, Variant> ToVariantMap(Godot.Collections.Dictionary source)
+    {
+        var result = new Dictionary<string, Variant>(StringComparer.Ordinal);
+        MergeVariantMap(result, source, overwrite: true);
+        return result;
+    }
+
+    private static void MergeVariantMap(
+        Dictionary<string, Variant> target,
+        Godot.Collections.Dictionary source,
+        bool overwrite
+    )
+    {
+        if (source == null)
+            return;
+        foreach (var rawKey in source.Keys)
+        {
+            string key = rawKey.AsString();
+            if (!overwrite && target.ContainsKey(key))
+                continue;
+            target[key] = source[rawKey];
+        }
+    }
+
+    private static bool _is_optional_value_visible(Dictionary<string, Variant> config, string key)
     {
         var v = config[key];
         var t = v.VariantType;
@@ -92,7 +121,7 @@ public partial class SkillLevelDescriptionFormatter : RefCounted
     }
 
     private static void _merge_matching_effect_params(
-        Godot.Collections.Dictionary config,
+        Dictionary<string, Variant> config,
         SkillDef skillDef,
         int level
     )
@@ -103,14 +132,15 @@ public partial class SkillLevelDescriptionFormatter : RefCounted
                 continue;
             foreach (var pk in ed.@params.Keys)
             {
-                if (!config.ContainsKey(pk))
-                    config[pk] = ed.@params[pk];
+                string paramKey = pk.AsString();
+                if (!config.ContainsKey(paramKey))
+                    config[paramKey] = ed.@params[pk];
             }
         }
     }
 
     private static void _merge_matching_effect_typed_fields(
-        Godot.Collections.Dictionary config,
+        Dictionary<string, Variant> config,
         SkillDef skillDef,
         int level
     )
@@ -136,12 +166,12 @@ public partial class SkillLevelDescriptionFormatter : RefCounted
         }
     }
 
-    private static Godot.Collections.Array<CombatEffectDef> _collect_level_effect_defs(
+    private static List<CombatEffectDef> _collect_level_effect_defs(
         SkillDef skillDef,
         int level
     )
     {
-        var r = new Godot.Collections.Array<CombatEffectDef>();
+        var r = new List<CombatEffectDef>();
         if (skillDef?.combat_profile == null)
             return r;
         _append_level_effect_defs(r, ((CombatSkillDef)skillDef.combat_profile).effect_defs, level);
@@ -154,7 +184,7 @@ public partial class SkillLevelDescriptionFormatter : RefCounted
     }
 
     private static void _append_level_effect_defs(
-        Godot.Collections.Array<CombatEffectDef> output,
+        List<CombatEffectDef> output,
         Godot.Collections.Array<CombatEffectDef> effectDefs,
         int level
     )
@@ -176,7 +206,7 @@ public partial class SkillLevelDescriptionFormatter : RefCounted
     }
 
     private static void _merge_damage_effect_typed_fields(
-        Godot.Collections.Dictionary config,
+        Dictionary<string, Variant> config,
         CombatEffectDef ed
     )
     {
@@ -190,7 +220,7 @@ public partial class SkillLevelDescriptionFormatter : RefCounted
     }
 
     private static void _merge_attribute_scaled_dice_effect_typed_fields(
-        Godot.Collections.Dictionary config,
+        Dictionary<string, Variant> config,
         CombatEffectDef ed
     )
     {
@@ -221,7 +251,7 @@ public partial class SkillLevelDescriptionFormatter : RefCounted
     }
 
     private static void _merge_status_effect_typed_fields(
-        Godot.Collections.Dictionary config,
+        Dictionary<string, Variant> config,
         CombatEffectDef ed
     )
     {
@@ -246,7 +276,7 @@ public partial class SkillLevelDescriptionFormatter : RefCounted
     }
 
     private static void _merge_save_fields(
-        Godot.Collections.Dictionary config,
+        Dictionary<string, Variant> config,
         string prefix,
         CombatEffectDef ed
     )
@@ -309,24 +339,24 @@ public partial class SkillLevelDescriptionFormatter : RefCounted
         return s;
     }
 
-    private static void _set_if_missing(Godot.Collections.Dictionary config, string key, int value)
+    private static void _set_if_missing(Dictionary<string, Variant> config, string key, int value)
     {
         if (!config.ContainsKey(key))
-            config[key] = value;
+            config[key] = Variant.From(value);
     }
 
     private static void _set_if_missing(
-        Godot.Collections.Dictionary config,
+        Dictionary<string, Variant> config,
         string key,
         string value
     )
     {
         if (!config.ContainsKey(key))
-            config[key] = value;
+            config[key] = Variant.From(value);
     }
 
     private static void _merge_level_overrides(
-        Godot.Collections.Dictionary config,
+        Dictionary<string, Variant> config,
         SkillDef skillDef,
         int level
     )
@@ -335,7 +365,7 @@ public partial class SkillLevelDescriptionFormatter : RefCounted
             return;
         var p = skillDef.combat_profile;
         var o = p.get_level_override(level);
-        var fields = new Godot.Collections.Dictionary
+        var fields = new Dictionary<string, int>(StringComparer.Ordinal)
         {
             { "ap_cost", p.ap_cost },
             { "mp_cost", p.mp_cost },
@@ -346,33 +376,38 @@ public partial class SkillLevelDescriptionFormatter : RefCounted
             { "range_value", p.range_value },
             { "area_value", p.area_value },
         };
-        foreach (var fk in fields.Keys)
+        foreach ((string fieldKey, int defaultValue) in fields)
         {
-            if (!config.ContainsKey(fk))
+            if (config.ContainsKey(fieldKey))
+                continue;
+            if (o.ContainsKey(fieldKey))
             {
-                string ks = fk.AsString();
-                config[ks] = o.ContainsKey(ks) ? o[ks] : fields[fk];
+                config[fieldKey] = o[fieldKey];
+                continue;
             }
+            config[fieldKey] = Variant.From(defaultValue);
         }
     }
 
-    private static void _resolve_charge_distance(Godot.Collections.Dictionary config, int level)
+    private static void _resolve_charge_distance(Dictionary<string, Variant> config, int level)
     {
         if (config.ContainsKey("distance"))
             return;
         if (!config.ContainsKey("base_distance") && !config.ContainsKey("distance_by_level"))
             return;
-        int baseDist = config.ContainsKey("base_distance") ? config["base_distance"].AsInt32() : 0;
-        var dbl = config.ContainsKey("distance_by_level")
-            ? config["distance_by_level"]
-            : default(Variant);
+        int baseDist = config.TryGetValue("base_distance", out Variant baseDistance)
+            ? baseDistance.AsInt32()
+            : 0;
+        Variant dbl = config.TryGetValue("distance_by_level", out Variant distanceByLevel)
+            ? distanceByLevel
+            : default;
         if (dbl.VariantType != Variant.Type.Dictionary)
         {
-            config["distance"] = baseDist;
+            config["distance"] = Variant.From(baseDist);
             return;
         }
         int dist = baseDist;
-        var keys = new Godot.Collections.Array<int>();
+        var keys = new List<int>();
         foreach (var k in dbl.AsGodotDictionary().Keys)
             keys.Add(k.AsString().ToInt());
         keys.Sort();
@@ -382,10 +417,10 @@ public partial class SkillLevelDescriptionFormatter : RefCounted
                 break;
             dist = dbl.AsGodotDictionary()[k.ToString()].AsInt32();
         }
-        config["distance"] = dist;
+        config["distance"] = Variant.From(dist);
     }
 
-    private static void _apply_description_derived_fields(Godot.Collections.Dictionary config)
+    private static void _apply_description_derived_fields(Dictionary<string, Variant> config)
     {
         if (config.ContainsKey("dice_sides_base"))
         {
@@ -398,44 +433,29 @@ public partial class SkillLevelDescriptionFormatter : RefCounted
             int wms = config.ContainsKey("dice_sides_per_willpower_mod")
                 ? config["dice_sides_per_willpower_mod"].AsInt32()
                 : 0;
-            config["dice_sides"] = Mathf.Max(bs + cm * cms + wm * wms, 4);
+            config["dice_sides"] = Variant.From(Mathf.Max(bs + cm * cms + wm * wms, 4));
         }
     }
 
-    private static Godot.Collections.Array<CombatEffectDef> ToCE(
-        Godot.Collections.Array<Resource> src
-    )
-    {
-        var r = new Godot.Collections.Array<CombatEffectDef>();
-        foreach (var item in src)
-        {
-            if (item is CombatEffectDef ce)
-                r.Add(ce);
-        }
-        return r;
-    }
-
-    private static string _eval_expression(string exprStr, Godot.Collections.Dictionary variables)
+    private static string _eval_expression(string exprStr, Dictionary<string, Variant> variables)
     {
         var expr = new Godot.Expression();
-        var inputNames = new System.Collections.Generic.List<string>();
+        var inputNames = new List<string>();
         var inputValues = new Godot.Collections.Array();
-        foreach (var k in variables.Keys)
+        foreach ((string key, Variant value) in variables)
         {
-            string ks = k.AsString();
-            inputNames.Add(ks);
-            var v = variables[k];
-            if (v.VariantType == Variant.Type.String)
+            inputNames.Add(key);
+            if (value.VariantType == Variant.Type.String)
             {
-                string vs = v.AsString();
+                string vs = value.AsString();
                 inputValues.Add(
                     vs.IsValidInt()
                         ? Variant.From(vs.ToInt())
-                        : (vs.IsValidFloat() ? Variant.From(vs.ToFloat()) : v)
+                        : (vs.IsValidFloat() ? Variant.From(vs.ToFloat()) : value)
                 );
             }
             else
-                inputValues.Add(v);
+                inputValues.Add(value);
         }
         if (expr.Parse(exprStr, inputNames.ToArray()) != Error.Ok)
             return "{=" + exprStr + "}";

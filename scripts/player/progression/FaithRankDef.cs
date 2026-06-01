@@ -1,4 +1,16 @@
+using System.Collections.Generic;
 using Godot;
+
+public readonly record struct FaithRankRewardEntrySpec(
+    StringName EntryType,
+    StringName TargetId,
+    int Amount,
+    string TargetLabel,
+    string ReasonText
+)
+{
+    public bool IsEmpty => EntryType == "" || TargetId == "" || Amount == 0;
+}
 
 [GlobalClass]
 public partial class FaithRankDef : Resource
@@ -38,6 +50,16 @@ public partial class FaithRankDef : Resource
         return required_achievement_id != "";
     }
 
+    public List<FaithRankRewardEntrySpec> GetRewardEntrySpecs()
+    {
+        var result = new List<FaithRankRewardEntrySpec>();
+        foreach (var rewardData in reward_entries)
+        {
+            result.Add(ParseRewardEntrySpec(rewardData));
+        }
+        return result;
+    }
+
     public Godot.Collections.Array<string> validate()
     {
         var errors = new Godot.Collections.Array<string>();
@@ -60,39 +82,50 @@ public partial class FaithRankDef : Resource
         if (reward_entries.Count == 0)
             errors.Add($"Faith rank {rank_index} must define at least one reward entry.");
 
-        foreach (var rewardData in reward_entries)
+        foreach (FaithRankRewardEntrySpec rewardSpec in GetRewardEntrySpecs())
         {
-            if (rewardData == null)
-            {
-                errors.Add($"Faith rank {rank_index} contains a non-dictionary reward entry.");
-                continue;
-            }
-            StringName entryType = ReadStringName(rewardData, "entry_type");
-            StringName targetId = ReadStringName(rewardData, "target_id");
-            int amount = ReadInt(rewardData, "amount");
-            if (entryType == "" || targetId == "" || amount == 0)
+            if (rewardSpec.IsEmpty)
             {
                 errors.Add($"Faith rank {rank_index} contains an invalid reward entry.");
                 continue;
             }
-            if (!PendingCharacterRewardContentRules.is_supported_entry_type(entryType))
+            if (!PendingCharacterRewardContentRules.is_supported_entry_type(rewardSpec.EntryType))
             {
                 errors.Add(
-                    $"Faith rank {rank_index} contains unsupported reward entry_type {entryType}."
+                    $"Faith rank {rank_index} contains unsupported reward entry_type {rewardSpec.EntryType}."
                 );
                 continue;
             }
             if (
-                PendingCharacterRewardContentRules.is_attribute_progress_entry(entryType)
-                && !PendingCharacterRewardContentRules.is_valid_attribute_progress_target(targetId)
+                PendingCharacterRewardContentRules.is_attribute_progress_entry(
+                    rewardSpec.EntryType
+                )
+                && !PendingCharacterRewardContentRules.is_valid_attribute_progress_target(
+                    rewardSpec.TargetId
+                )
             )
             {
                 errors.Add(
-                    $"Faith rank {rank_index} attribute_progress reward references unsupported attribute {targetId}."
+                    $"Faith rank {rank_index} attribute_progress reward references unsupported attribute {rewardSpec.TargetId}."
                 );
             }
         }
         return errors;
+    }
+
+    private static FaithRankRewardEntrySpec ParseRewardEntrySpec(
+        Godot.Collections.Dictionary data
+    )
+    {
+        if (data == null)
+            return new FaithRankRewardEntrySpec("", "", 0, "", "");
+        return new FaithRankRewardEntrySpec(
+            ReadStringName(data, "entry_type"),
+            ReadStringName(data, "target_id"),
+            ReadInt(data, "amount"),
+            ReadString(data, "target_label"),
+            ReadString(data, "reason_text")
+        );
     }
 
     private static StringName ReadStringName(
@@ -113,6 +146,16 @@ public partial class FaithRankDef : Resource
     {
         var value = ReadValue(data, key);
         return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+    }
+
+    private static string ReadString(
+        Godot.Collections.Dictionary data,
+        string key,
+        string fallback = ""
+    )
+    {
+        var value = ReadValue(data, key);
+        return value.VariantType == Variant.Type.String ? value.AsString() : fallback;
     }
 
     private static Variant ReadValue(Godot.Collections.Dictionary data, string key)

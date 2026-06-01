@@ -4,8 +4,7 @@ using GDictionary = Godot.Collections.Dictionary;
 using System;
 using System.Collections.Generic;
 
-[GlobalClass]
-public partial class WorldMapDataContext : RefCounted
+public sealed class WorldMapDataContext
 {
     public Godot.Collections.Dictionary root_world_data = new();
     public Godot.Collections.Dictionary active_world_data = new();
@@ -36,6 +35,8 @@ public partial class WorldMapDataContext : RefCounted
         settlements_by_id = new();
         _encounterAnchorByCoord.Clear();
     }
+
+    public void Dispose() => reset();
 
     public bool is_submap_active() => active_map_id.Length > 0;
 

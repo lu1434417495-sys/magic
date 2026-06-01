@@ -1,4 +1,5 @@
 using Godot;
+using System.Collections.Generic;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
@@ -202,14 +203,17 @@ public partial class run_trait_trigger_regression : SceneTree
     private void TestTraitDispatchContentRulesMatchRuntimeMethods()
     {
         var hooks = new TraitTriggerHooks();
-        GDictionary dispatchTriggerTypes = TraitTriggerContentRules.get_dispatch_trigger_types();
-        foreach (Variant traitValue in TraitTriggerContentRules.get_dispatch_trait_ids())
+        IReadOnlyDictionary<StringName, IReadOnlyDictionary<StringName, string>> dispatchTriggerTypes =
+            TraitTriggerContentRules.get_dispatch_trigger_types();
+        foreach (StringName traitId in TraitTriggerContentRules.get_dispatch_trait_ids())
         {
-            StringName traitId = traitValue.AsStringName();
-            GDictionary triggerMap = dispatchTriggerTypes.GetValueOrDefault(traitId, new GDictionary()).AsGodotDictionary();
-            foreach (Variant triggerTypeValue in triggerMap.Keys)
+            IReadOnlyDictionary<StringName, string> triggerMap =
+                dispatchTriggerTypes.GetValueOrDefault(
+                    traitId,
+                    new Dictionary<StringName, string>()
+                );
+            foreach (StringName triggerType in triggerMap.Keys)
             {
-                StringName triggerType = triggerTypeValue.AsStringName();
                 StringName methodName = TraitTriggerContentRules.get_dispatch_method_name(
                     traitId,
                     triggerType

@@ -1,7 +1,6 @@
 using Godot;
 
-[GlobalClass]
-public partial class RaceTraitResolver : RefCounted
+public static class RaceTraitResolver
 {
     private static readonly StringName CHARGE_KIND_PER_BATTLE = "per_battle";
 

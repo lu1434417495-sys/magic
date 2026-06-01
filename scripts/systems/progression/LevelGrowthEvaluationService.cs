@@ -1,20 +1,38 @@
+using System.Collections.Generic;
 using Godot;
+using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class LevelGrowthEvaluationService : RefCounted
+public sealed class LevelGrowthEvaluationService
 {
     private const int LOCK_HIT_BONUS_DEFAULT = 1;
-    private Godot.Collections.Dictionary _skill_defs = new();
+    private readonly Dictionary<StringName, SkillDef> _skillDefs = new();
 
-    public void setup(Godot.Collections.Dictionary skillDefs)
+    public void setup(GDictionary skillDefs)
     {
-        _skill_defs = skillDefs;
+        _skillDefs.Clear();
+        if (skillDefs == null)
+            return;
+        foreach (Variant rawKey in skillDefs.Keys)
+        {
+            if (!TryReadStringName(rawKey, out StringName skillId) || skillId == "")
+                continue;
+            Variant rawDef = skillDefs[rawKey];
+            if (rawDef.VariantType == Variant.Type.Object && rawDef.AsGodotObject() is SkillDef skillDef)
+                _skillDefs[skillId] = skillDef;
+        }
     }
 
-    public Godot.Collections.Dictionary set_active_trigger_core_skill(
-        PartyMemberState memberState,
-        StringName skillId
-    ) => set_active_trigger_core_skill_typed(memberState, skillId).ToDictionary();
+    public void Setup(IReadOnlyDictionary<StringName, SkillDef> skillDefs)
+    {
+        _skillDefs.Clear();
+        if (skillDefs == null)
+            return;
+        foreach (KeyValuePair<StringName, SkillDef> pair in skillDefs)
+        {
+            if (pair.Key != "" && pair.Value != null)
+                _skillDefs[pair.Key] = pair.Value;
+        }
+    }
 
     public LevelGrowthTriggerResult set_active_trigger_core_skill_typed(
         PartyMemberState memberState,
@@ -48,9 +66,6 @@ public partial class LevelGrowthEvaluationService : RefCounted
         return LevelGrowthTriggerResult.SetSuccess(skillId, previousActive);
     }
 
-    public Godot.Collections.Dictionary clear_active_trigger_core_skill(PartyMemberState memberState) =>
-        clear_active_trigger_core_skill_typed(memberState).ToDictionary();
-
     public LevelGrowthTriggerResult clear_active_trigger_core_skill_typed(
         PartyMemberState memberState
     )
@@ -76,20 +91,6 @@ public partial class LevelGrowthEvaluationService : RefCounted
         return memberState.progression.active_level_trigger_core_skill_id != "";
     }
 
-    public Godot.Collections.Dictionary get_trigger_skill_growth_progress(PartyMemberState memberState)
-    {
-        if (memberState == null || memberState.progression == null)
-            return new Godot.Collections.Dictionary();
-        var unitProgress = memberState.progression;
-        var triggerSkillId = unitProgress.active_level_trigger_core_skill_id;
-        if (triggerSkillId == "")
-            return new Godot.Collections.Dictionary();
-        SkillDef skillDef = GetSkillDef(triggerSkillId);
-        if (skillDef == null)
-            return new Godot.Collections.Dictionary();
-        return skillDef.attribute_growth_progress.Duplicate();
-    }
-
     public bool is_active_trigger_ready_for_level_up(PartyMemberState memberState)
     {
         if (memberState == null || memberState.progression == null)
@@ -111,11 +112,6 @@ public partial class LevelGrowthEvaluationService : RefCounted
             skillProgress,
             unitProgress
         );
-    }
-
-    public Godot.Collections.Dictionary apply_level_up(PartyMemberState memberState)
-    {
-        return apply_level_up_typed(memberState).ToDictionary();
     }
 
     public LevelGrowthTriggerResult apply_level_up_typed(PartyMemberState memberState)
@@ -149,8 +145,24 @@ public partial class LevelGrowthEvaluationService : RefCounted
 
     private SkillDef GetSkillDef(StringName skillId)
     {
-        if (skillId == "" || !_skill_defs.ContainsKey(skillId))
+        if (skillId == "" || !_skillDefs.TryGetValue(skillId, out SkillDef skillDef))
             return null;
-        return _skill_defs[skillId].AsGodotObject() as SkillDef;
+        return skillDef;
+    }
+
+    private static bool TryReadStringName(Variant value, out StringName result)
+    {
+        if (value.VariantType == Variant.Type.StringName)
+        {
+            result = value.AsStringName();
+            return true;
+        }
+        if (value.VariantType == Variant.Type.String)
+        {
+            result = new StringName(value.AsString());
+            return true;
+        }
+        result = "";
+        return false;
     }
 }

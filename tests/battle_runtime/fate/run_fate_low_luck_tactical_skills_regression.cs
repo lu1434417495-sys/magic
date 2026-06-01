@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -65,7 +66,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         runtime._state = state;
         BeginRuntimeBattle(runtime);
 
-        var lowLuckContext = BuildLowLuckContext(-5, runtime.get_fate_event_bus());
+        var lowLuckContext = BuildLowLuckContext(-5);
         LowLuckEventService lowLuckService = lowLuckContext.Service;
         if (lowLuckService == null)
         {
@@ -80,23 +81,26 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
             seenEvents.Add(eventType);
         };
         fateEventBus.EventDispatched += eventCallback;
-        fateEventBus.dispatch(
+        GDictionary criticalFailPayload = BuildCriticalFailPayload(state.battle_id, HERO_ID, hero.unit_id, -5);
+        fateEventBus.dispatch("critical_fail", criticalFailPayload);
+        lowLuckService.HandleFateEvent(
             "critical_fail",
-            BuildCriticalFailPayload(state.battle_id, HERO_ID, hero.unit_id, -5)
+            BuildLowLuckCriticalFailPayload(state.battle_id, HERO_ID, -5)
         );
 
         AssertEq(runtime.get_member_calamity(HERO_ID), 2, "失手成筹应让首次大失败额外获得 1 点 calamity。");
         AssertEq(SeenEventCount(seenEvents, "critical_fail"), 1, "失手成筹不应额外重复派发 critical_fail 事件。");
 
-        var lowLuckResult = lowLuckService.handle_battle_resolution(state, BuildBattleResolutionResult(state.battle_id));
-        GArray triggeredEventIds = lowLuckResult.GetValueOrDefault("triggered_event_ids", new GArray()).AsGodotArray();
+        LowLuckEventResult lowLuckResult = lowLuckService.HandleBattleResolution(
+            BuildLowLuckBattleResolutionInput(state, BuildBattleResolutionResult(state.battle_id))
+        );
         AssertTrue(
-            triggeredEventIds.Contains("borrowed_road"),
+            ContainsStringName(lowLuckResult.TriggeredEventIds, "borrowed_road"),
             "失手成筹不应冲掉 Borrowed Road 的大失败计数。"
         );
         if (fateEventBus != null)
             fateEventBus.EventDispatched -= eventCallback;
-        lowLuckService.dispose();
+        lowLuckService.Dispose();
         lowLuckContext.Dispose();
         runtime.dispose();
     }
@@ -484,7 +488,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         return command;
     }
 
-    private LowLuckContext BuildLowLuckContext(int hiddenLuckAtBirth, BattleFateEventBus fateEventBus)
+    private LowLuckContext BuildLowLuckContext(int hiddenLuckAtBirth)
     {
         var partyState = new PartyState();
         partyState.leader_member_id = HERO_ID;
@@ -494,7 +498,7 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         var manager = new CharacterManagementModule();
         manager.setup(partyState, new GDictionary(), new GDictionary(), new GDictionary());
         var service = new LowLuckEventService();
-        service.setup(manager, fateEventBus);
+        service.Setup(manager);
         return new LowLuckContext
         {
             PartyState = partyState,
@@ -529,12 +533,88 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         };
     }
 
+    private LowLuckFateEventPayload BuildLowLuckCriticalFailPayload(
+        StringName battleId,
+        StringName memberId,
+        int hiddenLuckAtBirth
+    )
+    {
+        return new LowLuckFateEventPayload(
+            battleId,
+            memberId,
+            false,
+            null,
+            hiddenLuckAtBirth
+        );
+    }
+
     private BattleResolutionResult BuildBattleResolutionResult(StringName battleId)
     {
         var result = new BattleResolutionResult();
         result.battle_id = battleId;
         result.winner_faction_id = "player";
         return result;
+    }
+
+    private LowLuckBattleResolutionInput BuildLowLuckBattleResolutionInput(
+        BattleState state,
+        BattleResolutionResult result
+    )
+    {
+        var units = new List<LowLuckBattleUnitSnapshot>();
+        if (state != null)
+        {
+            bool hasEnemyUnitIds = state.enemy_unit_ids != null && state.enemy_unit_ids.Count > 0;
+            foreach (object unitValue in state.units.Values)
+            {
+                BattleUnitState unit = ReadBattleUnitState(unitValue);
+                if (unit == null)
+                    continue;
+                bool isEnemy = hasEnemyUnitIds
+                    ? ContainsStringName(state.enemy_unit_ids, unit.unit_id)
+                    : unit.faction_id != "player";
+                bool isEliteOrBoss =
+                    unit.attribute_snapshot != null
+                    && unit.attribute_snapshot.get_value(FORTUNE_MARK_TARGET_STAT_ID) > 0;
+                units.Add(
+                    new LowLuckBattleUnitSnapshot(
+                        unit.unit_id,
+                        unit.source_member_id,
+                        unit.faction_id,
+                        unit.is_alive,
+                        isEnemy,
+                        isEliteOrBoss
+                    )
+                );
+            }
+        }
+        StringName battleId = result != null && result.battle_id != ""
+            ? result.battle_id
+            : state?.battle_id ?? "";
+        bool playerWon = result != null && result.winner_faction_id == "player";
+        return new LowLuckBattleResolutionInput(battleId, playerWon, units);
+    }
+
+    private static BattleUnitState ReadBattleUnitState(object unitValue)
+    {
+        if (unitValue is BattleUnitState unit)
+            return unit;
+        if (unitValue is Variant variant && variant.VariantType == Variant.Type.Object)
+            return variant.AsGodotObject() as BattleUnitState;
+        return null;
+    }
+
+    private static bool ContainsStringName(IEnumerable<StringName> values, StringName target)
+    {
+        StringName normalizedTarget = ProgressionDataUtils.to_string_name(target);
+        if (values == null || normalizedTarget == "")
+            return false;
+        foreach (StringName value in values)
+        {
+            if (ProgressionDataUtils.to_string_name(value) == normalizedTarget)
+                return true;
+        }
+        return false;
     }
 
     private int SeenEventCount(GStringNameArray seenEvents, StringName eventType)
@@ -592,7 +672,9 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
 
         public void Dispose()
         {
-            Service?.dispose();
+            Service?.Dispose();
+            Manager?.Dispose();
+            PartyState?.Dispose();
         }
     }
 }

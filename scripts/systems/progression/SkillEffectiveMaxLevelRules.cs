@@ -1,7 +1,6 @@
 using Godot;
 
-[GlobalClass]
-public partial class SkillEffectiveMaxLevelRules : RefCounted
+public static class SkillEffectiveMaxLevelRules
 {
     private const string PROFESSION_RANK_STAT_PREFIX = "profession_rank:";
 

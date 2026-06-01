@@ -1,34 +1,31 @@
+using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class IdentityPayloadValidator : RefCounted
+public static class IdentityPayloadValidator
 {
-    public static Godot.Collections.Array<string> validate_party_identity_for_content_source(
-        PartyState party_state,
-        ProgressionContentRegistry content_source
-    )
-    {
-        return ValidatePartyIdentity(party_state, IdentityContentSourceRef.FromRegistry(content_source));
-    }
-
-    public static Godot.Collections.Array<string> validate_party_identity(
-        PartyState party_state,
-        GDictionary content_source
-    )
-    {
-        return ValidatePartyIdentity(
-            party_state,
-            IdentityContentSourceRef.FromDictionary(content_source)
-        );
-    }
-
-    private static Godot.Collections.Array<string> ValidatePartyIdentity(
+    public static IReadOnlyList<string> ValidatePartyIdentityForContentSource(
         PartyState partyState,
-        IdentityContentSourceRef contentSource
+        ProgressionContentRegistry contentSource
     )
     {
-        var errors = new Godot.Collections.Array<string>();
+        return ValidatePartyIdentity(partyState, IdentityContentSource.FromRegistry(contentSource));
+    }
+
+    internal static IReadOnlyList<string> ValidatePartyIdentity(
+        PartyState partyState,
+        GDictionary contentSource
+    )
+    {
+        return ValidatePartyIdentity(partyState, IdentityContentSource.FromDictionary(contentSource));
+    }
+
+    private static List<string> ValidatePartyIdentity(
+        PartyState partyState,
+        IdentityContentSource contentSource
+    )
+    {
+        var errors = new List<string>();
         if (partyState == null)
         {
             errors.Add("party identity payload is null");
@@ -40,43 +37,36 @@ public partial class IdentityPayloadValidator : RefCounted
             return errors;
         }
 
-        foreach (var memberStateValue in partyState.member_states.Values)
+        foreach (PartyMemberState memberState in partyState.get_member_states())
         {
-            var memberState = memberStateValue.AsGodotObject() as PartyMemberState;
             foreach (string error in ValidateMemberIdentity(memberState, contentSource))
                 errors.Add(error);
         }
         return errors;
     }
 
-    public static Godot.Collections.Array<string> validate_member_identity_for_content_source(
-        PartyMemberState member_state,
-        ProgressionContentRegistry content_source
-    )
-    {
-        return ValidateMemberIdentity(
-            member_state,
-            IdentityContentSourceRef.FromRegistry(content_source)
-        );
-    }
-
-    public static Godot.Collections.Array<string> validate_member_identity(
-        PartyMemberState member_state,
-        GDictionary content_source
-    )
-    {
-        return ValidateMemberIdentity(
-            member_state,
-            IdentityContentSourceRef.FromDictionary(content_source)
-        );
-    }
-
-    private static Godot.Collections.Array<string> ValidateMemberIdentity(
+    public static IReadOnlyList<string> ValidateMemberIdentityForContentSource(
         PartyMemberState memberState,
-        IdentityContentSourceRef contentSource
+        ProgressionContentRegistry contentSource
     )
     {
-        var errors = new Godot.Collections.Array<string>();
+        return ValidateMemberIdentity(memberState, IdentityContentSource.FromRegistry(contentSource));
+    }
+
+    internal static IReadOnlyList<string> ValidateMemberIdentity(
+        PartyMemberState memberState,
+        GDictionary contentSource
+    )
+    {
+        return ValidateMemberIdentity(memberState, IdentityContentSource.FromDictionary(contentSource));
+    }
+
+    private static List<string> ValidateMemberIdentity(
+        PartyMemberState memberState,
+        IdentityContentSource contentSource
+    )
+    {
+        var errors = new List<string>();
         if (memberState == null)
         {
             errors.Add("member identity payload is null");
@@ -115,31 +105,31 @@ public partial class IdentityPayloadValidator : RefCounted
         return errors;
     }
 
-    public static StringName resolve_body_size_category_for_content_source(
-        PartyMemberState member_state,
-        ProgressionContentRegistry content_source
+    public static StringName ResolveBodySizeCategoryForContentSource(
+        PartyMemberState memberState,
+        ProgressionContentRegistry contentSource
     )
     {
         return ResolveBodySizeCategoryForMember(
-            member_state,
-            IdentityContentSourceRef.FromRegistry(content_source)
+            memberState,
+            IdentityContentSource.FromRegistry(contentSource)
         );
     }
 
-    public static StringName resolve_body_size_category_for_member(
-        PartyMemberState member_state,
-        GDictionary content_source
+    internal static StringName ResolveBodySizeCategoryForMember(
+        PartyMemberState memberState,
+        GDictionary contentSource
     )
     {
         return ResolveBodySizeCategoryForMember(
-            member_state,
-            IdentityContentSourceRef.FromDictionary(content_source)
+            memberState,
+            IdentityContentSource.FromDictionary(contentSource)
         );
     }
 
     private static StringName ResolveBodySizeCategoryForMember(
         PartyMemberState memberState,
-        IdentityContentSourceRef contentSource
+        IdentityContentSource contentSource
     )
     {
         if (memberState == null)
@@ -148,74 +138,62 @@ public partial class IdentityPayloadValidator : RefCounted
         var ascensionStageId = memberState.ascension_stage_id;
         if (ascensionStageId != "")
         {
-            var ascensionStageDef = contentSource.GetContentDef<AscensionStageDef>(
-                "get_ascension_stage_defs",
-                "ascension_stage_defs",
-                "ascension_stage",
-                ascensionStageId
-            );
+            var ascensionStageDef = contentSource.GetAscensionStageDef(ascensionStageId);
             StringName ascensionBodySize =
                 ascensionStageDef != null
                     ? ascensionStageDef.body_size_category_override
                     : new StringName("");
             if (
                 ascensionBodySize != ""
-                && BodySizeRules.is_valid_body_size_category(ascensionBodySize)
+                && BodySizeContentRules.IsValidBodySizeCategory(ascensionBodySize)
             )
                 return ascensionBodySize;
         }
 
         var subraceId = memberState.subrace_id;
-        var subraceDef = contentSource.GetContentDef<SubraceDef>(
-            "get_subrace_defs",
-            "subrace_defs",
-            "subrace",
-            subraceId
-        );
+        var subraceDef = contentSource.GetSubraceDef(subraceId);
         StringName subraceBodySize =
             subraceDef != null ? subraceDef.body_size_category_override : new StringName("");
-        if (subraceBodySize != "" && BodySizeRules.is_valid_body_size_category(subraceBodySize))
+        if (
+            subraceBodySize != ""
+            && BodySizeContentRules.IsValidBodySizeCategory(subraceBodySize)
+        )
             return subraceBodySize;
 
         var raceId = memberState.race_id;
-        var raceDef = contentSource.GetContentDef<RaceDef>(
-            "get_race_defs",
-            "race_defs",
-            "race",
-            raceId
-        );
+        var raceDef = contentSource.GetRaceDef(raceId);
         StringName raceBodySize =
             raceDef != null ? raceDef.body_size_category : new StringName("");
-        if (raceBodySize != "" && BodySizeRules.is_valid_body_size_category(raceBodySize))
+        if (raceBodySize != "" && BodySizeContentRules.IsValidBodySizeCategory(raceBodySize))
             return raceBodySize;
         return "";
     }
 
-    public static bool refresh_member_body_size_from_content_source(
-        PartyMemberState member_state,
-        ProgressionContentRegistry content_source
+    public static bool RefreshMemberBodySizeFromContentSource(
+        PartyMemberState memberState,
+        ProgressionContentRegistry contentSource
     )
     {
         return RefreshMemberBodySizeFromIdentity(
-            member_state,
-            IdentityContentSourceRef.FromRegistry(content_source)
+            memberState,
+            IdentityContentSource.FromRegistry(contentSource)
         );
     }
 
-    public static bool refresh_member_body_size_from_identity(
-        PartyMemberState member_state,
-        GDictionary content_source
+    internal static bool RefreshMemberBodySizeFromIdentity(
+        PartyMemberState memberState,
+        GDictionary contentSource
     )
     {
         return RefreshMemberBodySizeFromIdentity(
-            member_state,
-            IdentityContentSourceRef.FromDictionary(content_source)
+            memberState,
+            IdentityContentSource.FromDictionary(contentSource)
         );
     }
 
     private static bool RefreshMemberBodySizeFromIdentity(
         PartyMemberState memberState,
-        IdentityContentSourceRef contentSource
+        IdentityContentSource contentSource
     )
     {
         var category = ResolveBodySizeCategoryForMember(memberState, contentSource);
@@ -223,15 +201,15 @@ public partial class IdentityPayloadValidator : RefCounted
             return false;
 
         memberState.body_size_category = category;
-        memberState.body_size = BodySizeRules.get_body_size_for_category(category);
+        memberState.body_size = BodySizeContentRules.GetBodySizeForCategory(category);
         return true;
     }
 
     private static RaceDef ValidateRace(
-        Godot.Collections.Array<string> errors,
+        List<string> errors,
         string label,
         StringName raceId,
-        IdentityContentSourceRef contentSource
+        IdentityContentSource contentSource
     )
     {
         if (raceId == "")
@@ -239,22 +217,17 @@ public partial class IdentityPayloadValidator : RefCounted
             errors.Add($"member {label} must have race_id");
             return default;
         }
-        var raceDef = contentSource.GetContentDef<RaceDef>(
-            "get_race_defs",
-            "race_defs",
-            "race",
-            raceId
-        );
+        var raceDef = contentSource.GetRaceDef(raceId);
         if (raceDef == null)
             errors.Add($"member {label} references missing race {(string)raceId}");
         return raceDef;
     }
 
     private static SubraceDef ValidateSubrace(
-        Godot.Collections.Array<string> errors,
+        List<string> errors,
         string label,
         StringName subraceId,
-        IdentityContentSourceRef contentSource
+        IdentityContentSource contentSource
     )
     {
         if (subraceId == "")
@@ -262,19 +235,14 @@ public partial class IdentityPayloadValidator : RefCounted
             errors.Add($"member {label} must have subrace_id");
             return default;
         }
-        var subraceDef = contentSource.GetContentDef<SubraceDef>(
-            "get_subrace_defs",
-            "subrace_defs",
-            "subrace",
-            subraceId
-        );
+        var subraceDef = contentSource.GetSubraceDef(subraceId);
         if (subraceDef == null)
             errors.Add($"member {label} references missing subrace {(string)subraceId}");
         return subraceDef;
     }
 
     private static void ValidateRaceSubracePair(
-        Godot.Collections.Array<string> errors,
+        List<string> errors,
         string label,
         StringName raceId,
         StringName subraceId,
@@ -291,19 +259,18 @@ public partial class IdentityPayloadValidator : RefCounted
                 $"member {label} subrace {(string)subraceId} parent_race_id must be {(string)raceId}, got {(string)parentRaceId}"
             );
 
-        var raceSubraceIds = raceDef.subrace_ids ?? new Godot.Collections.Array<StringName>();
-        if (!raceSubraceIds.Contains(subraceId))
+        if (!ContainsId(raceDef.subrace_ids, subraceId))
             errors.Add(
                 $"member {label} race {(string)raceId} must list subrace {(string)subraceId} in subrace_ids"
             );
     }
 
     private static void ValidateBloodlinePair(
-        Godot.Collections.Array<string> errors,
+        List<string> errors,
         string label,
         StringName bloodlineId,
         StringName bloodlineStageId,
-        IdentityContentSourceRef contentSource
+        IdentityContentSource contentSource
     )
     {
         if (bloodlineId == "" && bloodlineStageId == "")
@@ -316,18 +283,8 @@ public partial class IdentityPayloadValidator : RefCounted
             return;
         }
 
-        var bloodlineDef = contentSource.GetContentDef<BloodlineDef>(
-            "get_bloodline_defs",
-            "bloodline_defs",
-            "bloodline",
-            bloodlineId
-        );
-        var stageDef = contentSource.GetContentDef<BloodlineStageDef>(
-            "get_bloodline_stage_defs",
-            "bloodline_stage_defs",
-            "bloodline_stage",
-            bloodlineStageId
-        );
+        var bloodlineDef = contentSource.GetBloodlineDef(bloodlineId);
+        var stageDef = contentSource.GetBloodlineStageDef(bloodlineStageId);
         if (bloodlineDef == null)
             errors.Add($"member {label} references missing bloodline {(string)bloodlineId}");
         if (stageDef == null)
@@ -340,13 +297,11 @@ public partial class IdentityPayloadValidator : RefCounted
         var declaredBloodlineId = bloodlineDef.bloodline_id;
         var declaredStageId = stageDef.stage_id;
         var stageParentBloodlineId = stageDef.bloodline_id;
-        var bloodlineStageIds =
-            bloodlineDef.stage_ids ?? new Godot.Collections.Array<StringName>();
         if (
             declaredBloodlineId != bloodlineId
             || declaredStageId != bloodlineStageId
             || stageParentBloodlineId != bloodlineId
-            || !bloodlineStageIds.Contains(bloodlineStageId)
+            || !ContainsId(bloodlineDef.stage_ids, bloodlineStageId)
         )
             errors.Add(
                 $"member {label} bloodline_stage_id {(string)bloodlineStageId} does not belong to bloodline {(string)bloodlineId}"
@@ -354,14 +309,14 @@ public partial class IdentityPayloadValidator : RefCounted
     }
 
     private static void ValidateAscensionPair(
-        Godot.Collections.Array<string> errors,
+        List<string> errors,
         string label,
         StringName raceId,
         StringName subraceId,
         StringName bloodlineId,
         StringName ascensionId,
         StringName ascensionStageId,
-        IdentityContentSourceRef contentSource
+        IdentityContentSource contentSource
     )
     {
         if (ascensionId == "" && ascensionStageId == "")
@@ -374,18 +329,8 @@ public partial class IdentityPayloadValidator : RefCounted
             return;
         }
 
-        var ascensionDef = contentSource.GetContentDef<AscensionDef>(
-            "get_ascension_defs",
-            "ascension_defs",
-            "ascension",
-            ascensionId
-        );
-        var stageDef = contentSource.GetContentDef<AscensionStageDef>(
-            "get_ascension_stage_defs",
-            "ascension_stage_defs",
-            "ascension_stage",
-            ascensionStageId
-        );
+        var ascensionDef = contentSource.GetAscensionDef(ascensionId);
+        var stageDef = contentSource.GetAscensionStageDef(ascensionStageId);
         if (ascensionDef == null)
             errors.Add($"member {label} references missing ascension {(string)ascensionId}");
         if (stageDef == null)
@@ -398,13 +343,11 @@ public partial class IdentityPayloadValidator : RefCounted
         var declaredAscensionId = ascensionDef.ascension_id;
         var declaredStageId = stageDef.stage_id;
         var stageParentAscensionId = stageDef.ascension_id;
-        var ascensionStageIds =
-            ascensionDef.stage_ids ?? new Godot.Collections.Array<StringName>();
         if (
             declaredAscensionId != ascensionId
             || declaredStageId != ascensionStageId
             || stageParentAscensionId != ascensionId
-            || !ascensionStageIds.Contains(ascensionStageId)
+            || !ContainsId(ascensionDef.stage_ids, ascensionStageId)
         )
             errors.Add(
                 $"member {label} ascension_stage_id {(string)ascensionStageId} does not belong to ascension {(string)ascensionId}"
@@ -422,7 +365,7 @@ public partial class IdentityPayloadValidator : RefCounted
     }
 
     private static void ValidateAscensionAllowedIdentity(
-        Godot.Collections.Array<string> errors,
+        List<string> errors,
         string label,
         StringName raceId,
         StringName subraceId,
@@ -431,26 +374,40 @@ public partial class IdentityPayloadValidator : RefCounted
         AscensionDef ascensionDef
     )
     {
-        var allowedRaceIds =
-            ascensionDef.allowed_race_ids ?? new Godot.Collections.Array<StringName>();
-        if (allowedRaceIds.Count > 0 && !allowedRaceIds.Contains(raceId))
+        if (
+            ascensionDef.allowed_race_ids != null
+            && ascensionDef.allowed_race_ids.Count > 0
+            && !ascensionDef.allowed_race_ids.Contains(raceId)
+        )
             errors.Add(
                 $"member {label} ascension {(string)ascensionId} does not allow race {(string)raceId}"
             );
 
-        var allowedSubraceIds =
-            ascensionDef.allowed_subrace_ids ?? new Godot.Collections.Array<StringName>();
-        if (allowedSubraceIds.Count > 0 && !allowedSubraceIds.Contains(subraceId))
+        if (
+            ascensionDef.allowed_subrace_ids != null
+            && ascensionDef.allowed_subrace_ids.Count > 0
+            && !ascensionDef.allowed_subrace_ids.Contains(subraceId)
+        )
             errors.Add(
                 $"member {label} ascension {(string)ascensionId} does not allow subrace {(string)subraceId}"
             );
 
-        var allowedBloodlineIds =
-            ascensionDef.allowed_bloodline_ids ?? new Godot.Collections.Array<StringName>();
-        if (allowedBloodlineIds.Count > 0 && !allowedBloodlineIds.Contains(bloodlineId))
+        if (
+            ascensionDef.allowed_bloodline_ids != null
+            && ascensionDef.allowed_bloodline_ids.Count > 0
+            && !ascensionDef.allowed_bloodline_ids.Contains(bloodlineId)
+        )
             errors.Add(
                 $"member {label} ascension {(string)ascensionId} does not allow bloodline {(string)bloodlineId}"
             );
+    }
+
+    private static bool ContainsId(
+        Godot.Collections.Array<StringName> values,
+        StringName expected
+    )
+    {
+        return values != null && values.Contains(expected);
     }
 
     private static string MemberLabel(PartyMemberState memberState)
@@ -460,102 +417,134 @@ public partial class IdentityPayloadValidator : RefCounted
             : "<unknown>";
     }
 
-    private readonly struct IdentityContentSourceRef
+    private sealed class IdentityContentSource
     {
-        private readonly GDictionary _dictionary;
-        private readonly ProgressionContentRegistry _registry;
+        private static readonly IdentityContentSource NoSource = new(false);
 
-        private IdentityContentSourceRef(GDictionary dictionary, ProgressionContentRegistry registry)
+        private readonly IReadOnlyDictionary<StringName, RaceDef> _raceDefs;
+        private readonly IReadOnlyDictionary<StringName, SubraceDef> _subraceDefs;
+        private readonly IReadOnlyDictionary<StringName, BloodlineDef> _bloodlineDefs;
+        private readonly IReadOnlyDictionary<StringName, BloodlineStageDef> _bloodlineStageDefs;
+        private readonly IReadOnlyDictionary<StringName, AscensionDef> _ascensionDefs;
+        private readonly IReadOnlyDictionary<StringName, AscensionStageDef> _ascensionStageDefs;
+
+        private IdentityContentSource(bool hasSource)
         {
-            _dictionary = dictionary;
-            _registry = registry;
+            HasSource = hasSource;
+            _raceDefs = new Dictionary<StringName, RaceDef>();
+            _subraceDefs = new Dictionary<StringName, SubraceDef>();
+            _bloodlineDefs = new Dictionary<StringName, BloodlineDef>();
+            _bloodlineStageDefs = new Dictionary<StringName, BloodlineStageDef>();
+            _ascensionDefs = new Dictionary<StringName, AscensionDef>();
+            _ascensionStageDefs = new Dictionary<StringName, AscensionStageDef>();
         }
 
-        internal bool HasSource => _dictionary != null || _registry != null;
-
-        internal static IdentityContentSourceRef FromDictionary(GDictionary dictionary)
+        private IdentityContentSource(
+            IReadOnlyDictionary<StringName, RaceDef> raceDefs,
+            IReadOnlyDictionary<StringName, SubraceDef> subraceDefs,
+            IReadOnlyDictionary<StringName, BloodlineDef> bloodlineDefs,
+            IReadOnlyDictionary<StringName, BloodlineStageDef> bloodlineStageDefs,
+            IReadOnlyDictionary<StringName, AscensionDef> ascensionDefs,
+            IReadOnlyDictionary<StringName, AscensionStageDef> ascensionStageDefs
+        )
         {
-            return dictionary != null ? new IdentityContentSourceRef(dictionary, null) : new();
+            HasSource = true;
+            _raceDefs = raceDefs ?? new Dictionary<StringName, RaceDef>();
+            _subraceDefs = subraceDefs ?? new Dictionary<StringName, SubraceDef>();
+            _bloodlineDefs = bloodlineDefs ?? new Dictionary<StringName, BloodlineDef>();
+            _bloodlineStageDefs =
+                bloodlineStageDefs ?? new Dictionary<StringName, BloodlineStageDef>();
+            _ascensionDefs = ascensionDefs ?? new Dictionary<StringName, AscensionDef>();
+            _ascensionStageDefs =
+                ascensionStageDefs ?? new Dictionary<StringName, AscensionStageDef>();
         }
 
-        internal static IdentityContentSourceRef FromRegistry(ProgressionContentRegistry registry)
-        {
-            return registry != null ? new IdentityContentSourceRef(null, registry) : new();
-        }
+        internal bool HasSource { get; }
 
-        internal T GetContentDef<T>(
-            string methodName,
-            string primaryBucketName,
-            string aliasBucketName,
-            StringName defId
-        ) where T : class
+        internal static IdentityContentSource FromDictionary(GDictionary contentSource)
         {
-            if (defId == "")
-                return null;
-            return LookupBucketEntry<T>(
-                GetContentBucket(methodName, primaryBucketName, aliasBucketName),
-                defId
+            if (contentSource == null)
+                return NoSource;
+            return new IdentityContentSource(
+                ProgressionContentBundleAdapter.ReadDefMap<RaceDef>(
+                    contentSource,
+                    "race_defs",
+                    "race"
+                ),
+                ProgressionContentBundleAdapter.ReadDefMap<SubraceDef>(
+                    contentSource,
+                    "subrace_defs",
+                    "subrace"
+                ),
+                ProgressionContentBundleAdapter.ReadDefMap<BloodlineDef>(
+                    contentSource,
+                    "bloodline_defs",
+                    "bloodline"
+                ),
+                ProgressionContentBundleAdapter.ReadDefMap<BloodlineStageDef>(
+                    contentSource,
+                    "bloodline_stage_defs",
+                    "bloodline_stage"
+                ),
+                ProgressionContentBundleAdapter.ReadDefMap<AscensionDef>(
+                    contentSource,
+                    "ascension_defs",
+                    "ascension"
+                ),
+                ProgressionContentBundleAdapter.ReadDefMap<AscensionStageDef>(
+                    contentSource,
+                    "ascension_stage_defs",
+                    "ascension_stage"
+                )
             );
         }
 
-        private Godot.Collections.Dictionary GetContentBucket(
-            string methodName,
-            string primaryBucketName,
-            string aliasBucketName
-        )
+        internal static IdentityContentSource FromRegistry(ProgressionContentRegistry registry)
         {
-            if (_registry != null)
-            {
-                return methodName switch
-                {
-                    "get_race_defs" => _registry.get_race_defs(),
-                    "get_subrace_defs" => _registry.get_subrace_defs(),
-                    "get_bloodline_defs" => _registry.get_bloodline_defs(),
-                    "get_bloodline_stage_defs" => _registry.get_bloodline_stage_defs(),
-                    "get_ascension_defs" => _registry.get_ascension_defs(),
-                    "get_ascension_stage_defs" => _registry.get_ascension_stage_defs(),
-                    _ => new Godot.Collections.Dictionary(),
-                };
-            }
-            if (_dictionary != null)
-            {
-                if (_dictionary.ContainsKey(primaryBucketName))
-                {
-                    var primaryBucket = _dictionary[primaryBucketName];
-                    if (primaryBucket.VariantType == Variant.Type.Dictionary)
-                        return primaryBucket.AsGodotDictionary();
-                }
-                if (_dictionary.ContainsKey(aliasBucketName))
-                {
-                    var aliasBucket = _dictionary[aliasBucketName];
-                    if (aliasBucket.VariantType == Variant.Type.Dictionary)
-                        return aliasBucket.AsGodotDictionary();
-                }
-            }
-            return new Godot.Collections.Dictionary();
+            if (registry == null)
+                return NoSource;
+            return new IdentityContentSource(
+                ReadRegistryBucket<RaceDef>(registry.get_race_defs()),
+                ReadRegistryBucket<SubraceDef>(registry.get_subrace_defs()),
+                ReadRegistryBucket<BloodlineDef>(registry.get_bloodline_defs()),
+                ReadRegistryBucket<BloodlineStageDef>(registry.get_bloodline_stage_defs()),
+                ReadRegistryBucket<AscensionDef>(registry.get_ascension_defs()),
+                ReadRegistryBucket<AscensionStageDef>(registry.get_ascension_stage_defs())
+            );
         }
 
-        private static T LookupBucketEntry<T>(
-            Godot.Collections.Dictionary bucket,
-            StringName defId
-        ) where T : class
+        internal RaceDef GetRaceDef(StringName defId) => Lookup(_raceDefs, defId);
+
+        internal SubraceDef GetSubraceDef(StringName defId) => Lookup(_subraceDefs, defId);
+
+        internal BloodlineDef GetBloodlineDef(StringName defId) => Lookup(_bloodlineDefs, defId);
+
+        internal BloodlineStageDef GetBloodlineStageDef(StringName defId) =>
+            Lookup(_bloodlineStageDefs, defId);
+
+        internal AscensionDef GetAscensionDef(StringName defId) => Lookup(_ascensionDefs, defId);
+
+        internal AscensionStageDef GetAscensionStageDef(StringName defId) =>
+            Lookup(_ascensionStageDefs, defId);
+
+        private static Dictionary<StringName, T> ReadRegistryBucket<T>(GDictionary bucket)
+            where T : class
         {
-            if (bucket == null || defId == "")
+            if (bucket == null)
+                return new Dictionary<StringName, T>();
+            return ProgressionContentBundleAdapter.ReadDefMap<T>(
+                new GDictionary { ["defs"] = bucket },
+                "defs",
+                "defs"
+            );
+        }
+
+        private static T Lookup<T>(IReadOnlyDictionary<StringName, T> map, StringName defId)
+            where T : class
+        {
+            if (map == null || defId == "")
                 return null;
-            if (bucket.ContainsKey(defId))
-            {
-                T stringNameValue = bucket[defId].AsGodotObject() as T;
-                if (stringNameValue != null)
-                    return stringNameValue;
-            }
-            string textId = (string)defId;
-            if (bucket.ContainsKey(textId))
-            {
-                T stringValue = bucket[textId].AsGodotObject() as T;
-                if (stringValue != null)
-                    return stringValue;
-            }
-            return null;
+            return map.TryGetValue(defId, out T value) ? value : null;
         }
     }
 }

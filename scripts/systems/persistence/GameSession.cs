@@ -1662,7 +1662,7 @@ public partial class GameSession : Node
         StringName context
     )
     {
-        GStringArray identityErrors = IdentityPayloadValidator.validate_party_identity_for_content_source(
+        IReadOnlyList<string> identityErrors = IdentityPayloadValidator.ValidatePartyIdentityForContentSource(
             party_state,
             _progression_content_registry
         );
@@ -1918,7 +1918,7 @@ public partial class GameSession : Node
         StringName category = _resolve_body_size_category_for_member(member_state);
         if (category == "")
             return false;
-        int resolvedBodySize = BodySizeRules.get_body_size_for_category(category);
+        int resolvedBodySize = BodySizeContentRules.GetBodySizeForCategory(category);
         if (
             member_state.body_size_category == category
             && member_state.body_size == resolvedBodySize
@@ -1940,7 +1940,7 @@ public partial class GameSession : Node
         if (
             ascensionStageDef != null
             && ascensionStageDef.body_size_category_override != ""
-            && BodySizeRules.is_valid_body_size_category(
+            && BodySizeContentRules.IsValidBodySizeCategory(
                 ascensionStageDef.body_size_category_override
             )
         )
@@ -1954,7 +1954,7 @@ public partial class GameSession : Node
         if (
             subraceDef != null
             && subraceDef.body_size_category_override != ""
-            && BodySizeRules.is_valid_body_size_category(subraceDef.body_size_category_override)
+            && BodySizeContentRules.IsValidBodySizeCategory(subraceDef.body_size_category_override)
         )
         {
             return subraceDef.body_size_category_override;
@@ -1965,7 +1965,7 @@ public partial class GameSession : Node
         );
         if (
             raceDef != null
-            && BodySizeRules.is_valid_body_size_category(raceDef.body_size_category)
+            && BodySizeContentRules.IsValidBodySizeCategory(raceDef.body_size_category)
         )
             return raceDef.body_size_category;
         return "";

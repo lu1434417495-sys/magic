@@ -103,7 +103,12 @@ public partial class TraitTriggerHooks : RefCounted
 
     public static GStringNameArray get_dispatch_trait_ids()
     {
-        return TraitTriggerContentRules.get_dispatch_trait_ids();
+        var result = new GStringNameArray();
+        foreach (StringName traitId in TraitTriggerContentRules.get_dispatch_trait_ids())
+        {
+            result.Add(traitId);
+        }
+        return result;
     }
 
     public GDictionary on_natural_one(BattleUnitState unit_state, GDictionary context = null)

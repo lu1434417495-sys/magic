@@ -6,14 +6,8 @@ using GDictionary = Godot.Collections.Dictionary;
 
 // Stable text snapshots for regression diffing and agent/debug inspection.
 // This renderer is a development aid, not a player-facing presentation layer.
-[GlobalClass]
-public partial class GameTextSnapshotRenderer : RefCounted
+public static class GameTextSnapshotRenderer
 {
-    public string render_snapshot(GDictionary runtimeState)
-    {
-        return render_full_snapshot(runtimeState);
-    }
-
     public static string render_full_snapshot(GDictionary snapshot)
     {
         snapshot ??= new GDictionary();

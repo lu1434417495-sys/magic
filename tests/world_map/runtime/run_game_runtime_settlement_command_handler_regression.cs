@@ -1021,9 +1021,9 @@ public partial class run_game_runtime_settlement_command_handler_regression : Sc
 
     private static void MakeVisible(GameRuntimeFacade runtime, Vector2I center)
     {
-        runtime._fog_system.rebuild_visibility_for_faction(
+        runtime._fog_system.RebuildVisibilityForFaction(
             "player",
-            new GArray { new VisionSourceData("settlement_handler_visibility", center, 6, "player") }
+            new[] { new VisionSourceData("settlement_handler_visibility", center, 6, "player") }
         );
     }
 

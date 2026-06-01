@@ -34,7 +34,6 @@ public partial class BattleHitResolver : RefCounted
     private static readonly StringName ATTACK_CHECK_ERROR_MISSING_TARGET_ARMOR_CLASS =
         "missing_target_armor_class";
 
-    private readonly BattleFateAttackRules _fate_attack_rules = new();
     private readonly TraitTriggerHooks _trait_trigger_hooks = new();
 
     public AttackRollResult resolve_repeat_attack_stage_hit(
@@ -624,9 +623,9 @@ public partial class BattleHitResolver : RefCounted
                 SkillId = attack_context.SkillId,
             };
         }
-        int critGateDie = FateAttackFormula.calc_crit_gate_die_size(effectiveLuck, isDisadvantage);
+        int critGateDie = FateAttackFormula.CalcCritGateDieSize(effectiveLuck, isDisadvantage);
         bool forceHitNoCrit = attack_check.ForceHitNoCrit || attack_context.ForceHitNoCrit;
-        bool critLocked = _fate_attack_rules.is_attack_crit_locked(source_unit) || forceHitNoCrit;
+        bool critLocked = BattleFateAttackRules.IsAttackCritLocked(source_unit) || forceHitNoCrit;
         int requiredRoll = attack_check.RequiredRoll;
         var metadata = new AttackResolutionMetadata
         {
@@ -637,8 +636,8 @@ public partial class BattleHitResolver : RefCounted
             EffectiveLuck = effectiveLuck,
             CritLocked = critLocked,
             CritGateDie = critGateDie,
-            FumbleLowEnd = FateAttackFormula.calc_fumble_low_end(effectiveLuck),
-            CritThreshold = FateAttackFormula.calc_crit_threshold(
+            FumbleLowEnd = FateAttackFormula.CalcFumbleLowEnd(effectiveLuck),
+            CritThreshold = FateAttackFormula.CalcCritThreshold(
                 hiddenLuckAtBirth,
                 faithLuckBonus
             ),
@@ -662,7 +661,7 @@ public partial class BattleHitResolver : RefCounted
         {
             int critGateRoll = _roll_attack_die(critGateDie, isDisadvantage, attack_context);
             metadata.CritGateRoll = critGateRoll;
-            if (_fate_attack_rules.does_gate_die_crit(critGateRoll, critGateDie, critLocked))
+            if (BattleFateAttackRules.DoesGateDieCrit(critGateRoll, critGateDie, critLocked))
             {
                 metadata.AttackResolution = ATTACK_RESOLUTION_CRITICAL_HIT;
                 metadata.AttackSuccess = true;
@@ -700,7 +699,7 @@ public partial class BattleHitResolver : RefCounted
         }
 
         if (
-            _fate_attack_rules.is_high_threat_crit_roll(
+            BattleFateAttackRules.IsHighThreatCritRoll(
                 hitRoll,
                 critLocked,
                 critGateDie,
@@ -714,7 +713,7 @@ public partial class BattleHitResolver : RefCounted
             return metadata;
         }
 
-        if (_fate_attack_rules.does_attack_roll_hit(hitRoll, attack_check))
+        if (BattleFateAttackRules.DoesAttackRollHit(hitRoll, attack_check))
         {
             metadata.AttackResolution = ATTACK_RESOLUTION_HIT;
             metadata.AttackSuccess = true;
@@ -738,8 +737,8 @@ public partial class BattleHitResolver : RefCounted
             source_unit,
             attack_context
         );
-        int critGateDie = FateAttackFormula.calc_crit_gate_die_size(effectiveLuck, isDisadvantage);
-        bool critLocked = _fate_attack_rules.is_attack_crit_locked(source_unit);
+        int critGateDie = FateAttackFormula.CalcCritGateDieSize(effectiveLuck, isDisadvantage);
+        bool critLocked = BattleFateAttackRules.IsAttackCritLocked(source_unit);
         var metadata = new GDictionary
         {
             ["attack_resolution"] = ATTACK_RESOLUTION_HIT,
@@ -756,8 +755,8 @@ public partial class BattleHitResolver : RefCounted
             ["crit_gate_die"] = critGateDie,
             ["crit_gate_roll"] = 0,
             ["hit_roll"] = 0,
-            ["fumble_low_end"] = FateAttackFormula.calc_fumble_low_end(effectiveLuck),
-            ["crit_threshold"] = FateAttackFormula.calc_crit_threshold(
+            ["fumble_low_end"] = FateAttackFormula.CalcFumbleLowEnd(effectiveLuck),
+            ["crit_threshold"] = FateAttackFormula.CalcCritThreshold(
                 hiddenLuckAtBirth,
                 faithLuckBonus
             ),
@@ -769,7 +768,7 @@ public partial class BattleHitResolver : RefCounted
         {
             int critGateRoll = _roll_attack_die(critGateDie, isDisadvantage, attack_context);
             metadata["crit_gate_roll"] = critGateRoll;
-            if (_fate_attack_rules.does_gate_die_crit(critGateRoll, critGateDie, critLocked))
+            if (BattleFateAttackRules.DoesGateDieCrit(critGateRoll, critGateDie, critLocked))
             {
                 metadata["attack_resolution"] = ATTACK_RESOLUTION_CRITICAL_HIT;
                 metadata["spell_control_resolution"] = new StringName("critical_success");
@@ -810,7 +809,7 @@ public partial class BattleHitResolver : RefCounted
         }
 
         if (
-            _fate_attack_rules.is_high_threat_crit_roll(
+            BattleFateAttackRules.IsHighThreatCritRoll(
                 effectiveHitRoll,
                 critLocked,
                 critGateDie,
@@ -1014,7 +1013,7 @@ public partial class BattleHitResolver : RefCounted
             return false;
         }
         if (
-            !LowLuckRelicRules.unit_has_flag(
+            !LowLuckRelicRules.UnitHasFlag(
                 source_unit,
                 LowLuckRelicRules.ATTR_REVERSE_FATE_AMULET
             )
@@ -1252,13 +1251,13 @@ public partial class BattleHitResolver : RefCounted
             UnitBaseAttributes.EFFECTIVE_LUCK_MIN(),
             UnitBaseAttributes.EFFECTIVE_LUCK_MAX()
         );
-        int critGateDie = FateAttackFormula.calc_crit_gate_die_size(effectiveLuck, isDisadvantage);
-        int critThreshold = FateAttackFormula.calc_crit_threshold(
+        int critGateDie = FateAttackFormula.CalcCritGateDieSize(effectiveLuck, isDisadvantage);
+        int critThreshold = FateAttackFormula.CalcCritThreshold(
             hiddenLuckAtBirth,
             faithLuckBonus
         );
-        int fumbleLowEnd = FateAttackFormula.calc_fumble_low_end(effectiveLuck);
-        bool critLocked = _fate_attack_rules.is_attack_crit_locked(active_unit);
+        int fumbleLowEnd = FateAttackFormula.CalcFumbleLowEnd(effectiveLuck);
+        bool critLocked = BattleFateAttackRules.IsAttackCritLocked(active_unit);
         int successRatePercent = _compute_fate_attack_success_rate_percent(
             attack_check,
             critLocked,
@@ -1428,7 +1427,7 @@ public partial class BattleHitResolver : RefCounted
             return false;
         }
         if (
-            _fate_attack_rules.is_high_threat_crit_roll(
+            BattleFateAttackRules.IsHighThreatCritRoll(
                 roll,
                 crit_locked,
                 crit_gate_die,
@@ -1438,7 +1437,7 @@ public partial class BattleHitResolver : RefCounted
         {
             return true;
         }
-        return _fate_attack_rules.does_attack_roll_hit(roll, attack_check);
+        return BattleFateAttackRules.DoesAttackRollHit(roll, attack_check);
     }
 
     public int _get_hidden_luck_at_birth(BattleUnitState unit_state)

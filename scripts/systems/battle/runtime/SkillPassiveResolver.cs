@@ -1,8 +1,8 @@
+using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class SkillPassiveResolver : RefCounted
+public static class SkillPassiveResolver
 {
     private static readonly StringName VajraBodySkillId = "vajra_body";
 
@@ -25,7 +25,7 @@ public partial class SkillPassiveResolver : RefCounted
     public static void ApplyToUnit(
         BattleUnitState unitState,
         PassiveSourceContext context,
-        GDictionary skillDefs = null
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs = null
     )
     {
         if (unitState == null)
@@ -51,7 +51,7 @@ public partial class SkillPassiveResolver : RefCounted
     private static void SyncVajraBodyStatus(
         BattleUnitState unitState,
         UnitProgress progressionState,
-        GDictionary skillDefs
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs
     )
     {
         var skillProgress = GetSkillProgress(progressionState, VajraBodySkillId);
@@ -109,7 +109,7 @@ public partial class SkillPassiveResolver : RefCounted
     private static int ResolveVajraBodyEffectiveLevel(
         UnitSkillProgress skillProgress,
         UnitProgress progressionState,
-        GDictionary skillDefs
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs
     )
     {
         var rawLevel = Mathf.Max(skillProgress.skill_level, 0);
@@ -135,7 +135,7 @@ public partial class SkillPassiveResolver : RefCounted
     private static void SyncShootingSpecializationStatus(
         BattleUnitState unitState,
         UnitProgress progressionState,
-        GDictionary skillDefs
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs
     )
     {
         var skillProgress = GetSkillProgress(progressionState, ShootingSpecializationSkillId);
@@ -257,7 +257,7 @@ public partial class SkillPassiveResolver : RefCounted
     private static void SyncLastStandStatus(
         BattleUnitState unitState,
         UnitProgress progressionState,
-        GDictionary skillDefs
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs
     )
     {
         if (unitState.death_ward_consumed_this_battle)
@@ -371,11 +371,14 @@ public partial class SkillPassiveResolver : RefCounted
         unitState.SetStatusEffect(statusEntry);
     }
 
-    private static SkillDef GetSkillDef(GDictionary skillDefs, StringName skillId)
+    private static SkillDef GetSkillDef(
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        StringName skillId
+    )
     {
-        if (skillDefs == null || !skillDefs.ContainsKey(skillId))
+        if (skillDefs == null)
             return null;
 
-        return skillDefs[skillId].As<SkillDef>();
+        return skillDefs.TryGetValue(skillId, out var skillDef) ? skillDef : null;
     }
 }

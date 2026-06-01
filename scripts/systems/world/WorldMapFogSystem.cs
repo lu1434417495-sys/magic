@@ -4,8 +4,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class WorldMapFogSystem : RefCounted
+public sealed class WorldMapFogSystem
 {
     public const int FOG_UNEXPLORED = 0;
     public const int FOG_EXPLORED = 1;
@@ -47,19 +46,21 @@ public partial class WorldMapFogSystem : RefCounted
 
     public Vector2I get_world_size_cells() => _world_size_cells;
 
-    public void rebuild_visibility_for_faction(string faction_id, GArray sources)
+    internal void RebuildVisibilityForFaction(
+        string factionId,
+        IEnumerable<VisionSourceData> sources
+    )
     {
-        WorldMapFogFactionState factionState = GetOrCreateState(faction_id);
+        WorldMapFogFactionState factionState = GetOrCreateState(factionId);
         factionState.ClearVisible();
         if (sources == null)
         {
             return;
         }
 
-        foreach (var sourceValue in sources)
+        foreach (VisionSourceData source in sources)
         {
-            VisionSourceData source = sourceValue.AsGodotObject() as VisionSourceData;
-            if (source == null || source.faction_id != faction_id)
+            if (source == null || source.faction_id != factionId)
             {
                 continue;
             }
@@ -91,16 +92,16 @@ public partial class WorldMapFogSystem : RefCounted
         }
     }
 
-    public Godot.Collections.Array<Vector2I> reveal_diamond(
+    internal List<Vector2I> RevealDiamond(
         Vector2I center,
-        int reveal_range,
-        string faction_id
+        int revealRange,
+        string factionId
     )
     {
-        var revealedCoords = new Godot.Collections.Array<Vector2I>();
-        int radius = Math.Max(reveal_range, 0);
-        WorldMapFogFactionState factionState = GetOrCreateState(faction_id);
-        HashSet<Vector2I> revealedState = GetRevealedState(faction_id);
+        var revealedCoords = new List<Vector2I>();
+        int radius = Math.Max(revealRange, 0);
+        WorldMapFogFactionState factionState = GetOrCreateState(factionId);
+        HashSet<Vector2I> revealedState = GetRevealedState(factionId);
         for (int offsetY = -radius; offsetY <= radius; offsetY += 1)
         {
             for (int offsetX = -radius; offsetX <= radius; offsetX += 1)

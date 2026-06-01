@@ -16,7 +16,7 @@ public partial class run_wild_encounter_growth_system_regression : SceneTree
     {
         TestStepAdvanceUsesTypedRosterFields();
         TestBattleVictoryUsesTypedRosterFields();
-        TestNonRosterPayloadIsRejected();
+        TestMissingRosterIsRejected();
 
         if (_failures.Count == 0)
         {
@@ -35,30 +35,36 @@ public partial class run_wild_encounter_growth_system_regression : SceneTree
 
     private void TestStepAdvanceUsesTypedRosterFields()
     {
-        using WildEncounterGrowthSystem growthSystem = new();
+        WildEncounterGrowthSystem growthSystem = new();
         using EncounterAnchorData encounterAnchor = BuildSettlementAnchor(growthStage: 0);
         using WildEncounterRosterDef roster = BuildRoster();
-        GDictionary worldData = new() { ["encounter_anchors"] = new GArray { encounterAnchor } };
-        GDictionary rosters = new() { ["wolf_den"] = roster };
+        var encounterAnchors = new List<EncounterAnchorData> { encounterAnchor };
+        var rosters = new Dictionary<StringName, WildEncounterRosterDef>
+        {
+            ["wolf_den"] = roster,
+        };
 
-        bool changed = growthSystem.apply_step_advance(worldData, 0, 2, rosters);
+        bool changed = growthSystem.ApplyStepAdvance(encounterAnchors, 0, 2, rosters);
 
         AssertTrue(changed, "到达成长间隔时应报告变更。");
         AssertEq(encounterAnchor.growth_stage, 1, "聚落类野怪应按 roster.growth_step_interval 提升阶段。");
 
-        bool cappedChange = growthSystem.apply_step_advance(worldData, 2, 20, rosters);
+        bool cappedChange = growthSystem.ApplyStepAdvance(encounterAnchors, 2, 20, rosters);
         AssertTrue(cappedChange, "继续推进到上限前应报告变更。");
         AssertEq(encounterAnchor.growth_stage, 2, "成长阶段不应超过 roster.get_max_stage()。");
     }
 
     private void TestBattleVictoryUsesTypedRosterFields()
     {
-        using WildEncounterGrowthSystem growthSystem = new();
+        WildEncounterGrowthSystem growthSystem = new();
         using EncounterAnchorData encounterAnchor = BuildSettlementAnchor(growthStage: 2);
         using WildEncounterRosterDef roster = BuildRoster();
-        GDictionary rosters = new() { ["wolf_den"] = roster };
+        var rosters = new Dictionary<StringName, WildEncounterRosterDef>
+        {
+            ["wolf_den"] = roster,
+        };
 
-        bool changed = growthSystem.apply_battle_victory(encounterAnchor, 5, rosters);
+        bool changed = growthSystem.ApplyBattleVictory(encounterAnchor, 5, rosters);
 
         AssertTrue(changed, "聚落类野怪战斗胜利应应用成长回退。");
         AssertEq(encounterAnchor.growth_stage, 1, "战斗胜利后应下降 1 个成长阶段，但不低于 initial_stage。");
@@ -69,16 +75,16 @@ public partial class run_wild_encounter_growth_system_regression : SceneTree
         );
     }
 
-    private void TestNonRosterPayloadIsRejected()
+    private void TestMissingRosterIsRejected()
     {
-        using WildEncounterGrowthSystem growthSystem = new();
+        WildEncounterGrowthSystem growthSystem = new();
         using EncounterAnchorData encounterAnchor = BuildSettlementAnchor(growthStage: 0);
-        GDictionary worldData = new() { ["encounter_anchors"] = new GArray { encounterAnchor } };
-        GDictionary rosters = new() { ["wolf_den"] = new GDictionary() };
+        var encounterAnchors = new List<EncounterAnchorData> { encounterAnchor };
+        var rosters = new Dictionary<StringName, WildEncounterRosterDef>();
 
-        bool changed = growthSystem.apply_step_advance(worldData, 0, 10, rosters);
+        bool changed = growthSystem.ApplyStepAdvance(encounterAnchors, 0, 10, rosters);
 
-        AssertFalse(changed, "非 WildEncounterRosterDef payload 不应被动态读取成有效 roster。");
+        AssertFalse(changed, "缺少 typed WildEncounterRosterDef 时不应推进成长阶段。");
         AssertEq(encounterAnchor.growth_stage, 0, "无有效 typed roster 时不应推进成长阶段。");
     }
 

@@ -1,7 +1,6 @@
 using Godot;
 
-[GlobalClass]
-public partial class VisionSourceData : RefCounted
+public sealed class VisionSourceData
 {
     public string source_id;
     public Vector2I center;

@@ -1265,14 +1265,13 @@ func _find_runtime_service_entry(facade: GameRuntimeFacade, action_ids: Array[St
 		allowed_action_ids[normalized_action_id] = true
 	if allowed_action_ids.is_empty():
 		return {}
-	var fog_system = facade.get_fog_system()
 	var player_faction_id := facade.get_player_faction_id()
 	for settlement_option in facade.get_all_settlement_records():
 		if settlement_option is not Dictionary:
 			continue
 		var settlement: Dictionary = settlement_option
 		var settlement_coord: Vector2i = settlement.get("origin", Vector2i.ZERO)
-		if require_visible and (fog_system == null or not fog_system.is_visible(settlement_coord, player_faction_id)):
+		if require_visible and not facade.is_world_coord_visible(settlement_coord, player_faction_id):
 			continue
 		for service_option in settlement.get("available_services", []):
 			if service_option is not Dictionary:

@@ -1,38 +1,32 @@
 using Godot;
+using System;
+using System.Collections.Generic;
 
-[GlobalClass]
-public partial class QuestProviderContentRules : RefCounted
+public static class QuestProviderContentRules
 {
     public static readonly StringName PROVIDER_CONTRACT_BOARD = "service_contract_board";
     public static readonly StringName PROVIDER_BOUNTY_REGISTRY = "service_bounty_registry";
 
-    public static readonly Godot.Collections.Dictionary SUPPORTED_PROVIDER_IDS = new()
+    public static readonly IReadOnlySet<StringName> SUPPORTED_PROVIDER_IDS =
+        new HashSet<StringName>
     {
-        { PROVIDER_CONTRACT_BOARD, true },
-        { PROVIDER_BOUNTY_REGISTRY, true },
+        PROVIDER_CONTRACT_BOARD,
+        PROVIDER_BOUNTY_REGISTRY,
     };
 
     public static bool IsSupportedProviderId(StringName value) =>
-        SUPPORTED_PROVIDER_IDS.ContainsKey(value);
+        SUPPORTED_PROVIDER_IDS.Contains(value);
 
-    public static Godot.Collections.Dictionary SupportedProviderIds()
-    {
-        var d = new Godot.Collections.Dictionary();
-        foreach (var k in SUPPORTED_PROVIDER_IDS.Keys)
-            d[k] = SUPPORTED_PROVIDER_IDS[k];
-        return d;
-    }
+    public static IReadOnlySet<StringName> SupportedProviderIds() => SUPPORTED_PROVIDER_IDS;
 
     public static bool is_supported_provider_id(StringName value) => IsSupportedProviderId(value);
 
-    public static Godot.Collections.Dictionary supported_provider_ids() => SupportedProviderIds();
-
     public static string SupportedProviderLabel()
     {
-        var labels = new System.Collections.Generic.List<string>();
-        foreach (var key in SUPPORTED_PROVIDER_IDS.Keys)
-            labels.Add((string)(StringName)key);
-        labels.Sort();
+        var labels = new List<string>();
+        foreach (var key in SUPPORTED_PROVIDER_IDS)
+            labels.Add(key.ToString());
+        labels.Sort(StringComparer.Ordinal);
         return string.Join(", ", labels);
     }
 

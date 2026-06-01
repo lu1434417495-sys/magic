@@ -1,7 +1,8 @@
 using Godot;
+using System;
+using System.Collections.Generic;
 
-[GlobalClass]
-public partial class DamageTagContentRules : RefCounted
+public static class DamageTagContentRules
 {
     public static readonly StringName DAMAGE_TAG_PHYSICAL_SLASH = "physical_slash";
 
@@ -9,67 +10,67 @@ public partial class DamageTagContentRules : RefCounted
 
     public static readonly StringName DAMAGE_TAG_PHYSICAL_BLUNT = "physical_blunt";
 
-    private static readonly Godot.Collections.Dictionary VALID_DAMAGE_TAGS = new()
+    private static readonly HashSet<StringName> VALID_DAMAGE_TAGS = new()
     {
-        { DAMAGE_TAG_PHYSICAL_SLASH, true },
-        { DAMAGE_TAG_PHYSICAL_PIERCE, true },
-        { DAMAGE_TAG_PHYSICAL_BLUNT, true },
-        { "fire", true },
-        { "freeze", true },
-        { "lightning", true },
-        { "negative_energy", true },
-        { "force", true },
-        { "psychic", true },
-        { "radiant", true },
-        { "thunder", true },
-        { "magic", true },
-        { "acid", true },
-        { "poison", true },
+        DAMAGE_TAG_PHYSICAL_SLASH,
+        DAMAGE_TAG_PHYSICAL_PIERCE,
+        DAMAGE_TAG_PHYSICAL_BLUNT,
+        "fire",
+        "freeze",
+        "lightning",
+        "negative_energy",
+        "force",
+        "psychic",
+        "radiant",
+        "thunder",
+        "magic",
+        "acid",
+        "poison",
     };
 
-    private static readonly Godot.Collections.Dictionary VALID_PHYSICAL_DAMAGE_TAGS = new()
+    private static readonly HashSet<StringName> VALID_PHYSICAL_DAMAGE_TAGS = new()
     {
-        { DAMAGE_TAG_PHYSICAL_SLASH, true },
-        { DAMAGE_TAG_PHYSICAL_PIERCE, true },
-        { DAMAGE_TAG_PHYSICAL_BLUNT, true },
+        DAMAGE_TAG_PHYSICAL_SLASH,
+        DAMAGE_TAG_PHYSICAL_PIERCE,
+        DAMAGE_TAG_PHYSICAL_BLUNT,
     };
 
-    private static readonly Godot.Collections.Dictionary VALID_MITIGATION_TIERS = new()
+    private static readonly HashSet<StringName> VALID_MITIGATION_TIERS = new()
     {
-        { "normal", true },
-        { "half", true },
-        { "double", true },
-        { "immune", true },
+        "normal",
+        "half",
+        "double",
+        "immune",
     };
 
-    private static readonly Godot.Collections.Dictionary VALID_DAMAGE_CATEGORIES = new()
+    private static readonly HashSet<StringName> VALID_DAMAGE_CATEGORIES = new()
     {
-        { "physical", true },
-        { "spell", true },
-        { "magic", true },
-        { "energy", true },
+        "physical",
+        "spell",
+        "magic",
+        "energy",
     };
 
     public static StringName normalize_string_name(StringName value) => value;
 
     public static bool is_valid_damage_tag(StringName value)
     {
-        return VALID_DAMAGE_TAGS.ContainsKey(value);
+        return VALID_DAMAGE_TAGS.Contains(value);
     }
 
     public static bool is_valid_physical_damage_tag(StringName value)
     {
-        return VALID_PHYSICAL_DAMAGE_TAGS.ContainsKey(value);
+        return VALID_PHYSICAL_DAMAGE_TAGS.Contains(value);
     }
 
     public static bool is_valid_mitigation_tier(StringName value)
     {
-        return VALID_MITIGATION_TIERS.ContainsKey(value);
+        return VALID_MITIGATION_TIERS.Contains(value);
     }
 
     public static bool is_valid_damage_category(StringName value)
     {
-        return VALID_DAMAGE_CATEGORIES.ContainsKey(value);
+        return VALID_DAMAGE_CATEGORIES.Contains(value);
     }
 
     public static string valid_damage_tag_label()
@@ -87,14 +88,14 @@ public partial class DamageTagContentRules : RefCounted
         return _sorted_key_label(VALID_DAMAGE_CATEGORIES);
     }
 
-    private static string _sorted_key_label(Godot.Collections.Dictionary source)
+    private static string _sorted_key_label(HashSet<StringName> source)
     {
-        var labels = new Godot.Collections.Array<string>();
+        var labels = new List<string>();
 
-        foreach (var key in source.Keys)
-            labels.Add(key.AsString());
+        foreach (var key in source)
+            labels.Add(key.ToString());
 
-        labels.Sort();
+        labels.Sort(StringComparer.Ordinal);
 
         return string.Join(", ", labels);
     }

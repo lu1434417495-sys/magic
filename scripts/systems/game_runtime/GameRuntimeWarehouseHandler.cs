@@ -2,8 +2,7 @@ using System;
 using Godot;
 using Godot.Collections;
 
-[GlobalClass]
-public partial class GameRuntimeWarehouseHandler : RefCounted
+public sealed class GameRuntimeWarehouseHandler
 {
     private static readonly string RuntimeUnavailableMessage = "运行时尚未初始化。";
 
@@ -33,7 +32,7 @@ public partial class GameRuntimeWarehouseHandler : RefCounted
         Setup(runtime);
     }
 
-    public new void Dispose()
+    public void Dispose()
     {
         _runtime = null;
     }

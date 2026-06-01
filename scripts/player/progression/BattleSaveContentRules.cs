@@ -1,7 +1,7 @@
 using Godot;
+using System.Collections.Generic;
 
-[GlobalClass]
-public partial class BattleSaveContentRules : RefCounted
+public static class BattleSaveContentRules
 {
     public static readonly StringName SAVE_TAG_SLEEP = "sleep";
 
@@ -49,50 +49,60 @@ public partial class BattleSaveContentRules : RefCounted
 
     public static readonly StringName SAVE_DC_MODE_CASTER_SPELL = "caster_spell";
 
-    private static readonly Godot.Collections.Dictionary VALID_SAVE_TAGS = new()
+    private static readonly HashSet<StringName> VALID_SAVE_TAGS = new()
     {
-        { SAVE_TAG_SLEEP, true },
-        { SAVE_TAG_PARALYSIS, true },
-        { SAVE_TAG_CHARM, true },
-        { SAVE_TAG_POISON, true },
-        { SAVE_TAG_DRAGON_BREATH, true },
-        { SAVE_TAG_FIREBALL, true },
-        { SAVE_TAG_CHAIN_LIGHTNING, true },
-        { SAVE_TAG_EQUIPMENT_DISJUNCTION, true },
-        { SAVE_TAG_MAGIC, true },
-        { SAVE_TAG_ILLUSION, true },
-        { SAVE_TAG_FRIGHTENED, true },
-        { SAVE_TAG_EXECUTE, true },
-        { SAVE_TAG_STRENGTH, true },
-        { SAVE_TAG_AGILITY, true },
-        { SAVE_TAG_CONSTITUTION, true },
-        { SAVE_TAG_PERCEPTION, true },
-        { SAVE_TAG_INTELLIGENCE, true },
-        { SAVE_TAG_WILLPOWER, true },
+        SAVE_TAG_SLEEP,
+        SAVE_TAG_PARALYSIS,
+        SAVE_TAG_CHARM,
+        SAVE_TAG_POISON,
+        SAVE_TAG_DRAGON_BREATH,
+        SAVE_TAG_FIREBALL,
+        SAVE_TAG_CHAIN_LIGHTNING,
+        SAVE_TAG_EQUIPMENT_DISJUNCTION,
+        SAVE_TAG_MAGIC,
+        SAVE_TAG_ILLUSION,
+        SAVE_TAG_FRIGHTENED,
+        SAVE_TAG_EXECUTE,
+        SAVE_TAG_STRENGTH,
+        SAVE_TAG_AGILITY,
+        SAVE_TAG_CONSTITUTION,
+        SAVE_TAG_PERCEPTION,
+        SAVE_TAG_INTELLIGENCE,
+        SAVE_TAG_WILLPOWER,
     };
 
-    private static readonly Godot.Collections.Dictionary VALID_SAVE_ABILITIES = new()
+    private static readonly HashSet<StringName> VALID_SAVE_ABILITIES = new()
     {
-        { UnitBaseAttributes.STRENGTH(), true },
-        { UnitBaseAttributes.AGILITY(), true },
-        { UnitBaseAttributes.CONSTITUTION(), true },
-        { UnitBaseAttributes.PERCEPTION(), true },
-        { UnitBaseAttributes.INTELLIGENCE(), true },
-        { UnitBaseAttributes.WILLPOWER(), true },
+        UnitBaseAttributes.STRENGTH(),
+        UnitBaseAttributes.AGILITY(),
+        UnitBaseAttributes.CONSTITUTION(),
+        UnitBaseAttributes.PERCEPTION(),
+        UnitBaseAttributes.INTELLIGENCE(),
+        UnitBaseAttributes.WILLPOWER(),
     };
 
-    private static readonly Godot.Collections.Dictionary CONTROL_SAVE_TAGS = new()
+    private static readonly HashSet<StringName> CONTROL_SAVE_TAGS = new()
     {
-        { SAVE_TAG_SLEEP, true },
-        { SAVE_TAG_PARALYSIS, true },
-        { SAVE_TAG_CHARM, true },
-        { SAVE_TAG_ILLUSION, true },
-        { SAVE_TAG_FRIGHTENED, true },
+        SAVE_TAG_SLEEP,
+        SAVE_TAG_PARALYSIS,
+        SAVE_TAG_CHARM,
+        SAVE_TAG_ILLUSION,
+        SAVE_TAG_FRIGHTENED,
     };
 
-    private static readonly Godot.Collections.Dictionary VALID_SAVE_DC_MODES = new()
+    private static readonly HashSet<StringName> VALID_SAVE_DC_MODES = new()
     {
-        { SAVE_DC_MODE_STATIC, true },
-        { SAVE_DC_MODE_CASTER_SPELL, true },
+        SAVE_DC_MODE_STATIC,
+        SAVE_DC_MODE_CASTER_SPELL,
     };
+
+    public static bool is_valid_save_tag(StringName value) => VALID_SAVE_TAGS.Contains(value);
+
+    public static bool is_valid_save_ability(StringName value) =>
+        VALID_SAVE_ABILITIES.Contains(value);
+
+    public static bool is_control_save_tag(StringName value) => CONTROL_SAVE_TAGS.Contains(value);
+
+    public static bool is_valid_save_dc_mode(StringName value) =>
+        VALID_SAVE_DC_MODES.Contains(value);
 }

@@ -176,15 +176,23 @@ public partial class AttributeService : RefCounted
     }
 
     private UnitProgress _unit_progress;
-    private GDictionary _skill_defs = new();
-    private GDictionary _profession_defs = new();
-    private GArray _equipment_state = new();
-    private GArray _passive_state = new();
-    private GArray _temporary_effects = new();
+    private Dictionary<StringName, SkillDef> _skill_defs = new();
+    private Dictionary<StringName, ProfessionDef> _profession_defs = new();
+    private List<AttributeModifier> _equipment_state = new();
+    private List<AttributeModifier> _passive_state = new();
+    private List<AttributeModifier> _temporary_effects = new();
     private GDictionary _derived_rules = new();
     private AttributeSourceContext _context;
     private AttributeSnapshot _cached_snapshot;
     private bool _snapshot_dirty = true;
+
+    private readonly record struct AttributeModifierEntry(
+        StringName AttributeId,
+        StringName Mode,
+        int Value,
+        StringName SourceType,
+        StringName SourceId
+    );
 
     private readonly record struct AttributePermanentChangeSource(
         StringName SourceType,
@@ -280,28 +288,39 @@ public partial class AttributeService : RefCounted
             unit_progress = unitProgress,
             skill_defs = IndexSkillDefs(skillDefs),
             profession_defs = IndexProfessionDefs(professionDefs),
-            equipment_state = equipmentState ?? new GArray(),
-            passive_state = passiveState ?? new GArray(),
-            temporary_effects = temporaryEffects ?? new GArray(),
+            equipment_state = ToAttributeModifierList(equipmentState),
+            passive_state = ToAttributeModifierList(passiveState),
+            temporary_effects = ToAttributeModifierList(temporaryEffects),
         };
         setup_context(context);
     }
 
-    public void setup_context(AttributeSourceContext context)
+    internal void setup_context(AttributeSourceContext context)
     {
         _context = context ?? new AttributeSourceContext();
         _unit_progress = _context.unit_progress;
-        _skill_defs = IndexSkillDefs(_context.skill_defs);
-        _profession_defs = IndexProfessionDefs(_context.profession_defs);
-        _equipment_state = _context.equipment_state;
-        _passive_state = _context.passive_state;
-        _temporary_effects = _context.temporary_effects;
+        _skill_defs =
+            _context.skill_defs != null
+                ? new Dictionary<StringName, SkillDef>(_context.skill_defs)
+                : new Dictionary<StringName, SkillDef>();
+        _profession_defs =
+            _context.profession_defs != null
+                ? new Dictionary<StringName, ProfessionDef>(_context.profession_defs)
+                : new Dictionary<StringName, ProfessionDef>();
+        _equipment_state = CopyAttributeModifierList(_context.equipment_state);
+        _passive_state = CopyAttributeModifierList(_context.passive_state);
+        _temporary_effects = CopyAttributeModifierList(_context.temporary_effects);
+        _context.skill_defs = _skill_defs;
+        _context.profession_defs = _profession_defs;
+        _context.equipment_state = _equipment_state;
+        _context.passive_state = _passive_state;
+        _context.temporary_effects = _temporary_effects;
         invalidate_snapshot();
     }
 
     public void set_equipment_state(GArray equipment_state)
     {
-        _equipment_state = equipment_state ?? new GArray();
+        _equipment_state = ToAttributeModifierList(equipment_state);
         if (_context != null)
             _context.equipment_state = _equipment_state;
         invalidate_snapshot();
@@ -309,7 +328,7 @@ public partial class AttributeService : RefCounted
 
     public void set_passive_state(GArray passive_state)
     {
-        _passive_state = passive_state ?? new GArray();
+        _passive_state = ToAttributeModifierList(passive_state);
         if (_context != null)
             _context.passive_state = _passive_state;
         invalidate_snapshot();
@@ -317,7 +336,7 @@ public partial class AttributeService : RefCounted
 
     public void set_temporary_effects(GArray temporary_effects)
     {
-        _temporary_effects = temporary_effects ?? new GArray();
+        _temporary_effects = ToAttributeModifierList(temporary_effects);
         if (_context != null)
             _context.temporary_effects = _temporary_effects;
         invalidate_snapshot();
@@ -519,9 +538,9 @@ public partial class AttributeService : RefCounted
         return $"AttributeService: reject protected custom stat write {(string)attributeId} delta={delta} source_type={(string)sourceContext.SourceType} source_id={(string)sourceContext.SourceId}.";
     }
 
-    private static GDictionary IndexSkillDefs(GDictionary skillDefs)
+    private static Dictionary<StringName, SkillDef> IndexSkillDefs(GDictionary skillDefs)
     {
-        var indexedDefs = new GDictionary();
+        var indexedDefs = new Dictionary<StringName, SkillDef>();
         if (skillDefs == null)
             return indexedDefs;
 
@@ -544,9 +563,9 @@ public partial class AttributeService : RefCounted
         return indexedDefs;
     }
 
-    private static GDictionary IndexProfessionDefs(GDictionary professionDefs)
+    private static Dictionary<StringName, ProfessionDef> IndexProfessionDefs(GDictionary professionDefs)
     {
-        var indexedDefs = new GDictionary();
+        var indexedDefs = new Dictionary<StringName, ProfessionDef>();
         if (professionDefs == null)
             return indexedDefs;
 
@@ -571,7 +590,9 @@ public partial class AttributeService : RefCounted
         return indexedDefs;
     }
 
-    private Dictionary<StringName, int> ResolveBaseAttributeValues(GArray modifierEntries)
+    private Dictionary<StringName, int> ResolveBaseAttributeValues(
+        List<AttributeModifierEntry> modifierEntries
+    )
     {
         var resolvedValues = new Dictionary<StringName, int>();
         foreach (StringName attributeId in UnitBaseAttributes.BASE_ATTRIBUTE_IDS())
@@ -583,9 +604,9 @@ public partial class AttributeService : RefCounted
         return resolvedValues;
     }
 
-    private GArray CollectAllModifierEntries()
+    private List<AttributeModifierEntry> CollectAllModifierEntries()
     {
-        var entries = new GArray();
+        var entries = new List<AttributeModifierEntry>();
         AppendRaceModifierEntries(entries);
         AppendSubraceModifierEntries(entries);
         AppendAgeModifierEntries(entries);
@@ -601,7 +622,7 @@ public partial class AttributeService : RefCounted
         return entries;
     }
 
-    private void AppendRaceModifierEntries(GArray entries)
+    private void AppendRaceModifierEntries(List<AttributeModifierEntry> entries)
     {
         if (_context?.race_def == null)
             return;
@@ -614,7 +635,7 @@ public partial class AttributeService : RefCounted
         );
     }
 
-    private void AppendSubraceModifierEntries(GArray entries)
+    private void AppendSubraceModifierEntries(List<AttributeModifierEntry> entries)
     {
         if (_context?.subrace_def == null)
             return;
@@ -627,7 +648,7 @@ public partial class AttributeService : RefCounted
         );
     }
 
-    private void AppendAgeModifierEntries(GArray entries)
+    private void AppendAgeModifierEntries(List<AttributeModifierEntry> entries)
     {
         if (_context?.age_stage_rule == null)
             return;
@@ -646,7 +667,7 @@ public partial class AttributeService : RefCounted
         );
     }
 
-    private void AppendBloodlineModifierEntries(GArray entries)
+    private void AppendBloodlineModifierEntries(List<AttributeModifierEntry> entries)
     {
         if (_context == null)
             return;
@@ -668,7 +689,7 @@ public partial class AttributeService : RefCounted
             );
     }
 
-    private void AppendAscensionStageModifierEntries(GArray entries)
+    private void AppendAscensionStageModifierEntries(List<AttributeModifierEntry> entries)
     {
         if (_context?.ascension_stage_def == null)
             return;
@@ -681,9 +702,11 @@ public partial class AttributeService : RefCounted
         );
     }
 
-    private static void AppendStageAdvancementModifierEntries(GArray entries) { }
+    private static void AppendStageAdvancementModifierEntries(
+        List<AttributeModifierEntry> entries
+    ) { }
 
-    private void AppendVersatilityModifierEntries(GArray entries)
+    private void AppendVersatilityModifierEntries(List<AttributeModifierEntry> entries)
     {
         if (_context == null || _context.versatility_pick == "")
             return;
@@ -697,11 +720,11 @@ public partial class AttributeService : RefCounted
             value = 1,
         };
         StringName sourceId = _context.race_def != null ? _context.race_def.race_id : "versatility";
-        var modifiers = new GArray { modifier };
+        var modifiers = new List<AttributeModifier> { modifier };
         AppendModifierEntries(entries, modifiers, "versatility", sourceId, 1);
     }
 
-    private void AppendProfessionModifierEntries(GArray entries)
+    private void AppendProfessionModifierEntries(List<AttributeModifierEntry> entries)
     {
         if (_unit_progress == null)
             return;
@@ -714,10 +737,7 @@ public partial class AttributeService : RefCounted
             if (!professionProgress.is_active || professionProgress.is_hidden)
                 continue;
 
-            var professionDef = _profession_defs.ContainsKey(professionId)
-                ? GetGodotObject<ProfessionDef>(_profession_defs, professionId)
-                : null;
-            if (professionDef == null)
+            if (!_profession_defs.TryGetValue(professionId, out var professionDef))
                 continue;
             AppendModifierEntries(
                 entries,
@@ -729,7 +749,7 @@ public partial class AttributeService : RefCounted
         }
     }
 
-    private void AppendSkillModifierEntries(GArray entries)
+    private void AppendSkillModifierEntries(List<AttributeModifierEntry> entries)
     {
         if (_unit_progress == null)
             return;
@@ -742,10 +762,7 @@ public partial class AttributeService : RefCounted
             if (!IsSkillModifierActive(skillProgress))
                 continue;
 
-            var skillDef = _skill_defs.ContainsKey(skillId)
-                ? GetGodotObject<SkillDef>(_skill_defs, skillId)
-                : null;
-            if (skillDef == null)
+            if (!_skill_defs.TryGetValue(skillId, out var skillDef))
                 continue;
 
             int effectiveRank = Mathf.Max(skillProgress.skill_level, 1);
@@ -776,8 +793,8 @@ public partial class AttributeService : RefCounted
     }
 
     private void AppendExternalModifierEntries(
-        GArray entries,
-        GArray state,
+        List<AttributeModifierEntry> entries,
+        List<AttributeModifier> state,
         StringName defaultSourceType
     )
     {
@@ -786,32 +803,9 @@ public partial class AttributeService : RefCounted
         AppendModifierEntries(entries, state, defaultSourceType, defaultSourceType, 1);
     }
 
-    private static void AppendModifierEntries(
-        GArray entries,
-        GArray modifiers,
-        StringName sourceType,
-        StringName sourceId,
-        int rank
-    )
-    {
-        if (modifiers == null)
-            return;
-
-        foreach (AttributeModifier modifier in Objects<AttributeModifier>(modifiers))
-        {
-            AppendModifierEntry(
-                entries,
-                modifier,
-                sourceType,
-                sourceId,
-                rank
-            );
-        }
-    }
-
-    private static void AppendModifierEntries<[MustBeVariant] T>(
-        GArray entries,
-        Godot.Collections.Array<T> modifiers,
+    private static void AppendModifierEntries<T>(
+        List<AttributeModifierEntry> entries,
+        IEnumerable<T> modifiers,
         StringName sourceType,
         StringName sourceId,
         int rank
@@ -822,13 +816,13 @@ public partial class AttributeService : RefCounted
 
         foreach (T modifierValue in modifiers)
         {
-            if (TryAsObject(modifierValue, out AttributeModifier modifier))
+            if (modifierValue is AttributeModifier modifier)
                 AppendModifierEntry(entries, modifier, sourceType, sourceId, rank);
         }
     }
 
     private static void AppendModifierEntry(
-        GArray entries,
+        List<AttributeModifierEntry> entries,
         AttributeModifier modifier,
         StringName sourceType,
         StringName sourceId,
@@ -839,14 +833,13 @@ public partial class AttributeService : RefCounted
             return;
 
         entries.Add(
-            new GDictionary
-            {
-                ["attribute_id"] = modifier.attribute_id,
-                ["mode"] = modifier.mode,
-                ["value"] = modifier.get_value_for_rank(rank),
-                ["source_type"] = sourceType != "" ? sourceType : modifier.source_type,
-                ["source_id"] = sourceId != "" ? sourceId : modifier.source_id,
-            }
+            new AttributeModifierEntry(
+                modifier.attribute_id,
+                modifier.mode,
+                modifier.get_value_for_rank(rank),
+                sourceType != "" ? sourceType : modifier.source_type,
+                sourceId != "" ? sourceId : modifier.source_id
+            )
         );
     }
 
@@ -865,23 +858,24 @@ public partial class AttributeService : RefCounted
         return unitBaseAttributes.get_attribute_value(attributeId);
     }
 
-    private int ApplyModifierPipeline(StringName attributeId, int baseValue, GArray modifierEntries)
+    private int ApplyModifierPipeline(
+        StringName attributeId,
+        int baseValue,
+        List<AttributeModifierEntry> modifierEntries
+    )
     {
         int flatDelta = 0;
         int percentDelta = 0;
 
-        foreach (GDictionary entry in Dictionaries(modifierEntries))
+        foreach (var entry in modifierEntries)
         {
-            var modifierAttributeId = GetDictStringName(entry, "attribute_id");
-            if (!ModifierEntryAppliesToAttribute(attributeId, modifierAttributeId))
+            if (!ModifierEntryAppliesToAttribute(attributeId, entry.AttributeId))
                 continue;
 
-            int value = GetDictInt(entry, "value", 0);
-            var mode = GetDictStringName(entry, "mode", AttributeModifier.MODE_FLAT());
-            if (mode == AttributeModifier.MODE_PERCENT())
-                percentDelta += value;
+            if (entry.Mode == AttributeModifier.MODE_PERCENT())
+                percentDelta += entry.Value;
             else
-                flatDelta += value;
+                flatDelta += entry.Value;
         }
 
         int result = baseValue + flatDelta;
@@ -891,7 +885,7 @@ public partial class AttributeService : RefCounted
         return ClampAttributeValue(attributeId, result);
     }
 
-    private int CalculateCharacterHpMax(int baseValue, GArray modifierEntries)
+    private int CalculateCharacterHpMax(int baseValue, List<AttributeModifierEntry> modifierEntries)
     {
         int percentBonus = ResolveCharacterHpMaxPercentBonus(modifierEntries);
         if (percentBonus <= 0)
@@ -899,18 +893,16 @@ public partial class AttributeService : RefCounted
         return Mathf.FloorToInt((float)baseValue * (100 + percentBonus) / 100.0f);
     }
 
-    private int ResolveCharacterHpMaxPercentBonus(GArray modifierEntries)
+    private int ResolveCharacterHpMaxPercentBonus(List<AttributeModifierEntry> modifierEntries)
     {
         int percentBonus = 0;
-        foreach (GDictionary entry in Dictionaries(modifierEntries))
+        foreach (var entry in modifierEntries)
         {
-            var attributeId = GetDictStringName(entry, "attribute_id");
-            if (attributeId != CHARACTER_HP_MAX_PERCENT_BONUS)
+            if (entry.AttributeId != CHARACTER_HP_MAX_PERCENT_BONUS)
                 continue;
-            var mode = GetDictStringName(entry, "mode", AttributeModifier.MODE_FLAT());
-            if (mode == AttributeModifier.MODE_PERCENT())
+            if (entry.Mode == AttributeModifier.MODE_PERCENT())
                 continue;
-            percentBonus += Mathf.Max(GetDictInt(entry, "value", 0), 0);
+            percentBonus += Mathf.Max(entry.Value, 0);
         }
         return percentBonus;
     }
@@ -928,10 +920,7 @@ public partial class AttributeService : RefCounted
                 continue;
             if (!professionProgress.is_active || professionProgress.is_hidden)
                 continue;
-            var professionDef = _profession_defs.ContainsKey(professionId)
-                ? GetGodotObject<ProfessionDef>(_profession_defs, professionId)
-                : null;
-            if (professionDef == null)
+            if (!_profession_defs.TryGetValue(professionId, out var professionDef))
                 continue;
             pairs.Add(new GArray { professionProgress.rank, professionDef.bab_progression });
         }
@@ -949,7 +938,7 @@ public partial class AttributeService : RefCounted
 
     private int CalculateBaseArmorClass(
         Dictionary<StringName, int> resolvedBaseValues,
-        GArray modifierEntries
+        List<AttributeModifierEntry> modifierEntries
     )
     {
         int agility = GetDictInt(resolvedBaseValues, UnitBaseAttributes.AGILITY(), 0);
@@ -974,21 +963,18 @@ public partial class AttributeService : RefCounted
         return AttributeSnapshot.calculate_score_modifier(score);
     }
 
-    private int ResolveArmorMaxDexBonus(GArray modifierEntries)
+    private int ResolveArmorMaxDexBonus(List<AttributeModifierEntry> modifierEntries)
     {
         int resolvedCap = -1;
-        foreach (GDictionary entry in Dictionaries(modifierEntries))
+        foreach (var entry in modifierEntries)
         {
-            var attributeId = GetDictStringName(entry, "attribute_id");
-            if (attributeId != ARMOR_MAX_DEX_BONUS)
+            if (entry.AttributeId != ARMOR_MAX_DEX_BONUS)
                 continue;
-            var mode = GetDictStringName(entry, "mode", AttributeModifier.MODE_FLAT());
-            if (mode == AttributeModifier.MODE_PERCENT())
+            if (entry.Mode == AttributeModifier.MODE_PERCENT())
                 continue;
-            int value = GetDictInt(entry, "value", -1);
-            if (value < 0)
+            if (entry.Value < 0)
                 continue;
-            resolvedCap = resolvedCap < 0 ? value : Mathf.Min(resolvedCap, value);
+            resolvedCap = resolvedCap < 0 ? entry.Value : Mathf.Min(resolvedCap, entry.Value);
         }
         return resolvedCap;
     }
@@ -1052,19 +1038,21 @@ public partial class AttributeService : RefCounted
         );
     }
 
-    private Godot.Collections.Array<StringName> GetAdditionalAttributeIds(GArray modifierEntries)
+    private Godot.Collections.Array<StringName> GetAdditionalAttributeIds(
+        List<AttributeModifierEntry> modifierEntries
+    )
     {
         var result = new Godot.Collections.Array<StringName>();
-        var seen = new GDictionary();
+        var seen = new HashSet<StringName>();
         var knownAttributeIds = GetKnownNonBaseAttributeIds();
 
         foreach (StringName attributeId in UnitBaseAttributes.BASE_ATTRIBUTE_IDS())
         {
             knownAttributeIds.Add(attributeId);
-            seen[attributeId] = true;
+            seen.Add(attributeId);
         }
         foreach (StringName attributeId in knownAttributeIds)
-            seen[attributeId] = true;
+            seen.Add(attributeId);
 
         var unitBaseAttributes = GetUnitBaseAttributes();
         if (unitBaseAttributes != null)
@@ -1072,19 +1060,19 @@ public partial class AttributeService : RefCounted
             foreach (object key in unitBaseAttributes.custom_stats.Keys)
             {
                 var attributeId = ProgressionDataUtils.to_string_name(key);
-                if (seen.ContainsKey(attributeId))
+                if (seen.Contains(attributeId))
                     continue;
-                seen[attributeId] = true;
+                seen.Add(attributeId);
                 result.Add(attributeId);
             }
         }
 
-        foreach (GDictionary entry in Dictionaries(modifierEntries))
+        foreach (var entry in modifierEntries)
         {
-            var attributeId = GetDictStringName(entry, "attribute_id");
-            if (attributeId == "" || seen.ContainsKey(attributeId))
+            var attributeId = entry.AttributeId;
+            if (attributeId == "" || seen.Contains(attributeId))
                 continue;
-            seen[attributeId] = true;
+            seen.Add(attributeId);
             result.Add(attributeId);
         }
 
@@ -1132,6 +1120,26 @@ public partial class AttributeService : RefCounted
         if (_unit_progress == null)
             return null;
         return _unit_progress.get_skill_progress(skillId);
+    }
+
+    private static List<AttributeModifier> ToAttributeModifierList(GArray values)
+    {
+        var result = new List<AttributeModifier>();
+        if (values == null)
+            return result;
+        foreach (object rawValue in values)
+        {
+            if (TryAsObject(rawValue, out AttributeModifier modifier))
+                result.Add(modifier);
+        }
+        return result;
+    }
+
+    private static List<AttributeModifier> CopyAttributeModifierList(
+        List<AttributeModifier> values
+    )
+    {
+        return values != null ? new List<AttributeModifier>(values) : new List<AttributeModifier>();
     }
 
     private static int GetDictInt(GDictionary data, string key, int fallback)
@@ -1183,77 +1191,6 @@ public partial class AttributeService : RefCounted
             return fallback;
         StringName parsed = ProgressionDataUtils.to_string_name(value);
         return parsed != "" ? parsed : fallback;
-    }
-
-    private static T GetGodotObject<T>(GDictionary data, StringName key)
-        where T : GodotObject
-    {
-        if (data == null || key == null || !data.ContainsKey(key))
-            return null;
-        return TryAsObject(data[key], out T value) ? value : null;
-    }
-
-    private static IEnumerable<GDictionary> Dictionaries(GArray values)
-    {
-        if (values == null)
-        {
-            yield break;
-        }
-        foreach (object rawValue in values)
-        {
-            if (TryAsDictionary(rawValue, out GDictionary value))
-            {
-                yield return value;
-            }
-        }
-    }
-
-    private static IEnumerable<T> Objects<T>(GArray values)
-        where T : GodotObject
-    {
-        if (values == null)
-        {
-            yield break;
-        }
-        foreach (object rawValue in values)
-        {
-            if (TryAsObject(rawValue, out T value))
-            {
-                yield return value;
-            }
-        }
-    }
-
-    private static bool TryAsArray(object rawValue, out GArray value)
-    {
-        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Array)
-        {
-            value = variant.AsGodotArray();
-            return true;
-        }
-        if (rawValue is GArray array)
-        {
-            value = array;
-            return true;
-        }
-        value = new GArray();
-        return false;
-    }
-
-    private static bool TryAsDictionary(object rawValue, out GDictionary value)
-    {
-        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Dictionary)
-        {
-            value = variant.AsGodotDictionary();
-            return true;
-        }
-        if (rawValue is GDictionary dictionary)
-        {
-            value = dictionary;
-            return true;
-        }
-        value = new GDictionary();
-        return false;
     }
 
     private static bool TryAsObject<T>(object rawValue, out T value)

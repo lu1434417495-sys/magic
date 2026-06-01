@@ -1,6 +1,6 @@
 using System.Collections.Generic;
+using System.Linq;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_profession_assignment_service_regression : SceneTree
 {
@@ -67,6 +67,10 @@ public partial class run_profession_assignment_service_regression : SceneTree
             progress.active_core_skill_ids.Contains("heavy_strike"),
             "分配后应同步 active_core_skill_ids。"
         );
+        AssertTrue(
+            service.get_profession_core_skill_ids("warrior").Contains(new StringName("heavy_strike")),
+            "typed 职业核心技能查询应包含已分配技能。"
+        );
     }
 
     private void TestPromoteMatchingLearnedSkillToCore()
@@ -110,13 +114,13 @@ public partial class run_profession_assignment_service_regression : SceneTree
         IEnumerable<ProfessionDef> professionDefs
     )
     {
-        GDictionary indexedSkillDefs = new();
+        Dictionary<StringName, SkillDef> indexedSkillDefs = new();
         foreach (SkillDef skillDef in skillDefs)
         {
             indexedSkillDefs[skillDef.skill_id] = skillDef;
         }
 
-        GDictionary indexedProfessionDefs = new();
+        Dictionary<StringName, ProfessionDef> indexedProfessionDefs = new();
         foreach (ProfessionDef professionDef in professionDefs)
         {
             indexedProfessionDefs[professionDef.profession_id] = professionDef;

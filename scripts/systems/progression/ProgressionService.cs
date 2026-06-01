@@ -900,7 +900,18 @@ public partial class ProgressionService : RefCounted
         if (_rule_service == null || tagRules.Count == 0)
             return new GStringNameArray();
 
-        GStringNameArray candidateSkillIds = _rule_service.get_eligible_skill_ids(professionId, tagRules, allowUnassigned);
+        GStringNameArray candidateSkillIds = new();
+        foreach (
+            StringName skillId in _rule_service.get_eligible_skill_ids(
+                professionId,
+                tagRules,
+                allowUnassigned
+            )
+        )
+        {
+            if (skillId != "" && !candidateSkillIds.Contains(skillId))
+                candidateSkillIds.Add(skillId);
+        }
         foreach (StringName skillId in previewAssignedSkillIds)
         {
             if (skillId == "" || candidateSkillIds.Contains(skillId))

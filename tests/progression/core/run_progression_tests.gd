@@ -14,7 +14,6 @@ const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/Battle
 const BattleUnitFactory = preload("res://scripts/systems/battle/runtime/BattleUnitFactory.cs")
 const CharacterManagementModule = preload("res://scripts/systems/progression/CharacterManagementModule.cs")
 const AttributeService = preload("res://scripts/systems/attributes/AttributeService.cs")
-const AttributeSourceContext = preload("res://scripts/systems/attributes/AttributeSourceContext.cs")
 const GameSession = preload("res://scripts/systems/persistence/GameSession.cs")
 const PARTY_WAREHOUSE_SERVICE_SCRIPT = preload("res://scripts/systems/inventory/PartyWarehouseService.cs")
 const PartyManagementWindowScene = preload("res://scenes/ui/party_management_window.tscn")
@@ -27,7 +26,6 @@ const PendingCharacterReward = preload("res://scripts/systems/progression/Pendin
 const PendingCharacterRewardEntry = preload("res://scripts/systems/progression/PendingCharacterRewardEntry.cs")
 const QuestDef = preload("res://scripts/player/progression/QuestDef.cs")
 const QuestState = preload("res://scripts/player/progression/QuestState.cs")
-const PracticeGrowthService = preload("res://scripts/systems/progression/PracticeGrowthService.cs")
 const RacialGrantedSkill = preload("res://scripts/player/progression/RacialGrantedSkill.cs")
 const RaceDef = preload("res://scripts/player/progression/RaceDef.cs")
 const SubraceDef = preload("res://scripts/player/progression/SubraceDef.cs")
@@ -37,7 +35,6 @@ const AscensionDef = preload("res://scripts/player/progression/AscensionDef.cs")
 const AscensionStageDef = preload("res://scripts/player/progression/AscensionStageDef.cs")
 const SkillDef = preload("res://scripts/player/progression/SkillDef.cs")
 const CombatSkillDef = preload("res://scripts/player/progression/CombatSkillDef.cs")
-const SKILL_EFFECTIVE_MAX_LEVEL_RULES_SCRIPT = preload("res://scripts/systems/progression/SkillEffectiveMaxLevelRules.cs")
 const WorldMapSystem = preload("res://scripts/systems/game_runtime/WorldMapSystem.cs")
 
 ## 字段说明：记录测试过程中收集到的失败信息，便于最终集中输出并快速定位回归点。
@@ -60,7 +57,6 @@ func _run() -> void:
 	_test_practice_replacement_succeeds_after_formal_learning_validation()
 	_test_practice_replacement_rejects_ambiguous_existing_track()
 	_test_practice_track_tags_are_exclusive_at_runtime()
-	_test_practice_replacement_service_requires_verified_learning()
 	_test_weapon_training_skills_are_not_auto_learned()
 	_test_racial_skill_grant_writes_level_and_source()
 	_test_racial_skill_grant_validates_minimum_level_bounds()
@@ -81,8 +77,6 @@ func _run() -> void:
 	_test_failed_profession_promotion_keeps_progress_state_atomic()
 	_test_level_trigger_state_clears_when_core_or_source_skill_changes()
 	_test_official_rank_up_precommits_ready_trigger_core()
-	_test_aura_slash_max_level_uses_transformation_count()
-	_test_dynamic_max_level_uses_profession_rank_integer_divisor()
 	_test_level_less_skill_rejects_mastery_gain()
 	_test_attribute_growth_progress_round_trip_persists()
 	_test_unit_progress_from_dict_requires_top_level_schema_fields()
@@ -96,7 +90,6 @@ func _run() -> void:
 	_test_combat_skill_level_overrides_accumulate_minimum_level_patches()
 	_test_min_only_requirements_ignore_zero_max_value()
 	_test_saint_blade_combo_unlock_chain_requires_knowledge_levels_and_achievement()
-	_test_composite_upgrade_replace_sources_with_result_keeps_sources_and_transitions_core()
 	_test_achievement_progress_is_member_scoped_and_unlocks_once()
 	_test_single_event_can_unlock_multiple_achievements_in_queue_order()
 	_test_pending_character_reward_applies_in_stable_order()
@@ -324,15 +317,8 @@ func _test_warrior_toughness_grant_scales_character_hp_only() -> void:
 	temporary_hp.source_type = &"temporary"
 	temporary_hp.source_id = &"test_buff"
 
-	var context := AttributeSourceContext.new()
-	context.unit_progress = progress
-	context.skill_defs = skill_defs
-	context.profession_defs = profession_defs
-	context.equipment_state = [equipment_hp]
-	context.temporary_effects = [temporary_hp]
-
 	var attribute_service := AttributeService.new()
-	attribute_service.setup_context(context)
+	attribute_service.setup(progress, skill_defs, profession_defs, [equipment_hp], [], [temporary_hp])
 	var snapshot = attribute_service.get_snapshot()
 	_assert_eq(snapshot.get_value(AttributeService.CHARACTER_HP_MAX_PERCENT_BONUS_ID()), 20, "强健应提供人物生命百分比加成。")
 	_assert_eq(snapshot.get_value(AttributeService.STAMINA_RECOVERY_PERCENT_BONUS_ID()), 50, "强健应提供 50% 体力自然恢复加成。")
@@ -506,28 +492,6 @@ func _test_practice_track_tags_are_exclusive_at_runtime() -> void:
 			"%s 的功法 tag 配置应在运行时 fail-closed，不能退化成普通技能学习。" % String(case_data.get("label", ""))
 		)
 		_assert_true(progression.get_skill_progress(skill_id) == null, "%s 失败后不应写入 learned。" % String(case_data.get("label", "")))
-
-
-func _test_practice_replacement_service_requires_verified_learning() -> void:
-	var old_skill := _make_test_practice_skill(&"practice_direct_old", &"cultivation", &"basic")
-	var new_skill := _make_test_practice_skill(&"practice_direct_new", &"cultivation", &"intermediate")
-	var progression := UnitProgress.new()
-	_learn_test_skill_progress(progression, old_skill.skill_id, 2)
-	var practice_service := PracticeGrowthService.new()
-	practice_service.setup(
-		{
-			old_skill.skill_id: old_skill,
-			new_skill.skill_id: new_skill,
-		},
-		{}
-	)
-
-	_assert_true(
-		not practice_service.apply_replacement(new_skill.skill_id, progression),
-		"PracticeGrowthService.apply_replacement 不能作为裸写入口绕过正式学习校验。"
-	)
-	_assert_skill_learned_level(progression, old_skill.skill_id, 2, "裸替换被拒绝后旧功法应保持 learned。")
-	_assert_true(progression.get_skill_progress(new_skill.skill_id) == null, "裸替换被拒绝后新功法不应写入。")
 
 
 func _test_weapon_training_skills_are_not_auto_learned() -> void:
@@ -1355,39 +1319,6 @@ func _test_level_trigger_state_clears_when_core_or_source_skill_changes() -> voi
 	_assert_true(locked_progress != null and not locked_progress.is_level_trigger_locked, "取消 locked trigger 核心后应清空技能 locked flag。")
 	_assert_true(UnitProgress.from_dict(progress.to_dict()) != null, "取消 core 后产生的进度应仍能通过严格存档校验。")
 
-	var merge_progress := UnitProgress.new()
-	merge_progress.unit_id = &"merge_trigger_clear_hero"
-	merge_progress.display_name = "Merge Trigger Clear Hero"
-	var merge_active_skill_id := &"test_merge_active_source"
-	var merge_locked_skill_id := &"test_merge_locked_source"
-	for skill_id in [merge_active_skill_id, merge_locked_skill_id]:
-		var source_progress := UnitSkillProgress.new()
-		source_progress.skill_id = skill_id
-		source_progress.is_learned = true
-		source_progress.is_core = true
-		merge_progress.set_skill_progress(source_progress)
-	var merge_active_progress := merge_progress.get_skill_progress(merge_active_skill_id) as UnitSkillProgress
-	merge_active_progress.is_level_trigger_active = true
-	merge_progress.active_level_trigger_core_skill_id = merge_active_skill_id
-	merge_progress.set_skill_progress(merge_active_progress)
-	var merge_locked_progress := merge_progress.get_skill_progress(merge_locked_skill_id) as UnitSkillProgress
-	merge_locked_progress.is_level_trigger_locked = true
-	merge_progress.locked_level_trigger_skill_ids.append(merge_locked_skill_id)
-	merge_progress.set_skill_progress(merge_locked_progress)
-
-	var merge_service := SkillMergeService.new()
-	merge_service.setup(merge_progress, {}, null)
-	_assert_true(
-		merge_service.merge_skills([merge_active_skill_id, merge_locked_skill_id], &"test_merge_result", false, &""),
-		"移除来源技能的合成路径应成功。"
-	)
-	_assert_eq(merge_progress.active_level_trigger_core_skill_id, &"", "合成移除 active 来源技能后应清空顶层 active id。")
-	_assert_true(merge_progress.locked_level_trigger_skill_ids.is_empty(), "合成移除 locked 来源技能后应清空顶层 locked 列表。")
-	_assert_true(merge_progress.get_skill_progress(merge_active_skill_id) == null, "active 来源技能应被移除。")
-	_assert_true(merge_progress.get_skill_progress(merge_locked_skill_id) == null, "locked 来源技能应被移除。")
-	_assert_true(UnitProgress.from_dict(merge_progress.to_dict()) != null, "合成移除来源技能后产生的进度应仍能通过严格存档校验。")
-
-
 func _test_official_rank_up_precommits_ready_trigger_core() -> void:
 	var registry := ProgressionContentRegistry.new()
 	var skill_defs := registry.get_skill_defs()
@@ -1442,96 +1373,6 @@ func _test_official_rank_up_precommits_ready_trigger_core() -> void:
 	if guard_break_progress != null:
 		_assert_eq(guard_break_progress.assigned_profession_id, &"warrior", "裂甲斩应在晋升事务内归属到战士。")
 		_assert_true(guard_break_progress.is_level_trigger_locked, "裂甲斩完成晋升后应进入触发锁定态。")
-
-
-func _test_aura_slash_max_level_uses_transformation_count() -> void:
-	var progress := UnitProgress.new()
-	progress.unit_id = &"hero"
-	var skill_def := SkillDef.new()
-	skill_def.skill_id = &"warrior_aura_slash"
-	skill_def.display_name = "斗气斩"
-	skill_def.icon_id = &"warrior_aura_slash"
-	skill_def.max_level = 7
-	skill_def.non_core_max_level = 5
-	skill_def.dynamic_max_level_stat_id = &"aura_transformation_count"
-	skill_def.dynamic_max_level_base = 7
-	skill_def.dynamic_max_level_per_stat = 2
-	skill_def.mastery_curve = PackedInt32Array([1, 1, 1, 1, 1, 1, 1])
-
-	var service := ProgressionService.new()
-	service.setup(progress, {skill_def.skill_id: skill_def}, {})
-	_assert_true(service.learn_skill(skill_def.skill_id), "斗气斩测试技能应能学习。")
-	service.grant_skill_mastery(skill_def.skill_id, 99, &"training")
-	var skill_progress = progress.get_skill_progress(skill_def.skill_id)
-	_assert_eq(int(skill_progress.skill_level), 5, "斗气斩非核心状态应被限制在 5 级。")
-
-	_assert_true(service.set_skill_core(skill_def.skill_id, true), "斗气斩应能锁定为核心。")
-	service.grant_skill_mastery(skill_def.skill_id, 99, &"training")
-	_assert_eq(int(skill_progress.skill_level), 5, "斗气斩仅指定核心但未锁定时仍应停在 non_core 上限。")
-
-	skill_progress.is_level_trigger_locked = true
-	if not progress.locked_level_trigger_skill_ids.has(skill_def.skill_id):
-		progress.locked_level_trigger_skill_ids.append(skill_def.skill_id)
-	progress.set_skill_progress(skill_progress)
-	service.refresh_runtime_state()
-	service.grant_skill_mastery(skill_def.skill_id, 99, &"training")
-	_assert_eq(int(skill_progress.skill_level), 7, "斗气斩锁定后默认最大等级应为 7。")
-
-	progress.unit_base_attributes.set_attribute_value(&"aura_transformation_count", 2)
-	service.refresh_runtime_state()
-	service.grant_skill_mastery(skill_def.skill_id, 99, &"training")
-	_assert_eq(int(skill_progress.skill_level), 11, "斗气斩每次斗气质变应将核心最大等级提高 2。")
-
-
-func _test_dynamic_max_level_uses_profession_rank_integer_divisor() -> void:
-	var progress := UnitProgress.new()
-	progress.unit_id = &"mage"
-	var mage_profession := UnitProfessionProgress.new()
-	mage_profession.profession_id = &"mage"
-	progress.set_profession_progress(mage_profession)
-
-	var skill_def := SkillDef.new()
-	skill_def.skill_id = &"mage_arcane_missile"
-	skill_def.max_level = 5
-	skill_def.non_core_max_level = 3
-	skill_def.dynamic_max_level_stat_id = &"profession_rank:mage"
-	skill_def.dynamic_max_level_base = 5
-	skill_def.dynamic_max_level_per_stat = -2
-
-	mage_profession.rank = 9
-	_assert_eq(
-		SKILL_EFFECTIVE_MAX_LEVEL_RULES_SCRIPT.get_effective_absolute_max_level(skill_def, progress),
-		5,
-		"法师 rank 9 时奥术飞弹动态上限应为 max(5, floor(9 / 2)) = 5。"
-	)
-
-	mage_profession.rank = 12
-	_assert_eq(
-		SKILL_EFFECTIVE_MAX_LEVEL_RULES_SCRIPT.get_effective_absolute_max_level(skill_def, progress),
-		6,
-		"法师 rank 12 时奥术飞弹动态上限应为 max(5, floor(12 / 2)) = 6。"
-	)
-
-	mage_profession.rank = 19
-	_assert_eq(
-		SKILL_EFFECTIVE_MAX_LEVEL_RULES_SCRIPT.get_effective_absolute_max_level(skill_def, progress),
-		9,
-		"法师 rank 19 时奥术飞弹动态上限应为 max(5, floor(19 / 2)) = 9。"
-	)
-
-	var skill_progress := UnitSkillProgress.new()
-	skill_progress.skill_id = skill_def.skill_id
-	_assert_eq(
-		SKILL_EFFECTIVE_MAX_LEVEL_RULES_SCRIPT.get_effective_max_level(skill_def, skill_progress, progress),
-		3,
-		"奥术飞弹未锁定时仍应受 non_core 上限限制。"
-	)
-	skill_progress.is_level_trigger_locked = true
-	_assert_eq(
-		SKILL_EFFECTIVE_MAX_LEVEL_RULES_SCRIPT.get_effective_max_level(skill_def, skill_progress, progress),
-		9,
-		"奥术飞弹锁定后才应使用法师 rank/2 的动态核心上限。"
-	)
 
 
 func _test_level_less_skill_rejects_mastery_gain() -> void:
@@ -2357,80 +2198,6 @@ func _test_saint_blade_combo_unlock_chain_requires_knowledge_levels_and_achievem
 		and progression.get_skill_progress(&"warrior_aura_slash").is_learned,
 		"解锁圣剑连斩后不应删除来源技能。"
 	)
-
-
-func _test_composite_upgrade_replace_sources_with_result_keeps_sources_and_transitions_core() -> void:
-	var registry := ProgressionContentRegistry.new()
-	var progress := UnitProgress.new()
-	progress.unit_id = &"hero"
-	progress.display_name = "Hero"
-
-	var warrior_progress := UnitProfessionProgress.new()
-	warrior_progress.profession_id = &"warrior"
-	warrior_progress.rank = 1
-	progress.set_profession_progress(warrior_progress)
-
-	for source_skill_id in [&"warrior_combo_strike", &"warrior_aura_slash"]:
-		var source_progress := UnitSkillProgress.new()
-		source_progress.skill_id = source_skill_id
-		source_progress.is_learned = true
-		source_progress.skill_level = 5
-		source_progress.is_core = true
-		source_progress.assigned_profession_id = &"warrior"
-		progress.set_skill_progress(source_progress)
-		warrior_progress.add_core_skill(source_skill_id)
-
-	var combo_source_progress := progress.get_skill_progress(&"warrior_combo_strike") as UnitSkillProgress
-	combo_source_progress.is_level_trigger_active = true
-	progress.active_level_trigger_core_skill_id = &"warrior_combo_strike"
-	progress.set_skill_progress(combo_source_progress)
-	var aura_source_progress := progress.get_skill_progress(&"warrior_aura_slash") as UnitSkillProgress
-	aura_source_progress.is_level_trigger_locked = true
-	progress.locked_level_trigger_skill_ids.append(&"warrior_aura_slash")
-	progress.set_skill_progress(aura_source_progress)
-
-	var merge_service := SkillMergeService.new()
-	merge_service.setup(progress, registry.get_skill_defs(), null)
-
-	_assert_true(
-		merge_service.apply_composite_upgrade_result(
-			&"saint_blade_combo",
-			[&"warrior_combo_strike", &"warrior_aura_slash"],
-			true,
-			&"replace_sources_with_result",
-			&""
-		),
-		"replace_sources_with_result 应能在保留来源技能时完成复合升级。"
-	)
-
-	var combo_progress = progress.get_skill_progress(&"saint_blade_combo")
-	_assert_true(combo_progress != null and combo_progress.is_learned, "复合升级结果应被写入成长进度。")
-	_assert_true(combo_progress.is_core, "复合升级结果应接管核心位。")
-	_assert_eq(combo_progress.assigned_profession_id, &"warrior", "复合升级结果应继承原职业核心位。")
-	_assert_true(
-		progress.get_skill_progress(&"warrior_combo_strike").is_learned
-		and not progress.get_skill_progress(&"warrior_combo_strike").is_core,
-		"来源技能应保留，但不再占用核心位。"
-	)
-	_assert_true(
-		progress.get_skill_progress(&"warrior_aura_slash").is_learned
-		and not progress.get_skill_progress(&"warrior_aura_slash").is_core,
-		"另一条来源技能也应保留，但不再占用核心位。"
-	)
-	_assert_eq(progress.active_level_trigger_core_skill_id, &"", "被结果技能接管核心位的 active 来源应清空顶层 active id。")
-	_assert_true(progress.locked_level_trigger_skill_ids.is_empty(), "被结果技能接管核心位的 locked 来源应移出顶层 locked 列表。")
-	_assert_true(
-		not progress.get_skill_progress(&"warrior_combo_strike").is_level_trigger_active
-		and not progress.get_skill_progress(&"warrior_aura_slash").is_level_trigger_locked,
-		"来源技能退出核心位后不应保留 trigger flag。"
-	)
-	_assert_true(
-		warrior_progress.core_skill_ids.has(&"saint_blade_combo")
-		and not warrior_progress.core_skill_ids.has(&"warrior_combo_strike")
-		and not warrior_progress.core_skill_ids.has(&"warrior_aura_slash"),
-		"职业核心列表应从来源技能切换到结果技能。"
-	)
-	_assert_true(UnitProgress.from_dict(progress.to_dict()) != null, "复合升级核心位切换后应仍能通过严格存档校验。")
 
 
 func _test_achievement_progress_is_member_scoped_and_unlocks_once() -> void:

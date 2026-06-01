@@ -296,9 +296,9 @@ public partial class run_settlement_forge_service_regression : SceneTree
         runtime._world_map_data_context.active_world_data = worldData;
         runtime._world_map_data_context.settlements_by_id["forge_town"] = settlementRecord;
         runtime._fog_system.setup(new Vector2I(8, 8));
-        runtime._fog_system.rebuild_visibility_for_faction(
+        runtime._fog_system.RebuildVisibilityForFaction(
             "player",
-            new GArray { new VisionSourceData("test_forge_visibility", Vector2I.Zero, 1, "player") }
+            new[] { new VisionSourceData("test_forge_visibility", Vector2I.Zero, 1, "player") }
         );
         runtime._character_management.setup(
             partyState,

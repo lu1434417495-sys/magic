@@ -25,14 +25,17 @@ public partial class LoginScreen : Control
 
     public bool _is_transitioning;
     public DisplaySettingsService _display_settings_service;
-    public GDictionary _display_settings = new();
+    public DisplaySettingsService.DisplaySettings _display_settings = new(
+        DisplaySettingsService.DEFAULT_WINDOWED_RESOLUTION,
+        false
+    );
     public StringName _pending_start_type = "";
     public StringName _pending_preset_id = "";
 
     public override void _Ready()
     {
         _display_settings_service = new DisplaySettingsService();
-        _display_settings = _display_settings_service.load_and_apply(GetWindow());
+        _display_settings = _display_settings_service.LoadAndApply(GetWindow());
 
         start_button = GetNode<Button>("%StartButton");
         test_button = GetNode<Button>("%TestButton");
@@ -55,7 +58,7 @@ public partial class LoginScreen : Control
         display_settings_window.settings_apply_requested += _on_display_settings_apply_requested;
         display_settings_window.cancelled += _on_display_settings_cancelled;
         display_settings_window.configure_options(
-            _display_settings_service.list_resolution_options()
+            _display_settings_service.ListResolutionOptions()
         );
         character_creation_window.character_confirmed += _on_character_creation_confirmed;
         character_creation_window.cancelled += _on_character_creation_cancelled;
@@ -136,11 +139,11 @@ public partial class LoginScreen : Control
             return;
 
         var presets = new GDictionaryArray();
-        foreach (GDictionary presetData in WorldPresetRegistry.list_presets())
+        foreach (WorldPresetRegistry.WorldPresetInfo presetData in WorldPresetRegistry.ListPresetsTyped())
         {
-            if (DictStringName(presetData, "preset_id") == TEST_PRESET_ID)
+            if (presetData.PresetId == TEST_PRESET_ID)
                 continue;
-            presets.Add(presetData);
+            presets.Add(presetData.ToDictionary());
         }
 
         if (presets.Count == 0)
@@ -253,13 +256,14 @@ public partial class LoginScreen : Control
         _show_idle_status();
     }
 
-    public void _on_display_settings_apply_requested(GDictionary settings)
+    public void _on_display_settings_apply_requested(Vector2I resolution, bool fullscreen)
     {
-        _display_settings = _display_settings_service.apply_settings(settings, GetWindow());
-        Error saveError = _display_settings_service.save_settings(_display_settings);
+        var requestedSettings = new DisplaySettingsService.DisplaySettings(resolution, fullscreen);
+        _display_settings = _display_settings_service.ApplySettings(requestedSettings, GetWindow());
+        Error saveError = _display_settings_service.SaveSettings(_display_settings);
         status_label.Text =
             saveError == Error.Ok
-                ? $"显示设置已应用：{_display_settings_service.describe_settings(_display_settings)}。"
+                ? $"显示设置已应用：{_display_settings_service.DescribeSettings(_display_settings)}。"
                 : "显示设置已应用，但本地保存失败。";
         start_button.GrabFocus();
     }
@@ -278,14 +282,13 @@ public partial class LoginScreen : Control
         if (!_validate_start_scene_path())
             return;
 
-        GDictionary presetData = WorldPresetRegistry.get_preset(preset_id);
-        if (presetData.Count == 0)
+        if (!WorldPresetRegistry.TryGetPresetTyped(preset_id, out var presetData))
         {
             _show_error("未找到对应的世界预设。");
             return;
         }
 
-        string generationConfigPath = DictString(presetData, "generation_config_path", "");
+        string generationConfigPath = presetData.GenerationConfigPath;
         if (string.IsNullOrEmpty(generationConfigPath))
         {
             _show_error("世界预设缺少生成配置路径。");
@@ -293,7 +296,9 @@ public partial class LoginScreen : Control
         }
 
         _set_transition_state(true);
-        string presetName = DictString(presetData, "display_name", "世界");
+        string presetName = string.IsNullOrEmpty(presetData.DisplayName)
+            ? "世界"
+            : presetData.DisplayName;
         status_label.Text = $"正在创建 {presetName} 存档并进入游戏...";
 
         Error sessionError = CreateSaveForPreset(preset_id, character_creation_payload);
@@ -320,11 +325,10 @@ public partial class LoginScreen : Control
     private Error CreateSaveForPreset(StringName preset_id, GDictionary character_creation_payload)
     {
         character_creation_payload ??= new GDictionary();
-        GDictionary presetData = WorldPresetRegistry.get_preset(preset_id);
-        if (presetData.Count == 0)
+        if (!WorldPresetRegistry.TryGetPresetTyped(preset_id, out var presetData))
             return Error.DoesNotExist;
 
-        string generationConfigPath = DictString(presetData, "generation_config_path", "");
+        string generationConfigPath = presetData.GenerationConfigPath;
         if (string.IsNullOrEmpty(generationConfigPath))
             return Error.InvalidData;
 
@@ -336,7 +340,7 @@ public partial class LoginScreen : Control
             gameSession.create_new_save(
                 generationConfigPath,
                 preset_id,
-                DictString(presetData, "display_name", "世界"),
+                string.IsNullOrEmpty(presetData.DisplayName) ? "世界" : presetData.DisplayName,
                 character_creation_payload
             );
     }
@@ -406,30 +410,6 @@ public partial class LoginScreen : Control
         if (tree?.Root == null)
             return null;
         return tree.Root.GetNodeOrNull<GameSession>("GameSession");
-    }
-
-    private static string DictString(GDictionary dict, string key, string defaultValue)
-    {
-        if (!TryRead(dict, key, out Variant value))
-            return defaultValue;
-        return value.VariantType switch
-        {
-            Variant.Type.String => value.AsString(),
-            Variant.Type.StringName => value.AsStringName().ToString(),
-            _ => defaultValue,
-        };
-    }
-
-    private static StringName DictStringName(GDictionary dict, string key)
-    {
-        if (!TryRead(dict, key, out Variant value))
-            return "";
-        return value.VariantType switch
-        {
-            Variant.Type.StringName => value.AsStringName(),
-            Variant.Type.String => new StringName(value.AsString()),
-            _ => new StringName(""),
-        };
     }
 
     private static bool DictBool(GDictionary dict, string key, bool defaultValue)

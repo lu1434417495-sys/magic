@@ -1,18 +1,16 @@
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
+using System.Collections.Generic;
 
-[GlobalClass]
-public partial class WildEncounterGrowthSystem : RefCounted
+public sealed class WildEncounterGrowthSystem
 {
-    public bool apply_step_advance(
-        GDictionary world_data,
+    public bool ApplyStepAdvance(
+        IEnumerable<EncounterAnchorData> encounterAnchors,
         int old_step,
         int new_step,
-        GDictionary encounter_rosters
+        IReadOnlyDictionary<StringName, WildEncounterRosterDef> encounterRosters
     )
     {
-        if (world_data == null || encounter_rosters == null || encounter_rosters.Count == 0)
+        if (encounterAnchors == null || encounterRosters == null || encounterRosters.Count == 0)
         {
             return false;
         }
@@ -22,10 +20,8 @@ public partial class WildEncounterGrowthSystem : RefCounted
         }
 
         var changed = false;
-        var encounterAnchors = GetEncounterAnchors(world_data);
-        foreach (var encounterValue in encounterAnchors)
+        foreach (EncounterAnchorData encounter in encounterAnchors)
         {
-            var encounter = encounterValue.AsGodotObject() as EncounterAnchorData;
             if (
                 encounter == null
                 || encounter.encounter_kind != EncounterAnchorData.ENCOUNTER_KIND_SETTLEMENT()
@@ -34,7 +30,7 @@ public partial class WildEncounterGrowthSystem : RefCounted
                 continue;
             }
 
-            var roster = GetRoster(encounter_rosters, encounter.encounter_profile_id);
+            var roster = GetRoster(encounterRosters, encounter.encounter_profile_id);
             if (roster == null)
             {
                 continue;
@@ -63,10 +59,10 @@ public partial class WildEncounterGrowthSystem : RefCounted
         return changed;
     }
 
-    public bool apply_battle_victory(
+    public bool ApplyBattleVictory(
         EncounterAnchorData encounter_anchor,
         int world_step,
-        GDictionary encounter_rosters
+        IReadOnlyDictionary<StringName, WildEncounterRosterDef> encounterRosters
     )
     {
         if (
@@ -76,12 +72,12 @@ public partial class WildEncounterGrowthSystem : RefCounted
         {
             return false;
         }
-        if (encounter_rosters == null || encounter_rosters.Count == 0)
+        if (encounterRosters == null || encounterRosters.Count == 0)
         {
             return false;
         }
 
-        var roster = GetRoster(encounter_rosters, encounter_anchor.encounter_profile_id);
+        var roster = GetRoster(encounterRosters, encounter_anchor.encounter_profile_id);
         if (roster == null)
         {
             return false;
@@ -97,25 +93,15 @@ public partial class WildEncounterGrowthSystem : RefCounted
         return true;
     }
 
-    private static GArray GetEncounterAnchors(GDictionary worldData)
-    {
-        if (!worldData.ContainsKey("encounter_anchors"))
-        {
-            return new GArray();
-        }
-        var anchors = worldData["encounter_anchors"];
-        return anchors.VariantType == Variant.Type.Array ? anchors.AsGodotArray() : new GArray();
-    }
-
     private static WildEncounterRosterDef GetRoster(
-        GDictionary encounterRosters,
+        IReadOnlyDictionary<StringName, WildEncounterRosterDef> encounterRosters,
         StringName encounterProfileId
     )
     {
-        if (!encounterRosters.ContainsKey(encounterProfileId))
+        if (encounterProfileId == "" || !encounterRosters.ContainsKey(encounterProfileId))
         {
             return null;
         }
-        return encounterRosters[encounterProfileId].AsGodotObject() as WildEncounterRosterDef;
+        return encounterRosters[encounterProfileId];
     }
 }

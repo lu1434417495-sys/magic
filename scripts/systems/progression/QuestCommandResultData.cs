@@ -13,10 +13,10 @@ internal sealed class QuestSubmitItemResultData
     public readonly int TargetValue;
     public readonly int RequiredQuantity;
     public readonly int SubmittedQuantity;
-    private readonly GStringNameArray _acceptedQuestIds;
-    private readonly GStringNameArray _progressedQuestIds;
-    private readonly GStringNameArray _claimableQuestIds;
-    private readonly GStringNameArray _completedQuestIds;
+    private readonly List<StringName> _acceptedQuestIds;
+    private readonly List<StringName> _progressedQuestIds;
+    private readonly List<StringName> _claimableQuestIds;
+    private readonly List<StringName> _completedQuestIds;
 
     private QuestSubmitItemResultData(
         bool ok,
@@ -26,10 +26,10 @@ internal sealed class QuestSubmitItemResultData
         int targetValue,
         int requiredQuantity,
         int submittedQuantity,
-        GStringNameArray acceptedQuestIds,
-        GStringNameArray progressedQuestIds,
-        GStringNameArray claimableQuestIds,
-        GStringNameArray completedQuestIds
+        IEnumerable<StringName> acceptedQuestIds,
+        IEnumerable<StringName> progressedQuestIds,
+        IEnumerable<StringName> claimableQuestIds,
+        IEnumerable<StringName> completedQuestIds
     )
     {
         Ok = ok;
@@ -39,10 +39,10 @@ internal sealed class QuestSubmitItemResultData
         TargetValue = Mathf.Max(targetValue, 0);
         RequiredQuantity = Mathf.Max(requiredQuantity, 0);
         SubmittedQuantity = Mathf.Max(submittedQuantity, 0);
-        _acceptedQuestIds = CloneStringNameArray(acceptedQuestIds);
-        _progressedQuestIds = CloneStringNameArray(progressedQuestIds);
-        _claimableQuestIds = CloneStringNameArray(claimableQuestIds);
-        _completedQuestIds = CloneStringNameArray(completedQuestIds);
+        _acceptedQuestIds = CloneStringNameList(acceptedQuestIds);
+        _progressedQuestIds = CloneStringNameList(progressedQuestIds);
+        _claimableQuestIds = CloneStringNameList(claimableQuestIds);
+        _completedQuestIds = CloneStringNameList(completedQuestIds);
     }
 
     public bool ContainsClaimableQuest(StringName questId) =>
@@ -58,10 +58,10 @@ internal sealed class QuestSubmitItemResultData
             ["target_value"] = TargetValue,
             ["required_quantity"] = RequiredQuantity,
             ["submitted_quantity"] = SubmittedQuantity,
-            ["accepted_quest_ids"] = CloneStringNameArray(_acceptedQuestIds),
-            ["progressed_quest_ids"] = CloneStringNameArray(_progressedQuestIds),
-            ["claimable_quest_ids"] = CloneStringNameArray(_claimableQuestIds),
-            ["completed_quest_ids"] = CloneStringNameArray(_completedQuestIds),
+            ["accepted_quest_ids"] = ToStringNameArray(_acceptedQuestIds),
+            ["progressed_quest_ids"] = ToStringNameArray(_progressedQuestIds),
+            ["claimable_quest_ids"] = ToStringNameArray(_claimableQuestIds),
+            ["completed_quest_ids"] = ToStringNameArray(_completedQuestIds),
         };
 
     public static QuestSubmitItemResultData Success(
@@ -70,10 +70,10 @@ internal sealed class QuestSubmitItemResultData
         int targetValue,
         int requiredQuantity,
         int submittedQuantity,
-        GStringNameArray acceptedQuestIds,
-        GStringNameArray progressedQuestIds,
-        GStringNameArray claimableQuestIds,
-        GStringNameArray completedQuestIds
+        IEnumerable<StringName> acceptedQuestIds,
+        IEnumerable<StringName> progressedQuestIds,
+        IEnumerable<StringName> claimableQuestIds,
+        IEnumerable<StringName> completedQuestIds
     ) =>
         new(
             true,
@@ -110,7 +110,7 @@ internal sealed class QuestSubmitItemResultData
             new GStringNameArray()
         );
 
-    private static bool ContainsStringName(GStringNameArray values, StringName target)
+    private static bool ContainsStringName(List<StringName> values, StringName target)
     {
         if (values == null || target == "")
             return false;
@@ -122,7 +122,17 @@ internal sealed class QuestSubmitItemResultData
         return false;
     }
 
-    private static GStringNameArray CloneStringNameArray(GStringNameArray values)
+    private static List<StringName> CloneStringNameList(IEnumerable<StringName> values)
+    {
+        var result = new List<StringName>();
+        if (values == null)
+            return result;
+        foreach (var value in values)
+            result.Add(value);
+        return result;
+    }
+
+    private static GStringNameArray ToStringNameArray(IEnumerable<StringName> values)
     {
         var result = new GStringNameArray();
         if (values == null)
@@ -140,7 +150,7 @@ internal sealed class QuestClaimResultData
     public readonly int GoldDelta;
     private readonly GArray _itemRewards;
     private readonly GArray _pendingCharacterRewards;
-    private readonly GStringNameArray _unsupportedRewardTypes;
+    private readonly List<StringName> _unsupportedRewardTypes;
 
     private QuestClaimResultData(
         bool ok,
@@ -148,7 +158,7 @@ internal sealed class QuestClaimResultData
         int goldDelta,
         GArray itemRewards,
         GArray pendingCharacterRewards,
-        GStringNameArray unsupportedRewardTypes
+        IEnumerable<StringName> unsupportedRewardTypes
     )
     {
         Ok = ok;
@@ -157,7 +167,7 @@ internal sealed class QuestClaimResultData
         _itemRewards = itemRewards != null ? itemRewards.Duplicate(true) : new GArray();
         _pendingCharacterRewards =
             pendingCharacterRewards != null ? pendingCharacterRewards.Duplicate(true) : new GArray();
-        _unsupportedRewardTypes = CloneStringNameArray(unsupportedRewardTypes);
+        _unsupportedRewardTypes = CloneStringNameList(unsupportedRewardTypes);
     }
 
     public GArray CloneItemRewards() => _itemRewards.Duplicate(true);
@@ -215,7 +225,7 @@ internal sealed class QuestClaimResultData
 
     public static QuestClaimResultData Failed(
         string errorCode,
-        GStringNameArray unsupportedRewardTypes = null
+        IEnumerable<StringName> unsupportedRewardTypes = null
     ) =>
         new(
             false,
@@ -226,7 +236,17 @@ internal sealed class QuestClaimResultData
             unsupportedRewardTypes
         );
 
-    private static GStringNameArray CloneStringNameArray(GStringNameArray values)
+    private static List<StringName> CloneStringNameList(IEnumerable<StringName> values)
+    {
+        var result = new List<StringName>();
+        if (values == null)
+            return result;
+        foreach (var value in values)
+            result.Add(value);
+        return result;
+    }
+
+    private static GStringNameArray CloneStringNameArray(IEnumerable<StringName> values)
     {
         var result = new GStringNameArray();
         if (values == null)

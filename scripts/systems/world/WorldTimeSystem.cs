@@ -1,40 +1,12 @@
-using Godot;
-using GDictionary = Godot.Collections.Dictionary;
+using System;
 
-[GlobalClass]
-public partial class WorldTimeSystem : RefCounted
+public sealed class WorldTimeSystem
 {
     public const int STEPS_PER_DAY = 15;
-
-    public int get_world_step(GDictionary world_data)
-    {
-        return HasValidWorldStep(world_data) ? world_data["world_step"].AsInt32() : -1;
-    }
-
-    public int get_world_day(GDictionary world_data)
-    {
-        int step = get_world_step(world_data);
-        return step < 0 ? -1 : step / STEPS_PER_DAY;
-    }
 
     public static int step_to_day(int world_step)
     {
         return world_step < 0 ? -1 : world_step / STEPS_PER_DAY;
-    }
-
-    public GDictionary advance(GDictionary world_data, int delta_steps)
-    {
-        return AdvanceWorldData(world_data, delta_steps).ToDictionary();
-    }
-
-    internal WorldTimeAdvanceResult AdvanceWorldData(GDictionary worldData, int deltaSteps)
-    {
-        WorldTimeAdvanceResult result = AdvanceWorldStep(get_world_step(worldData), deltaSteps);
-        if (result.IsValid && worldData != null)
-        {
-            worldData["world_step"] = result.new_step;
-        }
-        return result;
     }
 
     internal static WorldTimeAdvanceResult AdvanceWorldStep(int oldStep, int deltaSteps)
@@ -45,7 +17,7 @@ public partial class WorldTimeSystem : RefCounted
         }
 
         int oldDay = step_to_day(oldStep);
-        int nextStep = oldStep + Mathf.Max(deltaSteps, 0);
+        int nextStep = oldStep + Math.Max(deltaSteps, 0);
         int newDay = step_to_day(nextStep);
         return new WorldTimeAdvanceResult(
             oldStep,
@@ -56,16 +28,6 @@ public partial class WorldTimeSystem : RefCounted
             newDay != oldDay,
             newDay - oldDay
         );
-    }
-
-    private static bool HasValidWorldStep(GDictionary worldData)
-    {
-        if (worldData == null || !worldData.ContainsKey("world_step"))
-        {
-            return false;
-        }
-        return worldData["world_step"].VariantType == Variant.Type.Int
-            && worldData["world_step"].AsInt32() >= 0;
     }
 }
 
@@ -117,22 +79,4 @@ internal sealed class WorldTimeAdvanceResult
         );
     }
 
-    public GDictionary ToDictionary()
-    {
-        var result = new GDictionary
-        {
-            ["old_step"] = old_step,
-            ["new_step"] = new_step,
-            ["old_day"] = old_day,
-            ["new_day"] = new_day,
-            ["changed"] = changed,
-            ["day_changed"] = day_changed,
-            ["days_elapsed"] = days_elapsed,
-        };
-        if (!IsValid)
-        {
-            result["error_code"] = error_code;
-        }
-        return result;
-    }
 }

@@ -2,13 +2,62 @@ using System;
 using Godot;
 using Godot.Collections;
 
-[GlobalClass]
-public partial class GameRuntimeCommandLogger : RefCounted
+public sealed class GameRuntimeCommandLogger
 {
     private WeakReference<GameRuntimeFacade> _runtimeRef;
-    private Dictionary _previousCommandLogScope = new();
-    private string _activeLoggedCommandDomain = "";
-    private bool _hasOpenLoggedCommand;
+    private CommandLogScope _previousCommandLogScope = CommandLogScope.Empty();
+    private CommandLogScope _activeCommandLogScope = CommandLogScope.Empty();
+
+    private sealed class CommandLogScope
+    {
+        public string EventId { get; }
+        public string Domain { get; }
+        public Dictionary CommandArgs { get; }
+        public Dictionary BeforeState { get; }
+        public bool Logged { get; private set; }
+
+        public bool IsEmpty => string.IsNullOrEmpty(EventId) && string.IsNullOrEmpty(Domain);
+
+        private CommandLogScope(
+            string eventId,
+            string domain,
+            Dictionary commandArgs,
+            Dictionary beforeState,
+            bool logged
+        )
+        {
+            EventId = eventId ?? "";
+            Domain = domain ?? "";
+            CommandArgs = commandArgs?.Duplicate(true) ?? new Dictionary();
+            BeforeState = beforeState?.Duplicate(true) ?? new Dictionary();
+            Logged = logged;
+        }
+
+        public static CommandLogScope Empty() =>
+            new("", "", new Dictionary(), new Dictionary(), false);
+
+        public static CommandLogScope Create(
+            string eventId,
+            string domain,
+            Dictionary commandArgs,
+            Dictionary beforeState
+        ) => new(eventId, domain, commandArgs, beforeState, false);
+
+        public CommandLogScope Clone() =>
+            new(EventId, Domain, CommandArgs, BeforeState, Logged);
+
+        public Dictionary BuildContext() =>
+            new()
+            {
+                ["command_args"] = CommandArgs.Duplicate(true),
+                ["before"] = BeforeState.Duplicate(true),
+            };
+
+        public void MarkLogged()
+        {
+            Logged = true;
+        }
+    }
 
     private GameRuntimeFacade _runtime
     {
@@ -21,9 +70,11 @@ public partial class GameRuntimeCommandLogger : RefCounted
         _runtime = runtime;
     }
 
-    public new void Dispose()
+    public void Dispose()
     {
         _runtime = null;
+        _previousCommandLogScope = CommandLogScope.Empty();
+        _activeCommandLogScope = CommandLogScope.Empty();
     }
 
     public void BeginLoggedCommand(string eventId, string domain, Dictionary context)
@@ -74,9 +125,7 @@ public partial class GameRuntimeCommandLogger : RefCounted
 
     private void BeginLoggedCommandInternal(string eventId, string domain, Dictionary context)
     {
-        _previousCommandLogScope = _runtime._active_command_log_scope.Duplicate(true);
-        _activeLoggedCommandDomain = domain;
-        _hasOpenLoggedCommand = true;
+        _previousCommandLogScope = _activeCommandLogScope.Clone();
         var commandArgs = NormalizeLogValue(context) as Dictionary ?? new Dictionary();
         var beforeState = BuildRuntimeLogStateInternal();
 
@@ -85,50 +134,38 @@ public partial class GameRuntimeCommandLogger : RefCounted
             _runtime._pending_command_battle_batches.Clear();
         }
 
-        _runtime._active_command_log_scope = new Dictionary
-        {
-            ["event_id"] = eventId,
-            ["domain"] = domain,
-            ["context"] = new Dictionary
-            {
-                ["command_args"] = commandArgs,
-                ["before"] = beforeState,
-            },
-            ["logged"] = false,
-        };
+        _activeCommandLogScope = CommandLogScope.Create(eventId, domain, commandArgs, beforeState);
     }
 
     private Dictionary FinishLoggedCommandInternal(Dictionary result)
     {
         var resolvedResult = result ?? new Dictionary();
-        var currentScope = _runtime._active_command_log_scope;
-        if (!DictionaryBool(currentScope, "logged", false))
+        var currentScope = _activeCommandLogScope;
+        if (!currentScope.Logged)
             LogCommandResultInternal(currentScope, resolvedResult);
 
-        _runtime._active_command_log_scope = _previousCommandLogScope ?? new Dictionary();
+        _activeCommandLogScope = _previousCommandLogScope ?? CommandLogScope.Empty();
 
-        if (_activeLoggedCommandDomain == "battle")
+        if (currentScope.Domain == "battle")
             _runtime._pending_command_battle_batches.Clear();
 
-        _previousCommandLogScope = new Dictionary();
-        _activeLoggedCommandDomain = "";
-        _hasOpenLoggedCommand = false;
+        _previousCommandLogScope = CommandLogScope.Empty();
         return resolvedResult;
     }
 
     private void LogActiveCommandScopeResultInternal(Dictionary result)
     {
-        var scope = _runtime._active_command_log_scope;
-        if (scope.Count == 0)
+        var scope = _activeCommandLogScope;
+        if (scope == null || scope.IsEmpty)
             return;
-        if (DictionaryBool(scope, "logged", false))
+        if (scope.Logged)
             return;
         LogCommandResultInternal(scope, result);
     }
 
-    private void LogCommandResultInternal(Dictionary scope, Dictionary result)
+    private void LogCommandResultInternal(CommandLogScope scope, Dictionary result)
     {
-        if (scope.Count == 0)
+        if (scope == null || scope.IsEmpty)
             return;
 
         var resolvedResult = result ?? new Dictionary();
@@ -138,7 +175,7 @@ public partial class GameRuntimeCommandLogger : RefCounted
             "message",
             _runtime._current_status_message
         );
-        var logContext = DictionaryDictionary(scope, "context").Duplicate(true);
+        var logContext = scope.BuildContext();
         var afterState = BuildRuntimeLogStateInternal();
         logContext["runtime"] = afterState;
         logContext["ok"] = ok;
@@ -149,7 +186,7 @@ public partial class GameRuntimeCommandLogger : RefCounted
         if (!string.IsNullOrEmpty(battleRefreshMode))
             logContext["battle_refresh_mode"] = battleRefreshMode;
 
-        var scopeDomain = DictionaryString(scope, "domain");
+        var scopeDomain = scope.Domain;
         var pendingBatches = _runtime._pending_command_battle_batches;
         if (scopeDomain == "battle" && pendingBatches.Count > 0)
         {
@@ -163,14 +200,13 @@ public partial class GameRuntimeCommandLogger : RefCounted
 
         var eventLevel = ok ? "info" : "warn";
         var eventDomain = string.IsNullOrEmpty(scopeDomain) ? "runtime" : scopeDomain;
-        var eventId = DictionaryString(scope, "event_id", "runtime.command");
+        var eventId = string.IsNullOrEmpty(scope.EventId) ? "runtime.command" : scope.EventId;
         var eventMessage = !string.IsNullOrEmpty(message)
             ? message
             : (ok ? "命令成功。" : "命令失败。");
 
         LogRuntimeEventInternal(eventLevel, eventDomain, eventId, eventMessage, Json.Stringify(logContext));
-        scope["logged"] = true;
-        _runtime._active_command_log_scope = scope;
+        scope.MarkLogged();
     }
 
     private Dictionary BuildRuntimeLogStateInternal()

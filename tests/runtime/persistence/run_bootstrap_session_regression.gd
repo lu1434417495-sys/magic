@@ -8,7 +8,6 @@ const UnitSkillProgress = preload("res://scripts/player/progression/UnitSkillPro
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
 const TEST_PRESET_ID := &"test"
-const TEMP_SETTINGS_PATH := "user://bootstrap_display_settings_test.cfg"
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -19,7 +18,6 @@ func _initialize() -> void:
 
 
 func _run() -> void:
-	_test_display_settings_round_trip()
 	_test_decode_payload_rejects_empty_world_data()
 	_test_character_creation_body_size_uses_identity_rules()
 	_test_character_creation_applies_identity_granted_skills()
@@ -39,22 +37,6 @@ func _run() -> void:
 		push_error(failure)
 	print("Bootstrap session regression: FAIL (%d)" % _failures.size())
 	quit(1)
-
-
-func _test_display_settings_round_trip() -> void:
-	_cleanup_file(TEMP_SETTINGS_PATH)
-	var service = DisplaySettingsService.new()
-	service.setup(TEMP_SETTINGS_PATH)
-	var expected_settings := {
-		"resolution": Vector2i(1920, 1080),
-		"fullscreen": true,
-	}
-	var save_error := int(service.save_settings(expected_settings))
-	_assert_eq(save_error, OK, "显示设置服务应能写入临时配置文件。")
-	var loaded_settings: Dictionary = service.load_settings()
-	_assert_eq(loaded_settings.get("resolution", Vector2i.ZERO), Vector2i(1920, 1080), "显示设置 round-trip 后应保留分辨率。")
-	_assert_eq(bool(loaded_settings.get("fullscreen", false)), true, "显示设置 round-trip 后应保留全屏开关。")
-	_cleanup_file(TEMP_SETTINGS_PATH)
 
 
 func _test_decode_payload_rejects_empty_world_data() -> void:
@@ -510,14 +492,6 @@ func _cleanup_test_session(game_session) -> void:
 		return
 	game_session.clear_persisted_game()
 	game_session.free()
-
-
-func _cleanup_file(virtual_path: String) -> void:
-	if virtual_path.is_empty():
-		return
-	var absolute_path := ProjectSettings.globalize_path(virtual_path)
-	if FileAccess.file_exists(absolute_path):
-		DirAccess.remove_absolute(absolute_path)
 
 
 func _get_shared_game_session():

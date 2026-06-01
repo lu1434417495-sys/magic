@@ -107,6 +107,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
     private GDictionary _quest_defs = new();
     private GDictionary _progression_content_bundle = new();
     private Dictionary<StringName, SkillDef> _skill_def_index = new();
+    private Dictionary<StringName, ProfessionDef> _profession_def_index = new();
     private Dictionary<StringName, AchievementDef> _achievement_def_index = new();
     private Dictionary<StringName, ItemDef> _item_def_index = new();
     private Dictionary<StringName, RaceDef> _race_def_index = new();
@@ -234,6 +235,10 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         _quest_defs = quest_defs ?? new GDictionary();
         _progression_content_bundle = progression_content_bundle ?? new GDictionary();
         _skill_def_index = IndexContentDefs<SkillDef>(_skill_defs, skillDef => skillDef.skill_id);
+        _profession_def_index = IndexContentDefs<ProfessionDef>(
+            _profession_defs,
+            professionDef => professionDef.profession_id
+        );
         _achievement_def_index = IndexContentDefs<AchievementDef>(
             _achievement_defs,
             achievementDef => achievementDef.achievement_id
@@ -366,10 +371,10 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         return null;
     }
 
-    public AttributeSourceContext build_attribute_source_context(StringName member_id) =>
+    internal AttributeSourceContext build_attribute_source_context(StringName member_id) =>
         build_attribute_source_context(member_id, null);
 
-    public AttributeSourceContext build_attribute_source_context(
+    internal AttributeSourceContext build_attribute_source_context(
         StringName member_id,
         EquipmentState equipment_state_override
     )
@@ -380,8 +385,8 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             return context;
 
         context.unit_progress = member_state.progression;
-        context.skill_defs = _skill_defs;
-        context.profession_defs = _profession_defs;
+        context.skill_defs = new Dictionary<StringName, SkillDef>(_skill_def_index);
+        context.profession_defs = new Dictionary<StringName, ProfessionDef>(_profession_def_index);
         context.race_def = get_race_def_for_member(member_id);
         context.subrace_def = get_subrace_def_for_member(member_id);
         context.age_stage_rule = get_age_stage_rule_for_member(member_id);
@@ -393,19 +398,24 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         context.ascension_stage_def = get_ascension_stage_def_for_member(member_id);
         context.versatility_pick = member_state.versatility_pick;
         var equipment_state = equipment_state_override ?? member_state.equipment_state;
-        context.equipment_state = ToUntyped(
+        context.equipment_state = ToAttributeModifierList(
             _party_equipment_service.build_attribute_modifiers(equipment_state)
         );
-        context.stage_advancement_modifiers = ToUntyped(
-            _collect_active_stage_advancement_modifiers(member_state)
+        context.stage_advancement_modifiers = _collect_active_stage_advancement_modifiers(
+            member_state
         );
         return context;
     }
 
-    public PassiveSourceContext build_passive_source_context(StringName member_id) =>
+    PassiveSourceContext IBattleRuntimeCharacterGateway.build_passive_source_context(
+        StringName member_id,
+        UnitProgress progression_state
+    ) => build_passive_source_context(member_id, progression_state);
+
+    internal PassiveSourceContext build_passive_source_context(StringName member_id) =>
         build_passive_source_context(member_id, null);
 
-    public PassiveSourceContext build_passive_source_context(
+    internal PassiveSourceContext build_passive_source_context(
         StringName member_id,
         UnitProgress progression_state
     )
@@ -416,18 +426,12 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             member_state = member_state,
             unit_progress = progression_state ?? member_state?.progression,
         };
-        if (context.unit_progress != null)
-            context.skill_progress_by_id = context.unit_progress.skills;
         context.race_def = get_race_def_for_member(member_id);
         context.subrace_def = get_subrace_def_for_member(member_id);
-        context.trait_defs = _get_content_bucket("race_trait_defs", "race_trait");
         context.bloodline_def = get_bloodline_def_for_member(member_id);
         context.bloodline_stage_def = get_bloodline_stage_def_for_member(member_id);
         context.ascension_def = get_ascension_def_for_member(member_id);
         context.ascension_stage_def = get_ascension_stage_def_for_member(member_id);
-        context.stage_advancement_modifiers = ToUntyped(
-            _collect_active_stage_advancement_modifiers(member_state)
-        );
         return context;
     }
 
@@ -1381,6 +1385,18 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
     public bool unlock_achievement(StringName member_id, StringName achievement_id) =>
         unlock_achievement(member_id, achievement_id, new GDictionary());
 
+    public bool UnlockAchievement(
+        StringName memberId,
+        StringName achievementId,
+        string summaryText = ""
+    )
+    {
+        GDictionary meta = new();
+        if (!string.IsNullOrEmpty(summaryText))
+            meta["summary_text"] = summaryText;
+        return unlock_achievement(memberId, achievementId, meta);
+    }
+
     public bool unlock_achievement(
         StringName member_id,
         StringName achievement_id,
@@ -1944,7 +1960,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         if (category == "")
             return;
         member_state.body_size_category = category;
-        member_state.body_size = BodySizeRules.get_body_size_for_category(category);
+        member_state.body_size = BodySizeContentRules.GetBodySizeForCategory(category);
     }
 
     private StringName _resolve_body_size_category_for_member(PartyMemberState member_state)
@@ -1955,7 +1971,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         if (
             ascension_stage_def != null
             && ascension_stage_def.body_size_category_override != ""
-            && BodySizeRules.is_valid_body_size_category(
+            && BodySizeContentRules.IsValidBodySizeCategory(
                 ascension_stage_def.body_size_category_override
             )
         )
@@ -1964,13 +1980,13 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         if (
             subrace_def != null
             && subrace_def.body_size_category_override != ""
-            && BodySizeRules.is_valid_body_size_category(subrace_def.body_size_category_override)
+            && BodySizeContentRules.IsValidBodySizeCategory(subrace_def.body_size_category_override)
         )
             return subrace_def.body_size_category_override;
         var race_def = get_race_def_for_member(member_state.member_id);
         if (
             race_def != null
-            && BodySizeRules.is_valid_body_size_category(race_def.body_size_category)
+            && BodySizeContentRules.IsValidBodySizeCategory(race_def.body_size_category)
         )
             return race_def.body_size_category;
         return "";
@@ -2001,11 +2017,11 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         member_state.effective_age_stage_source_id = resolution?.SourceId ?? "";
     }
 
-    private Godot.Collections.Array<StageAdvancementModifier> _collect_active_stage_advancement_modifiers(
+    private List<StageAdvancementModifier> _collect_active_stage_advancement_modifiers(
         PartyMemberState member_state
     )
     {
-        var modifiers = new Godot.Collections.Array<StageAdvancementModifier>();
+        var modifiers = new List<StageAdvancementModifier>();
         if (member_state == null)
             return modifiers;
         foreach (var modifier_id in member_state.active_stage_advancement_modifier_ids)
@@ -4247,19 +4263,28 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         return false;
     }
 
-    private static GArray ToUntyped(Godot.Collections.Array<StageAdvancementModifier> values)
+    private static GArray ToUntyped(IEnumerable<StageAdvancementModifier> values)
     {
         var result = new GArray();
+        if (values == null)
+            return result;
         foreach (var value in values)
             result.Add(value);
         return result;
     }
 
-    private static GArray ToUntyped(Godot.Collections.Array<AttributeModifier> values)
+    private static List<AttributeModifier> ToAttributeModifierList(
+        Godot.Collections.Array<AttributeModifier> values
+    )
     {
-        var result = new GArray();
+        var result = new List<AttributeModifier>();
+        if (values == null)
+            return result;
         foreach (var value in values)
-            result.Add(value);
+        {
+            if (value != null)
+                result.Add(value);
+        }
         return result;
     }
 

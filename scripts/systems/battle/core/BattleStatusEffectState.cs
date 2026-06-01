@@ -25,6 +25,7 @@ public partial class BattleStatusEffectState : RefCounted
         "counts_as_debuff_override",
         "counts_as_debuff",
         "lock_counterattack",
+        "lock_crit",
         "main_skill_lock_other_debuff_count",
     };
 
@@ -41,6 +42,7 @@ public partial class BattleStatusEffectState : RefCounted
     public bool counts_as_debuff_override { get; set; }
     public bool counts_as_debuff { get; set; }
     public bool lock_counterattack { get; set; }
+    public bool lock_crit { get; set; }
     public int main_skill_lock_other_debuff_count { get; set; }
 
     public bool is_empty()
@@ -70,6 +72,7 @@ public partial class BattleStatusEffectState : RefCounted
             counts_as_debuff_override = counts_as_debuff_override,
             counts_as_debuff = counts_as_debuff,
             lock_counterattack = lock_counterattack,
+            lock_crit = lock_crit,
             main_skill_lock_other_debuff_count = main_skill_lock_other_debuff_count,
         };
     }
@@ -108,6 +111,10 @@ public partial class BattleStatusEffectState : RefCounted
         if (lock_counterattack)
         {
             payload["lock_counterattack"] = true;
+        }
+        if (lock_crit)
+        {
+            payload["lock_crit"] = true;
         }
         if (main_skill_lock_other_debuff_count > 0)
         {
@@ -234,6 +241,18 @@ public partial class BattleStatusEffectState : RefCounted
             }
         }
 
+        bool lockCritValue = false;
+        if (effectDict.ContainsKey("lock_crit"))
+        {
+            if (
+                !TryReadBoolField(effectDict, "lock_crit", out lockCritValue)
+                || !lockCritValue
+            )
+            {
+                return null;
+            }
+        }
+
         int mainSkillLockOtherDebuffCountValue = 0;
         if (effectDict.ContainsKey("main_skill_lock_other_debuff_count"))
         {
@@ -264,6 +283,7 @@ public partial class BattleStatusEffectState : RefCounted
             counts_as_debuff_override = countsAsDebuffOverrideValue,
             counts_as_debuff = countsAsDebuffValue,
             lock_counterattack = lockCounterattackValue,
+            lock_crit = lockCritValue,
             main_skill_lock_other_debuff_count = mainSkillLockOtherDebuffCountValue,
         };
     }

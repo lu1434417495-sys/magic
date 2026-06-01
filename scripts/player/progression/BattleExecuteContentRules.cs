@@ -1,7 +1,8 @@
 using Godot;
+using System;
+using System.Collections.Generic;
 
-[GlobalClass]
-public partial class BattleExecuteContentRules : RefCounted
+public static class BattleExecuteContentRules
 {
     private static readonly StringName EffectTypeExecute = "execute";
     private static readonly StringName SaveTagExecute = BattleSaveContentRules.SAVE_TAG_EXECUTE;
@@ -26,11 +27,12 @@ public partial class BattleExecuteContentRules : RefCounted
 
     public static string PARAM_SHIELD_GAIN_MULTIPLIER_PERCENT() => ParamShieldGainMultiplierPercent;
 
-    public static readonly Godot.Collections.Dictionary REQUIRED_PARAM_TYPES = new()
+    public static readonly IReadOnlyDictionary<string, Type> REQUIRED_PARAM_TYPES =
+        new Dictionary<string, Type>
     {
-        { ParamThresholdMaxHpRatioPercent, (long)Variant.Type.Int },
-        { ParamSoulFractureDurationTu, (long)Variant.Type.Int },
-        { ParamHealMultiplierPercent, (long)Variant.Type.Int },
-        { ParamShieldGainMultiplierPercent, (long)Variant.Type.Int },
+        { ParamThresholdMaxHpRatioPercent, typeof(int) },
+        { ParamSoulFractureDurationTu, typeof(int) },
+        { ParamHealMultiplierPercent, typeof(int) },
+        { ParamShieldGainMultiplierPercent, typeof(int) },
     };
 }

@@ -1,51 +1,91 @@
 using System.Collections.Generic;
 using Godot;
+using GDictionary = Godot.Collections.Dictionary;
+using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-[GlobalClass]
-public partial class CharacterCreationIdentityOptionService : RefCounted
+public static class CharacterCreationIdentityOptionService
 {
-    public static Godot.Collections.Array<StringName> collect_creation_race_ids(
-        ProgressionContentRegistry content_source
+    public static IReadOnlyList<StringName> CollectCreationRaceIds(
+        ProgressionContentRegistry contentSource
     )
     {
-        var ids = new Godot.Collections.Array<StringName>();
-        var raceDefs = content_source != null ? content_source.get_race_defs() : new Godot.Collections.Dictionary();
-        foreach (var raceId in SortedBucketIds(raceDefs))
+        var ids = new List<StringName>();
+        Dictionary<StringName, RaceDef> raceDefs = ReadBucket<RaceDef>(
+            contentSource?.get_race_defs()
+        );
+        foreach (StringName raceId in SortedBucketIds(raceDefs))
         {
-            if (collect_subrace_ids_for_race(content_source, raceId).Count > 0)
+            if (CollectSubraceIdsForRace(contentSource, raceId).Count > 0)
                 ids.Add(raceId);
         }
         return ids;
     }
 
-    public static Godot.Collections.Array<StringName> collect_subrace_ids_for_race(
+    public static GStringNameArray collect_creation_race_ids(
+        ProgressionContentRegistry content_source
+    )
+    {
+        return ToStringNameArray(CollectCreationRaceIds(content_source));
+    }
+
+    public static IReadOnlyList<StringName> CollectSubraceIdsForRace(
+        ProgressionContentRegistry contentSource,
+        StringName raceId
+    )
+    {
+        var ids = new List<StringName>();
+        if (contentSource == null || raceId == "")
+            return ids;
+
+        Dictionary<StringName, RaceDef> raceDefs = ReadBucket<RaceDef>(
+            contentSource.get_race_defs()
+        );
+        if (!raceDefs.TryGetValue(raceId, out RaceDef raceDef) || raceDef == null)
+            return ids;
+
+        Dictionary<StringName, SubraceDef> subraceDefs = ReadBucket<SubraceDef>(
+            contentSource.get_subrace_defs()
+        );
+        var seen = new HashSet<StringName>();
+        foreach (StringName subraceId in raceDef.subrace_ids)
+        {
+            if (subraceId == "" || !seen.Add(subraceId))
+                continue;
+            if (
+                !subraceDefs.TryGetValue(subraceId, out SubraceDef subraceDef)
+                || subraceDef == null
+            )
+                continue;
+            if (subraceDef.parent_race_id != raceId)
+                continue;
+            if (!IsValidCreationRaceSubracePair(raceDefs, subraceDefs, raceId, subraceId))
+                continue;
+            ids.Add(subraceId);
+        }
+        SortStringNames(ids);
+        return ids;
+    }
+
+    public static GStringNameArray collect_subrace_ids_for_race(
         ProgressionContentRegistry content_source,
         StringName race_id
     )
     {
-        var ids = new Godot.Collections.Array<StringName>();
-        if (race_id == "")
-            return ids;
+        return ToStringNameArray(CollectSubraceIdsForRace(content_source, race_id));
+    }
 
-        var raceDef = LookupBucketEntry<RaceDef>(content_source.get_race_defs(), race_id);
-        if (raceDef == null)
-            return ids;
-
-        var subraceDefs = content_source.get_subrace_defs();
-        foreach (var subraceId in raceDef.subrace_ids)
-        {
-            if (subraceId == "" || ids.Contains(subraceId))
-                continue;
-            var subraceDef = LookupBucketEntry<SubraceDef>(subraceDefs, subraceId);
-            if (subraceDef == null)
-                continue;
-            if (subraceDef.parent_race_id != race_id)
-                continue;
-            if (!is_valid_creation_race_subrace_pair(content_source, race_id, subraceId))
-                continue;
-            ids.Add(subraceId);
-        }
-        return SortStringNames(ids);
+    public static StringName ChooseRaceId(
+        ProgressionContentRegistry contentSource,
+        StringName currentId,
+        StringName defaultId
+    )
+    {
+        IReadOnlyList<StringName> candidates = CollectCreationRaceIds(contentSource);
+        if (currentId != "" && ContainsId(candidates, currentId))
+            return currentId;
+        if (defaultId != "" && ContainsId(candidates, defaultId))
+            return defaultId;
+        return candidates.Count > 0 ? candidates[0] : new StringName("");
     }
 
     public static StringName choose_race_id(
@@ -54,11 +94,26 @@ public partial class CharacterCreationIdentityOptionService : RefCounted
         StringName default_id
     )
     {
-        var candidates = collect_creation_race_ids(content_source);
-        if (current_id != "" && candidates.Contains(current_id))
-            return current_id;
-        if (default_id != "" && candidates.Contains(default_id))
-            return default_id;
+        return ChooseRaceId(content_source, current_id, default_id);
+    }
+
+    public static StringName ChooseSubraceId(
+        ProgressionContentRegistry contentSource,
+        StringName raceId,
+        StringName currentId
+    )
+    {
+        IReadOnlyList<StringName> candidates = CollectSubraceIdsForRace(contentSource, raceId);
+        if (currentId != "" && ContainsId(candidates, currentId))
+            return currentId;
+
+        Dictionary<StringName, RaceDef> raceDefs = ReadBucket<RaceDef>(
+            contentSource?.get_race_defs()
+        );
+        raceDefs.TryGetValue(raceId, out RaceDef raceDef);
+        StringName defaultSubraceId = raceDef?.default_subrace_id ?? new StringName("");
+        if (defaultSubraceId != "" && ContainsId(candidates, defaultSubraceId))
+            return defaultSubraceId;
         return candidates.Count > 0 ? candidates[0] : new StringName("");
     }
 
@@ -68,15 +123,24 @@ public partial class CharacterCreationIdentityOptionService : RefCounted
         StringName current_id
     )
     {
-        var candidates = collect_subrace_ids_for_race(content_source, race_id);
-        if (current_id != "" && candidates.Contains(current_id))
-            return current_id;
+        return ChooseSubraceId(content_source, race_id, current_id);
+    }
 
-        var raceDef = LookupBucketEntry<RaceDef>(content_source.get_race_defs(), race_id);
-        var defaultSubraceId = raceDef?.default_subrace_id ?? new StringName("");
-        if (defaultSubraceId != "" && candidates.Contains(defaultSubraceId))
-            return defaultSubraceId;
-        return candidates.Count > 0 ? candidates[0] : new StringName("");
+    public static bool IsValidCreationRaceSubracePair(
+        ProgressionContentRegistry contentSource,
+        StringName raceId,
+        StringName subraceId
+    )
+    {
+        if (contentSource == null)
+            return false;
+
+        return IsValidCreationRaceSubracePair(
+            ReadBucket<RaceDef>(contentSource.get_race_defs()),
+            ReadBucket<SubraceDef>(contentSource.get_subrace_defs()),
+            raceId,
+            subraceId
+        );
     }
 
     public static bool is_valid_creation_race_subrace_pair(
@@ -85,95 +149,89 @@ public partial class CharacterCreationIdentityOptionService : RefCounted
         StringName subrace_id
     )
     {
-        if (content_source == null || race_id == "" || subrace_id == "")
-            return false;
-
-        var memberState = new PartyMemberState
-        {
-            member_id = "character_creation_candidate",
-            race_id = race_id,
-            subrace_id = subrace_id,
-            bloodline_id = "",
-            bloodline_stage_id = "",
-            ascension_id = "",
-            ascension_stage_id = "",
-        };
-        return IdentityPayloadValidator
-                .validate_member_identity_for_content_source(memberState, content_source)
-                .Count
-            == 0;
+        return IsValidCreationRaceSubracePair(content_source, race_id, subrace_id);
     }
 
-    private static Godot.Collections.Array<StringName> SortedBucketIds(
-        Godot.Collections.Dictionary bucket
+    private static bool IsValidCreationRaceSubracePair(
+        IReadOnlyDictionary<StringName, RaceDef> raceDefs,
+        IReadOnlyDictionary<StringName, SubraceDef> subraceDefs,
+        StringName raceId,
+        StringName subraceId
     )
     {
-        var ids = new Godot.Collections.Array<StringName>();
-        foreach (var key in bucket.Keys)
-        {
-            var id = new StringName(key.AsString());
-            if (id != "" && !ids.Contains(id))
-                ids.Add(id);
-        }
-        return SortStringNames(ids);
+        if (raceId == "" || subraceId == "")
+            return false;
+        if (!raceDefs.TryGetValue(raceId, out RaceDef raceDef) || raceDef == null)
+            return false;
+        if (!subraceDefs.TryGetValue(subraceId, out SubraceDef subraceDef) || subraceDef == null)
+            return false;
+        return subraceDef.parent_race_id == raceId && ContainsId(raceDef.subrace_ids, subraceId);
     }
 
-
-
-    private static T LookupBucketEntry<T>(Godot.Collections.Dictionary bucket, StringName defId)
+    private static Dictionary<StringName, T> ReadBucket<T>(GDictionary bucket)
         where T : class
     {
-        if (bucket == null || defId == "")
-            return null;
-        if (TryGetObject<T>(bucket, defId, out var v1) && v1 is T t1)
-            return t1;
-        if (TryGetObject<T>(bucket, (string)defId, out var v2) && v2 is T t2)
-            return t2;
-        return null;
+        var entries = new Dictionary<StringName, T>();
+        if (bucket == null)
+            return entries;
+
+        foreach (Variant rawKey in bucket.Keys)
+        {
+            StringName id = ToStringName(rawKey);
+            if (id == "" || entries.ContainsKey(id))
+                continue;
+            T value = ReadObject<T>(bucket[rawKey]);
+            if (value != null)
+                entries[id] = value;
+        }
+        return entries;
     }
 
-    private static Godot.Collections.Array<StringName> SortStringNames(
-        Godot.Collections.Array<StringName> ids
+    private static IReadOnlyList<StringName> SortedBucketIds<T>(
+        IReadOnlyDictionary<StringName, T> bucket
     )
     {
-        var values = new List<StringName>();
-        foreach (var id in ids)
-            values.Add(id);
-        values.Sort((left, right) => string.CompareOrdinal((string)left, (string)right));
+        var ids = new List<StringName>(bucket.Keys);
+        SortStringNames(ids);
+        return ids;
+    }
 
-        var result = new Godot.Collections.Array<StringName>();
-        foreach (var id in values)
+    private static void SortStringNames(List<StringName> ids)
+    {
+        ids.Sort((left, right) => string.CompareOrdinal((string)left, (string)right));
+    }
+
+    private static bool ContainsId(IEnumerable<StringName> ids, StringName targetId)
+    {
+        foreach (StringName id in ids)
+        {
+            if (id == targetId)
+                return true;
+        }
+        return false;
+    }
+
+    private static T ReadObject<T>(Variant rawValue)
+        where T : class
+    {
+        return rawValue.VariantType == Variant.Type.Object ? rawValue.AsGodotObject() as T : null;
+    }
+
+    private static StringName ToStringName(Variant rawKey)
+    {
+        return rawKey.VariantType switch
+        {
+            Variant.Type.StringName => rawKey.AsStringName(),
+            Variant.Type.String => new StringName(rawKey.AsString()),
+            _ => new StringName(rawKey.AsString()),
+        };
+    }
+
+    private static GStringNameArray ToStringNameArray(IEnumerable<StringName> ids)
+    {
+        var result = new GStringNameArray();
+        foreach (StringName id in ids)
             result.Add(id);
         return result;
-    }
-
-    private static bool TryGetObject<T>(
-        Godot.Collections.Dictionary dict,
-        StringName key,
-        out T value
-    ) where T : class
-    {
-        if (dict.ContainsKey(key))
-        {
-            value = dict[key].AsGodotObject() as T;
-            return value != null;
-        }
-        value = null;
-        return false;
-    }
-
-    private static bool TryGetObject<T>(
-        Godot.Collections.Dictionary dict,
-        string key,
-        out T value
-    ) where T : class
-    {
-        if (dict.ContainsKey(key))
-        {
-            value = dict[key].AsGodotObject() as T;
-            return value != null;
-        }
-        value = null;
-        return false;
     }
 }

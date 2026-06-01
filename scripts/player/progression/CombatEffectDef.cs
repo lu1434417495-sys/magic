@@ -212,6 +212,9 @@ public partial class CombatEffectDef : Resource
     public bool lock_counterattack { get; set; }
 
     [Export]
+    public bool lock_crit { get; set; }
+
+    [Export]
     public int main_skill_lock_other_debuff_count { get; set; }
 
     [Export]

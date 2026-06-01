@@ -14,6 +14,7 @@ const AscensionDef = preload("res://scripts/player/progression/AscensionDef.cs")
 const AscensionStageDef = preload("res://scripts/player/progression/AscensionStageDef.cs")
 const RacialGrantedSkill = preload("res://scripts/player/progression/RacialGrantedSkill.cs")
 const SkillDef = preload("res://scripts/player/progression/SkillDef.cs")
+const CombatEffectDef = preload("res://scripts/player/progression/CombatEffectDef.cs")
 const BodySizeRules = BODY_SIZE_RULES_SCRIPT
 
 const EXPECTED_RACE_IDS := [
@@ -335,7 +336,7 @@ func _test_official_titan_ascension_content(registry: ProgressionContentRegistry
 	_assert_eq(stage.body_size_category_override, &"large", "Titan avatar should override body size category to large.")
 	_assert_eq(
 		BodySizeRules.get_body_size_for_category(stage.body_size_category_override),
-		BodySizeRules.body_size_large()(),
+		BodySizeRules.BODY_SIZE_LARGE(),
 		"Titan avatar body_size int should derive from BodySizeRules large."
 	)
 	_assert_modifier(stage.attribute_modifiers, &"strength", 3, &"titan_avatar", &"ascension")
@@ -389,8 +390,8 @@ func _assert_titan_stomp_skill(skill_defs: Dictionary) -> void:
 	_assert_eq(combat_profile.area_value, 2, "Titan Stomp should affect a large radius.")
 	_assert_eq(combat_profile.effect_defs.size(), 2, "Titan Stomp should have damage and stagger effects.")
 	if combat_profile.effect_defs.size() >= 2:
-		var damage_effect := combat_profile.effect_defs[0]
-		var stagger_effect := combat_profile.effect_defs[1]
+		var damage_effect: CombatEffectDef = combat_profile.effect_defs[0] as CombatEffectDef
+		var stagger_effect: CombatEffectDef = combat_profile.effect_defs[1] as CombatEffectDef
 		_assert_eq(damage_effect.effect_type, &"damage", "Titan Stomp first effect should deal damage.")
 		_assert_eq(damage_effect.damage_tag, &"physical_blunt", "Titan Stomp damage should be blunt.")
 		_assert_eq(damage_effect.power, 10, "Titan Stomp damage should use expected power.")
@@ -411,7 +412,7 @@ func _assert_titan_domain_pressure_skill(skill_defs: Dictionary) -> void:
 	_assert_eq(combat_profile.area_value, 2, "Titan Domain Pressure should affect a domain-sized area.")
 	_assert_eq(combat_profile.effect_defs.size(), 1, "Titan Domain Pressure should have one status effect.")
 	if combat_profile.effect_defs.size() >= 1:
-		var slow_effect := combat_profile.effect_defs[0]
+		var slow_effect: CombatEffectDef = combat_profile.effect_defs[0] as CombatEffectDef
 		_assert_eq(slow_effect.effect_type, &"status", "Titan Domain Pressure effect should apply status.")
 		_assert_eq(slow_effect.status_id, &"slow", "Titan Domain Pressure should slow enemies.")
 		_assert_eq(slow_effect.duration_tu, 80, "Titan Domain Pressure slow should use expected duration.")
@@ -427,13 +428,13 @@ func _assert_titan_colossus_form_skill(skill_defs: Dictionary) -> void:
 	_assert_eq(combat_profile.target_selection_mode, &"self", "Titan Colossus Form should use self target selection.")
 	_assert_eq(combat_profile.effect_defs.size(), 1, "Titan Colossus Form should have one body size effect.")
 	if combat_profile.effect_defs.size() >= 1:
-		var body_size_effect := combat_profile.effect_defs[0]
+		var body_size_effect: CombatEffectDef = combat_profile.effect_defs[0] as CombatEffectDef
 		_assert_eq(body_size_effect.effect_type, &"body_size_category_override", "Titan Colossus Form should use the body size override effect.")
 		_assert_eq(body_size_effect.status_id, &"titan_giant_form", "Titan Colossus Form should track duration with titan_giant_form.")
 		_assert_eq(body_size_effect.body_size_category, &"huge", "Titan Colossus Form should temporarily become huge.")
 		_assert_eq(
 			BodySizeRules.get_body_size_for_category(body_size_effect.body_size_category),
-			BodySizeRules.body_size_huge()(),
+			BodySizeRules.BODY_SIZE_HUGE(),
 			"Titan Colossus Form body size int should derive from BodySizeRules huge."
 		)
 		_assert_eq(body_size_effect.duration_tu, 80, "Titan Colossus Form should use expected duration.")

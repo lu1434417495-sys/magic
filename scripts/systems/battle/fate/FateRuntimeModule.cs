@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -15,9 +16,11 @@ public partial class FateRuntimeModule : RefCounted
     private static readonly StringName CrownBreakSkillId = "crown_break";
     private static readonly StringName DoomSentenceSkillId = "doom_sentence";
     private static readonly StringName BlackCrownSealSkillId = "black_crown_seal";
+    private static readonly StringName FortuneMarkTargetStatId = "fortune_mark_target";
 
     private IBattleRuntimeCharacterGateway _characterGateway;
     private BattleRuntimeModule _battleRuntimeGateway;
+    private BattleFateEventBus _fateEventBus;
     private Func<StringName, BattleUnitState> _unitByMemberIdResolver;
     private FortuneService _fortuneService = new();
     private FortunaGuidanceService _fortunaGuidanceService = new();
@@ -37,23 +40,25 @@ public partial class FateRuntimeModule : RefCounted
         _unitByMemberIdResolver = unit_by_member_id_resolver;
 
         // Guidance must see the pre-mark state before FortuneService mutates fortune_marked on the same bus event.
-        _fortunaGuidanceService?.setup(_characterGateway, fate_event_bus);
-        _fortuneService?.setup(_characterGateway, fate_event_bus);
+        _fortunaGuidanceService?.Setup(_characterGateway);
+        _fortuneService?.Setup(_characterGateway);
+        _lowLuckEventService?.Setup(_characterGateway);
+        BindFateEventBusAdapters(fate_event_bus);
         _misfortuneService?.Setup(fate_event_bus, _unitByMemberIdResolver);
-        _lowLuckEventService?.Setup(_characterGateway, fate_event_bus);
         _misfortuneGuidanceService?.Setup(_characterGateway, _battleRuntimeGateway);
     }
 
     public void dispose()
     {
+        BindFateEventBusAdapters(null);
         _fortunaGuidanceService?.dispose();
-        if (_fortuneService != null)
-            _fortuneService.dispose();
+        _fortuneService?.Dispose();
         _misfortuneService?.dispose();
-        _lowLuckEventService?.dispose();
+        _lowLuckEventService?.Dispose();
         _misfortuneGuidanceService?.dispose();
         _characterGateway = null;
         _battleRuntimeGateway = null;
+        _fateEventBus = null;
         _unitByMemberIdResolver = null;
     }
 
@@ -162,35 +167,38 @@ public partial class FateRuntimeModule : RefCounted
         BattleResolutionResult battle_resolution_result
     )
     {
-        GDictionary lowLuckEventResult = new();
+        LowLuckEventResult lowLuckEventResult = new();
         if (_lowLuckEventService != null)
         {
             lowLuckEventResult = _lowLuckEventService.HandleBattleResolution(
-                battle_state,
-                battle_resolution_result
+                BuildLowLuckBattleResolutionInput(battle_state, battle_resolution_result)
             );
             MergeLowLuckBattleResultIntoResolution(battle_resolution_result, lowLuckEventResult);
         }
 
         Godot.Collections.Array<StringName> fortunaGuidanceUnlocks = new();
         if (_fortunaGuidanceService != null)
-            fortunaGuidanceUnlocks = _fortunaGuidanceService.handle_battle_resolution(
-                battle_state,
-                battle_resolution_result
+            fortunaGuidanceUnlocks = ToStringNameArray(
+                _fortunaGuidanceService.HandleBattleResolution(
+                    battle_state,
+                    battle_resolution_result
+                )
             );
 
         Godot.Collections.Array<StringName> misfortuneGuidanceUnlocks = new();
         if (_misfortuneGuidanceService != null)
-            misfortuneGuidanceUnlocks = _misfortuneGuidanceService.HandleBattleResolution(
-                battle_state,
-                battle_resolution_result
+            misfortuneGuidanceUnlocks = ToStringNameArray(
+                _misfortuneGuidanceService.HandleBattleResolution(
+                    battle_state,
+                    battle_resolution_result
+                )
             );
 
         return new GDictionary
         {
             ["fortuna_guidance_unlocks"] = fortunaGuidanceUnlocks,
             ["misfortune_guidance_unlocks"] = misfortuneGuidanceUnlocks,
-            ["low_luck_event_result"] = lowLuckEventResult,
+            ["low_luck_event_result"] = LowLuckEventResultToDictionary(lowLuckEventResult),
         };
     }
 
@@ -198,7 +206,11 @@ public partial class FateRuntimeModule : RefCounted
     {
         if (_fortunaGuidanceService == null)
             return new Godot.Collections.Array<StringName>();
-        return _fortunaGuidanceService.handle_chapter_completed(payload ?? new GDictionary());
+        return ToStringNameArray(
+            _fortunaGuidanceService.HandleChapterCompleted(
+                BuildFortunaChapterCompletionInput(payload ?? new GDictionary())
+            )
+        );
     }
 
     public Godot.Collections.Array<StringName> handle_misfortune_forge_result(
@@ -209,10 +221,12 @@ public partial class FateRuntimeModule : RefCounted
     {
         if (_misfortuneGuidanceService == null)
             return new Godot.Collections.Array<StringName>();
-        return _misfortuneGuidanceService.HandleForgeResult(
-            member_id,
-            result ?? new GDictionary(),
-            item_defs ?? new GDictionary()
+        return ToStringNameArray(
+            _misfortuneGuidanceService.HandleForgeResult(
+                member_id,
+                BuildMisfortuneForgeGuidanceInput(result ?? new GDictionary()),
+                BuildItemDefIndex(item_defs)
+            )
         );
     }
 
@@ -224,10 +238,12 @@ public partial class FateRuntimeModule : RefCounted
     {
         if (_misfortuneGuidanceService == null)
             return new Godot.Collections.Array<StringName>();
-        return _misfortuneGuidanceService.HandleForgeResult(
-            member_id,
-            result,
-            item_defs ?? new GDictionary()
+        return ToStringNameArray(
+            _misfortuneGuidanceService.HandleForgeResult(
+                member_id,
+                BuildMisfortuneForgeGuidanceInput(result),
+                BuildItemDefIndex(item_defs)
+            )
         );
     }
 
@@ -235,18 +251,66 @@ public partial class FateRuntimeModule : RefCounted
     {
         if (_lowLuckEventService == null)
             return new GDictionary();
-        return _lowLuckEventService.HandleSettlementAction(context ?? new GDictionary());
+        return LowLuckEventResultToDictionary(
+            _lowLuckEventService.HandleSettlementAction(
+                BuildLowLuckSettlementActionInput(context ?? new GDictionary())
+            )
+        );
     }
 
     public void clear_misfortune_exalted_ready_flags(GArray member_ids = null)
     {
         if (_misfortuneGuidanceService != null)
-            _misfortuneGuidanceService.ClearExaltedReadyFlags(member_ids ?? new GArray());
+            _misfortuneGuidanceService.ClearExaltedReadyFlags(
+                ReadStringNameList(member_ids ?? new GArray())
+            );
     }
 
-    public void set_fortune_confirmation_rng_for_testing(GodotObject rng = null)
+    public IReadOnlyDictionary<StringName, int> GetCalamityByMemberIdSnapshot()
     {
-        _fortuneService?.set_confirmation_rng_for_testing(rng as RandomNumberGenerator);
+        return _misfortuneService?.GetCalamityByMemberIdSnapshot()
+            ?? new Dictionary<StringName, int>();
+    }
+
+    private void BindFateEventBusAdapters(BattleFateEventBus fateEventBus = null)
+    {
+        if (_fateEventBus != null)
+        {
+            _fateEventBus.EventDispatched -= OnFortunaGuidanceFateEvent;
+            _fateEventBus.EventDispatched -= OnFortuneFateEvent;
+            _fateEventBus.EventDispatched -= OnLowLuckFateEvent;
+        }
+        _fateEventBus = fateEventBus;
+        if (_fateEventBus != null)
+        {
+            _fateEventBus.EventDispatched += OnFortunaGuidanceFateEvent;
+            _fateEventBus.EventDispatched += OnFortuneFateEvent;
+            _fateEventBus.EventDispatched += OnLowLuckFateEvent;
+        }
+    }
+
+    private void OnFortunaGuidanceFateEvent(StringName eventType, GDictionary payload)
+    {
+        _fortunaGuidanceService?.HandleFateEvent(
+            BuildFortunaGuidanceEventInput(eventType, payload ?? new GDictionary())
+        );
+    }
+
+    private void OnFortuneFateEvent(StringName eventType, GDictionary payload)
+    {
+        if (eventType != FortuneService.CriticalSuccessUnderDisadvantageEventId)
+            return;
+        _fortuneService?.TryGrantFortuneMark(
+            BuildFortuneMarkEventInput(payload ?? new GDictionary())
+        );
+    }
+
+    private void OnLowLuckFateEvent(StringName eventType, GDictionary payload)
+    {
+        _lowLuckEventService?.HandleFateEvent(
+            eventType,
+            BuildLowLuckFateEventPayload(payload ?? new GDictionary())
+        );
     }
 
     private GodotObject ResolveUnitByMemberId(StringName memberId)
@@ -259,33 +323,32 @@ public partial class FateRuntimeModule : RefCounted
 
     private static void MergeLowLuckBattleResultIntoResolution(
         BattleResolutionResult battleResolutionResult,
-        GDictionary lowLuckEventResult
+        LowLuckEventResult lowLuckEventResult
     )
     {
         if (
             battleResolutionResult == null
             || lowLuckEventResult == null
-            || lowLuckEventResult.Count == 0
+            || lowLuckEventResult.IsEmpty
         )
             return;
 
-        GArray extraLootEntries = ReadArray(lowLuckEventResult, "loot_entries");
-        if (extraLootEntries.Count > 0)
+        if (lowLuckEventResult.LootEntries.Count > 0)
         {
             GArray mergedLootEntries = battleResolutionResult.loot_entries.Duplicate(true);
-            GArray duplicatedLootEntries = extraLootEntries.Duplicate(true);
-            foreach (var entry in duplicatedLootEntries)
-                mergedLootEntries.Add(entry);
+            foreach (LowLuckLootEntry entry in lowLuckEventResult.LootEntries)
+                mergedLootEntries.Add(LowLuckLootEntryToDictionary(entry));
             battleResolutionResult.set_loot_entries(mergedLootEntries);
         }
 
-        GArray extraRewards = ReadArray(lowLuckEventResult, "pending_character_rewards");
-        if (extraRewards.Count > 0)
+        if (lowLuckEventResult.PendingCharacterRewards.Count > 0)
         {
             GArray mergedRewards = battleResolutionResult.get_pending_character_rewards_copy();
-            GArray duplicatedRewards = extraRewards.Duplicate(true);
-            foreach (var entry in duplicatedRewards)
-                mergedRewards.Add(entry);
+            foreach (PendingCharacterReward reward in lowLuckEventResult.PendingCharacterRewards)
+            {
+                if (reward != null && !reward.is_empty())
+                    mergedRewards.Add(reward.duplicate_state());
+            }
             battleResolutionResult.set_pending_character_rewards(mergedRewards);
         }
     }
@@ -313,6 +376,360 @@ public partial class FateRuntimeModule : RefCounted
     {
         var value = ReadValue(data, key);
         return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : new GArray();
+    }
+
+    private static MisfortuneForgeGuidanceInput BuildMisfortuneForgeGuidanceInput(
+        SettlementServiceResult result
+    )
+    {
+        if (result == null)
+            return MisfortuneForgeGuidanceInput.Empty;
+        return BuildMisfortuneForgeGuidanceInput(
+            result.Success,
+            result.InventoryDelta,
+            result.ServiceSideEffects
+        );
+    }
+
+    private static MisfortuneForgeGuidanceInput BuildMisfortuneForgeGuidanceInput(
+        GDictionary result
+    )
+    {
+        if (result == null)
+            return MisfortuneForgeGuidanceInput.Empty;
+        return BuildMisfortuneForgeGuidanceInput(
+            ReadBool(result, "success"),
+            ReadDictionary(result, "inventory_delta"),
+            ReadDictionary(result, "service_side_effects")
+        );
+    }
+
+    private static MisfortuneForgeGuidanceInput BuildMisfortuneForgeGuidanceInput(
+        bool success,
+        GDictionary inventoryDelta,
+        GDictionary serviceSideEffects
+    )
+    {
+        return new MisfortuneForgeGuidanceInput(
+            success,
+            ReadForgeGuidanceEntries(inventoryDelta, "removed_entries"),
+            ReadForgeGuidanceEntries(inventoryDelta, "added_entries"),
+            ReadStringName(serviceSideEffects, "output_item_id")
+        );
+    }
+
+    private static FortunaGuidanceEventInput BuildFortunaGuidanceEventInput(
+        StringName eventType,
+        GDictionary payload
+    )
+    {
+        return new FortunaGuidanceEventInput
+        {
+            EventType = ProgressionDataUtils.to_string_name(eventType),
+            BattleId = ReadStringName(payload, "battle_id"),
+            AttackerMemberId = ReadStringName(payload, "attacker_member_id"),
+            DefenderIsEliteOrBoss = ReadBool(payload, "defender_is_elite_or_boss"),
+            AttackerLowHpHardship = ReadBool(payload, "attacker_low_hp_hardship"),
+            AttackerStrongAttackDebuffIds = ReadStringNameList(
+                ReadArray(payload, "attacker_strong_attack_debuff_ids")
+            ),
+        };
+    }
+
+    private static FortuneMarkEventInput BuildFortuneMarkEventInput(GDictionary payload)
+    {
+        return new FortuneMarkEventInput
+        {
+            BattleId = ReadStringName(payload, "battle_id"),
+            AttackerMemberId = ReadStringName(payload, "attacker_member_id"),
+            AttackerId = ReadStringName(payload, "attacker_id"),
+            DefenderId = ReadStringName(payload, "defender_id"),
+            CritGateDie = ReadInt(payload, "crit_gate_die"),
+            IsDisadvantage = ReadBool(payload, "is_disadvantage"),
+        };
+    }
+
+    private static LowLuckFateEventPayload BuildLowLuckFateEventPayload(GDictionary payload)
+    {
+        GDictionary luckSnapshot = ReadDictionary(payload, "luck_snapshot");
+        int? hiddenLuckAtBirth = null;
+        if (TryReadInt(luckSnapshot, "hidden_luck_at_birth", out int parsedHiddenLuck))
+            hiddenLuckAtBirth = parsedHiddenLuck;
+
+        return new LowLuckFateEventPayload(
+            ReadStringName(payload, "battle_id"),
+            ReadStringName(payload, "attacker_member_id"),
+            ReadBool(payload, "attacker_low_hp_hardship"),
+            ReadStringNameList(ReadArray(payload, "attacker_strong_attack_debuff_ids")),
+            hiddenLuckAtBirth
+        );
+    }
+
+    private static LowLuckBattleResolutionInput BuildLowLuckBattleResolutionInput(
+        BattleState battleState,
+        BattleResolutionResult battleResolutionResult
+    )
+    {
+        StringName battleId = "";
+        if (battleResolutionResult != null && battleResolutionResult.battle_id != "")
+            battleId = battleResolutionResult.battle_id;
+        else if (battleState != null)
+            battleId = battleState.battle_id;
+
+        bool playerWon =
+            battleResolutionResult != null
+            && battleResolutionResult.winner_faction_id == "player";
+
+        return new LowLuckBattleResolutionInput(
+            battleId,
+            playerWon,
+            BuildLowLuckBattleUnitSnapshots(battleState)
+        );
+    }
+
+    private static List<LowLuckBattleUnitSnapshot> BuildLowLuckBattleUnitSnapshots(
+        BattleState battleState
+    )
+    {
+        List<LowLuckBattleUnitSnapshot> units = new();
+        if (battleState == null)
+            return units;
+
+        bool hasExplicitEnemyUnitIds =
+            battleState.enemy_unit_ids != null && battleState.enemy_unit_ids.Count > 0;
+        foreach (object unitValue in battleState.units.Values)
+        {
+            BattleUnitState unitState = ReadBattleUnitState(unitValue);
+            if (unitState == null)
+                continue;
+
+            bool isEnemy = hasExplicitEnemyUnitIds
+                ? ContainsStringName(battleState.enemy_unit_ids, unitState.unit_id)
+                : unitState.faction_id != "player";
+            bool isEliteOrBoss =
+                unitState.attribute_snapshot != null
+                && unitState.attribute_snapshot.get_value(FortuneMarkTargetStatId) > 0;
+            units.Add(
+                new LowLuckBattleUnitSnapshot(
+                    unitState.unit_id,
+                    unitState.source_member_id,
+                    unitState.faction_id,
+                    unitState.is_alive,
+                    isEnemy,
+                    isEliteOrBoss
+                )
+            );
+        }
+        return units;
+    }
+
+    private static LowLuckSettlementActionInput BuildLowLuckSettlementActionInput(
+        GDictionary context
+    )
+    {
+        return new LowLuckSettlementActionInput(
+            ReadString(context, "action_id"),
+            ReadString(context, "interaction_script_id"),
+            ReadString(context, "facility_id"),
+            ReadString(context, "facility_name"),
+            ReadString(context, "service_type")
+        );
+    }
+
+    private static GDictionary LowLuckEventResultToDictionary(LowLuckEventResult result)
+    {
+        Godot.Collections.Array<StringName> triggeredEventIds = new();
+        GArray lootEntries = new();
+        GArray pendingCharacterRewards = new();
+
+        if (result != null)
+        {
+            foreach (StringName eventId in result.TriggeredEventIds)
+                triggeredEventIds.Add(eventId);
+            foreach (LowLuckLootEntry entry in result.LootEntries)
+                lootEntries.Add(LowLuckLootEntryToDictionary(entry));
+            foreach (PendingCharacterReward reward in result.PendingCharacterRewards)
+            {
+                if (reward != null && !reward.is_empty())
+                    pendingCharacterRewards.Add(reward.to_dict());
+            }
+        }
+
+        return new GDictionary
+        {
+            ["triggered_event_ids"] = triggeredEventIds,
+            ["loot_entries"] = lootEntries,
+            ["pending_character_rewards"] = pendingCharacterRewards,
+        };
+    }
+
+    private static GDictionary LowLuckLootEntryToDictionary(LowLuckLootEntry entry)
+    {
+        if (entry.ItemId == "" || entry.Quantity <= 0)
+            return new GDictionary();
+        return new GDictionary
+        {
+            ["drop_type"] = entry.DropType.ToString(),
+            ["drop_source_kind"] = entry.DropSourceKind.ToString(),
+            ["drop_source_id"] = entry.DropSourceId.ToString(),
+            ["drop_source_label"] = entry.DropSourceLabel ?? "",
+            ["drop_entry_id"] = entry.DropEntryId.ToString(),
+            ["item_id"] = entry.ItemId.ToString(),
+            ["quantity"] = Math.Max(entry.Quantity, 0),
+        };
+    }
+
+    private static BattleUnitState ReadBattleUnitState(object unitValue)
+    {
+        if (unitValue is BattleUnitState unitState)
+            return unitState;
+        if (unitValue is Variant variant && variant.VariantType == Variant.Type.Object)
+            return variant.AsGodotObject() as BattleUnitState;
+        return null;
+    }
+
+    private static bool ContainsStringName(
+        IEnumerable<StringName> values,
+        StringName targetValue
+    )
+    {
+        StringName normalizedTargetValue = ProgressionDataUtils.to_string_name(targetValue);
+        if (values == null || normalizedTargetValue == "")
+            return false;
+        foreach (StringName value in values)
+        {
+            if (ProgressionDataUtils.to_string_name(value) == normalizedTargetValue)
+                return true;
+        }
+        return false;
+    }
+
+    private static FortunaChapterCompletionInput BuildFortunaChapterCompletionInput(
+        GDictionary payload
+    )
+    {
+        return new FortunaChapterCompletionInput
+        {
+            MemberIds = ReadStringNameList(ReadArray(payload, "member_ids")),
+            HadPermanentDeath = ReadBool(payload, "had_permanent_death"),
+        };
+    }
+
+    private static List<MisfortuneForgeGuidanceItemEntry> ReadForgeGuidanceEntries(
+        GDictionary source,
+        string key
+    )
+    {
+        var result = new List<MisfortuneForgeGuidanceItemEntry>();
+        foreach (Variant entryValue in ReadArray(source, key))
+        {
+            if (entryValue.VariantType != Variant.Type.Dictionary)
+                continue;
+            GDictionary entryData = entryValue.AsGodotDictionary();
+            var itemId = ReadStringName(entryData, "item_id");
+            int quantity = ReadInt(entryData, "quantity");
+            if (itemId != "" && quantity > 0)
+                result.Add(new MisfortuneForgeGuidanceItemEntry(itemId, quantity));
+        }
+        return result;
+    }
+
+    private static Dictionary<StringName, ItemDef> BuildItemDefIndex(GDictionary itemDefs)
+    {
+        var result = new Dictionary<StringName, ItemDef>();
+        if (itemDefs == null || itemDefs.Count == 0)
+            return result;
+        foreach (Variant key in itemDefs.Keys)
+        {
+            if (key.VariantType != Variant.Type.StringName)
+                continue;
+            var itemId = key.AsStringName();
+            ItemDef itemDef = itemDefs[key].As<ItemDef>();
+            if (itemId != "" && itemDef != null)
+                result[itemId] = itemDef;
+        }
+        return result;
+    }
+
+    private static List<StringName> ReadStringNameList(GArray values)
+    {
+        var result = new List<StringName>();
+        if (values == null)
+            return result;
+        foreach (Variant value in values)
+        {
+            var stringName = ProgressionDataUtils.to_string_name(value);
+            if (stringName != "" && !result.Contains(stringName))
+                result.Add(stringName);
+        }
+        return result;
+    }
+
+    private static Godot.Collections.Array<StringName> ToStringNameArray(
+        IEnumerable<StringName> values
+    )
+    {
+        var result = new Godot.Collections.Array<StringName>();
+        if (values == null)
+            return result;
+        foreach (var value in values)
+        {
+            var stringName = ProgressionDataUtils.to_string_name(value);
+            if (stringName != "" && !result.Contains(stringName))
+                result.Add(stringName);
+        }
+        return result;
+    }
+
+    private static GDictionary ReadDictionary(GDictionary data, string key)
+    {
+        var value = ReadValue(data, key);
+        return value.VariantType == Variant.Type.Dictionary
+            ? value.AsGodotDictionary()
+            : new GDictionary();
+    }
+
+    private static bool ReadBool(GDictionary data, string key)
+    {
+        var value = ReadValue(data, key);
+        return value.VariantType == Variant.Type.Bool && value.AsBool();
+    }
+
+    private static int ReadInt(GDictionary data, string key)
+    {
+        var value = ReadValue(data, key);
+        return value.VariantType == Variant.Type.Int ? value.AsInt32() : 0;
+    }
+
+    private static bool TryReadInt(GDictionary data, string key, out int parsedValue)
+    {
+        parsedValue = 0;
+        Variant value = ReadValue(data, key);
+        switch (value.VariantType)
+        {
+            case Variant.Type.Int:
+                parsedValue = value.AsInt32();
+                return true;
+            case Variant.Type.Float:
+                parsedValue = (int)value.AsDouble();
+                return true;
+            case Variant.Type.String:
+            case Variant.Type.StringName:
+                return int.TryParse(value.AsString(), out parsedValue);
+            default:
+                return false;
+        }
+    }
+
+    private static string ReadString(GDictionary data, string key)
+    {
+        Variant value = ReadValue(data, key);
+        return value.VariantType == Variant.Type.Nil ? "" : value.AsString();
+    }
+
+    private static StringName ReadStringName(GDictionary data, string key)
+    {
+        return ProgressionDataUtils.to_string_name(ReadValue(data, key));
     }
 
     private static Variant ReadValue(GDictionary data, string key)

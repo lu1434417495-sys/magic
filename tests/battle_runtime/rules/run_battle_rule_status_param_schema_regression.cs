@@ -1,3 +1,4 @@
+using System;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -15,7 +16,8 @@ public partial class run_battle_rule_status_param_schema_regression : SceneTree
 
     private int Run()
     {
-        TestLockCritAcceptsStringNameParamKey();
+        TestLockCritUsesTypedStatusField();
+        TestFateAttackRulesNoLongerRequireGodotRegistration();
         TestLockDodgeBonusAcceptsStringNameParamKey();
         TestBlindAttackPenaltyUsesStatusSemanticAndParamOverride();
         TestDamageBoolHelperAcceptsStringNameParamKey();
@@ -35,26 +37,45 @@ public partial class run_battle_rule_status_param_schema_regression : SceneTree
         return 1;
     }
 
-    private void TestLockCritAcceptsStringNameParamKey()
+    private void TestLockCritUsesTypedStatusField()
     {
-        var rules = new BattleFateAttackRules();
-
         BattleUnitState legacyUnit = BuildUnit("legacy_lock_crit");
         SetStatusParams(
             legacyUnit,
             "legacy_lock_crit",
             new GDictionary { [new StringName("lock_crit")] = true }
         );
-        AssertTrue(
-            rules.is_attack_crit_locked(legacyUnit),
-            "StringName-only lock_crit params should lock crit under current status param handling."
+        AssertFalse(
+            BattleFateAttackRules.IsAttackCritLocked(legacyUnit),
+            "StringName-only lock_crit params must not drive crit locks after typed status migration."
         );
 
         BattleUnitState formalUnit = BuildUnit("formal_lock_crit");
-        SetStatusParams(formalUnit, "formal_lock_crit", new GDictionary { ["lock_crit"] = true });
+        SetTypedStatus(formalUnit, "formal_lock_crit", lockCrit: true);
         AssertTrue(
-            rules.is_attack_crit_locked(formalUnit),
-            "String key lock_crit params must still lock crit."
+            BattleFateAttackRules.IsAttackCritLocked(formalUnit),
+            "typed lock_crit status field must lock crit."
+        );
+    }
+
+    private void TestFateAttackRulesNoLongerRequireGodotRegistration()
+    {
+        Type rulesType = typeof(BattleFateAttackRules);
+        AssertTrue(
+            rulesType.IsAbstract && rulesType.IsSealed,
+            "BattleFateAttackRules 应是 static C# rules helper。"
+        );
+        AssertFalse(
+            typeof(GodotObject).IsAssignableFrom(rulesType),
+            "BattleFateAttackRules 不应继承 GodotObject/RefCounted。"
+        );
+        AssertFalse(
+            rulesType.GetCustomAttributes(typeof(GlobalClassAttribute), inherit: false).Length > 0,
+            "BattleFateAttackRules 不应继续注册为 Godot GlobalClass。"
+        );
+        AssertTrue(
+            rulesType.GetMethod("is_attack_crit_locked") == null,
+            "BattleFateAttackRules 不应保留 snake_case crit lock API。"
         );
     }
 
@@ -307,6 +328,22 @@ public partial class run_battle_rule_status_param_schema_regression : SceneTree
         unit.set_status_effect(statusEffect);
     }
 
+    private static void SetTypedStatus(
+        BattleUnitState unit,
+        StringName statusId,
+        bool lockCrit = false
+    )
+    {
+        var statusEffect = new BattleStatusEffectState
+        {
+            status_id = statusId,
+            power = 1,
+            stacks = 1,
+            lock_crit = lockCrit,
+        };
+        unit.set_status_effect(statusEffect);
+    }
+
     private static void SetAcProfile(BattleUnitState unit, int armorClass, int dodgeBonus)
     {
         unit.attribute_snapshot.set_value(AttributeService.ARMOR_CLASS_ID(), armorClass);
@@ -371,6 +408,14 @@ public partial class run_battle_rule_status_param_schema_regression : SceneTree
     private void AssertTrue(bool condition, string message)
     {
         if (!condition)
+        {
+            _failures.Add(message);
+        }
+    }
+
+    private void AssertFalse(bool condition, string message)
+    {
+        if (condition)
         {
             _failures.Add(message);
         }

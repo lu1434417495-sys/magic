@@ -2,8 +2,7 @@ using System;
 using Godot;
 using Godot.Collections;
 
-[GlobalClass]
-public partial class WorldMapRuntimeProxy : RefCounted
+public sealed class WorldMapRuntimeProxy
 {
     private static readonly string RuntimeUnavailableMessage = "运行时尚未初始化。";
 
@@ -16,7 +15,7 @@ public partial class WorldMapRuntimeProxy : RefCounted
         _renderTarget = renderTarget;
     }
 
-    public new void Dispose()
+    public void Dispose()
     {
         _runtime = null;
         _renderTarget = null;
@@ -92,9 +91,14 @@ public partial class WorldMapRuntimeProxy : RefCounted
         return _runtime?.get_grid_system();
     }
 
-    public WorldMapFogSystem GetFogSystem()
+    internal WorldMapFogSystem GetFogSystem()
     {
-        return _runtime?.get_fog_system();
+        return _runtime?.GetFogSystem();
+    }
+
+    public bool IsWorldCoordVisible(Vector2I coord, string factionId = "")
+    {
+        return _runtime?.is_world_coord_visible(coord, factionId) ?? false;
     }
 
     public Dictionary GetWorldData()
@@ -576,7 +580,8 @@ public partial class WorldMapRuntimeProxy : RefCounted
 
     public WorldMapGridSystem get_grid_system() => GetGridSystem();
 
-    public WorldMapFogSystem get_fog_system() => GetFogSystem();
+    public bool is_world_coord_visible(Vector2I coord, string faction_id = "") =>
+        IsWorldCoordVisible(coord, faction_id);
 
     public Dictionary get_world_data() => GetWorldData();
 

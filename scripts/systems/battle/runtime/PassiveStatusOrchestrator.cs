@@ -1,12 +1,12 @@
+using System.Collections.Generic;
 using Godot;
 
-[GlobalClass]
-public partial class PassiveStatusOrchestrator : RefCounted
+public static class PassiveStatusOrchestrator
 {
     public static void apply_to_unit(
         BattleUnitState unitState,
         PassiveSourceContext context = null,
-        Godot.Collections.Dictionary skillDefs = null
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs = null
     )
     {
         if (unitState == null)
@@ -19,7 +19,7 @@ public partial class PassiveStatusOrchestrator : RefCounted
         SkillPassiveResolver.ApplyToUnit(
             unitState,
             resolvedContext,
-            skillDefs ?? new Godot.Collections.Dictionary()
+            skillDefs
         );
     }
 

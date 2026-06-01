@@ -1,19 +1,48 @@
+using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class ProfessionAssignmentService : RefCounted
+public sealed class ProfessionAssignmentService
 {
     private UnitProgress _unit_progress;
-    private GDictionary _skill_defs = new();
-    private GDictionary _profession_defs = new();
+    private readonly Dictionary<StringName, SkillDef> _skillDefs = new();
+    private readonly Dictionary<StringName, ProfessionDef> _professionDefs = new();
 
-    public void setup(UnitProgress unit_progress, GDictionary skill_defs, GDictionary profession_defs)
+    public void setup(
+        UnitProgress unit_progress,
+        Godot.Collections.Dictionary skill_defs,
+        Godot.Collections.Dictionary profession_defs
+    )
+    {
+        setup(unit_progress, IndexSkillDefs(skill_defs), IndexProfessionDefs(profession_defs));
+    }
+
+    public void setup(
+        UnitProgress unit_progress,
+        IReadOnlyDictionary<StringName, SkillDef> skill_defs,
+        IReadOnlyDictionary<StringName, ProfessionDef> profession_defs
+    )
     {
         _unit_progress = unit_progress;
-        _skill_defs = IndexSkillDefs(skill_defs);
-        _profession_defs = IndexProfessionDefs(profession_defs);
+        _skillDefs.Clear();
+        _professionDefs.Clear();
+
+        if (skill_defs != null)
+        {
+            foreach (KeyValuePair<StringName, SkillDef> pair in skill_defs)
+            {
+                if (pair.Key != "" && pair.Value != null)
+                    _skillDefs[pair.Key] = pair.Value;
+            }
+        }
+
+        if (profession_defs != null)
+        {
+            foreach (KeyValuePair<StringName, ProfessionDef> pair in profession_defs)
+            {
+                if (pair.Key != "" && pair.Value != null)
+                    _professionDefs[pair.Key] = pair.Value;
+            }
+        }
     }
 
     public bool can_assign_core_skill_to_profession(StringName skill_id, StringName profession_id)
@@ -30,7 +59,7 @@ public partial class ProfessionAssignmentService : RefCounted
         if (
             !SkillEffectiveMaxLevelRules.is_at_effective_max_level(
                 skillDef,
-                skillProgress as UnitSkillProgress,
+                skillProgress,
                 _unit_progress
             )
         )
@@ -112,13 +141,13 @@ public partial class ProfessionAssignmentService : RefCounted
         if (
             !SkillEffectiveMaxLevelRules.is_at_effective_max_level(
                 skillDef,
-                skillProgress as UnitSkillProgress,
+                skillProgress,
                 _unit_progress
             )
         )
             return false;
 
-        Godot.Collections.Array<StringName> acceptedTags = GetProfessionAcceptedTags(professionDef);
+        List<StringName> acceptedTags = GetProfessionAcceptedTags(professionDef);
         if (acceptedTags.Count == 0)
             return false;
 
@@ -149,13 +178,13 @@ public partial class ProfessionAssignmentService : RefCounted
         return true;
     }
 
-    public Godot.Collections.Array<StringName> get_profession_core_skills(StringName profession_id)
+    public IReadOnlyList<StringName> get_profession_core_skill_ids(StringName profession_id)
     {
         UnitProfessionProgress professionProgress = GetProfessionProgress(profession_id);
         if (professionProgress == null)
-            return new Godot.Collections.Array<StringName>();
+            return new List<StringName>();
 
-        Godot.Collections.Array<StringName> result = new();
+        List<StringName> result = new();
         foreach (var rawSkillId in professionProgress.core_skill_ids)
         {
             StringName skillId = ProgressionDataUtils.to_string_name(rawSkillId);
@@ -173,9 +202,11 @@ public partial class ProfessionAssignmentService : RefCounted
             : skillProgress.assigned_profession_id;
     }
 
-    private static GDictionary IndexSkillDefs(GDictionary skillDefs)
+    private static Dictionary<StringName, SkillDef> IndexSkillDefs(
+        Godot.Collections.Dictionary skillDefs
+    )
     {
-        GDictionary indexedDefs = new();
+        Dictionary<StringName, SkillDef> indexedDefs = new();
         if (skillDefs == null)
             return indexedDefs;
 
@@ -186,14 +217,17 @@ public partial class ProfessionAssignmentService : RefCounted
             StringName indexedId = skillDef.skill_id != ""
                 ? skillDef.skill_id
                 : ProgressionDataUtils.to_string_name(key);
-            indexedDefs[indexedId] = skillDef;
+            if (indexedId != "")
+                indexedDefs[indexedId] = skillDef;
         }
         return indexedDefs;
     }
 
-    private static GDictionary IndexProfessionDefs(GDictionary professionDefs)
+    private static Dictionary<StringName, ProfessionDef> IndexProfessionDefs(
+        Godot.Collections.Dictionary professionDefs
+    )
     {
-        GDictionary indexedDefs = new();
+        Dictionary<StringName, ProfessionDef> indexedDefs = new();
         if (professionDefs == null)
             return indexedDefs;
 
@@ -204,7 +238,8 @@ public partial class ProfessionAssignmentService : RefCounted
             StringName indexedId = professionDef.profession_id != ""
                 ? professionDef.profession_id
                 : ProgressionDataUtils.to_string_name(key);
-            indexedDefs[indexedId] = professionDef;
+            if (indexedId != "")
+                indexedDefs[indexedId] = professionDef;
         }
         return indexedDefs;
     }
@@ -221,15 +256,13 @@ public partial class ProfessionAssignmentService : RefCounted
 
     private SkillDef GetSkillDef(StringName skillId)
     {
-        return _skill_defs.ContainsKey(skillId)
-            ? _skill_defs[skillId].AsGodotObject() as SkillDef
-            : null;
+        return _skillDefs.TryGetValue(skillId, out SkillDef skillDef) ? skillDef : null;
     }
 
     private ProfessionDef GetProfessionDef(StringName professionId)
     {
-        return _profession_defs.ContainsKey(professionId)
-            ? _profession_defs[professionId].AsGodotObject() as ProfessionDef
+        return _professionDefs.TryGetValue(professionId, out ProfessionDef professionDef)
+            ? professionDef
             : null;
     }
 
@@ -252,12 +285,12 @@ public partial class ProfessionAssignmentService : RefCounted
         }
     }
 
-    private static Godot.Collections.Array<StringName> GetProfessionAcceptedTags(
+    private static List<StringName> GetProfessionAcceptedTags(
         ProfessionDef professionDef
     )
     {
-        Godot.Collections.Array<StringName> acceptedTags = new();
-        GDictionary seenTags = new();
+        List<StringName> acceptedTags = new();
+        HashSet<StringName> seenTags = new();
         if (professionDef == null)
             return acceptedTags;
 
@@ -277,20 +310,22 @@ public partial class ProfessionAssignmentService : RefCounted
     }
 
     private static void AppendTagRules(
-        Godot.Collections.Array<StringName> acceptedTags,
-        GDictionary seenTags,
-        Godot.Collections.Array<TagRequirement> tagRules
+        List<StringName> acceptedTags,
+        HashSet<StringName> seenTags,
+        IEnumerable<TagRequirement> tagRules
     )
     {
+        if (tagRules == null)
+            return;
+
         foreach (TagRequirement tagRule in tagRules)
         {
             if (
                 tagRule == null
                 || tagRule.tag == ""
-                || seenTags.ContainsKey(tagRule.tag)
+                || !seenTags.Add(tagRule.tag)
             )
                 continue;
-            seenTags[tagRule.tag] = true;
             acceptedTags.Add(tagRule.tag);
         }
     }
@@ -301,10 +336,12 @@ public partial class ProfessionAssignmentService : RefCounted
             return 0;
 
         int rankTotal = 0;
-        foreach (Variant rawPP in _unit_progress.professions.Values)
+        foreach (var professionKey in _unit_progress.professions.Keys)
         {
-            if (rawPP.AsGodotObject() is UnitProfessionProgress pp)
-                rankTotal += pp.rank;
+            StringName professionId = ProgressionDataUtils.to_string_name(professionKey);
+            UnitProfessionProgress professionProgress = GetProfessionProgress(professionId);
+            if (professionProgress != null)
+                rankTotal += professionProgress.rank;
         }
         return rankTotal;
     }

@@ -2,8 +2,7 @@ using System;
 using Godot;
 using Godot.Collections;
 
-[GlobalClass]
-public partial class GameRuntimeSnapshotBuilder : RefCounted
+public sealed class GameRuntimeSnapshotBuilder
 {
     private static readonly string[] QuestEntryRequiredFields =
     {
@@ -23,20 +22,20 @@ public partial class GameRuntimeSnapshotBuilder : RefCounted
     private const int MaximumRerollTierMinimum = 10_000_000;
     private const string CreationOptionBakeRerollLuck = "bake_reroll_luck";
 
-    private WeakReference<GameRuntimeFacade> _runtimeRef;
+    private WeakReference<IGameRuntimeSnapshotSource> _runtimeRef;
 
-    private GameRuntimeFacade _runtime
+    private IGameRuntimeSnapshotSource _runtime
     {
         get => ResolveWeakRef(_runtimeRef);
-        set => _runtimeRef = value != null ? new WeakReference<GameRuntimeFacade>(value) : null;
+        set => _runtimeRef = value != null ? new WeakReference<IGameRuntimeSnapshotSource>(value) : null;
     }
 
-    public void Setup(GameRuntimeFacade runtime)
+    public void Setup(IGameRuntimeSnapshotSource runtime)
     {
         _runtime = runtime;
     }
 
-    public new void Dispose()
+    public void Dispose()
     {
         _runtime = null;
     }
@@ -622,7 +621,7 @@ public partial class GameRuntimeSnapshotBuilder : RefCounted
             );
 
         var adapter = new BattleHudAdapter();
-        adapter.setup_runtime_context(_runtime, _runtime._game_session);
+        adapter.setup_runtime_context(_runtime as GameRuntimeFacade, _runtime.get_game_session());
         var hudSnapshot = adapter.build_snapshot(
             battleState,
             _runtime.get_battle_selected_coord(),
@@ -887,12 +886,14 @@ public partial class GameRuntimeSnapshotBuilder : RefCounted
         return dictionary[key].AsVector2I();
     }
 
-    private static GameRuntimeFacade ResolveWeakRef(WeakReference<GameRuntimeFacade> weakRef)
+    private static IGameRuntimeSnapshotSource ResolveWeakRef(
+        WeakReference<IGameRuntimeSnapshotSource> weakRef
+    )
     {
         if (
             weakRef == null
-            || !weakRef.TryGetTarget(out GameRuntimeFacade target)
-            || !GodotObject.IsInstanceValid(target)
+            || !weakRef.TryGetTarget(out IGameRuntimeSnapshotSource target)
+            || (target is GodotObject godotTarget && !GodotObject.IsInstanceValid(godotTarget))
         )
             return null;
         return target;

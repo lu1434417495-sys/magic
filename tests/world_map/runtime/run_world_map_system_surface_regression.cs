@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Reflection;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
@@ -173,7 +174,10 @@ public partial class run_world_map_system_surface_regression : SceneTree
             foreach (string methodName in expectedMethods)
             {
                 AssertTrue(
-                    proxy.HasMethod(methodName),
+                    typeof(WorldMapRuntimeProxy).GetMethod(
+                        methodName,
+                        BindingFlags.Public | BindingFlags.Instance
+                    ) != null,
                     $"WorldMapRuntimeProxy 应保留 {methodName} 作为场景层正式边界。"
                 );
             }

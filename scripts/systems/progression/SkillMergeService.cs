@@ -1,10 +1,10 @@
+using System.Collections.Generic;
 using Godot;
 
-[GlobalClass]
-public partial class SkillMergeService : RefCounted
+public sealed class SkillMergeService
 {
     private UnitProgress _unit_progress;
-    private Godot.Collections.Dictionary _skill_defs = new();
+    private readonly Dictionary<StringName, SkillDef> _skillDefs = new();
     private ProfessionAssignmentService _assignment_service;
 
     public void setup(
@@ -14,12 +14,14 @@ public partial class SkillMergeService : RefCounted
     )
     {
         _unit_progress = unitProgress;
-        _skill_defs = _index_skill_defs(skillDefs);
+        _skillDefs.Clear();
+        foreach (KeyValuePair<StringName, SkillDef> pair in IndexSkillDefs(skillDefs))
+            _skillDefs[pair.Key] = pair.Value;
         _assignment_service = assignmentService;
     }
 
     public bool merge_skills(
-        Godot.Collections.Array<StringName> sourceSkillIds,
+        IEnumerable<StringName> sourceSkillIds,
         StringName resultSkillId,
         bool keepCore,
         StringName targetProfessionId
@@ -29,35 +31,41 @@ public partial class SkillMergeService : RefCounted
             return false;
         if (_unit_progress.is_skill_relearn_blocked(resultSkillId))
             return false;
-        var nss = _normalize_source_skill_ids(sourceSkillIds, resultSkillId);
-        if (nss.Count == 0 || !_all_source_skills_exist(nss))
+        List<StringName> normalizedSourceIds = NormalizeSourceSkillIds(
+            sourceSkillIds,
+            resultSkillId
+        );
+        if (normalizedSourceIds.Count == 0 || !AllSourceSkillsExist(normalizedSourceIds))
             return false;
-        var rtp = targetProfessionId;
-        if (keepCore && rtp == "")
-            rtp = _infer_target_profession_id_from_sources(nss);
-        if (keepCore && rtp == "")
+        var resolvedTargetProfessionId = targetProfessionId;
+        if (keepCore && resolvedTargetProfessionId == "")
+            resolvedTargetProfessionId = InferTargetProfessionIdFromSources(normalizedSourceIds);
+        if (keepCore && resolvedTargetProfessionId == "")
             return false;
-        if (keepCore && _get_profession_progress(rtp) == null)
+        if (keepCore && GetProfessionProgress(resolvedTargetProfessionId) == null)
             return false;
-        var rp = _get_or_create_result_skill_progress(resultSkillId, nss);
-        if (rp == null)
+        UnitSkillProgress resultProgress = GetOrCreateResultSkillProgress(
+            resultSkillId,
+            normalizedSourceIds
+        );
+        if (resultProgress == null)
             return false;
-        detach_merged_source_skills(nss);
-        rp.is_learned = true;
-        rp.is_core = keepCore;
-        rp.merged_from_skill_ids = new Godot.Collections.Array<StringName>(nss);
+        detach_merged_source_skills(normalizedSourceIds);
+        resultProgress.is_learned = true;
+        resultProgress.is_core = keepCore;
+        resultProgress.merged_from_skill_ids = ToStringNameArray(normalizedSourceIds);
         if (keepCore)
-            rp.assigned_profession_id = rtp;
+            resultProgress.assigned_profession_id = resolvedTargetProfessionId;
         else
-            rp.clear_profession_assignment();
-        _unit_progress.remember_merge_sources(resultSkillId, nss);
-        _unit_progress.set_skill_progress(rp);
-        return attach_merged_result_skill(resultSkillId, keepCore, rtp);
+            resultProgress.clear_profession_assignment();
+        _unit_progress.remember_merge_sources(resultSkillId, ToStringNameArray(normalizedSourceIds));
+        _unit_progress.set_skill_progress(resultProgress);
+        return attach_merged_result_skill(resultSkillId, keepCore, resolvedTargetProfessionId);
     }
 
     public bool apply_composite_upgrade_result(
         StringName resultSkillId,
-        Godot.Collections.Array<StringName> sourceSkillIds,
+        IEnumerable<StringName> sourceSkillIds,
         bool retainSourceSkills,
         StringName coreTransitionMode,
         StringName targetProfessionId = default
@@ -67,71 +75,92 @@ public partial class SkillMergeService : RefCounted
             return false;
         if (_unit_progress.is_skill_relearn_blocked(resultSkillId))
             return false;
-        var nss = _normalize_source_skill_ids(sourceSkillIds, resultSkillId);
-        if (nss.Count == 0 || !_all_source_skills_exist(nss))
+        List<StringName> normalizedSourceIds = NormalizeSourceSkillIds(
+            sourceSkillIds,
+            resultSkillId
+        );
+        if (normalizedSourceIds.Count == 0 || !AllSourceSkillsExist(normalizedSourceIds))
             return false;
         if (!retainSourceSkills)
+        {
             return merge_skills(
-                nss,
+                normalizedSourceIds,
                 resultSkillId,
                 coreTransitionMode == "replace_sources_with_result",
                 targetProfessionId
             );
-        var rp = _get_or_create_result_skill_progress(resultSkillId, nss);
-        if (rp == null)
+        }
+
+        UnitSkillProgress resultProgress = GetOrCreateResultSkillProgress(
+            resultSkillId,
+            normalizedSourceIds
+        );
+        if (resultProgress == null)
             return false;
-        rp.is_learned = true;
-        rp.merged_from_skill_ids = new Godot.Collections.Array<StringName>(nss);
-        _unit_progress.remember_merge_sources(resultSkillId, nss);
-        _unit_progress.set_skill_progress(rp);
-        var rtp2 = targetProfessionId;
-        if (coreTransitionMode == "replace_sources_with_result" && rtp2 == "")
-            rtp2 = _infer_target_profession_id_from_sources(nss);
-        if (coreTransitionMode == "replace_sources_with_result" && rtp2 != "")
+        resultProgress.is_learned = true;
+        resultProgress.merged_from_skill_ids = ToStringNameArray(normalizedSourceIds);
+        _unit_progress.remember_merge_sources(resultSkillId, ToStringNameArray(normalizedSourceIds));
+        _unit_progress.set_skill_progress(resultProgress);
+        var resolvedTargetProfessionId = targetProfessionId;
+        if (coreTransitionMode == "replace_sources_with_result" && resolvedTargetProfessionId == "")
+            resolvedTargetProfessionId = InferTargetProfessionIdFromSources(normalizedSourceIds);
+        if (coreTransitionMode == "replace_sources_with_result" && resolvedTargetProfessionId != "")
         {
-            if (!_replace_source_cores_with_result(nss, resultSkillId, rtp2))
+            if (
+                !ReplaceSourceCoresWithResult(
+                    normalizedSourceIds,
+                    resultSkillId,
+                    resolvedTargetProfessionId
+                )
+            )
             {
-                _clear_level_trigger_references(resultSkillId);
-                rp.is_core = false;
-                rp.clear_profession_assignment();
+                ClearLevelTriggerReferences(resultSkillId);
+                resultProgress.is_core = false;
+                resultProgress.clear_profession_assignment();
             }
             else
             {
-                rp.is_core = true;
-                rp.assigned_profession_id = rtp2;
+                resultProgress.is_core = true;
+                resultProgress.assigned_profession_id = resolvedTargetProfessionId;
             }
         }
         else if (coreTransitionMode == "replace_sources_with_result")
         {
-            _clear_level_trigger_references(resultSkillId);
-            rp.is_core = false;
-            rp.clear_profession_assignment();
+            ClearLevelTriggerReferences(resultSkillId);
+            resultProgress.is_core = false;
+            resultProgress.clear_profession_assignment();
         }
         _unit_progress.sync_active_core_skill_ids();
         return true;
     }
 
-    public void detach_merged_source_skills(Godot.Collections.Array<StringName> sourceSkillIds)
+    public void detach_merged_source_skills(IEnumerable<StringName> sourceSkillIds)
     {
         if (_unit_progress == null)
             return;
-        var nss = _normalize_source_skill_ids(sourceSkillIds);
-        foreach (var sid in nss)
+        List<StringName> normalizedSourceIds = NormalizeSourceSkillIds(sourceSkillIds);
+        foreach (var sourceSkillId in normalizedSourceIds)
         {
-            var sp =
-                _unit_progress.get_skill_progress(sid);
-            if (sp == null)
+            UnitSkillProgress sourceProgress =
+                _unit_progress.get_skill_progress(sourceSkillId);
+            if (sourceProgress == null)
                 continue;
-            if (sp.merged_from_skill_ids.Count > 0)
-                _unit_progress.remember_merge_sources(sid, sp.merged_from_skill_ids);
-            if (sp.assigned_profession_id != "")
-                _remove_source_skill_from_profession(sid, sp.assigned_profession_id);
+            if (sourceProgress.merged_from_skill_ids.Count > 0)
+                _unit_progress.remember_merge_sources(
+                    sourceSkillId,
+                    sourceProgress.merged_from_skill_ids
+                );
+            if (sourceProgress.assigned_profession_id != "")
+                RemoveSourceSkillFromProfession(
+                    sourceSkillId,
+                    sourceProgress.assigned_profession_id
+                );
             else
-                _remove_source_skill_from_all_professions(sid);
-            _clear_level_trigger_references(sid);
-            sp.clear_profession_assignment();
-            _unit_progress.block_skill_relearn(sid);
-            _unit_progress.remove_skill_progress(sid);
+                RemoveSourceSkillFromAllProfessions(sourceSkillId);
+            ClearLevelTriggerReferences(sourceSkillId);
+            sourceProgress.clear_profession_assignment();
+            _unit_progress.block_skill_relearn(sourceSkillId);
+            _unit_progress.remove_skill_progress(sourceSkillId);
         }
         _unit_progress.sync_active_core_skill_ids();
     }
@@ -144,253 +173,301 @@ public partial class SkillMergeService : RefCounted
     {
         if (_unit_progress == null)
             return false;
-        var rsp = _unit_progress.get_skill_progress(resultSkillId);
-        if (rsp == null)
+        UnitSkillProgress resultProgress = _unit_progress.get_skill_progress(resultSkillId);
+        if (resultProgress == null)
         {
-            rsp = new UnitSkillProgress { skill_id = resultSkillId, is_learned = true };
-            _unit_progress.set_skill_progress(rsp);
+            resultProgress = new UnitSkillProgress
+            {
+                skill_id = resultSkillId,
+                is_learned = true,
+            };
+            _unit_progress.set_skill_progress(resultProgress);
         }
         if (!keepCore)
         {
-            _clear_level_trigger_references(resultSkillId);
-            _remove_source_skill_from_all_professions(resultSkillId);
-            rsp.is_core = false;
-            rsp.clear_profession_assignment();
-            _unit_progress.set_skill_progress(rsp);
+            ClearLevelTriggerReferences(resultSkillId);
+            RemoveSourceSkillFromAllProfessions(resultSkillId);
+            resultProgress.is_core = false;
+            resultProgress.clear_profession_assignment();
+            _unit_progress.set_skill_progress(resultProgress);
             _unit_progress.sync_active_core_skill_ids();
             return true;
         }
         if (targetProfessionId == "")
             return false;
-        var pp = _get_profession_progress(targetProfessionId);
-        if (pp == null)
+        UnitProfessionProgress professionProgress = GetProfessionProgress(targetProfessionId);
+        if (professionProgress == null)
             return false;
-        _remove_source_skill_from_all_professions(resultSkillId, targetProfessionId);
-        rsp.is_learned = true;
-        rsp.is_core = true;
-        rsp.assigned_profession_id = targetProfessionId;
-        pp.add_core_skill(resultSkillId);
-        _unit_progress.set_skill_progress(rsp);
+        RemoveSourceSkillFromAllProfessions(resultSkillId, targetProfessionId);
+        resultProgress.is_learned = true;
+        resultProgress.is_core = true;
+        resultProgress.assigned_profession_id = targetProfessionId;
+        professionProgress.add_core_skill(resultSkillId);
+        _unit_progress.set_skill_progress(resultProgress);
         _unit_progress.sync_active_core_skill_ids();
         return true;
     }
 
-    public Godot.Collections.Array<StringName> get_merged_source_skill_ids(StringName skillId) =>
-        _unit_progress?.get_merged_source_skill_ids(skillId)
-        ?? new Godot.Collections.Array<StringName>();
-
-    public Godot.Collections.Array<StringName> get_merged_source_skill_ids_recursive(
-        StringName skillId
-    ) =>
-        _unit_progress?.get_merged_source_skill_ids_recursive(skillId)
-        ?? new Godot.Collections.Array<StringName>();
-
-    private Godot.Collections.Dictionary _index_skill_defs(Godot.Collections.Dictionary skillDefs)
+    private static Dictionary<StringName, SkillDef> IndexSkillDefs(
+        Godot.Collections.Dictionary skillDefs
+    )
     {
-        var r = new Godot.Collections.Dictionary();
+        var result = new Dictionary<StringName, SkillDef>();
         if (skillDefs == null)
-            return r;
+            return result;
 
-        foreach (var k in skillDefs.Keys)
+        foreach (Variant rawKey in skillDefs.Keys)
         {
-            var sd = skillDefs[k].AsGodotObject() as SkillDef;
-            if (sd != null)
-            {
-                var idxId = sd.skill_id != "" ? sd.skill_id : ProgressionDataUtils.to_string_name(k);
-                r[idxId] = sd;
-            }
+            Variant rawDef = skillDefs[rawKey];
+            if (rawDef.VariantType != Variant.Type.Object)
+                continue;
+            var skillDef = rawDef.AsGodotObject() as SkillDef;
+            if (skillDef == null)
+                continue;
+            var skillId = skillDef.skill_id;
+            if (skillId == "" && TryReadStringName(rawKey, out StringName keyId))
+                skillId = keyId;
+            if (skillId != "")
+                result[skillId] = skillDef;
         }
-        return r;
+        return result;
     }
 
-    private static Godot.Collections.Array<StringName> _normalize_source_skill_ids(
-        Godot.Collections.Array<StringName> sourceSkillIds,
+    private static List<StringName> NormalizeSourceSkillIds(
+        IEnumerable<StringName> sourceSkillIds,
         StringName excludeSkillId = default
     )
     {
-        var r = new Godot.Collections.Array<StringName>();
-        var s = new Godot.Collections.Dictionary();
-        foreach (var sid in sourceSkillIds)
+        var result = new List<StringName>();
+        var seen = new HashSet<StringName>();
+        if (sourceSkillIds == null)
+            return result;
+        foreach (var sourceSkillId in sourceSkillIds)
         {
-            if (sid == "" || (excludeSkillId != "" && sid == excludeSkillId) || s.ContainsKey(sid))
+            if (
+                sourceSkillId == ""
+                || (excludeSkillId != "" && sourceSkillId == excludeSkillId)
+                || !seen.Add(sourceSkillId)
+            )
                 continue;
-            s[sid] = true;
-            r.Add(sid);
+            result.Add(sourceSkillId);
         }
-        return r;
+        return result;
     }
 
-    private bool _all_source_skills_exist(Godot.Collections.Array<StringName> sids)
+    private bool AllSourceSkillsExist(IEnumerable<StringName> sourceSkillIds)
     {
-        foreach (var sid in sids)
-            if (_unit_progress.get_skill_progress(sid) == null)
+        foreach (var sourceSkillId in sourceSkillIds)
+        {
+            if (_unit_progress.get_skill_progress(sourceSkillId) == null)
                 return false;
+        }
         return true;
     }
 
-    private StringName _infer_target_profession_id_from_sources(
-        Godot.Collections.Array<StringName> sids
-    )
+    private StringName InferTargetProfessionIdFromSources(IEnumerable<StringName> sourceSkillIds)
     {
-        StringName inferred = new StringName("");
-        foreach (var sid in sids)
+        StringName inferredProfessionId = "";
+        foreach (var sourceSkillId in sourceSkillIds)
         {
-            var sp =
-                _unit_progress.get_skill_progress(sid);
-            if (sp == null || !sp.is_core || sp.assigned_profession_id == "")
+            UnitSkillProgress sourceProgress =
+                _unit_progress.get_skill_progress(sourceSkillId);
+            if (
+                sourceProgress == null
+                || !sourceProgress.is_core
+                || sourceProgress.assigned_profession_id == ""
+            )
                 continue;
-            if (inferred == "")
-                inferred = sp.assigned_profession_id;
-            else if (inferred != sp.assigned_profession_id)
-                return new StringName("");
+            if (inferredProfessionId == "")
+                inferredProfessionId = sourceProgress.assigned_profession_id;
+            else if (inferredProfessionId != sourceProgress.assigned_profession_id)
+                return "";
         }
-        return inferred;
+        return inferredProfessionId;
     }
 
-    private UnitSkillProgress _get_or_create_result_skill_progress(
-        StringName rsid,
-        Godot.Collections.Array<StringName> sids
+    private UnitSkillProgress GetOrCreateResultSkillProgress(
+        StringName resultSkillId,
+        IEnumerable<StringName> sourceSkillIds
     )
     {
-        var existing =
-            _unit_progress.get_skill_progress(rsid);
-        if (existing != null)
-            return existing;
-        var rp = new UnitSkillProgress { skill_id = rsid, is_learned = true };
-        int sml = 0,
-            stm = 0,
-            strm = 0,
-            sbm = 0,
-            scm = 0;
-        StringName gbp = new StringName("");
-        bool gpc = false;
-        foreach (var sid in sids)
+        UnitSkillProgress existingProgress =
+            _unit_progress.get_skill_progress(resultSkillId);
+        if (existingProgress != null)
+            return existingProgress;
+        var resultProgress = new UnitSkillProgress
         {
-            var sp =
-                _unit_progress.get_skill_progress(sid);
-            if (sp == null)
+            skill_id = resultSkillId,
+            is_learned = true,
+        };
+        int maxSkillLevel = 0;
+        int totalMastery = 0;
+        int trainingMastery = 0;
+        int battleMastery = 0;
+        int currentMastery = 0;
+        StringName grantedByProfessionId = "";
+        bool hasProfessionGrantConflict = false;
+        foreach (var sourceSkillId in sourceSkillIds)
+        {
+            UnitSkillProgress sourceProgress =
+                _unit_progress.get_skill_progress(sourceSkillId);
+            if (sourceProgress == null)
                 continue;
-            sml = Mathf.Max(sml, sp.skill_level);
-            stm += sp.total_mastery_earned;
-            strm += sp.mastery_from_training;
-            sbm += sp.mastery_from_battle;
-            scm = Mathf.Max(scm, sp.current_mastery);
-            if (sp.profession_granted_by == "")
+            maxSkillLevel = Mathf.Max(maxSkillLevel, sourceProgress.skill_level);
+            totalMastery += sourceProgress.total_mastery_earned;
+            trainingMastery += sourceProgress.mastery_from_training;
+            battleMastery += sourceProgress.mastery_from_battle;
+            currentMastery = Mathf.Max(currentMastery, sourceProgress.current_mastery);
+            if (sourceProgress.profession_granted_by == "")
                 continue;
-            if (gbp == "")
-                gbp = sp.profession_granted_by;
-            else if (gbp != sp.profession_granted_by)
-                gpc = true;
+            if (grantedByProfessionId == "")
+                grantedByProfessionId = sourceProgress.profession_granted_by;
+            else if (grantedByProfessionId != sourceProgress.profession_granted_by)
+                hasProfessionGrantConflict = true;
         }
-        var rsd = _skill_defs.ContainsKey(rsid)
-            ? _skill_defs[rsid].AsGodotObject() as SkillDef
+        SkillDef resultSkillDef = _skillDefs.TryGetValue(resultSkillId, out SkillDef foundSkillDef)
+            ? foundSkillDef
             : null;
-        if (rsd != null)
-            sml = Mathf.Min(
-                sml,
+        if (resultSkillDef != null)
+        {
+            maxSkillLevel = Mathf.Min(
+                maxSkillLevel,
                 SkillEffectiveMaxLevelRules.get_effective_max_level(
-                    rsd,
-                    rp,
+                    resultSkillDef,
+                    resultProgress,
                     _unit_progress
                 )
             );
-        rp.skill_level = sml;
-        rp.current_mastery = scm;
-        rp.total_mastery_earned = stm;
-        rp.mastery_from_training = strm;
-        rp.mastery_from_battle = sbm;
-        if (!gpc)
+        }
+        resultProgress.skill_level = maxSkillLevel;
+        resultProgress.current_mastery = currentMastery;
+        resultProgress.total_mastery_earned = totalMastery;
+        resultProgress.mastery_from_training = trainingMastery;
+        resultProgress.mastery_from_battle = battleMastery;
+        if (!hasProfessionGrantConflict)
         {
-            rp.profession_granted_by = gbp;
-            if (gbp != "")
+            resultProgress.profession_granted_by = grantedByProfessionId;
+            if (grantedByProfessionId != "")
             {
-                rp.granted_source_type = "profession";
-                rp.granted_source_id = gbp;
+                resultProgress.granted_source_type = "profession";
+                resultProgress.granted_source_id = grantedByProfessionId;
             }
         }
-        return rp;
+        return resultProgress;
     }
 
-    private void _clear_level_trigger_references(StringName sid)
+    private void ClearLevelTriggerReferences(StringName skillId)
     {
-        if (_unit_progress == null || sid == "")
+        if (_unit_progress == null || skillId == "")
             return;
-        if (_unit_progress.active_level_trigger_core_skill_id == sid)
-            _unit_progress.active_level_trigger_core_skill_id = new StringName("");
-        _unit_progress.locked_level_trigger_skill_ids.Remove(sid);
-        var sp = _unit_progress.get_skill_progress(sid);
-        if (sp == null)
+        if (_unit_progress.active_level_trigger_core_skill_id == skillId)
+            _unit_progress.active_level_trigger_core_skill_id = "";
+        _unit_progress.locked_level_trigger_skill_ids.Remove(skillId);
+        UnitSkillProgress skillProgress = _unit_progress.get_skill_progress(skillId);
+        if (skillProgress == null)
             return;
-        sp.is_level_trigger_active = false;
-        sp.is_level_trigger_locked = false;
-        _unit_progress.set_skill_progress(sp);
+        skillProgress.is_level_trigger_active = false;
+        skillProgress.is_level_trigger_locked = false;
+        _unit_progress.set_skill_progress(skillProgress);
     }
 
-    private void _remove_source_skill_from_profession(StringName sid, StringName pid)
+    private void RemoveSourceSkillFromProfession(StringName skillId, StringName professionId)
     {
         if (_assignment_service != null)
         {
-            _assignment_service.remove_core_skill_from_profession(sid, pid);
+            _assignment_service.remove_core_skill_from_profession(skillId, professionId);
             return;
         }
-        var pp = _get_profession_progress(pid);
-        pp?.remove_core_skill(sid);
+        UnitProfessionProgress professionProgress = GetProfessionProgress(professionId);
+        professionProgress?.remove_core_skill(skillId);
     }
 
-    private void _remove_source_skill_from_all_professions(
-        StringName sid,
-        StringName exceptPid = default
+    private void RemoveSourceSkillFromAllProfessions(
+        StringName skillId,
+        StringName exceptProfessionId = default
     )
     {
         if (_unit_progress == null)
             return;
-        var profs = _unit_progress.professions;
-        foreach (var pk in profs.Keys)
+        var professions = _unit_progress.professions;
+        foreach (Variant rawProfessionId in professions.Keys)
         {
-            var pid = ProgressionDataUtils.to_string_name(pk);
-            if (exceptPid != "" && pid == exceptPid)
+            var professionId = ProgressionDataUtils.to_string_name(rawProfessionId);
+            if (exceptProfessionId != "" && professionId == exceptProfessionId)
                 continue;
-            var pp = _get_profession_progress(pid);
-            pp?.remove_core_skill(sid);
+            UnitProfessionProgress professionProgress = GetProfessionProgress(professionId);
+            professionProgress?.remove_core_skill(skillId);
         }
     }
 
-    private UnitProfessionProgress _get_profession_progress(StringName pid) =>
-        _unit_progress?.get_profession_progress(pid);
+    private UnitProfessionProgress GetProfessionProgress(StringName professionId) =>
+        _unit_progress?.get_profession_progress(professionId);
 
-    private bool _replace_source_cores_with_result(
-        Godot.Collections.Array<StringName> sids,
-        StringName rsid,
-        StringName tpid
+    private bool ReplaceSourceCoresWithResult(
+        IEnumerable<StringName> sourceSkillIds,
+        StringName resultSkillId,
+        StringName targetProfessionId
     )
     {
-        if (_unit_progress == null || tpid == "")
+        if (_unit_progress == null || targetProfessionId == "")
             return false;
-        var pp = _get_profession_progress(tpid);
-        if (pp == null)
+        UnitProfessionProgress professionProgress = GetProfessionProgress(targetProfessionId);
+        if (professionProgress == null)
             return false;
-        foreach (var sid in sids)
+        foreach (var sourceSkillId in sourceSkillIds)
         {
-            var sp =
-                _unit_progress.get_skill_progress(sid);
-            if (sp == null || sp.assigned_profession_id != tpid)
+            UnitSkillProgress sourceProgress =
+                _unit_progress.get_skill_progress(sourceSkillId);
+            if (sourceProgress == null || sourceProgress.assigned_profession_id != targetProfessionId)
                 continue;
-            _clear_level_trigger_references(sid);
-            sp.is_core = false;
-            sp.clear_profession_assignment();
-            pp.remove_core_skill(sid);
+            ClearLevelTriggerReferences(sourceSkillId);
+            sourceProgress.is_core = false;
+            sourceProgress.clear_profession_assignment();
+            professionProgress.remove_core_skill(sourceSkillId);
         }
-        _remove_source_skill_from_all_professions(rsid, tpid);
-        var rsp =
-            _unit_progress.get_skill_progress(rsid);
-        if (rsp == null)
+        RemoveSourceSkillFromAllProfessions(resultSkillId, targetProfessionId);
+        UnitSkillProgress resultProgress =
+            _unit_progress.get_skill_progress(resultSkillId);
+        if (resultProgress == null)
         {
-            rsp = new UnitSkillProgress { skill_id = rsid, is_learned = true };
+            resultProgress = new UnitSkillProgress
+            {
+                skill_id = resultSkillId,
+                is_learned = true,
+            };
         }
-        rsp.is_core = true;
-        rsp.assigned_profession_id = tpid;
-        pp.add_core_skill(rsid);
-        _unit_progress.set_skill_progress(rsp);
+        resultProgress.is_core = true;
+        resultProgress.assigned_profession_id = targetProfessionId;
+        professionProgress.add_core_skill(resultSkillId);
+        _unit_progress.set_skill_progress(resultProgress);
         return true;
+    }
+
+    private static Godot.Collections.Array<StringName> ToStringNameArray(
+        IEnumerable<StringName> values
+    )
+    {
+        var result = new Godot.Collections.Array<StringName>();
+        if (values == null)
+            return result;
+        foreach (var value in values)
+            result.Add(value);
+        return result;
+    }
+
+    private static bool TryReadStringName(Variant value, out StringName result)
+    {
+        if (value.VariantType == Variant.Type.StringName)
+        {
+            result = value.AsStringName();
+            return true;
+        }
+        if (value.VariantType == Variant.Type.String)
+        {
+            result = new StringName(value.AsString());
+            return true;
+        }
+        result = "";
+        return false;
     }
 }

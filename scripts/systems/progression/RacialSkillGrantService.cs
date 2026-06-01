@@ -1,9 +1,27 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 
-[GlobalClass]
-public partial class RacialSkillGrantService : RefCounted
+public static class RacialSkillGrantService
 {
+    private sealed class RacialGrantEntry
+    {
+        internal readonly RacialGrantedSkill Grant;
+        internal readonly StringName SourceType;
+        internal readonly StringName SourceId;
+
+        internal RacialGrantEntry(
+            RacialGrantedSkill grant,
+            StringName sourceType,
+            StringName sourceId
+        )
+        {
+            Grant = grant;
+            SourceType = sourceType;
+            SourceId = sourceId;
+        }
+    }
+
     public static bool backfill_party(
         PartyState partyState,
         Godot.Collections.Dictionary contentBundle,
@@ -15,10 +33,10 @@ public partial class RacialSkillGrantService : RefCounted
         if (partyState == null)
             return false;
         bool changed = false;
-        foreach (var msv in partyState.member_states.Values)
+        foreach (PartyMemberState memberState in partyState.get_member_states())
             changed =
                 backfill_member(
-                    msv.AsGodotObject() as PartyMemberState,
+                    memberState,
                     contentBundle,
                     skillDefs,
                     professionDefs,
@@ -38,10 +56,10 @@ public partial class RacialSkillGrantService : RefCounted
         if (partyState == null)
             return false;
         bool changed = false;
-        foreach (var msv in partyState.member_states.Values)
+        foreach (PartyMemberState memberState in partyState.get_member_states())
             changed =
                 revoke_orphan_member(
-                    msv.AsGodotObject() as PartyMemberState,
+                    memberState,
                     contentBundle,
                     skillDefs,
                     professionDefs,
@@ -60,7 +78,10 @@ public partial class RacialSkillGrantService : RefCounted
     {
         if (memberState?.progression == null)
             return false;
-        var grantEntries = collect_member_racial_grant_entries(memberState, contentBundle);
+        List<RacialGrantEntry> grantEntries = CollectMemberRacialGrantEntries(
+            memberState,
+            contentBundle
+        );
         if (grantEntries.Count == 0)
             return false;
         var ps = _build_progression_service(
@@ -70,12 +91,15 @@ public partial class RacialSkillGrantService : RefCounted
             progressionServiceFactory
         );
         bool changed = false;
-        foreach (var ge in grantEntries)
+        foreach (RacialGrantEntry grantEntry in grantEntries)
         {
-            var grant = ge["grant"].AsGodotObject() as RacialGrantedSkill;
-            var st = ProgressionDataUtils.to_string_name(ge["source_type"]);
-            var si = ProgressionDataUtils.to_string_name(ge["source_id"]);
-            if (ps.grant_racial_skill(grant, st, si))
+            if (
+                ps.grant_racial_skill(
+                    grantEntry.Grant,
+                    grantEntry.SourceType,
+                    grantEntry.SourceId
+                )
+            )
                 changed = true;
         }
         return changed;
@@ -91,8 +115,11 @@ public partial class RacialSkillGrantService : RefCounted
     {
         if (memberState?.progression == null)
             return false;
-        var activeGrantLookup = collect_active_identity_grant_lookup(memberState, contentBundle);
-        var skillIdsToRemove = new Godot.Collections.Array<StringName>();
+        HashSet<string> activeGrantLookup = CollectActiveIdentityGrantLookup(
+            memberState,
+            contentBundle
+        );
+        List<StringName> skillIdsToRemove = new();
         foreach (
             var sk in ProgressionDataUtils.sorted_string_keys(
                 memberState.progression.skills
@@ -107,7 +134,7 @@ public partial class RacialSkillGrantService : RefCounted
             if (!is_racial_granted_source_type(st))
                 continue;
             var si = ProgressionDataUtils.to_string_name(sp.granted_source_id);
-            if (activeGrantLookup.ContainsKey(identity_grant_key(st, si, skId)))
+            if (activeGrantLookup.Contains(identity_grant_key(st, si, skId)))
                 continue;
             if (sp.profession_granted_by != "")
                 continue;
@@ -127,12 +154,12 @@ public partial class RacialSkillGrantService : RefCounted
         return true;
     }
 
-    public static Godot.Collections.Array<Godot.Collections.Dictionary> collect_member_racial_grant_entries(
+    private static List<RacialGrantEntry> CollectMemberRacialGrantEntries(
         PartyMemberState memberState,
         Godot.Collections.Dictionary contentBundle
     )
     {
-        var entries = new Godot.Collections.Array<Godot.Collections.Dictionary>();
+        List<RacialGrantEntry> entries = new();
         if (memberState == null)
             return entries;
         RaceDef rd =
@@ -209,60 +236,42 @@ public partial class RacialSkillGrantService : RefCounted
     }
 
     private static void _append(
-        Godot.Collections.Array<Godot.Collections.Dictionary> entries,
-        object grantedSkills,
+        List<RacialGrantEntry> entries,
+        IEnumerable<RacialGrantedSkill> grantedSkills,
         StringName sourceType,
         StringName sourceId
     )
     {
-        if (sourceId == "")
+        if (sourceId == "" || grantedSkills == null)
             return;
-        Godot.Collections.Array values = null;
-        if (grantedSkills is Variant variantSkills && variantSkills.VariantType == Variant.Type.Array)
+        foreach (RacialGrantedSkill grant in grantedSkills)
         {
-            values = variantSkills.AsGodotArray();
-        }
-        else if (grantedSkills is Godot.Collections.Array arraySkills)
-        {
-            values = arraySkills;
-        }
-        if (values == null)
-            return;
-        foreach (var g in values)
-        {
-            if (g.VariantType == Variant.Type.Nil)
+            if (grant == null)
                 continue;
-            entries.Add(
-                new Godot.Collections.Dictionary
-                {
-                    { "grant", g },
-                    { "source_type", sourceType },
-                    { "source_id", sourceId },
-                }
-            );
+            entries.Add(new RacialGrantEntry(grant, sourceType, sourceId));
         }
     }
 
-    public static Godot.Collections.Dictionary collect_active_identity_grant_lookup(
+    private static HashSet<string> CollectActiveIdentityGrantLookup(
         PartyMemberState memberState,
         Godot.Collections.Dictionary contentBundle
     )
     {
-        var l = new Godot.Collections.Dictionary();
+        HashSet<string> lookup = new(StringComparer.Ordinal);
         if (memberState == null)
-            return l;
-        foreach (var ge in collect_member_racial_grant_entries(memberState, contentBundle))
+            return lookup;
+        foreach (RacialGrantEntry grantEntry in CollectMemberRacialGrantEntries(memberState, contentBundle))
         {
-            var g = ge["grant"].AsGodotObject() as RacialGrantedSkill;
-            if (g == null || g.skill_id == "")
+            RacialGrantedSkill grant = grantEntry.Grant;
+            if (grant == null || grant.skill_id == "")
                 continue;
-            var st = ProgressionDataUtils.to_string_name(ge["source_type"]);
-            var si = ProgressionDataUtils.to_string_name(ge["source_id"]);
-            if (st == "" || si == "")
+            if (grantEntry.SourceType == "" || grantEntry.SourceId == "")
                 continue;
-            l[identity_grant_key(st, si, g.skill_id)] = true;
+            lookup.Add(
+                identity_grant_key(grantEntry.SourceType, grantEntry.SourceId, grant.skill_id)
+            );
         }
-        return l;
+        return lookup;
     }
 
     public static string identity_grant_key(

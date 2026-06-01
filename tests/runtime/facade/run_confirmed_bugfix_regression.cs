@@ -64,16 +64,11 @@ public partial class run_confirmed_bugfix_regression : SceneTree
             "命中解析器应能读取 StringName key 的状态参数。"
         );
 
-        BattleFateAttackRules fateRules = new();
         BattleUnitState unit = BuildUnit("test_crit_lock_unit");
-        SetStatusParams(
-            unit,
-            "test_crit_lock",
-            new GDictionary { [new StringName("lock_crit")] = true }
-        );
+        SetTypedStatus(unit, "test_crit_lock", lockCrit: true);
         AssertTrue(
-            fateRules.is_attack_crit_locked(unit),
-            "命运攻击规则应能读取 StringName key 的状态参数。"
+            BattleFateAttackRules.IsAttackCritLocked(unit),
+            "命运攻击规则应读取 typed lock_crit 状态字段。"
         );
     }
 
@@ -172,6 +167,23 @@ public partial class run_confirmed_bugfix_regression : SceneTree
             power = 1,
             @params = @params?.Duplicate(true).AsGodotDictionary() ?? new GDictionary(),
             stacks = 1,
+        };
+        unit.set_status_effect(statusEffect);
+    }
+
+    private static void SetTypedStatus(
+        BattleUnitState unit,
+        StringName statusId,
+        bool lockCrit = false
+    )
+    {
+        BattleStatusEffectState statusEffect = new()
+        {
+            status_id = statusId,
+            source_unit_id = "test_source",
+            power = 1,
+            stacks = 1,
+            lock_crit = lockCrit,
         };
         unit.set_status_effect(statusEffect);
     }

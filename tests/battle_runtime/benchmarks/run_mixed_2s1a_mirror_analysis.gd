@@ -18,7 +18,7 @@ const MAX_IDLE_LOOPS := 25
 
 func _initialize() -> void:
 	var start_seed_source := "environment" if OS.has_environment("START_SEED") else "true_random"
-	var start_seed := int(OS.get_environment("START_SEED")) if OS.has_environment("START_SEED") else TrueRandomSeedService.generate_seed()
+	var start_seed := int(OS.get_environment("START_SEED")) if OS.has_environment("START_SEED") else _generate_start_seed()
 	var run_count := int(OS.get_environment("COUNT")) if OS.has_environment("COUNT") else 10
 	var output_path := OS.get_environment("OUTPUT_FILE") if OS.has_environment("OUTPUT_FILE") else ""
 	var roster_options := _build_roster_options_from_environment()
@@ -207,6 +207,21 @@ func _initialize() -> void:
 		else:
 			print("[ERROR] Failed to write: %s" % abs_path)
 	quit()
+
+
+func _generate_start_seed() -> int:
+	var crypto := Crypto.new()
+	var bytes := crypto.generate_random_bytes(7)
+	if bytes.size() >= 7:
+		var seed := 0
+		for byte_value in bytes:
+			seed = (seed << 8) | int(byte_value)
+		if seed > 0:
+			return seed
+
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	return max(int(rng.randi()), 1)
 
 
 func _build_formal_fixture(scenario_def, overrides: Dictionary, progression_registry, item_registry, roster_options: Dictionary = {}):

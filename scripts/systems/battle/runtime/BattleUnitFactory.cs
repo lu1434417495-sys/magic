@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 
 [GlobalClass]
@@ -37,6 +38,9 @@ public partial class BattleUnitFactory : RefCounted
 
     private Godot.Collections.Dictionary GetSkillDefs() =>
         _runtime?.get_skill_defs() ?? new Godot.Collections.Dictionary();
+
+    private IReadOnlyDictionary<StringName, SkillDef> GetSkillDefIndex() =>
+        _runtime?.GetSkillDefIndexTyped();
 
     private Godot.Collections.Dictionary GetItemDefs() =>
         _runtime?.get_item_defs() ?? new Godot.Collections.Dictionary();
@@ -390,7 +394,7 @@ public partial class BattleUnitFactory : RefCounted
                 : "hostile";
         us.control_mode = "ai";
         us.body_size = BattleUnitState.BODY_SIZE_MEDIUM();
-        us.body_size_category = BodySizeRules.BODY_SIZE_CATEGORY_MEDIUM();
+        us.body_size_category = BodySizeContentRules.BODY_SIZE_CATEGORY_MEDIUM;
         us.refresh_footprint();
         int hpMax = Mathf.Max(
             ctx.ContainsKey("default_enemy_hp") ? ctx["default_enemy_hp"].AsInt32() : 12,
@@ -839,7 +843,7 @@ public partial class BattleUnitFactory : RefCounted
             return;
         if (ms == null)
         {
-            us.set_body_size_category(BodySizeRules.BODY_SIZE_CATEGORY_SMALL());
+            us.set_body_size_category(BodySizeContentRules.BODY_SIZE_CATEGORY_SMALL);
             us.versatility_pick = "";
             return;
         }
@@ -1086,10 +1090,8 @@ public partial class BattleUnitFactory : RefCounted
                 member_state = ms,
                 unit_progress = prog,
             };
-            if (ctx.unit_progress != null)
-                ctx.skill_progress_by_id = ctx.unit_progress.skills;
         }
-        PassiveStatusOrchestrator.apply_to_unit(us, ctx, GetSkillDefs());
+        PassiveStatusOrchestrator.apply_to_unit(us, ctx, GetSkillDefIndex());
     }
 
     private static Godot.Collections.Array<StringName> _extract_movement_tags(

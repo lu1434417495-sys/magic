@@ -1698,9 +1698,9 @@ public partial class BattleHudAdapter : RefCounted
 
         int effectiveLuck = GetEffectiveLuck(activeUnit);
         bool isDisadvantage = battleState.is_attack_disadvantage(activeUnit, targetUnit);
-        int critGateDie = FateAttackFormula.calc_crit_gate_die_size(effectiveLuck, isDisadvantage);
-        int fumbleLowEnd = FateAttackFormula.calc_fumble_low_end(effectiveLuck);
-        int critThreshold = FateAttackFormula.calc_crit_threshold(
+        int critGateDie = FateAttackFormula.CalcCritGateDieSize(effectiveLuck, isDisadvantage);
+        int fumbleLowEnd = FateAttackFormula.CalcFumbleLowEnd(effectiveLuck);
+        int critThreshold = FateAttackFormula.CalcCritThreshold(
             GetHiddenLuckAtBirth(activeUnit),
             GetFaithLuckBonus(activeUnit)
         );

@@ -77,6 +77,11 @@ public partial class BattleResolutionResult : RefCounted
         return pending_character_rewards.Duplicate();
     }
 
+    public int GetConvertedCalamityShards()
+    {
+        return ReadOptionalInt(party_resource_commit, "converted_calamity_shards");
+    }
+
     public void set_loot_entries(GArray loot_entry_options)
     {
         loot_entries = NormalizeDropEntryOptions(loot_entry_options);
@@ -741,6 +746,13 @@ public partial class BattleResolutionResult : RefCounted
         }
         value = 0;
         return false;
+    }
+
+    private static int ReadOptionalInt(GDictionary source, string key)
+    {
+        if (source == null || !source.ContainsKey(key))
+            return 0;
+        return TryAsInt(source[key], out int value) ? value : 0;
     }
 
     private static bool TryAsString(object rawValue, out string value)

@@ -3405,11 +3405,11 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
             StringName targetCategory = ProgressionDataUtils.to_string_name(
                 effectDef.body_size_category
             );
-            if (!BodySizeRules.is_valid_body_size_category(targetCategory))
+            if (!BodySizeContentRules.IsValidBodySizeCategory(targetCategory))
             {
                 continue;
             }
-            Vector2I targetFootprint = BodySizeRules.get_footprint_for_category(targetCategory);
+            Vector2I targetFootprint = BodySizeContentRules.GetFootprintForCategory(targetCategory);
             if (
                 !gridService
                     .can_place_footprint(

@@ -56,8 +56,7 @@ public partial class HeadlessGameTestSession : RefCounted
     public GDictionary create_new_game(StringName preset_id)
     {
         EnsureGameSession();
-        GDictionary preset = WorldPresetRegistry.get_preset(preset_id);
-        if (preset.Count == 0)
+        if (!WorldPresetRegistry.TryGetPresetTyped(preset_id, out var preset))
         {
             return Result(false, $"未找到世界预设 {preset_id}。");
         }
@@ -66,9 +65,9 @@ public partial class HeadlessGameTestSession : RefCounted
         int createError = Call(
                 _gameSession,
                 "create_new_save",
-                ReadString(preset, "generation_config_path"),
+                preset.GenerationConfigPath,
                 preset_id,
-                ReadString(preset, "display_name", "世界")
+                string.IsNullOrEmpty(preset.DisplayName) ? "世界" : preset.DisplayName
             )
             .AsInt32();
         if (createError != (int)Error.Ok)

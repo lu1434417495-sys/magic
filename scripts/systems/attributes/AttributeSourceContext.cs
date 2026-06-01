@@ -1,11 +1,11 @@
+using System.Collections.Generic;
 using Godot;
 
-[GlobalClass]
-public partial class AttributeSourceContext : RefCounted
+public sealed class AttributeSourceContext
 {
     public UnitProgress unit_progress;
-    public Godot.Collections.Dictionary skill_defs = new();
-    public Godot.Collections.Dictionary profession_defs = new();
+    public Dictionary<StringName, SkillDef> skill_defs = new();
+    public Dictionary<StringName, ProfessionDef> profession_defs = new();
     public RaceDef race_def;
     public SubraceDef subrace_def;
     public AgeStageRule age_stage_rule;
@@ -16,10 +16,10 @@ public partial class AttributeSourceContext : RefCounted
     public AscensionDef ascension_def;
     public AscensionStageDef ascension_stage_def;
     public StringName versatility_pick = "";
-    public Godot.Collections.Array equipment_state = new();
-    public Godot.Collections.Array passive_state = new();
-    public Godot.Collections.Array temporary_effects = new();
-    public Godot.Collections.Array stage_advancement_modifiers = new();
+    public List<AttributeModifier> equipment_state = new();
+    public List<AttributeModifier> passive_state = new();
+    public List<AttributeModifier> temporary_effects = new();
+    public List<StageAdvancementModifier> stage_advancement_modifiers = new();
 
     public void set_effective_age_stage(
         AgeStageRule rule,

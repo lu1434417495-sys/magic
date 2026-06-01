@@ -2,8 +2,7 @@ using System;
 using Godot;
 using Godot.Collections;
 
-[GlobalClass]
-public partial class GameRuntimeCharacterInfoBuilder : RefCounted
+public sealed class GameRuntimeCharacterInfoBuilder
 {
     private static readonly StringName FortuneMarkedStatId = "fortune_marked";
     private static readonly StringName DoomMarkedStatId = "doom_marked";
@@ -24,7 +23,7 @@ public partial class GameRuntimeCharacterInfoBuilder : RefCounted
 
     public void setup(GameRuntimeFacade runtime) => Setup(runtime);
 
-    public new void Dispose()
+    public void Dispose()
     {
         _runtime = null;
     }

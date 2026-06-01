@@ -91,14 +91,11 @@ public partial class FaithDeityDef : Resource
     {
         if (rankDef == null || rank_progress_stat_id == "")
             return false;
-        foreach (var entry in rankDef.reward_entries)
+        foreach (FaithRankRewardEntrySpec entry in rankDef.GetRewardEntrySpecs())
         {
-            string type = (string)(entry.ContainsKey("entry_type") ? entry["entry_type"] : "");
-            string target = (string)(entry.ContainsKey("target_id") ? entry["target_id"] : "");
             if (
-                type != ""
-                && ProgressionDataUtils.to_string_name(type) == "attribute_delta"
-                && ProgressionDataUtils.to_string_name(target) == rank_progress_stat_id
+                entry.EntryType == "attribute_delta"
+                && entry.TargetId == rank_progress_stat_id
             )
                 return true;
         }

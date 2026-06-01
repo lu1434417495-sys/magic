@@ -1,27 +1,29 @@
+using System.Collections.Generic;
 using Godot;
+using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class StageAdvancementApplyService : RefCounted
+public sealed class StageAdvancementApplyService
 {
-    private Godot.Collections.Dictionary _content_bundle = new();
+    private Dictionary<StringName, StageAdvancementModifier> _stageAdvancementDefs = new();
 
-    public void setup(Godot.Collections.Dictionary contentBundle = null)
+    public void setup(GDictionary contentBundle = null)
     {
-        _content_bundle = contentBundle ?? new Godot.Collections.Dictionary();
+        _stageAdvancementDefs =
+            ProgressionContentBundleAdapter.ReadDefMap<StageAdvancementModifier>(
+                contentBundle,
+                "stage_advancement_defs",
+                "stage_advancement"
+            );
     }
 
     public bool add_stage_advancement_modifier(PartyMemberState memberState, StringName modifierId)
     {
         if (memberState == null || modifierId == "")
             return false;
-        StageAdvancementModifier modifier = _get_content_def<StageAdvancementModifier>(
-            "stage_advancement_defs",
-            "stage_advancement",
-            modifierId
-        );
+        _stageAdvancementDefs.TryGetValue(modifierId, out StageAdvancementModifier modifier);
         if (modifier == null || modifier.modifier_id != modifierId)
             return false;
-        if (!_modifier_applies_to_member(modifier, memberState))
+        if (!ModifierAppliesToMember(modifier, memberState))
             return false;
         var activeIds = memberState.active_stage_advancement_modifier_ids;
         if (activeIds.Contains(modifierId))
@@ -41,7 +43,7 @@ public partial class StageAdvancementApplyService : RefCounted
         return true;
     }
 
-    private bool _modifier_applies_to_member(
+    private static bool ModifierAppliesToMember(
         StageAdvancementModifier modifier,
         PartyMemberState memberState
     )
@@ -69,39 +71,5 @@ public partial class StageAdvancementApplyService : RefCounted
         )
             return false;
         return true;
-    }
-
-    private T _get_content_def<T>(
-        string primaryBucket,
-        string aliasBucket,
-        StringName entryId
-    ) where T : class
-    {
-        if (entryId == "")
-            return null;
-        var bucket = _get_content_bucket(primaryBucket, aliasBucket);
-        return bucket != null && bucket.ContainsKey(entryId)
-            ? bucket[entryId].AsGodotObject() as T
-            : null;
-    }
-
-    private Godot.Collections.Dictionary _get_content_bucket(
-        string primaryBucket,
-        string aliasBucket
-    )
-    {
-        if (_content_bundle.ContainsKey(primaryBucket))
-        {
-            var bv = _content_bundle[primaryBucket];
-            if (bv.VariantType == Variant.Type.Dictionary)
-                return bv.AsGodotDictionary();
-        }
-        if (_content_bundle.ContainsKey(aliasBucket))
-        {
-            var bv = _content_bundle[aliasBucket];
-            if (bv.VariantType == Variant.Type.Dictionary)
-                return bv.AsGodotDictionary();
-        }
-        return null;
     }
 }

@@ -1,7 +1,6 @@
 using Godot;
 
-[GlobalClass]
-public partial class AscensionTraitResolver : RefCounted
+public static class AscensionTraitResolver
 {
     private static readonly StringName CHARGE_KIND_PER_BATTLE = "per_battle";
 

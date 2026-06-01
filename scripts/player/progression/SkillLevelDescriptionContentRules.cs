@@ -1,51 +1,52 @@
+using System.Collections.Generic;
 using Godot;
+using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class SkillLevelDescriptionContentRules : RefCounted
+public static class SkillLevelDescriptionContentRules
 {
-    public static void append_validation_errors(
-        Godot.Collections.Array<string> errors,
-        StringName skillId,
-        SkillDef skillDef
-    )
+    public static List<string> CollectValidationErrors(StringName skillId, SkillDef skillDef)
     {
+        var errors = new List<string>();
         if (skillDef == null)
-            return;
+            return errors;
+
         string template = skillDef.level_description_template.StripEdges();
-        var configs = skillDef.level_description_configs;
+        List<LevelDescriptionConfigEntry> configs = ReadConfigEntries(
+            skillDef.level_description_configs
+        );
         bool hasTemplate = template.Length > 0;
         bool hasConfigs = configs.Count > 0;
 
         if (!hasTemplate && !hasConfigs)
-            return;
+            return errors;
         if (hasTemplate && !hasConfigs)
         {
             errors.Add(
                 $"Skill {skillId} level_description_configs must be non-empty when level_description_template is set."
             );
-            return;
+            return errors;
         }
         if (!hasTemplate && hasConfigs)
         {
             errors.Add(
                 $"Skill {skillId} level_description_template must be non-empty when level_description_configs is set."
             );
-            return;
+            return errors;
         }
 
-        var validLevels = new Godot.Collections.Array<int>();
+        var validLevels = new List<int>();
         int lowestDeclaredLevel = -1;
         int highestDeclaredLevel = -1;
         bool hasDynamicMaxLevel = skillDef.dynamic_max_level_stat_id != "";
         int maxLevel = skillDef.max_level;
 
-        foreach (var levelKey in configs.Keys)
+        foreach (LevelDescriptionConfigEntry configEntry in configs)
         {
-            int parsedLevel = _parse_level_key(levelKey);
+            int parsedLevel = ParseLevelKey(configEntry);
             if (parsedLevel < 0)
             {
                 errors.Add(
-                    $"Skill {skillId} level_description_configs key {levelKey} must be a non-negative integer string."
+                    $"Skill {skillId} level_description_configs key {configEntry.DisplayKey} must be a non-negative integer string."
                 );
                 continue;
             }
@@ -53,7 +54,7 @@ public partial class SkillLevelDescriptionContentRules : RefCounted
                 lowestDeclaredLevel < 0 ? parsedLevel : Mathf.Min(lowestDeclaredLevel, parsedLevel);
             highestDeclaredLevel = Mathf.Max(highestDeclaredLevel, parsedLevel);
             validLevels.Add(parsedLevel);
-            if (configs[levelKey].VariantType != Variant.Type.Dictionary)
+            if (!configEntry.ValueIsDictionary)
                 errors.Add(
                     $"Skill {skillId} level_description_configs[{parsedLevel}] must be a Dictionary."
                 );
@@ -64,31 +65,54 @@ public partial class SkillLevelDescriptionContentRules : RefCounted
         }
 
         if (validLevels.Count == 0)
-            return;
+            return errors;
 
-        var declaredLevels = new Godot.Collections.Dictionary();
+        var declaredLevels = new HashSet<int>();
         foreach (int level in validLevels)
-            declaredLevels[level] = true;
+            declaredLevels.Add(level);
         for (
             int expectedLevel = lowestDeclaredLevel;
             expectedLevel <= highestDeclaredLevel;
             expectedLevel++
         )
         {
-            if (!declaredLevels.ContainsKey(expectedLevel))
+            if (!declaredLevels.Contains(expectedLevel))
                 errors.Add(
                     $"Skill {skillId} level_description_configs must include level {expectedLevel}."
                 );
         }
+        return errors;
     }
 
-    private static int _parse_level_key(object rawLevelKey)
+    private static List<LevelDescriptionConfigEntry> ReadConfigEntries(GDictionary configs)
     {
-        if (rawLevelKey is not Variant levelKey)
+        var result = new List<LevelDescriptionConfigEntry>();
+        if (configs == null)
+            return result;
+
+        foreach (Variant rawLevelKey in configs.Keys)
+        {
+            bool keyIsString = rawLevelKey.VariantType == Variant.Type.String;
+            string keyText = keyIsString ? rawLevelKey.AsString().StripEdges() : "";
+            bool valueIsDictionary =
+                configs[rawLevelKey].VariantType == Variant.Type.Dictionary;
+            result.Add(
+                new LevelDescriptionConfigEntry(
+                    rawLevelKey.ToString(),
+                    keyIsString,
+                    keyText,
+                    valueIsDictionary
+                )
+            );
+        }
+        return result;
+    }
+
+    private static int ParseLevelKey(LevelDescriptionConfigEntry configEntry)
+    {
+        if (!configEntry.KeyIsString)
             return -1;
-        if (levelKey.VariantType != Variant.Type.String)
-            return -1;
-        string text = levelKey.AsString().StripEdges();
+        string text = configEntry.KeyText;
         if (text.Length == 0 || !int.TryParse(text, out int parsedLevel))
             return -1;
         if (parsedLevel < 0)
@@ -97,4 +121,11 @@ public partial class SkillLevelDescriptionContentRules : RefCounted
             return -1;
         return parsedLevel;
     }
+
+    private readonly record struct LevelDescriptionConfigEntry(
+        string DisplayKey,
+        bool KeyIsString,
+        string KeyText,
+        bool ValueIsDictionary
+    );
 }

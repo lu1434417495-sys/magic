@@ -65,7 +65,6 @@ public partial class run_game_runtime_world_event_regression : SceneTree
         }
         finally
         {
-            grid.Dispose();
             runtime.dispose();
         }
     }

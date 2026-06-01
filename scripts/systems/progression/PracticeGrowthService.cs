@@ -1,13 +1,12 @@
+using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-[GlobalClass]
-public partial class PracticeGrowthService : RefCounted
+public sealed class PracticeGrowthService
 {
     public static readonly StringName TRACK_MEDITATION = "meditation";
     public static readonly StringName TRACK_CULTIVATION = "cultivation";
-    private static readonly GStringNameArray PracticeTracks = new()
+    private static readonly HashSet<StringName> PracticeTracks = new()
     {
         TRACK_MEDITATION,
         TRACK_CULTIVATION,
@@ -18,14 +17,14 @@ public partial class PracticeGrowthService : RefCounted
     private const int TierAdvanced = 2;
     private const int TierUltimate = 3;
 
-    private static readonly GDictionary TierNameToValue = new()
+    private static readonly Dictionary<StringName, int> TierNameToValue = new()
     {
         ["basic"] = TierBasic,
         ["intermediate"] = TierIntermediate,
         ["advanced"] = TierAdvanced,
         ["ultimate"] = TierUltimate,
     };
-    private static readonly GDictionary TierValueToName = new()
+    private static readonly Dictionary<int, StringName> TierValueToName = new()
     {
         [TierBasic] = "basic",
         [TierIntermediate] = "intermediate",
@@ -36,13 +35,21 @@ public partial class PracticeGrowthService : RefCounted
     private static readonly StringName MpMaxAttr = "mp_max";
     private static readonly StringName AuraMaxAttr = "aura_max";
 
-    private GDictionary _skill_defs = new();
-    private GDictionary _profession_defs = new();
+    private readonly Dictionary<StringName, SkillDef> _skillDefs = new();
 
-    public void setup(GDictionary skillDefs, GDictionary professionDefs)
+    public void setup(GDictionary skillDefs, GDictionary _professionDefs)
     {
-        _skill_defs = skillDefs ?? new GDictionary();
-        _profession_defs = professionDefs ?? new GDictionary();
+        _skillDefs.Clear();
+        if (skillDefs == null)
+            return;
+        foreach (Variant rawKey in skillDefs.Keys)
+        {
+            if (!TryReadStringName(rawKey, out StringName skillId) || skillId == "")
+                continue;
+            Variant rawDef = skillDefs[rawKey];
+            if (rawDef.VariantType == Variant.Type.Object && rawDef.AsGodotObject() is SkillDef skillDef)
+                _skillDefs[skillId] = skillDef;
+        }
     }
 
     public StringName get_track_type_for_skill(StringName skillId)
@@ -56,32 +63,25 @@ public partial class PracticeGrowthService : RefCounted
         SkillDef skillDef = GetSkillDef(skillId);
         if (skillDef == null)
             return -1;
-        return TierNameToValue.ContainsKey(skillDef.practice_tier)
-            ? TierNameToValue[skillDef.practice_tier].AsInt32()
+        return TierNameToValue.TryGetValue(skillDef.practice_tier, out int tierValue)
+            ? tierValue
             : -1;
     }
 
     public static int resolve_tier_value(StringName tierName)
     {
-        return TierNameToValue.ContainsKey(tierName) ? TierNameToValue[tierName].AsInt32() : -1;
+        return TierNameToValue.TryGetValue(tierName, out int tierValue) ? tierValue : -1;
     }
 
     public static StringName resolve_tier_name(int tierValue)
     {
-        return TierValueToName.ContainsKey(tierValue)
-            ? TierValueToName[tierValue].AsStringName()
-            : "";
+        return TierValueToName.TryGetValue(tierValue, out StringName tierName) ? tierName : "";
     }
 
     public StringName get_active_practice_skill(UnitProgress unitProgress, StringName trackType)
     {
-        GStringNameArray activeSkillIds = GetActivePracticeSkillIds(unitProgress, trackType);
+        List<StringName> activeSkillIds = GetActivePracticeSkillIds(unitProgress, trackType);
         return activeSkillIds.Count == 1 ? activeSkillIds[0] : "";
-    }
-
-    public GDictionary can_learn_practice_skill(StringName skillId, UnitProgress unitProgress)
-    {
-        return can_learn_practice_skill_typed(skillId, unitProgress).ToCanLearnDictionary();
     }
 
     public PracticeSkillLearnStatus can_learn_practice_skill_typed(
@@ -95,7 +95,7 @@ public partial class PracticeGrowthService : RefCounted
         if (!HasValidPracticeTier(skillId))
             return PracticeSkillLearnStatus.Practice(trackType, false, false, "");
 
-        GStringNameArray existingSkillIds = GetActivePracticeSkillIds(unitProgress, trackType);
+        List<StringName> existingSkillIds = GetActivePracticeSkillIds(unitProgress, trackType);
         if (existingSkillIds.Count > 1)
         {
             return PracticeSkillLearnStatus.Practice(
@@ -190,11 +190,6 @@ public partial class PracticeGrowthService : RefCounted
         };
         unitProgress.set_skill_progress(newSkillProgress);
         return true;
-    }
-
-    public GDictionary get_skill_learned_status(StringName skillId, UnitProgress unitProgress)
-    {
-        return get_skill_learned_status_typed(skillId, unitProgress).ToLearnedStatusDictionary();
     }
 
     public PracticeSkillLearnStatus get_skill_learned_status_typed(
@@ -315,9 +310,7 @@ public partial class PracticeGrowthService : RefCounted
 
     private SkillDef GetSkillDef(StringName skillId)
     {
-        return _skill_defs.ContainsKey(skillId)
-            ? _skill_defs[skillId].AsGodotObject() as SkillDef
-            : null;
+        return _skillDefs.TryGetValue(skillId, out SkillDef skillDef) ? skillDef : null;
     }
 
     private static StringName GetExclusivePracticeTrack(SkillDef skillDef)
@@ -346,12 +339,12 @@ public partial class PracticeGrowthService : RefCounted
         return skillDef != null && TierNameToValue.ContainsKey(skillDef.practice_tier);
     }
 
-    private GStringNameArray GetActivePracticeSkillIds(
+    private List<StringName> GetActivePracticeSkillIds(
         UnitProgress unitProgress,
         StringName trackType
     )
     {
-        GStringNameArray activeSkillIds = new();
+        List<StringName> activeSkillIds = new();
         if (unitProgress == null || !PracticeTracks.Contains(trackType))
             return activeSkillIds;
 
@@ -473,5 +466,21 @@ public partial class PracticeGrowthService : RefCounted
     private static int GetKnowledgeWhitelistBonus(UnitProgress unitProgress, StringName trackType)
     {
         return 0;
+    }
+
+    private static bool TryReadStringName(Variant value, out StringName result)
+    {
+        if (value.VariantType == Variant.Type.StringName)
+        {
+            result = value.AsStringName();
+            return true;
+        }
+        if (value.VariantType == Variant.Type.String)
+        {
+            result = new StringName(value.AsString());
+            return true;
+        }
+        result = "";
+        return false;
     }
 }

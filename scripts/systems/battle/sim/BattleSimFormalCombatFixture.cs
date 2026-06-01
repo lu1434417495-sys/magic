@@ -184,7 +184,12 @@ public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCh
         )
         ?? new Godot.Collections.Dictionary();
 
-    public PassiveSourceContext build_passive_source_context(
+    PassiveSourceContext IBattleRuntimeCharacterGateway.build_passive_source_context(
+        StringName member_id,
+        UnitProgress progression_state
+    ) => build_passive_source_context(member_id, progression_state);
+
+    internal PassiveSourceContext build_passive_source_context(
         StringName member_id,
         UnitProgress progression_state = null
     ) =>

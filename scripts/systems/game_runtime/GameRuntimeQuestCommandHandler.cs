@@ -4,8 +4,7 @@ using Godot.Collections;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class GameRuntimeQuestCommandHandler : RefCounted
+public sealed class GameRuntimeQuestCommandHandler
 {
     private static readonly StringName RuntimeUnavailableMessage = "运行时尚未初始化。";
     private static readonly StringName InvalidQuestDisplayNameMessage =
@@ -29,7 +28,7 @@ public partial class GameRuntimeQuestCommandHandler : RefCounted
         Setup(runtime);
     }
 
-    public new void Dispose()
+    public void Dispose()
     {
         _runtime = null;
     }

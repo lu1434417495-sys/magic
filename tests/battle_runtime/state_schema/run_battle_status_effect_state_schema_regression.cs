@@ -93,6 +93,7 @@ public partial class run_battle_status_effect_state_schema_regression : SceneTre
             tick_interval_tu = 10,
             next_tick_at_tu = 15,
             skip_next_turn_end_decay = true,
+            lock_crit = true,
         };
 
         BattleStatusEffectState restored = BattleStatusEffectState.from_dict(effect.to_dict());
@@ -119,6 +120,7 @@ public partial class run_battle_status_effect_state_schema_regression : SceneTre
         AssertEq(restored.tick_interval_tu, 10, "roundtrip 应保留 tick_interval_tu。");
         AssertEq(restored.next_tick_at_tu, 15, "roundtrip 应保留 next_tick_at_tu。");
         AssertTrue(restored.skip_next_turn_end_decay, "roundtrip 应保留 skip_next_turn_end_decay。");
+        AssertTrue(restored.lock_crit, "roundtrip 应保留 lock_crit typed 字段。");
     }
 
     private void TestMissingRequiredFieldReturnsNull()
@@ -164,6 +166,10 @@ public partial class run_battle_status_effect_state_schema_regression : SceneTre
             BattleStatusEffectState.from_dict(PayloadWith("skip_next_turn_end_decay", 1)),
             "skip_next_turn_end_decay 必须是 bool true。"
         );
+        AssertNull(
+            BattleStatusEffectState.from_dict(PayloadWith("lock_crit", 1)),
+            "lock_crit 必须是 bool true。"
+        );
 
         GDictionary stringNamePayload = ValidPayload();
         stringNamePayload["status_id"] = new StringName("slow");
@@ -190,6 +196,10 @@ public partial class run_battle_status_effect_state_schema_regression : SceneTre
         AssertNull(
             BattleStatusEffectState.from_dict(PayloadWith("skip_next_turn_end_decay", "true")),
             "skip_next_turn_end_decay 不接受字符串 bool。"
+        );
+        AssertNull(
+            BattleStatusEffectState.from_dict(PayloadWith("lock_crit", "true")),
+            "lock_crit 不接受字符串 bool。"
         );
     }
 
@@ -225,6 +235,10 @@ public partial class run_battle_status_effect_state_schema_regression : SceneTre
             BattleStatusEffectState.from_dict(PayloadWith("skip_next_turn_end_decay", false)),
             "显式 false skip_next_turn_end_decay 应返回 null。"
         );
+        AssertNull(
+            BattleStatusEffectState.from_dict(PayloadWith("lock_crit", false)),
+            "显式 false lock_crit 应返回 null。"
+        );
     }
 
     private void TestDuplicateStateStillWorks()
@@ -237,6 +251,7 @@ public partial class run_battle_status_effect_state_schema_regression : SceneTre
             @params = new GDictionary { ["move_cost_delta"] = 1 },
             stacks = 1,
             duration = 15,
+            lock_crit = true,
         };
 
         BattleStatusEffectState duplicate = effect.duplicate_state();
@@ -257,6 +272,7 @@ public partial class run_battle_status_effect_state_schema_regression : SceneTre
         );
         AssertEq(duplicate.stacks, 1, "duplicate_state 应保留 stacks。");
         AssertEq(duplicate.duration, 15, "duplicate_state 应保留 duration。");
+        AssertTrue(duplicate.lock_crit, "duplicate_state 应保留 lock_crit。");
     }
 
     private static GDictionary ValidPayload()

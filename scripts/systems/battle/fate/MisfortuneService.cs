@@ -225,6 +225,21 @@ public partial class MisfortuneService : RefCounted
             ProgressionDataUtils.to_string_name_int_map(_calamityByMemberId).Duplicate(true);
     }
 
+    public Dictionary<StringName, int> GetCalamityByMemberIdSnapshot()
+    {
+        var result = new Dictionary<StringName, int>();
+        foreach (Variant key in _calamityByMemberId.Keys)
+        {
+            var memberId = ProgressionDataUtils.to_string_name(key);
+            if (memberId == "")
+                continue;
+            int value = Mathf.Max(_calamityByMemberId[key].AsInt32(), 0);
+            if (value > 0)
+                result[memberId] = value;
+        }
+        return result;
+    }
+
     public GDictionary get_calamity_by_member_id()
     {
         return GetCalamityByMemberId();
@@ -588,6 +603,15 @@ public partial class MisfortuneService : RefCounted
         {
             case "strong_debuff":
                 return _HandleStrongDebuffTrigger(payload);
+            case "adjacent_ally_defeated":
+            {
+                GArray results = _HandleAdjacentAllyDefeatTrigger(payload);
+                return new GDictionary
+                {
+                    ["result_count"] = results.Count,
+                    ["results"] = results,
+                };
+            }
             case "low_hp_end_turn":
                 return _HandleLowHpTurnEndTrigger(payload);
             case "boss_phase_changed":

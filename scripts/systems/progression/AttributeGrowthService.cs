@@ -1,7 +1,6 @@
 using Godot;
 
-[GlobalClass]
-public partial class AttributeGrowthService : RefCounted
+public sealed class AttributeGrowthService
 {
     private const int ATTRIBUTE_PROGRESS_THRESHOLD = 100;
 

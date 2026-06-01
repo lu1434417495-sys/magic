@@ -1,12 +1,10 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
 // 翻译自 world_map_grid_system.gd（2026-05-25，世界系统 C# 迁移）。
 // 世界地图网格：维护世界尺寸（格子）、区块尺寸、占用格子与 footprint 状态。
-[GlobalClass]
-public partial class WorldMapGridSystem : RefCounted
+public sealed class WorldMapGridSystem
 {
     private Vector2I _world_size_cells = Vector2I.Zero;
     private Vector2I _chunk_size = Vector2I.One;
@@ -156,9 +154,9 @@ public partial class WorldMapGridSystem : RefCounted
         _footprintsByEntityId.Remove(entity_id);
     }
 
-    public GVector2IArray get_neighbors_4(Vector2I coord)
+    public List<Vector2I> get_neighbors_4(Vector2I coord)
     {
-        var neighbors = new GVector2IArray();
+        var neighbors = new List<Vector2I>();
         Vector2I[] directions = { Vector2I.Left, Vector2I.Right, Vector2I.Up, Vector2I.Down };
 
         foreach (Vector2I direction in directions)

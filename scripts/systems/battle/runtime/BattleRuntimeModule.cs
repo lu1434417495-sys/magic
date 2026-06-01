@@ -1262,6 +1262,11 @@ public partial class BattleRuntimeModule : RefCounted
             ? _fate_runtime.get_calamity_by_member_id()
             : ProgressionDataUtils.to_string_name_int_map(calamity_by_member_id).Duplicate(true);
 
+    public IReadOnlyDictionary<StringName, int> GetCalamityByMemberIdSnapshot() =>
+        _fate_runtime != null
+            ? _fate_runtime.GetCalamityByMemberIdSnapshot()
+            : BuildCalamityByMemberIdSnapshot(calamity_by_member_id);
+
     public int get_member_calamity(StringName member_id) =>
         _fate_runtime != null ? _fate_runtime.get_member_calamity(member_id) : 0;
 
@@ -1283,6 +1288,25 @@ public partial class BattleRuntimeModule : RefCounted
         _fate_runtime == null
             ? MisfortuneService.get_skill_sidecar_missing_message(skill_id)
             : _fate_runtime.get_misfortune_skill_cast_block_reason(active_unit, skill_id);
+
+    private static Dictionary<StringName, int> BuildCalamityByMemberIdSnapshot(
+        GDictionary source
+    )
+    {
+        var result = new Dictionary<StringName, int>();
+        if (source == null)
+            return result;
+        foreach (Variant key in source.Keys)
+        {
+            var memberId = ProgressionDataUtils.to_string_name(key);
+            if (memberId == "")
+                continue;
+            int value = Mathf.Max(source[key].AsInt32(), 0);
+            if (value > 0)
+                result[memberId] = value;
+        }
+        return result;
+    }
 
     public MisfortuneSkillCastResult consume_misfortune_skill_cast_result(
         BattleUnitState active_unit,
@@ -1514,6 +1538,8 @@ public partial class BattleRuntimeModule : RefCounted
         }
         return _skillDefIndex.TryGetValue(skill_id, out SkillDef skillDef) ? skillDef : null;
     }
+
+    internal IReadOnlyDictionary<StringName, SkillDef> GetSkillDefIndexTyped() => _skillDefIndex;
 
     private void RebuildSkillDefIndex()
     {
@@ -3209,6 +3235,7 @@ public partial class BattleRuntimeModule : RefCounted
         bool counts_as_debuff_override = false,
         bool counts_as_debuff = false,
         bool lock_counterattack = false,
+        bool lock_crit = false,
         int main_skill_lock_other_debuff_count = 0
     )
     {
@@ -3223,6 +3250,7 @@ public partial class BattleRuntimeModule : RefCounted
             counts_as_debuff_override,
             counts_as_debuff,
             lock_counterattack,
+            lock_crit,
             main_skill_lock_other_debuff_count
         );
     }

@@ -4,7 +4,6 @@ const BattleDamageResolver = preload("res://scripts/systems/battle/rules/BattleD
 const BattleRuntimeModule = preload("res://scripts/systems/battle/runtime/BattleRuntimeModule.cs")
 const BattleUnitState = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
 const CombatEffectDef = preload("res://scripts/player/progression/CombatEffectDef.cs")
-const FateAttackFormula = preload("res://scripts/systems/battle/fate/FateAttackFormula.cs")
 const BattleTestFixture = preload("res://tests/shared/battle_test_fixture.gd")
 const BattleRuntimeTestHelpers = preload("res://tests/shared/battle_runtime_test_helpers.gd")
 const SharedDamageResolvers = preload("res://tests/shared/stub_damage_resolvers.gd")
@@ -41,7 +40,8 @@ func _test_test_runner_records_failures() -> void:
 
 func _test_stub_rng_rolls_are_clamped_and_counted() -> void:
 	var rng := StubRng.new([25, 4])
-	_test.assert_eq(FateAttackFormula.roll_die_with_disadvantage_rule(20, true, rng), 4, "StubRng 应注入并 clamp 掷骰。")
+	_test.assert_eq(rng.randi_range(1, 20), 20, "StubRng 应 clamp 过大的注入掷骰。")
+	_test.assert_eq(rng.randi_range(1, 20), 4, "StubRng 应按顺序返回注入掷骰。")
 	_test.assert_eq(rng.call_count, 2, "StubRng 应记录调用次数。")
 	_test.assert_eq(rng.remaining_count(), 0, "StubRng 应暴露剩余 roll 数。")
 
@@ -59,7 +59,6 @@ func _test_battle_fixture_builds_state_and_units() -> void:
 
 func _test_battle_fixture_installs_and_places_runtime_state() -> void:
 	var runtime := BattleRuntimeModule.new()
-	runtime.setup(null, {}, {}, {})
 	var state = _fixture.build_state({"battle_id": &"shared_fixture_runtime_contract", "map_size": Vector2i(2, 1)})
 	var player = _fixture.build_unit(&"runtime_hero", {"coord": Vector2i(0, 0)}) as BattleUnitState
 	var enemy = _fixture.build_enemy_unit(&"runtime_enemy", {"coord": Vector2i(1, 0)}) as BattleUnitState
@@ -87,7 +86,6 @@ func _test_fixed_roll_damage_resolver_uses_injected_rolls() -> void:
 
 func _test_fixed_combat_helpers_install_shared_resolvers() -> void:
 	var runtime := BattleRuntimeModule.new()
-	runtime.setup(null, {}, {}, {})
 	BattleRuntimeTestHelpers.configure_fixed_combat(runtime)
 	_test.assert_true(runtime.get_hit_resolver() is SharedHitResolvers.FixedHitResolver, "固定战斗 helper 应安装 fixed hit resolver。")
 	_test.assert_true(runtime.get_damage_resolver() is SharedDamageResolvers.FixedSuccessOneDamageResolver, "固定战斗 helper 应安装 fixed success damage resolver。")

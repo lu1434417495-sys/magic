@@ -14,6 +14,7 @@ public partial class run_character_management_identity_stage_regression : SceneT
 
     private void Run()
     {
+        TestAgeStageResolverNoLongerRequiresGodotRegistration();
         TestStageAdvancementRefreshesEffectiveAgeStage();
         TestAscensionReplacesEffectiveAgeStage();
 
@@ -28,6 +29,28 @@ public partial class run_character_management_identity_stage_regression : SceneT
             GD.PushError(failure);
         GD.Print($"Character management identity stage regression: FAIL ({_failures.Count})");
         Quit(1);
+    }
+
+    private void TestAgeStageResolverNoLongerRequiresGodotRegistration()
+    {
+        System.Type resolverType = typeof(AgeStageResolver);
+        AssertTrue(
+            !typeof(GodotObject).IsAssignableFrom(resolverType),
+            "AgeStageResolver should be a plain C# helper, not a GodotObject/RefCounted."
+        );
+        AssertTrue(
+            resolverType.GetCustomAttributes(typeof(GlobalClassAttribute), inherit: false).Length
+                == 0,
+            "AgeStageResolver should not remain registered as a Godot GlobalClass."
+        );
+        AssertEq(
+            resolverType
+                .GetMethod(nameof(AgeStageResolver.resolve_effective_stage))
+                ?.GetParameters()[2]
+                .ParameterType,
+            typeof(IEnumerable<StageAdvancementModifier>),
+            "AgeStageResolver should consume typed stage modifier sequences instead of Godot Array state."
+        );
     }
 
     private void TestStageAdvancementRefreshesEffectiveAgeStage()

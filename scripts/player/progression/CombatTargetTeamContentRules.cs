@@ -2,8 +2,7 @@ using Godot;
 
 // Combat target-team content rule constants and validators.
 // 翻译自 combat_target_team_content_rules.gd（2026-05-24，数据层 C# 迁移）。
-[GlobalClass]
-public partial class CombatTargetTeamContentRules : RefCounted
+public static class CombatTargetTeamContentRules
 {
     private static readonly StringName _TARGET_TEAM_FILTER_ENEMY = "enemy";
     private static readonly StringName _TARGET_TEAM_FILTER_ALLY = "ally";

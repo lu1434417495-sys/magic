@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 
@@ -430,24 +431,24 @@ public partial class CharacterCreationService : RefCounted
             return contentSource != null ? new ProgressionContentSourceRef(null, contentSource) : Empty;
         }
 
-        internal Godot.Collections.Array<string> ValidateMemberIdentity(PartyMemberState memberState)
+        internal IReadOnlyList<string> ValidateMemberIdentity(PartyMemberState memberState)
         {
             return _registry != null
-                ? IdentityPayloadValidator.validate_member_identity_for_content_source(
+                ? IdentityPayloadValidator.ValidateMemberIdentityForContentSource(
                     memberState,
                     _registry
                 )
-                : IdentityPayloadValidator.validate_member_identity(memberState, _dictionary);
+                : IdentityPayloadValidator.ValidateMemberIdentity(memberState, _dictionary);
         }
 
         internal StringName ResolveBodySizeCategory(PartyMemberState memberState)
         {
             return _registry != null
-                ? IdentityPayloadValidator.resolve_body_size_category_for_content_source(
+                ? IdentityPayloadValidator.ResolveBodySizeCategoryForContentSource(
                     memberState,
                     _registry
                 )
-                : IdentityPayloadValidator.resolve_body_size_category_for_member(
+                : IdentityPayloadValidator.ResolveBodySizeCategoryForMember(
                     memberState,
                     _dictionary
                 );
@@ -456,11 +457,11 @@ public partial class CharacterCreationService : RefCounted
         internal bool RefreshMemberBodySize(PartyMemberState memberState)
         {
             return _registry != null
-                ? IdentityPayloadValidator.refresh_member_body_size_from_content_source(
+                ? IdentityPayloadValidator.RefreshMemberBodySizeFromContentSource(
                     memberState,
                     _registry
                 )
-                : IdentityPayloadValidator.refresh_member_body_size_from_identity(
+                : IdentityPayloadValidator.RefreshMemberBodySizeFromIdentity(
                     memberState,
                     _dictionary
                 );

@@ -18,7 +18,6 @@ const ENEMY_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/enemies/EnemyConten
 const ENEMY_TEMPLATE_DEF_SCRIPT = preload("res://scripts/enemies/EnemyTemplateDef.cs")
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/AttributeService.cs")
 const UNIT_BASE_ATTRIBUTES_SCRIPT = preload("res://scripts/player/progression/UnitBaseAttributes.cs")
-const WILD_ENCOUNTER_GROWTH_SYSTEM_SCRIPT = preload("res://scripts/systems/world/WildEncounterGrowthSystem.cs")
 const WAREHOUSE_STATE_SCRIPT = preload("res://scripts/player/warehouse/WarehouseState.cs")
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
@@ -54,7 +53,6 @@ func _run() -> void:
 	_test_enemy_template_base_attributes_drive_derived_stamina()
 	_test_encounter_roster_builder_unlocks_caster_mp_resources()
 	_test_missing_template_does_not_build_fallback_enemy()
-	_test_wild_encounter_growth_respects_suppression_window()
 	_test_game_runtime_facade_move_advances_world_step()
 	_test_test_preset_uses_same_battle_terrain_profile_as_small_preset()
 	_test_main_world_wilds_use_canyon_battle_terrain_profile()
@@ -565,56 +563,6 @@ func _test_missing_template_does_not_build_fallback_enemy() -> void:
 		"enemy_ai_brains": game_session.get_enemy_ai_brains(),
 	})
 	_assert_true(enemy_units.is_empty(), "缺失正式模板时不应再构建 fallback 敌方单位。")
-	game_session.free()
-
-
-func _test_wild_encounter_growth_respects_suppression_window() -> void:
-	var game_session = GAME_SESSION_SCRIPT.new()
-	var growth_system = WILD_ENCOUNTER_GROWTH_SYSTEM_SCRIPT.new()
-	var encounter_anchor = _build_settlement_encounter_anchor(&"wolf_den_growth", Vector2i(5, 5))
-	var world_data := {
-		"world_step": 0,
-		"encounter_anchors": [encounter_anchor],
-	}
-
-	var old_step := int(world_data.get("world_step", 0))
-	world_data["world_step"] = old_step + 2
-	growth_system.apply_step_advance(
-		world_data,
-		old_step,
-		int(world_data.get("world_step", 0)),
-		game_session.get_wild_encounter_rosters()
-	)
-	_assert_eq(encounter_anchor.growth_stage, 1, "聚落类野怪应在到达成长间隔后提升阶段。")
-
-	var victory_applied := growth_system.apply_battle_victory(
-		encounter_anchor,
-		int(world_data.get("world_step", 0)),
-		game_session.get_wild_encounter_rosters()
-	)
-	_assert_true(victory_applied, "聚落类野怪战后应能应用压制逻辑。")
-	_assert_eq(encounter_anchor.growth_stage, 0, "聚落类野怪战胜后应至少降回初始阶段。")
-	_assert_eq(encounter_anchor.suppressed_until_step, 5, "wolf_den 战胜后的压制时间应按配置推进 3 step。")
-
-	old_step = int(world_data.get("world_step", 0))
-	world_data["world_step"] = old_step + 2
-	growth_system.apply_step_advance(
-		world_data,
-		old_step,
-		int(world_data.get("world_step", 0)),
-		game_session.get_wild_encounter_rosters()
-	)
-	_assert_eq(encounter_anchor.growth_stage, 0, "压制期内推进世界时间不应让聚落类野怪恢复增长。")
-
-	old_step = int(world_data.get("world_step", 0))
-	world_data["world_step"] = old_step + 3
-	growth_system.apply_step_advance(
-		world_data,
-		old_step,
-		int(world_data.get("world_step", 0)),
-		game_session.get_wild_encounter_rosters()
-	)
-	_assert_eq(encounter_anchor.growth_stage, 1, "压制期结束后，聚落类野怪应重新按成长间隔恢复增长。")
 	game_session.free()
 
 

@@ -1,8 +1,7 @@
 using System;
 using Godot;
 
-[GlobalClass]
-public partial class TrueRandomSeedService : RefCounted
+public static class TrueRandomSeedService
 {
     public const int SEED_BYTE_COUNT = 7;
     public const long MAX_CRYPTO_VALUE = 72057594037927936L;

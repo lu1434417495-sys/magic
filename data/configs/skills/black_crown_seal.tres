@@ -10,10 +10,9 @@ script = ExtResource("2_effect")
 effect_type = &"status"
 status_id = &"black_crown_seal_counterattack"
 duration_tu = 60
-params = {
-"counts_as_debuff": true,
-"lock_counterattack": true
-}
+counts_as_debuff_override = true
+counts_as_debuff = true
+lock_counterattack = true
 
 [sub_resource type="Resource" id="Resource_counter_option"]
 script = ExtResource("1_option")
@@ -28,10 +27,9 @@ script = ExtResource("2_effect")
 effect_type = &"status"
 status_id = &"black_crown_seal_crit"
 duration_tu = 60
-params = {
-"counts_as_debuff": true,
-"lock_crit": true
-}
+counts_as_debuff_override = true
+counts_as_debuff = true
+lock_crit = true
 
 [sub_resource type="Resource" id="Resource_crit_option"]
 script = ExtResource("1_option")

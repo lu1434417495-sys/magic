@@ -1,7 +1,7 @@
+using System.Collections.Generic;
 using Godot;
 
-[GlobalClass]
-public partial class AgeStageResolver : RefCounted
+public static class AgeStageResolver
 {
     private static readonly StringName SourceTypeAscension = "ascension";
     private static readonly StringName SourceTypeStageAdvancement = "stage_advancement";
@@ -21,7 +21,7 @@ public partial class AgeStageResolver : RefCounted
     public static AgeStageResolution resolve_effective_stage(
         PartyMemberState member_state,
         AgeProfileDef age_profile,
-        Godot.Collections.Array<StageAdvancementModifier> stage_advancement_modifiers = null,
+        IEnumerable<StageAdvancementModifier> stage_advancement_modifiers = null,
         BloodlineDef _bloodline_def = null,
         BloodlineStageDef _bloodline_stage_def = null,
         AscensionDef ascension_def = null,
@@ -94,11 +94,9 @@ public partial class AgeStageResolver : RefCounted
             : "adult";
     }
 
-    private static Godot.Collections.Array<StringName> _collect_age_stage_order(
-        AgeProfileDef age_profile
-    )
+    private static List<StringName> _collect_age_stage_order(AgeProfileDef age_profile)
     {
-        var stage_order = new Godot.Collections.Array<StringName>();
+        var stage_order = new List<StringName>();
         if (age_profile == null)
             return stage_order;
         foreach (var stage_rule in age_profile.stage_rules)
@@ -118,7 +116,7 @@ public partial class AgeStageResolver : RefCounted
         StageAdvancementModifier modifier,
         StringName base_stage_id,
         int base_stage_index,
-        Godot.Collections.Array<StringName> stage_order
+        List<StringName> stage_order
     )
     {
         if (modifier == null || (int)modifier.stage_offset <= 0)

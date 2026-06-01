@@ -188,9 +188,9 @@ public partial class WorldMapContentValidator : RefCounted
     private static GArray GetWorldPresets()
     {
         var presets = new GArray();
-        foreach (var preset in WorldPresetRegistry.list_presets())
+        foreach (WorldPresetRegistry.WorldPresetInfo preset in WorldPresetRegistry.ListPresetsTyped())
         {
-            presets.Add(preset);
+            presets.Add(preset.ToDictionary());
         }
         return presets;
     }

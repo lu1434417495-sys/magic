@@ -1,10 +1,10 @@
 using Godot;
-using Godot.Collections;
+using System.Collections.Generic;
 
-[GlobalClass]
-public partial class AttributeGrowthContentRules : RefCounted
+public static class AttributeGrowthContentRules
 {
-    public static readonly Dictionary<StringName, int> ValidGrowthTiers = new()
+    public static readonly IReadOnlyDictionary<StringName, int> ValidGrowthTiers =
+        new Dictionary<StringName, int>
     {
         { "basic", 60 },
         { "intermediate", 120 },

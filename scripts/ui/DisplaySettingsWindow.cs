@@ -1,12 +1,11 @@
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
-using GDictionaryArray = Godot.Collections.Array<Godot.Collections.Dictionary>;
+using System.Collections.Generic;
 
 [GlobalClass]
 public partial class DisplaySettingsWindow : Control
 {
     [Signal]
-    public delegate void settings_apply_requestedEventHandler(GDictionary settings);
+    public delegate void settings_apply_requestedEventHandler(Vector2I resolution, bool fullscreen);
 
     [Signal]
     public delegate void cancelledEventHandler();
@@ -19,7 +18,7 @@ public partial class DisplaySettingsWindow : Control
     private Button _cancelButton;
     private Button _headerCloseButton;
 
-    private readonly GDictionaryArray _resolutionOptions = new();
+    private readonly List<DisplaySettingsService.ResolutionOption> _resolutionOptions = new();
 
     public override void _Ready()
     {
@@ -60,43 +59,36 @@ public partial class DisplaySettingsWindow : Control
         }
     }
 
-    public void configure_options(GDictionaryArray resolution_options)
+    public void configure_options(IReadOnlyList<DisplaySettingsService.ResolutionOption> resolution_options)
     {
         _resolutionOptions.Clear();
         if (resolution_options != null)
         {
-            foreach (GDictionary entry in resolution_options)
+            foreach (DisplaySettingsService.ResolutionOption entry in resolution_options)
             {
-                Vector2I resolution = DictVector2I(entry, "size", Vector2I.Zero);
+                Vector2I resolution = entry.Size;
                 if (resolution.X <= 0 || resolution.Y <= 0)
                     continue;
-                _resolutionOptions.Add(
-                    new GDictionary
-                    {
-                        ["label"] = DictString(entry, "label", $"{resolution.X} x {resolution.Y}"),
-                        ["size"] = resolution,
-                    }
-                );
+                string label = string.IsNullOrEmpty(entry.Label)
+                    ? $"{resolution.X} x {resolution.Y}"
+                    : entry.Label;
+                _resolutionOptions.Add(new DisplaySettingsService.ResolutionOption(label, resolution));
             }
         }
         _rebuild_resolution_options();
     }
 
-    public void show_window(GDictionary current_settings)
+    public void show_window(DisplaySettingsService.DisplaySettings current_settings)
     {
         Visible = true;
         _rebuild_resolution_options();
 
-        Vector2I selectedResolution = DictVector2I(
-            current_settings,
-            "resolution",
-            new Vector2I(1280, 720)
-        );
+        Vector2I selectedResolution = current_settings.Resolution;
         int selectedIndex = _find_resolution_index(selectedResolution);
         if (_resolutionOptionButton.GetItemCount() > 0)
             _resolutionOptionButton.Select(selectedIndex);
 
-        _fullscreenCheckButton.ButtonPressed = DictBool(current_settings, "fullscreen", false);
+        _fullscreenCheckButton.ButtonPressed = current_settings.Fullscreen;
         _update_hint();
 
         if (_resolutionOptionButton.GetItemCount() > 0)
@@ -114,13 +106,12 @@ public partial class DisplaySettingsWindow : Control
             _hintLabel.Text = "";
     }
 
-    public GDictionary get_selected_settings()
+    public DisplaySettingsService.DisplaySettings get_selected_settings()
     {
-        return new GDictionary
-        {
-            ["resolution"] = _get_selected_resolution(),
-            ["fullscreen"] = _fullscreenCheckButton.ButtonPressed,
-        };
+        return new DisplaySettingsService.DisplaySettings(
+            _get_selected_resolution(),
+            _fullscreenCheckButton.ButtonPressed
+        );
     }
 
     private void _rebuild_resolution_options()
@@ -129,8 +120,8 @@ public partial class DisplaySettingsWindow : Control
             return;
 
         _resolutionOptionButton.Clear();
-        foreach (GDictionary entry in _resolutionOptions)
-            _resolutionOptionButton.AddItem(DictString(entry, "label", ""));
+        foreach (DisplaySettingsService.ResolutionOption entry in _resolutionOptions)
+            _resolutionOptionButton.AddItem(entry.Label);
 
         if (_applyButton != null)
             _applyButton.Disabled = _resolutionOptions.Count == 0;
@@ -140,7 +131,7 @@ public partial class DisplaySettingsWindow : Control
     {
         for (int index = 0; index < _resolutionOptions.Count; index++)
         {
-            if (DictVector2I(_resolutionOptions[index], "size", Vector2I.Zero) == resolution)
+            if (_resolutionOptions[index].Size == resolution)
                 return index;
         }
         return 0;
@@ -154,7 +145,7 @@ public partial class DisplaySettingsWindow : Control
         int selectedIndex = Mathf.Max(_resolutionOptionButton.GetSelectedId(), 0);
         if (selectedIndex >= _resolutionOptions.Count)
             selectedIndex = 0;
-        return DictVector2I(_resolutionOptions[selectedIndex], "size", new Vector2I(1280, 720));
+        return _resolutionOptions[selectedIndex].Size;
     }
 
     private void _on_fullscreen_toggled(bool _pressed)
@@ -173,9 +164,9 @@ public partial class DisplaySettingsWindow : Control
     {
         if (!Visible || _applyButton.Disabled)
             return;
-        GDictionary settings = get_selected_settings();
+        DisplaySettingsService.DisplaySettings settings = get_selected_settings();
         hide_window();
-        EmitSignal(SignalName.settings_apply_requested, settings);
+        EmitSignal(SignalName.settings_apply_requested, settings.Resolution, settings.Fullscreen);
     }
 
     private void _cancel()
@@ -200,38 +191,4 @@ public partial class DisplaySettingsWindow : Control
         _cancel();
     }
 
-    private static string DictString(GDictionary dict, string key, string defaultValue)
-    {
-        if (!TryRead(dict, key, out Variant value))
-            return defaultValue;
-        return value.VariantType switch
-        {
-            Variant.Type.String => value.AsString(),
-            Variant.Type.StringName => value.AsStringName().ToString(),
-            _ => defaultValue,
-        };
-    }
-
-    private static bool DictBool(GDictionary dict, string key, bool defaultValue)
-    {
-        if (!TryRead(dict, key, out Variant value) || value.VariantType != Variant.Type.Bool)
-            return defaultValue;
-        return value.AsBool();
-    }
-
-    private static Vector2I DictVector2I(GDictionary dict, string key, Vector2I defaultValue)
-    {
-        if (!TryRead(dict, key, out Variant value) || value.VariantType != Variant.Type.Vector2I)
-            return defaultValue;
-        return value.AsVector2I();
-    }
-
-    private static bool TryRead(GDictionary dict, string key, out Variant value)
-    {
-        value = default;
-        if (dict == null || !dict.ContainsKey(key))
-            return false;
-        value = dict[key];
-        return value.VariantType != Variant.Type.Nil;
-    }
 }

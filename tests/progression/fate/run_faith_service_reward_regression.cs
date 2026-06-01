@@ -1,5 +1,4 @@
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
@@ -40,15 +39,19 @@ public partial class run_faith_service_reward_regression : SceneTree
         PartyState partyState = BuildPartyState();
         var faithService = new FaithService();
 
-        GDictionary result = faithService.execute_devotion(partyState, "hero", FortunaDeityId);
+        FaithDevotionResult result = faithService.ExecuteDevotion(
+            partyState,
+            "hero",
+            FortunaDeityId
+        );
         PendingCharacterReward reward = partyState.get_next_pending_character_reward();
 
-        AssertTrue(ReadBool(result, "ok"), "Fortuna rank 1 应能生成 pending reward。");
-        AssertEq(ReadInt(result, "target_rank"), 1, "首次 devotion 应指向 rank 1。");
+        AssertTrue(result.Success, "Fortuna rank 1 应能生成 pending reward。");
+        AssertEq(result.TargetRank, 1, "首次 devotion 应指向 rank 1。");
         AssertTrue(reward != null, "成功 devotion 后应排入 pending reward。");
         AssertEq(
             reward != null ? reward.source_type : "",
-            FaithService.SOURCE_TYPE_FAITH_RANK_REWARD(),
+            FaithService.SourceTypeFaithRankReward,
             "pending reward source type 应来自 faith rank。"
         );
         AssertTrue(
@@ -107,22 +110,6 @@ public partial class run_faith_service_reward_regression : SceneTree
             }
         }
         return false;
-    }
-
-    private static bool ReadBool(GDictionary data, string key, bool fallback = false)
-    {
-        if (data == null || !data.ContainsKey(key))
-            return fallback;
-        var value = data[key];
-        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
-    }
-
-    private static int ReadInt(GDictionary data, string key, int fallback = 0)
-    {
-        if (data == null || !data.ContainsKey(key))
-            return fallback;
-        var value = data[key];
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
     }
 
     private void AssertEq<T>(T actual, T expected, string message)
