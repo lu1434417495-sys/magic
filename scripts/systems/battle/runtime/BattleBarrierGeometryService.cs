@@ -95,10 +95,7 @@ public partial class BattleBarrierGeometryService : RefCounted
         }
         foreach (var coordValue in footprint)
         {
-            if (
-                coordValue.VariantType == Variant.Type.Vector2I
-                && lookup.Contains(coordValue.AsVector2I())
-            )
+            if (lookup.Contains(coordValue.AsVector2I()))
             {
                 return true;
             }
@@ -115,10 +112,7 @@ public partial class BattleBarrierGeometryService : RefCounted
         }
         foreach (var coordValue in coords)
         {
-            if (coordValue.VariantType == Variant.Type.Vector2I)
-            {
-                lookup.Add(coordValue.AsVector2I());
-            }
+            lookup.Add(coordValue.AsVector2I());
         }
         return lookup;
     }

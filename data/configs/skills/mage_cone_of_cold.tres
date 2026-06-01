@@ -14,10 +14,8 @@ save_dc_source_ability = &"intelligence"
 save_ability = &"willpower"
 save_partial_on_success = true
 save_tag = &"magic"
-params = {
-"dice_count": 5,
-"dice_sides": 6
-}
+dice_count = 5
+dice_sides = 6
 
 [sub_resource type="Resource" id="Damage_l1"]
 script = ExtResource("1_cold_effect")
@@ -30,10 +28,8 @@ save_dc_source_ability = &"intelligence"
 save_ability = &"willpower"
 save_partial_on_success = true
 save_tag = &"magic"
-params = {
-"dice_count": 6,
-"dice_sides": 6
-}
+dice_count = 6
+dice_sides = 6
 
 [sub_resource type="Resource" id="Damage_l3"]
 script = ExtResource("1_cold_effect")
@@ -46,10 +42,8 @@ save_dc_source_ability = &"intelligence"
 save_ability = &"willpower"
 save_partial_on_success = true
 save_tag = &"magic"
-params = {
-"dice_count": 7,
-"dice_sides": 6
-}
+dice_count = 7
+dice_sides = 6
 
 [sub_resource type="Resource" id="Damage_l5"]
 script = ExtResource("1_cold_effect")
@@ -62,10 +56,8 @@ save_dc_source_ability = &"intelligence"
 save_ability = &"willpower"
 save_partial_on_success = true
 save_tag = &"magic"
-params = {
-"dice_count": 8,
-"dice_sides": 6
-}
+dice_count = 8
+dice_sides = 6
 
 [sub_resource type="Resource" id="Damage_l7"]
 script = ExtResource("1_cold_effect")
@@ -77,10 +69,8 @@ save_dc_source_ability = &"intelligence"
 save_ability = &"willpower"
 save_partial_on_success = true
 save_tag = &"magic"
-params = {
-"dice_count": 9,
-"dice_sides": 6
-}
+dice_count = 9
+dice_sides = 6
 
 [sub_resource type="Resource" id="Slow_l3"]
 script = ExtResource("1_cold_effect")

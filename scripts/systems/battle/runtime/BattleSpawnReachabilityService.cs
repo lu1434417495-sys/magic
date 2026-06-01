@@ -34,41 +34,33 @@ public readonly struct BattleSpawnReachabilityOptions
 
     private static bool ReadBool(GDictionary options, string key, bool fallback = false)
     {
-        if (!TryRead(options, key, out Variant value))
+        if (!HasKey(options, key))
         {
             return fallback;
         }
-        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
+        return options.ContainsKey(key)
+            ? options[key].AsBool()
+            : options[new StringName(key)].AsBool();
     }
 
     private static int ReadInt(GDictionary options, string key, int fallback = 0)
     {
-        if (!TryRead(options, key, out Variant value))
+        if (!HasKey(options, key))
         {
             return fallback;
         }
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+        return options.ContainsKey(key)
+            ? options[key].AsInt32()
+            : options[new StringName(key)].AsInt32();
     }
 
-    private static bool TryRead(GDictionary options, string key, out Variant value)
+    private static bool HasKey(GDictionary options, string key)
     {
-        value = default;
         if (options == null || string.IsNullOrEmpty(key))
         {
             return false;
         }
-        if (options.ContainsKey(key))
-        {
-            value = options[key];
-            return true;
-        }
-        StringName stringNameKey = new(key);
-        if (options.ContainsKey(stringNameKey))
-        {
-            value = options[stringNameKey];
-            return true;
-        }
-        return false;
+        return options.ContainsKey(key) || options.ContainsKey(new StringName(key));
     }
 }
 
@@ -390,7 +382,7 @@ public partial class BattleSpawnReachabilityService : RefCounted
             var skillId = new StringName(skillIdValue.ToString());
             if (!skillDefs.ContainsKey(skillId))
                 continue;
-            var skillDef = skillDefs[skillId].AsGodotObject() as SkillDef;
+            var skillDef = skillDefs[skillId].As<SkillDef>();
             if (skillDef == null || skillDef.combat_profile == null)
                 continue;
             if (!_AttackerCanUseSkill(enemyUnit, skillDef))
@@ -534,7 +526,7 @@ public partial class BattleSpawnReachabilityService : RefCounted
         {
             if (!skillDefs.ContainsKey(skillId))
                 continue;
-            var skillDef = skillDefs[skillId].AsGodotObject() as SkillDef;
+            var skillDef = skillDefs[skillId].As<SkillDef>();
             if (skillDef == null || skillDef.combat_profile == null)
                 continue;
             foreach (var targetUnitValue in playerTargets)

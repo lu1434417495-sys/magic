@@ -213,7 +213,7 @@ public readonly struct BattleRepeatAttackStageSpec
             if (levelValue <= skillLevel && levelValue > bestLevel)
             {
                 bestLevel = levelValue;
-                resolvedStages = ReadInt(levelStagesMap, levelKey);
+                resolvedStages = ReadInt(levelStagesMap, levelKey.AsInt32());
             }
         }
         return Mathf.Max(resolvedStages, 0);
@@ -221,38 +221,51 @@ public readonly struct BattleRepeatAttackStageSpec
 
     private static GDictionary ReadDictionary(GDictionary data, string key)
     {
-        var value = ReadValue(data, key);
-        return value.VariantType == Variant.Type.Dictionary
-            ? value.AsGodotDictionary()
+        if (data == null)
+            return new GDictionary();
+        if (data.ContainsKey(key))
+            return data[key].AsGodotDictionary();
+        var stringNameKey = new StringName(key);
+        return data.ContainsKey(stringNameKey)
+            ? data[stringNameKey].AsGodotDictionary()
             : new GDictionary();
     }
 
     private static int ReadInt(GDictionary data, string key, int fallback = 0)
     {
-        var value = ReadValue(data, key);
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+        if (data == null)
+            return fallback;
+        if (data.ContainsKey(key))
+            return data[key].AsInt32();
+        var stringNameKey = new StringName(key);
+        return data.ContainsKey(stringNameKey) ? data[stringNameKey].AsInt32() : fallback;
     }
 
-    private static int ReadInt(GDictionary data, Variant key, int fallback = 0)
+    private static int ReadInt(GDictionary data, int key, int fallback = 0)
     {
         if (data == null || !data.ContainsKey(key))
             return fallback;
-        var value = data[key];
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+        return data[key].AsInt32();
     }
 
     private static double ReadFloat(GDictionary data, string key, double fallback = 0.0)
     {
-        var value = ReadValue(data, key);
-        if (value.VariantType == Variant.Type.Float || value.VariantType == Variant.Type.Int)
-            return value.AsDouble();
-        return fallback;
+        if (data == null)
+            return fallback;
+        if (data.ContainsKey(key))
+            return data[key].AsDouble();
+        var stringNameKey = new StringName(key);
+        return data.ContainsKey(stringNameKey) ? data[stringNameKey].AsDouble() : fallback;
     }
 
     private static bool ReadBool(GDictionary data, string key, bool fallback = false)
     {
-        var value = ReadValue(data, key);
-        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
+        if (data == null)
+            return fallback;
+        if (data.ContainsKey(key))
+            return data[key].AsBool();
+        var stringNameKey = new StringName(key);
+        return data.ContainsKey(stringNameKey) ? data[stringNameKey].AsBool() : fallback;
     }
 
     private static StringName ReadStringName(
@@ -261,23 +274,13 @@ public readonly struct BattleRepeatAttackStageSpec
         StringName fallback = default
     )
     {
-        var value = ReadValue(data, key);
-        if (value.VariantType == Variant.Type.StringName)
-            return value.AsStringName();
-        if (value.VariantType == Variant.Type.String)
-            return new StringName(value.AsString());
-        return fallback ?? new StringName("");
-    }
-
-    private static Variant ReadValue(GDictionary data, string key)
-    {
         if (data == null)
-            return default;
+            return fallback ?? new StringName("");
         if (data.ContainsKey(key))
-            return data[key];
+            return ProgressionDataUtils.to_string_name(data[key]);
         var stringNameKey = new StringName(key);
         if (data.ContainsKey(stringNameKey))
-            return data[stringNameKey];
-        return default;
+            return ProgressionDataUtils.to_string_name(data[stringNameKey]);
+        return fallback ?? new StringName("");
     }
 }

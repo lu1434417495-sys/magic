@@ -34,7 +34,7 @@ func _run() -> void:
 	_test_status_params_duration_is_not_used_as_runtime_duration()
 	_test_status_duration_tu_ignores_legacy_params_duration()
 	_test_damage_resolver_reads_only_formal_damage_status_params()
-	_test_skill_turn_status_params_require_formal_string_keys()
+	_test_skill_turn_status_uses_typed_fields_not_params()
 	_test_status_effect_from_dict_requires_explicit_status_id()
 	_test_legacy_status_effect_map_keys_are_not_status_id_fallbacks()
 	_test_non_dictionary_status_effect_entries_are_rejected()
@@ -380,7 +380,7 @@ func _test_damage_resolver_reads_only_formal_damage_status_params() -> void:
 	_assert_eq(int(legacy_tag_result.get("damage", -1)), 5, "旧 params.tag 不应再被当作 damage_tag 过滤。")
 
 	var formal_bypass_effect := _build_damage_effect(10, &"physical_slash")
-	formal_bypass_effect.params["dr_bypass_tag"] = "armor_pierce"
+	formal_bypass_effect.dr_bypass_tag = &"armor_pierce"
 	var formal_bypass_target := _build_unit(&"formal_bypass_target", Vector2i.ZERO, 2)
 	_set_status_params(formal_bypass_target, &"formal_content_dr", {
 		"content_dr": 4,
@@ -409,9 +409,9 @@ func _test_damage_resolver_reads_only_formal_damage_status_params() -> void:
 
 	var formal_low_hp_effect := _build_damage_effect(10, &"physical_slash")
 	formal_low_hp_effect.bonus_condition = &"target_low_hp"
-	formal_low_hp_effect.params["hp_ratio_threshold_percent"] = 70
-	formal_low_hp_effect.params["bonus_damage_dice_count"] = 4
-	formal_low_hp_effect.params["bonus_damage_dice_sides"] = 1
+	formal_low_hp_effect.hp_ratio_threshold_percent = 70
+	formal_low_hp_effect.bonus_damage_dice_count = 4
+	formal_low_hp_effect.bonus_damage_dice_sides = 1
 	var formal_low_hp_target := _build_unit(&"formal_low_hp_target", Vector2i.ZERO, 2)
 	formal_low_hp_target.current_hp = 18
 	var formal_low_hp_result: Dictionary = runtime._damage_resolver.resolve_effects(source, formal_low_hp_target, [formal_low_hp_effect])
@@ -437,85 +437,77 @@ func _test_damage_resolver_reads_only_formal_damage_status_params() -> void:
 	_assert_eq(int(legacy_low_hp_result.get("damage", -1)), 10, "旧 params.low_hp_ratio 不应再覆盖默认低血阈值或触发追加骰。")
 
 
-func _test_skill_turn_status_params_require_formal_string_keys() -> void:
+func _test_skill_turn_status_uses_typed_fields_not_params() -> void:
 	var resolver := BattleRuntimeSkillTurnResolver.new()
 
 	var legacy_bool_unit := _build_unit(&"legacy_bool_param_unit", Vector2i.ZERO, 2)
 	_set_status_params(legacy_bool_unit, &"legacy_counter_lock", {
-		&"lock_counterattack": true,
-	})
-	_assert_true(
-		not resolver.has_status_param_bool(legacy_bool_unit, &"lock_counterattack"),
-		"StringName-only lock_counterattack params 不应再被 status bool helper 接受。"
-	)
-
-	var formal_bool_unit := _build_unit(&"formal_bool_param_unit", Vector2i.ZERO, 2)
-	_set_status_params(formal_bool_unit, &"formal_counter_lock", {
 		"lock_counterattack": true,
 	})
 	_assert_true(
-		resolver.has_status_param_bool(formal_bool_unit, &"lock_counterattack"),
-		"正式 String key 的 lock_counterattack params 应继续生效。"
+		not resolver.has_counterattack_lock_status(legacy_bool_unit),
+		"status params.lock_counterattack 不应再驱动反击锁。"
+	)
+
+	var formal_bool_unit := _build_unit(&"formal_bool_param_unit", Vector2i.ZERO, 2)
+	_set_typed_status_fields(formal_bool_unit, &"formal_counter_lock", true)
+	_assert_true(
+		resolver.has_counterattack_lock_status(formal_bool_unit),
+		"typed lock_counterattack 字段应驱动反击锁。"
 	)
 
 	var legacy_int_unit := _build_unit(&"legacy_int_param_unit", Vector2i.ZERO, 2)
 	_set_status_params(legacy_int_unit, &"legacy_main_skill_lock", {
-		&"main_skill_lock_other_debuff_count": 2,
-	})
-	_assert_eq(
-		resolver.get_status_param_max_int(legacy_int_unit, &"main_skill_lock_other_debuff_count"),
-		0,
-		"StringName-only main_skill_lock_other_debuff_count params 不应再被 int helper 接受。"
-	)
-
-	var formal_int_unit := _build_unit(&"formal_int_param_unit", Vector2i.ZERO, 2)
-	_set_status_params(formal_int_unit, &"formal_main_skill_lock", {
 		"main_skill_lock_other_debuff_count": 2,
 	})
 	_assert_eq(
-		resolver.get_status_param_max_int(formal_int_unit, &"main_skill_lock_other_debuff_count"),
+		resolver.get_main_skill_lock_other_debuff_count(legacy_int_unit),
+		0,
+		"status params.main_skill_lock_other_debuff_count 不应再驱动主技能锁。"
+	)
+
+	var formal_int_unit := _build_unit(&"formal_int_param_unit", Vector2i.ZERO, 2)
+	_set_typed_status_fields(formal_int_unit, &"formal_main_skill_lock", false, 2)
+	_assert_eq(
+		resolver.get_main_skill_lock_other_debuff_count(formal_int_unit),
 		2,
-		"正式 String key 的 main_skill_lock_other_debuff_count params 应继续生效。"
+		"typed main_skill_lock_other_debuff_count 字段应驱动主技能锁。"
 	)
 
 	var legacy_counts_true_unit := _build_unit(&"legacy_counts_true_unit", Vector2i.ZERO, 2)
 	_set_status_params(legacy_counts_true_unit, &"custom_bad_debuff", {
-		&"counts_as_debuff": true,
+		"counts_as_debuff": true,
 	})
 	_assert_eq(
 		resolver.count_debuff_statuses(legacy_counts_true_unit),
 		0,
-		"StringName-only counts_as_debuff=true 不应再把自定义状态计为 debuff。"
+		"status params.counts_as_debuff=true 不应再把自定义状态计为 debuff。"
 	)
 
 	var formal_counts_true_unit := _build_unit(&"formal_counts_true_unit", Vector2i.ZERO, 2)
-	_set_status_params(formal_counts_true_unit, &"custom_formal_debuff", {
-		"counts_as_debuff": true,
-	})
+	_set_typed_status_fields(formal_counts_true_unit, &"custom_formal_debuff", false, 0, true, true)
 	_assert_eq(
 		resolver.count_debuff_statuses(formal_counts_true_unit),
 		1,
-		"正式 String key 的 counts_as_debuff=true 应继续把自定义状态计为 debuff。"
+		"typed counts_as_debuff=true 应继续把自定义状态计为 debuff。"
 	)
 
 	var legacy_counts_false_unit := _build_unit(&"legacy_counts_false_unit", Vector2i.ZERO, 2)
 	_set_status_params(legacy_counts_false_unit, &"burning", {
-		&"counts_as_debuff": false,
+		"counts_as_debuff": false,
 	})
 	_assert_eq(
 		resolver.count_debuff_statuses(legacy_counts_false_unit),
 		1,
-		"StringName-only counts_as_debuff=false 不应再覆盖内建 debuff 表。"
+		"status params.counts_as_debuff=false 不应再覆盖内建 debuff 表。"
 	)
 
 	var formal_counts_false_unit := _build_unit(&"formal_counts_false_unit", Vector2i.ZERO, 2)
-	_set_status_params(formal_counts_false_unit, &"burning", {
-		"counts_as_debuff": false,
-	})
+	_set_typed_status_fields(formal_counts_false_unit, &"burning", false, 0, true, false)
 	_assert_eq(
 		resolver.count_debuff_statuses(formal_counts_false_unit),
 		0,
-		"正式 String key 的 counts_as_debuff=false 应继续覆盖内建 debuff 表。"
+		"typed counts_as_debuff=false 应继续覆盖内建 debuff 表。"
 	)
 
 
@@ -649,6 +641,25 @@ func _set_status_params(unit: BattleUnitState, status_id: StringName, params: Di
 	unit.set_status_effect(status_effect)
 
 
+func _set_typed_status_fields(
+	unit: BattleUnitState,
+	status_id: StringName,
+	lock_counterattack := false,
+	main_skill_lock_other_debuff_count := 0,
+	counts_as_debuff_override := false,
+	counts_as_debuff := false
+) -> void:
+	var status_effect := BattleStatusEffectState.new()
+	status_effect.status_id = status_id
+	status_effect.power = 1
+	status_effect.stacks = 1
+	status_effect.lock_counterattack = lock_counterattack
+	status_effect.main_skill_lock_other_debuff_count = main_skill_lock_other_debuff_count
+	status_effect.counts_as_debuff_override = counts_as_debuff_override
+	status_effect.counts_as_debuff = counts_as_debuff
+	unit.set_status_effect(status_effect)
+
+
 func _build_damage_effect(power: int, damage_tag: StringName) -> CombatEffectDef:
 	var effect_def := CombatEffectDef.new()
 	effect_def.effect_type = &"damage"
@@ -660,7 +671,7 @@ func _build_damage_effect(power: int, damage_tag: StringName) -> CombatEffectDef
 
 func _build_runtime() -> BattleRuntimeModule:
 	var runtime := BattleRuntimeModule.new()
-	runtime.setup(null, {}, {}, {})
+	runtime._ensure_sidecars_ready()
 	return runtime
 
 

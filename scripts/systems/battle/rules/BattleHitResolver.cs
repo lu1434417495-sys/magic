@@ -307,7 +307,7 @@ public partial class BattleHitResolver : RefCounted
         {
             GDictionary knownSkillLevelMap = active_unit.known_skill_level_map;
             StringName skillId = skill_def.skill_id;
-            if (TryGetValue(knownSkillLevelMap, skillId, out Variant skillLevelValue))
+            if (TryGetValue(knownSkillLevelMap, skillId, out dynamic skillLevelValue))
             {
                 skillLevel = ToInt(skillLevelValue, 0);
             }
@@ -472,7 +472,7 @@ public partial class BattleHitResolver : RefCounted
             return 0;
         }
         int penalty = 0;
-        foreach (Variant statusIdValue in active_unit.status_effects.Keys)
+        foreach (var statusIdValue in active_unit.status_effects.Keys)
         {
             StringName statusId = ProgressionDataUtils.to_string_name(statusIdValue);
             var statusEntry = active_unit.get_status_effect(statusId);
@@ -503,7 +503,7 @@ public partial class BattleHitResolver : RefCounted
         {
             return false;
         }
-        foreach (Variant statusIdValue in unit_state.status_effects.Keys)
+        foreach (var statusIdValue in unit_state.status_effects.Keys)
         {
             StringName statusId = ProgressionDataUtils.to_string_name(statusIdValue);
             var statusEntry = unit_state.get_status_effect(statusId);
@@ -529,9 +529,9 @@ public partial class BattleHitResolver : RefCounted
         {
             return fallback;
         }
-        if (!TryGetValue(@params, param_key, out Variant value))
+        if (!TryGetValue(@params, param_key, out dynamic value))
             return fallback;
-        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
+        return value.AsBool();
     }
 
     public virtual AttackRollResult roll_attack_check(BattleState battle_state, AttackCheckInput attack_check)
@@ -1115,7 +1115,7 @@ public partial class BattleHitResolver : RefCounted
         if (
             active_unit.known_skill_level_map != null
             && skill_def != null
-            && TryGetValue(active_unit.known_skill_level_map, skill_def.skill_id, out Variant skillLevelValue)
+            && TryGetValue(active_unit.known_skill_level_map, skill_def.skill_id, out dynamic skillLevelValue)
         )
         {
             skillLevel = ToInt(skillLevelValue, 0);
@@ -1593,22 +1593,19 @@ public partial class BattleHitResolver : RefCounted
 
     private static GDictionary GetDict(GDictionary source, object key)
     {
-        return TryGetValue(source, key, out Variant value)
-            && value.VariantType == Variant.Type.Dictionary
+        return TryGetValue(source, key, out dynamic value)
             ? value.AsGodotDictionary()
             : new GDictionary();
     }
 
     private static GArray GetArray(GDictionary source, object key)
     {
-        return TryGetValue(source, key, out Variant value) && value.VariantType == Variant.Type.Array
-            ? value.AsGodotArray()
-            : new GArray();
+        return TryGetValue(source, key, out dynamic value) ? value.AsGodotArray() : new GArray();
     }
 
     private static int GetInt(GDictionary source, object key, int fallback = 0)
     {
-        if (!TryGetValue(source, key, out Variant value))
+        if (!TryGetValue(source, key, out dynamic value))
         {
             return fallback;
         }
@@ -1617,7 +1614,12 @@ public partial class BattleHitResolver : RefCounted
 
     private static int ToInt(object rawValue, int fallback = 0)
     {
-        if (rawValue is not Variant value)
+        try
+        {
+            dynamic value = rawValue;
+            return value.AsInt32();
+        }
+        catch
         {
             return rawValue switch
             {
@@ -1634,34 +1636,26 @@ public partial class BattleHitResolver : RefCounted
                 _ => fallback,
             };
         }
-        return value.VariantType switch
-        {
-            Variant.Type.Int => value.AsInt32(),
-            Variant.Type.Float => (int)value.AsDouble(),
-            Variant.Type.Bool => value.AsBool() ? 1 : 0,
-            Variant.Type.String => int.TryParse(value.AsString(), out int parsed)
-                ? parsed
-                : fallback,
-            Variant.Type.StringName
-                => int.TryParse(value.AsStringName().ToString(), out int parsed)
-                    ? parsed
-                    : fallback,
-            _ => fallback,
-        };
     }
 
-    private static bool TryGetValue(GDictionary source, object key, out Variant value)
+    private static bool TryGetValue(GDictionary source, object key, out dynamic value)
     {
         if (source == null)
         {
             value = default;
             return false;
         }
-        Variant variantKey = ToVariantKey(key);
-        if (source.ContainsKey(variantKey))
+        try
         {
-            value = source[variantKey];
-            return true;
+            dynamic dynamicKey = key;
+            if (source.ContainsKey(dynamicKey))
+            {
+                value = source[dynamicKey];
+                return true;
+            }
+        }
+        catch
+        {
         }
         if (key is StringName stringNameKey)
         {
@@ -1683,23 +1677,6 @@ public partial class BattleHitResolver : RefCounted
         }
         value = default;
         return false;
-    }
-
-    private static Variant ToVariantKey(object key)
-    {
-        return key switch
-        {
-            Variant variant => variant,
-            StringName stringName => Variant.From(stringName),
-            string text => Variant.From(text),
-            int intValue => Variant.From(intValue),
-            long longValue => Variant.From(longValue),
-            float floatValue => Variant.From(floatValue),
-            double doubleValue => Variant.From(doubleValue),
-            bool boolValue => Variant.From(boolValue),
-            Vector2I coord => Variant.From(coord),
-            _ => Variant.From(key?.ToString() ?? ""),
-        };
     }
 
     private static bool IsEmpty(StringName value)

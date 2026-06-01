@@ -66,7 +66,7 @@ public partial class BattleSpecialProfileGate : RefCounted
             result.allowed = true;
             return result;
         }
-        if (!_registry_snapshot.ContainsKey("ok") || !(bool)_registry_snapshot["ok"])
+        if (!_registry_snapshot.ContainsKey("ok") || !_registry_snapshot["ok"].AsBool())
         {
             return _block(
                 result,
@@ -87,11 +87,11 @@ public partial class BattleSpecialProfileGate : RefCounted
             );
         }
 
-        var profileIdBySkillId = _registry_snapshot.GetValueOrDefault(
-            "profile_id_by_skill_id",
-            new Godot.Collections.Dictionary()
+        Godot.Collections.Dictionary profileIdBySkillId = ReadDictionary(
+            _registry_snapshot,
+            "profile_id_by_skill_id"
         );
-        if (profileIdBySkillId.VariantType != Variant.Type.Dictionary)
+        if (profileIdBySkillId.Count == 0)
             return _block(
                 result,
                 result.profile_id,
@@ -103,11 +103,8 @@ public partial class BattleSpecialProfileGate : RefCounted
 
         var skillKey = (string)result.skill_id;
         if (
-            profileIdBySkillId
-                .AsGodotDictionary()
-                .GetValueOrDefault(skillKey, "")
-                .AsString()
-            != (string)result.profile_id
+            !profileIdBySkillId.ContainsKey(skillKey)
+            || profileIdBySkillId[skillKey].AsString() != (string)result.profile_id
         )
             return _block(
                 result,
@@ -118,14 +115,8 @@ public partial class BattleSpecialProfileGate : RefCounted
                 new Godot.Collections.Dictionary()
             );
 
-        var profiles = _registry_snapshot.GetValueOrDefault(
-            "profiles",
-            new Godot.Collections.Dictionary()
-        );
-        if (
-            profiles.VariantType != Variant.Type.Dictionary
-            || !profiles.AsGodotDictionary().ContainsKey((string)result.profile_id)
-        )
+        Godot.Collections.Dictionary profiles = ReadDictionary(_registry_snapshot, "profiles");
+        if (!profiles.ContainsKey((string)result.profile_id))
             return _block(
                 result,
                 result.profile_id,
@@ -135,10 +126,9 @@ public partial class BattleSpecialProfileGate : RefCounted
                 new Godot.Collections.Dictionary()
             );
 
-        var profileSnapshot = profiles
-            .AsGodotDictionary()
-            .GetValueOrDefault((string)result.profile_id, new Godot.Collections.Dictionary());
-        if (profileSnapshot.VariantType != Variant.Type.Dictionary)
+        Godot.Collections.Dictionary profileSnapshot = profiles[(string)result.profile_id]
+            .AsGodotDictionary();
+        if (profileSnapshot.Count == 0)
             return _block(
                 result,
                 result.profile_id,
@@ -149,11 +139,8 @@ public partial class BattleSpecialProfileGate : RefCounted
             );
 
         if (
-            profileSnapshot
-                .AsGodotDictionary()
-                .GetValueOrDefault("runtime_resolver_id", "")
-                .AsString()
-            != (string)result.profile_id
+            !profileSnapshot.ContainsKey("runtime_resolver_id")
+            || profileSnapshot["runtime_resolver_id"].AsString() != (string)result.profile_id
         )
             return _block(
                 result,
@@ -161,7 +148,7 @@ public partial class BattleSpecialProfileGate : RefCounted
                 result.skill_id,
                 "resolver_mismatch",
                 PLAYER_BLOCK_MESSAGE,
-                profileSnapshot.AsGodotDictionary()
+                profileSnapshot
             );
 
         if (battleState == null)
@@ -199,5 +186,20 @@ public partial class BattleSpecialProfileGate : RefCounted
         result.player_message = playerMessage;
         result.debug_details = debugDetails.Duplicate(true);
         return result;
+    }
+
+    private static Godot.Collections.Dictionary ReadDictionary(
+        Godot.Collections.Dictionary source,
+        string key
+    )
+    {
+        if (source == null)
+            return new Godot.Collections.Dictionary();
+        if (source.ContainsKey(key))
+            return source[key].AsGodotDictionary();
+        var stringNameKey = new StringName(key);
+        if (source.ContainsKey(stringNameKey))
+            return source[stringNameKey].AsGodotDictionary();
+        return new Godot.Collections.Dictionary();
     }
 }

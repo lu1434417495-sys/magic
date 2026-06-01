@@ -160,6 +160,11 @@ public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCh
 
     public Godot.Collections.Dictionary get_item_defs() => _item_defs;
 
+    public bool has_item_def_catalog() => _item_defs.Count > 0;
+
+    public ItemDef get_item_def(StringName item_id) =>
+        character_management?.get_item_def(item_id) ?? _dict_obj<ItemDef>(_item_defs, item_id);
+
     public AttributeSnapshot get_member_attribute_snapshot_for_equipment_view(
         StringName member_id,
         EquipmentState equipment_view

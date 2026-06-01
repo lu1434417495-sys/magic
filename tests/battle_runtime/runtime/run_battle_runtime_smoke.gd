@@ -2222,9 +2222,7 @@ func _test_weapon_skill_damage_tag_uses_current_weapon_type() -> void:
 	var effect := CombatEffectDef.new()
 	effect.effect_type = &"damage"
 	effect.power = 1
-	effect.params = {
-		"use_weapon_physical_damage_tag": true,
-	}
+	effect.use_weapon_physical_damage_tag = true
 	var expected_tags := {
 		&"sword_user": &"physical_slash",
 		&"mace_user": &"physical_blunt",
@@ -2250,9 +2248,7 @@ func _test_weapon_damage_tag_override_does_not_require_weapon() -> void:
 	var skill := _build_direct_damage_skill(&"weapon_tag_override_without_gate", 1)
 	var damage_effect := skill.combat_profile.effect_defs[0] as CombatEffectDef
 	damage_effect.damage_tag = &""
-	damage_effect.params = {
-		"use_weapon_physical_damage_tag": true,
-	}
+	damage_effect.use_weapon_physical_damage_tag = true
 	var runtime := BattleRuntimeModule.new()
 	runtime.setup(null, {skill.skill_id: skill}, {}, {})
 	runtime.configure_damage_resolver_for_tests(SharedDamageResolvers.FixedHitOneDamageResolver.new())
@@ -2298,10 +2294,8 @@ func _test_requires_weapon_rejects_unarmed_and_natural_weapons() -> void:
 	skill.tags = [&"warrior", &"melee"]
 	var damage_effect := skill.combat_profile.effect_defs[0] as CombatEffectDef
 	damage_effect.damage_tag = &""
-	damage_effect.params = {
-		"requires_weapon": true,
-		"use_weapon_physical_damage_tag": true,
-	}
+	damage_effect.requires_weapon = true
+	damage_effect.use_weapon_physical_damage_tag = true
 	var runtime := BattleRuntimeModule.new()
 	runtime.setup(null, {skill.skill_id: skill}, {}, {})
 	runtime.configure_damage_resolver_for_tests(SharedDamageResolvers.FixedHitOneDamageResolver.new())
@@ -2372,11 +2366,9 @@ func _test_required_weapon_families_restricts_equipped_weapon_family() -> void:
 	skill.combat_profile.required_weapon_families = [&"bow"]
 	var damage_effect := skill.combat_profile.effect_defs[0] as CombatEffectDef
 	damage_effect.damage_tag = &""
-	damage_effect.params = {
-		"add_weapon_dice": true,
-		"resolve_as_weapon_attack": true,
-		"use_weapon_physical_damage_tag": true,
-	}
+	damage_effect.add_weapon_dice = true
+	damage_effect.resolve_as_weapon_attack = true
+	damage_effect.use_weapon_physical_damage_tag = true
 	var runtime := BattleRuntimeModule.new()
 	runtime.setup(null, {skill.skill_id: skill}, {}, {})
 	runtime.configure_damage_resolver_for_tests(SharedDamageResolvers.FixedHitOneDamageResolver.new())
@@ -2516,7 +2508,7 @@ func _test_skill_mastery_reads_skill_damage_dice_only_and_scales_by_enemy_rank()
 
 	var weapon_only_skill := _build_ground_damage_dice_skill(&"mastery_weapon_only_test", 0, 0, 0)
 	var weapon_only_effect := weapon_only_skill.combat_profile.effect_defs[0] as CombatEffectDef
-	weapon_only_effect.params = {"add_weapon_dice": true}
+	weapon_only_effect.add_weapon_dice = true
 	caster.current_ap = 3
 	caster.known_active_skill_ids = [weapon_only_skill.skill_id]
 	caster.known_skill_level_map = {weapon_only_skill.skill_id: 1}
@@ -2537,7 +2529,7 @@ func _test_skill_mastery_reads_skill_damage_dice_only_and_scales_by_enemy_rank()
 	_assert_eq(gateway.grants.size(), 1, "武器骰满值不应污染主动技能熟练度判定。")
 
 	weapon_only_skill.combat_profile.mastery_trigger_mode = &"weapon_attack_quality"
-	weapon_only_effect.params["resolve_as_weapon_attack"] = true
+	weapon_only_effect.resolve_as_weapon_attack = true
 	caster.current_ap = 3
 	caster.apply_weapon_projection({
 		"weapon_profile_kind": "equipped",
@@ -3293,10 +3285,8 @@ func _build_ground_damage_dice_skill(
 	damage_effect.power = power
 	damage_effect.effect_target_team_filter = &"enemy"
 	if dice_count > 0 and dice_sides > 0:
-		damage_effect.params = {
-			"dice_count": dice_count,
-			"dice_sides": dice_sides,
-		}
+		damage_effect.dice_count = dice_count
+		damage_effect.dice_sides = dice_sides
 
 	var combat_profile := CombatSkillDef.new()
 	combat_profile.skill_id = skill_id

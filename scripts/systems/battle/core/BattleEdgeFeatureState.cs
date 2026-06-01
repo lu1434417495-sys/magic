@@ -193,10 +193,7 @@ public partial class BattleEdgeFeatureState : RefCounted
         }
         foreach (var keyValue in featureDict.Keys)
         {
-            if (!TryAsStrictStringKey(keyValue, out string key))
-            {
-                return false;
-            }
+            string key = keyValue.ToString();
             if (!HasString(SchemaFields, key))
             {
                 return false;
@@ -214,9 +211,9 @@ public partial class BattleEdgeFeatureState : RefCounted
 
     private static bool TryGetStringLike(GDictionary data, string key, out string value)
     {
-        if (TryGetExactValue(data, key, out Variant rawValue)
-            && TryAsStringLike(rawValue, out value))
+        if (data != null && data.ContainsKey(key) && IsStringLikeField(data, key))
         {
+            value = data[key].ToString();
             return true;
         }
         value = "";
@@ -225,9 +222,9 @@ public partial class BattleEdgeFeatureState : RefCounted
 
     private static bool TryGetStrictInt(GDictionary data, string key, out int value)
     {
-        if (TryGetExactValue(data, key, out Variant rawValue)
-            && TryAsStrictInt(rawValue, out value))
+        if (data != null && data.ContainsKey(key) && IsFieldType(data, key, "Int"))
         {
+            value = data[key].AsInt32();
             return true;
         }
         value = 0;
@@ -236,72 +233,24 @@ public partial class BattleEdgeFeatureState : RefCounted
 
     private static bool TryReadBoolField(GDictionary data, string key, out bool value)
     {
-        if (TryGetExactValue(data, key, out Variant rawValue) && TryAsBool(rawValue, out value))
+        if (data != null && data.ContainsKey(key) && IsFieldType(data, key, "Bool"))
         {
+            value = data[key].AsBool();
             return true;
         }
         value = false;
         return false;
     }
 
-    private static bool TryAsStrictStringKey(Variant rawValue, out string value)
+    private static bool IsStringLikeField(GDictionary data, string key)
     {
-        if (rawValue.VariantType == Variant.Type.String)
-        {
-            value = rawValue.AsString();
-            return true;
-        }
-        value = "";
-        return false;
+        string typeName = data[key].VariantType.ToString();
+        return typeName == "String" || typeName == "StringName";
     }
 
-    private static bool TryAsStringLike(Variant rawValue, out string value)
+    private static bool IsFieldType(GDictionary data, string key, string expectedTypeName)
     {
-        if (rawValue.VariantType == Variant.Type.String)
-        {
-            value = rawValue.AsString();
-            return true;
-        }
-        if (rawValue.VariantType == Variant.Type.StringName)
-        {
-            value = rawValue.AsStringName().ToString();
-            return true;
-        }
-        value = "";
-        return false;
-    }
-
-    private static bool TryAsStrictInt(Variant rawValue, out int value)
-    {
-        if (rawValue.VariantType == Variant.Type.Int)
-        {
-            value = rawValue.AsInt32();
-            return true;
-        }
-        value = 0;
-        return false;
-    }
-
-    private static bool TryAsBool(Variant rawValue, out bool value)
-    {
-        if (rawValue.VariantType == Variant.Type.Bool)
-        {
-            value = rawValue.AsBool();
-            return true;
-        }
-        value = false;
-        return false;
-    }
-
-    private static bool TryGetExactValue(GDictionary data, string key, out Variant value)
-    {
-        if (data != null && data.ContainsKey(key))
-        {
-            value = data[key];
-            return true;
-        }
-        value = default;
-        return false;
+        return data[key].VariantType.ToString() == expectedTypeName;
     }
 
     private static bool HasString(string[] values, string value)

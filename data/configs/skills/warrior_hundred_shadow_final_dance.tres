@@ -12,9 +12,9 @@ max_skill_level = 5
 add_weapon_dice = true
 requires_weapon = true
 use_weapon_physical_damage_tag = true
+dice_count = 1
+dice_sides = 8
 params = {
-"dice_count": 1,
-"dice_sides": 8,
 "grant_status_id": "combo_stack",
 "grant_status_power": 1,
 "grant_status_duration_tu": 180,
@@ -29,9 +29,9 @@ max_skill_level = -1
 add_weapon_dice = true
 requires_weapon = true
 use_weapon_physical_damage_tag = true
+dice_count = 1
+dice_sides = 10
 params = {
-"dice_count": 1,
-"dice_sides": 10,
 "grant_status_id": "combo_stack",
 "grant_status_power": 1,
 "grant_status_duration_tu": 180,

@@ -24,21 +24,17 @@ public partial class BattleBarrierLayerState : RefCounted
             return layer;
         }
 
-        layer.layer_id = ProgressionDataUtils.to_string_name(GetValue(source, "layer_id", ""));
-        layer.display_name = GetValue(source, "display_name", "").AsString();
-        layer.order = GetValue(source, "order", 0).AsInt32();
-        layer.broken = GetValue(source, "broken", false).AsBool();
+        layer.layer_id = ReadStringName(source, "layer_id");
+        layer.display_name = ReadString(source, "display_name");
+        layer.order = ReadInt(source, "order");
+        layer.broken = ReadBool(source, "broken");
         layer.blocked_categories = ReadStringNameArray(GetArray(source, "blocked_categories"));
         layer.breaker_skill_ids = ReadStringNameArray(GetArray(source, "breaker_skill_ids"));
         layer.passage_outcomes = GetArray(source, "passage_outcomes").Duplicate(true);
-        if (layer.passage_outcomes.Count == 0 && source.ContainsKey("passage"))
-        {
-            layer.passage_outcomes.Add(GetValue(source, "passage", new GDictionary()));
-        }
         if (source.ContainsKey("save_roll_override"))
         {
             layer.has_save_roll_override = true;
-            layer.save_roll_override = GetValue(source, "save_roll_override", 0).AsInt32();
+            layer.save_roll_override = ReadInt(source, "save_roll_override");
         }
         return layer;
     }
@@ -48,10 +44,6 @@ public partial class BattleBarrierLayerState : RefCounted
         var result = new List<BattleBarrierOutcomeState>();
         foreach (var outcomeValue in passage_outcomes ?? new GArray())
         {
-            if (outcomeValue.VariantType != Variant.Type.Dictionary)
-            {
-                continue;
-            }
             BattleBarrierOutcomeState outcome = BattleBarrierOutcomeState.from_runtime_dict(
                 outcomeValue.AsGodotDictionary()
             );
@@ -116,61 +108,74 @@ public partial class BattleBarrierLayerState : RefCounted
         return result;
     }
 
-    private static Variant GetValue(GDictionary source, object key, object fallback)
+    private static bool HasKey(GDictionary source, string key)
     {
-        Variant fallbackValue = ToVariant(fallback);
-        if (source == null)
+        if (source == null || string.IsNullOrEmpty(key))
         {
-            return fallbackValue;
+            return false;
         }
-        Variant variantKey = ToVariant(key);
-        if (source.ContainsKey(variantKey))
-        {
-            return source[variantKey];
-        }
-        if (key is string stringKey)
-        {
-            var stringNameKey = new StringName(stringKey);
-            if (source.ContainsKey(stringNameKey))
-            {
-                return source[stringNameKey];
-            }
-        }
-        else if (key is StringName stringNameKey)
-        {
-            string keyText = stringNameKey.ToString();
-            if (source.ContainsKey(keyText))
-            {
-                return source[keyText];
-            }
-        }
-        return fallbackValue;
+        return source.ContainsKey(key) || source.ContainsKey(new StringName(key));
     }
 
-    private static Variant ToVariant(object value)
+    private static string ReadString(GDictionary source, string key, string fallback = "")
     {
-        return value switch
+        if (source == null || string.IsNullOrEmpty(key))
         {
-            null => default,
-            Variant variant => variant,
-            bool boolValue => Variant.From(boolValue),
-            int intValue => Variant.From(intValue),
-            long longValue => Variant.From(longValue),
-            float floatValue => Variant.From(floatValue),
-            double doubleValue => Variant.From(doubleValue),
-            string stringValue => Variant.From(stringValue),
-            StringName stringNameValue => Variant.From(stringNameValue),
-            Vector2I vector2IValue => Variant.From(vector2IValue),
-            GArray arrayValue => Variant.From(arrayValue),
-            GDictionary dictionaryValue => Variant.From(dictionaryValue),
-            _ => Variant.From(value.ToString() ?? ""),
-        };
+            return fallback;
+        }
+        if (source.ContainsKey(key))
+        {
+            return source[key].ToString();
+        }
+        StringName stringNameKey = new(key);
+        return source.ContainsKey(stringNameKey) ? source[stringNameKey].ToString() : fallback;
     }
 
-    private static GArray GetArray(GDictionary source, object key)
+    private static StringName ReadStringName(GDictionary source, string key)
     {
-        var value = GetValue(source, key, new GArray());
-        return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : new GArray();
+        string text = ReadString(source, key);
+        return string.IsNullOrEmpty(text) ? new StringName("") : new StringName(text);
+    }
+
+    private static int ReadInt(GDictionary source, string key, int fallback = 0)
+    {
+        if (source == null || string.IsNullOrEmpty(key))
+        {
+            return fallback;
+        }
+        if (source.ContainsKey(key))
+        {
+            return source[key].AsInt32();
+        }
+        StringName stringNameKey = new(key);
+        return source.ContainsKey(stringNameKey) ? source[stringNameKey].AsInt32() : fallback;
+    }
+
+    private static bool ReadBool(GDictionary source, string key, bool fallback = false)
+    {
+        if (source == null || string.IsNullOrEmpty(key))
+        {
+            return fallback;
+        }
+        if (source.ContainsKey(key))
+        {
+            return source[key].AsBool();
+        }
+        StringName stringNameKey = new(key);
+        return source.ContainsKey(stringNameKey) ? source[stringNameKey].AsBool() : fallback;
+    }
+
+    private static GArray GetArray(GDictionary source, string key)
+    {
+        if (!HasKey(source, key))
+        {
+            return new GArray();
+        }
+        if (source.ContainsKey(key))
+        {
+            return source[key].AsGodotArray();
+        }
+        return source[new StringName(key)].AsGodotArray();
     }
 
     private static Godot.Collections.Array<StringName> ReadStringNameArray(GArray values)

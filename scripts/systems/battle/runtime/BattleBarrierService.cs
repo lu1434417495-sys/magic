@@ -582,27 +582,21 @@ public partial class BattleBarrierService : RefCounted
             return false;
         }
 
-        var rawValue = default(Godot.Variant);
         if (store.ContainsKey(barrierKey))
         {
-            rawValue = store[barrierKey];
+            barrier = BattleBarrierInstanceState.from_runtime_dict(
+                store[barrierKey].AsGodotDictionary()
+            );
         }
         else if (store.ContainsKey(barrierKey.ToString()))
         {
-            rawValue = store[barrierKey.ToString()];
+            barrier = BattleBarrierInstanceState.from_runtime_dict(
+                store[barrierKey.ToString()].AsGodotDictionary()
+            );
         }
         else
         {
             return false;
-        }
-
-        if (rawValue.VariantType == Variant.Type.Object)
-        {
-            barrier = rawValue.AsGodotObject() as BattleBarrierInstanceState;
-        }
-        else if (rawValue.VariantType == Variant.Type.Dictionary)
-        {
-            barrier = BattleBarrierInstanceState.from_runtime_dict(rawValue.AsGodotDictionary());
         }
         return barrier != null && !barrier.IsEmpty;
     }
@@ -687,8 +681,7 @@ public partial class BattleBarrierService : RefCounted
     {
         if (dictionary == null || !dictionary.ContainsKey(key))
             return fallback;
-        Variant value = dictionary[key];
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+        return dictionary[key].AsInt32();
     }
 
     private static StringName DictStringName(Dictionary dictionary, string key, StringName fallback)

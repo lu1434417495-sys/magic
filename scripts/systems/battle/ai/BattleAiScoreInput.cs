@@ -348,7 +348,10 @@ public partial class BattleAiScoreInput : RefCounted
         )>();
         foreach (var key in dictionary.Keys)
         {
-            entries.Add((FingerprintKey(key), FingerprintValue(dictionary[key])));
+            string keyFingerprint = key.ToString();
+            var valueBuilder = new System.Text.StringBuilder();
+            AppendDictionaryValueFingerprint(valueBuilder, dictionary, keyFingerprint);
+            entries.Add((keyFingerprint, valueBuilder.ToString()));
         }
         entries.Sort(
             (left, right) => string.CompareOrdinal(left.KeyFingerprint, right.KeyFingerprint)
@@ -369,100 +372,122 @@ public partial class BattleAiScoreInput : RefCounted
         builder.Append('}');
     }
 
-    private static string FingerprintKey(object key)
-    {
-        var builder = new System.Text.StringBuilder();
-        AppendValueFingerprint(builder, key);
-        return builder.ToString();
-    }
-
-    private static string FingerprintValue(object value)
-    {
-        var builder = new System.Text.StringBuilder();
-        AppendValueFingerprint(builder, value);
-        return builder.ToString();
-    }
-
     private static void AppendArrayFingerprint(System.Text.StringBuilder builder, GArray array)
     {
         builder.Append('[');
         bool first = true;
-        foreach (var value in array)
+        for (int i = 0; i < array.Count; i++)
         {
             if (!first)
             {
                 builder.Append(',');
             }
             first = false;
-            AppendValueFingerprint(builder, value);
+            AppendArrayValueFingerprint(builder, array, i);
         }
         builder.Append(']');
     }
 
-    private static void AppendValueFingerprint(System.Text.StringBuilder builder, object payload)
+    private static void AppendDictionaryValueFingerprint(
+        System.Text.StringBuilder builder,
+        GDictionary dictionary,
+        string key
+    )
     {
-        if (payload is not Variant value)
+        if (dictionary == null || string.IsNullOrEmpty(key))
         {
-            if (payload is GDictionary dictionary)
-            {
-                builder.Append((int)Variant.Type.Dictionary);
-                builder.Append('=');
-                AppendDictionaryFingerprint(builder, dictionary);
-                return;
-            }
-            if (payload is GArray array)
-            {
-                builder.Append((int)Variant.Type.Array);
-                builder.Append('=');
-                AppendArrayFingerprint(builder, array);
-                return;
-            }
-            AppendTextFingerprint(builder, payload?.ToString() ?? "");
+            AppendTextFingerprint(builder, "");
             return;
         }
-
-        builder.Append((int)value.VariantType);
-        builder.Append('=');
-        switch (value.VariantType)
+        if (dictionary.ContainsKey(key))
         {
-            case Variant.Type.Nil:
-                builder.Append("nil");
+            var value = dictionary[key];
+            try
+            {
+                GDictionary nestedDictionary = value.AsGodotDictionary();
+                builder.Append("dict=");
+                AppendDictionaryFingerprint(builder, nestedDictionary);
                 return;
-            case Variant.Type.Bool:
-                builder.Append(value.AsBool() ? "true" : "false");
+            }
+            catch
+            {
+            }
+            try
+            {
+                GArray nestedArray = value.AsGodotArray();
+                builder.Append("array=");
+                AppendArrayFingerprint(builder, nestedArray);
                 return;
-            case Variant.Type.Int:
-                builder.Append(value.AsInt64());
-                return;
-            case Variant.Type.Float:
-                builder.Append(
-                    value
-                        .AsDouble()
-                        .ToString("R", System.Globalization.CultureInfo.GetCultureInfo(""))
-                );
-                return;
-            case Variant.Type.String:
-                AppendTextFingerprint(builder, value.AsString());
-                return;
-            case Variant.Type.StringName:
-                AppendTextFingerprint(builder, value.AsStringName().ToString());
-                return;
-            case Variant.Type.Vector2I:
-                Vector2I vector = value.AsVector2I();
-                builder.Append(vector.X);
-                builder.Append(',');
-                builder.Append(vector.Y);
-                return;
-            case Variant.Type.Array:
-                AppendArrayFingerprint(builder, value.AsGodotArray());
-                return;
-            case Variant.Type.Dictionary:
-                AppendDictionaryFingerprint(builder, value.AsGodotDictionary());
-                return;
-            default:
-                AppendTextFingerprint(builder, value.ToString());
-                return;
+            }
+            catch
+            {
+            }
+            AppendTextFingerprint(builder, value.ToString());
+            return;
         }
+        StringName stringNameKey = new(key);
+        if (dictionary.ContainsKey(stringNameKey))
+        {
+            var value = dictionary[stringNameKey];
+            try
+            {
+                GDictionary nestedDictionary = value.AsGodotDictionary();
+                builder.Append("dict=");
+                AppendDictionaryFingerprint(builder, nestedDictionary);
+                return;
+            }
+            catch
+            {
+            }
+            try
+            {
+                GArray nestedArray = value.AsGodotArray();
+                builder.Append("array=");
+                AppendArrayFingerprint(builder, nestedArray);
+                return;
+            }
+            catch
+            {
+            }
+            AppendTextFingerprint(builder, value.ToString());
+            return;
+        }
+        AppendTextFingerprint(builder, "");
+    }
+
+    private static void AppendArrayValueFingerprint(
+        System.Text.StringBuilder builder,
+        GArray array,
+        int index
+    )
+    {
+        if (array == null || index < 0 || index >= array.Count)
+        {
+            AppendTextFingerprint(builder, "");
+            return;
+        }
+        var value = array[index];
+        try
+        {
+            GDictionary nestedDictionary = value.AsGodotDictionary();
+            builder.Append("dict=");
+            AppendDictionaryFingerprint(builder, nestedDictionary);
+            return;
+        }
+        catch
+        {
+        }
+        try
+        {
+            GArray nestedArray = value.AsGodotArray();
+            builder.Append("array=");
+            AppendArrayFingerprint(builder, nestedArray);
+            return;
+        }
+        catch
+        {
+        }
+        AppendTextFingerprint(builder, value.ToString());
     }
 
     private static void AppendTextFingerprint(System.Text.StringBuilder builder, string value)

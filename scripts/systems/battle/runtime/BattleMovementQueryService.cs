@@ -985,16 +985,12 @@ public partial class BattleMovementQueryService : RefCounted
         {
             foreach (var key in cells.Keys)
             {
-                if (key.VariantType != Variant.Type.Vector2I)
-                {
-                    continue;
-                }
                 Vector2I coord = key.AsVector2I();
                 if (!IsInside(coord))
                 {
                     continue;
                 }
-                BattleCellState cell = cells[key].AsGodotObject() as BattleCellState;
+                BattleCellState cell = cells[key].As<BattleCellState>();
                 if (cell == null)
                 {
                     continue;
@@ -1012,7 +1008,7 @@ public partial class BattleMovementQueryService : RefCounted
         {
             foreach (var key in units.Keys)
             {
-                BattleUnitState unitObject = units[key].AsGodotObject() as BattleUnitState;
+                BattleUnitState unitObject = units[key].As<BattleUnitState>();
                 UnitInfo unit = BuildUnitInfo(unitObject);
                 if (unit != null && unit.UnitId != EmptyStringName)
                 {
@@ -1026,12 +1022,7 @@ public partial class BattleMovementQueryService : RefCounted
         {
             foreach (var key in edges.Keys)
             {
-                if (key.VariantType != Variant.Type.Vector3I)
-                {
-                    continue;
-                }
-                BattleEdgeFaceState edgeObject =
-                    edges[key].AsGodotObject() as BattleEdgeFaceState;
+                BattleEdgeFaceState edgeObject = edges[key].As<BattleEdgeFaceState>();
                 if (edgeObject == null)
                 {
                     continue;
@@ -1077,7 +1068,7 @@ public partial class BattleMovementQueryService : RefCounted
                 hash = (hash ^ units.Count) * 1099511628211;
                 foreach (var key in units.Keys)
                 {
-                    BattleUnitState unit = units[key].AsGodotObject() as BattleUnitState;
+                    BattleUnitState unit = units[key].As<BattleUnitState>();
                     if (unit == null)
                     {
                         continue;
@@ -1906,30 +1897,21 @@ public partial class BattleMovementQueryService : RefCounted
             switch (key)
             {
                 case "max_candidate_count":
-                    if (!TryReadNonNegativeInt(source[keyValue], out options.MaxCandidateCount))
+                    options.MaxCandidateCount = source[keyValue].AsInt32();
+                    if (options.MaxCandidateCount < 0)
                     {
                         return FailStatic("movement query max_candidate_count must be int >= 0.");
                     }
                     break;
                 case "include_origin":
-                    if (!TryReadBool(source[keyValue], out options.IncludeOrigin))
-                    {
-                        return FailStatic("movement query include_origin must be bool.");
-                    }
+                    options.IncludeOrigin = source[keyValue].AsBool();
                     options.HasIncludeOrigin = true;
                     break;
                 case "prefer_progress":
-                    if (!TryReadBool(source[keyValue], out options.PreferProgress))
-                    {
-                        return FailStatic("movement query prefer_progress must be bool.");
-                    }
+                    options.PreferProgress = source[keyValue].AsBool();
                     options.HasPreferProgress = true;
                     break;
                 case "path_budget":
-                    if (source[keyValue].VariantType != Variant.Type.Dictionary)
-                    {
-                        return FailStatic("movement query path_budget must be Dictionary.");
-                    }
                     if (!TryParseBudgetOverride(source[keyValue].AsGodotDictionary(), options.PathBudget))
                     {
                         return false;
@@ -1954,28 +1936,32 @@ public partial class BattleMovementQueryService : RefCounted
             switch (key)
             {
                 case "max_cost":
-                    if (!TryReadNonNegativeInt(value, out budget.MaxCost))
+                    budget.MaxCost = value.AsInt32();
+                    if (budget.MaxCost < 0)
                     {
                         return FailStatic("path_search_budget.max_cost must be int >= 0.");
                     }
                     budget.HasMaxCost = true;
                     break;
                 case "max_nodes":
-                    if (!TryReadNonNegativeInt(value, out budget.MaxNodes))
+                    budget.MaxNodes = value.AsInt32();
+                    if (budget.MaxNodes < 0)
                     {
                         return FailStatic("path_search_budget.max_nodes must be int >= 0.");
                     }
                     budget.HasMaxNodes = true;
                     break;
                 case "max_destinations":
-                    if (!TryReadNonNegativeInt(value, out budget.MaxDestinations))
+                    budget.MaxDestinations = value.AsInt32();
+                    if (budget.MaxDestinations < 0)
                     {
                         return FailStatic("path_search_budget.max_destinations must be int >= 0.");
                     }
                     budget.HasMaxDestinations = true;
                     break;
                 case "path_tree_min_destination_count":
-                    if (!TryReadNonNegativeInt(value, out budget.PathTreeMinDestinationCount))
+                    budget.PathTreeMinDestinationCount = value.AsInt32();
+                    if (budget.PathTreeMinDestinationCount < 0)
                     {
                         return FailStatic(
                             "path_search_budget.path_tree_min_destination_count must be int >= 0."
@@ -1984,17 +1970,11 @@ public partial class BattleMovementQueryService : RefCounted
                     budget.HasPathTreeMinDestinationCount = true;
                     break;
                 case "include_origin":
-                    if (!TryReadBool(value, out budget.IncludeOrigin))
-                    {
-                        return FailStatic("path_search_budget.include_origin must be bool.");
-                    }
+                    budget.IncludeOrigin = value.AsBool();
                     budget.HasIncludeOrigin = true;
                     break;
                 case "prefer_progress":
-                    if (!TryReadBool(value, out budget.PreferProgress))
-                    {
-                        return FailStatic("path_search_budget.prefer_progress must be bool.");
-                    }
+                    budget.PreferProgress = value.AsBool();
                     budget.HasPreferProgress = true;
                     break;
                 default:
@@ -2004,37 +1984,8 @@ public partial class BattleMovementQueryService : RefCounted
         return true;
     }
 
-    private static bool TryReadNonNegativeInt(Variant value, out int result)
-    {
-        if (value.VariantType == Variant.Type.Int && value.AsInt32() >= 0)
-        {
-            result = value.AsInt32();
-            return true;
-        }
-        result = 0;
-        return false;
-    }
-
-    private static bool TryReadBool(Variant value, out bool result)
-    {
-        if (value.VariantType == Variant.Type.Bool)
-        {
-            result = value.AsBool();
-            return true;
-        }
-        result = false;
-        return false;
-    }
-
-    private static string ReadDictionaryKey(Variant key)
-    {
-        return key.VariantType switch
-        {
-            Variant.Type.String => key.AsString(),
-            Variant.Type.StringName => key.AsStringName().ToString(),
-            _ => key.ToString(),
-        };
-    }
+    private static string ReadDictionaryKey(object key) =>
+        ProgressionDataUtils.to_string_name(key).ToString();
 
     private Dictionary Success(
         StringName queryKind,
@@ -2053,7 +2004,7 @@ public partial class BattleMovementQueryService : RefCounted
         if (
             overlayDescription != null
             && overlayDescription.ContainsKey("override_count")
-            && TryReadNonNegativeInt(overlayDescription["override_count"], out parsedOverrideCount)
+            && (parsedOverrideCount = overlayDescription["override_count"].AsInt32()) >= 0
         )
         {
             overlayOverrideCount = parsedOverrideCount;
@@ -2274,38 +2225,13 @@ public partial class BattleMovementQueryService : RefCounted
         var result = new List<Vector2I>();
         foreach (var value in values)
         {
-            if (value.VariantType == Variant.Type.Vector2I)
-            {
-                result.Add(value.AsVector2I());
-            }
+            result.Add(value.AsVector2I());
         }
         return result;
     }
 
-    private static StringName ToStringName(object rawValue)
-    {
-        if (rawValue is not Variant value)
-        {
-            if (rawValue is StringName stringName)
-            {
-                return stringName;
-            }
-            if (rawValue is string text)
-            {
-                return new StringName(text);
-            }
-            return EmptyStringName;
-        }
-        if (value.VariantType == Variant.Type.StringName)
-        {
-            return value.AsStringName();
-        }
-        if (value.VariantType == Variant.Type.String)
-        {
-            return new StringName(value.AsString());
-        }
-        return EmptyStringName;
-    }
+    private static StringName ToStringName(object rawValue) =>
+        ProgressionDataUtils.to_string_name(rawValue);
 
     private bool Fail(string message)
     {

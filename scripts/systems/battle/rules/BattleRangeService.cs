@@ -448,12 +448,12 @@ public partial class BattleRangeService : RefCounted
         {
             return result;
         }
-        foreach (object keyValue in rawMap.Keys)
+        foreach (var keyValue in rawMap.Keys)
         {
             StringName key = ToStringName(keyValue);
             if (!IsEmpty(key))
             {
-                result[key] = ReadInt(rawMap, keyValue);
+                result[key] = ReadInt(rawMap, key.ToString());
             }
         }
         return result;
@@ -462,7 +462,7 @@ public partial class BattleRangeService : RefCounted
     private static HashSet<StringName> BuildStringNameSet(GArray rawValues)
     {
         var result = new HashSet<StringName>();
-        foreach (object value in rawValues)
+        foreach (var value in rawValues)
         {
             StringName item = ToStringName(value);
             if (!IsEmpty(item))
@@ -473,140 +473,21 @@ public partial class BattleRangeService : RefCounted
         return result;
     }
 
-    private static StringName ToStringName(object rawValue)
+    private static StringName ToStringName<TValue>(TValue rawValue)
     {
-        if (rawValue is not Variant value)
-        {
-            return new StringName(rawValue?.ToString() ?? "");
-        }
-        return value.VariantType switch
-        {
-            Variant.Type.StringName => value.AsStringName(),
-            Variant.Type.String => new StringName(value.AsString()),
-            _ => new StringName(value.ToString()),
-        };
+        return ProgressionDataUtils.to_string_name(rawValue);
     }
 
-    private static IEnumerable<T> Objects<T>(GArray values)
-        where T : GodotObject
+    private static int ReadInt(GDictionary data, string key, int fallback = 0)
     {
-        if (values == null)
-        {
-            yield break;
-        }
-        foreach (object rawValue in values)
-        {
-            if (TryAsObject(rawValue, out T value))
-            {
-                yield return value;
-            }
-        }
-    }
-
-    private static bool TryAsDictionary(object rawValue, out GDictionary value)
-    {
-        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Dictionary)
-        {
-            value = variant.AsGodotDictionary();
-            return true;
-        }
-        if (rawValue is GDictionary dictionary)
-        {
-            value = dictionary;
-            return true;
-        }
-        value = new GDictionary();
-        return false;
-    }
-
-    private static bool TryAsObject<T>(object rawValue, out T value)
-        where T : GodotObject
-    {
-        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Object)
-        {
-            value = variant.AsGodotObject() as T;
-            return value != null;
-        }
-        if (rawValue is T typedValue)
-        {
-            value = typedValue;
-            return true;
-        }
-        value = null;
-        return false;
-    }
-
-    private static bool TryGetExactValue(GDictionary data, object key, out object value)
-    {
-        if (data == null || key == null)
-        {
-            value = null;
-            return false;
-        }
-        if (key is Variant variantKey)
-        {
-            if (data.ContainsKey(variantKey))
-            {
-                value = data[variantKey];
-                return true;
-            }
-        }
-        else if (key is StringName stringNameKey && data.ContainsKey(stringNameKey))
-        {
-            value = data[stringNameKey];
-            return true;
-        }
-        else if (key is string stringKey && data.ContainsKey(stringKey))
-        {
-            value = data[stringKey];
-            return true;
-        }
-        value = null;
-        return false;
-    }
-
-    private static bool IsNil(object rawValue)
-    {
-        return rawValue == null
-            || rawValue is Variant variant && variant.VariantType == Variant.Type.Nil;
-    }
-
-    private static int ReadInt(GDictionary data, object key, int fallback = 0)
-    {
-        var value = ReadValue(data, key);
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
-    }
-
-    private static Variant ReadValue(GDictionary data, object key)
-    {
-        if (data == null || key == null)
-            return default;
-        Variant variantKey = key switch
-        {
-            Variant valueKey => valueKey,
-            StringName stringNameKey => stringNameKey,
-            string stringKey => stringKey,
-            int intKey => intKey,
-            long longKey => longKey,
-            _ => default,
-        };
-        if (variantKey.VariantType == Variant.Type.Nil)
-            return default;
-        if (data.ContainsKey(variantKey))
-            return data[variantKey];
-        if (variantKey.VariantType == Variant.Type.String)
-        {
-            var stringNameKey = new StringName(variantKey.AsString());
-            if (data.ContainsKey(stringNameKey))
-                return data[stringNameKey];
-        }
-        else if (variantKey.VariantType == Variant.Type.StringName)
-        {
-            string stringKey = variantKey.AsStringName().ToString();
-            if (data.ContainsKey(stringKey))
-                return data[stringKey];
-        }
-        return default;
+        if (data == null || string.IsNullOrEmpty(key))
+            return fallback;
+        if (data.ContainsKey(key))
+            return data[key].AsInt32();
+        var stringNameKey = new StringName(key);
+        if (data.ContainsKey(stringNameKey))
+            return data[stringNameKey].AsInt32();
+        return fallback;
     }
 
     private static bool IsEmpty(StringName value)

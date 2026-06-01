@@ -331,7 +331,7 @@ public partial class BattleCellState : RefCounted
             {
                 continue;
             }
-            if (!TryAsObject(entry.Value, out BattleCellState surfaceCell))
+            if (!TryAsCellState(entry.Value, out BattleCellState surfaceCell))
             {
                 continue;
             }
@@ -355,7 +355,7 @@ public partial class BattleCellState : RefCounted
             {
                 foreach (object layerValue in rawColumn)
                 {
-                    if (!TryAsObject(layerValue, out BattleCellState layerCell))
+                    if (!TryAsCellState(layerValue, out BattleCellState layerCell))
                     {
                         continue;
                     }
@@ -510,10 +510,14 @@ public partial class BattleCellState : RefCounted
 
     private static bool TryAsVector2I(object rawValue, out Vector2I value)
     {
-        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Vector2I)
+        try
         {
-            value = variant.AsVector2I();
+            dynamic dynamicValue = rawValue;
+            value = dynamicValue.AsVector2I();
             return true;
+        }
+        catch
+        {
         }
         if (rawValue is Vector2I coord)
         {
@@ -526,10 +530,14 @@ public partial class BattleCellState : RefCounted
 
     private static bool TryAsStrictInt(object rawValue, out int value)
     {
-        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Int)
+        try
         {
-            value = variant.AsInt32();
+            dynamic dynamicValue = rawValue;
+            value = dynamicValue.AsInt32();
             return true;
+        }
+        catch
+        {
         }
         if (rawValue is int intValue)
         {
@@ -542,10 +550,14 @@ public partial class BattleCellState : RefCounted
 
     private static bool TryAsBool(object rawValue, out bool value)
     {
-        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Bool)
+        try
         {
-            value = variant.AsBool();
+            dynamic dynamicValue = rawValue;
+            value = dynamicValue.AsBool();
             return true;
+        }
+        catch
+        {
         }
         if (rawValue is bool boolValue)
         {
@@ -558,10 +570,14 @@ public partial class BattleCellState : RefCounted
 
     private static bool TryAsDictionary(object rawValue, out GDictionary value)
     {
-        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Dictionary)
+        try
         {
-            value = variant.AsGodotDictionary();
+            dynamic dynamicValue = rawValue;
+            value = dynamicValue.AsGodotDictionary();
             return true;
+        }
+        catch
+        {
         }
         if (rawValue is GDictionary dictionary)
         {
@@ -572,15 +588,18 @@ public partial class BattleCellState : RefCounted
         return false;
     }
 
-    private static bool TryAsObject<T>(object rawValue, out T value)
-        where T : GodotObject
+    private static bool TryAsCellState(object rawValue, out BattleCellState value)
     {
-        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Object)
+        try
         {
-            value = variant.AsGodotObject() as T;
+            dynamic dynamicValue = rawValue;
+            value = dynamicValue.As<BattleCellState>();
             return value != null;
         }
-        if (rawValue is T typedValue)
+        catch
+        {
+        }
+        if (rawValue is BattleCellState typedValue)
         {
             value = typedValue;
             return true;
@@ -591,33 +610,8 @@ public partial class BattleCellState : RefCounted
 
     private static bool TryAsStringLike(object rawValue, out string value)
     {
-        if (rawValue is Variant variant)
-        {
-            if (variant.VariantType == Variant.Type.String)
-            {
-                value = variant.AsString();
-                return true;
-            }
-            if (variant.VariantType == Variant.Type.StringName)
-            {
-                value = variant.AsStringName().ToString();
-                return true;
-            }
-            value = "";
-            return false;
-        }
-        if (rawValue is StringName stringName)
-        {
-            value = stringName.ToString();
-            return true;
-        }
-        if (rawValue is string text)
-        {
-            value = text;
-            return true;
-        }
-        value = "";
-        return false;
+        value = rawValue?.ToString() ?? "";
+        return !string.IsNullOrEmpty(value);
     }
 
     private static BattleEdgeFeatureState NormalizeEdgeFeature(BattleEdgeFeatureState featureState)
@@ -664,15 +658,19 @@ public partial class BattleCellState : RefCounted
             value = null;
             return false;
         }
-        if (key is Variant variantKey)
+        try
         {
-            if (data.ContainsKey(variantKey))
+            dynamic dynamicKey = key;
+            if (data.ContainsKey(dynamicKey))
             {
-                value = data[variantKey];
+                value = data[dynamicKey];
                 return true;
             }
         }
-        else if (key is Vector2I coordKey && data.ContainsKey(coordKey))
+        catch
+        {
+        }
+        if (key is Vector2I coordKey && data.ContainsKey(coordKey))
         {
             value = data[coordKey];
             return true;
@@ -693,10 +691,14 @@ public partial class BattleCellState : RefCounted
 
     private static bool TryRawArray(object rawValue, out GArray values)
     {
-        if (rawValue is Variant value && value.VariantType == Variant.Type.Array)
+        try
         {
-            values = value.AsGodotArray();
+            dynamic dynamicValue = rawValue;
+            values = dynamicValue.AsGodotArray();
             return true;
+        }
+        catch
+        {
         }
         if (rawValue is GArray array)
         {

@@ -68,6 +68,20 @@ public partial class EquipmentDropService : RefCounted
         int dropLuck
     )
     {
+        var instances = new Godot.Collections.Array();
+        foreach (EquipmentInstanceState instance in roll_item_instances_typed(itemId, quantity, dropLuck))
+        {
+            instances.Add(instance);
+        }
+        return instances;
+    }
+
+    public Godot.Collections.Array<EquipmentInstanceState> roll_item_instances_typed(
+        StringName itemId,
+        int quantity,
+        int dropLuck
+    )
+    {
         _assert_drop_luck_in_range(dropLuck);
 
         var normalizedItemId = ProgressionDataUtils.to_string_name(itemId);
@@ -75,9 +89,9 @@ public partial class EquipmentDropService : RefCounted
         int resolvedQuantity = Mathf.Max(quantity, 0);
 
         if (normalizedItemId == "" || resolvedQuantity <= 0)
-            return new Godot.Collections.Array();
+            return new Godot.Collections.Array<EquipmentInstanceState>();
 
-        var instances = new Godot.Collections.Array();
+        var instances = new Godot.Collections.Array<EquipmentInstanceState>();
 
         for (int i = 0; i < resolvedQuantity; i++)
         {

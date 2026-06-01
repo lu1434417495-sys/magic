@@ -236,10 +236,7 @@ public partial class BattleTargetCollectionService : RefCounted
         var coords = new List<Vector2I>();
         foreach (var rawCoord in targetCoords ?? new GArray())
         {
-            if (rawCoord.VariantType == Variant.Type.Vector2I)
-            {
-                coords.Add(rawCoord.AsVector2I());
-            }
+            coords.Add(rawCoord.AsVector2I());
         }
         return coords;
     }
@@ -249,7 +246,7 @@ public partial class BattleTargetCollectionService : RefCounted
         var units = new List<BattleUnitState>();
         foreach (var rawTargetUnit in targetUnits ?? new GArray())
         {
-            BattleUnitState targetUnit = ToBattleUnitState(rawTargetUnit);
+            BattleUnitState targetUnit = rawTargetUnit.As<BattleUnitState>();
             if (targetUnit != null)
             {
                 units.Add(targetUnit);
@@ -305,17 +302,6 @@ public partial class BattleTargetCollectionService : RefCounted
             areaValue,
             areaDirection
         );
-    }
-
-    private static BattleUnitState ToBattleUnitState(object rawValue)
-    {
-        if (rawValue is not Variant value)
-        {
-            return rawValue as BattleUnitState;
-        }
-        return value.VariantType == Variant.Type.Object
-            ? value.AsGodotObject() as BattleUnitState
-            : null;
     }
 
 }

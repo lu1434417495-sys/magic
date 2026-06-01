@@ -68,7 +68,7 @@ func _test_whirlwind_slash_path_aoe_can_repeat_hits_across_steps() -> void:
 	if path_step_aoe == null:
 		return
 	_assert_true(
-		bool(path_step_aoe.params.get("allow_repeat_hits_across_steps", false)),
+		path_step_aoe.allow_repeat_hits_across_steps,
 		"旋风斩路径 AOE 应允许同一目标在不同步段被重复命中。"
 	)
 	_assert_true(
@@ -126,7 +126,7 @@ func _test_saint_blade_combo_contract_requires_hit_follow_up_and_single_cost_set
 		"圣剑连斩应只对同一目标继续追击。"
 	)
 	_assert_true(
-		bool(repeat_effect.params.get("stop_on_miss", false)),
+		repeat_effect.stop_on_miss,
 		"圣剑连斩应在未命中时停止追击。"
 	)
 	_assert_true(
@@ -138,7 +138,7 @@ func _test_saint_blade_combo_contract_requires_hit_follow_up_and_single_cost_set
 		"圣剑连斩的追击扣费语义已固定为每次尝试扣费，不应再暴露 consume_cost_on_attempt 配置。"
 	)
 	_assert_true(
-		bool(repeat_effect.params.get("stop_on_target_down", false)),
+		repeat_effect.stop_on_target_down,
 		"圣剑连斩应在目标倒下时停止追击。"
 	)
 	_assert_true(
@@ -596,10 +596,8 @@ func _build_random_chain_test_skill(skill_id: StringName, max_hits_per_target: i
 	damage_effect.effect_type = &"damage"
 	damage_effect.damage_tag = &"physical_slash"
 	damage_effect.power = 1
-	damage_effect.params = {
-		"dice_count": 1,
-		"dice_sides": 4,
-	}
+	damage_effect.dice_count = 1
+	damage_effect.dice_sides = 4
 	var combat_profile := CombatSkillDef.new()
 	combat_profile.skill_id = skill_id
 	combat_profile.target_mode = &"unit"

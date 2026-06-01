@@ -117,9 +117,7 @@ func _test_missing_weapon_damage_projection_fails_closed() -> void:
 	var effect = COMBAT_EFFECT_DEF_SCRIPT.new()
 	effect.effect_type = &"damage"
 	effect.power = 10
-	effect.params = {
-		"use_weapon_physical_damage_tag": true,
-	}
+	effect.use_weapon_physical_damage_tag = true
 
 	var hp_before := int(target.current_hp)
 	var result: Dictionary = resolver.resolve_effects(source, target, [effect])

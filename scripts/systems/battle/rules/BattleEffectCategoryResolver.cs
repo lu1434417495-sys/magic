@@ -6,15 +6,14 @@ using GArray = Godot.Collections.Array;
 public partial class BattleEffectCategoryResolver : RefCounted
 {
     public Godot.Collections.Array<StringName> ResolveCategories(
-        GodotObject skill_def,
+        SkillDef skill_def,
         GArray effect_defs
     )
     {
         var categories = new Godot.Collections.Array<StringName>();
         var seen = new HashSet<StringName>();
 
-        SkillDef skillDef = skill_def as SkillDef;
-        CombatSkillDef combatProfile = skillDef?.combat_profile;
+        CombatSkillDef combatProfile = skill_def?.combat_profile;
         if (combatProfile != null)
         {
             AppendCategories(categories, seen, combatProfile.delivery_categories);
@@ -27,7 +26,7 @@ public partial class BattleEffectCategoryResolver : RefCounted
 
         foreach (var effectValue in effect_defs)
         {
-            CombatEffectDef effect = effectValue.AsGodotObject() as CombatEffectDef;
+            CombatEffectDef effect = effectValue.As<CombatEffectDef>();
             if (effect == null)
             {
                 continue;
@@ -83,14 +82,8 @@ public partial class BattleEffectCategoryResolver : RefCounted
         }
     }
 
-    private static StringName ToStringName(Variant value)
-    {
-        if (value.VariantType == Variant.Type.StringName)
-            return value.AsStringName();
-        if (value.VariantType == Variant.Type.String)
-            return new StringName(value.AsString());
-        return "";
-    }
+    private static StringName ToStringName<TValue>(TValue value) =>
+        ProgressionDataUtils.to_string_name(value);
 
     private static bool IsEmpty(StringName value)
     {

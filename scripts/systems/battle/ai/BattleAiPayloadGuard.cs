@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+using System;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -6,13 +6,7 @@ using GDictionary = Godot.Collections.Dictionary;
 [GlobalClass]
 public partial class BattleAiPayloadGuard : RefCounted
 {
-    private static readonly HashSet<string> LiveStateClassNames = new()
-    {
-        "BattleState",
-        "BattleUnitState",
-        "BattleCellState",
-        "BattleGridService",
-    };
+    private const int MaxPayloadDepth = 12;
 
     private static bool _failLoudProcessAbortEnabled = false;
 
@@ -27,129 +21,59 @@ public partial class BattleAiPayloadGuard : RefCounted
     public static void SetFailLoudProcessAbortEnabled(bool value) =>
         _failLoudProcessAbortEnabled = value;
 
-    internal static bool IsAllowedValuePayload(object value)
+    internal static bool IsAllowedValuePayload(GDictionary value)
     {
         return string.IsNullOrEmpty(FindForbiddenObject(value, "payload"));
     }
 
-    internal static string FindForbiddenObject(object payload, string path = "payload")
+    internal static bool IsAllowedValuePayload(GArray value)
     {
-        if (IsForbiddenObject(payload))
-        {
-            return $"{path} contains forbidden object {ForbiddenObjectName(payload)}";
-        }
-
-        if (payload is Variant value)
-        {
-            if (value.VariantType == Variant.Type.Dictionary)
-            {
-                return FindForbiddenObject(value.AsGodotDictionary(), path);
-            }
-
-            if (value.VariantType == Variant.Type.Array)
-            {
-                return FindForbiddenObject(value.AsGodotArray(), path);
-            }
-        }
-
-        if (payload is GDictionary dict)
-        {
-            foreach (var key in dict.Keys)
-            {
-                var keyError = FindForbiddenObject(key, $"{path}.key");
-
-                if (!string.IsNullOrEmpty(keyError))
-                    return keyError;
-
-                var valueError = FindForbiddenObject(dict[key], $"{path}.{key}");
-                if (!string.IsNullOrEmpty(valueError))
-                    return valueError;
-            }
-
-            return "";
-        }
-
-        if (payload is GArray arr)
-        {
-            for (int i = 0; i < arr.Count; i++)
-            {
-                var itemError = FindForbiddenObject(arr[i], $"{path}[{i}]");
-
-                if (!string.IsNullOrEmpty(itemError))
-                    return itemError;
-            }
-        }
-
-        return "";
+        return string.IsNullOrEmpty(FindForbiddenObject(value, "payload"));
     }
 
-    internal static string FindLiveStateObject(object payload, string path = "payload")
+    internal static string FindForbiddenObject(GDictionary payload, string path = "payload")
     {
-        if (IsLiveStateObject(payload, out var className))
-            return $"{path} contains live state object {className}";
-
-        if (payload is Variant value)
-        {
-            if (value.VariantType == Variant.Type.Dictionary)
-            {
-                return FindLiveStateObject(value.AsGodotDictionary(), path);
-            }
-
-            if (value.VariantType == Variant.Type.Array)
-            {
-                return FindLiveStateObject(value.AsGodotArray(), path);
-            }
-        }
-
-        if (payload is GDictionary dict)
-        {
-            foreach (var key in dict.Keys)
-            {
-                var keyError = FindLiveStateObject(key, $"{path}.key");
-
-                if (!string.IsNullOrEmpty(keyError))
-                    return keyError;
-
-                var valueError = FindLiveStateObject(dict[key], $"{path}.{key}");
-                if (!string.IsNullOrEmpty(valueError))
-                    return valueError;
-            }
-
-            return "";
-        }
-
-        if (payload is GArray arr)
-        {
-            for (int i = 0; i < arr.Count; i++)
-            {
-                var itemError = FindLiveStateObject(arr[i], $"{path}[{i}]");
-
-                if (!string.IsNullOrEmpty(itemError))
-                    return itemError;
-            }
-        }
-
-        return "";
+        return FindForbiddenInDictionary(payload, path, 0);
     }
 
-    internal static bool ValidateNoForbiddenObject(object value, string context)
+    internal static string FindForbiddenObject(GArray payload, string path = "payload")
     {
-        var error = FindForbiddenObject(value, context);
-
-        if (string.IsNullOrEmpty(error))
-            return true;
-
-        return FailLoud(error, new GDictionary { ["context"] = context });
+        return FindForbiddenInArray(payload, path, 0);
     }
 
-    internal static bool ValidateNoLiveStateObject(object value, string context)
+    internal static bool ValidateNoForbiddenObject(GDictionary value, string context)
     {
-        var error = FindLiveStateObject(value, context);
+        string error = FindForbiddenObject(value, context);
+        return string.IsNullOrEmpty(error)
+            || FailLoud(error, new GDictionary { ["context"] = context });
+    }
 
-        if (string.IsNullOrEmpty(error))
-            return true;
+    internal static bool ValidateNoForbiddenObject(GArray value, string context)
+    {
+        string error = FindForbiddenObject(value, context);
+        return string.IsNullOrEmpty(error)
+            || FailLoud(error, new GDictionary { ["context"] = context });
+    }
 
-        return FailLoud(error, new GDictionary { ["context"] = context });
+    internal static bool ValidateNoForbiddenObject(
+        Godot.Collections.Array<StringName> value,
+        string context
+    )
+    {
+        return true;
+    }
+
+    internal static bool ValidateNoForbiddenObject(
+        Godot.Collections.Array<Vector2I> value,
+        string context
+    )
+    {
+        return true;
+    }
+
+    internal static bool ValidateNoForbiddenObject(AttackPreviewData value, string context)
+    {
+        return true;
     }
 
     public static void AbortFailLoudProcessIfRequested()
@@ -190,13 +114,7 @@ public partial class BattleAiPayloadGuard : RefCounted
         if (command == null)
             return false;
 
-        return ValidateNoForbiddenObject(command.target_unit_ids, "command.target_unit_ids")
-            && ValidateNoForbiddenObject(command.target_coords, "command.target_coords")
-            && ValidateNoForbiddenObject(command.equipment_instance, "command.equipment_instance")
-            && ValidateNoForbiddenObject(
-                command.equipment_occupied_slot_ids,
-                "command.equipment_occupied_slot_ids"
-            );
+        return ValidateNoForbiddenObject(command.equipment_instance, "command.equipment_instance");
     }
 
     public static bool PreviewHasNoLiveState(BattlePreview preview)
@@ -206,24 +124,10 @@ public partial class BattleAiPayloadGuard : RefCounted
 
         if (!ValidateNoForbiddenObject(preview.log_lines, "preview.log_lines"))
             return false;
-        if (!ValidateNoForbiddenObject(preview.target_unit_ids, "preview.target_unit_ids"))
-            return false;
-        if (!ValidateNoForbiddenObject(preview.target_coords, "preview.target_coords"))
-            return false;
-        if (
-            !ValidateNoForbiddenObject(
-                preview.random_chain_candidate_unit_ids,
-                "preview.random_chain_candidate_unit_ids"
-            )
-        )
-            return false;
-        if (!ValidateNoForbiddenObject(preview.hit_preview, "preview.hit_preview"))
-            return false;
         if (!ValidateNoForbiddenObject(preview.damage_preview, "preview.damage_preview"))
             return false;
 
         BattleSpecialProfileGateResult gateResult = preview.special_profile_gate_result;
-
         if (gateResult != null)
         {
             if (
@@ -236,16 +140,11 @@ public partial class BattleAiPayloadGuard : RefCounted
         }
 
         BattleSpecialProfilePreviewFacts previewFacts = preview.special_profile_preview_facts;
-
-        if (previewFacts != null)
-        {
-            return ValidateNoForbiddenObject(
+        return previewFacts == null
+            || ValidateNoForbiddenObject(
                 previewFacts.ToDict(),
                 "preview.special_profile_preview_facts"
             );
-        }
-
-        return true;
     }
 
     public static bool ScoreInputHasNoLiveState(BattleAiScoreInput scoreInput)
@@ -269,26 +168,6 @@ public partial class BattleAiPayloadGuard : RefCounted
                 "score_input.runtime_action_metadata"
             )
             && ValidateNoForbiddenObject(
-                scoreInput.random_chain_candidate_unit_ids,
-                "score_input.random_chain_candidate_unit_ids"
-            )
-            && ValidateNoForbiddenObject(
-                scoreInput.estimated_lethal_target_ids,
-                "score_input.estimated_lethal_target_ids"
-            )
-            && ValidateNoForbiddenObject(
-                scoreInput.estimated_lethal_threat_target_ids,
-                "score_input.estimated_lethal_threat_target_ids"
-            )
-            && ValidateNoForbiddenObject(
-                scoreInput.estimated_control_target_ids,
-                "score_input.estimated_control_target_ids"
-            )
-            && ValidateNoForbiddenObject(
-                scoreInput.estimated_control_threat_target_ids,
-                "score_input.estimated_control_threat_target_ids"
-            )
-            && ValidateNoForbiddenObject(
                 scoreInput.save_estimates_by_target_id,
                 "score_input.save_estimates_by_target_id"
             )
@@ -309,10 +188,6 @@ public partial class BattleAiPayloadGuard : RefCounted
                 "score_input.friendly_fire_numeric_summary"
             )
             && ValidateNoForbiddenObject(
-                scoreInput.high_priority_target_ids,
-                "score_input.high_priority_target_ids"
-            )
-            && ValidateNoForbiddenObject(
                 scoreInput.high_priority_reasons,
                 "score_input.high_priority_reasons"
             )
@@ -323,69 +198,100 @@ public partial class BattleAiPayloadGuard : RefCounted
             && ValidateNoForbiddenObject(
                 scoreInput.path_step_hit_counts_by_unit_id,
                 "score_input.path_step_hit_counts_by_unit_id"
-            )
-            && ValidateNoForbiddenObject(
-                scoreInput.pre_action_threat_unit_ids,
-                "score_input.pre_action_threat_unit_ids"
-            )
-            && ValidateNoForbiddenObject(
-                scoreInput.post_action_remaining_threat_unit_ids,
-                "score_input.post_action_remaining_threat_unit_ids"
             );
     }
 
-    private static bool IsForbiddenObject(object payload)
+    private static string FindForbiddenInDictionary(GDictionary payload, string path, int depth)
     {
-        if (payload is Variant value)
+        if (payload == null)
+            return "";
+        if (depth > MaxPayloadDepth)
+            return $"{path} exceeds typed payload depth.";
+
+        foreach (var key in payload.Keys)
         {
-            if (value.VariantType == Variant.Type.Callable)
-                return true;
+            string keyText = key.ToString();
+            if (LooksLikeRuntimePayload(keyText))
+                return $"{path}.key contains unsupported runtime payload.";
 
-            if (value.Obj is GodotObject)
-                return true;
+            var value = payload[key];
+            string valueText = value.ToString();
+            if (LooksLikeRuntimePayload(valueText))
+                return $"{path}.{keyText} contains unsupported runtime payload.";
 
-            return false;
+            try
+            {
+                GDictionary child = value.AsGodotDictionary();
+                string childError = FindForbiddenInDictionary(child, $"{path}.{keyText}", depth + 1);
+                if (!string.IsNullOrEmpty(childError))
+                    return childError;
+            }
+            catch
+            {
+            }
+
+            try
+            {
+                GArray child = value.AsGodotArray();
+                string childError = FindForbiddenInArray(child, $"{path}.{keyText}", depth + 1);
+                if (!string.IsNullOrEmpty(childError))
+                    return childError;
+            }
+            catch
+            {
+            }
         }
 
-        return payload is Callable || payload is GodotObject;
+        return "";
     }
 
-    private static string ForbiddenObjectName(object payload)
+    private static string FindForbiddenInArray(GArray payload, string path, int depth)
     {
-        if (payload is Variant value)
-        {
-            if (value.VariantType == Variant.Type.Callable)
-                return "Callable";
+        if (payload == null)
+            return "";
+        if (depth > MaxPayloadDepth)
+            return $"{path} exceeds typed payload depth.";
 
-            GodotObject obj = value.AsGodotObject();
-            return obj != null ? obj.GetClass() : value.VariantType.ToString();
+        for (int i = 0; i < payload.Count; i++)
+        {
+            var value = payload[i];
+            string valueText = value.ToString();
+            if (LooksLikeRuntimePayload(valueText))
+                return $"{path}[{i}] contains unsupported runtime payload.";
+
+            try
+            {
+                GDictionary child = value.AsGodotDictionary();
+                string childError = FindForbiddenInDictionary(child, $"{path}[{i}]", depth + 1);
+                if (!string.IsNullOrEmpty(childError))
+                    return childError;
+            }
+            catch
+            {
+            }
+
+            try
+            {
+                GArray child = value.AsGodotArray();
+                string childError = FindForbiddenInArray(child, $"{path}[{i}]", depth + 1);
+                if (!string.IsNullOrEmpty(childError))
+                    return childError;
+            }
+            catch
+            {
+            }
         }
 
-        if (payload is GodotObject go)
-            return go.GetClass();
-
-        return payload?.GetType().Name ?? "null";
+        return "";
     }
 
-    private static bool IsLiveStateObject(object payload, out string className)
+    private static bool LooksLikeRuntimePayload(string text)
     {
-        className = null;
-
-        GodotObject go = null;
-        if (payload is Variant value)
-        {
-            go = value.Obj as GodotObject;
-        }
-        else if (payload is GodotObject obj)
-        {
-            go = obj;
-        }
-
-        if (go == null)
+        if (string.IsNullOrEmpty(text))
             return false;
-
-        className = go.GetClass();
-
-        return LiveStateClassNames.Contains(className);
+        return text.StartsWith("<Object", StringComparison.Ordinal)
+            || text.StartsWith("<Callable", StringComparison.Ordinal)
+            || text.StartsWith("[Object", StringComparison.Ordinal)
+            || text.StartsWith("[Callable", StringComparison.Ordinal);
     }
 }

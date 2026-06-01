@@ -82,10 +82,10 @@ public sealed class BattleAiTypedActionHelper
         if (context == null || IsEmpty(skillId) || context.skill_defs == null)
             return null;
         if (context.skill_defs.ContainsKey(skillId))
-            return context.skill_defs[skillId].AsGodotObject() as SkillDef;
+            return context.skill_defs[skillId].As<SkillDef>();
         string stringKey = skillId.ToString();
         return context.skill_defs.ContainsKey(stringKey)
-            ? context.skill_defs[stringKey].AsGodotObject() as SkillDef
+            ? context.skill_defs[stringKey].As<SkillDef>()
             : null;
     }
 
@@ -624,9 +624,11 @@ public sealed class BattleAiTypedActionHelper
     {
         if (dictionary == null)
             return fallback;
-        return TryGetDictionaryValue(dictionary, key, out Variant rawValue)
-            && TryAsInt(rawValue, out int value)
-            ? value
+        if (dictionary.ContainsKey(key))
+            return dictionary[key].AsInt32();
+        StringName stringNameKey = new(key);
+        return dictionary.ContainsKey(stringNameKey)
+            ? dictionary[stringNameKey].AsInt32()
             : fallback;
     }
 
@@ -634,80 +636,12 @@ public sealed class BattleAiTypedActionHelper
     {
         if (dictionary == null)
             return fallback;
-        return TryGetDictionaryValue(dictionary, key, out Variant rawValue)
-            && TryAsInt(rawValue, out int value)
-            ? value
-            : fallback;
-    }
-
-    private static bool TryGetDictionaryValue(GDictionary dictionary, string key, out Variant value)
-    {
-        if (dictionary == null || key == null)
-        {
-            value = default;
-            return false;
-        }
         if (dictionary.ContainsKey(key))
-        {
-            value = dictionary[key];
-            return true;
-        }
-        var stringNameKey = new StringName(key);
-        if (dictionary.ContainsKey(stringNameKey))
-        {
-            value = dictionary[stringNameKey];
-            return true;
-        }
-        value = default;
-        return false;
-    }
-
-    private static bool TryGetDictionaryValue(
-        GDictionary dictionary,
-        StringName key,
-        out Variant value
-    )
-    {
-        if (dictionary == null || key == null)
-        {
-            value = default;
-            return false;
-        }
-        if (dictionary.ContainsKey(key))
-        {
-            value = dictionary[key];
-            return true;
-        }
+            return dictionary[key].AsInt32();
         string stringKey = key.ToString();
-        if (dictionary.ContainsKey(stringKey))
-        {
-            value = dictionary[stringKey];
-            return true;
-        }
-        value = default;
-        return false;
-    }
-
-    private static bool TryAsInt(Variant rawValue, out int value)
-    {
-        if (rawValue.VariantType == Variant.Type.Nil)
-        {
-            value = 0;
-            return false;
-        }
-        value = rawValue.AsInt32();
-        return true;
-    }
-
-    private static bool TryAsBool(Variant rawValue, out bool value)
-    {
-        if (rawValue.VariantType == Variant.Type.Nil)
-        {
-            value = false;
-            return false;
-        }
-        value = rawValue.AsBool();
-        return true;
+        return dictionary.ContainsKey(stringKey)
+            ? dictionary[stringKey].AsInt32()
+            : fallback;
     }
 
     private static bool IsEmpty(StringName value)

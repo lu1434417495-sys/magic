@@ -437,14 +437,8 @@ public partial class BattleChargeResolver : RefCounted
             return;
         }
 
-        GDictionary extraStatusParams = new();
-        if (
-            TryGetValue(parameters, "repeat_hit_status_params", out Variant rawExtraParams)
-            && rawExtraParams.VariantType == Variant.Type.Dictionary
-        )
-        {
-            extraStatusParams = rawExtraParams.AsGodotDictionary().Duplicate(true);
-        }
+        GDictionary extraStatusParams = GetDict(parameters, "repeat_hit_status_params")
+            .Duplicate(true);
 
         foreach ((StringName unitId, int hitCount) in totalUnitHitCounts)
         {
@@ -793,7 +787,7 @@ public partial class BattleChargeResolver : RefCounted
                 );
             }
             AttackEffectResolutionResult stageResult =
-                AttackEffectResolutionResultReader.ReadLegacyResolverResult(result, attackCheck);
+                AttackEffectResolutionResultReader.ReadResolverResult(result, attackCheck);
             if (pathStepParameters.ResolveAsWeaponAttack)
             {
                 _skillMasteryService?.RecordTargetResult(
@@ -1272,7 +1266,7 @@ public partial class BattleChargeResolver : RefCounted
                 envDamageLabel = "撞向障碍物";
             }
             AttackEffectResolutionResult envDamageResult =
-                AttackEffectResolutionResultReader.ReadLegacyResolverResult(
+                AttackEffectResolutionResultReader.ReadResolverResult(
                     envResult,
                     new AttackCheckInput()
                 );
@@ -1331,7 +1325,7 @@ public partial class BattleChargeResolver : RefCounted
     {
         GDictionary fallResult = DamageResolver.resolve_fall_damage(blocker, fallLayers);
         AttackEffectResolutionResult fallDamageResult =
-            AttackEffectResolutionResultReader.ReadLegacyResolverResult(
+            AttackEffectResolutionResultReader.ReadResolverResult(
                 fallResult,
                 new AttackCheckInput()
             );
@@ -1694,30 +1688,13 @@ public partial class BattleChargeResolver : RefCounted
 
     private void MarkAppliedStatusesForTurnTiming(
         BattleUnitState targetUnit,
-        object statusEffectIds
+        Godot.Collections.Array<StringName> statusEffectIds
     )
     {
-        if (statusEffectIds is Variant variantStatusEffectIds)
-        {
-            Runtime?.mark_applied_statuses_for_turn_timing(
-                targetUnit,
-                variantStatusEffectIds.AsGodotArray()
-            );
-        }
-        else if (statusEffectIds is GArray arrayStatusEffectIds)
-        {
-            Runtime?.mark_applied_statuses_for_turn_timing(
-                targetUnit,
-                arrayStatusEffectIds
-            );
-        }
-        else if (statusEffectIds is Godot.Collections.Array<StringName> typedStatusEffectIds)
-        {
-            Runtime?.mark_applied_statuses_for_turn_timing(
-                targetUnit,
-                ToUntypedStringNameArray(typedStatusEffectIds)
-            );
-        }
+        Runtime?.mark_applied_statuses_for_turn_timing(
+            targetUnit,
+            ToUntypedStringNameArray(statusEffectIds)
+        );
     }
 
     private void AppendResultSourceStatusEffects(
@@ -1755,12 +1732,7 @@ public partial class BattleChargeResolver : RefCounted
         }
         foreach (var reportEntryValue in sourceBatch.report_entries)
         {
-            if (reportEntryValue.VariantType == Variant.Type.Dictionary)
-            {
-                targetBatch.report_entries.Add(
-                    reportEntryValue.AsGodotDictionary().Duplicate(true)
-                );
-            }
+            targetBatch.report_entries.Add(reportEntryValue.AsGodotDictionary().Duplicate(true));
         }
     }
 
@@ -1836,69 +1808,47 @@ public partial class BattleChargeResolver : RefCounted
 
     private static GDictionary GetDict(GDictionary source, object key)
     {
-        return TryGetValue(source, key, out Variant value)
-            && value.VariantType == Variant.Type.Dictionary
-            ? value.AsGodotDictionary()
-            : new GDictionary();
+        if (!TryResolveKey(source, key, out StringName stringNameKey, out string stringKey, out bool useStringName))
+            return new GDictionary();
+        return useStringName
+            ? source[stringNameKey].AsGodotDictionary()
+            : source[stringKey].AsGodotDictionary();
     }
 
     private static int GetInt(GDictionary source, object key, int fallback = 0)
     {
-        if (!TryGetValue(source, key, out Variant value))
-        {
+        if (!TryResolveKey(source, key, out StringName stringNameKey, out string stringKey, out bool useStringName))
             return fallback;
-        }
-        return value.VariantType switch
-        {
-            Variant.Type.Int => value.AsInt32(),
-            Variant.Type.Float => (int)value.AsDouble(),
-            Variant.Type.Bool => value.AsBool() ? 1 : 0,
-            Variant.Type.String => int.TryParse(value.AsString(), out int parsed)
-                ? parsed
-                : fallback,
-            Variant.Type.StringName
-                => int.TryParse(value.AsStringName().ToString(), out int parsed)
-                    ? parsed
-                    : fallback,
-            _ => fallback,
-        };
+        return useStringName ? source[stringNameKey].AsInt32() : source[stringKey].AsInt32();
     }
 
     private static string GetString(GDictionary source, object key, string fallback = "")
     {
-        if (!TryGetValue(source, key, out Variant value))
-        {
+        if (!TryResolveKey(source, key, out StringName stringNameKey, out string stringKey, out bool useStringName))
             return fallback;
-        }
-        return value.VariantType switch
-        {
-            Variant.Type.String => value.AsString(),
-            Variant.Type.StringName => value.AsStringName().ToString(),
-            Variant.Type.Int => value.AsInt32().ToString(),
-            Variant.Type.Float => value.AsDouble().ToString(
-                System.Globalization.CultureInfo.InvariantCulture
-            ),
-            Variant.Type.Bool => value.AsBool() ? "True" : "False",
-            _ => fallback,
-        };
+        string result = useStringName
+            ? source[stringNameKey].ToString()
+            : source[stringKey].ToString();
+        return string.IsNullOrEmpty(result) || result == "<null>" ? fallback : result;
     }
 
     private static StringName GetStringName(GDictionary source, object key, StringName fallback = default)
     {
-        if (!TryGetValue(source, key, out Variant value))
-        {
+        if (!TryResolveKey(source, key, out StringName stringNameKey, out string stringKey, out bool useStringName))
             return fallback;
-        }
-        StringName result = ProgressionDataUtils.to_string_name(value);
+        StringName result = useStringName
+            ? ProgressionDataUtils.to_string_name(source[stringNameKey])
+            : ProgressionDataUtils.to_string_name(source[stringKey]);
         return result != "" ? result : fallback;
     }
 
     private static Vector2I GetVector2I(GDictionary source, object key, Vector2I fallback)
     {
-        return TryGetValue(source, key, out Variant value)
-            && value.VariantType == Variant.Type.Vector2I
-            ? value.AsVector2I()
-            : fallback;
+        if (!TryResolveKey(source, key, out StringName stringNameKey, out string stringKey, out bool useStringName))
+            return fallback;
+        return useStringName
+            ? source[stringNameKey].AsVector2I()
+            : source[stringKey].AsVector2I();
     }
 
     private static List<Vector2I> ToVector2IList(GVector2IArray values)
@@ -1911,56 +1861,56 @@ public partial class BattleChargeResolver : RefCounted
         return result;
     }
 
-    private static bool TryGetValue(GDictionary source, object key, out Variant value)
+    private static bool TryResolveKey(
+        GDictionary source,
+        object key,
+        out StringName stringNameKey,
+        out string stringKey,
+        out bool useStringName
+    )
     {
+        stringNameKey = "";
+        stringKey = "";
+        useStringName = false;
         if (source == null)
         {
-            value = default;
             return false;
         }
-        Variant variantKey = ToVariantKey(key);
-        if (source.ContainsKey(variantKey))
+        if (key is StringName namedKey)
         {
-            value = source[variantKey];
+            if (source.ContainsKey(namedKey))
+            {
+                stringNameKey = namedKey;
+                useStringName = true;
+                return true;
+            }
+            string namedKeyText = namedKey.ToString();
+            if (source.ContainsKey(namedKeyText))
+            {
+                stringKey = namedKeyText;
+                return true;
+            }
+            return false;
+        }
+
+        string textKey = key?.ToString() ?? "";
+        if (string.IsNullOrEmpty(textKey))
+        {
+            return false;
+        }
+        if (source.ContainsKey(textKey))
+        {
+            stringKey = textKey;
             return true;
         }
-        if (key is StringName stringNameKey)
+        StringName normalizedKey = new(textKey);
+        if (source.ContainsKey(normalizedKey))
         {
-            string keyText = stringNameKey.ToString();
-            if (source.ContainsKey(keyText))
-            {
-                value = source[keyText];
-                return true;
-            }
+            stringNameKey = normalizedKey;
+            useStringName = true;
+            return true;
         }
-        else if (key is string stringKey)
-        {
-            var stringName = new StringName(stringKey);
-            if (source.ContainsKey(stringName))
-            {
-                value = source[stringName];
-                return true;
-            }
-        }
-        value = default;
         return false;
-    }
-
-    private static Variant ToVariantKey(object key)
-    {
-        return key switch
-        {
-            Variant variant => variant,
-            StringName stringName => Variant.From(stringName),
-            string text => Variant.From(text),
-            int intValue => Variant.From(intValue),
-            long longValue => Variant.From(longValue),
-            float floatValue => Variant.From(floatValue),
-            double doubleValue => Variant.From(doubleValue),
-            bool boolValue => Variant.From(boolValue),
-            Vector2I coord => Variant.From(coord),
-            _ => Variant.From(key?.ToString() ?? ""),
-        };
     }
 
     private static bool IsEmpty(StringName value)
@@ -1968,14 +1918,11 @@ public partial class BattleChargeResolver : RefCounted
         return value == null || string.IsNullOrEmpty(value.ToString());
     }
 
-    private static T ResolveWeakRef<T>(WeakReference<T> weakRef)
-        where T : GodotObject
+    private static BattleRuntimeModule ResolveWeakRef(
+        WeakReference<BattleRuntimeModule> weakRef
+    )
     {
-        if (
-            weakRef == null
-            || !weakRef.TryGetTarget(out T target)
-            || !GodotObject.IsInstanceValid(target)
-        )
+        if (weakRef == null || !weakRef.TryGetTarget(out BattleRuntimeModule target))
         {
             return null;
         }

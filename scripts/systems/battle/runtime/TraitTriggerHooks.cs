@@ -662,10 +662,9 @@ public partial class TraitTriggerHooks : RefCounted
             return;
         }
         GDictionary charges = perTurn ? unitState.per_turn_charges : unitState.per_battle_charges;
-        Variant key = Variant.From(chargeKey);
-        if (force || !charges.ContainsKey(key))
+        if (force || !charges.ContainsKey(chargeKey))
         {
-            charges[key] = Math.Max(value, 0);
+            charges[chargeKey] = Math.Max(value, 0);
         }
     }
 
@@ -681,17 +680,16 @@ public partial class TraitTriggerHooks : RefCounted
             return false;
         }
         GDictionary charges = perTurn ? unitState.per_turn_charges : unitState.per_battle_charges;
-        Variant key = Variant.From(chargeKey);
-        if (!charges.ContainsKey(key))
+        if (!charges.ContainsKey(chargeKey))
         {
-            charges[key] = Math.Max(defaultValue, 0);
+            charges[chargeKey] = Math.Max(defaultValue, 0);
         }
         int remaining = Math.Max(GetInt(charges, chargeKey), 0);
         if (remaining <= 0)
         {
             return false;
         }
-        charges[key] = remaining - 1;
+        charges[chargeKey] = remaining - 1;
         return true;
     }
 
@@ -722,98 +720,85 @@ public partial class TraitTriggerHooks : RefCounted
 
     private static GDictionary GetDict(GDictionary source, object key)
     {
-        return TryGetValue(source, key, out Variant value)
-            && value.VariantType == Variant.Type.Dictionary
-            ? value.AsGodotDictionary()
-            : new GDictionary();
+        if (!TryResolveKey(source, key, out StringName stringNameKey, out string stringKey, out bool useStringName))
+            return new GDictionary();
+        return useStringName
+            ? source[stringNameKey].AsGodotDictionary()
+            : source[stringKey].AsGodotDictionary();
     }
 
     private static GArray GetArray(GDictionary source, object key)
     {
-        return TryGetValue(source, key, out Variant value)
-            && value.VariantType == Variant.Type.Array
-            ? value.AsGodotArray()
-            : new GArray();
+        if (!TryResolveKey(source, key, out StringName stringNameKey, out string stringKey, out bool useStringName))
+            return new GArray();
+        return useStringName ? source[stringNameKey].AsGodotArray() : source[stringKey].AsGodotArray();
     }
 
     private static int GetInt(GDictionary source, object key, int fallback = 0)
     {
-        if (!TryGetValue(source, key, out Variant value))
+        if (!TryResolveKey(source, key, out StringName stringNameKey, out string stringKey, out bool useStringName))
             return fallback;
-        return value.VariantType switch
-        {
-            Variant.Type.Int => value.AsInt32(),
-            Variant.Type.Float => (int)value.AsDouble(),
-            Variant.Type.Bool => value.AsBool() ? 1 : 0,
-            Variant.Type.String => int.TryParse(value.AsString(), out int parsed)
-                ? parsed
-                : fallback,
-            Variant.Type.StringName
-                => int.TryParse(value.AsStringName().ToString(), out int parsed)
-                    ? parsed
-                    : fallback,
-            _ => fallback,
-        };
+        return useStringName ? source[stringNameKey].AsInt32() : source[stringKey].AsInt32();
     }
 
     private static bool ReadBool(GDictionary source, object key, bool fallback = false)
     {
-        if (!TryGetValue(source, key, out Variant value))
+        if (!TryResolveKey(source, key, out StringName stringNameKey, out string stringKey, out bool useStringName))
         {
             return fallback;
         }
-        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
+        return useStringName ? source[stringNameKey].AsBool() : source[stringKey].AsBool();
     }
 
-    private static bool TryGetValue(GDictionary source, object key, out Variant value)
+    private static bool TryResolveKey(
+        GDictionary source,
+        object key,
+        out StringName stringNameKey,
+        out string stringKey,
+        out bool useStringName
+    )
     {
+        stringNameKey = "";
+        stringKey = "";
+        useStringName = false;
         if (source == null)
         {
-            value = default;
             return false;
         }
-        Variant variantKey = ToVariantKey(key);
-        if (source.ContainsKey(variantKey))
+        if (key is StringName namedKey)
         {
-            value = source[variantKey];
+            if (source.ContainsKey(namedKey))
+            {
+                stringNameKey = namedKey;
+                useStringName = true;
+                return true;
+            }
+            string namedKeyText = namedKey.ToString();
+            if (source.ContainsKey(namedKeyText))
+            {
+                stringKey = namedKeyText;
+                return true;
+            }
+            return false;
+        }
+
+        string textKey = key?.ToString() ?? "";
+        if (string.IsNullOrEmpty(textKey))
+        {
+            return false;
+        }
+        if (source.ContainsKey(textKey))
+        {
+            stringKey = textKey;
             return true;
         }
-        if (key is StringName stringNameKey)
+        StringName normalizedKey = new(textKey);
+        if (source.ContainsKey(normalizedKey))
         {
-            string keyText = stringNameKey.ToString();
-            if (source.ContainsKey(keyText))
-            {
-                value = source[keyText];
-                return true;
-            }
+            stringNameKey = normalizedKey;
+            useStringName = true;
+            return true;
         }
-        else if (key is string stringKey)
-        {
-            var stringName = new StringName(stringKey);
-            if (source.ContainsKey(stringName))
-            {
-                value = source[stringName];
-                return true;
-            }
-        }
-        value = default;
         return false;
-    }
-
-    private static Variant ToVariantKey(object key)
-    {
-        return key switch
-        {
-            Variant variant => variant,
-            StringName stringName => Variant.From(stringName),
-            string text => Variant.From(text),
-            int intValue => Variant.From(intValue),
-            long longValue => Variant.From(longValue),
-            float floatValue => Variant.From(floatValue),
-            double doubleValue => Variant.From(doubleValue),
-            bool boolValue => Variant.From(boolValue),
-            Vector2I coord => Variant.From(coord),
-            _ => Variant.From(key?.ToString() ?? ""),
-        };
     }
 }

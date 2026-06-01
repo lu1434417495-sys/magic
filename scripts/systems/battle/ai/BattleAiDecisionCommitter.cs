@@ -188,39 +188,23 @@ public partial class BattleAiDecisionCommitter : RefCounted
                 }
             }
 
-            if (TryGetDictionaryValue(source, "ai_brain_id", out Variant rawBrainId))
+            if (TryReadStringName(source, "ai_brain_id", out parsed._brainId))
             {
-                if (!TryAsStringName(rawBrainId, out parsed._brainId))
-                {
-                    return Fail(failLoud, "state_patch.ai_brain_id must be StringName/String.");
-                }
                 parsed._hasBrainId = true;
             }
-            if (TryGetDictionaryValue(source, "ai_state_id", out Variant rawStateId))
+            if (TryReadStringName(source, "ai_state_id", out parsed._stateId))
             {
-                if (!TryAsStringName(rawStateId, out parsed._stateId))
-                {
-                    return Fail(failLoud, "state_patch.ai_state_id must be StringName/String.");
-                }
                 parsed._hasStateId = true;
             }
-            if (TryGetDictionaryValue(source, "blackboard_set", out Variant rawBlackboardSet))
+            if (TryReadDictionary(source, "blackboard_set", out GDictionary setDictionary))
             {
-                if (!TryAsDictionary(rawBlackboardSet, out GDictionary setDictionary))
-                {
-                    return Fail(failLoud, "state_patch.blackboard_set must be Dictionary.");
-                }
                 if (!parsed.ParseBlackboardSet(setDictionary, failLoud))
                 {
                     return false;
                 }
             }
-            if (TryGetDictionaryValue(source, "blackboard_increment", out Variant rawIncrement))
+            if (TryReadDictionary(source, "blackboard_increment", out GDictionary incrementDictionary))
             {
-                if (!TryAsDictionary(rawIncrement, out GDictionary incrementDictionary))
-                {
-                    return Fail(failLoud, "state_patch.blackboard_increment must be Dictionary.");
-                }
                 if (!parsed.ParseBlackboardIncrement(incrementDictionary, failLoud))
                 {
                     return false;
@@ -465,7 +449,7 @@ public partial class BattleAiDecisionCommitter : RefCounted
         }
         foreach (var rawKey in source.Keys)
         {
-            result.Add(ReadKeyText(rawKey));
+            result.Add(rawKey.ToString());
         }
         return result;
     }
@@ -486,21 +470,18 @@ public partial class BattleAiDecisionCommitter : RefCounted
         }
         foreach (var rawKey in source.Keys)
         {
-            string key = ReadKeyText(rawKey);
+            string key = rawKey.ToString();
             if (isAllowedKey == null || !isAllowedKey(key))
             {
                 error = $"{path} contains unsupported key {key}";
                 return false;
             }
-            if (
-                !TryGetDictionaryValue(source, rawKey, out Variant rawValue)
-                || !TryAsString(rawValue, out string value)
-            )
+            if (!TryReadString(source, key, out string parsedValue))
             {
                 error = $"{path}.{key} must be StringName/String.";
                 return false;
             }
-            entries.Add(new TextPatchEntry(key, value));
+            entries.Add(new TextPatchEntry(key, parsedValue));
         }
         return true;
     }
@@ -521,21 +502,18 @@ public partial class BattleAiDecisionCommitter : RefCounted
         }
         foreach (var rawKey in source.Keys)
         {
-            string key = ReadKeyText(rawKey);
+            string key = rawKey.ToString();
             if (isAllowedKey == null || !isAllowedKey(key))
             {
                 error = $"{path} contains unsupported key {key}";
                 return false;
             }
-            if (
-                !TryGetDictionaryValue(source, rawKey, out Variant rawValue)
-                || !TryAsInt(rawValue, out int value)
-            )
+            if (!TryReadInt(source, key, out int parsedValue))
             {
                 error = $"{path}.{key} must be int.";
                 return false;
             }
-            entries.Add(new IntPatchEntry(key, value));
+            entries.Add(new IntPatchEntry(key, parsedValue));
         }
         return true;
     }
@@ -572,64 +550,16 @@ public partial class BattleAiDecisionCommitter : RefCounted
 
     private static string GetStringLikeOrEmpty(GDictionary dictionary, string key)
     {
-        return TryGetDictionaryValue(dictionary, key, out Variant rawValue)
-            && TryAsString(rawValue, out string value)
-                ? value
-                : "";
+        if (TryReadString(dictionary, key, out string parsedValue))
+        {
+            return parsedValue;
+        }
+        return "";
     }
 
-    private static bool TryGetDictionaryValue(GDictionary dictionary, string key, out Variant value)
+    private static bool TryReadStringName(GDictionary dictionary, string key, out StringName value)
     {
-        if (dictionary == null || key == null)
-        {
-            value = default;
-            return false;
-        }
-        if (dictionary.ContainsKey(key))
-        {
-            value = dictionary[key];
-            return true;
-        }
-        StringName stringNameKey = new(key);
-        if (dictionary.ContainsKey(stringNameKey))
-        {
-            value = dictionary[stringNameKey];
-            return true;
-        }
-        value = default;
-        return false;
-    }
-
-    private static bool TryGetDictionaryValue(GDictionary dictionary, Variant key, out Variant value)
-    {
-        if (dictionary == null)
-        {
-            value = default;
-            return false;
-        }
-        if (dictionary.ContainsKey(key))
-        {
-            value = dictionary[key];
-            return true;
-        }
-        value = default;
-        return false;
-    }
-
-    private static bool TryAsDictionary(Variant rawValue, out GDictionary value)
-    {
-        if (rawValue.VariantType == Variant.Type.Dictionary)
-        {
-            value = rawValue.AsGodotDictionary();
-            return true;
-        }
-        value = null;
-        return false;
-    }
-
-    private static bool TryAsStringName(Variant rawValue, out StringName value)
-    {
-        if (TryAsString(rawValue, out string text))
+        if (TryReadString(dictionary, key, out string text))
         {
             value = new StringName(text);
             return true;
@@ -638,41 +568,66 @@ public partial class BattleAiDecisionCommitter : RefCounted
         return false;
     }
 
-    private static bool TryAsString(Variant rawValue, out string value)
+    private static bool TryReadDictionary(GDictionary dictionary, string key, out GDictionary value)
     {
-        if (rawValue.VariantType == Variant.Type.String)
+        value = null;
+        if (dictionary == null || string.IsNullOrEmpty(key))
         {
-            value = rawValue.AsString();
+            return false;
+        }
+        if (dictionary.ContainsKey(key))
+        {
+            value = dictionary[key].AsGodotDictionary();
             return true;
         }
-        if (rawValue.VariantType == Variant.Type.StringName)
+        StringName stringNameKey = new(key);
+        if (dictionary.ContainsKey(stringNameKey))
         {
-            value = rawValue.AsStringName().ToString();
+            value = dictionary[stringNameKey].AsGodotDictionary();
             return true;
         }
+        return false;
+    }
+
+    private static bool TryReadString(GDictionary dictionary, string key, out string value)
+    {
         value = "";
+        if (dictionary == null || string.IsNullOrEmpty(key))
+        {
+            return false;
+        }
+        if (dictionary.ContainsKey(key))
+        {
+            value = dictionary[key].ToString();
+            return !string.IsNullOrEmpty(value);
+        }
+        StringName stringNameKey = new(key);
+        if (dictionary.ContainsKey(stringNameKey))
+        {
+            value = dictionary[stringNameKey].ToString();
+            return !string.IsNullOrEmpty(value);
+        }
         return false;
     }
 
-    private static bool TryAsInt(Variant rawValue, out int value)
+    private static bool TryReadInt(GDictionary dictionary, string key, out int value)
     {
-        if (rawValue.VariantType == Variant.Type.Int)
+        value = 0;
+        if (dictionary == null || string.IsNullOrEmpty(key))
         {
-            value = rawValue.AsInt32();
+            return false;
+        }
+        if (dictionary.ContainsKey(key))
+        {
+            value = dictionary[key].AsInt32();
             return true;
         }
-        value = 0;
-        return false;
-    }
-
-    private static string ReadKeyText(Variant rawKey)
-    {
-        return rawKey.VariantType switch
+        StringName stringNameKey = new(key);
+        if (dictionary.ContainsKey(stringNameKey))
         {
-            Variant.Type.String => rawKey.AsString(),
-            Variant.Type.StringName => rawKey.AsStringName().ToString(),
-            Variant.Type.Nil => "",
-            _ => rawKey.ToString(),
-        };
+            value = dictionary[stringNameKey].AsInt32();
+            return true;
+        }
+        return false;
     }
 }

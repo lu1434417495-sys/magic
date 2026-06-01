@@ -1,5 +1,4 @@
 using Godot;
-using VT = Godot.Variant.Type;
 
 [GlobalClass]
 public partial class BattleSpecialProfileManifestValidator : RefCounted
@@ -140,7 +139,7 @@ public partial class BattleSpecialProfileManifestValidator : RefCounted
                 errors.Add($"Battle special profile {pid} references missing owning skill {skId}.");
                 continue;
             }
-            var sd = skillDefs[skId].AsGodotObject() as SkillDef;
+            var sd = skillDefs[skId].As<SkillDef>();
             if (sd == null || sd.combat_profile == null)
             {
                 errors.Add(
@@ -254,11 +253,6 @@ public partial class BattleSpecialProfileManifestValidator : RefCounted
         for (int i = 0; i < profile.terrain_profiles.Count; i++)
         {
             var terrainProfile = profile.terrain_profiles[i];
-            if (terrainProfile.VariantType != Variant.Type.Dictionary)
-            {
-                errors.Add($"MeteorSwarmProfile.terrain_profiles[{i}] must be Dictionary.");
-                continue;
-            }
             _append_terrain_profile_errors(errors, terrainProfile.AsGodotDictionary(), i, radius);
         }
         return errors;
@@ -408,122 +402,48 @@ public partial class BattleSpecialProfileManifestValidator : RefCounted
         foreach (string rk in REQUIRED_TERRAIN_PROFILE_KEYS)
             if (!pe.ContainsKey(rk) && !pe.ContainsKey(new StringName(rk)))
                 errors.Add($"MeteorSwarmProfile.terrain_profiles[{idx}] is missing {rk}.");
-        var tpid = pe.ContainsKey("terrain_profile_id")
-            ? pe["terrain_profile_id"]
-            : (
-                pe.ContainsKey(new StringName("terrain_profile_id"))
-                    ? pe[new StringName("terrain_profile_id")]
-                    : Variant.From("")
-            );
-        if (
-            (tpid.VariantType != Variant.Type.String && tpid.VariantType != Variant.Type.StringName)
-            || tpid.AsString().Length == 0
-        )
+        StringName tpid = ReadStringName(pe, "terrain_profile_id");
+        if (tpid == "")
             errors.Add(
                 $"MeteorSwarmProfile.terrain_profiles[{idx}].terrain_profile_id must be String/StringName."
             );
-        var rmin = pe.ContainsKey("ring_min")
-            ? pe["ring_min"]
-            : (
-                pe.ContainsKey(new StringName("ring_min"))
-                    ? pe[new StringName("ring_min")]
-                    : Variant.From(0)
-            );
-        var rmax = pe.ContainsKey("ring_max")
-            ? pe["ring_max"]
-            : (
-                pe.ContainsKey(new StringName("ring_max"))
-                    ? pe[new StringName("ring_max")]
-                    : Variant.From(0)
-            );
-        if (rmin.VariantType != Variant.Type.Int)
+        bool hasRingMin = TryReadInt(pe, "ring_min", out int ri);
+        bool hasRingMax = TryReadInt(pe, "ring_max", out int ra);
+        if (!hasRingMin)
             errors.Add($"MeteorSwarmProfile.terrain_profiles[{idx}].ring_min must be int.");
-        if (rmax.VariantType != Variant.Type.Int)
+        if (!hasRingMax)
             errors.Add($"MeteorSwarmProfile.terrain_profiles[{idx}].ring_max must be int.");
-        if (rmin.VariantType == Variant.Type.Int && rmax.VariantType == Variant.Type.Int)
+        if (hasRingMin && hasRingMax)
         {
-            int ri = rmin.AsInt32();
-            int ra = rmax.AsInt32();
             if (ri < 0 || ra < ri || ra > radius)
                 errors.Add(
                     $"MeteorSwarmProfile.terrain_profiles[{idx}] ring range is invalid or outside radius."
                 );
         }
-        var mcd = pe.ContainsKey("move_cost_delta")
-            ? pe["move_cost_delta"]
-            : (
-                pe.ContainsKey(new StringName("move_cost_delta"))
-                    ? pe[new StringName("move_cost_delta")]
-                    : Variant.From(0)
-            );
-        if (mcd.VariantType != Variant.Type.Int)
+        if (!TryReadInt(pe, "move_cost_delta", out _))
             errors.Add($"MeteorSwarmProfile.terrain_profiles[{idx}].move_cost_delta must be int.");
-        var lpValue = pe.ContainsKey("lifetime_policy")
-            ? pe["lifetime_policy"]
-            : (
-                pe.ContainsKey(new StringName("lifetime_policy"))
-                    ? pe[new StringName("lifetime_policy")]
-                    : Variant.From("")
-            );
-        var lp =
-            lpValue.VariantType == Variant.Type.StringName
-                ? lpValue.AsStringName()
-                : (
-                    lpValue.VariantType == Variant.Type.String
-                        ? new StringName(lpValue.AsString())
-                        : new StringName("")
-                );
+        var lp = ReadStringName(pe, "lifetime_policy");
         if (lp != "battle" && lp != "timed")
             errors.Add(
                 $"MeteorSwarmProfile.terrain_profiles[{idx}].lifetime_policy must be battle or timed."
             );
-        var dtu = pe.ContainsKey("duration_tu")
-            ? pe["duration_tu"]
-            : (
-                pe.ContainsKey(new StringName("duration_tu"))
-                    ? pe[new StringName("duration_tu")]
-                    : Variant.From(0)
-            );
-        if (dtu.VariantType != Variant.Type.Int)
+        if (!TryReadInt(pe, "duration_tu", out _))
             errors.Add($"MeteorSwarmProfile.terrain_profiles[{idx}].duration_tu must be int.");
-        var tiu = pe.ContainsKey("tick_interval_tu")
-            ? pe["tick_interval_tu"]
-            : (
-                pe.ContainsKey(new StringName("tick_interval_tu"))
-                    ? pe[new StringName("tick_interval_tu")]
-                    : Variant.From(0)
-            );
-        if (tiu.VariantType != Variant.Type.Int)
+        if (!TryReadInt(pe, "tick_interval_tu", out _))
             errors.Add($"MeteorSwarmProfile.terrain_profiles[{idx}].tick_interval_tu must be int.");
-        var roi = pe.ContainsKey("render_overlay_id")
-            ? pe["render_overlay_id"]
-            : (
-                pe.ContainsKey(new StringName("render_overlay_id"))
-                    ? pe[new StringName("render_overlay_id")]
-                    : Variant.From("")
-            );
-        if (
-            (roi.VariantType != Variant.Type.String && roi.VariantType != Variant.Type.StringName)
-            || roi.AsString().Length == 0
-        )
+        var roi = ReadStringName(pe, "render_overlay_id");
+        if (roi == "")
             errors.Add(
                 $"MeteorSwarmProfile.terrain_profiles[{idx}].render_overlay_id must be a non-empty String/StringName."
             );
-        var accSpec = pe.ContainsKey("accuracy_modifier_spec")
-            ? pe["accuracy_modifier_spec"]
-            : (
-                pe.ContainsKey(new StringName("accuracy_modifier_spec"))
-                    ? pe[new StringName("accuracy_modifier_spec")]
-                    : default(Variant)
-            );
-        if (accSpec.VariantType != Variant.Type.Nil)
+        if (TryGetValue(pe, "accuracy_modifier_spec", out object accSpec))
         {
-            if (accSpec.VariantType != Variant.Type.Dictionary)
+            if (!TryAsDictionary(accSpec, out Godot.Collections.Dictionary accuracySpec))
                 errors.Add(
                     $"MeteorSwarmProfile.terrain_profiles[{idx}].accuracy_modifier_spec must be Dictionary."
                 );
             else
-                _append_accuracy_modifier_spec_errors(errors, accSpec.AsGodotDictionary(), idx);
+                _append_accuracy_modifier_spec_errors(errors, accuracySpec, idx);
         }
     }
 
@@ -553,30 +473,97 @@ public partial class BattleSpecialProfileManifestValidator : RefCounted
             var md = spec.ContainsKey("modifier_delta")
                 ? spec["modifier_delta"]
                 : spec[new StringName("modifier_delta")];
-            if (md.VariantType != Variant.Type.Int)
+            if (!TryAsInt(md, out _))
                 errors.Add(
                     $"MeteorSwarmProfile.terrain_profiles[{idx}].accuracy_modifier_spec.modifier_delta must be int."
                 );
         }
-        var ttf = spec.ContainsKey("target_team_filter")
-            ? spec["target_team_filter"]
-            : (
-                spec.ContainsKey(new StringName("target_team_filter"))
-                    ? spec[new StringName("target_team_filter")]
-                    : Variant.From("any")
-            );
-        if (ttf.VariantType != Variant.Type.String && ttf.VariantType != Variant.Type.StringName)
+        StringName ttf = ReadStringName(spec, "target_team_filter", "any");
+        if (ttf == "")
             errors.Add(
                 $"MeteorSwarmProfile.terrain_profiles[{idx}].accuracy_modifier_spec.target_team_filter must be String/StringName."
             );
-        else if (!CombatTargetTeamContentRules.is_valid_skill_target_team_filter(
-            ttf.VariantType == Variant.Type.StringName
-                ? ttf.AsStringName()
-                : new StringName(ttf.AsString())
-        ))
+        else if (!CombatTargetTeamContentRules.is_valid_skill_target_team_filter(ttf))
             errors.Add(
                 $"MeteorSwarmProfile.terrain_profiles[{idx}].accuracy_modifier_spec.target_team_filter is unsupported: {ttf}."
             );
+    }
+
+    private static bool TryGetValue(
+        Godot.Collections.Dictionary source,
+        string key,
+        out object value
+    )
+    {
+        value = null;
+        if (source == null || string.IsNullOrEmpty(key))
+            return false;
+        if (source.ContainsKey(key))
+        {
+            value = source[key];
+            return true;
+        }
+        var stringNameKey = new StringName(key);
+        if (source.ContainsKey(stringNameKey))
+        {
+            value = source[stringNameKey];
+            return true;
+        }
+        return false;
+    }
+
+    private static StringName ReadStringName(
+        Godot.Collections.Dictionary source,
+        string key,
+        StringName fallback = default
+    )
+    {
+        if (!TryGetValue(source, key, out object value))
+            return fallback ?? "";
+        StringName normalized = ProgressionDataUtils.to_string_name(value);
+        return normalized == "" ? fallback ?? "" : normalized;
+    }
+
+    private static bool TryReadInt(
+        Godot.Collections.Dictionary source,
+        string key,
+        out int value
+    )
+    {
+        value = 0;
+        return TryGetValue(source, key, out object rawValue) && TryAsInt(rawValue, out value);
+    }
+
+    private static bool TryAsInt(object rawValue, out int value)
+    {
+        try
+        {
+            dynamic dynamicValue = rawValue;
+            value = dynamicValue.AsInt32();
+            return true;
+        }
+        catch
+        {
+            return int.TryParse(rawValue?.ToString() ?? "", out value);
+        }
+    }
+
+    private static bool TryAsDictionary(
+        object rawValue,
+        out Godot.Collections.Dictionary value
+    )
+    {
+        try
+        {
+            dynamic dynamicValue = rawValue;
+            value = dynamicValue.AsGodotDictionary();
+            return true;
+        }
+        catch
+        {
+            value = rawValue as Godot.Collections.Dictionary;
+            return value != null;
+        }
     }
 
     private static bool _resource_file_exists(string path)

@@ -744,14 +744,13 @@ public partial class BattleSaveResolver : RefCounted
         {
             return result;
         }
-        if (TryGetValue(context, "save_roll_override", out Variant overrideValue))
+        if (TryGetValue(context, "save_roll_override", out dynamic overrideValue))
         {
             result.Add(Math.Clamp(overrideValue.AsInt32(), 1, 20));
             return result;
         }
         if (
-            TryGetValue(context, "save_roll_overrides", out Variant rollsValue)
-            && rollsValue.VariantType == Variant.Type.Array
+            TryGetValue(context, "save_roll_overrides", out dynamic rollsValue)
         )
         {
             foreach (var rawRoll in rollsValue.AsGodotArray())
@@ -869,54 +868,52 @@ public partial class BattleSaveResolver : RefCounted
 
     private static GArray GetArray(GDictionary source, object key)
     {
-        return TryGetValue(source, key, out Variant value) && value.VariantType == Variant.Type.Array
-            ? value.AsGodotArray()
-            : new GArray();
+        return TryGetValue(source, key, out dynamic value) ? value.AsGodotArray() : new GArray();
     }
 
     private static int GetInt(GDictionary source, object key, int fallback = 0)
     {
-        if (!TryGetValue(source, key, out Variant value))
+        if (!TryGetValue(source, key, out dynamic value))
         {
             return fallback;
         }
-        return value.VariantType switch
+        try
         {
-            Variant.Type.Int => value.AsInt32(),
-            Variant.Type.Float => (int)value.AsDouble(),
-            Variant.Type.Bool => value.AsBool() ? 1 : 0,
-            Variant.Type.String => int.TryParse(value.AsString(), out int parsed)
-                ? parsed
-                : fallback,
-            Variant.Type.StringName
-                => int.TryParse(value.AsStringName().ToString(), out int parsed)
-                    ? parsed
-                    : fallback,
-            _ => fallback,
-        };
+            return value.AsInt32();
+        }
+        catch
+        {
+            return int.TryParse(value.ToString(), out int parsed) ? parsed : fallback;
+        }
     }
 
     private static StringName GetStringName(GDictionary source, object key)
     {
-        if (!TryGetValue(source, key, out Variant value))
+        if (!TryGetValue(source, key, out dynamic value))
         {
             return "";
         }
         return ProgressionDataUtils.to_string_name(value);
     }
 
-    private static bool TryGetValue(GDictionary source, object key, out Variant value)
+    private static bool TryGetValue(GDictionary source, object key, out dynamic value)
     {
         if (source == null)
         {
             value = default;
             return false;
         }
-        Variant variantKey = ToVariantKey(key);
-        if (source.ContainsKey(variantKey))
+        try
         {
-            value = source[variantKey];
-            return true;
+            dynamic dynamicKey = key;
+            if (source.ContainsKey(dynamicKey))
+            {
+                value = source[dynamicKey];
+                return true;
+            }
+        }
+        catch
+        {
         }
         if (key is StringName stringNameKey)
         {
@@ -938,23 +935,6 @@ public partial class BattleSaveResolver : RefCounted
         }
         value = default;
         return false;
-    }
-
-    private static Variant ToVariantKey(object key)
-    {
-        return key switch
-        {
-            Variant variant => variant,
-            StringName stringName => Variant.From(stringName),
-            string text => Variant.From(text),
-            int intValue => Variant.From(intValue),
-            long longValue => Variant.From(longValue),
-            float floatValue => Variant.From(floatValue),
-            double doubleValue => Variant.From(doubleValue),
-            bool boolValue => Variant.From(boolValue),
-            Vector2I coord => Variant.From(coord),
-            _ => Variant.From(key?.ToString() ?? ""),
-        };
     }
 
     private static int GetAttributeValue(AttributeSnapshot attributeSnapshot, StringName attributeId)

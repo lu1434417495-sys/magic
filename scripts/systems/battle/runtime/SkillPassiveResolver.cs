@@ -86,9 +86,6 @@ public partial class SkillPassiveResolver : RefCounted
         if (controlSaveBonus > 0)
             parameters["control_save_bonus"] = controlSaveBonus;
 
-        if (skillLevel >= 10)
-            parameters["forced_move_immune"] = true;
-
         var statusEntry = new BattleStatusEffectState
         {
             status_id = StatusVajraBody,
@@ -102,6 +99,8 @@ public partial class SkillPassiveResolver : RefCounted
             duration = -1,
 
             @params = parameters,
+
+            forced_move_immune = skillLevel >= 10,
         };
 
         unitState.SetStatusEffect(statusEntry);
@@ -377,6 +376,6 @@ public partial class SkillPassiveResolver : RefCounted
         if (skillDefs == null || !skillDefs.ContainsKey(skillId))
             return null;
 
-        return skillDefs[skillId].AsGodotObject() as SkillDef;
+        return skillDefs[skillId].As<SkillDef>();
     }
 }

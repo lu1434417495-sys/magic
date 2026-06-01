@@ -11,10 +11,8 @@ script = ExtResource("3_k4hop")
 effect_type = &"damage"
 max_skill_level = 0
 damage_tag = &"force"
-params = {
-"dice_count": 4,
-"dice_sides": 6
-}
+dice_count = 4
+dice_sides = 6
 
 [sub_resource type="Resource" id="Resource_6b6sq"]
 script = ExtResource("3_k4hop")
@@ -22,10 +20,8 @@ effect_type = &"damage"
 min_skill_level = 1
 max_skill_level = 2
 damage_tag = &"force"
-params = {
-"dice_count": 5,
-"dice_sides": 6
-}
+dice_count = 5
+dice_sides = 6
 
 [sub_resource type="Resource" id="Resource_k4hop"]
 script = ExtResource("3_k4hop")
@@ -33,10 +29,8 @@ effect_type = &"damage"
 min_skill_level = 3
 max_skill_level = 4
 damage_tag = &"force"
-params = {
-"dice_count": 6,
-"dice_sides": 6
-}
+dice_count = 6
+dice_sides = 6
 
 [sub_resource type="Resource" id="Resource_ikahb"]
 script = ExtResource("3_k4hop")
@@ -44,20 +38,16 @@ effect_type = &"damage"
 min_skill_level = 5
 max_skill_level = 6
 damage_tag = &"force"
-params = {
-"dice_count": 7,
-"dice_sides": 6
-}
+dice_count = 7
+dice_sides = 6
 
 [sub_resource type="Resource" id="Resource_f1tt1"]
 script = ExtResource("3_k4hop")
 effect_type = &"damage"
 min_skill_level = 7
 damage_tag = &"force"
-params = {
-"dice_count": 8,
-"dice_sides": 6
-}
+dice_count = 8
+dice_sides = 6
 
 [sub_resource type="Resource" id="Resource_20yh3"]
 script = ExtResource("3_k4hop")

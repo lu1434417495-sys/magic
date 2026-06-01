@@ -95,10 +95,6 @@ public partial class BattleSpecialProfileCommitAdapter : RefCounted
         }
         foreach (var reportEntryValue in result.report_entries)
         {
-            if (reportEntryValue.VariantType != Variant.Type.Dictionary)
-            {
-                continue;
-            }
             outcome.report_entries.Add(reportEntryValue.AsGodotDictionary().Duplicate(true));
         }
         return outcome;
@@ -106,29 +102,28 @@ public partial class BattleSpecialProfileCommitAdapter : RefCounted
 
     private static int ReadInt(GDictionary data, string key, int fallback = 0)
     {
-        var value = ReadValue(data, key);
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+        if (!HasKey(data, key))
+            return fallback;
+        return data.ContainsKey(key) ? data[key].AsInt32() : data[new StringName(key)].AsInt32();
     }
 
     private static string ReadString(GDictionary data, string key, string fallback = "")
     {
-        var value = ReadValue(data, key);
-        if (value.VariantType == Variant.Type.String)
-            return value.AsString();
-        if (value.VariantType == Variant.Type.StringName)
-            return value.AsStringName().ToString();
-        return fallback;
+        if (!HasKey(data, key))
+            return fallback;
+        string text = data.ContainsKey(key)
+            ? data[key].ToString()
+            : data[new StringName(key)].ToString();
+        return string.IsNullOrEmpty(text) || text == "<null>" ? fallback : text;
     }
 
-    private static Variant ReadValue(GDictionary data, string key)
+    private static bool HasKey(GDictionary data, string key)
     {
         if (data == null)
-            return default;
+            return false;
         if (data.ContainsKey(key))
-            return data[key];
+            return true;
         var stringNameKey = new StringName(key);
-        if (data.ContainsKey(stringNameKey))
-            return data[stringNameKey];
-        return default;
+        return data.ContainsKey(stringNameKey);
     }
 }

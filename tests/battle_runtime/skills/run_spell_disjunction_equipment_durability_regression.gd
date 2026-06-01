@@ -181,9 +181,9 @@ func _disjunction_effect(power: int) -> Resource:
 	effect.save_ability = &"willpower"
 	effect.save_dc_source_ability = &"intelligence"
 	effect.save_tag = &"equipment_disjunction"
+	effect.require_damage_applied = true
 	effect.params = {
 		"max_damaged_items": 1,
-		"require_damage_applied": true,
 		"slot_weight_map": {"main_hand": 1},
 		"target_slots": [&"main_hand"],
 	}

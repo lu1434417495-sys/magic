@@ -11,8 +11,6 @@ public partial class BattleUnitFactory : RefCounted
     private static AttributeSnapshot _snap(BattleUnitState us) =>
         us?.attribute_snapshot as AttributeSnapshot;
 
-    private static AttributeSnapshot _snap(GodotObject o) => o as AttributeSnapshot;
-
     private static CombatSkillDef _csd(Resource r) => r as CombatSkillDef;
 
     private static int _gv(BattleUnitState us, StringName k) => _snap(us)?.get_value(k) ?? 0;
@@ -24,9 +22,9 @@ public partial class BattleUnitFactory : RefCounted
             s.set_value(k, v);
     }
 
-    public void setup(GodotObject runtime)
+    public void setup(BattleRuntimeModule runtime)
     {
-        _runtime = runtime as BattleRuntimeModule;
+        _runtime = runtime;
     }
 
     public void dispose()
@@ -87,11 +85,11 @@ public partial class BattleUnitFactory : RefCounted
         Godot.Collections.Dictionary context
     )
     {
-        if (context.ContainsKey("battle_party"))
+        context ??= new Godot.Collections.Dictionary();
+        Godot.Collections.Array battleParty = ReadArray(context, "battle_party");
+        if (battleParty.Count > 0)
         {
-            var bp = context["battle_party"];
-            if (bp.VariantType == Variant.Type.Array && bp.AsGodotArray().Count > 0)
-                return _normalize_unit_payloads(bp.AsGodotArray());
+            return _normalize_unit_payloads(battleParty);
         }
         var member_ids = new Godot.Collections.Array();
         if (party_state?.active_member_ids != null && party_state.active_member_ids.Count > 0)
@@ -248,11 +246,11 @@ public partial class BattleUnitFactory : RefCounted
         Godot.Collections.Dictionary ctx
     )
     {
-        if (ctx.ContainsKey("enemy_units"))
+        ctx ??= new Godot.Collections.Dictionary();
+        Godot.Collections.Array enemyUnits = ReadArray(ctx, "enemy_units");
+        if (enemyUnits.Count > 0)
         {
-            var eu = ctx["enemy_units"];
-            if (eu.VariantType == Variant.Type.Array && eu.AsGodotArray().Count > 0)
-                return _normalize_unit_payloads(eu.AsGodotArray());
+            return _normalize_unit_payloads(enemyUnits);
         }
         var aid = enc != null ? (string)enc.entity_id : "unknown";
         GameLog.Error($"BattleUnitFactory cannot build fallback enemy units for {aid}.", "battle.factory.fallback_failed", "battle");
@@ -264,14 +262,17 @@ public partial class BattleUnitFactory : RefCounted
         var r = new Godot.Collections.Array();
         foreach (var v in pl)
         {
-            if (v.VariantType == Variant.Type.Nil)
-                continue;
-            if (v.VariantType == Variant.Type.Dictionary)
-                r.Add(BattleUnitState.from_dict(v.AsGodotDictionary()));
-            else if (v.AsGodotObject() is BattleUnitState bs)
+            BattleUnitState bs = v.As<BattleUnitState>();
+            if (bs != null)
+            {
                 r.Add(bs.clone());
-            else
-                r.Add(v);
+                continue;
+            }
+            Godot.Collections.Dictionary payload = v.AsGodotDictionary();
+            if (payload.Count > 0)
+            {
+                r.Add(BattleUnitState.from_dict(payload));
+            }
         }
         return r;
     }
@@ -298,18 +299,12 @@ public partial class BattleUnitFactory : RefCounted
         if (td == null || td.Count == 0)
             return new Godot.Collections.Dictionary();
         var tr = td.Duplicate(true);
-        if (
-            ctx.ContainsKey("ally_spawns")
-            && ctx["ally_spawns"].VariantType == Variant.Type.Array
-            && ctx["ally_spawns"].AsGodotArray().Count > 0
-        )
-            tr["ally_spawns"] = ctx["ally_spawns"].AsGodotArray().Duplicate(true);
-        if (
-            ctx.ContainsKey("enemy_spawns")
-            && ctx["enemy_spawns"].VariantType == Variant.Type.Array
-            && ctx["enemy_spawns"].AsGodotArray().Count > 0
-        )
-            tr["enemy_spawns"] = ctx["enemy_spawns"].AsGodotArray().Duplicate(true);
+        Godot.Collections.Array allySpawns = ReadArray(ctx, "ally_spawns");
+        if (allySpawns.Count > 0)
+            tr["ally_spawns"] = allySpawns.Duplicate(true);
+        Godot.Collections.Array enemySpawns = ReadArray(ctx, "enemy_spawns");
+        if (enemySpawns.Count > 0)
+            tr["enemy_spawns"] = enemySpawns.Duplicate(true);
         return tr;
     }
 
@@ -363,15 +358,10 @@ public partial class BattleUnitFactory : RefCounted
         _sync_unlocked_resources_from_progression(us, prog);
         _sync_passive_battle_statuses(us, prog, ms);
         _filter_skills_by_equipment_requirements(us);
-        us.movement_tags = _extract_movement_tags(
-            ctx.ContainsKey("ally_movement_tags") ? ctx["ally_movement_tags"] : default
-        );
-        if (
-            us.known_active_skill_ids.Count == 0
-            && ctx.ContainsKey("default_active_skill_ids")
-            && ctx["default_active_skill_ids"].VariantType == Variant.Type.Array
-        )
-            foreach (var sv in ctx["default_active_skill_ids"].AsGodotArray())
+        us.movement_tags = _extract_movement_tags(ReadArray(ctx, "ally_movement_tags"));
+        Godot.Collections.Array defaultActiveSkillIds = ReadArray(ctx, "default_active_skill_ids");
+        if (us.known_active_skill_ids.Count == 0 && defaultActiveSkillIds.Count > 0)
+            foreach (var sv in defaultActiveSkillIds)
             {
                 var ns = ProgressionDataUtils.to_string_name(sv);
                 us.known_active_skill_ids.Add(ns);
@@ -513,16 +503,12 @@ public partial class BattleUnitFactory : RefCounted
         us.current_ap = ap;
         us.current_move_points = BattleUnitState.DEFAULT_MOVE_POINTS_PER_TURN();
         us.is_alive = us.current_hp > 0;
-        us.movement_tags = _extract_movement_tags(
-            ctx.ContainsKey("enemy_movement_tags") ? ctx["enemy_movement_tags"] : default
-        );
-        if (
-            ctx.ContainsKey("enemy_skill_ids")
-            && ctx["enemy_skill_ids"].VariantType == Variant.Type.Array
-        )
+        us.movement_tags = _extract_movement_tags(ReadArray(ctx, "enemy_movement_tags"));
+        Godot.Collections.Array enemySkillIds = ReadArray(ctx, "enemy_skill_ids");
+        if (enemySkillIds.Count > 0)
         {
             us.known_active_skill_ids.Clear();
-            foreach (var sv in ctx["enemy_skill_ids"].AsGodotArray())
+            foreach (var sv in enemySkillIds)
             {
                 var ns = ProgressionDataUtils.to_string_name(sv);
                 us.known_active_skill_ids.Add(ns);
@@ -613,7 +599,8 @@ public partial class BattleUnitFactory : RefCounted
         if ((string)oid == "")
             return false;
         var ids = GetItemDefs();
-        var id = ids.ContainsKey(oid) ? ids[oid].AsGodotObject() as ItemDef : null;
+        ItemDef id = GetCharacterGateway()?.get_item_def(oid)
+            ?? (ids.ContainsKey(oid) ? ids[oid].As<ItemDef>() : null);
         if (id == null)
             return false;
         return _arr_contains_str(id.get_tags(), "shield");
@@ -621,16 +608,15 @@ public partial class BattleUnitFactory : RefCounted
 
     private static Godot.Collections.Array _extract_ally_member_ids(
         Godot.Collections.Dictionary ctx
-    ) =>
-        ctx.ContainsKey("ally_member_ids")
-        && ctx["ally_member_ids"].VariantType == Variant.Type.Array
-            ? ctx["ally_member_ids"].AsGodotArray()
-            : new Godot.Collections.Array();
+    ) => ReadArray(ctx, "ally_member_ids");
 
     private SkillDef _skill_def_from_runtime(StringName sid)
     {
+        SkillDef indexedSkillDef = _runtime?.get_skill_def_typed(sid);
+        if (indexedSkillDef != null)
+            return indexedSkillDef;
         var sds = GetSkillDefs();
-        return sds != null && sds.ContainsKey(sid) ? sds[sid].AsGodotObject() as SkillDef : null;
+        return sds != null && sds.ContainsKey(sid) ? sds[sid].As<SkillDef>() : null;
     }
 
     private AttributeSnapshot _build_member_attribute_snapshot(
@@ -1106,18 +1092,11 @@ public partial class BattleUnitFactory : RefCounted
         PassiveStatusOrchestrator.apply_to_unit(us, ctx, GetSkillDefs());
     }
 
-    private static Godot.Collections.Array<StringName> _extract_movement_tags(object rawTags)
+    private static Godot.Collections.Array<StringName> _extract_movement_tags(
+        Godot.Collections.Array values
+    )
     {
         var t = new Godot.Collections.Array<StringName>();
-        Godot.Collections.Array values = null;
-        if (rawTags is Variant rt && rt.VariantType == Variant.Type.Array)
-        {
-            values = rt.AsGodotArray();
-        }
-        else if (rawTags is Godot.Collections.Array arrayTags)
-        {
-            values = arrayTags;
-        }
         if (values == null)
             return t;
         foreach (var rv in values)
@@ -1128,6 +1107,16 @@ public partial class BattleUnitFactory : RefCounted
             t.Add(n);
         }
         return t;
+    }
+
+    private static Godot.Collections.Array ReadArray(
+        Godot.Collections.Dictionary source,
+        string key
+    )
+    {
+        if (source == null || !source.ContainsKey(key))
+            return new Godot.Collections.Array();
+        return source[key].AsGodotArray();
     }
 
     private static bool _arr_contains_str(Godot.Collections.Array<StringName> a, StringName v)

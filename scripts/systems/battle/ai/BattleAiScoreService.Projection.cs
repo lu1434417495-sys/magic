@@ -82,22 +82,11 @@ public partial class BattleAiScoreService
         {
             return EmptyThreatProjection();
         }
-        Dictionary<string, object> cache = ContextScoreProjectionCache(context);
-        string cacheKey = $"current_actor_threat_projection:{actor.unit_id}";
-        if (
-            cache.TryGetValue(cacheKey, out object cachedProjection)
-            && cachedProjection is ThreatProjection typedProjection
-        )
-        {
-            return typedProjection;
-        }
-        ThreatProjection projection = CollectActorThreatProjection(
+        return CollectActorThreatProjection(
             context,
             actor.coord,
             new HashSet<StringName>()
         );
-        cache[cacheKey] = projection;
-        return projection;
     }
 
     private ThreatProjection GetProjectedActorThreatProjection(
@@ -116,24 +105,11 @@ public partial class BattleAiScoreService
         {
             return SubtractSuppressedThreatsFromProjection(preProjection, suppressedThreatIds);
         }
-        Dictionary<string, object> cache = ContextScoreProjectionCache(context);
-        string suppressedKey = BuildProjectionSuppressionKey(suppressedThreatIds);
-        string cacheKey =
-            $"actor_threat_projection:{actor.unit_id}:{projectedCoord}:{suppressedKey}";
-        if (
-            cache.TryGetValue(cacheKey, out object cachedProjection)
-            && cachedProjection is ThreatProjection typedProjection
-        )
-        {
-            return typedProjection;
-        }
-        ThreatProjection projection = CollectActorThreatProjection(
+        return CollectActorThreatProjection(
             context,
             projectedCoord,
             suppressedThreatIds
         );
-        cache[cacheKey] = projection;
-        return projection;
     }
 
     private static ThreatProjection SubtractSuppressedThreatsFromProjection(
@@ -297,18 +273,7 @@ public partial class BattleAiScoreService
         {
             return new ThreatProfile();
         }
-        Dictionary<string, object> cache = ContextScoreProjectionCache(context);
-        string cacheKey = $"{threatUnit.unit_id}->{actor.unit_id}";
-        if (
-            cache.TryGetValue(cacheKey, out object cachedProfile)
-            && cachedProfile is ThreatProfile typedProfile
-        )
-        {
-            return typedProfile;
-        }
-        ThreatProfile profile = BuildUnitThreatProfile(context, threatUnit);
-        cache[cacheKey] = profile;
-        return profile;
+        return BuildUnitThreatProfile(context, threatUnit);
     }
 
     private ThreatProfile BuildUnitThreatProfile(IBattleAiScoreContext context, BattleUnitState threatUnit)

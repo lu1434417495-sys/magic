@@ -786,11 +786,11 @@ public partial class BattleAiDecisionEngine : RefCounted
         }
         if (brains.ContainsKey(brainId))
         {
-            return brains[brainId].AsGodotObject() as EnemyAiBrainDef;
+            return brains[brainId].As<EnemyAiBrainDef>();
         }
         string brainText = brainId.ToString();
         return brains.ContainsKey(brainText)
-            ? brains[brainText].AsGodotObject() as EnemyAiBrainDef
+            ? brains[brainText].As<EnemyAiBrainDef>()
             : null;
     }
 
@@ -799,66 +799,35 @@ public partial class BattleAiDecisionEngine : RefCounted
         return value == null || string.IsNullOrEmpty(value.ToString());
     }
 
-    private static StringName DictStringName(GDictionary dictionary, object key)
+    private static StringName DictStringName(GDictionary dictionary, string key)
     {
-        if (!TryRead(dictionary, key, out Variant value))
+        if (dictionary == null || string.IsNullOrEmpty(key))
+        {
             return "";
-        return value.VariantType switch
+        }
+        if (dictionary.ContainsKey(key))
         {
-            Variant.Type.StringName => value.AsStringName(),
-            Variant.Type.String => new StringName(value.AsString()),
-            _ => "",
-        };
+            return ProgressionDataUtils.to_string_name(dictionary[key]);
+        }
+        StringName stringNameKey = new(key);
+        return dictionary.ContainsKey(stringNameKey)
+            ? ProgressionDataUtils.to_string_name(dictionary[stringNameKey])
+            : "";
     }
 
-    private static GDictionary DictDictionary(GDictionary dictionary, object key)
+    private static GDictionary DictDictionary(GDictionary dictionary, string key)
     {
-        if (!TryRead(dictionary, key, out Variant value))
+        if (dictionary == null || string.IsNullOrEmpty(key))
+        {
             return new GDictionary();
-        return value.VariantType == Variant.Type.Dictionary
-            ? value.AsGodotDictionary()
+        }
+        if (dictionary.ContainsKey(key))
+        {
+            return dictionary[key].AsGodotDictionary();
+        }
+        StringName stringNameKey = new(key);
+        return dictionary.ContainsKey(stringNameKey)
+            ? dictionary[stringNameKey].AsGodotDictionary()
             : new GDictionary();
-    }
-
-    private static bool TryRead(GDictionary dictionary, object key, out Variant value)
-    {
-        value = default;
-        if (dictionary == null || key == null)
-            return false;
-        Variant variantKey = key switch
-        {
-            Variant valueKey => valueKey,
-            string stringKey => stringKey,
-            StringName stringNameKey => stringNameKey,
-            int intKey => intKey,
-            long longKey => longKey,
-            _ => default,
-        };
-        if (variantKey.VariantType == Variant.Type.Nil)
-            return false;
-        if (dictionary.ContainsKey(variantKey))
-        {
-            value = dictionary[variantKey];
-            return value.VariantType != Variant.Type.Nil;
-        }
-        if (variantKey.VariantType == Variant.Type.String)
-        {
-            StringName stringNameKey = new(variantKey.AsString());
-            if (dictionary.ContainsKey(stringNameKey))
-            {
-                value = dictionary[stringNameKey];
-                return value.VariantType != Variant.Type.Nil;
-            }
-        }
-        else if (variantKey.VariantType == Variant.Type.StringName)
-        {
-            string stringKey = variantKey.AsStringName().ToString();
-            if (dictionary.ContainsKey(stringKey))
-            {
-                value = dictionary[stringKey];
-                return value.VariantType != Variant.Type.Nil;
-            }
-        }
-        return false;
     }
 }

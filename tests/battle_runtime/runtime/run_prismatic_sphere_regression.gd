@@ -258,7 +258,7 @@ func _test_violet_layer_teleports_non_summons_and_removes_summons() -> void:
 	_assert_true(not runtime._layered_barrier_service._is_coord_inside_barrier(enemy.coord, _first_barrier(state)), "非召唤物应被传送到法球外合法坐标。")
 
 	var summon := _build_unit(&"summon", "召唤物", &"enemy", Vector2i(6, 2))
-	summon.ai_blackboard["summoned"] = true
+	summon.ai_blackboard.set_bool("summoned", true)
 	_add_unit(runtime, state, summon, true)
 	var summon_result: Dictionary = runtime._layered_barrier_service.ResolveUnitBoundaryCrossing(
 		summon,
@@ -290,10 +290,10 @@ func _test_dispel_magic_removes_magic_statuses_by_relation() -> void:
 	var dispel := CombatEffectDef.new()
 	dispel.effect_type = &"dispel_magic"
 	dispel.power = 1
+	dispel.remove_beneficial_from_enemies = true
+	dispel.remove_harmful_from_allies = true
 	dispel.params = {
-		"max_status_removed": 1,
-		"remove_beneficial_from_enemies": true,
-		"remove_harmful_from_allies": true
+		"max_status_removed": 1
 	}
 	var resolver = preload("res://scripts/systems/battle/rules/BattleDamageResolver.cs").new()
 

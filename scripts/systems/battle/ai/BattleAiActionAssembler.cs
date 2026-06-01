@@ -967,10 +967,10 @@ public partial class BattleAiActionAssembler : RefCounted
         }
         if (skillDefs.ContainsKey(skillId))
         {
-            return skillDefs[skillId].AsGodotObject() as SkillDef;
+            return skillDefs[skillId].As<SkillDef>();
         }
         string key = skillId.ToString();
-        return skillDefs.ContainsKey(key) ? skillDefs[key].AsGodotObject() as SkillDef : null;
+        return skillDefs.ContainsKey(key) ? skillDefs[key].As<SkillDef>() : null;
     }
 
     private static int GetSkillLevel(BattleUnitState unitState, StringName skillId)

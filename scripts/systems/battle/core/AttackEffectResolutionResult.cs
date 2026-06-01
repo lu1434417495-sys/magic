@@ -214,106 +214,54 @@ public struct BattleReportEntry
     public int CritThreshold;
 }
 
-internal static class LegacyPayloadReader
+internal static class PayloadReader
 {
-    internal static bool TryRead(GDictionary source, object key, out Variant value)
+    internal static GArray ReadArray(GDictionary source, string key)
     {
-        if (source == null || key == null)
-        {
-            value = default;
-            return false;
-        }
-        Variant variantKey = key switch
-        {
-            Variant valueKey => valueKey,
-            string stringKey => stringKey,
-            StringName stringNameKey => stringNameKey,
-            int intKey => intKey,
-            long longKey => longKey,
-            _ => default,
-        };
-        if (source.ContainsKey(variantKey))
-        {
-            value = source[variantKey];
-            return true;
-        }
-        if (variantKey.VariantType == Variant.Type.String)
-        {
-            StringName stringNameKey = new(variantKey.AsString());
-            if (source.ContainsKey(stringNameKey))
-            {
-                value = source[stringNameKey];
-                return true;
-            }
-        }
-        else if (variantKey.VariantType == Variant.Type.StringName)
-        {
-            string stringKey = variantKey.AsStringName().ToString();
-            if (source.ContainsKey(stringKey))
-            {
-                value = source[stringKey];
-                return true;
-            }
-        }
-        value = default;
-        return false;
-    }
-
-    internal static GArray ReadArray(GDictionary source, object key)
-    {
-        if (!TryRead(source, key, out Variant value))
+        if (source == null || string.IsNullOrEmpty(key) || !source.ContainsKey(key))
             return new GArray();
-        return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : new GArray();
+        return source[key].AsGodotArray();
     }
 
-    internal static GDictionary ReadDictionary(GDictionary source, object key)
+    internal static GDictionary ReadDictionary(GDictionary source, string key)
     {
-        if (!TryRead(source, key, out Variant value))
+        if (source == null || string.IsNullOrEmpty(key) || !source.ContainsKey(key))
             return new GDictionary();
-        return value.VariantType == Variant.Type.Dictionary
-            ? value.AsGodotDictionary()
-            : new GDictionary();
+        return source[key].AsGodotDictionary();
     }
 
-    internal static int ReadInt(GDictionary source, object key, int fallback = 0)
+    internal static int ReadInt(GDictionary source, string key, int fallback = 0)
     {
-        if (!TryRead(source, key, out Variant value))
+        if (source == null || string.IsNullOrEmpty(key) || !source.ContainsKey(key))
             return fallback;
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+        return source[key].AsInt32();
     }
 
-    internal static string ReadString(GDictionary source, object key, string fallback = "")
+    internal static string ReadString(GDictionary source, string key, string fallback = "")
     {
-        if (!TryRead(source, key, out Variant value))
+        if (source == null || string.IsNullOrEmpty(key) || !source.ContainsKey(key))
             return fallback;
-        return value.VariantType switch
-        {
-            Variant.Type.String => value.AsString(),
-            Variant.Type.StringName => value.AsStringName().ToString(),
-            _ => fallback,
-        };
+        return source[key].ToString();
     }
 
     internal static StringName ReadStringName(
         GDictionary source,
-        object key,
+        string key,
         StringName fallback = default
     )
     {
-        if (!TryRead(source, key, out Variant value))
-            return fallback ?? new StringName("");
-        return value.VariantType switch
+        string text = ReadString(source, key, "");
+        if (string.IsNullOrEmpty(text))
         {
-            Variant.Type.StringName => value.AsStringName(),
-            Variant.Type.String => new StringName(value.AsString()),
-            _ => fallback ?? new StringName(""),
-        };
+            return fallback;
+        }
+        return new StringName(text);
     }
 }
 
 internal static class AttackEffectResolutionResultReader
 {
-    internal static AttackEffectResolutionResult ReadLegacyResolverResult(
+    internal static AttackEffectResolutionResult ReadResolverResult(
         GDictionary source,
         AttackCheckInput attackCheck
     )
@@ -322,46 +270,46 @@ internal static class AttackEffectResolutionResultReader
         var result = new AttackEffectResolutionResult
         {
             Applied = ReadExactBooleanField(source, "applied", false),
-            Damage = LegacyPayloadReader.ReadInt(source, "damage", 0),
-            HpDamage = LegacyPayloadReader.ReadInt(source, "hp_damage", LegacyPayloadReader.ReadInt(source, "damage", 0)),
-            Healing = LegacyPayloadReader.ReadInt(source, "healing", 0),
-            ShieldAbsorbed = LegacyPayloadReader.ReadInt(source, "shield_absorbed", 0),
+            Damage = PayloadReader.ReadInt(source, "damage", 0),
+            HpDamage = PayloadReader.ReadInt(source, "hp_damage", PayloadReader.ReadInt(source, "damage", 0)),
+            Healing = PayloadReader.ReadInt(source, "healing", 0),
+            ShieldAbsorbed = PayloadReader.ReadInt(source, "shield_absorbed", 0),
             ShieldBroken = ReadExactBooleanField(source, "shield_broken", false),
             AttackSuccess = ReadExactBooleanField(source, "attack_success", false),
-            AttackResolution = ParseAttackResolution(LegacyPayloadReader.ReadStringName(source, "attack_resolution")),
+            AttackResolution = ParseAttackResolution(PayloadReader.ReadStringName(source, "attack_resolution")),
             CriticalHit = ReadExactBooleanField(source, "critical_hit", false),
             CriticalFail = ReadExactBooleanField(source, "critical_fail", false),
             SecondaryHitSuccess = ReadExactBooleanField(source, "secondary_hit_success", false),
-            CriticalSource = ParseCriticalSource(LegacyPayloadReader.ReadStringName(source, "critical_source")),
+            CriticalSource = ParseCriticalSource(PayloadReader.ReadStringName(source, "critical_source")),
             ReverseFateDowngraded = ReadExactBooleanField(source, "reverse_fate_downgraded", false),
-            HitRoll = LegacyPayloadReader.ReadInt(source, "hit_roll", 0),
-            RerollDie = LegacyPayloadReader.ReadInt(source, "reroll_die", 0),
-            RerolledRoll = LegacyPayloadReader.ReadInt(source, "rerolled_roll", 0),
-            CritGateDie = LegacyPayloadReader.ReadInt(source, "crit_gate_die", 0),
-            CritGateRoll = LegacyPayloadReader.ReadInt(source, "crit_gate_roll", 0),
-            RequiredRoll = LegacyPayloadReader.ReadInt(source, "required_roll", attackCheck.RequiredRoll),
-            DisplayRequiredRoll = LegacyPayloadReader.ReadInt(
+            HitRoll = PayloadReader.ReadInt(source, "hit_roll", 0),
+            RerollDie = PayloadReader.ReadInt(source, "reroll_die", 0),
+            RerolledRoll = PayloadReader.ReadInt(source, "rerolled_roll", 0),
+            CritGateDie = PayloadReader.ReadInt(source, "crit_gate_die", 0),
+            CritGateRoll = PayloadReader.ReadInt(source, "crit_gate_roll", 0),
+            RequiredRoll = PayloadReader.ReadInt(source, "required_roll", attackCheck.RequiredRoll),
+            DisplayRequiredRoll = PayloadReader.ReadInt(
                 source,
                 "display_required_roll",
                 attackCheck.DisplayRequiredRoll
             ),
-            HitRatePercent = LegacyPayloadReader.ReadInt(source, "hit_rate_percent", attackCheck.HitRatePercent),
-            SuccessRatePercent = LegacyPayloadReader.ReadInt(
+            HitRatePercent = PayloadReader.ReadInt(source, "hit_rate_percent", attackCheck.HitRatePercent),
+            SuccessRatePercent = PayloadReader.ReadInt(
                 source,
                 "success_rate_percent",
                 attackCheck.SuccessRatePercent
             ),
-            ResolutionText = LegacyPayloadReader.ReadString(source, "resolution_text", ""),
-            SkillId = LegacyPayloadReader.ReadStringName(source, "skill_id", attackCheck.SkillId),
+            ResolutionText = PayloadReader.ReadString(source, "resolution_text", ""),
+            SkillId = PayloadReader.ReadStringName(source, "skill_id", attackCheck.SkillId),
             StatusEffectIds = ReadStringNameArray(source, "status_effect_ids"),
             RemovedStatusEffectIds = ReadStringNameArray(source, "removed_status_effect_ids"),
             SourceStatusEffectIds = ReadStringNameArray(source, "source_status_effect_ids"),
             TerrainEffectIds = ReadStringNameArray(source, "terrain_effect_ids"),
-            HeightDelta = LegacyPayloadReader.ReadInt(source, "height_delta", 0),
-            ExecuteStage = LegacyPayloadReader.ReadInt(source, "execute_stage", -1),
-            ExecuteOutcome = ParseExecuteOutcome(LegacyPayloadReader.ReadStringName(source, "execute_outcome")),
-            ErrorCode = LegacyPayloadReader.ReadString(source, "error_code", ""),
-            BlockedReason = LegacyPayloadReader.ReadString(source, "blocked_reason", ""),
+            HeightDelta = PayloadReader.ReadInt(source, "height_delta", 0),
+            ExecuteStage = PayloadReader.ReadInt(source, "execute_stage", -1),
+            ExecuteOutcome = ParseExecuteOutcome(PayloadReader.ReadStringName(source, "execute_outcome")),
+            ErrorCode = PayloadReader.ReadString(source, "error_code", ""),
+            BlockedReason = PayloadReader.ReadString(source, "blocked_reason", ""),
             AttackCheck = attackCheck,
             DamageEvents = ReadDamageEvents(source),
             EquipmentDurabilityEvents = ReadEquipmentDurabilityEvents(source),
@@ -369,7 +317,7 @@ internal static class AttackEffectResolutionResultReader
             SaveResults = ReadSaveResults(source),
             Diagnostics = ReadDiagnostics(source),
             ReportEntry = BattleReportEntryPayload.ReadLegacy(
-                LegacyPayloadReader.ReadDictionary(source, "report_entry")
+                PayloadReader.ReadDictionary(source, "report_entry")
             ),
         };
         result.HasReportEntry =
@@ -457,13 +405,13 @@ internal static class AttackEffectResolutionResultReader
 
     internal static bool ReadExactBooleanField(
         GDictionary source,
-        object key,
+        string key,
         bool fallback = false
     )
     {
-        if (!LegacyPayloadReader.TryRead(source, key, out Variant value))
+        if (source == null || string.IsNullOrEmpty(key) || !source.ContainsKey(key))
             return fallback;
-        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
+        return source[key].AsBool();
     }
 
     private static AttackResolutionMetadata BuildAttackMetadata(AttackEffectResolutionResult result)
@@ -498,7 +446,7 @@ internal static class AttackEffectResolutionResultReader
     private static GStringNameArray ReadStringNameArray(GDictionary source, string key)
     {
         var result = new GStringNameArray();
-        foreach (Variant value in LegacyPayloadReader.ReadArray(source, key))
+        foreach (var value in PayloadReader.ReadArray(source, key))
         {
             StringName normalized = ProgressionDataUtils.to_string_name(value);
             if (normalized == "" || result.Contains(normalized))
@@ -511,10 +459,8 @@ internal static class AttackEffectResolutionResultReader
     private static DamageEventResult[] ReadDamageEvents(GDictionary source)
     {
         var results = new List<DamageEventResult>();
-        foreach (Variant eventValue in LegacyPayloadReader.ReadArray(source, "damage_events"))
+        foreach (var eventValue in PayloadReader.ReadArray(source, "damage_events"))
         {
-            if (eventValue.VariantType != Variant.Type.Dictionary)
-                continue;
             GDictionary evt = eventValue.AsGodotDictionary();
             ReadMitigationSourceLabels(
                 evt,
@@ -525,21 +471,21 @@ internal static class AttackEffectResolutionResultReader
             results.Add(
                 new DamageEventResult
                 {
-                    Damage = LegacyPayloadReader.ReadInt(evt, "damage", 0),
-                    HpDamage = LegacyPayloadReader.ReadInt(evt, "hp_damage", LegacyPayloadReader.ReadInt(evt, "damage", 0)),
-                    ShieldAbsorbed = LegacyPayloadReader.ReadInt(evt, "shield_absorbed", 0),
+                    Damage = PayloadReader.ReadInt(evt, "damage", 0),
+                    HpDamage = PayloadReader.ReadInt(evt, "hp_damage", PayloadReader.ReadInt(evt, "damage", 0)),
+                    ShieldAbsorbed = PayloadReader.ReadInt(evt, "shield_absorbed", 0),
                     ShieldBroken = ReadExactBooleanField(evt, "shield_broken", false),
                     BypassShield = ReadExactBooleanField(evt, "bypass_shield", false),
                     MitigationTier = ParseMitigationTier(
-                        LegacyPayloadReader.ReadStringName(evt, "mitigation_tier")
+                        PayloadReader.ReadStringName(evt, "mitigation_tier")
                     ),
-                    BuffReduction = LegacyPayloadReader.ReadInt(evt, "buff_reduction", 0),
-                    StanceReduction = LegacyPayloadReader.ReadInt(evt, "stance_reduction", 0),
-                    PassiveReduction = LegacyPayloadReader.ReadInt(evt, "passive_reduction", 0),
-                    ContentDr = LegacyPayloadReader.ReadInt(evt, "content_dr", 0),
-                    GuardBlock = LegacyPayloadReader.ReadInt(evt, "guard_block", 0),
-                    GuardIgnoreApplied = LegacyPayloadReader.ReadInt(evt, "guard_ignore_applied", 0),
-                    FixedMitigationTotal = LegacyPayloadReader.ReadInt(evt, "fixed_mitigation_total", 0),
+                    BuffReduction = PayloadReader.ReadInt(evt, "buff_reduction", 0),
+                    StanceReduction = PayloadReader.ReadInt(evt, "stance_reduction", 0),
+                    PassiveReduction = PayloadReader.ReadInt(evt, "passive_reduction", 0),
+                    ContentDr = PayloadReader.ReadInt(evt, "content_dr", 0),
+                    GuardBlock = PayloadReader.ReadInt(evt, "guard_block", 0),
+                    GuardIgnoreApplied = PayloadReader.ReadInt(evt, "guard_ignore_applied", 0),
+                    FixedMitigationTotal = PayloadReader.ReadInt(evt, "fixed_mitigation_total", 0),
                     DamageDiceHighTotalRoll = ReadExactBooleanField(
                         evt,
                         "damage_dice_high_total_roll",
@@ -551,7 +497,7 @@ internal static class AttackEffectResolutionResultReader
                         false
                     ),
                     SkillDamageDiceIsMaxReason = ParseDamageDiceMaxReason(
-                        LegacyPayloadReader.ReadStringName(evt, "skill_damage_dice_is_max_reason")
+                        PayloadReader.ReadStringName(evt, "skill_damage_dice_is_max_reason")
                     ),
                     WeaponDamageDiceIsMax = ReadExactBooleanField(
                         evt,
@@ -559,7 +505,7 @@ internal static class AttackEffectResolutionResultReader
                         false
                     ),
                     WeaponDamageDiceIsMaxReason = ParseDamageDiceMaxReason(
-                        LegacyPayloadReader.ReadStringName(evt, "weapon_damage_dice_is_max_reason")
+                        PayloadReader.ReadStringName(evt, "weapon_damage_dice_is_max_reason")
                     ),
                     HalfSourceLabels = halfSourceLabels,
                     DoubleSourceLabels = doubleSourceLabels,
@@ -574,22 +520,20 @@ internal static class AttackEffectResolutionResultReader
     private static EquipmentDurabilityEventResult[] ReadEquipmentDurabilityEvents(GDictionary source)
     {
         var results = new List<EquipmentDurabilityEventResult>();
-        foreach (Variant eventValue in LegacyPayloadReader.ReadArray(source, "equipment_durability_events"))
+        foreach (var eventValue in PayloadReader.ReadArray(source, "equipment_durability_events"))
         {
-            if (eventValue.VariantType != Variant.Type.Dictionary)
-                continue;
             GDictionary evt = eventValue.AsGodotDictionary();
             results.Add(
                 new EquipmentDurabilityEventResult
                 {
-                    EquipmentInstanceId = LegacyPayloadReader.ReadStringName(evt, "equipment_instance_id"),
-                    ItemId = LegacyPayloadReader.ReadString(evt, "item_id", ""),
-                    DurabilityLoss = LegacyPayloadReader.ReadInt(evt, "durability_loss", 0),
-                    DurabilityBefore = LegacyPayloadReader.ReadInt(evt, "durability_before", 0),
-                    DurabilityAfter = LegacyPayloadReader.ReadInt(evt, "durability_after", 0),
+                    EquipmentInstanceId = PayloadReader.ReadStringName(evt, "equipment_instance_id"),
+                    ItemId = PayloadReader.ReadString(evt, "item_id", ""),
+                    DurabilityLoss = PayloadReader.ReadInt(evt, "durability_loss", 0),
+                    DurabilityBefore = PayloadReader.ReadInt(evt, "durability_before", 0),
+                    DurabilityAfter = PayloadReader.ReadInt(evt, "durability_after", 0),
                     Destroyed = ReadExactBooleanField(evt, "destroyed", false),
                     SaveResult = ReadSaveResolution(
-                        LegacyPayloadReader.ReadDictionary(evt, "save_result")
+                        PayloadReader.ReadDictionary(evt, "save_result")
                     ),
                 }
             );
@@ -600,10 +544,8 @@ internal static class AttackEffectResolutionResultReader
     private static DispelEventResult[] ReadDispelEvents(GDictionary source)
     {
         var results = new List<DispelEventResult>();
-        foreach (Variant eventValue in LegacyPayloadReader.ReadArray(source, "dispel_events"))
+        foreach (var eventValue in PayloadReader.ReadArray(source, "dispel_events"))
         {
-            if (eventValue.VariantType != Variant.Type.Dictionary)
-                continue;
             results.Add(
                 new DispelEventResult
                 {
@@ -620,10 +562,8 @@ internal static class AttackEffectResolutionResultReader
     private static SaveResolutionResult[] ReadSaveResults(GDictionary source)
     {
         var results = new List<SaveResolutionResult>();
-        foreach (Variant saveValue in LegacyPayloadReader.ReadArray(source, "save_results"))
+        foreach (var saveValue in PayloadReader.ReadArray(source, "save_results"))
         {
-            if (saveValue.VariantType != Variant.Type.Dictionary)
-                continue;
             results.Add(ReadSaveResolution(saveValue.AsGodotDictionary()));
         }
         return results.ToArray();
@@ -636,26 +576,24 @@ internal static class AttackEffectResolutionResultReader
         {
             HasSave = ReadExactBooleanField(save, "has_save", false),
             Success = ReadExactBooleanField(save, "success", false),
-            Roll = LegacyPayloadReader.ReadInt(save, "roll", 0),
-            Total = LegacyPayloadReader.ReadInt(save, "total", 0),
-            Dc = LegacyPayloadReader.ReadInt(save, "dc", 0),
-            SaveKind = LegacyPayloadReader.ReadStringName(save, "save_kind"),
+            Roll = PayloadReader.ReadInt(save, "roll", 0),
+            Total = PayloadReader.ReadInt(save, "total", 0),
+            Dc = PayloadReader.ReadInt(save, "dc", 0),
+            SaveKind = PayloadReader.ReadStringName(save, "save_kind"),
         };
     }
 
     private static ResolutionDiagnostic[] ReadDiagnostics(GDictionary source)
     {
         var results = new List<ResolutionDiagnostic>();
-        foreach (Variant diagnosticValue in LegacyPayloadReader.ReadArray(source, "diagnostics"))
+        foreach (var diagnosticValue in PayloadReader.ReadArray(source, "diagnostics"))
         {
-            if (diagnosticValue.VariantType != Variant.Type.Dictionary)
-                continue;
             GDictionary diagnostic = diagnosticValue.AsGodotDictionary();
             results.Add(
                 new ResolutionDiagnostic
                 {
-                    ErrorCode = LegacyPayloadReader.ReadString(diagnostic, "error_code", ""),
-                    Message = LegacyPayloadReader.ReadString(diagnostic, "message", ""),
+                    ErrorCode = PayloadReader.ReadString(diagnostic, "error_code", ""),
+                    Message = PayloadReader.ReadString(diagnostic, "message", ""),
                 }
             );
         }
@@ -750,15 +688,13 @@ internal static class AttackEffectResolutionResultReader
         var half = new List<string>();
         var @double = new List<string>();
         var immune = new List<string>();
-        foreach (Variant sourceValue in LegacyPayloadReader.ReadArray(damageEvent, "mitigation_sources"))
+        foreach (var sourceValue in PayloadReader.ReadArray(damageEvent, "mitigation_sources"))
         {
-            if (sourceValue.VariantType != Variant.Type.Dictionary)
-                continue;
             GDictionary source = sourceValue.AsGodotDictionary();
             string label = FormatDamageSourceLabel(source);
             if (string.IsNullOrEmpty(label))
                 continue;
-            switch (ParseMitigationTier(LegacyPayloadReader.ReadStringName(source, "tier")))
+            switch (ParseMitigationTier(PayloadReader.ReadStringName(source, "tier")))
             {
                 case MitigationTierKind.Half:
                     AppendUnique(half, label);
@@ -779,10 +715,8 @@ internal static class AttackEffectResolutionResultReader
     private static string[] ReadFixedMitigationSourceLabels(GDictionary damageEvent)
     {
         var labels = new List<string>();
-        foreach (Variant sourceValue in LegacyPayloadReader.ReadArray(damageEvent, "fixed_mitigation_sources"))
+        foreach (var sourceValue in PayloadReader.ReadArray(damageEvent, "fixed_mitigation_sources"))
         {
-            if (sourceValue.VariantType != Variant.Type.Dictionary)
-                continue;
             string label = FormatDamageSourceLabel(sourceValue.AsGodotDictionary());
             if (!string.IsNullOrEmpty(label))
                 AppendUnique(labels, label);
@@ -792,10 +726,10 @@ internal static class AttackEffectResolutionResultReader
 
     private static string FormatDamageSourceLabel(GDictionary source)
     {
-        string statusId = LegacyPayloadReader.ReadString(source, "status_id", "");
+        string statusId = PayloadReader.ReadString(source, "status_id", "");
         if (!string.IsNullOrEmpty(statusId))
             return statusId;
-        return LegacyPayloadReader.ReadString(source, "type", "");
+        return PayloadReader.ReadString(source, "type", "");
     }
 
     private static void AppendUniqueRange(List<string> target, string[] values)
@@ -828,45 +762,45 @@ internal static class BattleReportEntryPayload
     internal static BattleReportEntry ReadLegacy(GDictionary entry)
     {
         entry ??= new GDictionary();
-        GDictionary luckSnapshot = LegacyPayloadReader.ReadDictionary(entry, "luck_snapshot");
+        GDictionary luckSnapshot = PayloadReader.ReadDictionary(entry, "luck_snapshot");
         return new BattleReportEntry
         {
-            EntryKind = ParseReportEntryKind(LegacyPayloadReader.ReadStringName(entry, "entry_type")),
-            ReasonId = LegacyPayloadReader.ReadStringName(entry, "reason_id"),
-            Text = LegacyPayloadReader.ReadString(entry, "text", ""),
+            EntryKind = ParseReportEntryKind(PayloadReader.ReadStringName(entry, "entry_type")),
+            ReasonId = PayloadReader.ReadStringName(entry, "reason_id"),
+            Text = PayloadReader.ReadString(entry, "text", ""),
             EventTags = ReadStringNameArray(entry, "event_tags"),
-            AttackerId = LegacyPayloadReader.ReadStringName(entry, "attacker_id"),
-            AttackerMemberId = LegacyPayloadReader.ReadStringName(entry, "attacker_member_id"),
-            AttackerName = LegacyPayloadReader.ReadString(entry, "attacker_name", ""),
-            DefenderId = LegacyPayloadReader.ReadStringName(entry, "defender_id"),
-            DefenderMemberId = LegacyPayloadReader.ReadStringName(entry, "defender_member_id"),
-            DefenderName = LegacyPayloadReader.ReadString(entry, "defender_name", ""),
+            AttackerId = PayloadReader.ReadStringName(entry, "attacker_id"),
+            AttackerMemberId = PayloadReader.ReadStringName(entry, "attacker_member_id"),
+            AttackerName = PayloadReader.ReadString(entry, "attacker_name", ""),
+            DefenderId = PayloadReader.ReadStringName(entry, "defender_id"),
+            DefenderMemberId = PayloadReader.ReadStringName(entry, "defender_member_id"),
+            DefenderName = PayloadReader.ReadString(entry, "defender_name", ""),
             DefenderIsEliteOrBoss = AttackEffectResolutionResultReader.ReadExactBooleanField(
                 entry,
                 "defender_is_elite_or_boss",
                 false
             ),
             AttackResolution = AttackEffectResolutionResultReader.ParseAttackResolution(
-                LegacyPayloadReader.ReadStringName(entry, "attack_resolution")
+                PayloadReader.ReadStringName(entry, "attack_resolution")
             ),
             CriticalSource = AttackEffectResolutionResultReader.ParseCriticalSource(
-                LegacyPayloadReader.ReadStringName(entry, "critical_source")
+                PayloadReader.ReadStringName(entry, "critical_source")
             ),
             IsDisadvantage = AttackEffectResolutionResultReader.ReadExactBooleanField(
                 entry,
                 "is_disadvantage",
                 false
             ),
-            CritGateDie = LegacyPayloadReader.ReadInt(entry, "crit_gate_die", 0),
-            CritGateRoll = LegacyPayloadReader.ReadInt(entry, "crit_gate_roll", 0),
-            HitRoll = LegacyPayloadReader.ReadInt(entry, "hit_roll", 0),
-            RequiredRoll = LegacyPayloadReader.ReadInt(entry, "required_roll", 0),
-            DisplayRequiredRoll = LegacyPayloadReader.ReadInt(entry, "display_required_roll", 0),
-            HiddenLuckAtBirth = LegacyPayloadReader.ReadInt(luckSnapshot, "hidden_luck_at_birth", 0),
-            FaithLuckBonus = LegacyPayloadReader.ReadInt(luckSnapshot, "faith_luck_bonus", 0),
-            EffectiveLuck = LegacyPayloadReader.ReadInt(luckSnapshot, "effective_luck", 0),
-            FumbleLowEnd = LegacyPayloadReader.ReadInt(luckSnapshot, "fumble_low_end", 0),
-            CritThreshold = LegacyPayloadReader.ReadInt(luckSnapshot, "crit_threshold", 0),
+            CritGateDie = PayloadReader.ReadInt(entry, "crit_gate_die", 0),
+            CritGateRoll = PayloadReader.ReadInt(entry, "crit_gate_roll", 0),
+            HitRoll = PayloadReader.ReadInt(entry, "hit_roll", 0),
+            RequiredRoll = PayloadReader.ReadInt(entry, "required_roll", 0),
+            DisplayRequiredRoll = PayloadReader.ReadInt(entry, "display_required_roll", 0),
+            HiddenLuckAtBirth = PayloadReader.ReadInt(luckSnapshot, "hidden_luck_at_birth", 0),
+            FaithLuckBonus = PayloadReader.ReadInt(luckSnapshot, "faith_luck_bonus", 0),
+            EffectiveLuck = PayloadReader.ReadInt(luckSnapshot, "effective_luck", 0),
+            FumbleLowEnd = PayloadReader.ReadInt(luckSnapshot, "fumble_low_end", 0),
+            CritThreshold = PayloadReader.ReadInt(luckSnapshot, "crit_threshold", 0),
         };
     }
 
@@ -945,7 +879,7 @@ internal static class BattleReportEntryPayload
     private static GStringNameArray ReadStringNameArray(GDictionary source, string key)
     {
         var result = new GStringNameArray();
-        foreach (Variant value in LegacyPayloadReader.ReadArray(source, key))
+        foreach (var value in PayloadReader.ReadArray(source, key))
         {
             StringName normalized = ProgressionDataUtils.to_string_name(value);
             if (normalized == "" || result.Contains(normalized))
@@ -955,3 +889,4 @@ internal static class BattleReportEntryPayload
         return result;
     }
 }
+

@@ -68,13 +68,12 @@ public partial class BattleEquipmentRequirementRules : RefCounted
         if (
             IsEmpty(itemId)
             || item_defs == null
-            || !TryRead(item_defs, itemId, out Variant itemDefValue)
         )
         {
             return false;
         }
 
-        ItemDef itemDef = itemDefValue.AsGodotObject() as ItemDef;
+        ItemDef itemDef = ReadItemDef(item_defs, itemId);
         if (itemDef == null)
         {
             return false;
@@ -93,45 +92,21 @@ public partial class BattleEquipmentRequirementRules : RefCounted
         return value == null || string.IsNullOrEmpty(value.ToString());
     }
 
-    private static bool TryRead(GDictionary dictionary, object key, out Variant value)
+    private static ItemDef ReadItemDef(GDictionary dictionary, StringName itemId)
     {
-        value = default;
-        if (dictionary == null || key == null)
-            return false;
-        Variant variantKey = key switch
+        if (dictionary == null || IsEmpty(itemId))
         {
-            Variant valueKey => valueKey,
-            string stringKey => stringKey,
-            StringName stringNameKey => stringNameKey,
-            int intKey => intKey,
-            long longKey => longKey,
-            _ => default,
-        };
-        if (variantKey.VariantType == Variant.Type.Nil)
-            return false;
-        if (dictionary.ContainsKey(variantKey))
-        {
-            value = dictionary[variantKey];
-            return value.VariantType != Variant.Type.Nil;
+            return null;
         }
-        if (variantKey.VariantType == Variant.Type.String)
+        if (dictionary.ContainsKey(itemId))
         {
-            StringName stringNameKey = new(variantKey.AsString());
-            if (dictionary.ContainsKey(stringNameKey))
-            {
-                value = dictionary[stringNameKey];
-                return value.VariantType != Variant.Type.Nil;
-            }
+            return dictionary[itemId].As<ItemDef>();
         }
-        else if (variantKey.VariantType == Variant.Type.StringName)
+        string stringKey = itemId.ToString();
+        if (dictionary.ContainsKey(stringKey))
         {
-            string stringKey = variantKey.AsStringName().ToString();
-            if (dictionary.ContainsKey(stringKey))
-            {
-                value = dictionary[stringKey];
-                return value.VariantType != Variant.Type.Nil;
-            }
+            return dictionary[stringKey].As<ItemDef>();
         }
-        return false;
+        return null;
     }
 }

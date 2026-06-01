@@ -26,6 +26,10 @@ public interface IBattleRuntimeCharacterGateway : IBattleRatingCharacterGateway
 
     GDictionary get_item_defs();
 
+    bool has_item_def_catalog();
+
+    ItemDef get_item_def(StringName item_id);
+
     PartyMemberState get_member_state(StringName member_id);
 
     AttributeSnapshot get_member_attribute_snapshot_for_equipment_view(

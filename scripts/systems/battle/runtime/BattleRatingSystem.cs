@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -43,7 +44,7 @@ public partial class BattleRatingSystem : RefCounted
             return;
         }
 
-        GetBattleRatingStats().Clear();
+        GetBattleRatingStatsTyped().Clear();
         GetPendingPostBattleCharacterRewards().Clear();
         _contributionLedger.Clear();
         BattleState state = GetState();
@@ -68,25 +69,11 @@ public partial class BattleRatingSystem : RefCounted
                 continue;
             }
 
-            string memberName = unitState.display_name;
-            GetBattleRatingStats()[sourceMemberId] = new GDictionary
+            BattleRatingMemberStats stats = BattleRatingMemberStats.FromUnit(unitState);
+            if (stats != null)
             {
-                ["member_id"] = sourceMemberId,
-                ["member_name"] = string.IsNullOrEmpty(memberName)
-                    ? sourceMemberId.ToString()
-                    : memberName,
-                ["cast_counts"] = new GDictionary(),
-                ["successful_skill_count"] = 0,
-                ["hostile_damage_done"] = 0,
-                ["ally_healing_done"] = 0,
-                ["enemy_kill_count"] = 0,
-                ["friendly_fire_damage"] = 0,
-                ["ally_defeat_count"] = 0,
-                ["enemy_healing_done"] = 0,
-                ["total_damage_done"] = 0,
-                ["total_healing_done"] = 0,
-                ["kill_count"] = 0,
-            };
+                GetBattleRatingStatsTyped()[sourceMemberId] = stats;
+            }
         }
     }
 
@@ -96,21 +83,19 @@ public partial class BattleRatingSystem : RefCounted
         {
             return;
         }
-        GDictionary stats = _get_battle_rating_stats(active_unit);
-        if (stats.Count == 0 || IsEmpty(skill_id))
+        BattleRatingMemberStats stats = GetBattleRatingStatsForUnit(active_unit);
+        if (stats == null || IsEmpty(skill_id))
         {
             return;
         }
 
-        GDictionary castCounts = EnsureDict(stats, "cast_counts");
         StringName masterySkillId =
             _mastery_service != null
                 ? _mastery_service.ResolveMasteryRewardSkillId(active_unit, skill_id)
                 : skill_id;
-        castCounts[masterySkillId] = GetInt(castCounts, masterySkillId) + 1;
-        stats["cast_counts"] = castCounts;
-        stats["successful_skill_count"] = GetInt(stats, "successful_skill_count") + 1;
-        GetBattleRatingStats()[active_unit.source_member_id] = stats;
+        stats.cast_counts.TryGetValue(masterySkillId, out int castCount);
+        stats.cast_counts[masterySkillId] = castCount + 1;
+        stats.successful_skill_count += 1;
     }
 
     public void record_skill_effect_result(BattleUnitState source_unit, int damage, int healing, int kill_count)
@@ -119,15 +104,14 @@ public partial class BattleRatingSystem : RefCounted
         {
             return;
         }
-        GDictionary stats = _get_battle_rating_stats(source_unit);
-        if (stats.Count == 0)
+        BattleRatingMemberStats stats = GetBattleRatingStatsForUnit(source_unit);
+        if (stats == null)
         {
             return;
         }
-        stats["total_damage_done"] = GetInt(stats, "total_damage_done") + Math.Max(damage, 0);
-        stats["total_healing_done"] = GetInt(stats, "total_healing_done") + Math.Max(healing, 0);
-        stats["kill_count"] = GetInt(stats, "kill_count") + Math.Max(kill_count, 0);
-        GetBattleRatingStats()[source_unit.source_member_id] = stats;
+        stats.total_damage_done += Math.Max(damage, 0);
+        stats.total_healing_done += Math.Max(healing, 0);
+        stats.kill_count += Math.Max(kill_count, 0);
     }
 
     public void record_contribution_from_units(
@@ -176,17 +160,16 @@ public partial class BattleRatingSystem : RefCounted
         {
             return;
         }
-        GDictionary stats = _get_battle_rating_stats_by_member_id(
+        BattleRatingMemberStats stats = GetBattleRatingStatsForMember(
             contributionEvent.source_member_id
         );
-        if (stats.Count == 0)
+        if (stats == null)
         {
             return;
         }
 
         _contributionLedger.Add(contributionEvent);
         ApplyContributionToStats(stats, contributionEvent);
-        GetBattleRatingStats()[contributionEvent.source_member_id] = stats;
     }
 
     public GArray get_contribution_events()
@@ -269,21 +252,22 @@ public partial class BattleRatingSystem : RefCounted
         }
 
         bool playerVictory = state.winner_faction_id == PlayerFaction;
-        foreach (var statsValue in GetBattleRatingStats().Values)
+        foreach (BattleRatingMemberStats stats in GetBattleRatingStatsTyped().Values)
         {
-            if (statsValue.VariantType != Variant.Type.Dictionary)
+            if (stats == null)
             {
                 continue;
             }
-            GDictionary stats = statsValue.AsGodotDictionary();
-            int score = calculate_battle_rating_score(stats, playerVictory);
+            int score = CalculateBattleRatingScore(stats, playerVictory);
 
-            StringName memberId = GetStringName(stats, "member_id");
+            StringName memberId = stats.member_id;
             if (IsEmpty(memberId))
             {
                 continue;
             }
-            string memberName = GetString(stats, "member_name", memberId.ToString());
+            string memberName = string.IsNullOrEmpty(stats.member_name)
+                ? memberId.ToString()
+                : stats.member_name;
             string ratingLabel = resolve_battle_rating_label(score);
             GArray rewardEntries =
                 _mastery_service != null
@@ -312,13 +296,17 @@ public partial class BattleRatingSystem : RefCounted
         }
     }
 
-    public int calculate_battle_rating_score(GDictionary stats, bool player_victory)
+    private int CalculateBattleRatingScore(BattleRatingMemberStats stats, bool player_victory)
     {
-        int successfulSkillCount = GetInt(stats, "successful_skill_count");
-        int hostileDamageDone = GetInt(stats, "hostile_damage_done");
-        int allyHealingDone = GetInt(stats, "ally_healing_done");
-        int enemyKillCount = GetInt(stats, "enemy_kill_count");
-        StringName memberId = GetStringName(stats, "member_id");
+        if (stats == null)
+        {
+            return 0;
+        }
+        int successfulSkillCount = stats.successful_skill_count;
+        int hostileDamageDone = stats.hostile_damage_done;
+        int allyHealingDone = stats.ally_healing_done;
+        int enemyKillCount = stats.enemy_kill_count;
+        StringName memberId = stats.member_id;
         bool survived = false;
         if (_has_runtime() && GetState() != null && !IsEmpty(memberId))
         {
@@ -373,17 +361,28 @@ public partial class BattleRatingSystem : RefCounted
             return new GDictionary();
         }
 
-        return GetDict(GetBattleRatingStats(), active_unit.source_member_id).Duplicate(true);
+        BattleRatingMemberStats stats = GetBattleRatingStatsForMember(active_unit.source_member_id);
+        return stats?.ToDictionary() ?? new GDictionary();
     }
 
-    private GDictionary _get_battle_rating_stats_by_member_id(StringName member_id)
+    private BattleRatingMemberStats GetBattleRatingStatsForUnit(BattleUnitState unitState)
     {
-        if (!_has_runtime() || IsEmpty(member_id))
+        if (unitState == null || IsEmpty(unitState.source_member_id))
         {
-            return new GDictionary();
+            return null;
         }
+        return GetBattleRatingStatsForMember(unitState.source_member_id);
+    }
 
-        return GetDict(GetBattleRatingStats(), member_id).Duplicate(true);
+    private BattleRatingMemberStats GetBattleRatingStatsForMember(StringName memberId)
+    {
+        if (!_has_runtime() || IsEmpty(memberId))
+        {
+            return null;
+        }
+        return GetBattleRatingStatsTyped().TryGetValue(memberId, out BattleRatingMemberStats stats)
+            ? stats
+            : null;
     }
 
     public BattleUnitState _find_unit_by_member_id(StringName member_id)
@@ -424,14 +423,14 @@ public partial class BattleRatingSystem : RefCounted
         return _runtime != null;
     }
 
-    private GDictionary GetBattleRatingStats()
+    private Dictionary<StringName, BattleRatingMemberStats> GetBattleRatingStatsTyped()
     {
         BattleRuntimeModule runtime = _runtime;
         if (runtime == null)
         {
-            return new GDictionary();
+            return new Dictionary<StringName, BattleRatingMemberStats>();
         }
-        return runtime.get_battle_rating_stats() ?? new GDictionary();
+        return runtime.GetBattleRatingStatsTyped();
     }
 
     private GArray GetPendingPostBattleCharacterRewards()
@@ -460,27 +459,15 @@ public partial class BattleRatingSystem : RefCounted
         {
             return null;
         }
-        GodotObject gateway = runtime.get_character_gateway();
-        if (gateway == null)
-        {
-            return null;
-        }
-        if (gateway is IBattleRatingCharacterGateway typedGateway)
+        IBattleRatingCharacterGateway typedGateway = runtime.GetCharacterGatewayTyped();
+        if (typedGateway != null)
         {
             return typedGateway;
         }
-        GameLog.Error(
-            $"BattleRatingSystem requires character gateway to implement {nameof(IBattleRatingCharacterGateway)}; got {gateway.GetType().Name}.",
-            "battle.rating.invalid_gateway",
-            "battle"
-        );
         return null;
     }
 
-    private static void ApplyContributionToStats(
-        GDictionary stats,
-        BattleContributionEvent contributionEvent
-    )
+    private static void ApplyContributionToStats(BattleRatingMemberStats stats, BattleContributionEvent contributionEvent)
     {
         bool isAllyOrSelf =
             contributionEvent.relation == BattleContributionRelation.Ally
@@ -489,17 +476,17 @@ public partial class BattleRatingSystem : RefCounted
         {
             if (contributionEvent.hp_damage_applied > 0)
             {
-                Increment(stats, "hostile_damage_done", contributionEvent.hp_damage_applied);
-                stats["total_damage_done"] = GetInt(stats, "hostile_damage_done");
+                stats.hostile_damage_done += contributionEvent.hp_damage_applied;
+                stats.total_damage_done = stats.hostile_damage_done;
             }
             if (contributionEvent.hp_healing_applied > 0)
             {
-                Increment(stats, "enemy_healing_done", contributionEvent.hp_healing_applied);
+                stats.enemy_healing_done += contributionEvent.hp_healing_applied;
             }
             if (contributionEvent.caused_defeat)
             {
-                Increment(stats, "enemy_kill_count", 1);
-                stats["kill_count"] = GetInt(stats, "enemy_kill_count");
+                stats.enemy_kill_count += 1;
+                stats.kill_count = stats.enemy_kill_count;
             }
             return;
         }
@@ -508,155 +495,18 @@ public partial class BattleRatingSystem : RefCounted
         {
             if (contributionEvent.hp_damage_applied > 0)
             {
-                Increment(stats, "friendly_fire_damage", contributionEvent.hp_damage_applied);
+                stats.friendly_fire_damage += contributionEvent.hp_damage_applied;
             }
             if (contributionEvent.hp_healing_applied > 0)
             {
-                Increment(stats, "ally_healing_done", contributionEvent.hp_healing_applied);
-                stats["total_healing_done"] = GetInt(stats, "ally_healing_done");
+                stats.ally_healing_done += contributionEvent.hp_healing_applied;
+                stats.total_healing_done = stats.ally_healing_done;
             }
             if (contributionEvent.caused_defeat)
             {
-                Increment(stats, "ally_defeat_count", 1);
+                stats.ally_defeat_count += 1;
             }
         }
-    }
-
-    private static void Increment(GDictionary stats, string key, int amount)
-    {
-        if (amount <= 0)
-        {
-            return;
-        }
-        stats[key] = GetInt(stats, key) + amount;
-    }
-
-    private static GDictionary GetDict(GDictionary source, object key)
-    {
-        return TryGetValue(source, key, out Variant value)
-            && value.VariantType == Variant.Type.Dictionary
-            ? value.AsGodotDictionary()
-            : new GDictionary();
-    }
-
-    private static GDictionary EnsureDict(GDictionary source, object key)
-    {
-        if (source == null)
-        {
-            return new GDictionary();
-        }
-        if (
-            TryGetValue(source, key, out Variant value)
-            && value.VariantType == Variant.Type.Dictionary
-        )
-        {
-            return value.AsGodotDictionary();
-        }
-        var created = new GDictionary();
-        source[ToVariantKey(key)] = created;
-        return created;
-    }
-
-    private static int GetInt(GDictionary source, object key, int fallback = 0)
-    {
-        if (!TryGetValue(source, key, out Variant value))
-        {
-            return fallback;
-        }
-        return value.VariantType switch
-        {
-            Variant.Type.Int => value.AsInt32(),
-            Variant.Type.Float => (int)value.AsDouble(),
-            Variant.Type.Bool => value.AsBool() ? 1 : 0,
-            Variant.Type.String => int.TryParse(value.AsString(), out int parsed)
-                ? parsed
-                : fallback,
-            Variant.Type.StringName
-                => int.TryParse(value.AsStringName().ToString(), out int parsed)
-                    ? parsed
-                    : fallback,
-            _ => fallback,
-        };
-    }
-
-    private static string GetString(GDictionary source, object key, string fallback = "")
-    {
-        if (!TryGetValue(source, key, out Variant value))
-        {
-            return fallback;
-        }
-        return value.VariantType switch
-        {
-            Variant.Type.String => value.AsString(),
-            Variant.Type.StringName => value.AsStringName().ToString(),
-            Variant.Type.Int => value.AsInt32().ToString(),
-            Variant.Type.Float => value.AsDouble().ToString(
-                System.Globalization.CultureInfo.InvariantCulture
-            ),
-            Variant.Type.Bool => value.AsBool() ? "True" : "False",
-            _ => fallback,
-        };
-    }
-
-    private static StringName GetStringName(GDictionary source, object key)
-    {
-        if (!TryGetValue(source, key, out Variant value))
-        {
-            return Empty;
-        }
-        return ToStringNameLoose(value);
-    }
-
-    private static bool TryGetValue(GDictionary source, object key, out Variant value)
-    {
-        if (source == null)
-        {
-            value = default;
-            return false;
-        }
-        Variant variantKey = ToVariantKey(key);
-        if (source.ContainsKey(variantKey))
-        {
-            value = source[variantKey];
-            return true;
-        }
-        if (key is StringName stringNameKey)
-        {
-            string keyText = stringNameKey.ToString();
-            if (source.ContainsKey(keyText))
-            {
-                value = source[keyText];
-                return true;
-            }
-        }
-        else if (key is string stringKey)
-        {
-            var stringName = new StringName(stringKey);
-            if (source.ContainsKey(stringName))
-            {
-                value = source[stringName];
-                return true;
-            }
-        }
-        value = default;
-        return false;
-    }
-
-    private static Variant ToVariantKey(object key)
-    {
-        return key switch
-        {
-            Variant variant => variant,
-            StringName stringName => Variant.From(stringName),
-            string text => Variant.From(text),
-            int intValue => Variant.From(intValue),
-            long longValue => Variant.From(longValue),
-            float floatValue => Variant.From(floatValue),
-            double doubleValue => Variant.From(doubleValue),
-            bool boolValue => Variant.From(boolValue),
-            Vector2I coord => Variant.From(coord),
-            _ => Variant.From(key?.ToString() ?? ""),
-        };
     }
 
     private static bool IsEmpty(StringName value)
@@ -664,42 +514,10 @@ public partial class BattleRatingSystem : RefCounted
         return value == null || string.IsNullOrEmpty(value.ToString());
     }
 
-    private static StringName ToStringNameLoose(object rawValue)
-    {
-        if (rawValue is string textValue)
-        {
-            string normalizedText = textValue.Trim();
-            return string.IsNullOrEmpty(normalizedText) ? Empty : new StringName(normalizedText);
-        }
-        if (rawValue is StringName stringName)
-        {
-            return stringName;
-        }
-        if (rawValue is not Variant value)
-        {
-            return Empty;
-        }
-        if (value.VariantType == Variant.Type.Nil)
-        {
-            return Empty;
-        }
-        string text = value.ToString();
-        if (text == "<null>")
-        {
-            return Empty;
-        }
-        string trimmed = text.Trim();
-        return string.IsNullOrEmpty(trimmed) ? Empty : new StringName(trimmed);
-    }
-
     private static T ResolveWeakRef<T>(WeakReference<T> weakRef)
-        where T : GodotObject
+        where T : class
     {
-        if (
-            weakRef == null
-            || !weakRef.TryGetTarget(out T target)
-            || !GodotObject.IsInstanceValid(target)
-        )
+        if (weakRef == null || !weakRef.TryGetTarget(out T target))
         {
             return null;
         }

@@ -269,18 +269,6 @@ public partial class BattleAiScoreService
     private static GDictionary ContextSkillDefs(IBattleAiScoreContext context) =>
         context?.skill_defs ?? new GDictionary();
 
-    private static Dictionary<string, object> ContextScoreProjectionCache(
-        IBattleAiScoreContext context
-    )
-    {
-        if (context == null)
-        {
-            return new Dictionary<string, object>();
-        }
-        context.score_projection_cache ??= new Dictionary<string, object>();
-        return context.score_projection_cache;
-    }
-
     private static BattleUnitState GetUnit(BattleState state, StringName unitId)
     {
         if (state == null || IsEmpty(unitId))
@@ -296,7 +284,7 @@ public partial class BattleAiScoreService
         {
             return null;
         }
-        return DictObject(skillDefs, skillId) as SkillDef;
+        return DictSkillDef(skillDefs, skillId);
     }
 
     private static GArray ToUntypedArray(Godot.Collections.Array<GDictionary> values)
@@ -327,98 +315,135 @@ public partial class BattleAiScoreService
         return result;
     }
 
-    private static bool HasKey(GDictionary dictionary, object key)
+    private static bool HasKey(GDictionary dictionary, string key)
     {
-        return TryRead(dictionary, key, out _);
+        if (dictionary == null || string.IsNullOrEmpty(key))
+            return false;
+        return dictionary.ContainsKey(key) || dictionary.ContainsKey(new StringName(key));
     }
 
-    private static int DictInt(GDictionary dictionary, object key, int fallback)
+    private static int DictInt(GDictionary dictionary, string key, int fallback)
     {
-        if (!TryRead(dictionary, key, out Variant value))
+        if (dictionary == null || string.IsNullOrEmpty(key))
             return fallback;
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+        if (dictionary.ContainsKey(key))
+            return dictionary[key].AsInt32();
+        StringName stringNameKey = key;
+        return dictionary.ContainsKey(stringNameKey) ? dictionary[stringNameKey].AsInt32() : fallback;
     }
 
-    private static double DictDouble(GDictionary dictionary, object key, double fallback)
+    private static double DictDouble(GDictionary dictionary, string key, double fallback)
     {
-        if (!TryRead(dictionary, key, out Variant value))
-            return fallback;
-        return value.VariantType switch
+        try
         {
-            Variant.Type.Int => value.AsInt64(),
-            Variant.Type.Float => value.AsDouble(),
-            _ => fallback,
-        };
+            if (dictionary == null || string.IsNullOrEmpty(key))
+                return fallback;
+            if (dictionary.ContainsKey(key))
+                return dictionary[key].AsDouble();
+            StringName stringNameKey = key;
+            return dictionary.ContainsKey(stringNameKey)
+                ? dictionary[stringNameKey].AsDouble()
+                : fallback;
+        }
+        catch
+        {
+            return fallback;
+        }
     }
 
-    private static string DictString(GDictionary dictionary, object key, string fallback)
+    private static string DictString(GDictionary dictionary, string key, string fallback)
     {
-        if (!TryRead(dictionary, key, out Variant value))
+        if (dictionary == null || string.IsNullOrEmpty(key))
             return fallback;
-        return value.VariantType switch
-        {
-            Variant.Type.String => value.AsString(),
-            Variant.Type.StringName => value.AsStringName().ToString(),
-            _ => fallback,
-        };
+        if (dictionary.ContainsKey(key))
+            return dictionary[key].ToString();
+        StringName stringNameKey = key;
+        return dictionary.ContainsKey(stringNameKey) ? dictionary[stringNameKey].ToString() : fallback;
     }
 
     private static StringName DictStringName(
         GDictionary dictionary,
-        object key,
+        string key,
         StringName fallback
     )
     {
-        if (!TryRead(dictionary, key, out Variant value))
+        if (dictionary == null || string.IsNullOrEmpty(key))
             return fallback;
-        return value.VariantType switch
-        {
-            Variant.Type.StringName => value.AsStringName(),
-            Variant.Type.String => new StringName(value.AsString()),
-            _ => fallback,
-        };
+        StringName normalized = dictionary.ContainsKey(key)
+            ? ProgressionDataUtils.to_string_name(dictionary[key])
+            : dictionary.ContainsKey(new StringName(key))
+                ? ProgressionDataUtils.to_string_name(dictionary[new StringName(key)])
+                : "";
+        return IsEmpty(normalized) ? fallback : normalized;
     }
 
-    private static Vector2I DictVector2I(GDictionary dictionary, object key, Vector2I fallback)
+    private static Vector2I DictVector2I(GDictionary dictionary, string key, Vector2I fallback)
     {
-        if (!TryRead(dictionary, key, out Variant value))
+        if (dictionary == null || string.IsNullOrEmpty(key))
             return fallback;
-        return value.VariantType == Variant.Type.Vector2I ? value.AsVector2I() : fallback;
+        if (dictionary.ContainsKey(key))
+            return dictionary[key].AsVector2I();
+        StringName stringNameKey = key;
+        return dictionary.ContainsKey(stringNameKey) ? dictionary[stringNameKey].AsVector2I() : fallback;
     }
 
-    private static GodotObject DictObject(GDictionary dictionary, object key)
+    private static SkillDef DictSkillDef(GDictionary dictionary, StringName key)
     {
-        if (!TryRead(dictionary, key, out Variant value))
+        if (dictionary == null || IsEmpty(key))
             return null;
-        return value.VariantType == Variant.Type.Object ? value.AsGodotObject() : null;
+        if (dictionary.ContainsKey(key))
+            return dictionary[key].As<SkillDef>();
+        string textKey = key.ToString();
+        return dictionary.ContainsKey(textKey) ? dictionary[textKey].As<SkillDef>() : null;
     }
 
-    private static GArray DictArray(GDictionary dictionary, object key, GArray fallback)
+    private static CombatEffectDef DictCombatEffectDef(GDictionary dictionary, string key)
     {
-        if (!TryRead(dictionary, key, out Variant value))
+        if (dictionary == null || string.IsNullOrEmpty(key))
+            return null;
+        if (dictionary.ContainsKey(key))
+            return dictionary[key].As<CombatEffectDef>();
+        StringName stringNameKey = key;
+        return dictionary.ContainsKey(stringNameKey)
+            ? dictionary[stringNameKey].As<CombatEffectDef>()
+            : null;
+    }
+
+    private static GArray DictArray(GDictionary dictionary, string key, GArray fallback)
+    {
+        if (dictionary == null || string.IsNullOrEmpty(key))
             return fallback;
-        return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : fallback;
+        if (dictionary.ContainsKey(key))
+            return dictionary[key].AsGodotArray();
+        StringName stringNameKey = key;
+        return dictionary.ContainsKey(stringNameKey)
+            ? dictionary[stringNameKey].AsGodotArray()
+            : fallback;
     }
 
     private static GDictionary DictDictionary(
         GDictionary dictionary,
-        object key,
+        string key,
         GDictionary fallback
     )
     {
-        if (!TryRead(dictionary, key, out Variant value))
+        if (dictionary == null || string.IsNullOrEmpty(key))
             return fallback;
-        return value.VariantType == Variant.Type.Dictionary ? value.AsGodotDictionary() : fallback;
+        if (dictionary.ContainsKey(key))
+            return dictionary[key].AsGodotDictionary();
+        StringName stringNameKey = key;
+        return dictionary.ContainsKey(stringNameKey)
+            ? dictionary[stringNameKey].AsGodotDictionary()
+            : fallback;
     }
 
     private static IEnumerable<GDictionary> ReadDictionaryItems(GArray values)
     {
         if (values == null)
             yield break;
-        foreach (Variant value in values)
+        foreach (var value in values)
         {
-            if (value.VariantType == Variant.Type.Dictionary)
-                yield return value.AsGodotDictionary();
+            yield return value.AsGodotDictionary();
         }
     }
 
@@ -426,12 +451,11 @@ public partial class BattleAiScoreService
     {
         if (values == null)
             yield break;
-        foreach (Variant value in values)
+        foreach (var value in values)
         {
-            if (value.VariantType == Variant.Type.String)
-                yield return value.AsString();
-            else if (value.VariantType == Variant.Type.StringName)
-                yield return value.AsStringName().ToString();
+            string text = value.ToString();
+            if (!string.IsNullOrEmpty(text))
+                yield return text;
         }
     }
 
@@ -441,62 +465,14 @@ public partial class BattleAiScoreService
     {
         if (dictionary == null)
             yield break;
-        foreach (Variant key in dictionary.Keys)
+        foreach (var key in dictionary.Keys)
         {
-            StringName normalizedKey = key.VariantType switch
-            {
-                Variant.Type.StringName => key.AsStringName(),
-                Variant.Type.String => new StringName(key.AsString()),
-                _ => "",
-            };
+            StringName normalizedKey = ProgressionDataUtils.to_string_name(key);
             if (IsEmpty(normalizedKey))
                 continue;
-            Variant value = dictionary[key];
-            if (value.VariantType == Variant.Type.Int)
-                yield return (normalizedKey, value.AsInt32());
+            if (dictionary.ContainsKey(key))
+                yield return (normalizedKey, dictionary[key].AsInt32());
         }
-    }
-
-    private static bool TryRead(GDictionary dictionary, object key, out Variant value)
-    {
-        value = default;
-        if (dictionary == null || key == null)
-            return false;
-        Variant variantKey = key switch
-        {
-            Variant valueKey => valueKey,
-            string stringKey => stringKey,
-            StringName stringNameKey => stringNameKey,
-            int intKey => intKey,
-            long longKey => longKey,
-            _ => default,
-        };
-        if (variantKey.VariantType == Variant.Type.Nil)
-            return false;
-        if (dictionary.ContainsKey(variantKey))
-        {
-            value = dictionary[variantKey];
-            return value.VariantType != Variant.Type.Nil;
-        }
-        if (variantKey.VariantType == Variant.Type.String)
-        {
-            StringName stringNameKey = new(variantKey.AsString());
-            if (dictionary.ContainsKey(stringNameKey))
-            {
-                value = dictionary[stringNameKey];
-                return value.VariantType != Variant.Type.Nil;
-            }
-        }
-        else if (variantKey.VariantType == Variant.Type.StringName)
-        {
-            string stringKey = variantKey.AsStringName().ToString();
-            if (dictionary.ContainsKey(stringKey))
-            {
-                value = dictionary[stringKey];
-                return value.VariantType != Variant.Type.Nil;
-            }
-        }
-        return false;
     }
 
     private static bool IsEmpty(StringName value)

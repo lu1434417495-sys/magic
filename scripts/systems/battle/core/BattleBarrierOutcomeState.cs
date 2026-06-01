@@ -17,7 +17,6 @@ public partial class BattleBarrierOutcomeState : RefCounted
     public StringName save_ability { get; set; } = "";
     public StringName save_tag { get; set; } = "";
     public int save_dc { get; set; }
-    public GDictionary @params { get; set; } = new();
 
     public bool IsEmpty => outcome_type == "";
 
@@ -29,13 +28,7 @@ public partial class BattleBarrierOutcomeState : RefCounted
             return outcome;
         }
 
-        outcome.outcome_type = ProgressionDataUtils.to_string_name(
-            ReadStringName(
-                source,
-                "outcome_type",
-                ReadStringName(source, "outcome")
-            )
-        );
+        outcome.outcome_type = ReadStringName(source, "outcome_type");
         outcome.amount = ReadInt(source, "amount", 0);
         outcome.damage_tag = ReadStringName(source, "damage_tag");
         outcome.half_on_success = ReadBool(source, "half_on_success", false);
@@ -51,7 +44,6 @@ public partial class BattleBarrierOutcomeState : RefCounted
         outcome.save_ability = ReadStringName(source, "save_ability");
         outcome.save_tag = ReadStringName(source, "save_tag");
         outcome.save_dc = ReadInt(source, "save_dc", 0);
-        outcome.@params = (GDictionary)ReadDictionary(source, "params").Duplicate(true);
         return outcome;
     }
 
@@ -70,7 +62,6 @@ public partial class BattleBarrierOutcomeState : RefCounted
             ["save_ability"] = save_ability.ToString(),
             ["save_tag"] = save_tag.ToString(),
             ["save_dc"] = save_dc,
-            ["params"] = @params?.Duplicate(true) ?? new GDictionary(),
         };
     }
 
@@ -80,16 +71,7 @@ public partial class BattleBarrierOutcomeState : RefCounted
         {
             return fallback == default ? new StringName("") : fallback;
         }
-        Variant value = data[key];
-        if (value.VariantType == Variant.Type.StringName)
-        {
-            return value.AsStringName();
-        }
-        if (value.VariantType == Variant.Type.String)
-        {
-            return new StringName(value.AsString());
-        }
-        return fallback == default ? new StringName("") : fallback;
+        return ProgressionDataUtils.to_string_name(data[key]);
     }
 
     private static int ReadInt(GDictionary data, string key, int fallback = 0)
@@ -98,8 +80,7 @@ public partial class BattleBarrierOutcomeState : RefCounted
         {
             return fallback;
         }
-        Variant value = data[key];
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+        return data[key].AsInt32();
     }
 
     private static bool ReadBool(GDictionary data, string key, bool fallback = false)
@@ -108,18 +89,7 @@ public partial class BattleBarrierOutcomeState : RefCounted
         {
             return fallback;
         }
-        Variant value = data[key];
-        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
-    }
-
-    private static GDictionary ReadDictionary(GDictionary data, string key)
-    {
-        if (data == null || string.IsNullOrEmpty(key) || !data.ContainsKey(key))
-        {
-            return new GDictionary();
-        }
-        Variant value = data[key];
-        return value.VariantType == Variant.Type.Dictionary ? value.AsGodotDictionary() : new GDictionary();
+        return data[key].AsBool();
     }
 
 }

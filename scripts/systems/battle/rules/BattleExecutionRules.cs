@@ -70,8 +70,8 @@ public partial class BattleExecutionRules : RefCounted
     public static StringName BRANCH_LOW_HP_EXECUTE() => BranchLowHpExecute;
 
     public static int resolve_threshold(
-        GodotObject source_unit,
-        GodotObject target_unit,
+        BattleUnitState source_unit,
+        BattleUnitState target_unit,
         GDictionary @params
     )
     {
@@ -102,9 +102,9 @@ public partial class BattleExecutionRules : RefCounted
 
         int skillLevel = 0;
         StringName skillId = ReadStringName(normalizedParams, "skill_id");
-        if (!IsEmpty(skillId) && source_unit is BattleUnitState sourceUnit)
+        if (!IsEmpty(skillId) && source_unit != null)
         {
-            skillLevel = ReadInt(sourceUnit.known_skill_level_map, skillId, 0);
+            skillLevel = ReadInt(source_unit.known_skill_level_map, skillId, 0);
         }
         int levelBonus = Mathf.Max(skillLevel - anchor, 0) * bonusPer;
 
@@ -123,16 +123,14 @@ public partial class BattleExecutionRules : RefCounted
     }
 
     public static GDictionary build_execute_plan(
-        GodotObject source_unit,
-        GodotObject target_unit,
+        BattleUnitState source_unit,
+        BattleUnitState target_unit,
         GDictionary @params
     )
     {
         GDictionary normalizedParams = @params ?? new GDictionary();
         int maxHp = Mathf.Max(GetAttributeValue(target_unit, HpMax), 0);
-        int currentHp = target_unit is BattleUnitState targetUnit
-            ? Mathf.Max(targetUnit.current_hp, 0)
-            : 0;
+        int currentHp = target_unit != null ? Mathf.Max(target_unit.current_hp, 0) : 0;
         int threshold = resolve_threshold(source_unit, target_unit, normalizedParams);
 
         if (target_unit != null && currentHp <= threshold)
@@ -158,9 +156,9 @@ public partial class BattleExecutionRules : RefCounted
         ).ToDictionary();
     }
 
-    public static bool is_boss_target(GodotObject target_unit)
+    public static bool is_boss_target(BattleUnitState target_unit)
     {
-        if (target_unit == null || (target_unit as BattleUnitState)?.attribute_snapshot == null)
+        if (target_unit == null || target_unit.attribute_snapshot == null)
         {
             return false;
         }
@@ -168,9 +166,9 @@ public partial class BattleExecutionRules : RefCounted
             || GetAttributeValue(target_unit, FortuneMarkTargetStatId) > 1;
     }
 
-    public static bool is_elite_or_boss_target(GodotObject target_unit)
+    public static bool is_elite_or_boss_target(BattleUnitState target_unit)
     {
-        if (target_unit == null || (target_unit as BattleUnitState)?.attribute_snapshot == null)
+        if (target_unit == null || target_unit.attribute_snapshot == null)
         {
             return false;
         }
@@ -179,8 +177,8 @@ public partial class BattleExecutionRules : RefCounted
     }
 
     public static int resolve_non_lethal_damage(
-        GodotObject source_unit,
-        GodotObject target_unit,
+        BattleUnitState source_unit,
+        BattleUnitState target_unit,
         GDictionary @params,
         bool is_boss = false
     )
@@ -227,9 +225,9 @@ public partial class BattleExecutionRules : RefCounted
         );
     }
 
-    private static int GetAttributeValue(GodotObject unit, StringName attributeId)
+    private static int GetAttributeValue(BattleUnitState unit, StringName attributeId)
     {
-        AttributeSnapshot attributeSnapshot = (unit as BattleUnitState)?.attribute_snapshot;
+        AttributeSnapshot attributeSnapshot = unit?.attribute_snapshot;
         if (attributeSnapshot == null)
         {
             return 0;
@@ -241,24 +239,18 @@ public partial class BattleExecutionRules : RefCounted
 
     private static int ReadInt(GDictionary source, object key, int fallback = 0)
     {
-        if (!TryReadValue(source, key, out Variant value))
+        if (!TryReadValue(source, key, out dynamic value))
         {
             return fallback;
         }
-        return value.VariantType switch
+        try
         {
-            Variant.Type.Int => value.AsInt32(),
-            Variant.Type.Float => (int)value.AsDouble(),
-            Variant.Type.Bool => value.AsBool() ? 1 : 0,
-            Variant.Type.String => int.TryParse(value.AsString(), out int parsed)
-                ? parsed
-                : fallback,
-            Variant.Type.StringName
-                => int.TryParse(value.AsStringName().ToString(), out int parsed)
-                    ? parsed
-                    : fallback,
-            _ => fallback,
-        };
+            return value.AsInt32();
+        }
+        catch
+        {
+            return int.TryParse(value.ToString(), out int parsed) ? parsed : fallback;
+        }
     }
 
     private static StringName ReadStringName(
@@ -267,7 +259,7 @@ public partial class BattleExecutionRules : RefCounted
         StringName fallback = default
     )
     {
-        if (!TryReadValue(source, key, out Variant value))
+        if (!TryReadValue(source, key, out dynamic value))
         {
             return fallback;
         }
@@ -275,18 +267,24 @@ public partial class BattleExecutionRules : RefCounted
         return IsEmpty(parsed) ? fallback : parsed;
     }
 
-    private static bool TryReadValue(GDictionary source, object key, out Variant value)
+    private static bool TryReadValue(GDictionary source, object key, out dynamic value)
     {
         if (source == null)
         {
             value = default;
             return false;
         }
-        Variant variantKey = ToVariantKey(key);
-        if (source.ContainsKey(variantKey))
+        try
         {
-            value = source[variantKey];
-            return true;
+            dynamic dynamicKey = key;
+            if (source.ContainsKey(dynamicKey))
+            {
+                value = source[dynamicKey];
+                return true;
+            }
+        }
+        catch
+        {
         }
         if (key is StringName stringNameKey)
         {
@@ -308,22 +306,5 @@ public partial class BattleExecutionRules : RefCounted
         }
         value = default;
         return false;
-    }
-
-    private static Variant ToVariantKey(object key)
-    {
-        return key switch
-        {
-            Variant variant => variant,
-            StringName stringName => Variant.From(stringName),
-            string text => Variant.From(text),
-            int intValue => Variant.From(intValue),
-            long longValue => Variant.From(longValue),
-            float floatValue => Variant.From(floatValue),
-            double doubleValue => Variant.From(doubleValue),
-            bool boolValue => Variant.From(boolValue),
-            Vector2I coord => Variant.From(coord),
-            _ => Variant.From(key?.ToString() ?? ""),
-        };
     }
 }

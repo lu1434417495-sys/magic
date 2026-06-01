@@ -134,35 +134,34 @@ public static class BattleContributionEventBuilder
         StringName fallback = default
     )
     {
-        var value = ReadValue(data, key);
-        if (value.VariantType == Variant.Type.StringName)
-            return value.AsStringName();
-        if (value.VariantType == Variant.Type.String)
-            return new StringName(value.AsString());
-        return fallback ?? new StringName("");
+        if (!HasKey(data, key))
+            return fallback ?? new StringName("");
+        if (data.ContainsKey(key))
+            return ProgressionDataUtils.to_string_name(data[key]);
+        return ProgressionDataUtils.to_string_name(data[new StringName(key)]);
     }
 
     private static int ReadInt(GDictionary data, string key, int fallback = 0)
     {
-        var value = ReadValue(data, key);
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+        if (!HasKey(data, key))
+            return fallback;
+        return data.ContainsKey(key) ? data[key].AsInt32() : data[new StringName(key)].AsInt32();
     }
 
     private static bool ReadBool(GDictionary data, string key, bool fallback = false)
     {
-        var value = ReadValue(data, key);
-        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
+        if (!HasKey(data, key))
+            return fallback;
+        return data.ContainsKey(key) ? data[key].AsBool() : data[new StringName(key)].AsBool();
     }
 
-    private static Variant ReadValue(GDictionary data, string key)
+    private static bool HasKey(GDictionary data, string key)
     {
         if (data == null)
-            return default;
+            return false;
         if (data.ContainsKey(key))
-            return data[key];
+            return true;
         var stringNameKey = new StringName(key);
-        if (data.ContainsKey(stringNameKey))
-            return data[stringNameKey];
-        return default;
+        return data.ContainsKey(stringNameKey);
     }
 }

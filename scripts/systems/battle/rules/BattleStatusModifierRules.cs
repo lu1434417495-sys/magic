@@ -21,27 +21,27 @@ public partial class BattleStatusModifierRules : RefCounted
 
     public static int DEFAULT_MULTIPLIER_PERCENT() => DefaultMultiplierPercent;
 
-    public static int apply_heal_multiplier(GodotObject unit_state, int amount)
+    public static int apply_heal_multiplier(BattleUnitState unit_state, int amount)
     {
         return ApplyMultiplier(amount, resolve_heal_multiplier_percent(unit_state));
     }
 
-    public static int apply_shield_gain_multiplier(GodotObject unit_state, int amount)
+    public static int apply_shield_gain_multiplier(BattleUnitState unit_state, int amount)
     {
         return ApplyMultiplier(amount, resolve_shield_gain_multiplier_percent(unit_state));
     }
 
-    public static int resolve_heal_multiplier_percent(GodotObject unit_state)
+    public static int resolve_heal_multiplier_percent(BattleUnitState unit_state)
     {
         return ResolveMinMultiplierPercent(unit_state, ParamHealMultiplierPercent);
     }
 
-    public static int resolve_shield_gain_multiplier_percent(GodotObject unit_state)
+    public static int resolve_shield_gain_multiplier_percent(BattleUnitState unit_state)
     {
         return ResolveMinMultiplierPercent(unit_state, ParamShieldGainMultiplierPercent);
     }
 
-    private static int ResolveMinMultiplierPercent(GodotObject unitState, string paramKey)
+    private static int ResolveMinMultiplierPercent(BattleUnitState unitState, string paramKey)
     {
         if (unitState == null)
         {
@@ -76,20 +76,17 @@ public partial class BattleStatusModifierRules : RefCounted
         return result;
     }
 
-    private static List<StatusModifierEntry> BuildStatusModifierEntries(GodotObject unitState)
+    private static List<StatusModifierEntry> BuildStatusModifierEntries(BattleUnitState unitState)
     {
         var entries = new List<StatusModifierEntry>();
-        if (unitState is not BattleUnitState battleUnitState)
+        if (unitState == null)
         {
             return entries;
         }
 
-        foreach (var statusValue in battleUnitState.status_effects.Values)
+        foreach (var statusValue in unitState.status_effects.Values)
         {
-            BattleStatusEffectState statusEntry =
-                statusValue.VariantType == Variant.Type.Object
-                    ? statusValue.AsGodotObject() as BattleStatusEffectState
-                    : null;
+            BattleStatusEffectState statusEntry = statusValue.As<BattleStatusEffectState>();
             if (statusEntry == null || statusEntry.is_empty())
             {
                 continue;
@@ -107,12 +104,20 @@ public partial class BattleStatusModifierRules : RefCounted
 
     private static int? GetOptionalInt(GDictionary parameters, string key)
     {
-        Variant value = ReadValue(parameters, key);
-        if (value.VariantType != Variant.Type.Int)
+        if (parameters == null)
         {
             return null;
         }
-        return value.AsInt32();
+        if (parameters.ContainsKey(key))
+        {
+            return parameters[key].AsInt32();
+        }
+        var stringNameKey = new StringName(key);
+        if (!parameters.ContainsKey(stringNameKey))
+        {
+            return null;
+        }
+        return parameters[stringNameKey].AsInt32();
     }
 
     private static int ApplyMultiplier(int amount, int multiplierPercent)
@@ -123,18 +128,6 @@ public partial class BattleStatusModifierRules : RefCounted
         }
         int normalizedPercent = Mathf.Clamp(multiplierPercent, 0, DefaultMultiplierPercent);
         return Mathf.Max(Mathf.RoundToInt((float)amount * normalizedPercent / 100.0f), 0);
-    }
-
-    private static Variant ReadValue(GDictionary data, string key)
-    {
-        if (data == null)
-            return default;
-        if (data.ContainsKey(key))
-            return data[key];
-        var stringNameKey = new StringName(key);
-        if (data.ContainsKey(stringNameKey))
-            return data[stringNameKey];
-        return default;
     }
 
     private static bool IsEmpty(StringName value)

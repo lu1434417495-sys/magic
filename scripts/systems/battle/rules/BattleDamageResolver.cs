@@ -37,6 +37,8 @@ public partial class BattleDamageResolver : RefCounted
     private static readonly StringName EffectEquipmentDurabilityDamage =
         "equipment_durability_damage";
     private static readonly StringName EffectDispelMagic = "dispel_magic";
+    private static readonly StringName EffectHeal = BattleTypedNames.EffectHeal;
+    private static readonly StringName EffectStaminaRestore = BattleTypedNames.EffectStaminaRestore;
     private static readonly StringName DamagePreviewRollModeRandom = "random";
     private static readonly StringName DamagePreviewRollModeAverage = "average";
     private static readonly StringName DamagePreviewRollModeMaximum = "maximum";
@@ -1263,14 +1265,14 @@ public partial class BattleDamageResolver : RefCounted
                     }
                 }
             }
-            else if (effectType == "heal")
+            else if (effectType == EffectHeal)
             {
                 int healAmount = ResolveHealAmount(source_unit, effectDef);
                 ApplyHealing(target_unit, healAmount);
                 totalHealing += healAmount;
                 applied = true;
             }
-            else if (effectType == "stamina_restore")
+            else if (effectType == EffectStaminaRestore)
             {
                 ApplyStaminaRestore(source_unit, target_unit, effectDef);
                 applied = true;
@@ -2347,13 +2349,13 @@ public partial class BattleDamageResolver : RefCounted
         StringName rollMode = default
     )
     {
-        if (effectDef?.@params == null)
+        if (effectDef == null)
         {
             return DicePoolRollResult.Empty;
         }
-        int diceCount = Math.Max(DictInt(effectDef.@params, "dice_count"), 0);
-        int diceSides = Math.Max(DictInt(effectDef.@params, "dice_sides"), 0);
-        int diceBonus = includeBonus ? DictInt(effectDef.@params, "dice_bonus") : 0;
+        int diceCount = Math.Max(effectDef.dice_count, 0);
+        int diceSides = Math.Max(effectDef.dice_sides, 0);
+        int diceBonus = includeBonus ? effectDef.dice_bonus : 0;
         return RollDicePool(
             diceCount,
             diceSides,
@@ -2370,13 +2372,13 @@ public partial class BattleDamageResolver : RefCounted
         StringName rollMode = default
     )
     {
-        if (effectDef?.@params == null)
+        if (effectDef == null)
         {
             return DicePoolRollResult.Empty;
         }
-        int diceCount = Math.Max(DictInt(effectDef.@params, "bonus_damage_dice_count"), 0);
-        int diceSides = Math.Max(DictInt(effectDef.@params, "bonus_damage_dice_sides"), 0);
-        int diceBonus = includeBonus ? DictInt(effectDef.@params, "bonus_damage_dice_bonus") : 0;
+        int diceCount = Math.Max(effectDef.bonus_damage_dice_count, 0);
+        int diceSides = Math.Max(effectDef.bonus_damage_dice_sides, 0);
+        int diceBonus = includeBonus ? effectDef.bonus_damage_dice_bonus : 0;
         return RollDicePool(
             diceCount,
             diceSides,
@@ -2423,7 +2425,41 @@ public partial class BattleDamageResolver : RefCounted
         StringName rollMode = default
     )
     {
-        if (diceCount <= 0 || diceSides <= 0 || string.IsNullOrEmpty(fieldPrefix))
+        if (string.IsNullOrEmpty(fieldPrefix))
+        {
+            return DicePoolRollResult.Empty;
+        }
+        DicePoolRollResult rollResult = RollDicePoolValues(
+            diceCount,
+            diceSides,
+            diceBonus,
+            rollMode
+        );
+        if (!rollResult.HasDice)
+        {
+            return DicePoolRollResult.Empty;
+        }
+        GDictionary payload = new()
+        {
+            [$"{fieldPrefix}_count"] = rollResult.Count,
+            [$"{fieldPrefix}_sides"] = rollResult.Sides,
+            [$"{fieldPrefix}_rolls"] = rollResult.Rolls,
+            [$"{fieldPrefix}_total"] = rollResult.Total,
+            [$"{fieldPrefix}_bonus"] = rollResult.Bonus,
+            [$"{fieldPrefix}_max_total"] = rollResult.MaxTotal,
+            [$"{fieldPrefix}_is_max"] = rollResult.IsMax,
+        };
+        return rollResult with { Payload = payload };
+    }
+
+    private DicePoolRollResult RollDicePoolValues(
+        int diceCount,
+        int diceSides,
+        int diceBonus,
+        StringName rollMode = default
+    )
+    {
+        if (diceCount <= 0 || diceSides <= 0)
         {
             return DicePoolRollResult.Empty;
         }
@@ -2445,18 +2481,8 @@ public partial class BattleDamageResolver : RefCounted
             rolls = BuildPreviewDiceRolls(diceCount, diceSides, diceTotal);
         }
         int maxTotal = diceCount * diceSides;
-        GDictionary payload = new()
-        {
-            [$"{fieldPrefix}_count"] = diceCount,
-            [$"{fieldPrefix}_sides"] = diceSides,
-            [$"{fieldPrefix}_rolls"] = rolls,
-            [$"{fieldPrefix}_total"] = diceTotal,
-            [$"{fieldPrefix}_bonus"] = diceBonus,
-            [$"{fieldPrefix}_max_total"] = maxTotal,
-            [$"{fieldPrefix}_is_max"] = diceTotal == maxTotal,
-        };
         return new DicePoolRollResult(
-            payload,
+            new GDictionary(),
             diceCount,
             diceSides,
             rolls,
@@ -3209,12 +3235,9 @@ public partial class BattleDamageResolver : RefCounted
 
     private static bool EffectHasBypassTag(CombatEffectDef effectDef, StringName bypassTag)
     {
-        return effectDef?.@params != null
+        return effectDef != null
             && bypassTag != ""
-            && ProgressionDataUtils.to_string_name(
-                effectDef.@params.GetValueOrDefault("dr_bypass_tag", "")
-            )
-                == bypassTag;
+            && ProgressionDataUtils.to_string_name(effectDef.dr_bypass_tag) == bypassTag;
     }
 
     private bool HasBonusCondition(CombatEffectDef effectDef, BattleUnitState targetUnit)
@@ -3241,15 +3264,10 @@ public partial class BattleDamageResolver : RefCounted
         {
             maxHp = Math.Max(targetUnit.current_hp, 1);
         }
-        int thresholdPercent = 50;
-        if (effectDef?.@params != null && HasKey(effectDef.@params, "hp_ratio_threshold_percent"))
-        {
-            thresholdPercent = Math.Clamp(
-                DictInt(effectDef.@params, "hp_ratio_threshold_percent", thresholdPercent),
-                0,
-                100
-            );
-        }
+        int thresholdPercent =
+            effectDef != null && effectDef.hp_ratio_threshold_percent > 0
+                ? Math.Clamp(effectDef.hp_ratio_threshold_percent, 0, 100)
+                : 50;
         return targetUnit.current_hp * 100 <= maxHp * thresholdPercent;
     }
 
@@ -4180,29 +4198,11 @@ public partial class BattleDamageResolver : RefCounted
 
     private int ResolveHealAmount(BattleUnitState sourceUnit, CombatEffectDef effectDef)
     {
-        if (effectDef?.@params != null && HasKey(effectDef.@params, "base_sides"))
-        {
-            int conMod = GetUnitBaseAttributeModifier(
-                sourceUnit,
-                UnitBaseAttributes.CONSTITUTION()
-            );
-            int willMod = GetUnitBaseAttributeModifier(sourceUnit, UnitBaseAttributes.WILLPOWER());
-            int diceCount = Math.Max(effectDef.power, 1);
-            int baseSides = DictInt(effectDef.@params, "base_sides", 4);
-            int conModSides = DictInt(effectDef.@params, "con_mod_sides", 2);
-            int willModSides = DictInt(effectDef.@params, "will_mod_sides", 1);
-            // 用 long 累加再夹取，避免 con/will 修正堆叠到极端值时 int 溢出回绕成负数。
-            long diceSidesRaw =
-                (long)baseSides + (long)conMod * conModSides + (long)willMod * willModSides;
-            int diceSides = (int)Math.Clamp(diceSidesRaw, 4L, int.MaxValue);
-            DicePoolRollResult diceRoll = RollDicePool(diceCount, diceSides, 0, "heal");
-            return Math.Max(diceRoll.Total, 1);
-        }
         int healAmount = Math.Max(effectDef?.power ?? 0, 0);
-        DicePoolRollResult healDiceRoll = RollDamageDice(effectDef);
+        DicePoolRollResult healDiceRoll = RollEffectDice(sourceUnit, effectDef);
         if (healDiceRoll.HasDice)
         {
-            healAmount += healDiceRoll.Total;
+            healAmount += healDiceRoll.TotalWithBonus;
         }
         return Math.Max(healAmount, 1);
     }
@@ -4223,19 +4223,20 @@ public partial class BattleDamageResolver : RefCounted
         CombatEffectDef effectDef
     )
     {
-        if (targetUnit == null || effectDef?.@params == null)
+        if (targetUnit == null || effectDef == null)
         {
             return;
         }
-        int conMod = GetUnitBaseAttributeModifier(sourceUnit, UnitBaseAttributes.CONSTITUTION());
-        int willMod = GetUnitBaseAttributeModifier(sourceUnit, UnitBaseAttributes.WILLPOWER());
-        int diceCount = Math.Max(effectDef.power, 1);
-        int baseSides = DictInt(effectDef.@params, "base_sides", 4);
-        int conModSides = DictInt(effectDef.@params, "con_mod_sides", 2);
-        int willModSides = DictInt(effectDef.@params, "will_mod_sides", 1);
-        int diceSides = Math.Max(baseSides + conMod * conModSides + willMod * willModSides, 4);
-        DicePoolRollResult diceRoll = RollDicePool(diceCount, diceSides, 0, "stamina_restore");
-        int staminaAmount = Math.Max(diceRoll.Total, 1);
+        int staminaAmount = Math.Max(effectDef.power, 0);
+        DicePoolRollResult staminaDiceRoll = RollEffectDice(sourceUnit, effectDef);
+        if (staminaDiceRoll.HasDice)
+        {
+            staminaAmount += staminaDiceRoll.TotalWithBonus;
+        }
+        if (staminaAmount <= 0)
+        {
+            return;
+        }
         int maxStamina = Math.Max(
             GetAttributeValue(targetUnit, AttributeService.STAMINA_MAX_ID()),
             0
@@ -4244,6 +4245,49 @@ public partial class BattleDamageResolver : RefCounted
             targetUnit.current_stamina + staminaAmount,
             maxStamina
         );
+    }
+
+    private DicePoolRollResult RollEffectDice(
+        BattleUnitState sourceUnit,
+        CombatEffectDef effectDef
+    )
+    {
+        if (effectDef == null)
+        {
+            return DicePoolRollResult.Empty;
+        }
+        int diceCount = Math.Max(effectDef.dice_count, 0);
+        int diceSides = ResolveEffectDiceSides(sourceUnit, effectDef);
+        int diceBonus = effectDef.dice_bonus;
+        return RollDicePoolValues(diceCount, diceSides, diceBonus);
+    }
+
+    private int ResolveEffectDiceSides(BattleUnitState sourceUnit, CombatEffectDef effectDef)
+    {
+        if (effectDef == null)
+        {
+            return 0;
+        }
+        if (effectDef.dice_sides_base > 0)
+        {
+            return ResolveAttributeScaledDiceSides(sourceUnit, effectDef);
+        }
+        return Math.Max(effectDef.dice_sides, 0);
+    }
+
+    private int ResolveAttributeScaledDiceSides(
+        BattleUnitState sourceUnit,
+        CombatEffectDef effectDef
+    )
+    {
+        int conMod = GetUnitBaseAttributeModifier(sourceUnit, UnitBaseAttributes.CONSTITUTION());
+        int willMod = GetUnitBaseAttributeModifier(sourceUnit, UnitBaseAttributes.WILLPOWER());
+        int baseSides = Math.Max(effectDef.dice_sides_base, 0);
+        int conModSides = Math.Max(effectDef.dice_sides_per_constitution_mod, 0);
+        int willModSides = Math.Max(effectDef.dice_sides_per_willpower_mod, 0);
+        long diceSidesRaw =
+            (long)baseSides + (long)conMod * conModSides + (long)willMod * willModSides;
+        return (int)Math.Clamp(diceSidesRaw, 4L, int.MaxValue);
     }
 
     private int ResolveHealFatalAmount(BattleUnitState targetUnit, CombatEffectDef effectDef)

@@ -75,7 +75,7 @@ func _test_effect_filter_empty_inherits_skill_filter() -> void:
 
 func _test_madness_variant_only_relaxes_canonical_team_filters() -> void:
 	var source := _make_unit(&"source", &"player")
-	source.ai_blackboard["madness_target_any_team"] = true
+	source.ai_blackboard.set_bool("madness_target_any_team", true)
 	var ally := _make_unit(&"ally", &"player")
 	var enemy := _make_unit(&"enemy", &"hostile")
 

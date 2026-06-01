@@ -10,9 +10,9 @@ effect_type = &"heal"
 power = 2
 min_skill_level = 0
 max_skill_level = -1
+dice_count = 1
+dice_sides = 8
 params = {
-    "dice_count": 1,
-    "dice_sides": 8,
     "con_mod_heal": true
 }
 

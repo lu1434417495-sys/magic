@@ -1,5 +1,4 @@
 using Godot;
-using System.Collections.Generic;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
@@ -10,7 +9,6 @@ public partial class BattleAiScoreContextAdapter : RefCounted, IBattleAiScoreCon
     public BattleUnitState unit_state { get; set; }
     public BattleGridService grid_service { get; set; }
     public GDictionary skill_defs { get; set; } = new();
-    public Dictionary<string, object> score_projection_cache { get; set; } = new();
 
     private BattleAiScoreService _score_service;
 
@@ -19,8 +17,7 @@ public partial class BattleAiScoreContextAdapter : RefCounted, IBattleAiScoreCon
         BattleState battle_state,
         BattleUnitState actor_unit_state,
         BattleGridService battle_grid_service,
-        GDictionary raw_skill_defs,
-        Dictionary<string, object> shared_score_projection_cache
+        GDictionary raw_skill_defs
     )
     {
         _score_service = null;
@@ -28,7 +25,6 @@ public partial class BattleAiScoreContextAdapter : RefCounted, IBattleAiScoreCon
         unit_state = null;
         grid_service = null;
         skill_defs = new GDictionary();
-        score_projection_cache = new Dictionary<string, object>();
 
         if (score_service == null)
         {
@@ -65,40 +61,6 @@ public partial class BattleAiScoreContextAdapter : RefCounted, IBattleAiScoreCon
         unit_state = actor_unit_state;
         grid_service = battle_grid_service;
         skill_defs = raw_skill_defs ?? new GDictionary();
-        score_projection_cache = shared_score_projection_cache ?? new Dictionary<string, object>();
-    }
-
-    public void setup(
-        BattleAiScoreService score_service,
-        BattleState battle_state,
-        BattleUnitState actor_unit_state,
-        BattleGridService battle_grid_service,
-        GDictionary raw_skill_defs,
-        GDictionary shared_score_projection_cache
-    )
-    {
-        setup(
-            score_service,
-            battle_state,
-            actor_unit_state,
-            battle_grid_service,
-            raw_skill_defs,
-            DecodeScoreProjectionCache(shared_score_projection_cache)
-        );
-    }
-
-    private static Dictionary<string, object> DecodeScoreProjectionCache(GDictionary cache)
-    {
-        var result = new Dictionary<string, object>();
-        if (cache == null)
-        {
-            return result;
-        }
-        foreach (var keyValue in cache.Keys)
-        {
-            result[keyValue.ToString()] = cache[keyValue];
-        }
-        return result;
     }
 
     public BattleAiScoreInput build_action_score_input(
@@ -281,7 +243,7 @@ public partial class BattleAiScoreContextAdapter : RefCounted, IBattleAiScoreCon
         {
             return null;
         }
-        return skill_defs[normalizedSkillId].AsGodotObject() as SkillDef;
+        return skill_defs[normalizedSkillId].As<SkillDef>();
     }
 
     private static bool Fail(string message)

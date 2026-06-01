@@ -400,7 +400,6 @@ func _test_battle_unit_state_serialization_exposes_shield() -> void:
 	unit.shield_family = &"holy_barrier"
 	unit.shield_source_unit_id = &"priest_guardian"
 	unit.shield_source_skill_id = &"priest_guardian_barrier"
-	unit.shield_params = {"fx": "holy"}
 
 	var payload := unit.to_dict()
 	var restored = BATTLE_UNIT_STATE_SCRIPT.from_dict(payload) as BattleUnitState
@@ -2513,10 +2512,10 @@ func _build_test_dice_shield_skill(
 	var effect_def = COMBAT_EFFECT_DEF_SCRIPT.new()
 	effect_def.effect_type = &"shield"
 	effect_def.duration_tu = duration_tu
+	effect_def.dice_count = dice_count
+	effect_def.dice_sides = dice_sides
+	effect_def.dice_bonus = dice_bonus
 	effect_def.params = {
-		"dice_count": dice_count,
-		"dice_sides": dice_sides,
-		"dice_bonus": dice_bonus,
 		"shield_family": "holy_barrier",
 	}
 
@@ -2615,11 +2614,9 @@ func _build_test_ground_weapon_attack_effect() -> CombatEffectDef:
 	effect_def.effect_type = &"damage"
 	effect_def.power = 0
 	effect_def.effect_target_team_filter = &"enemy"
-	effect_def.params = {
-		"resolve_as_weapon_attack": true,
-		"add_weapon_dice": true,
-		"use_weapon_physical_damage_tag": true,
-	}
+	effect_def.resolve_as_weapon_attack = true
+	effect_def.add_weapon_dice = true
+	effect_def.use_weapon_physical_damage_tag = true
 	return effect_def
 
 
@@ -2627,10 +2624,8 @@ func _build_test_basic_attack_skill() -> SkillDef:
 	var effect_def = COMBAT_EFFECT_DEF_SCRIPT.new()
 	effect_def.effect_type = &"damage"
 	effect_def.power = 0
-	effect_def.params = {
-		"add_weapon_dice": true,
-		"use_weapon_physical_damage_tag": true,
-	}
+	effect_def.add_weapon_dice = true
+	effect_def.use_weapon_physical_damage_tag = true
 
 	var combat_profile = COMBAT_SKILL_DEF_SCRIPT.new()
 	combat_profile.skill_id = &"basic_attack"

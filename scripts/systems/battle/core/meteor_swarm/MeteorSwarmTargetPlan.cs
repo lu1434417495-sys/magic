@@ -28,26 +28,21 @@ public partial class MeteorSwarmTargetPlan : RefCounted
     {
         if (!unit_distance_by_id.ContainsKey(unit_id))
             return 999999;
-        var value = unit_distance_by_id[unit_id];
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : 999999;
+        return unit_distance_by_id[unit_id].AsInt32();
     }
 
     public Vector2I get_primary_coord_for_unit(StringName unit_id)
     {
         if (!unit_primary_coord_by_id.ContainsKey(unit_id))
             return new Vector2I(-1, -1);
-        var value = unit_primary_coord_by_id[unit_id];
-        return value.VariantType == Variant.Type.Vector2I
-            ? value.AsVector2I()
-            : new Vector2I(-1, -1);
+        return unit_primary_coord_by_id[unit_id].AsVector2I();
     }
 
     public int get_ring_for_coord(Vector2I coord)
     {
         if (!ring_by_coord.ContainsKey(coord))
             return 999999;
-        var value = ring_by_coord[coord];
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : 999999;
+        return ring_by_coord[coord].AsInt32();
     }
 
     public GDictionary to_dict()

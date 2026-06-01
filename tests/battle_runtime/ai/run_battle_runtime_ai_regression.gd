@@ -3024,7 +3024,9 @@ func _test_ai_score_low_hp_threshold_uses_formal_param_only() -> void:
 	var formal_effect = COMBAT_EFFECT_DEF_SCRIPT.new()
 	formal_effect.effect_type = &"damage"
 	formal_effect.bonus_condition = &"target_low_hp"
-	formal_effect.params = {"hp_ratio_threshold_percent": 70, "bonus_damage_dice_count": 2, "bonus_damage_dice_sides": 1}
+	formal_effect.hp_ratio_threshold_percent = 70
+	formal_effect.bonus_damage_dice_count = 2
+	formal_effect.bonus_damage_dice_sides = 1
 	_assert_true(
 		score_service._has_bonus_condition(formal_effect, target),
 		"AI 评分应读取正式 hp_ratio_threshold_percent 判定低血追加骰。"

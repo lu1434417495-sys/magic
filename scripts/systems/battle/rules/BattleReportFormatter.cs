@@ -106,7 +106,7 @@ public partial class BattleReportFormatter : RefCounted
             var result = new Godot.Collections.Array<string>();
             if (source == null || !source.ContainsKey(key))
                 return result;
-            foreach (Variant value in source[key].AsGodotArray())
+            foreach (var value in source[key].AsGodotArray())
             {
                 string normalized = value.AsString();
                 if (!string.IsNullOrEmpty(normalized))
@@ -128,7 +128,9 @@ public partial class BattleReportFormatter : RefCounted
         if (reasonId == "")
             return new Dictionary();
         var eventTags = _NormalizeStringNameArray(
-            attackResult.GetValueOrDefault("fate_event_tags", new Godot.Collections.Array())
+            attackResult
+                .GetValueOrDefault("fate_event_tags", new Godot.Collections.Array())
+                .AsGodotArray()
         );
         var entry = new Dictionary
         {
@@ -313,8 +315,6 @@ public partial class BattleReportFormatter : RefCounted
             .AsGodotArray();
         foreach (var eventValue in damageEvents)
         {
-            if (eventValue.VariantType != Variant.Type.Dictionary)
-                continue;
             var evt = eventValue.AsGodotDictionary();
             summary.HasDamageEvent = true;
             summary.FixedMitigationTotal += (int)evt.GetValueOrDefault(
@@ -607,8 +607,6 @@ public partial class BattleReportFormatter : RefCounted
             .AsGodotArray();
         foreach (var eventValue in damageEvents)
         {
-            if (eventValue.VariantType != Variant.Type.Dictionary)
-                continue;
             var evt = eventValue.AsGodotDictionary();
             if (DictBool(evt, "bypass_shield", false))
                 return true;
@@ -685,11 +683,8 @@ public partial class BattleReportFormatter : RefCounted
         var critGateDie = (int)entry.GetValueOrDefault("crit_gate_die", 0);
         var critGateRoll = (int)entry.GetValueOrDefault("crit_gate_roll", 0);
         var hitRoll = (int)entry.GetValueOrDefault("hit_roll", 0);
-        var luckSnapshotValue = entry.GetValueOrDefault("luck_snapshot", new Dictionary());
-        var luckSnapshot =
-            luckSnapshotValue.VariantType == Variant.Type.Dictionary
-                ? luckSnapshotValue.AsGodotDictionary()
-                : new Dictionary();
+        var luckSnapshot = entry.GetValueOrDefault("luck_snapshot", new Dictionary())
+            .AsGodotDictionary();
         var fumbleLowEnd = (int)luckSnapshot.GetValueOrDefault("fumble_low_end", 0);
         var critThreshold = (int)luckSnapshot.GetValueOrDefault("crit_threshold", 0);
         var text = "";
@@ -767,8 +762,6 @@ public partial class BattleReportFormatter : RefCounted
     {
         foreach (var sourceValue in sources)
         {
-            if (sourceValue.VariantType != Variant.Type.Dictionary)
-                continue;
             var source = sourceValue.AsGodotDictionary();
             var sourceLabel = _FormatDamageSourceLabel(source);
             if (string.IsNullOrEmpty(sourceLabel))
@@ -796,8 +789,6 @@ public partial class BattleReportFormatter : RefCounted
     {
         foreach (var sourceValue in sources)
         {
-            if (sourceValue.VariantType != Variant.Type.Dictionary)
-                continue;
             var sourceLabel = _FormatDamageSourceLabel(sourceValue.AsGodotDictionary());
             if (string.IsNullOrEmpty(sourceLabel))
                 continue;
@@ -881,18 +872,31 @@ public partial class BattleReportFormatter : RefCounted
         absorbLabels.Add(label);
     }
 
-    private Godot.Collections.Array<StringName> _NormalizeStringNameArray(object rawValues)
+    private Godot.Collections.Array<StringName> _NormalizeStringNameArray(
+        Godot.Collections.Array<StringName> rawValues
+    )
     {
         var result = new Godot.Collections.Array<StringName>();
-        Godot.Collections.Array values = rawValues switch
-        {
-            Variant value when value.VariantType == Variant.Type.Array => value.AsGodotArray(),
-            Godot.Collections.Array array => array,
-            _ => null,
-        };
-        if (values == null)
+        if (rawValues == null)
             return result;
-        foreach (var value in values)
+        foreach (StringName value in rawValues)
+        {
+            var normalized = ProgressionDataUtils.to_string_name(value);
+            if (normalized == "" || result.Contains(normalized))
+                continue;
+            result.Add(normalized);
+        }
+        return result;
+    }
+
+    private Godot.Collections.Array<StringName> _NormalizeStringNameArray(
+        Godot.Collections.Array rawValues
+    )
+    {
+        var result = new Godot.Collections.Array<StringName>();
+        if (rawValues == null)
+            return result;
+        foreach (var value in rawValues)
         {
             var normalized = ProgressionDataUtils.to_string_name(value);
             if (normalized == "" || result.Contains(normalized))
@@ -911,7 +915,6 @@ public partial class BattleReportFormatter : RefCounted
     {
         if (dictionary == null || !dictionary.ContainsKey(key))
             return fallback;
-        Variant value = dictionary[key];
-        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
+        return dictionary[key].AsBool();
     }
 }

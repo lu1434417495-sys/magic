@@ -42,15 +42,11 @@ public readonly record struct BattleSpecialSkillResult(
 [GlobalClass]
 public partial class BattleSpecialSkillResolver : RefCounted
 {
-    private static readonly StringName PARAM_FORCED_MOVE_IMMUNE = "forced_move_immune";
-
     private readonly record struct ForcedMoveStatusParameters(bool ForcedMoveImmune)
     {
         public static ForcedMoveStatusParameters FromStatus(BattleStatusEffectState statusEntry)
         {
-            return new ForcedMoveStatusParameters(
-                ReadBool(statusEntry?.@params, PARAM_FORCED_MOVE_IMMUNE)
-            );
+            return new ForcedMoveStatusParameters(statusEntry?.forced_move_immune == true);
         }
     }
 
@@ -116,17 +112,17 @@ public partial class BattleSpecialSkillResolver : RefCounted
 
     private const int FORCED_MOVE_INVALID_SCORE = -999999;
 
-    private WeakReference<GodotObject> _runtimeRef;
+    private WeakReference<BattleRuntimeModule> _runtimeRef;
 
     private BattleRuntimeModule _runtime
     {
-        get => ResolveWeakRef(_runtimeRef) as BattleRuntimeModule;
-        set => _runtimeRef = value != null ? new WeakReference<GodotObject>(value) : null;
+        get => ResolveWeakRef(_runtimeRef);
+        set => _runtimeRef = value != null ? new WeakReference<BattleRuntimeModule>(value) : null;
     }
 
-    public void setup(GodotObject runtime)
+    public void setup(BattleRuntimeModule runtime)
     {
-        _runtime = runtime as BattleRuntimeModule;
+        _runtime = runtime;
     }
 
     public void dispose()
@@ -135,8 +131,8 @@ public partial class BattleSpecialSkillResolver : RefCounted
     }
 
     public bool _is_unit_valid_for_effect(
-        GodotObject source_unit,
-        GodotObject target_unit,
+        BattleUnitState source_unit,
+        BattleUnitState target_unit,
         StringName target_team_filter
     )
     {
@@ -145,23 +141,23 @@ public partial class BattleSpecialSkillResolver : RefCounted
             return false;
         }
         return _runtime._is_unit_valid_for_effect(
-            source_unit as BattleUnitState,
-            target_unit as BattleUnitState,
+            source_unit,
+            target_unit,
             target_team_filter
         );
     }
 
     public void _apply_skill_mastery_grant(
-        GodotObject unit_state,
+        BattleUnitState unit_state,
         GDictionary grant,
-        GodotObject batch
+        BattleEventBatch batch
     )
     {
         if (_runtime == null)
         {
             return;
         }
-        _runtime._apply_skill_mastery_grant(unit_state as BattleUnitState, grant, batch as BattleEventBatch);
+        _runtime._apply_skill_mastery_grant(unit_state, grant, batch);
     }
 
     internal void ApplySkillMasteryGrantTyped(
@@ -177,31 +173,31 @@ public partial class BattleSpecialSkillResolver : RefCounted
         _runtime.ApplySkillMasteryGrantTyped(unitState, grant, batch);
     }
 
-    public void _append_changed_coords(GodotObject batch, GArray coords)
+    public void _append_changed_coords(BattleEventBatch batch, GArray coords)
     {
         if (_runtime == null)
         {
             return;
         }
-        _runtime._append_changed_coords(batch as BattleEventBatch, coords);
+        _runtime._append_changed_coords(batch, coords);
     }
 
-    public void _append_changed_unit_id(GodotObject batch, StringName unit_id)
+    public void _append_changed_unit_id(BattleEventBatch batch, StringName unit_id)
     {
         if (_runtime == null)
         {
             return;
         }
-        _runtime._append_changed_unit_id(batch as BattleEventBatch, unit_id);
+        _runtime._append_changed_unit_id(batch, unit_id);
     }
 
-    public void _append_changed_unit_coords(GodotObject batch, GodotObject unit_state)
+    public void _append_changed_unit_coords(BattleEventBatch batch, BattleUnitState unit_state)
     {
         if (_runtime == null)
         {
             return;
         }
-        _runtime._append_changed_unit_coords(batch as BattleEventBatch, unit_state as BattleUnitState);
+        _runtime._append_changed_unit_coords(batch, unit_state);
     }
 
     public void _apply_on_kill_gain_resources_effects(
@@ -229,12 +225,8 @@ public partial class BattleSpecialSkillResolver : RefCounted
             {
                 continue;
             }
-            GDictionary parameters = effectDef.@params ?? new GDictionary();
-            int apGain = Math.Max(ReadInt(parameters, "ap_gain", 0), 0);
-            int freeMovePointsGain = Math.Max(
-                ReadInt(parameters, "free_move_points_gain", 0),
-                0
-            );
+            int apGain = Math.Max(effectDef.ap_gain, 0);
+            int freeMovePointsGain = Math.Max(effectDef.free_move_points_gain, 0);
             if (apGain <= 0 && freeMovePointsGain <= 0)
             {
                 continue;
@@ -268,23 +260,22 @@ public partial class BattleSpecialSkillResolver : RefCounted
     }
 
     public GDictionary _apply_unit_skill_special_effects(
-        GodotObject active_unit,
-        GodotObject target_unit,
-        GodotObject skill_def,
-        GodotObject cast_variant,
-        GArray effect_defs,
-        GodotObject batch,
-        GDictionary forced_move_context = null
+        BattleUnitState active_unit,
+        BattleUnitState target_unit,
+        SkillDef skill_def,
+        CombatCastVariantDef cast_variant,
+        GCombatEffectArray effect_defs,
+        BattleEventBatch batch,
+        BattleForcedMoveContext forced_move_context = default
     )
     {
-        forced_move_context ??= new GDictionary();
         return ApplyUnitSkillSpecialEffectsResult(
-                active_unit as BattleUnitState,
-                target_unit as BattleUnitState,
-                skill_def as SkillDef,
-                cast_variant as CombatCastVariantDef,
-                ToCombatEffectDefArray(effect_defs),
-                batch as BattleEventBatch,
+                active_unit,
+                target_unit,
+                skill_def,
+                cast_variant,
+                effect_defs,
+                batch,
                 forced_move_context
             )
             .ToDictionary();
@@ -297,10 +288,9 @@ public partial class BattleSpecialSkillResolver : RefCounted
         CombatCastVariantDef cast_variant,
         GCombatEffectArray effect_defs,
         BattleEventBatch batch,
-        GDictionary forced_move_context = null
+        BattleForcedMoveContext forced_move_context
     )
     {
-        forced_move_context ??= new GDictionary();
         if (active_unit == null || skill_def == null)
         {
             return BattleSpecialSkillResult.Empty();
@@ -319,7 +309,7 @@ public partial class BattleSpecialSkillResolver : RefCounted
         }
 
         BattleLayeredBarrierService layeredBarrierService = _runtime._layered_barrier_service;
-        var seenForcedMoveEffects = new GDictionary();
+        var seenForcedMoveEffects = new HashSet<ulong>();
         bool applied = false;
         int maxMovedSteps = 0;
         var statusEffectIds = new List<StringName>();
@@ -379,12 +369,11 @@ public partial class BattleSpecialSkillResolver : RefCounted
                 continue;
             }
             ulong forcedMoveInstanceId = effectDef.GetInstanceId();
-            if (seenForcedMoveEffects.ContainsKey(forcedMoveInstanceId))
+            if (!seenForcedMoveEffects.Add(forcedMoveInstanceId))
             {
                 continue;
             }
-            seenForcedMoveEffects[forcedMoveInstanceId] = true;
-            int movedSteps = _apply_forced_move_effect(
+            int movedSteps = ApplyForcedMoveEffect(
                 active_unit,
                 target_unit ?? active_unit,
                 effectDef,
@@ -433,7 +422,8 @@ public partial class BattleSpecialSkillResolver : RefCounted
             DOOM_SHIFT_SELF_DEBUFF_DURATION_TU,
             active_unit.unit_id,
             1,
-            new GDictionary { ["counts_as_debuff"] = true }
+            counts_as_debuff_override: true,
+            counts_as_debuff: true
         );
         _append_changed_unit_id(batch, active_unit.unit_id);
         return new BattleSpecialSkillResult(
@@ -582,12 +572,16 @@ public partial class BattleSpecialSkillResolver : RefCounted
     }
 
     public void _set_runtime_status_effect(
-        GodotObject unit_state,
+        BattleUnitState unit_state,
         StringName status_id,
         int duration_tu,
         StringName source_unit_id = null,
         int power = 1,
-        GDictionary status_params = null
+        GDictionary status_params = null,
+        bool counts_as_debuff_override = false,
+        bool counts_as_debuff = false,
+        bool lock_counterattack = false,
+        int main_skill_lock_other_debuff_count = 0
     )
     {
         source_unit_id ??= new StringName("");
@@ -604,8 +598,12 @@ public partial class BattleSpecialSkillResolver : RefCounted
             stacks = 1,
             duration = Math.Max(duration_tu, -1),
             @params = (GDictionary)status_params.Duplicate(true),
+            counts_as_debuff_override = counts_as_debuff_override,
+            counts_as_debuff = counts_as_debuff,
+            lock_counterattack = lock_counterattack,
+            main_skill_lock_other_debuff_count = Math.Max(main_skill_lock_other_debuff_count, 0),
         };
-        (unit_state as BattleUnitState)?.set_status_effect(statusEntry);
+        unit_state.set_status_effect(statusEntry);
     }
 
     public void _clear_black_star_brand_statuses(BattleUnitState unit_state)
@@ -624,12 +622,12 @@ public partial class BattleSpecialSkillResolver : RefCounted
         return _is_elite_or_boss_target(unit_state);
     }
 
-    public bool _is_elite_or_boss_target(GodotObject unit_state)
+    public bool _is_elite_or_boss_target(BattleUnitState unit_state)
     {
         return BattleExecutionRules.is_elite_or_boss_target(unit_state);
     }
 
-    public bool _is_boss_target(GodotObject unit_state)
+    public bool _is_boss_target(BattleUnitState unit_state)
     {
         return BattleExecutionRules.is_boss_target(unit_state);
     }
@@ -654,22 +652,25 @@ public partial class BattleSpecialSkillResolver : RefCounted
         return ProgressionDataUtils.to_string_name(skill_id) == BLACK_CROWN_SEAL_SKILL_ID;
     }
 
-    public void _clear_crown_break_seal_statuses(GodotObject unit_state)
+    public void _clear_crown_break_seal_statuses(BattleUnitState unit_state)
     {
         if (unit_state == null)
         {
             return;
         }
-        (unit_state as BattleUnitState)?.erase_status_effect(STATUS_CROWN_BREAK_BROKEN_FANG);
-        (unit_state as BattleUnitState)?.erase_status_effect(STATUS_CROWN_BREAK_BROKEN_HAND);
-        (unit_state as BattleUnitState)?.erase_status_effect(STATUS_CROWN_BREAK_BLINDED_EYE);
+        unit_state.erase_status_effect(STATUS_CROWN_BREAK_BROKEN_FANG);
+        unit_state.erase_status_effect(STATUS_CROWN_BREAK_BROKEN_HAND);
+        unit_state.erase_status_effect(STATUS_CROWN_BREAK_BLINDED_EYE);
     }
 
-    public bool _is_crown_break_target_eligible(GodotObject active_unit, GodotObject target_unit)
+    public bool _is_crown_break_target_eligible(
+        BattleUnitState active_unit,
+        BattleUnitState target_unit
+    )
     {
         return target_unit != null
             && _is_unit_valid_for_effect(active_unit, target_unit, "enemy")
-            && (target_unit as BattleUnitState)?.has_status_effect(STATUS_BLACK_STAR_BRAND_ELITE) == true;
+            && target_unit.has_status_effect(STATUS_BLACK_STAR_BRAND_ELITE);
     }
 
     public bool _is_crown_break_skill(StringName skill_id)
@@ -677,7 +678,10 @@ public partial class BattleSpecialSkillResolver : RefCounted
         return ProgressionDataUtils.to_string_name(skill_id) == CROWN_BREAK_SKILL_ID;
     }
 
-    public bool _is_doom_sentence_target_eligible(GodotObject active_unit, GodotObject target_unit)
+    public bool _is_doom_sentence_target_eligible(
+        BattleUnitState active_unit,
+        BattleUnitState target_unit
+    )
     {
         return target_unit != null
             && _is_unit_valid_for_effect(active_unit, target_unit, "enemy")
@@ -685,8 +689,8 @@ public partial class BattleSpecialSkillResolver : RefCounted
     }
 
     public bool _is_black_crown_seal_target_eligible(
-        GodotObject active_unit,
-        GodotObject target_unit
+        BattleUnitState active_unit,
+        BattleUnitState target_unit
     )
     {
         return target_unit != null
@@ -700,18 +704,30 @@ public partial class BattleSpecialSkillResolver : RefCounted
     }
 
     public int _apply_forced_move_effect(
-        GodotObject source_unit,
-        GodotObject unit_state,
-        GodotObject effect_def,
-        GodotObject batch,
-        GDictionary forced_move_context = null
+        BattleUnitState source_unit,
+        BattleUnitState unit_state,
+        CombatEffectDef effect_def,
+        BattleEventBatch batch,
+        BattleForcedMoveContext forced_move_context = default
     )
     {
-        forced_move_context ??= new GDictionary();
-        BattleUnitState sourceUnit = source_unit as BattleUnitState;
-        BattleUnitState unitState = unit_state as BattleUnitState;
-        CombatEffectDef effectDef = effect_def as CombatEffectDef;
-        BattleEventBatch eventBatch = batch as BattleEventBatch;
+        return ApplyForcedMoveEffect(
+            source_unit,
+            unit_state,
+            effect_def,
+            batch,
+            forced_move_context
+        );
+    }
+
+    public int ApplyForcedMoveEffect(
+        BattleUnitState sourceUnit,
+        BattleUnitState unitState,
+        CombatEffectDef effectDef,
+        BattleEventBatch eventBatch,
+        BattleForcedMoveContext forcedMoveContext
+    )
+    {
         BattleState state = RtState();
         BattleGridService gridService = _runtime.get_grid_service();
         if (state == null || unitState == null || effectDef == null)
@@ -746,11 +762,11 @@ public partial class BattleSpecialSkillResolver : RefCounted
         int movedSteps = 0;
         for (int step = 0; step < moveDistance; step++)
         {
-            Vector2I nextCoord = _pick_forced_move_coord(
+            Vector2I nextCoord = PickForcedMoveCoord(
                 unitState,
                 mode,
                 sourceUnit,
-                forced_move_context
+                forcedMoveContext
             );
             if (
                 nextCoord == new Vector2I(-1, -1)
@@ -868,6 +884,9 @@ public partial class BattleSpecialSkillResolver : RefCounted
         StringName previousCategory = target_unit.body_size_category;
         int previousBodySize = target_unit.body_size;
         Vector2I previousFootprint = target_unit.footprint_size;
+        Godot.Collections.Array<Vector2I> previousOccupiedCoords = DuplicateVector2IArray(
+            target_unit.occupied_coords
+        );
         GArray previousCoords = ToUntypedVector2IArray(target_unit.occupied_coords);
         gridService.clear_unit_occupancy(state, target_unit);
         target_unit.set_body_size_category(targetCategory);
@@ -884,7 +903,7 @@ public partial class BattleSpecialSkillResolver : RefCounted
             target_unit.body_size_category = previousCategory;
             target_unit.body_size = previousBodySize;
             target_unit.footprint_size = previousFootprint;
-            target_unit.occupied_coords = ToVector2IArray(previousCoords);
+            target_unit.occupied_coords = previousOccupiedCoords;
             gridService.set_occupants(
                 state,
                 previousCoords,
@@ -949,18 +968,18 @@ public partial class BattleSpecialSkillResolver : RefCounted
     }
 
     public void _record_vajra_body_mastery_from_incoming_damage(
-        GodotObject source_unit,
-        GodotObject target_unit,
-        GodotObject skill_def,
+        BattleUnitState source_unit,
+        BattleUnitState target_unit,
+        SkillDef skill_def,
         GDictionary result,
-        GodotObject batch = null
+        BattleEventBatch batch = null
     )
     {
         BattleSkillMasteryService skillMasteryService = _runtime._skill_mastery_service;
         var grant = skillMasteryService.build_vajra_body_mastery_grant(
-            source_unit as BattleUnitState,
-            target_unit as BattleUnitState,
-            skill_def as SkillDef,
+            source_unit,
+            target_unit,
+            skill_def,
             result,
             _runtime.get_skill_defs()
         );
@@ -992,10 +1011,24 @@ public partial class BattleSpecialSkillResolver : RefCounted
         BattleUnitState unit_state,
         StringName mode,
         BattleUnitState source_unit = null,
-        GDictionary forced_move_context = null
+        BattleForcedMoveContext forced_move_context = default
     )
     {
-        forced_move_context ??= new GDictionary();
+        return PickForcedMoveCoord(
+            unit_state,
+            mode,
+            source_unit,
+            forced_move_context
+        );
+    }
+
+    public Vector2I PickForcedMoveCoord(
+        BattleUnitState unit_state,
+        StringName mode,
+        BattleUnitState source_unit,
+        BattleForcedMoveContext forced_move_context
+    )
+    {
         BattleState state = RtState();
         BattleGridService gridService = _runtime.get_grid_service();
         if (state == null || unit_state == null)
@@ -1027,7 +1060,7 @@ public partial class BattleSpecialSkillResolver : RefCounted
             {
                 continue;
             }
-            int candidateScore = _score_forced_move_coord(
+            int candidateScore = ScoreForcedMoveCoord(
                 unit_state,
                 candidateCoord,
                 mode,
@@ -1062,10 +1095,26 @@ public partial class BattleSpecialSkillResolver : RefCounted
         Vector2I candidate_coord,
         StringName mode,
         BattleUnitState source_unit = null,
-        GDictionary forced_move_context = null
+        BattleForcedMoveContext forced_move_context = default
     )
     {
-        forced_move_context ??= new GDictionary();
+        return ScoreForcedMoveCoord(
+            unit_state,
+            candidate_coord,
+            mode,
+            source_unit,
+            forced_move_context
+        );
+    }
+
+    public int ScoreForcedMoveCoord(
+        BattleUnitState unit_state,
+        Vector2I candidate_coord,
+        StringName mode,
+        BattleUnitState source_unit,
+        BattleForcedMoveContext forced_move_context
+    )
+    {
         BattleState state = RtState();
         BattleGridService gridService = _runtime.get_grid_service();
         if (state == null || unit_state == null)
@@ -1074,25 +1123,20 @@ public partial class BattleSpecialSkillResolver : RefCounted
         }
         if (mode == "wind_push")
         {
-            return _score_wind_push_coord(
+            return ScoreWindPushCoord(
                 unit_state,
                 candidate_coord,
                 source_unit,
                 forced_move_context
             );
         }
-        GArray hostileUnits = _collect_hostile_units_for(unit_state);
+        List<BattleUnitState> hostileUnits = CollectHostileUnitsFor(unit_state);
         int closestHostileDistance = 0;
         if (hostileUnits.Count != 0)
         {
             closestHostileDistance = 999999;
-            foreach (var hostileUnitValue in hostileUnits)
+            foreach (BattleUnitState hostileUnit in hostileUnits)
             {
-                var hostileUnit = hostileUnitValue.AsGodotObject() as BattleUnitState;
-                if (hostileUnit == null)
-                {
-                    continue;
-                }
                 closestHostileDistance = Math.Min(
                     closestHostileDistance,
                     gridService.get_distance(candidate_coord, hostileUnit.coord)
@@ -1113,11 +1157,25 @@ public partial class BattleSpecialSkillResolver : RefCounted
         BattleUnitState unit_state,
         Vector2I candidate_coord,
         BattleUnitState source_unit,
-        GDictionary forced_move_context = null
+        BattleForcedMoveContext forced_move_context = default
     )
     {
-        forced_move_context ??= new GDictionary();
-        Vector2I pushDirection = _resolve_forced_move_direction(
+        return ScoreWindPushCoord(
+            unit_state,
+            candidate_coord,
+            source_unit,
+            forced_move_context
+        );
+    }
+
+    public int ScoreWindPushCoord(
+        BattleUnitState unit_state,
+        Vector2I candidate_coord,
+        BattleUnitState source_unit,
+        BattleForcedMoveContext forced_move_context
+    )
+    {
+        Vector2I pushDirection = ResolveForcedMoveDirection(
             unit_state,
             source_unit,
             forced_move_context
@@ -1146,15 +1204,23 @@ public partial class BattleSpecialSkillResolver : RefCounted
     public Vector2I _resolve_forced_move_direction(
         BattleUnitState unit_state,
         BattleUnitState source_unit,
-        GDictionary forced_move_context = null
+        BattleForcedMoveContext forced_move_context = default
     )
     {
-        forced_move_context ??= new GDictionary();
-        Vector2I contextDirection = ReadVector2I(
-            forced_move_context,
-            "direction",
-            Vector2I.Zero
+        return ResolveForcedMoveDirection(
+            unit_state,
+            source_unit,
+            forced_move_context
         );
+    }
+
+    public Vector2I ResolveForcedMoveDirection(
+        BattleUnitState unit_state,
+        BattleUnitState source_unit,
+        BattleForcedMoveContext forced_move_context
+    )
+    {
+        Vector2I contextDirection = forced_move_context.Direction;
         if (contextDirection != Vector2I.Zero)
         {
             contextDirection = _normalize_axis_direction(contextDirection);
@@ -1194,14 +1260,23 @@ public partial class BattleSpecialSkillResolver : RefCounted
     public GArray _collect_hostile_units_for(BattleUnitState unit_state)
     {
         var hostileUnits = new GArray();
+        foreach (BattleUnitState unitState in CollectHostileUnitsFor(unit_state))
+        {
+            hostileUnits.Add(unitState);
+        }
+        return hostileUnits;
+    }
+
+    internal List<BattleUnitState> CollectHostileUnitsFor(BattleUnitState unit_state)
+    {
+        var hostileUnits = new List<BattleUnitState>();
         BattleState state = RtState();
         if (state == null || unit_state == null)
         {
             return hostileUnits;
         }
-        foreach (var otherUnitValue in state.units.Values)
+        foreach (BattleUnitState otherUnit in state.GetUnitsTyped())
         {
-            var otherUnit = otherUnitValue.AsGodotObject() as BattleUnitState;
             if (
                 otherUnit == null
                 || otherUnit.unit_id == unit_state.unit_id
@@ -1236,7 +1311,7 @@ public partial class BattleSpecialSkillResolver : RefCounted
         {
             return;
         }
-        GArray adjacentAllies = _collect_adjacent_living_allies(defeated_unit);
+        List<BattleUnitState> adjacentAllies = CollectAdjacentLivingAllies(defeated_unit);
         if (adjacentAllies.Count == 0)
         {
             return;
@@ -1246,7 +1321,7 @@ public partial class BattleSpecialSkillResolver : RefCounted
             new GDictionary
             {
                 ["defeated_unit"] = defeated_unit,
-                ["adjacent_units"] = adjacentAllies,
+                ["adjacent_units"] = ToUntypedUnitArray(adjacentAllies),
             }
         );
     }
@@ -1261,9 +1336,8 @@ public partial class BattleSpecialSkillResolver : RefCounted
         {
             return;
         }
-        foreach (var unitValue in state.units.Values)
+        foreach (BattleUnitState candidate in state.GetUnitsTyped())
         {
-            var candidate = unitValue.AsGodotObject() as BattleUnitState;
             if (candidate == null || !candidate.is_alive)
             {
                 continue;
@@ -1299,6 +1373,16 @@ public partial class BattleSpecialSkillResolver : RefCounted
     public GArray _collect_adjacent_living_allies(BattleUnitState defeated_unit)
     {
         var adjacentAllies = new GArray();
+        foreach (BattleUnitState unitState in CollectAdjacentLivingAllies(defeated_unit))
+        {
+            adjacentAllies.Add(unitState);
+        }
+        return adjacentAllies;
+    }
+
+    internal List<BattleUnitState> CollectAdjacentLivingAllies(BattleUnitState defeated_unit)
+    {
+        var adjacentAllies = new List<BattleUnitState>();
         if (defeated_unit == null)
         {
             return adjacentAllies;
@@ -1309,9 +1393,8 @@ public partial class BattleSpecialSkillResolver : RefCounted
             return adjacentAllies;
         }
         defeated_unit.refresh_footprint();
-        foreach (var unitValue in state.units.Values)
+        foreach (BattleUnitState candidate in state.GetUnitsTyped())
         {
-            var candidate = unitValue.AsGodotObject() as BattleUnitState;
             if (candidate == null || !candidate.is_alive)
             {
                 continue;
@@ -1372,32 +1455,26 @@ public partial class BattleSpecialSkillResolver : RefCounted
         return result;
     }
 
-    private static GCombatEffectArray ToCombatEffectDefArray(GArray values)
+    private static Godot.Collections.Array<Vector2I> DuplicateVector2IArray(
+        Godot.Collections.Array<Vector2I> coords
+    )
     {
-        var result = new GCombatEffectArray();
-        foreach (var rawValue in values ?? new GArray())
+        var result = new Godot.Collections.Array<Vector2I>();
+        foreach (Vector2I coord in coords ?? new Godot.Collections.Array<Vector2I>())
         {
-            CombatEffectDef effectDef = rawValue.AsGodotObject() as CombatEffectDef;
-            if (effectDef != null)
-            {
-                result.Add(effectDef);
-            }
+            result.Add(coord);
         }
         return result;
     }
 
-    private static Godot.Collections.Array<Vector2I> ToVector2IArray(GArray coords)
+    private static GArray ToUntypedUnitArray(IEnumerable<BattleUnitState> units)
     {
-        var result = new Godot.Collections.Array<Vector2I>();
-        if (coords == null)
+        var result = new GArray();
+        foreach (BattleUnitState unit in units ?? Array.Empty<BattleUnitState>())
         {
-            return result;
-        }
-        foreach (var coordValue in coords)
-        {
-            if (coordValue.VariantType == Variant.Type.Vector2I)
+            if (unit != null)
             {
-                result.Add(coordValue.AsVector2I());
+                result.Add(unit);
             }
         }
         return result;
@@ -1405,54 +1482,14 @@ public partial class BattleSpecialSkillResolver : RefCounted
 
     private static bool IsEmpty(StringName value) => value == null || value == "";
 
-    private static int ReadInt(GDictionary source, string key, int fallback = 0)
-    {
-        if (source == null || key == null || !source.ContainsKey(key))
-            return fallback;
-        Variant value = source[key];
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
-    }
-
-    private static bool ReadBool(GDictionary source, StringName key, bool fallback = false)
-    {
-        if (source == null || IsEmpty(key))
-        {
-            return fallback;
-        }
-        if (source.ContainsKey(key))
-        {
-            Variant value = source[key];
-            return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
-        }
-        string stringKey = key.ToString();
-        if (source.ContainsKey(stringKey))
-        {
-            Variant value = source[stringKey];
-            return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
-        }
-        return fallback;
-    }
-
-    private static Vector2I ReadVector2I(GDictionary source, string key, Vector2I fallback = default)
-    {
-        if (source == null || key == null || !source.ContainsKey(key))
-            return fallback;
-        Variant value = source[key];
-        return value.VariantType == Variant.Type.Vector2I ? value.AsVector2I() : fallback;
-    }
-
     private BattleState RtState()
     {
         return _runtime?._state;
     }
 
-    private static GodotObject ResolveWeakRef(WeakReference<GodotObject> weakRef)
+    private static BattleRuntimeModule ResolveWeakRef(WeakReference<BattleRuntimeModule> weakRef)
     {
-        if (
-            weakRef == null
-            || !weakRef.TryGetTarget(out GodotObject target)
-            || !GodotObject.IsInstanceValid(target)
-        )
+        if (weakRef == null || !weakRef.TryGetTarget(out BattleRuntimeModule target))
         {
             return null;
         }

@@ -112,109 +112,68 @@ public readonly record struct BattleGroundSkillValidationResult(
 
     private static bool ReadAllowedFlag(GDictionary source)
     {
-        return TryReadVariant(source, "allowed", out Variant value)
-            && value.VariantType == Variant.Type.Bool
-            && value.AsBool();
+        if (!HasKey(source, "allowed"))
+            return false;
+        return source.ContainsKey("allowed")
+            ? source["allowed"].AsBool()
+            : source[new StringName("allowed")].AsBool();
     }
 
-    private static string ReadString(GDictionary source, object key, string fallback)
+    private static string ReadString(GDictionary source, string key, string fallback)
     {
-        if (!TryReadVariant(source, key, out Variant value))
+        if (!HasKey(source, key))
         {
             return fallback;
         }
-        string result = value.AsString();
+        string result = source.ContainsKey(key)
+            ? source[key].ToString()
+            : source[new StringName(key)].ToString();
         return string.IsNullOrEmpty(result) ? fallback : result;
     }
 
-    private static int ReadInt(GDictionary source, object key, int fallback)
+    private static int ReadInt(GDictionary source, string key, int fallback)
     {
-        if (!TryReadVariant(source, key, out Variant value))
+        if (!HasKey(source, key))
         {
             return fallback;
         }
-        return value.VariantType switch
-        {
-            Variant.Type.Int => value.AsInt32(),
-            Variant.Type.Float => Mathf.RoundToInt((float)value.AsDouble()),
-            _ => fallback,
-        };
+        return source.ContainsKey(key)
+            ? source[key].AsInt32()
+            : source[new StringName(key)].AsInt32();
     }
 
-    private static Vector2I ReadVector2I(GDictionary source, object key, Vector2I fallback)
+    private static Vector2I ReadVector2I(GDictionary source, string key, Vector2I fallback)
     {
-        return TryReadVariant(source, key, out Variant value)
-            && value.VariantType == Variant.Type.Vector2I
-            ? value.AsVector2I()
-            : fallback;
+        if (!HasKey(source, key))
+            return fallback;
+        return source.ContainsKey(key)
+            ? source[key].AsVector2I()
+            : source[new StringName(key)].AsVector2I();
     }
 
-    private static IReadOnlyList<Vector2I> ReadVector2IList(GDictionary source, object key)
+    private static IReadOnlyList<Vector2I> ReadVector2IList(GDictionary source, string key)
     {
-        if (!TryReadVariant(source, key, out Variant value) || value.VariantType != Variant.Type.Array)
+        if (!HasKey(source, key))
         {
             return System.Array.Empty<Vector2I>();
         }
         var result = new List<Vector2I>();
-        foreach (Variant entry in value.AsGodotArray())
+        var values = source.ContainsKey(key)
+            ? source[key].AsGodotArray()
+            : source[new StringName(key)].AsGodotArray();
+        foreach (var entry in values)
         {
-            if (entry.VariantType == Variant.Type.Vector2I)
-            {
-                result.Add(entry.AsVector2I());
-            }
+            result.Add(entry.AsVector2I());
         }
         return result;
     }
 
-    private static bool TryReadVariant(GDictionary source, object key, out Variant value)
+    private static bool HasKey(GDictionary source, string key)
     {
         if (source == null)
         {
-            value = default;
             return false;
         }
-        Variant variantKey = ToVariantKey(key);
-        if (source.ContainsKey(variantKey))
-        {
-            value = source[variantKey];
-            return true;
-        }
-        if (key is StringName stringNameKey)
-        {
-            string keyText = stringNameKey.ToString();
-            if (source.ContainsKey(keyText))
-            {
-                value = source[keyText];
-                return true;
-            }
-        }
-        else if (key is string stringKey)
-        {
-            var stringName = new StringName(stringKey);
-            if (source.ContainsKey(stringName))
-            {
-                value = source[stringName];
-                return true;
-            }
-        }
-        value = default;
-        return false;
-    }
-
-    private static Variant ToVariantKey(object key)
-    {
-        return key switch
-        {
-            Variant variant => variant,
-            StringName stringName => Variant.From(stringName),
-            string text => Variant.From(text),
-            int intValue => Variant.From(intValue),
-            long longValue => Variant.From(longValue),
-            float floatValue => Variant.From(floatValue),
-            double doubleValue => Variant.From(doubleValue),
-            bool boolValue => Variant.From(boolValue),
-            Vector2I coord => Variant.From(coord),
-            _ => Variant.From(key?.ToString() ?? ""),
-        };
+        return source.ContainsKey(key) || source.ContainsKey(new StringName(key));
     }
 }

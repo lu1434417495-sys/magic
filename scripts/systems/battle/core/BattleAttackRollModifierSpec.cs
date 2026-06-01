@@ -184,9 +184,9 @@ public partial class BattleAttackRollModifierSpec : RefCounted
 
     private static bool TryGetStringLike(GDictionary data, string key, out string value)
     {
-        if (TryGetExactValue(data, key, out object rawValue)
-            && TryAsStringLike(rawValue, out value))
+        if (data != null && data.ContainsKey(key))
         {
+            value = ProgressionDataUtils.to_string_name(data[key]).ToString();
             return true;
         }
         value = "";
@@ -195,9 +195,9 @@ public partial class BattleAttackRollModifierSpec : RefCounted
 
     private static bool TryGetStrictString(GDictionary data, string key, out string value)
     {
-        if (TryGetExactValue(data, key, out object rawValue)
-            && TryAsStrictString(rawValue, out value))
+        if (data != null && data.ContainsKey(key))
         {
+            value = data[key].AsString();
             return true;
         }
         value = "";
@@ -206,86 +206,12 @@ public partial class BattleAttackRollModifierSpec : RefCounted
 
     private static bool TryGetStrictInt(GDictionary data, string key, out int value)
     {
-        if (TryGetExactValue(data, key, out object rawValue)
-            && TryAsStrictInt(rawValue, out value))
-        {
-            return true;
-        }
-        value = 0;
-        return false;
-    }
-
-    private static bool TryAsStringLike(object rawValue, out string value)
-    {
-        if (rawValue is Variant variant)
-        {
-            if (variant.VariantType == Variant.Type.String)
-            {
-                value = variant.AsString();
-                return true;
-            }
-            if (variant.VariantType == Variant.Type.StringName)
-            {
-                value = variant.AsStringName().ToString();
-                return true;
-            }
-            value = "";
-            return false;
-        }
-        if (rawValue is string stringValue)
-        {
-            value = stringValue;
-            return true;
-        }
-        if (rawValue is StringName stringNameValue)
-        {
-            value = stringNameValue.ToString();
-            return true;
-        }
-        value = "";
-        return false;
-    }
-
-    private static bool TryAsStrictString(object rawValue, out string value)
-    {
-        if (rawValue is Variant variant && variant.VariantType == Variant.Type.String)
-        {
-            value = variant.AsString();
-            return true;
-        }
-        if (rawValue is string stringValue)
-        {
-            value = stringValue;
-            return true;
-        }
-        value = "";
-        return false;
-    }
-
-    private static bool TryAsStrictInt(object rawValue, out int value)
-    {
-        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Int)
-        {
-            value = variant.AsInt32();
-            return true;
-        }
-        if (rawValue is int intValue)
-        {
-            value = intValue;
-            return true;
-        }
-        value = 0;
-        return false;
-    }
-
-    private static bool TryGetExactValue(GDictionary data, string key, out object value)
-    {
         if (data != null && data.ContainsKey(key))
         {
-            value = data[key];
+            value = data[key].AsInt32();
             return true;
         }
-        value = null;
+        value = 0;
         return false;
     }
 

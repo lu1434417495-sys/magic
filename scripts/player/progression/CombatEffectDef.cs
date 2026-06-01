@@ -29,6 +29,39 @@ public partial class CombatEffectDef : Resource
     public StringName damage_tag { get; set; } = "";
 
     [Export]
+    public StringName dr_bypass_tag { get; set; } = "";
+
+    [Export]
+    public int hp_ratio_threshold_percent { get; set; }
+
+    [Export]
+    public int dice_count { get; set; }
+
+    [Export]
+    public int dice_sides { get; set; }
+
+    [Export]
+    public int dice_bonus { get; set; }
+
+    [Export]
+    public int dice_sides_base { get; set; }
+
+    [Export]
+    public int dice_sides_per_constitution_mod { get; set; }
+
+    [Export]
+    public int dice_sides_per_willpower_mod { get; set; }
+
+    [Export]
+    public int bonus_damage_dice_count { get; set; }
+
+    [Export]
+    public int bonus_damage_dice_sides { get; set; }
+
+    [Export]
+    public int bonus_damage_dice_bonus { get; set; }
+
+    [Export]
     public bool add_weapon_dice { get; set; }
 
     [Export]
@@ -162,6 +195,24 @@ public partial class CombatEffectDef : Resource
 
     [Export]
     public int dice_sides_per_stack { get; set; }
+
+    [Export]
+    public int ap_gain { get; set; }
+
+    [Export]
+    public int free_move_points_gain { get; set; }
+
+    [Export]
+    public bool counts_as_debuff_override { get; set; }
+
+    [Export]
+    public bool counts_as_debuff { get; set; }
+
+    [Export]
+    public bool lock_counterattack { get; set; }
+
+    [Export]
+    public int main_skill_lock_other_debuff_count { get; set; }
 
     [Export]
     public Godot.Collections.Dictionary @params { get; set; } = new();

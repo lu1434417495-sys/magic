@@ -67,10 +67,8 @@ min_skill_level = 5
 max_skill_level = 6
 effect_target_team_filter = &"ally"
 duration_tu = 80
-params = {
-"dice_count": 2,
-"dice_sides": 6
-}
+dice_count = 2
+dice_sides = 6
 
 [sub_resource type="Resource" id="Shield_l7"]
 script = ExtResource("1_effect")
@@ -78,10 +76,8 @@ effect_type = &"shield"
 min_skill_level = 7
 effect_target_team_filter = &"ally"
 duration_tu = 100
-params = {
-"dice_count": 3,
-"dice_sides": 6
-}
+dice_count = 3
+dice_sides = 6
 
 [sub_resource type="Resource" id="Combat"]
 script = ExtResource("2_combat")

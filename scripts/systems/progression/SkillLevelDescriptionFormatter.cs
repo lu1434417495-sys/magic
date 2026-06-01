@@ -122,6 +122,8 @@ public partial class SkillLevelDescriptionFormatter : RefCounted
             var et = ed.effect_type;
             if (et == "damage")
                 _merge_damage_effect_typed_fields(config, ed);
+            else if (et == "heal" || et == "stamina_restore" || et == "shield")
+                _merge_attribute_scaled_dice_effect_typed_fields(config, ed);
             else if (et == "status" || et == "apply_status")
                 _merge_status_effect_typed_fields(config, ed);
             else if (et == "forced_move")
@@ -185,6 +187,37 @@ public partial class SkillLevelDescriptionFormatter : RefCounted
         if (ed.damage_tag != "")
             _set_if_missing(config, "damage_tag", (string)ed.damage_tag);
         _merge_save_fields(config, "damage", ed);
+    }
+
+    private static void _merge_attribute_scaled_dice_effect_typed_fields(
+        Godot.Collections.Dictionary config,
+        CombatEffectDef ed
+    )
+    {
+        if (ed.dice_count > 0)
+        {
+            _set_if_missing(config, "dice_count", ed.dice_count);
+            if (ed.effect_type == "heal")
+                _set_if_missing(config, "heal", ed.dice_count);
+        }
+        if (ed.dice_sides_base > 0)
+            _set_if_missing(config, "dice_sides_base", ed.dice_sides_base);
+        if (ed.dice_sides_per_constitution_mod > 0)
+            _set_if_missing(
+                config,
+                "dice_sides_per_constitution_mod",
+                ed.dice_sides_per_constitution_mod
+            );
+        if (ed.dice_sides_per_willpower_mod > 0)
+            _set_if_missing(
+                config,
+                "dice_sides_per_willpower_mod",
+                ed.dice_sides_per_willpower_mod
+            );
+        if (ed.dice_sides > 0)
+            _set_if_missing(config, "dice_sides", ed.dice_sides);
+        if (ed.dice_bonus != 0)
+            _set_if_missing(config, "dice_bonus", ed.dice_bonus);
     }
 
     private static void _merge_status_effect_typed_fields(
@@ -354,17 +387,17 @@ public partial class SkillLevelDescriptionFormatter : RefCounted
 
     private static void _apply_description_derived_fields(Godot.Collections.Dictionary config)
     {
-        if (
-            config.ContainsKey("base_sides")
-            && config.ContainsKey("con_mod_sides")
-            && config.ContainsKey("will_mod_sides")
-        )
+        if (config.ContainsKey("dice_sides_base"))
         {
-            int bs = config["base_sides"].AsInt32();
+            int bs = config["dice_sides_base"].AsInt32();
             int cm = config.ContainsKey("con_mod") ? config["con_mod"].AsInt32() : 0;
             int wm = config.ContainsKey("will_mod") ? config["will_mod"].AsInt32() : 0;
-            int cms = config["con_mod_sides"].AsInt32();
-            int wms = config["will_mod_sides"].AsInt32();
+            int cms = config.ContainsKey("dice_sides_per_constitution_mod")
+                ? config["dice_sides_per_constitution_mod"].AsInt32()
+                : 0;
+            int wms = config.ContainsKey("dice_sides_per_willpower_mod")
+                ? config["dice_sides_per_willpower_mod"].AsInt32()
+                : 0;
             config["dice_sides"] = Mathf.Max(bs + cm * cms + wm * wms, 4);
         }
     }

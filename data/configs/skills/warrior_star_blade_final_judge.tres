@@ -15,9 +15,9 @@ damage_ratio_percent = 320
 add_weapon_dice = true
 requires_weapon = true
 use_weapon_physical_damage_tag = true
+dice_count = 2
+dice_sides = 8
 params = {
-"dice_count": 2,
-"dice_sides": 8,
 "debuff_count_threshold": 3,
 "grant_status_id": "combo_stack",
 "grant_status_power": 1,
@@ -36,9 +36,9 @@ damage_ratio_percent = 320
 add_weapon_dice = true
 requires_weapon = true
 use_weapon_physical_damage_tag = true
+dice_count = 3
+dice_sides = 8
 params = {
-"dice_count": 3,
-"dice_sides": 8,
 "debuff_count_threshold": 3,
 "grant_status_id": "combo_stack",
 "grant_status_power": 1,

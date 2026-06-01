@@ -245,38 +245,12 @@ public partial class BattleResolutionResult : RefCounted
 
     private static bool IsNonEmptyString(object rawValue)
     {
-        return rawValue switch
-        {
-            Variant value
-                => value.VariantType == Variant.Type.String
-                    && !string.IsNullOrEmpty(value.AsString().StripEdges()),
-            string value => !string.IsNullOrEmpty(value.StripEdges()),
-            _ => false,
-        };
+        return !string.IsNullOrEmpty((rawValue?.ToString() ?? "").StripEdges());
     }
 
     private static bool IsNonEmptyStringNameValue(object rawValue)
     {
-        if (rawValue is string text)
-        {
-            return !string.IsNullOrEmpty(text.StripEdges());
-        }
-        if (rawValue is StringName stringName)
-        {
-            return !string.IsNullOrEmpty(stringName.ToString().StripEdges());
-        }
-        if (rawValue is not Variant value)
-        {
-            return false;
-        }
-        if (
-            value.VariantType != Variant.Type.String
-            && value.VariantType != Variant.Type.StringName
-        )
-        {
-            return false;
-        }
-        return !string.IsNullOrEmpty(value.AsString().StripEdges());
+        return !string.IsNullOrEmpty((rawValue?.ToString() ?? "").StripEdges());
     }
 
     private static GArray DropEntryDictsFromPayload(object values)
@@ -515,7 +489,7 @@ public partial class BattleResolutionResult : RefCounted
             {
                 continue;
             }
-            if (TryAsObject(rewardValue, out PendingCharacterReward typedReward))
+            if (TryAsPendingCharacterReward(rewardValue, out PendingCharacterReward typedReward))
             {
                 if (!typedReward.is_empty())
                 {
@@ -546,7 +520,7 @@ public partial class BattleResolutionResult : RefCounted
             {
                 continue;
             }
-            if (TryAsObject(rewardValue, out PendingCharacterReward rewardObject))
+            if (TryAsPendingCharacterReward(rewardValue, out PendingCharacterReward rewardObject))
             {
                 if (rewardObject != null)
                 {
@@ -650,9 +624,9 @@ public partial class BattleResolutionResult : RefCounted
             }
             return instance.to_dict();
         }
-        if (TryAsObject(rawValue, out GodotObject rawObject) && rawObject.HasMethod("to_dict"))
+        if (TryAsEquipmentInstance(rawValue, out EquipmentInstanceState instanceObject))
         {
-            return NormalizeEquipmentObjectData(rawObject);
+            return NormalizeEquipmentObjectData(instanceObject);
         }
         if (IsNil(rawValue))
         {
@@ -661,7 +635,7 @@ public partial class BattleResolutionResult : RefCounted
         return new GDictionary();
     }
 
-    private static GDictionary NormalizeEquipmentObjectData(GodotObject obj)
+    private static GDictionary NormalizeEquipmentObjectData(EquipmentInstanceState obj)
     {
         object instanceDict = (obj as EquipmentInstanceState)?.to_dict();
         return TryRawDictionary(instanceDict, out _)
@@ -671,10 +645,14 @@ public partial class BattleResolutionResult : RefCounted
 
     private static bool TryRawArray(object rawValue, out GArray values)
     {
-        if (rawValue is Variant value && value.VariantType == Variant.Type.Array)
+        try
         {
-            values = value.AsGodotArray();
+            dynamic dynamicValue = rawValue;
+            values = dynamicValue.AsGodotArray();
             return true;
+        }
+        catch
+        {
         }
         if (rawValue is GArray array)
         {
@@ -687,10 +665,14 @@ public partial class BattleResolutionResult : RefCounted
 
     private static bool TryRawDictionary(object rawValue, out GDictionary value)
     {
-        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Dictionary)
+        try
         {
-            value = variant.AsGodotDictionary();
+            dynamic dynamicValue = rawValue;
+            value = dynamicValue.AsGodotDictionary();
             return true;
+        }
+        catch
+        {
         }
         if (rawValue is GDictionary dictionary)
         {
@@ -701,15 +683,38 @@ public partial class BattleResolutionResult : RefCounted
         return false;
     }
 
-    private static bool TryAsObject<T>(object rawValue, out T value)
-        where T : GodotObject
+    private static bool TryAsPendingCharacterReward(object rawValue, out PendingCharacterReward value)
     {
-        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Object)
+        try
         {
-            value = variant.AsGodotObject() as T;
+            dynamic dynamicValue = rawValue;
+            value = dynamicValue.As<PendingCharacterReward>();
             return value != null;
         }
-        if (rawValue is T typedValue)
+        catch
+        {
+        }
+        if (rawValue is PendingCharacterReward typedValue)
+        {
+            value = typedValue;
+            return true;
+        }
+        value = null;
+        return false;
+    }
+
+    private static bool TryAsEquipmentInstance(object rawValue, out EquipmentInstanceState value)
+    {
+        try
+        {
+            dynamic dynamicValue = rawValue;
+            value = dynamicValue.As<EquipmentInstanceState>();
+            return value != null;
+        }
+        catch
+        {
+        }
+        if (rawValue is EquipmentInstanceState typedValue)
         {
             value = typedValue;
             return true;
@@ -720,10 +725,14 @@ public partial class BattleResolutionResult : RefCounted
 
     private static bool TryAsInt(object rawValue, out int value)
     {
-        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Int)
+        try
         {
-            value = variant.AsInt32();
+            dynamic dynamicValue = rawValue;
+            value = dynamicValue.AsInt32();
             return true;
+        }
+        catch
+        {
         }
         if (rawValue is int intValue)
         {
@@ -736,26 +745,20 @@ public partial class BattleResolutionResult : RefCounted
 
     private static bool TryAsString(object rawValue, out string value)
     {
-        if (rawValue is Variant variant && variant.VariantType == Variant.Type.String)
-        {
-            value = variant.AsString();
-            return true;
-        }
-        if (rawValue is string stringValue)
-        {
-            value = stringValue;
-            return true;
-        }
-        value = "";
-        return false;
+        value = rawValue?.ToString() ?? "";
+        return !string.IsNullOrEmpty(value);
     }
 
     private static bool TryAsVector2I(object rawValue, out Vector2I value)
     {
-        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Vector2I)
+        try
         {
-            value = variant.AsVector2I();
+            dynamic dynamicValue = rawValue;
+            value = dynamicValue.AsVector2I();
             return true;
+        }
+        catch
+        {
         }
         if (rawValue is Vector2I vector)
         {
@@ -768,7 +771,6 @@ public partial class BattleResolutionResult : RefCounted
 
     private static bool IsNil(object rawValue)
     {
-        return rawValue == null
-            || (rawValue is Variant variant && variant.VariantType == Variant.Type.Nil);
+        return rawValue == null || rawValue.ToString() == "<null>";
     }
 }

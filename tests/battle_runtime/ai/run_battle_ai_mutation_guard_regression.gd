@@ -27,7 +27,7 @@ func _run() -> void:
 	_test_benign_ai_bookkeeping_is_allowed()
 	_test_active_unit_hp_mutation_is_blocked_and_restored()
 	_test_other_unit_coord_mutation_is_blocked_and_restored()
-	_test_illegal_blackboard_key_mutation_is_blocked_and_restored()
+	_test_unknown_blackboard_key_write_is_ignored()
 	_test_cell_occupant_mutation_is_blocked_and_restored()
 	_test_cell_height_mutation_is_blocked_and_restored()
 	_test_missing_brain_wait_path_is_allowed()
@@ -62,11 +62,12 @@ func _test_other_unit_coord_mutation_is_blocked_and_restored() -> void:
 	_test.assert_eq(fixture.hero.occupied_coords, before_occupied, "其他单位 footprint cache mutation 应被恢复。")
 
 
-func _test_illegal_blackboard_key_mutation_is_blocked_and_restored() -> void:
+func _test_unknown_blackboard_key_write_is_ignored() -> void:
 	var fixture := _build_fixture(_make_mutation_action(&"blackboard"))
 	var decision = fixture.service.choose_command(fixture.context)
-	_assert_guard_blocked(fixture.context, decision, "非法 blackboard key mutation 应触发 guard。")
-	_test.assert_false(fixture.actor.ai_blackboard.has("rogue_key"), "非法 blackboard key 应被移除。")
+	_assert_no_guard_violation(fixture.context, "未知 blackboard key 写入应被 typed blackboard 忽略。")
+	_test.assert_true(decision != null and decision.action_id == &"test_mutation_blackboard", "未知 blackboard key 不应阻断 action。")
+	_test.assert_false(fixture.actor.ai_blackboard.has("rogue_key"), "未知 blackboard key 不应落入运行时状态。")
 
 
 func _test_cell_occupant_mutation_is_blocked_and_restored() -> void:

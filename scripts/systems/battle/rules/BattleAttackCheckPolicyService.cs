@@ -831,24 +831,29 @@ public partial class BattleAttackCheckPolicyService : RefCounted
 
     private static GDictionary GetDict(GDictionary source, object key)
     {
-        return TryGetValue(source, key, out Variant value)
-            && value.VariantType == Variant.Type.Dictionary
+        return TryGetValue(source, key, out dynamic value)
             ? value.AsGodotDictionary()
             : new GDictionary();
     }
 
-    private static bool TryGetValue(GDictionary source, object key, out Variant value)
+    private static bool TryGetValue(GDictionary source, object key, out dynamic value)
     {
         if (source == null)
         {
             value = default;
             return false;
         }
-        Variant variantKey = ToVariantKey(key);
-        if (source.ContainsKey(variantKey))
+        try
         {
-            value = source[variantKey];
-            return true;
+            dynamic dynamicKey = key;
+            if (source.ContainsKey(dynamicKey))
+            {
+                value = source[dynamicKey];
+                return true;
+            }
+        }
+        catch
+        {
         }
         if (key is StringName stringNameKey)
         {
@@ -870,23 +875,6 @@ public partial class BattleAttackCheckPolicyService : RefCounted
         }
         value = default;
         return false;
-    }
-
-    private static Variant ToVariantKey(object key)
-    {
-        return key switch
-        {
-            Variant variant => variant,
-            StringName stringName => Variant.From(stringName),
-            string text => Variant.From(text),
-            int intValue => Variant.From(intValue),
-            long longValue => Variant.From(longValue),
-            float floatValue => Variant.From(floatValue),
-            double doubleValue => Variant.From(doubleValue),
-            bool boolValue => Variant.From(boolValue),
-            Vector2I coord => Variant.From(coord),
-            _ => Variant.From(key?.ToString() ?? ""),
-        };
     }
 
     private static bool IsEmpty(StringName value)

@@ -878,14 +878,22 @@ public partial class BattleMeteorSwarmResolver : RefCounted
             );
             expectedDamage += expectedAfterShield;
             worstCaseDamage += worstAfterShield;
-            var nextExpectedSource =
-                DictObject(expectedPreview, "source_preview_after") as BattleUnitState;
-            var nextExpectedTarget =
-                DictObject(expectedPreview, "target_preview_after") as BattleUnitState;
-            var nextWorstSource =
-                DictObject(worstPreview, "source_preview_after") as BattleUnitState;
-            var nextWorstTarget =
-                DictObject(worstPreview, "target_preview_after") as BattleUnitState;
+            var nextExpectedSource = DictBattleUnitState(
+                expectedPreview,
+                "source_preview_after"
+            );
+            var nextExpectedTarget = DictBattleUnitState(
+                expectedPreview,
+                "target_preview_after"
+            );
+            var nextWorstSource = DictBattleUnitState(
+                worstPreview,
+                "source_preview_after"
+            );
+            var nextWorstTarget = DictBattleUnitState(
+                worstPreview,
+                "target_preview_after"
+            );
             if (nextExpectedSource != null)
             {
                 expectedSourcePreview = nextExpectedSource;
@@ -1310,7 +1318,7 @@ public partial class BattleMeteorSwarmResolver : RefCounted
         {
             return null;
         }
-        return DictObject(meteorProfileSnapshot, "profile_resource") as MeteorSwarmProfile;
+        return DictMeteorSwarmProfile(meteorProfileSnapshot, "profile_resource");
     }
 
     public CombatCastVariantDef _resolve_ground_cast_variant(
@@ -1467,39 +1475,55 @@ public partial class BattleMeteorSwarmResolver : RefCounted
 
     private static GArray DictArray(GDictionary dictionary, object key)
     {
-        if (!TryGetDictionaryValue(dictionary, key, out Variant value))
+        if (!TryResolveKey(dictionary, key, out StringName stringNameKey, out string stringKey, out bool useStringName))
             return new GArray();
-        return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : new GArray();
+        return useStringName
+            ? dictionary[stringNameKey].AsGodotArray()
+            : dictionary[stringKey].AsGodotArray();
     }
 
     private static GDictionary DictDictionary(GDictionary dictionary, object key)
     {
-        if (!TryGetDictionaryValue(dictionary, key, out Variant value))
+        if (!TryResolveKey(dictionary, key, out StringName stringNameKey, out string stringKey, out bool useStringName))
             return new GDictionary();
-        return value.VariantType == Variant.Type.Dictionary
-            ? value.AsGodotDictionary()
-            : new GDictionary();
+        return useStringName
+            ? dictionary[stringNameKey].AsGodotDictionary()
+            : dictionary[stringKey].AsGodotDictionary();
     }
 
-    private static GodotObject DictObject(GDictionary dictionary, object key)
+    private static BattleUnitState DictBattleUnitState(GDictionary dictionary, object key)
     {
-        if (!TryGetDictionaryValue(dictionary, key, out Variant value))
+        if (!TryResolveKey(dictionary, key, out StringName stringNameKey, out string stringKey, out bool useStringName))
             return null;
-        return value.VariantType == Variant.Type.Object ? value.AsGodotObject() : null;
+        return useStringName
+            ? dictionary[stringNameKey].As<BattleUnitState>()
+            : dictionary[stringKey].As<BattleUnitState>();
+    }
+
+    private static MeteorSwarmProfile DictMeteorSwarmProfile(GDictionary dictionary, object key)
+    {
+        if (!TryResolveKey(dictionary, key, out StringName stringNameKey, out string stringKey, out bool useStringName))
+            return null;
+        return useStringName
+            ? dictionary[stringNameKey].As<MeteorSwarmProfile>()
+            : dictionary[stringKey].As<MeteorSwarmProfile>();
     }
 
     private static int DictInt(GDictionary dictionary, object key, int fallback = 0)
     {
-        if (!TryGetDictionaryValue(dictionary, key, out Variant value))
+        if (!TryResolveKey(dictionary, key, out StringName stringNameKey, out string stringKey, out bool useStringName))
             return fallback;
-        return value.VariantType == Variant.Type.Nil ? fallback : value.AsInt32();
+        return useStringName ? dictionary[stringNameKey].AsInt32() : dictionary[stringKey].AsInt32();
     }
 
     private static string DictString(GDictionary dictionary, object key, string fallback = "")
     {
-        if (!TryGetDictionaryValue(dictionary, key, out Variant value))
+        if (!TryResolveKey(dictionary, key, out StringName stringNameKey, out string stringKey, out bool useStringName))
             return fallback;
-        return value.VariantType == Variant.Type.Nil ? fallback : value.ToString();
+        string result = useStringName
+            ? dictionary[stringNameKey].ToString()
+            : dictionary[stringKey].ToString();
+        return string.IsNullOrEmpty(result) || result == "<null>" ? fallback : result;
     }
 
     private static StringName DictStringName(
@@ -1508,9 +1532,11 @@ public partial class BattleMeteorSwarmResolver : RefCounted
         StringName fallback = default
     )
     {
-        if (!TryGetDictionaryValue(dictionary, key, out Variant value))
+        if (!TryResolveKey(dictionary, key, out StringName stringNameKey, out string stringKey, out bool useStringName))
             return fallback ?? new StringName("");
-        return ProgressionDataUtils.to_string_name(value);
+        return useStringName
+            ? ProgressionDataUtils.to_string_name(dictionary[stringNameKey])
+            : ProgressionDataUtils.to_string_name(dictionary[stringKey]);
     }
 
     private static Vector2I DictVector2I(
@@ -1519,66 +1545,70 @@ public partial class BattleMeteorSwarmResolver : RefCounted
         Vector2I fallback = default
     )
     {
-        if (!TryGetDictionaryValue(dictionary, key, out Variant value))
+        if (!TryResolveKey(dictionary, key, out StringName stringNameKey, out string stringKey, out bool useStringName))
             return fallback;
-        return value.VariantType == Variant.Type.Vector2I ? value.AsVector2I() : fallback;
+        return useStringName
+            ? dictionary[stringNameKey].AsVector2I()
+            : dictionary[stringKey].AsVector2I();
     }
 
     private static IEnumerable<GDictionary> ReadDictionaryItems(GArray values)
     {
         if (values == null)
             yield break;
-        foreach (Variant value in values)
+        foreach (var value in values)
         {
-            if (value.VariantType == Variant.Type.Dictionary)
-                yield return value.AsGodotDictionary();
+            yield return value.AsGodotDictionary();
         }
     }
 
-    private static bool TryGetDictionaryValue(
+    private static bool TryResolveKey(
         GDictionary dictionary,
         object key,
-        out Variant value
+        out StringName stringNameKey,
+        out string stringKey,
+        out bool useStringName
     )
     {
+        stringNameKey = "";
+        stringKey = "";
+        useStringName = false;
         if (dictionary == null)
         {
-            value = default;
             return false;
         }
-        Variant variantKey = key switch
+        if (key is StringName namedKey)
         {
-            Variant valueKey => valueKey,
-            string stringKey => stringKey,
-            StringName stringNameKey => stringNameKey,
-            int intKey => intKey,
-            long longKey => longKey,
-            _ => default,
-        };
-        if (dictionary.ContainsKey(variantKey))
+            if (dictionary.ContainsKey(namedKey))
+            {
+                stringNameKey = namedKey;
+                useStringName = true;
+                return true;
+            }
+            string namedKeyText = namedKey.ToString();
+            if (dictionary.ContainsKey(namedKeyText))
+            {
+                stringKey = namedKeyText;
+                return true;
+            }
+            return false;
+        }
+
+        string textKey = key?.ToString() ?? "";
+        if (string.IsNullOrEmpty(textKey))
+            return false;
+        if (dictionary.ContainsKey(textKey))
         {
-            value = dictionary[variantKey];
+            stringKey = textKey;
             return true;
         }
-        if (variantKey.VariantType == Variant.Type.String)
+        StringName normalizedKey = new(textKey);
+        if (dictionary.ContainsKey(normalizedKey))
         {
-            StringName stringNameKey = new(variantKey.AsString());
-            if (dictionary.ContainsKey(stringNameKey))
-            {
-                value = dictionary[stringNameKey];
-                return true;
-            }
+            stringNameKey = normalizedKey;
+            useStringName = true;
+            return true;
         }
-        else if (variantKey.VariantType == Variant.Type.StringName)
-        {
-            string stringKey = variantKey.AsStringName().ToString();
-            if (dictionary.ContainsKey(stringKey))
-            {
-                value = dictionary[stringKey];
-                return true;
-            }
-        }
-        value = default;
         return false;
     }
 

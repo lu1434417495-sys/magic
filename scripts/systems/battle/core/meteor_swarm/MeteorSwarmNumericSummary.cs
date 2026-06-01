@@ -42,19 +42,19 @@ public sealed class MeteorSwarmHostileTerrainConsequence
 
     private static int ReadInt(GDictionary source, string key, int fallback = 0)
     {
-        if (!TryRead(source, key, out Variant value))
+        if (!TryRead(source, key, out dynamic value))
             return fallback;
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+        return value.AsInt32();
     }
 
     private static bool ReadBool(GDictionary source, string key, bool fallback = false)
     {
-        if (!TryRead(source, key, out Variant value))
+        if (!TryRead(source, key, out dynamic value))
             return fallback;
-        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
+        return value.AsBool();
     }
 
-    private static bool TryRead(GDictionary source, string key, out Variant value)
+    private static bool TryRead(GDictionary source, string key, out dynamic value)
     {
         value = default;
         if (source == null || key == null)
@@ -229,16 +229,16 @@ public sealed class MeteorSwarmNumericSummary
 
     private static int ReadInt(GDictionary source, string key, int fallback = 0)
     {
-        if (!TryRead(source, key, out Variant value))
+        if (!TryRead(source, key, out dynamic value))
             return fallback;
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+        return value.AsInt32();
     }
 
     private static bool ReadBool(GDictionary source, string key, bool fallback = false)
     {
-        if (!TryRead(source, key, out Variant value))
+        if (!TryRead(source, key, out dynamic value))
             return fallback;
-        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
+        return value.AsBool();
     }
 
     private static StringName ReadStringName(
@@ -247,41 +247,34 @@ public sealed class MeteorSwarmNumericSummary
         StringName fallback = default
     )
     {
-        if (!TryRead(source, key, out Variant value))
+        if (!TryRead(source, key, out dynamic value))
             return fallback ?? "";
-        return value.VariantType switch
-        {
-            Variant.Type.StringName => value.AsStringName(),
-            Variant.Type.String => new StringName(value.AsString()),
-            _ => fallback ?? "",
-        };
+        StringName normalized = ProgressionDataUtils.to_string_name(value);
+        return normalized == "" ? fallback ?? "" : normalized;
     }
 
     private static Vector2I ReadVector2I(GDictionary source, string key, Vector2I fallback)
     {
-        if (!TryRead(source, key, out Variant value))
+        if (!TryRead(source, key, out dynamic value))
             return fallback;
-        return value.VariantType == Variant.Type.Vector2I ? value.AsVector2I() : fallback;
+        return value.AsVector2I();
     }
 
     private static GDictionary ReadDictionary(GDictionary source, string key)
     {
-        if (!TryRead(source, key, out Variant value))
+        if (!TryRead(source, key, out dynamic value))
             return new GDictionary();
-        return value.VariantType == Variant.Type.Dictionary
-            ? value.AsGodotDictionary()
-            : new GDictionary();
+        return value.AsGodotDictionary();
     }
 
     private static GDictArray ReadDictArray(GDictionary source, string key)
     {
         var result = new GDictArray();
-        if (!TryRead(source, key, out Variant value) || value.VariantType != Variant.Type.Array)
+        if (!TryRead(source, key, out dynamic value))
             return result;
-        foreach (Variant item in value.AsGodotArray())
+        foreach (var item in value.AsGodotArray())
         {
-            if (item.VariantType == Variant.Type.Dictionary)
-                result.Add(item.AsGodotDictionary());
+            result.Add(item.AsGodotDictionary());
         }
         return result;
     }
@@ -289,16 +282,11 @@ public sealed class MeteorSwarmNumericSummary
     private static GStringArray ReadStringArray(GDictionary source, string key)
     {
         var result = new GStringArray();
-        if (!TryRead(source, key, out Variant value) || value.VariantType != Variant.Type.Array)
+        if (!TryRead(source, key, out dynamic value))
             return result;
-        foreach (Variant item in value.AsGodotArray())
+        foreach (var item in value.AsGodotArray())
         {
-            string text = item.VariantType switch
-            {
-                Variant.Type.String => item.AsString(),
-                Variant.Type.StringName => item.AsStringName().ToString(),
-                _ => "",
-            };
+            string text = item.ToString();
             if (!string.IsNullOrEmpty(text))
                 result.Add(text);
         }
@@ -308,23 +296,18 @@ public sealed class MeteorSwarmNumericSummary
     private static GStringNameArray ReadStringNameArray(GDictionary source, string key)
     {
         var result = new GStringNameArray();
-        if (!TryRead(source, key, out Variant value) || value.VariantType != Variant.Type.Array)
+        if (!TryRead(source, key, out dynamic value))
             return result;
-        foreach (Variant item in value.AsGodotArray())
+        foreach (var item in value.AsGodotArray())
         {
-            StringName normalized = item.VariantType switch
-            {
-                Variant.Type.StringName => item.AsStringName(),
-                Variant.Type.String => new StringName(item.AsString()),
-                _ => "",
-            };
+            StringName normalized = ProgressionDataUtils.to_string_name(item);
             if (normalized != "")
                 result.Add(normalized);
         }
         return result;
     }
 
-    private static bool TryRead(GDictionary source, string key, out Variant value)
+    private static bool TryRead(GDictionary source, string key, out dynamic value)
     {
         value = default;
         if (source == null || key == null)

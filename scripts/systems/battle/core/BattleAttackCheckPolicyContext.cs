@@ -7,7 +7,7 @@ public partial class BattleAttackCheckPolicyContext : RefCounted
     public BattleUnitState attacker { get; set; }
     public BattleUnitState target { get; set; }
     public SkillDef skill_def { get; set; }
-    public GodotObject cast_variant { get; set; }
+    public CombatCastVariantDef cast_variant { get; set; }
     public StringName roll_kind { get; set; } = "";
     public StringName check_route { get; set; } = "";
     public StringName trace_source { get; set; } = "";

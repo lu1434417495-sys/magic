@@ -484,42 +484,13 @@ public partial class BattleAiRuntimeActionPlan : RefCounted
     private static List<EnemyAiAction> DecodeActionArray(GArray actions)
     {
         var result = new List<EnemyAiAction>();
-        foreach (RuntimeActionArrayValue actionValue in ReadActionArrayValues(actions))
+        foreach (var rawAction in actions ?? new GArray())
         {
-            if (actionValue.TryGetAction(out EnemyAiAction action))
+            EnemyAiAction action = rawAction.As<EnemyAiAction>();
+            if (action != null)
             {
                 result.Add(action);
             }
-        }
-        return result;
-    }
-
-    private readonly struct RuntimeActionArrayValue
-    {
-        public RuntimeActionArrayValue(Variant value)
-        {
-            Value = value;
-        }
-
-        public Variant Value { get; }
-
-        public bool TryGetAction(out EnemyAiAction action)
-        {
-            action = Value.AsGodotObject() as EnemyAiAction;
-            return action != null;
-        }
-    }
-
-    private static List<RuntimeActionArrayValue> ReadActionArrayValues(GArray actions)
-    {
-        var result = new List<RuntimeActionArrayValue>();
-        if (actions == null)
-        {
-            return result;
-        }
-        foreach (var rawAction in actions)
-        {
-            result.Add(new RuntimeActionArrayValue(rawAction));
         }
         return result;
     }
@@ -597,8 +568,8 @@ public partial class BattleAiRuntimeActionPlan : RefCounted
                 }
                 declaredSkillIds.Sort(System.StringComparer.Ordinal);
                 string scriptPath = "";
-                GodotObject script = action.GetScript().AsGodotObject();
-                if (script is Resource scriptResource)
+                Resource scriptResource = action.GetScript().As<Resource>();
+                if (scriptResource != null)
                 {
                     scriptPath = scriptResource.ResourcePath;
                 }
@@ -656,7 +627,6 @@ public partial class BattleAiRuntimeActionPlan : RefCounted
         public StringName action_id = "";
         public string identity_key = "";
         public RuntimeActionExportMetadata runtime_action_metadata = new();
-        private List<RuntimeMetadataExtraField> _extra_fields = new();
 
         public static RuntimeActionMetadata ForAuthoredAction(
             StringName stateId,
@@ -738,7 +708,6 @@ public partial class BattleAiRuntimeActionPlan : RefCounted
                 runtime_action_metadata = RuntimeActionExportMetadata.FromDictionary(
                     ReadDictionary(metadata, "runtime_action_metadata")
                 ),
-                _extra_fields = ReadExtraFields(metadata),
             };
 
             if (result.action_id == "" && action != null)
@@ -768,7 +737,7 @@ public partial class BattleAiRuntimeActionPlan : RefCounted
 
         public GDictionary ToDictionary()
         {
-            GDictionary result = ExtraFieldsToDictionary(_extra_fields);
+            GDictionary result = new();
             result["generated"] = generated;
             result["state_id"] = state_id;
             if (slot_id != "")
@@ -807,24 +776,6 @@ public partial class BattleAiRuntimeActionPlan : RefCounted
             }
             return result;
         }
-    }
-
-    private readonly struct RuntimeMetadataExtraField
-    {
-        public RuntimeMetadataExtraField(Variant key, Variant value)
-        {
-            Key = key;
-            Value = value;
-            KeyText = ReadRuntimeMetadataKey(key);
-        }
-
-        public Variant Key { get; }
-
-        public Variant Value { get; }
-
-        public string KeyText { get; }
-
-        public RuntimeMetadataExtraField Clone() => new(Key, CloneVariantValue(Value));
     }
 
     private sealed class RuntimeActionExportMetadata
@@ -911,95 +862,13 @@ public partial class BattleAiRuntimeActionPlan : RefCounted
         }
     }
 
-    private static List<RuntimeMetadataExtraField> ReadExtraFields(GDictionary source)
-    {
-        var result = new List<RuntimeMetadataExtraField>();
-        if (source == null)
-        {
-            return result;
-        }
-        foreach (var keyValue in source.Keys)
-        {
-            string key = ReadRuntimeMetadataKey(keyValue);
-            if (
-                IsTypedMetadataKey(key)
-                || BattleAiSkillAffordanceRecord.IsTypedKey(key)
-                || !TryGetDictionaryValue(source, keyValue, out Variant value)
-            )
-            {
-                continue;
-            }
-            result.Add(new RuntimeMetadataExtraField(keyValue, value));
-        }
-        return result;
-    }
-
-    private static GDictionary ExtraFieldsToDictionary(
-        IReadOnlyList<RuntimeMetadataExtraField> fields
-    )
-    {
-        var result = new GDictionary();
-        if (fields == null)
-        {
-            return result;
-        }
-        foreach (RuntimeMetadataExtraField field in fields)
-        {
-            RuntimeMetadataExtraField clonedField = field.Clone();
-            result[clonedField.Key] = clonedField.Value;
-        }
-        return result;
-    }
-
-    private static bool TryGetDictionaryValue(
-        GDictionary dictionary,
-        Variant key,
-        out Variant value
-    )
-    {
-        value = default;
-        if (dictionary == null || !dictionary.ContainsKey(key))
-        {
-            return false;
-        }
-        value = dictionary[key];
-        return true;
-    }
-
-    private static Variant CloneVariantValue(Variant value)
-    {
-        return value.VariantType switch
-        {
-            Variant.Type.Dictionary
-                => Variant.From(value.AsGodotDictionary().Duplicate(true)),
-            Variant.Type.Array => Variant.From(value.AsGodotArray().Duplicate(true)),
-            _ => value,
-        };
-    }
-
-    private static string ReadRuntimeMetadataKey(Variant key)
-    {
-        return key.VariantType switch
-        {
-            Variant.Type.String => key.AsString(),
-            Variant.Type.StringName => key.AsStringName().ToString(),
-            Variant.Type.Nil => "",
-            _ => key.ToString(),
-        };
-    }
-
     private static string ReadString(GDictionary data, string key, string fallback = "")
     {
         if (data == null || string.IsNullOrEmpty(key) || !data.ContainsKey(key))
         {
             return fallback;
         }
-        Variant value = data[key];
-        if (value.VariantType == Variant.Type.String || value.VariantType == Variant.Type.StringName)
-        {
-            return value.ToString();
-        }
-        return fallback;
+        return data[key].ToString();
     }
 
     private static StringName ReadStringName(GDictionary data, string key)
@@ -1014,8 +883,7 @@ public partial class BattleAiRuntimeActionPlan : RefCounted
         {
             return fallback;
         }
-        Variant value = data[key];
-        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
+        return data[key].AsBool();
     }
 
     private static GDictionary ReadDictionary(GDictionary data, string key)
@@ -1024,25 +892,7 @@ public partial class BattleAiRuntimeActionPlan : RefCounted
         {
             return new GDictionary();
         }
-        Variant value = data[key];
-        return value.VariantType == Variant.Type.Dictionary ? value.AsGodotDictionary() : new GDictionary();
-    }
-
-    private static bool IsTypedMetadataKey(string key)
-    {
-        return key
-            is "generated"
-                or "state_id"
-                or "slot_id"
-                or "slot_role"
-                or "skill_id"
-                or "variant_id"
-                or "action_family"
-                or "source_action_id"
-                or "score_bucket_id"
-                or "action_id"
-                or "identity_key"
-                or "runtime_action_metadata";
+        return data[key].AsGodotDictionary();
     }
 
 }

@@ -8,9 +8,9 @@
 script = ExtResource("3_effect")
 effect_type = &"heal"
 power = 2
+dice_count = 2
+dice_sides = 6
 params = {
-    "dice_count": 2,
-    "dice_sides": 6,
     "con_mod_heal": true
 }
 

@@ -16,10 +16,8 @@ save_dc_source_ability = &"intelligence"
 save_ability = &"agility"
 save_partial_on_success = true
 save_tag = &"magic"
-params = {
-"dice_count": 3,
-"dice_sides": 6
-}
+dice_count = 3
+dice_sides = 6
 
 [sub_resource type="Resource" id="Resource_0p3st"]
 script = ExtResource("3_f1vv4")
@@ -32,10 +30,8 @@ save_dc_source_ability = &"intelligence"
 save_ability = &"agility"
 save_partial_on_success = true
 save_tag = &"magic"
-params = {
-"dice_count": 4,
-"dice_sides": 6
-}
+dice_count = 4
+dice_sides = 6
 
 [sub_resource type="Resource" id="Resource_f1vv4"]
 script = ExtResource("3_f1vv4")
@@ -48,10 +44,8 @@ save_dc_source_ability = &"intelligence"
 save_ability = &"agility"
 save_partial_on_success = true
 save_tag = &"magic"
-params = {
-"dice_count": 5,
-"dice_sides": 6
-}
+dice_count = 5
+dice_sides = 6
 
 [sub_resource type="Resource" id="Resource_7fkiq"]
 script = ExtResource("3_f1vv4")
@@ -64,10 +58,8 @@ save_dc_source_ability = &"intelligence"
 save_ability = &"agility"
 save_partial_on_success = true
 save_tag = &"magic"
-params = {
-"dice_count": 6,
-"dice_sides": 6
-}
+dice_count = 6
+dice_sides = 6
 
 [sub_resource type="Resource" id="Resource_2c60e"]
 script = ExtResource("3_f1vv4")
@@ -79,10 +71,8 @@ save_dc_source_ability = &"intelligence"
 save_ability = &"agility"
 save_partial_on_success = true
 save_tag = &"magic"
-params = {
-"dice_count": 7,
-"dice_sides": 6
-}
+dice_count = 7
+dice_sides = 6
 
 [sub_resource type="Resource" id="Resource_88m0x"]
 script = ExtResource("3_f1vv4")

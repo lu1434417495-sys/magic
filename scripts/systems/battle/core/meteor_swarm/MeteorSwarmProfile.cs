@@ -49,8 +49,6 @@ public partial class MeteorSwarmProfile : Resource
         var result = new GArray();
         foreach (var terrain_profile_option in terrain_profiles)
         {
-            if (terrain_profile_option.VariantType != Variant.Type.Dictionary)
-                continue;
             var terrain_profile = terrain_profile_option.AsGodotDictionary();
             var ring_min = _get_int(
                 terrain_profile,
@@ -72,26 +70,15 @@ public partial class MeteorSwarmProfile : Resource
     {
         if (source == null || key == null)
             return fallback;
-        Variant value;
-        if (key is Variant variantKey)
-        {
-            if (!source.ContainsKey(variantKey))
-                return fallback;
-            value = source[variantKey];
-        }
-        else if (key is StringName stringNameKey)
+        if (key is StringName stringNameKey)
         {
             if (!source.ContainsKey(stringNameKey))
                 return fallback;
-            value = source[stringNameKey];
+            return source[stringNameKey].AsInt32();
         }
-        else
-        {
-            string stringKey = key.ToString();
-            if (!source.ContainsKey(stringKey))
-                return fallback;
-            value = source[stringKey];
-        }
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+        string stringKey = key.ToString();
+        if (!source.ContainsKey(stringKey))
+            return fallback;
+        return source[stringKey].AsInt32();
     }
 }

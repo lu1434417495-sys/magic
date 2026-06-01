@@ -26,7 +26,7 @@ public partial class BattleAiMutationGuardTestAction : EnemyAiAction
             case "other_coord":
                 if (
                     context.state.units.ContainsKey(new StringName("hero"))
-                    && context.state.units[new StringName("hero")].AsGodotObject()
+                    && context.state.units[new StringName("hero")].As<BattleUnitState>()
                         is BattleUnitState target
                 )
                 {
@@ -34,7 +34,7 @@ public partial class BattleAiMutationGuardTestAction : EnemyAiAction
                 }
                 break;
             case "blackboard":
-                context.unit_state.ai_blackboard["rogue_key"] = "should_not_persist";
+                context.unit_state.ai_blackboard.set_text("rogue_key", "should_not_persist");
                 break;
             case "cell_occupant":
                 context.grid_service.set_occupant(

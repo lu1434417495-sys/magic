@@ -287,6 +287,10 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
 
     public GDictionary get_item_defs() => _item_defs;
 
+    public bool has_item_def_catalog() => _item_def_index.Count > 0;
+
+    public ItemDef get_item_def(StringName item_id) => GetItemDef(item_id);
+
     public void set_party_state(PartyState party_state)
     {
         _party_state = party_state ?? new PartyState();

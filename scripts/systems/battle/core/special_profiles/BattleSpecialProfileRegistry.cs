@@ -84,7 +84,7 @@ public partial class BattleSpecialProfileRegistry : RefCounted, IValidatableRegi
     public BattleSpecialProfileManifest get_manifest(StringName profileId)
     {
         return _manifestsByProfileId.ContainsKey(profileId)
-            ? _manifestsByProfileId[profileId].AsGodotObject() as BattleSpecialProfileManifest
+            ? _manifestsByProfileId[profileId].As<BattleSpecialProfileManifest>()
             : null;
     }
 
@@ -260,7 +260,7 @@ public partial class BattleSpecialProfileRegistry : RefCounted, IValidatableRegi
             var skillId = ProgressionDataUtils.to_string_name(skillIdValue);
             if (skillId == "")
                 continue;
-            var skillDef = skillDefs[skillIdValue].AsGodotObject() as SkillDef;
+            var skillDef = skillDefs[skillIdValue].As<SkillDef>();
             var combatProfile = skillDef?.combat_profile as CombatSkillDef;
             if (combatProfile == null || combatProfile.special_resolution_profile_id == "")
                 continue;

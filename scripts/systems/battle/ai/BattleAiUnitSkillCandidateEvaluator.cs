@@ -37,11 +37,11 @@ public sealed class BattleAiUnitSkillCandidateEvaluator
                 ["command"] = BuildCommandSummary(command),
                 ["total_score"] = scoreInput?.total_score ?? DictInt(extra, "total_score"),
                 ["score_input"] = scoreInput != null ? scoreInput.to_dict() : new GDictionary(),
+                ["skill_id"] = DictString(extra, "skill_id"),
+                ["skill_variant_id"] = DictString(extra, "skill_variant_id"),
+                ["skill_variant_target_mode"] = DictString(extra, "skill_variant_target_mode"),
+                ["target_unit_id"] = DictString(extra, "target_unit_id"),
             };
-            foreach (CandidateTraceExtraField field in ReadCandidateTraceExtraFields(extra))
-            {
-                payload[field.Key] = field.Value;
-            }
             return new CandidateTraceSummary
             {
                 Payload = payload,
@@ -58,19 +58,6 @@ public sealed class BattleAiUnitSkillCandidateEvaluator
                 TotalScore = DictInt(source, "total_score", -999999),
             };
         }
-    }
-
-    private readonly struct CandidateTraceExtraField
-    {
-        public CandidateTraceExtraField(string key, Variant value)
-        {
-            Key = key ?? "";
-            Value = value;
-        }
-
-        public string Key { get; }
-
-        public Variant Value { get; }
     }
 
     private readonly BattleAiTypedActionHelper _helper = new();
@@ -544,40 +531,16 @@ public sealed class BattleAiUnitSkillCandidateEvaluator
         var result = new List<CandidateTraceSummary>();
         foreach (var candidateValue in topCandidates ?? new GArray())
         {
-            if (TryAsDictionary(candidateValue, out GDictionary candidate))
-                result.Add(CandidateTraceSummary.FromDictionary(candidate));
-        }
-        return result;
-    }
-
-    private static List<CandidateTraceExtraField> ReadCandidateTraceExtraFields(GDictionary extra)
-    {
-        var result = new List<CandidateTraceExtraField>();
-        if (extra == null)
-        {
-            return result;
-        }
-        foreach (var rawKey in extra.Keys)
-        {
-            string key = ReadDictionaryKey(rawKey);
-            if (string.IsNullOrEmpty(key))
+            try
             {
-                continue;
+                GDictionary candidate = candidateValue.AsGodotDictionary();
+                result.Add(CandidateTraceSummary.FromDictionary(candidate));
             }
-            result.Add(new CandidateTraceExtraField(key, GetValue(extra, key)));
+            catch
+            {
+            }
         }
         return result;
-    }
-
-    private static string ReadDictionaryKey(Variant rawKey)
-    {
-        return rawKey.VariantType switch
-        {
-            Variant.Type.String => rawKey.AsString(),
-            Variant.Type.StringName => rawKey.AsStringName().ToString(),
-            Variant.Type.Nil => "",
-            _ => rawKey.ToString(),
-        };
     }
 
     private static GDictionary BuildCommandSummary(BattleCommand command)
@@ -626,17 +589,25 @@ public sealed class BattleAiUnitSkillCandidateEvaluator
 
     private static GArray DictArray(GDictionary dictionary, string key)
     {
-        if (dictionary == null)
+        if (dictionary == null || string.IsNullOrEmpty(key))
             return new GArray();
-        return TryAsArray(GetValue(dictionary, key), out GArray value) ? value : new GArray();
+        if (dictionary.ContainsKey(key))
+            return dictionary[key].AsGodotArray();
+        StringName stringNameKey = new(key);
+        return dictionary.ContainsKey(stringNameKey)
+            ? dictionary[stringNameKey].AsGodotArray()
+            : new GArray();
     }
 
     private static GDictionary DictDictionary(GDictionary dictionary, string key)
     {
-        if (dictionary == null)
+        if (dictionary == null || string.IsNullOrEmpty(key))
             return new GDictionary();
-        return TryAsDictionary(GetValue(dictionary, key), out GDictionary value)
-            ? value
+        if (dictionary.ContainsKey(key))
+            return dictionary[key].AsGodotDictionary();
+        StringName stringNameKey = new(key);
+        return dictionary.ContainsKey(stringNameKey)
+            ? dictionary[stringNameKey].AsGodotDictionary()
             : new GDictionary();
     }
 
@@ -646,94 +617,33 @@ public sealed class BattleAiUnitSkillCandidateEvaluator
         StringName fallback = default
     )
     {
-        return TryAsStringName(GetValue(dictionary, key), out StringName value)
-            ? value
+        string text = DictString(dictionary, key);
+        return !string.IsNullOrEmpty(text)
+            ? new StringName(text)
             : fallback ?? EmptyStringName;
     }
 
     private static string DictString(GDictionary dictionary, string key, string fallback = "")
     {
-        var value = GetValue(dictionary, key);
-        return IsNil(value) ? fallback : value.ToString();
+        if (dictionary == null || string.IsNullOrEmpty(key))
+            return fallback;
+        if (dictionary.ContainsKey(key))
+            return dictionary[key].ToString();
+        StringName stringNameKey = new(key);
+        return dictionary.ContainsKey(stringNameKey)
+            ? dictionary[stringNameKey].ToString()
+            : fallback;
     }
 
     private static int DictInt(GDictionary dictionary, string key, int fallback = 0)
     {
-        return TryAsInt(GetValue(dictionary, key), out int value) ? value : fallback;
-    }
-
-    private static Variant GetValue(GDictionary dictionary, string key)
-    {
-        if (dictionary == null)
-            return default;
+        if (dictionary == null || string.IsNullOrEmpty(key))
+            return fallback;
         if (dictionary.ContainsKey(key))
-            return dictionary[key];
+            return dictionary[key].AsInt32();
         StringName stringNameKey = new(key);
-        return dictionary.ContainsKey(stringNameKey) ? dictionary[stringNameKey] : default;
-    }
-
-    private static bool TryAsStringName(Variant rawValue, out StringName value)
-    {
-        if (rawValue.VariantType == Variant.Type.StringName)
-        {
-            value = rawValue.AsStringName();
-            return true;
-        }
-        if (rawValue.VariantType == Variant.Type.String)
-        {
-            value = new StringName(rawValue.AsString());
-            return true;
-        }
-        value = EmptyStringName;
-        return false;
-    }
-
-    private static bool TryAsInt(Variant rawValue, out int value)
-    {
-        if (rawValue.VariantType == Variant.Type.Nil)
-        {
-            value = 0;
-            return false;
-        }
-        value = rawValue.AsInt32();
-        return true;
-    }
-
-    private static bool TryAsBool(Variant rawValue, out bool value)
-    {
-        if (rawValue.VariantType == Variant.Type.Bool)
-        {
-            value = rawValue.AsBool();
-            return true;
-        }
-        value = false;
-        return false;
-    }
-
-    private static bool TryAsArray(Variant rawValue, out GArray value)
-    {
-        if (rawValue.VariantType == Variant.Type.Array)
-        {
-            value = rawValue.AsGodotArray();
-            return true;
-        }
-        value = new GArray();
-        return false;
-    }
-
-    private static bool TryAsDictionary(Variant rawValue, out GDictionary value)
-    {
-        if (rawValue.VariantType == Variant.Type.Dictionary)
-        {
-            value = rawValue.AsGodotDictionary();
-            return true;
-        }
-        value = new GDictionary();
-        return false;
-    }
-
-    private static bool IsNil(Variant rawValue)
-    {
-        return rawValue.VariantType == Variant.Type.Nil;
+        return dictionary.ContainsKey(stringNameKey)
+            ? dictionary[stringNameKey].AsInt32()
+            : fallback;
     }
 }

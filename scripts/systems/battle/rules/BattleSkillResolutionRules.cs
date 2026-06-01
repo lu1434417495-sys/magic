@@ -642,11 +642,14 @@ public partial class BattleSkillResolutionRules : RefCounted
         {
             return 0;
         }
-        if (!TryGetValue(activeUnit.known_skill_level_map, skillId, out Variant value))
+        if (activeUnit.known_skill_level_map.ContainsKey(skillId))
         {
-            return 0;
+            return Math.Max(activeUnit.known_skill_level_map[skillId].AsInt32(), 0);
         }
-        return Math.Max(ToInt(value, 0), 0);
+        string stringKey = skillId.ToString();
+        return activeUnit.known_skill_level_map.ContainsKey(stringKey)
+            ? Math.Max(activeUnit.known_skill_level_map[stringKey].AsInt32(), 0)
+            : 0;
     }
 
     private static bool EffectHasSave(CombatEffectDef effectDef)
@@ -709,69 +712,4 @@ public partial class BattleSkillResolutionRules : RefCounted
         return value == null || string.IsNullOrEmpty(value.ToString());
     }
 
-    private static bool TryGetValue(GDictionary source, object key, out Variant value)
-    {
-        if (source == null)
-        {
-            value = default;
-            return false;
-        }
-        Variant variantKey = ToVariantKey(key);
-        if (source.ContainsKey(variantKey))
-        {
-            value = source[variantKey];
-            return true;
-        }
-        if (key is StringName stringNameKey)
-        {
-            string keyText = stringNameKey.ToString();
-            if (source.ContainsKey(keyText))
-            {
-                value = source[keyText];
-                return true;
-            }
-        }
-        else if (key is string stringKey)
-        {
-            var stringName = new StringName(stringKey);
-            if (source.ContainsKey(stringName))
-            {
-                value = source[stringName];
-                return true;
-            }
-        }
-        value = default;
-        return false;
-    }
-
-    private static Variant ToVariantKey(object key)
-    {
-        return key switch
-        {
-            Variant variant => variant,
-            StringName stringName => Variant.From(stringName),
-            string text => Variant.From(text),
-            int intValue => Variant.From(intValue),
-            long longValue => Variant.From(longValue),
-            _ => Variant.From(key?.ToString() ?? ""),
-        };
-    }
-
-    private static int ToInt(Variant value, int fallback)
-    {
-        return value.VariantType switch
-        {
-            Variant.Type.Int => value.AsInt32(),
-            Variant.Type.Float => (int)value.AsDouble(),
-            Variant.Type.Bool => value.AsBool() ? 1 : 0,
-            Variant.Type.String => int.TryParse(value.AsString(), out int parsed)
-                ? parsed
-                : fallback,
-            Variant.Type.StringName
-                => int.TryParse(value.AsStringName().ToString(), out int parsed)
-                    ? parsed
-                    : fallback,
-            _ => fallback,
-        };
-    }
 }

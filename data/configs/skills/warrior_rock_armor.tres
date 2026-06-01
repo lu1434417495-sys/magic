@@ -7,8 +7,9 @@
 [sub_resource type="Resource" id="Resource_shield"]
 script = ExtResource("3_effect")
 effect_type = &"shield"
-power = 10
-params = { "base_sides": 4, "con_mod_sides": 1 }
+dice_count = 10
+dice_sides_base = 4
+dice_sides_per_constitution_mod = 1
 duration_tu = 40
 
 [sub_resource type="Resource" id="Resource_slow"]

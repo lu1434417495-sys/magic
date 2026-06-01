@@ -24,18 +24,6 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
         "action_id",
     };
 
-    private static readonly HashSet<string> RuntimeMetadataExportKeys = new()
-    {
-        "generated",
-        "state_id",
-        "slot_id",
-        "skill_id",
-        "variant_id",
-        "action_family",
-        "source_action_id",
-        "identity_key",
-    };
-
     public BattleState state { get; set; }
     public BattleUnitState unit_state { get; set; }
     public BattleGridService grid_service { get; set; }
@@ -66,7 +54,6 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
     public bool allow_authored_action_fallback_for_tests { get; set; }
     public bool trace_enabled { get; set; }
     public GArray action_traces { get; set; } = new();
-    public Dictionary<string, object> score_projection_cache { get; set; } = new();
     public GArray mutation_guard_violations { get; set; } = new();
 
     private int _action_trace_nonce;
@@ -78,339 +65,257 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
 
     private sealed class RuntimeActionMetadata
     {
-        private readonly List<RuntimeMetadataEntry> _entries = new();
-
-        public IReadOnlyList<RuntimeMetadataEntry> Entries => _entries;
+        public bool generated;
+        public StringName state_id = "";
+        public StringName slot_id = "";
+        public StringName slot_role = "";
+        public StringName skill_id = "";
+        public StringName variant_id = "";
+        public StringName action_family = "";
+        public StringName source_action_id = "";
+        public StringName score_bucket_id = "";
+        public StringName action_id = "";
+        public string identity_key = "";
 
         public RuntimeActionMetadata Clone()
         {
-            var clone = new RuntimeActionMetadata();
-            foreach (RuntimeMetadataEntry entry in _entries)
+            return new RuntimeActionMetadata
             {
-                clone.Set(entry);
-            }
-            return clone;
+                generated = generated,
+                state_id = state_id,
+                slot_id = slot_id,
+                slot_role = slot_role,
+                skill_id = skill_id,
+                variant_id = variant_id,
+                action_family = action_family,
+                source_action_id = source_action_id,
+                score_bucket_id = score_bucket_id,
+                action_id = action_id,
+                identity_key = identity_key ?? "",
+            };
         }
 
         public bool ContainsKey(string key)
         {
-            foreach (RuntimeMetadataEntry entry in _entries)
+            return key switch
             {
-                if (entry.Key == key)
-                {
-                    return true;
-                }
-            }
-            return false;
+                "generated" => generated,
+                "state_id" => !BattleAiContext.IsEmpty(state_id),
+                "slot_id" => !BattleAiContext.IsEmpty(slot_id),
+                "slot_role" => !BattleAiContext.IsEmpty(slot_role),
+                "skill_id" => !BattleAiContext.IsEmpty(skill_id),
+                "variant_id" => !BattleAiContext.IsEmpty(variant_id),
+                "action_family" => !BattleAiContext.IsEmpty(action_family),
+                "source_action_id" => !BattleAiContext.IsEmpty(source_action_id),
+                "score_bucket_id" => !BattleAiContext.IsEmpty(score_bucket_id),
+                "action_id" => !BattleAiContext.IsEmpty(action_id),
+                "identity_key" => !string.IsNullOrEmpty(identity_key),
+                _ => false,
+            };
         }
 
-        public void Set(RuntimeMetadataEntry entry)
+        public void MergeFrom(RuntimeActionMetadata incoming)
         {
-            if (string.IsNullOrEmpty(entry.Key))
-            {
+            if (incoming == null)
                 return;
-            }
-            for (int index = 0; index < _entries.Count; index += 1)
-            {
-                if (_entries[index].Key == entry.Key)
-                {
-                    _entries[index] = entry.Clone();
-                    return;
-                }
-            }
-            _entries.Add(entry.Clone());
+            if (incoming.generated && ShouldMerge("generated"))
+                generated = true;
+            MergeStringName("state_id", incoming.state_id);
+            MergeStringName("slot_id", incoming.slot_id);
+            MergeStringName("slot_role", incoming.slot_role);
+            MergeStringName("skill_id", incoming.skill_id);
+            MergeStringName("variant_id", incoming.variant_id);
+            MergeStringName("action_family", incoming.action_family);
+            MergeStringName("source_action_id", incoming.source_action_id);
+            MergeStringName("score_bucket_id", incoming.score_bucket_id);
+            MergeStringName("action_id", incoming.action_id);
+            if (!string.IsNullOrEmpty(incoming.identity_key) && ShouldMerge("identity_key"))
+                identity_key = incoming.identity_key;
         }
 
-        public bool TryGetValue(string key, out RuntimeMetadataValue value)
+        public RuntimeActionMetadata ExportMetadata()
         {
-            foreach (RuntimeMetadataEntry entry in _entries)
+            return new RuntimeActionMetadata
             {
-                if (entry.Key == key)
-                {
-                    value = entry.Value;
-                    return true;
-                }
-            }
-            value = RuntimeMetadataValue.Nil();
-            return false;
+                generated = generated,
+                state_id = state_id,
+                slot_id = slot_id,
+                skill_id = skill_id,
+                variant_id = variant_id,
+                action_family = action_family,
+                source_action_id = source_action_id,
+                identity_key = identity_key ?? "",
+            };
         }
 
-        public GDictionary ToDictionary()
+        public bool IsMetadataEmpty()
+        {
+            return !generated
+                && BattleAiContext.IsEmpty(state_id)
+                && BattleAiContext.IsEmpty(slot_id)
+                && BattleAiContext.IsEmpty(slot_role)
+                && BattleAiContext.IsEmpty(skill_id)
+                && BattleAiContext.IsEmpty(variant_id)
+                && BattleAiContext.IsEmpty(action_family)
+                && BattleAiContext.IsEmpty(source_action_id)
+                && BattleAiContext.IsEmpty(score_bucket_id)
+                && BattleAiContext.IsEmpty(action_id)
+                && string.IsNullOrEmpty(identity_key);
+        }
+
+        public GDictionary ToDictionary(bool includeRuntimeExport = false)
         {
             var result = new GDictionary();
-            foreach (RuntimeMetadataEntry entry in _entries)
+            if (generated)
+                result["generated"] = true;
+            AddStringName(result, "state_id", state_id);
+            AddStringName(result, "slot_id", slot_id);
+            AddStringName(result, "slot_role", slot_role);
+            AddStringName(result, "skill_id", skill_id);
+            AddStringName(result, "variant_id", variant_id);
+            AddStringName(result, "action_family", action_family);
+            AddStringName(result, "source_action_id", source_action_id);
+            AddStringName(result, "score_bucket_id", score_bucket_id);
+            AddStringName(result, "action_id", action_id);
+            if (!string.IsNullOrEmpty(identity_key))
+                result["identity_key"] = identity_key;
+            if (includeRuntimeExport)
             {
-                result[entry.Key] = entry.Value.ToVariant();
+                RuntimeActionMetadata exportMetadata = ExportMetadata();
+                if (!exportMetadata.IsMetadataEmpty())
+                    result["runtime_action_metadata"] = exportMetadata.ToDictionary();
             }
             return result;
         }
 
         public static RuntimeActionMetadata FromDictionary(GDictionary source)
         {
-            var result = new RuntimeActionMetadata();
-            foreach (RuntimeMetadataEntry entry in ReadRuntimeMetadataEntries(source))
+            var result = new RuntimeActionMetadata
             {
-                result.Set(entry);
-            }
+                generated = ReadBoolValue(source, "generated"),
+                state_id = ReadStringNameValue(source, "state_id"),
+                slot_id = ReadStringNameValue(source, "slot_id"),
+                slot_role = ReadStringNameValue(source, "slot_role"),
+                skill_id = ReadStringNameValue(source, "skill_id"),
+                variant_id = ReadStringNameValue(source, "variant_id"),
+                action_family = ReadStringNameValue(source, "action_family"),
+                source_action_id = ReadStringNameValue(source, "source_action_id"),
+                score_bucket_id = ReadStringNameValue(source, "score_bucket_id"),
+                action_id = ReadStringNameValue(source, "action_id"),
+                identity_key = ReadTextValue(source, "identity_key"),
+            };
+            if (TryReadDictionaryValue(source, "runtime_action_metadata", out GDictionary runtimeMetadata))
+                result.MergeFrom(FromDictionary(runtimeMetadata));
             return result;
+        }
+
+        private bool ShouldMerge(string key) =>
+            !_is_runtime_fixed_metadata_key(key) || !ContainsKey(key);
+
+        private void MergeStringName(string key, StringName value)
+        {
+            if (BattleAiContext.IsEmpty(value) || !ShouldMerge(key))
+                return;
+            switch (key)
+            {
+                case "state_id":
+                    state_id = value;
+                    break;
+                case "slot_id":
+                    slot_id = value;
+                    break;
+                case "slot_role":
+                    slot_role = value;
+                    break;
+                case "skill_id":
+                    skill_id = value;
+                    break;
+                case "variant_id":
+                    variant_id = value;
+                    break;
+                case "action_family":
+                    action_family = value;
+                    break;
+                case "source_action_id":
+                    source_action_id = value;
+                    break;
+                case "score_bucket_id":
+                    score_bucket_id = value;
+                    break;
+                case "action_id":
+                    action_id = value;
+                    break;
+            }
+        }
+
+        private static void AddStringName(GDictionary result, string key, StringName value)
+        {
+            if (!BattleAiContext.IsEmpty(value))
+                result[key] = value;
         }
     }
 
     private sealed class ActionTraceEntry
     {
-        private readonly List<RuntimeMetadataEntry> _entries = new();
-
         public StringName TraceId { get; private set; } = "";
+        public StringName ActionId { get; private set; } = "";
+        public StringName ScoreBucketId { get; private set; } = "";
+        public RuntimeActionMetadata Metadata { get; private set; } = new();
+        public bool Chosen { get; private set; }
+        public string ChosenReasonText { get; private set; } = "";
+        public GDictionary ChosenCommand { get; private set; } = new();
+        public GDictionary ChosenScoreInput { get; private set; } = new();
 
         public void MarkChosen(BattleAiDecision decision)
         {
-            Set("chosen", true);
+            Chosen = true;
             if (decision == null)
-            {
                 return;
-            }
-            Set("chosen_reason_text", decision.reason_text);
-            Set("chosen_command", BuildCommandDictionary(decision.command));
+            ChosenReasonText = decision.reason_text ?? "";
+            ChosenCommand = BuildCommandDictionary(decision.command);
             BattleAiScoreInput scoreInput = ResolveDecisionScoreInput(decision);
-            Set(
-                "chosen_score_input",
-                scoreInput != null ? scoreInput.to_dict() : new GDictionary()
-            );
+            ChosenScoreInput = scoreInput != null ? scoreInput.to_dict() : new GDictionary();
         }
 
         public GDictionary ToDictionary()
         {
-            var result = new GDictionary();
-            foreach (RuntimeMetadataEntry entry in _entries)
+            var result = new GDictionary
             {
-                result[entry.Key] = entry.Value.ToVariant();
-            }
+                ["trace_id"] = TraceId,
+                ["action_id"] = ActionId.ToString(),
+                ["score_bucket_id"] = ScoreBucketId.ToString(),
+                ["metadata"] = Metadata?.ToDictionary() ?? new GDictionary(),
+                ["chosen"] = Chosen,
+            };
+            if (!string.IsNullOrEmpty(ChosenReasonText))
+                result["chosen_reason_text"] = ChosenReasonText;
+            if (ChosenCommand.Count > 0)
+                result["chosen_command"] = ChosenCommand.Duplicate(true);
+            if (ChosenScoreInput.Count > 0)
+                result["chosen_score_input"] = ChosenScoreInput.Duplicate(true);
             return result;
         }
 
         public static ActionTraceEntry FromDictionary(GDictionary source)
         {
-            var result = new ActionTraceEntry();
-            foreach (RuntimeMetadataEntry entry in ReadRuntimeMetadataEntries(source))
+            var result = new ActionTraceEntry
             {
-                result.Set(entry);
-            }
-            result.TraceId = ReadStringName(source, "trace_id");
+                TraceId = ReadStringNameValue(source, "trace_id"),
+                ActionId = ReadStringNameValue(source, "action_id"),
+                ScoreBucketId = ReadStringNameValue(source, "score_bucket_id"),
+                Metadata = TryReadDictionaryValue(source, "metadata", out GDictionary metadata)
+                    ? RuntimeActionMetadata.FromDictionary(metadata)
+                    : new RuntimeActionMetadata(),
+                Chosen = ReadBoolValue(source, "chosen"),
+                ChosenReasonText = ReadTextValue(source, "chosen_reason_text"),
+                ChosenCommand = TryReadDictionaryValue(source, "chosen_command", out GDictionary chosenCommand)
+                    ? chosenCommand.Duplicate(true)
+                    : new GDictionary(),
+                ChosenScoreInput = TryReadDictionaryValue(source, "chosen_score_input", out GDictionary chosenScoreInput)
+                    ? chosenScoreInput.Duplicate(true)
+                    : new GDictionary(),
+            };
             return result;
-        }
-
-        private void Set(string key, bool value)
-        {
-            Set(new RuntimeMetadataEntry(key, RuntimeMetadataValue.FromVariant(Variant.From(value))));
-        }
-
-        private void Set(string key, string value)
-        {
-            Set(
-                new RuntimeMetadataEntry(
-                    key,
-                    RuntimeMetadataValue.FromVariant(Variant.From(value ?? ""))
-                )
-            );
-        }
-
-        private void Set(string key, GDictionary value)
-        {
-            Set(
-                new RuntimeMetadataEntry(
-                    key,
-                    RuntimeMetadataValue.FromDictionary(value ?? new GDictionary())
-                )
-            );
-        }
-
-        private void Set(RuntimeMetadataEntry entry)
-        {
-            if (string.IsNullOrEmpty(entry.Key))
-            {
-                return;
-            }
-            for (int index = 0; index < _entries.Count; index += 1)
-            {
-                if (_entries[index].Key == entry.Key)
-                {
-                    _entries[index] = entry.Clone();
-                    return;
-                }
-            }
-            _entries.Add(entry.Clone());
-        }
-    }
-
-    private readonly struct RuntimeMetadataEntry
-    {
-        public RuntimeMetadataEntry(string key, RuntimeMetadataValue value)
-        {
-            Key = key ?? "";
-            Value = value ?? RuntimeMetadataValue.Nil();
-        }
-
-        public string Key { get; }
-
-        public RuntimeMetadataValue Value { get; }
-
-        public RuntimeMetadataEntry Clone() => new(Key, Value.Clone());
-    }
-
-    private enum RuntimeMetadataValueKind
-    {
-        Nil,
-        Bool,
-        Integer,
-        Float,
-        Text,
-        StringName,
-        Vector2I,
-        Dictionary,
-        Array,
-        Object,
-        Fallback,
-    }
-
-    private sealed class RuntimeMetadataValue
-    {
-        private readonly RuntimeMetadataValueKind _kind;
-        private readonly bool _boolValue;
-        private readonly long _integerValue;
-        private readonly double _floatValue;
-        private readonly string _textValue;
-        private readonly StringName _stringNameValue;
-        private readonly Vector2I _vector2IValue;
-        private readonly GDictionary _dictionaryValue;
-        private readonly GArray _arrayValue;
-        private readonly GodotObject _objectValue;
-        private readonly Variant _fallbackValue;
-
-        private RuntimeMetadataValue(
-            RuntimeMetadataValueKind kind,
-            bool boolValue = false,
-            long integerValue = 0,
-            double floatValue = 0,
-            string textValue = "",
-            StringName stringNameValue = default,
-            Vector2I vector2IValue = default,
-            GDictionary dictionaryValue = null,
-            GArray arrayValue = null,
-            GodotObject objectValue = null,
-            Variant fallbackValue = default
-        )
-        {
-            _kind = kind;
-            _boolValue = boolValue;
-            _integerValue = integerValue;
-            _floatValue = floatValue;
-            _textValue = textValue ?? "";
-            _stringNameValue = stringNameValue;
-            _vector2IValue = vector2IValue;
-            _dictionaryValue = dictionaryValue;
-            _arrayValue = arrayValue;
-            _objectValue = objectValue;
-            _fallbackValue = fallbackValue;
-        }
-
-        public RuntimeMetadataValue Clone()
-        {
-            return _kind switch
-            {
-                RuntimeMetadataValueKind.Dictionary
-                    => FromDictionary(_dictionaryValue?.Duplicate(true) ?? new GDictionary()),
-                RuntimeMetadataValueKind.Array
-                    => FromArray(_arrayValue?.Duplicate(true) ?? new GArray()),
-                _ => this,
-            };
-        }
-
-        public bool TryGetDictionary(out GDictionary value)
-        {
-            if (_kind == RuntimeMetadataValueKind.Dictionary)
-            {
-                value = _dictionaryValue?.Duplicate(true) ?? new GDictionary();
-                return true;
-            }
-            value = new GDictionary();
-            return false;
-        }
-
-        public Variant ToVariant()
-        {
-            return _kind switch
-            {
-                RuntimeMetadataValueKind.Nil => default,
-                RuntimeMetadataValueKind.Bool => Variant.From(_boolValue),
-                RuntimeMetadataValueKind.Integer => Variant.From(_integerValue),
-                RuntimeMetadataValueKind.Float => Variant.From(_floatValue),
-                RuntimeMetadataValueKind.Text => Variant.From(_textValue),
-                RuntimeMetadataValueKind.StringName => Variant.From(_stringNameValue),
-                RuntimeMetadataValueKind.Vector2I => Variant.From(_vector2IValue),
-                RuntimeMetadataValueKind.Dictionary
-                    => Variant.From(_dictionaryValue?.Duplicate(true) ?? new GDictionary()),
-                RuntimeMetadataValueKind.Array
-                    => Variant.From(_arrayValue?.Duplicate(true) ?? new GArray()),
-                RuntimeMetadataValueKind.Object => Variant.From(_objectValue),
-                RuntimeMetadataValueKind.Fallback => _fallbackValue,
-                _ => default,
-            };
-        }
-
-        public static RuntimeMetadataValue Nil() => new(RuntimeMetadataValueKind.Nil);
-
-        public static RuntimeMetadataValue FromDictionary(GDictionary value) =>
-            new(
-                RuntimeMetadataValueKind.Dictionary,
-                dictionaryValue: value?.Duplicate(true) ?? new GDictionary()
-            );
-
-        public static RuntimeMetadataValue FromArray(GArray value) =>
-            new(
-                RuntimeMetadataValueKind.Array,
-                arrayValue: value?.Duplicate(true) ?? new GArray()
-            );
-
-        public static RuntimeMetadataValue FromVariant(Variant value)
-        {
-            return value.VariantType switch
-            {
-                Variant.Type.Nil => Nil(),
-                Variant.Type.Bool => new RuntimeMetadataValue(
-                    RuntimeMetadataValueKind.Bool,
-                    boolValue: value.AsBool()
-                ),
-                Variant.Type.Int => new RuntimeMetadataValue(
-                    RuntimeMetadataValueKind.Integer,
-                    integerValue: value.AsInt64()
-                ),
-                Variant.Type.Float => new RuntimeMetadataValue(
-                    RuntimeMetadataValueKind.Float,
-                    floatValue: value.AsDouble()
-                ),
-                Variant.Type.String => new RuntimeMetadataValue(
-                    RuntimeMetadataValueKind.Text,
-                    textValue: value.AsString()
-                ),
-                Variant.Type.StringName => new RuntimeMetadataValue(
-                    RuntimeMetadataValueKind.StringName,
-                    stringNameValue: value.AsStringName()
-                ),
-                Variant.Type.Vector2I => new RuntimeMetadataValue(
-                    RuntimeMetadataValueKind.Vector2I,
-                    vector2IValue: value.AsVector2I()
-                ),
-                Variant.Type.Dictionary => FromDictionary(value.AsGodotDictionary()),
-                Variant.Type.Array => FromArray(value.AsGodotArray()),
-                Variant.Type.Object => new RuntimeMetadataValue(
-                    RuntimeMetadataValueKind.Object,
-                    objectValue: value.AsGodotObject()
-                ),
-                _ => new RuntimeMetadataValue(
-                    RuntimeMetadataValueKind.Fallback,
-                    fallbackValue: value
-                ),
-            };
         }
     }
 
@@ -695,7 +600,7 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
             return false;
         }
 
-        skillDef = skill_defs[normalizedSkillId].AsGodotObject() as SkillDef;
+        skillDef = skill_defs[normalizedSkillId].As<SkillDef>();
         return skillDef != null;
     }
 
@@ -766,36 +671,8 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
         RuntimeActionMetadata merged =
             _action_metadata_stack.Count > 0 ? _action_metadata_stack[^1].Clone() : new RuntimeActionMetadata();
         RuntimeActionMetadata incoming = RuntimeActionMetadata.FromDictionary(metadata);
-        foreach (RuntimeMetadataEntry entry in incoming.Entries)
-        {
-            if (_is_runtime_fixed_metadata_key(entry.Key) && merged.ContainsKey(entry.Key))
-            {
-                continue;
-            }
-            merged.Set(entry);
-        }
-
-        RuntimeActionMetadata runtimeActionMetadata = new();
-        if (merged.TryGetValue("runtime_action_metadata", out RuntimeMetadataValue runtimeValue))
-        {
-            runtimeActionMetadata = runtimeValue.TryGetDictionary(out GDictionary runtimeDictionary)
-                ? RuntimeActionMetadata.FromDictionary(runtimeDictionary)
-                : new RuntimeActionMetadata();
-        }
-        foreach (RuntimeMetadataEntry entry in merged.Entries)
-        {
-            if (_is_runtime_metadata_export_key(entry.Key))
-            {
-                runtimeActionMetadata.Set(entry);
-            }
-        }
-        merged.Set(
-            new RuntimeMetadataEntry(
-                "runtime_action_metadata",
-                RuntimeMetadataValue.FromDictionary(runtimeActionMetadata.ToDictionary())
-            )
-        );
-        return merged.ToDictionary();
+        merged.MergeFrom(incoming);
+        return merged.ToDictionary(includeRuntimeExport: true);
     }
 
     public BattleUnitState resolve_forced_target_unit(StringName target_filter)
@@ -882,13 +759,9 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
         }
 
         int turnStartedTu = -1;
-        if (
-            unit_state != null
-            && unit_state.ai_blackboard != null
-            && unit_state.ai_blackboard.ContainsKey("turn_started_tu")
-        )
+        if (unit_state != null && unit_state.ai_blackboard != null)
         {
-            turnStartedTu = unit_state.ai_blackboard["turn_started_tu"].AsInt32();
+            turnStartedTu = unit_state.ai_blackboard.get_int("turn_started_tu", 0);
         }
 
         var turnTrace = new GDictionary
@@ -964,7 +837,7 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
 
     public GDictionary _normalize_runtime_action_metadata(GDictionary metadata)
     {
-        return RuntimeActionMetadata.FromDictionary(metadata).ToDictionary();
+        return RuntimeActionMetadata.FromDictionary(metadata).ToDictionary(includeRuntimeExport: true);
     }
 
     private static bool _is_runtime_fixed_metadata_key(string key)
@@ -972,54 +845,92 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
         return RuntimeFixedMetadataKeys.Contains(key ?? "");
     }
 
-    private static bool _is_runtime_metadata_export_key(string key)
-    {
-        return RuntimeMetadataExportKeys.Contains(key ?? "");
-    }
-
-    private static List<RuntimeMetadataEntry> ReadRuntimeMetadataEntries(GDictionary source)
-    {
-        var result = new List<RuntimeMetadataEntry>();
-        if (source == null)
-        {
-            return result;
-        }
-        foreach (var rawKey in source.Keys)
-        {
-            string key = ReadRuntimeMetadataKey(rawKey);
-            if (string.IsNullOrEmpty(key))
-            {
-                continue;
-            }
-            result.Add(new RuntimeMetadataEntry(key, RuntimeMetadataValue.FromVariant(source[rawKey])));
-        }
-        return result;
-    }
-
-    private static string ReadRuntimeMetadataKey(Variant rawKey)
-    {
-        return rawKey.VariantType switch
-        {
-            Variant.Type.String => rawKey.AsString(),
-            Variant.Type.StringName => rawKey.AsStringName().ToString(),
-            Variant.Type.Nil => "",
-            _ => rawKey.ToString(),
-        };
-    }
-
     private static StringName ReadStringName(GDictionary source, string key)
     {
-        if (source == null || string.IsNullOrEmpty(key) || !source.ContainsKey(key))
+        return ReadStringNameValue(source, key);
+    }
+
+    private static bool TryReadDictionaryValue(GDictionary source, string key, out GDictionary dictionary)
+    {
+        dictionary = null;
+        try
         {
-            return "";
+            if (source.ContainsKey(key))
+            {
+                dictionary = source[key].AsGodotDictionary();
+                return dictionary != null;
+            }
+            StringName stringNameKey = key;
+            if (source.ContainsKey(stringNameKey))
+            {
+                dictionary = source[stringNameKey].AsGodotDictionary();
+                return dictionary != null;
+            }
         }
-        Variant value = source[key];
-        return value.VariantType switch
+        catch
         {
-            Variant.Type.StringName => value.AsStringName(),
-            Variant.Type.String => new StringName(value.AsString()),
-            _ => "",
-        };
+        }
+        return false;
+    }
+
+    private static bool TryReadBoolValue(GDictionary source, string key, out bool boolValue)
+    {
+        boolValue = false;
+        try
+        {
+            if (source.ContainsKey(key))
+            {
+                boolValue = source[key].AsBool();
+                return true;
+            }
+            StringName stringNameKey = key;
+            if (source.ContainsKey(stringNameKey))
+            {
+                boolValue = source[stringNameKey].AsBool();
+                return true;
+            }
+        }
+        catch
+        {
+        }
+        return false;
+    }
+
+    private static bool ReadBoolValue(GDictionary source, string key)
+    {
+        return TryReadBoolValue(source, key, out bool value) && value;
+    }
+
+    private static StringName ReadStringNameValue(GDictionary source, string key)
+    {
+        try
+        {
+            if (source.ContainsKey(key))
+                return ProgressionDataUtils.to_string_name(source[key]);
+            StringName stringNameKey = key;
+            if (source.ContainsKey(stringNameKey))
+                return ProgressionDataUtils.to_string_name(source[stringNameKey]);
+        }
+        catch
+        {
+        }
+        return "";
+    }
+
+    private static string ReadTextValue(GDictionary source, string key)
+    {
+        try
+        {
+            if (source.ContainsKey(key))
+                return source[key].ToString();
+            StringName stringNameKey = key;
+            if (source.ContainsKey(stringNameKey))
+                return source[stringNameKey].ToString();
+        }
+        catch
+        {
+        }
+        return "";
     }
 
     private static BattleAiScoreInput ResolveDecisionScoreInput(BattleAiDecision decision)

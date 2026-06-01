@@ -272,7 +272,8 @@ public partial class BattleState : RefCounted
 
         foreach (var unitValue in units.Values)
         {
-            if (unitValue.AsGodotObject() is BattleUnitState unitState)
+            BattleUnitState unitState = unitValue.As<BattleUnitState>();
+            if (unitState != null)
             {
                 results.Add(unitState);
             }
@@ -290,12 +291,8 @@ public partial class BattleState : RefCounted
 
         foreach (var coordValue in cells.Keys)
         {
-            if (coordValue.VariantType != Variant.Type.Vector2I)
-            {
-                continue;
-            }
             Vector2I coord = coordValue.AsVector2I();
-            BattleCellState cellState = cells[coord].AsGodotObject() as BattleCellState;
+            BattleCellState cellState = cells[coord].As<BattleCellState>();
             if (cellState != null)
             {
                 results.Add(new BattleCellEntry(coord, cellState));
@@ -315,7 +312,8 @@ public partial class BattleState : RefCounted
         foreach (var unitIdValue in units.Keys)
         {
             StringName unitId = ProgressionDataUtils.to_string_name(unitIdValue);
-            if (unitId == "" || units[unitId].AsGodotObject() is not BattleUnitState unitState)
+            BattleUnitState unitState = unitId != "" ? units[unitId].As<BattleUnitState>() : null;
+            if (unitState == null)
             {
                 continue;
             }
@@ -337,7 +335,7 @@ public partial class BattleState : RefCounted
             return false;
         }
 
-        unitState = units[normalized].AsGodotObject() as BattleUnitState;
+        unitState = units[normalized].As<BattleUnitState>();
         return unitState != null;
     }
 

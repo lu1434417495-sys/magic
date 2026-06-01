@@ -7,7 +7,10 @@
 [sub_resource type="Resource" id="Resource_stamina"]
 script = ExtResource("3_effect")
 effect_type = &"stamina_restore"
-power = 8
+dice_count = 8
+dice_sides_base = 4
+dice_sides_per_constitution_mod = 2
+dice_sides_per_willpower_mod = 1
 
 [sub_resource type="Resource" id="Resource_erase"]
 script = ExtResource("3_effect")

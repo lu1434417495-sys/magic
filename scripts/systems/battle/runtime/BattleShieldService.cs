@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Globalization;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -29,6 +31,7 @@ public partial class BattleShieldService : RefCounted
     private static readonly StringName ShieldEffect = "shield";
     private static readonly StringName ShieldFallbackFamily = "shield";
     private static readonly StringName Constitution = "constitution";
+    private static readonly StringName Willpower = "willpower";
 
     private WeakReference<BattleRuntimeModule> _runtimeRef;
 
@@ -56,37 +59,35 @@ public partial class BattleShieldService : RefCounted
         GDictionary shield_roll_context = null
     )
     {
-        return ApplyUnitShieldEffectsResult(
-                source_unit,
-                target_unit,
-                skill_def,
-                effect_defs,
-                shield_roll_context
-            )
-            .ToDictionary();
+        Dictionary<long, int> rollContext = ReadRollContext(shield_roll_context);
+        BattleShieldApplyResult result = ApplyUnitShieldEffectsResult(
+            source_unit,
+            target_unit,
+            skill_def,
+            ReadCombatEffectDefs(effect_defs),
+            rollContext
+        );
+        WriteRollContext(shield_roll_context, rollContext);
+        return result.ToDictionary();
     }
 
     public BattleShieldApplyResult ApplyUnitShieldEffectsResult(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         SkillDef skill_def,
-        GArray effect_defs,
-        GDictionary shield_roll_context = null
+        IEnumerable<CombatEffectDef> effect_defs,
+        Dictionary<long, int> shield_roll_context = null
     )
     {
         BattleShieldApplyResult result = DefaultShieldResult(target_unit, false, true);
-        if (target_unit == null || effect_defs == null || effect_defs.Count == 0)
+        if (target_unit == null || effect_defs == null)
         {
             return result;
         }
 
-        GDictionary rollContext = shield_roll_context ?? new GDictionary();
-        foreach (var effectValue in effect_defs)
+        Dictionary<long, int> rollContext = shield_roll_context ?? new Dictionary<long, int>();
+        foreach (CombatEffectDef effectDef in effect_defs)
         {
-            CombatEffectDef effectDef =
-                effectValue.VariantType == Variant.Type.Nil
-                    ? null
-                    : effectValue.AsGodotObject() as CombatEffectDef;
             if (effectDef == null || effectDef.effect_type != ShieldEffect)
             {
                 continue;
@@ -116,14 +117,16 @@ public partial class BattleShieldService : RefCounted
         GDictionary shield_roll_context = null
     )
     {
-        return ApplyShieldEffectToTargetResult(
-                source_unit,
-                target_unit,
-                skill_def,
-                effect_def,
-                shield_roll_context
-            )
-            .ToDictionary();
+        Dictionary<long, int> rollContext = ReadRollContext(shield_roll_context);
+        BattleShieldApplyResult result = ApplyShieldEffectToTargetResult(
+            source_unit,
+            target_unit,
+            skill_def,
+            effect_def,
+            rollContext
+        );
+        WriteRollContext(shield_roll_context, rollContext);
+        return result.ToDictionary();
     }
 
     public BattleShieldApplyResult ApplyShieldEffectToTargetResult(
@@ -131,7 +134,7 @@ public partial class BattleShieldService : RefCounted
         BattleUnitState target_unit,
         SkillDef skill_def,
         CombatEffectDef effect_def,
-        GDictionary shield_roll_context = null
+        Dictionary<long, int> shield_roll_context = null
     )
     {
         BattleShieldApplyResult result = DefaultShieldResult(target_unit, false, false);
@@ -140,8 +143,8 @@ public partial class BattleShieldService : RefCounted
             return result;
         }
 
-        GDictionary rollContext = shield_roll_context ?? new GDictionary();
-        int shieldHp = _resolve_shield_hp(source_unit, effect_def, rollContext);
+        Dictionary<long, int> rollContext = shield_roll_context ?? new Dictionary<long, int>();
+        int shieldHp = ResolveShieldHp(source_unit, effect_def, rollContext);
         if (shieldHp <= 0)
         {
             return result;
@@ -153,11 +156,6 @@ public partial class BattleShieldService : RefCounted
         }
 
         StringName shieldFamily = _resolve_shield_family(skill_def, effect_def);
-        GDictionary shieldParams = DuplicateDictionary(
-            effect_def.@params,
-            true
-        );
-        shieldParams["resolved_shield_hp"] = shieldHp;
         StringName shieldSourceUnitId = source_unit != null ? source_unit.unit_id : Empty;
         StringName shieldSourceSkillId = skill_def != null ? skill_def.skill_id : Empty;
 
@@ -170,8 +168,7 @@ public partial class BattleShieldService : RefCounted
                 shieldDuration,
                 shieldFamily,
                 shieldSourceUnitId,
-                shieldSourceSkillId,
-                shieldParams
+                shieldSourceSkillId
             );
             return BuildUnitShieldResult(target_unit, true);
         }
@@ -198,7 +195,6 @@ public partial class BattleShieldService : RefCounted
             target_unit.shield_duration = nextShieldDuration;
             target_unit.shield_source_unit_id = shieldSourceUnitId;
             target_unit.shield_source_skill_id = shieldSourceSkillId;
-            target_unit.shield_params = DuplicateDictionary(shieldParams, true);
             target_unit.normalize_shield_state();
             return BuildUnitShieldResult(target_unit, true);
         }
@@ -225,8 +221,7 @@ public partial class BattleShieldService : RefCounted
             shieldDuration,
             shieldFamily,
             shieldSourceUnitId,
-            shieldSourceSkillId,
-            shieldParams
+            shieldSourceSkillId
         );
         return BuildUnitShieldResult(target_unit, true);
     }
@@ -237,8 +232,7 @@ public partial class BattleShieldService : RefCounted
         int shield_duration,
         StringName shield_family,
         StringName shield_source_unit_id,
-        StringName shield_source_skill_id,
-        GDictionary shield_params
+        StringName shield_source_skill_id
     )
     {
         if (target_unit == null)
@@ -252,7 +246,6 @@ public partial class BattleShieldService : RefCounted
         target_unit.shield_family = shield_family;
         target_unit.shield_source_unit_id = shield_source_unit_id;
         target_unit.shield_source_skill_id = shield_source_skill_id;
-        target_unit.shield_params = DuplicateDictionary(shield_params, true);
         target_unit.normalize_shield_state();
     }
 
@@ -272,16 +265,32 @@ public partial class BattleShieldService : RefCounted
         GDictionary shield_roll_context = null
     )
     {
+        Dictionary<long, int> rollContext = ReadRollContext(shield_roll_context);
+        int shieldHp = ResolveShieldHp(source_unit, effect_def, rollContext);
+        WriteRollContext(shield_roll_context, rollContext);
+        return shieldHp;
+    }
+
+    public int ResolveShieldHp(
+        BattleUnitState source_unit,
+        CombatEffectDef effect_def,
+        Dictionary<long, int> shield_roll_context = null
+    )
+    {
         if (effect_def == null)
         {
             return 0;
         }
 
         int fallbackShieldHp = Math.Max(effect_def.power, 0);
-        GDictionary rollContext = shield_roll_context ?? new GDictionary();
-        if (_has_shield_base_sides_config(effect_def))
+        Dictionary<long, int> rollContext = shield_roll_context ?? new Dictionary<long, int>();
+        if (_has_shield_attribute_scaled_dice_config(effect_def))
         {
-            return _roll_shield_hp_with_base_sides(source_unit, effect_def, rollContext);
+            return RollShieldHpWithAttributeScaledDice(
+                source_unit,
+                effect_def,
+                rollContext
+            );
         }
         if (!_has_shield_dice_config(effect_def))
         {
@@ -289,9 +298,9 @@ public partial class BattleShieldService : RefCounted
         }
 
         long cacheKey = _get_shield_roll_cache_key(effect_def);
-        if (rollContext.ContainsKey(cacheKey))
+        if (rollContext.TryGetValue(cacheKey, out int cachedShieldHp))
         {
-            return Math.Max(GetInt(rollContext, cacheKey, fallbackShieldHp), 0);
+            return Math.Max(cachedShieldHp, 0);
         }
 
         int rolledShieldHp = _roll_shield_hp(effect_def);
@@ -307,20 +316,14 @@ public partial class BattleShieldService : RefCounted
         }
 
         int shieldHp = Math.Max(effect_def.power, 0);
-        GDictionary parameters = effect_def.@params;
-        if (parameters.Count == 0)
-        {
-            return shieldHp;
-        }
-
-        int diceCount = Math.Max(GetInt(parameters, "dice_count", 0), 0);
-        int diceSides = Math.Max(GetInt(parameters, "dice_sides", 0), 0);
+        int diceCount = Math.Max(effect_def.dice_count, 0);
+        int diceSides = Math.Max(effect_def.dice_sides, 0);
         if (diceCount <= 0 || diceSides <= 0)
         {
             return shieldHp;
         }
 
-        shieldHp += GetInt(parameters, "dice_bonus", 0);
+        shieldHp += effect_def.dice_bonus;
         for (int rollIndex = 0; rollIndex < diceCount; rollIndex++)
         {
             shieldHp += _roll_battle_effect_die(diceSides);
@@ -334,49 +337,70 @@ public partial class BattleShieldService : RefCounted
         {
             return false;
         }
-        GDictionary parameters = effect_def.@params;
-        return parameters.Count > 0
-            && GetInt(parameters, "dice_count", 0) > 0
-            && GetInt(parameters, "dice_sides", 0) > 0;
+        return (effect_def.dice_count > 0 && effect_def.dice_sides > 0)
+            || _has_shield_attribute_scaled_dice_config(effect_def);
     }
 
-    public bool _has_shield_base_sides_config(CombatEffectDef effect_def)
+    public bool _has_shield_attribute_scaled_dice_config(CombatEffectDef effect_def)
     {
         if (effect_def == null)
         {
             return false;
         }
-        GDictionary parameters = effect_def.@params;
-        return parameters.Count > 0 && GetInt(parameters, "base_sides", 0) > 0;
+        return effect_def.dice_count > 0 && effect_def.dice_sides_base > 0;
     }
 
-    public int _roll_shield_hp_with_base_sides(
+    public int _roll_shield_hp_with_attribute_scaled_dice(
         BattleUnitState source_unit,
         CombatEffectDef effect_def,
         GDictionary shield_roll_context = null
     )
     {
-        GDictionary rollContext = shield_roll_context ?? new GDictionary();
-        long cacheKey = _get_shield_roll_cache_key(effect_def);
-        if (rollContext.ContainsKey(cacheKey))
+        Dictionary<long, int> rollContext = ReadRollContext(shield_roll_context);
+        int shieldHp = RollShieldHpWithAttributeScaledDice(
+            source_unit,
+            effect_def,
+            rollContext
+        );
+        WriteRollContext(shield_roll_context, rollContext);
+        return shieldHp;
+    }
+
+    public int RollShieldHpWithAttributeScaledDice(
+        BattleUnitState source_unit,
+        CombatEffectDef effect_def,
+        Dictionary<long, int> shield_roll_context = null
+    )
+    {
+        if (effect_def == null)
         {
-            return Math.Max(GetInt(rollContext, cacheKey, 0), 0);
+            return 0;
+        }
+        Dictionary<long, int> rollContext = shield_roll_context ?? new Dictionary<long, int>();
+        long cacheKey = _get_shield_roll_cache_key(effect_def);
+        if (rollContext.TryGetValue(cacheKey, out int cachedShieldHp))
+        {
+            return Math.Max(cachedShieldHp, 0);
         }
 
-        GDictionary parameters = effect_def.@params;
-        int diceCount = Math.Max(effect_def.power, 1);
-        int baseSides = GetInt(parameters, "base_sides", 4);
-        int conModSides = GetInt(parameters, "con_mod_sides", 1);
-        int diceSides = baseSides;
+        int diceCount = Math.Max(effect_def.dice_count, 1);
+        int baseSides = Math.Max(effect_def.dice_sides_base, 0);
+        int conModSides = Math.Max(effect_def.dice_sides_per_constitution_mod, 0);
+        int willModSides = Math.Max(effect_def.dice_sides_per_willpower_mod, 0);
+        int diceSides = Math.Max(baseSides, 4);
         AttributeSnapshot attributeSnapshot = source_unit?.attribute_snapshot;
         if (attributeSnapshot != null)
         {
             int conScore = attributeSnapshot.get_value(Constitution);
             int conMod = (int)Math.Floor((conScore - 10) / 2.0);
-            diceSides = Math.Max(baseSides + conMod * conModSides, 4);
+            int willScore = attributeSnapshot.get_value(Willpower);
+            int willMod = (int)Math.Floor((willScore - 10) / 2.0);
+            long diceSidesRaw =
+                (long)baseSides + (long)conMod * conModSides + (long)willMod * willModSides;
+            diceSides = (int)Math.Clamp(diceSidesRaw, 4L, int.MaxValue);
         }
 
-        int shieldHp = 0;
+        int shieldHp = Math.Max(effect_def.power, 0) + effect_def.dice_bonus;
         for (int rollIndex = 0; rollIndex < diceCount; rollIndex++)
         {
             shieldHp += _roll_battle_effect_die(diceSides);
@@ -440,11 +464,6 @@ public partial class BattleShieldService : RefCounted
                 {
                     return explicitFamily;
                 }
-                explicitFamily = GetStringName(parameters, "family");
-                if (!IsEmpty(explicitFamily))
-                {
-                    return explicitFamily;
-                }
             }
         }
         if (skill_def != null)
@@ -473,92 +492,76 @@ public partial class BattleShieldService : RefCounted
         );
     }
 
-    private static GDictionary DuplicateDictionary(GDictionary source, bool deep)
+    internal static Dictionary<long, int> ReadRollContext(GDictionary source)
     {
-        return source != null ? source.Duplicate(deep) : new GDictionary();
+        var result = new Dictionary<long, int>();
+        if (source == null)
+        {
+            return result;
+        }
+        foreach (var rawKey in source.Keys)
+        {
+            string keyText = rawKey.AsString();
+            if (!long.TryParse(keyText, NumberStyles.Integer, CultureInfo.InvariantCulture, out long key))
+            {
+                continue;
+            }
+            result[key] = source[rawKey].AsInt32();
+        }
+        return result;
     }
 
-    private static int GetInt(GDictionary source, object key, int fallback = 0)
+    internal static void WriteRollContext(GDictionary target, Dictionary<long, int> source)
     {
-        if (!TryGetValue(source, key, out Variant value))
+        if (target == null)
+        {
+            return;
+        }
+        target.Clear();
+        if (source == null)
+        {
+            return;
+        }
+        foreach (KeyValuePair<long, int> entry in source)
+        {
+            target[entry.Key.ToString(CultureInfo.InvariantCulture)] = entry.Value;
+        }
+    }
+
+    private static List<CombatEffectDef> ReadCombatEffectDefs(GArray source)
+    {
+        var result = new List<CombatEffectDef>();
+        if (source == null)
+        {
+            return result;
+        }
+        foreach (var effectValue in source)
+        {
+            CombatEffectDef effectDef = effectValue.As<CombatEffectDef>();
+            if (effectDef != null)
+            {
+                result.Add(effectDef);
+            }
+        }
+        return result;
+    }
+
+    private static int GetInt(GDictionary source, string key, int fallback = 0)
+    {
+        if (source == null || !source.ContainsKey(key))
         {
             return fallback;
         }
-        return value.VariantType switch
-        {
-            Variant.Type.Int => value.AsInt32(),
-            Variant.Type.Float => (int)value.AsDouble(),
-            Variant.Type.Bool => value.AsBool() ? 1 : 0,
-            Variant.Type.String => int.TryParse(value.AsString(), out int parsed)
-                ? parsed
-                : fallback,
-            Variant.Type.StringName
-                => int.TryParse(value.AsStringName().ToString(), out int parsed)
-                    ? parsed
-                    : fallback,
-            _ => fallback,
-        };
+        return source[key].AsInt32();
     }
 
-    private static StringName GetStringName(GDictionary source, object key)
+    private static StringName GetStringName(GDictionary source, string key)
     {
-        if (!TryGetValue(source, key, out Variant value))
+        if (source == null || !source.ContainsKey(key))
         {
             return Empty;
         }
-        return ProgressionDataUtils.to_string_name(value);
-    }
-
-    private static bool TryGetValue(GDictionary source, object key, out Variant value)
-    {
-        if (source == null)
-        {
-            value = default;
-            return false;
-        }
-        Variant variantKey = ToVariantKey(key);
-        if (source.ContainsKey(variantKey))
-        {
-            value = source[variantKey];
-            return true;
-        }
-        if (key is StringName stringNameKey)
-        {
-            string keyText = stringNameKey.ToString();
-            if (source.ContainsKey(keyText))
-            {
-                value = source[keyText];
-                return true;
-            }
-        }
-        else if (key is string stringKey)
-        {
-            var stringName = new StringName(stringKey);
-            if (source.ContainsKey(stringName))
-            {
-                value = source[stringName];
-                return true;
-            }
-        }
-        value = default;
-        return false;
-    }
-
-    private static Variant ToVariantKey(object key)
-    {
-        return key switch
-        {
-            Variant variant => variant,
-            StringName stringName => Variant.From(stringName),
-            string text => Variant.From(text),
-            int intValue => Variant.From(intValue),
-            long longValue => Variant.From(longValue),
-            float floatValue => Variant.From(floatValue),
-            double doubleValue => Variant.From(doubleValue),
-            bool boolValue => Variant.From(boolValue),
-            Vector2I coord => Variant.From(coord),
-            _ => Variant.From(key?.ToString() ?? ""),
-        };
+        return ProgressionDataUtils.to_string_name(source[key]);
     }
 
     private static bool IsEmpty(StringName value)
@@ -568,11 +571,7 @@ public partial class BattleShieldService : RefCounted
 
     private static BattleRuntimeModule ResolveWeakRef(WeakReference<BattleRuntimeModule> weakRef)
     {
-        if (
-            weakRef == null
-            || !weakRef.TryGetTarget(out BattleRuntimeModule target)
-            || !GodotObject.IsInstanceValid(target)
-        )
+        if (weakRef == null || !weakRef.TryGetTarget(out BattleRuntimeModule target))
         {
             return null;
         }

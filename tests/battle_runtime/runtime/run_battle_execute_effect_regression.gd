@@ -112,9 +112,9 @@ func _make_execute_effect() -> CombatEffectDef:
 	effect.save_dc = 10
 	effect.save_ability = &"willpower"
 	effect.save_tag = &"magic"
+	effect.staged_execution = true
 	effect.params = {
 		"skill_id": "mage_power_word_kill",
-		"staged_execution": true,
 		"burst_damage": 9999,
 		"finisher_damage": 1,
 		"shield_absorption_percent": 50.0,

@@ -149,8 +149,7 @@ public partial class BattleAiUnitSnapshot : RefCounted
 
         foreach (var value in source)
         {
-            if (value.VariantType == Variant.Type.Vector2I)
-                result.Add(value.AsVector2I());
+            result.Add(value.AsVector2I());
         }
 
         return result;

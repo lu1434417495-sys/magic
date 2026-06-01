@@ -22,7 +22,7 @@ public partial class AscensionStageDef : Resource
     public Godot.Collections.Array<StringName> trait_ids = new();
 
     [Export]
-    public Godot.Collections.Array<Resource> racial_granted_skills = new();
+    public Godot.Collections.Array<RacialGrantedSkill> racial_granted_skills = new();
 
     [Export]
     public StringName body_size_category_override = "";

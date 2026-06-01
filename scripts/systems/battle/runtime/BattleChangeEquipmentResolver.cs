@@ -172,9 +172,9 @@ public partial class BattleChangeEquipmentResolver : RefCounted
         set => _runtimeRef = value != null ? new WeakReference<BattleRuntimeModule>(value) : null;
     }
 
-    public void setup(GodotObject runtime)
+    public void setup(BattleRuntimeModule runtime)
     {
-        _runtime = runtime as BattleRuntimeModule;
+        _runtime = runtime;
     }
 
     public void dispose()
@@ -182,22 +182,22 @@ public partial class BattleChangeEquipmentResolver : RefCounted
         _runtime = null;
     }
 
-    public void preview_command(GodotObject active_unit, BattleCommand command, GodotObject preview)
+    public void preview_command(BattleUnitState active_unit, BattleCommand command, BattlePreview preview)
     {
-        PreviewChangeEquipmentCommand(active_unit as BattleUnitState, command, preview as BattlePreview);
+        PreviewChangeEquipmentCommand(active_unit, command, preview);
     }
 
-    public void handle_command(GodotObject active_unit, BattleCommand command, GodotObject batch)
+    public void handle_command(BattleUnitState active_unit, BattleCommand command, BattleEventBatch batch)
     {
-        HandleChangeEquipmentCommand(active_unit as BattleUnitState, command, batch as BattleEventBatch);
+        HandleChangeEquipmentCommand(active_unit, command, batch);
     }
 
-    public int get_unit_hp_max(GodotObject unit_state)
+    public int get_unit_hp_max(BattleUnitState unit_state)
     {
         return GetUnitHpMax(unit_state);
     }
 
-    public int get_unit_stamina_max(GodotObject unit_state)
+    public int get_unit_stamina_max(BattleUnitState unit_state)
     {
         return GetUnitStaminaMax(unit_state);
     }
@@ -333,9 +333,9 @@ public partial class BattleChangeEquipmentResolver : RefCounted
         result.WeaponPhysicalDamageTag = activeUnit.weapon_physical_damage_tag;
     }
 
-    private int GetUnitHpMax(GodotObject unitState)
+    private int GetUnitHpMax(BattleUnitState unitState)
     {
-        AttributeSnapshot snapshot = (unitState as BattleUnitState)?.attribute_snapshot;
+        AttributeSnapshot snapshot = unitState?.attribute_snapshot;
         if (unitState == null || snapshot == null)
         {
             return 0;
@@ -343,9 +343,9 @@ public partial class BattleChangeEquipmentResolver : RefCounted
         return Math.Max(snapshot.get_value(AttributeService.HP_MAX), 1);
     }
 
-    private int GetUnitStaminaMax(GodotObject unitState)
+    private int GetUnitStaminaMax(BattleUnitState unitState)
     {
-        AttributeSnapshot snapshot = (unitState as BattleUnitState)?.attribute_snapshot;
+        AttributeSnapshot snapshot = unitState?.attribute_snapshot;
         if (unitState == null || snapshot == null)
         {
             return 0;
@@ -579,7 +579,7 @@ public partial class BattleChangeEquipmentResolver : RefCounted
             {
                 occupiedSlots = new GStringNameArray { slotId };
             }
-            var displacedEntrySlots = new GDictionary();
+            var displacedEntrySlots = new HashSet<StringName>();
             foreach (StringName occupiedSlotId in occupiedSlots)
             {
                 StringName existingEntrySlot = ProgressionDataUtils.to_string_name(
@@ -587,12 +587,12 @@ public partial class BattleChangeEquipmentResolver : RefCounted
                 );
                 if (
                     StringNameIsEmpty(existingEntrySlot)
-                    || displacedEntrySlots.ContainsKey(existingEntrySlot)
+                    || displacedEntrySlots.Contains(existingEntrySlot)
                 )
                 {
                     continue;
                 }
-                displacedEntrySlots[existingEntrySlot] = true;
+                displacedEntrySlots.Add(existingEntrySlot);
                 EquipmentInstanceState displacedInstance = equipmentView.pop_equipped_instance(
                     existingEntrySlot
                 );
@@ -879,8 +879,7 @@ public partial class BattleChangeEquipmentResolver : RefCounted
         {
             return itemId;
         }
-        GDictionary instancePayload = command.equipment_instance ?? new GDictionary();
-        return DictStringName(instancePayload, "item_id");
+        return "";
     }
 
     private StringName ResolveChangeEquipmentInstanceId(BattleCommand command)
@@ -894,8 +893,7 @@ public partial class BattleChangeEquipmentResolver : RefCounted
         {
             return instanceId;
         }
-        GDictionary instancePayload = command.equipment_instance ?? new GDictionary();
-        return DictStringName(instancePayload, "instance_id");
+        return "";
     }
 
     private GStringNameArray ResolveChangeEquipmentOccupiedSlots(
@@ -1059,35 +1057,17 @@ public partial class BattleChangeEquipmentResolver : RefCounted
     private ItemDef GetChangeEquipmentItemDef(StringName itemId)
     {
         StringName normalized = ProgressionDataUtils.to_string_name(itemId);
-        GDictionary defs = _runtime?.get_item_defs();
-        if (StringNameIsEmpty(normalized) || defs == null || defs.Count == 0)
+        IBattleRuntimeCharacterGateway characterGateway = _runtime?.GetCharacterGatewayTyped();
+        if (StringNameIsEmpty(normalized) || characterGateway == null)
         {
             return null;
         }
-        foreach (var key in defs.Keys)
-        {
-            if (key.VariantType != Variant.Type.StringName || key.AsStringName() != normalized)
-            {
-                continue;
-            }
-            return defs[key].AsGodotObject() as ItemDef;
-        }
-        return null;
-    }
-
-    private static StringName DictStringName(GDictionary data, string key)
-    {
-        if (data == null || !data.ContainsKey(key))
-        {
-            return "";
-        }
-        return ProgressionDataUtils.to_string_name(data[key]);
+        return characterGateway.get_item_def(normalized);
     }
 
     private bool HasChangeEquipmentItemCatalog()
     {
-        GDictionary itemDefs = _runtime?.get_item_defs();
-        return itemDefs != null && itemDefs.Count > 0;
+        return _runtime?.GetCharacterGatewayTyped()?.has_item_def_catalog() ?? false;
     }
 
     private ChangeEquipmentRuleResult ValidateChangeEquipmentInstanceOwnership(
@@ -1210,9 +1190,8 @@ public partial class BattleChangeEquipmentResolver : RefCounted
             return -1;
         }
         int totalCapacity = 0;
-        foreach (Variant memberStateValue in partyState.member_states.Values)
+        foreach (PartyMemberState memberState in partyState.get_member_states())
         {
-            PartyMemberState memberState = memberStateValue.AsGodotObject() as PartyMemberState;
             UnitProgress progression = memberState?.progression;
             if (progression == null)
             {
@@ -1290,13 +1269,9 @@ public partial class BattleChangeEquipmentResolver : RefCounted
     }
 
     private static T ResolveWeakRef<T>(WeakReference<T> weakRef)
-        where T : GodotObject
+        where T : class
     {
-        if (
-            weakRef == null
-            || !weakRef.TryGetTarget(out T target)
-            || !GodotObject.IsInstanceValid(target)
-        )
+        if (weakRef == null || !weakRef.TryGetTarget(out T target))
         {
             return null;
         }

@@ -283,19 +283,10 @@ public partial class BattleAiScoreService
         {
             maxHp = Math.Max(targetUnit.current_hp, 1);
         }
-        int thresholdPercent = 50;
-        if (
-            effectDef != null
-            && effectDef.@params != null
-            && HasKey(effectDef.@params, "hp_ratio_threshold_percent")
-        )
-        {
-            thresholdPercent = Mathf.Clamp(
-                DictInt(effectDef.@params, "hp_ratio_threshold_percent", thresholdPercent),
-                0,
-                100
-            );
-        }
+        int thresholdPercent =
+            effectDef != null && effectDef.hp_ratio_threshold_percent > 0
+                ? Mathf.Clamp(effectDef.hp_ratio_threshold_percent, 0, 100)
+                : 50;
         return targetUnit.current_hp * 100 <= maxHp * thresholdPercent;
     }
 
@@ -315,19 +306,18 @@ public partial class BattleAiScoreService
     {
         if (
             effectDef == null
-            || effectDef.@params == null
             || !HasBonusCondition(effectDef, targetUnit)
         )
         {
             return 0;
         }
-        int diceCount = Math.Max(DictInt(effectDef.@params, "bonus_damage_dice_count", 0), 0);
-        int diceSides = Math.Max(DictInt(effectDef.@params, "bonus_damage_dice_sides", 0), 0);
+        int diceCount = Math.Max(effectDef.bonus_damage_dice_count, 0);
+        int diceSides = Math.Max(effectDef.bonus_damage_dice_sides, 0);
         if (diceCount <= 0 || diceSides <= 0)
         {
             return 0;
         }
-        int diceBonus = DictInt(effectDef.@params, "bonus_damage_dice_bonus", 0);
+        int diceBonus = effectDef.bonus_damage_dice_bonus;
         int numerator = diceCount * (diceSides + 1);
         int average = numerator / 2;
         if (numerator % 2 != 0)
@@ -412,7 +402,8 @@ public partial class BattleAiScoreService
         }
         foreach (var effectValue in effectDefs)
         {
-            if (effectValue.AsGodotObject() is CombatEffectDef effectDef)
+            CombatEffectDef effectDef = effectValue.As<CombatEffectDef>();
+            if (effectDef != null)
             {
                 result.Add(effectDef);
             }
@@ -420,13 +411,9 @@ public partial class BattleAiScoreService
         return result;
     }
 
-    public int _resolve_estimated_hit_rate_percent(GodotObject preview)
+    public int _resolve_estimated_hit_rate_percent(BattlePreview preview)
     {
-        if (preview is BattlePreview typedPreview)
-        {
-            return ResolveEstimatedHitRatePercent(typedPreview?.hit_preview);
-        }
-        return 100;
+        return ResolveEstimatedHitRatePercent(preview?.hit_preview);
     }
 
     private static int ResolveEstimatedHitRatePercent(AttackPreviewData hitPreview)
@@ -490,9 +477,17 @@ public partial class BattleAiScoreService
 
     private static int ReadKnownSkillLevel(BattleUnitState unitState, StringName skillId)
     {
-        if (TryRead(unitState.known_skill_level_map, skillId, out var levelValue))
+        if (unitState?.known_skill_level_map != null)
         {
-            return levelValue.AsInt32();
+            if (unitState.known_skill_level_map.ContainsKey(skillId))
+            {
+                return unitState.known_skill_level_map[skillId].AsInt32();
+            }
+            string skillIdText = skillId.ToString();
+            if (unitState.known_skill_level_map.ContainsKey(skillIdText))
+            {
+                return unitState.known_skill_level_map[skillIdText].AsInt32();
+            }
         }
         return unitState.known_active_skill_ids.Contains(skillId) ? 1 : 0;
     }

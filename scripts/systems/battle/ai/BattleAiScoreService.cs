@@ -160,7 +160,7 @@ public partial class BattleAiScoreService : RefCounted
             return new ScorePathStepAoeMetadata
             {
                 HitCounts = ReadPathStepHitCountEntries(source),
-                Effect = DictObject(source, "path_step_aoe_effect") as CombatEffectDef,
+                Effect = DictCombatEffectDef(source, "path_step_aoe_effect"),
             };
         }
     }

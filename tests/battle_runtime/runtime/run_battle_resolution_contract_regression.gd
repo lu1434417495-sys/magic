@@ -737,7 +737,7 @@ func _test_battle_runtime_assigns_equipment_instance_ids_on_player_victory() -> 
 	var gateway := _FakeBattleGateway.new()
 	runtime.setup(gateway, {}, {}, {}, null, null, {}, null, Callable(gateway, "allocate_equipment_instance_id"))
 	runtime._state = _build_battle_state_for_end_test()
-	runtime._battle_rating_stats = _build_battle_rating_stats()
+	runtime.set_battle_rating_stats(_build_battle_rating_stats())
 	runtime._active_loot_entries = [_build_formal_equipment_instance_loot_entry()]
 
 	var batch := BattleEventBatch.new()
@@ -759,7 +759,7 @@ func _test_battle_runtime_builds_resolution_result_on_battle_end() -> void:
 	var gateway := _FakeBattleGateway.new()
 	runtime.setup(gateway, {}, {}, {}, null)
 	runtime._state = _build_battle_state_for_end_test()
-	runtime._battle_rating_stats = _build_battle_rating_stats()
+	runtime.set_battle_rating_stats(_build_battle_rating_stats())
 	runtime._active_loot_entries = [_build_raw_loot_entry()]
 
 	var batch := BattleEventBatch.new()
@@ -789,7 +789,7 @@ func _test_battle_runtime_draws_when_both_sides_are_cleared() -> void:
 	var gateway := _FakeBattleGateway.new()
 	runtime.setup(gateway, {}, {}, {}, null)
 	runtime._state = _build_battle_state_for_end_test(false, false)
-	runtime._battle_rating_stats = _build_battle_rating_stats()
+	runtime.set_battle_rating_stats(_build_battle_rating_stats())
 	runtime._active_loot_entries = [_build_raw_loot_entry()]
 
 	var batch := BattleEventBatch.new()
@@ -813,7 +813,7 @@ func _test_battle_runtime_battle_end_integration_uses_real_character_gateway() -
 	var character_gateway := _build_real_character_gateway_for_battle_end_test()
 	runtime.setup(character_gateway, _build_skill_defs_for_battle_end_test(), {}, {}, null)
 	runtime._state = _build_battle_state_for_end_test()
-	runtime._battle_rating_stats = _build_battle_rating_stats()
+	runtime.set_battle_rating_stats(_build_battle_rating_stats())
 	runtime._active_loot_entries = [_build_raw_loot_entry()]
 
 	var batch := BattleEventBatch.new()

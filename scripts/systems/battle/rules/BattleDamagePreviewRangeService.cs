@@ -100,12 +100,11 @@ public partial class BattleDamagePreviewRangeService : RefCounted
     }
 
     public static GDictionary build_skill_damage_preview(
-        GodotObject source_unit,
+        BattleUnitState source_unit,
         GArray effect_defs
     )
     {
-        return build_skill_damage_preview_typed(source_unit as BattleUnitState, effect_defs)
-            .ToDictionary();
+        return build_skill_damage_preview_typed(source_unit, effect_defs).ToDictionary();
     }
 
     public static SkillDamagePreview build_skill_damage_preview_typed(
@@ -121,7 +120,7 @@ public partial class BattleDamagePreviewRangeService : RefCounted
         {
             for (int effectIndex = 0; effectIndex < effect_defs.Count; effectIndex++)
             {
-                CombatEffectDef effectDef = effect_defs[effectIndex].AsGodotObject() as CombatEffectDef;
+                CombatEffectDef effectDef = effect_defs[effectIndex].As<CombatEffectDef>();
                 if (
                     effectDef == null
                     || effectDef.effect_type != DamageEffectType
@@ -196,14 +195,13 @@ public partial class BattleDamagePreviewRangeService : RefCounted
 
     private static DiceRange BuildSkillDiceRange(CombatEffectDef effectDef)
     {
-        GDictionary parameters = effectDef?.@params ?? new GDictionary();
-        if (parameters.Count == 0)
+        if (effectDef == null)
         {
             return DiceRange.Empty;
         }
-        int diceCount = Mathf.Max(ReadInt(parameters, "dice_count"), 0);
-        int diceSides = Mathf.Max(ReadInt(parameters, "dice_sides"), 0);
-        int diceBonus = ReadInt(parameters, "dice_bonus");
+        int diceCount = Mathf.Max(effectDef.dice_count, 0);
+        int diceSides = Mathf.Max(effectDef.dice_sides, 0);
+        int diceBonus = effectDef.dice_bonus;
         return BuildDiceRange(diceCount, diceSides, diceBonus);
     }
 
@@ -263,8 +261,7 @@ public partial class BattleDamagePreviewRangeService : RefCounted
         {
             return fallback;
         }
-        Variant value = data[key];
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+        return data[key].AsInt32();
     }
 
     private static bool ReadPreviewHasDamage(GDictionary preview)
@@ -278,7 +275,6 @@ public partial class BattleDamagePreviewRangeService : RefCounted
         {
             return false;
         }
-        Variant value = data[key];
-        return value.VariantType == Variant.Type.Bool && value.AsBool();
+        return data[key].AsBool();
     }
 }

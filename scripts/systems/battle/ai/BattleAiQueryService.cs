@@ -493,7 +493,7 @@ public partial class BattleAiQueryService : RefCounted
         foreach (var rawSkillId in skillDefs.Keys)
         {
             StringName skillId = ProgressionDataUtils.to_string_name(rawSkillId);
-            SkillDef skillDef = skillDefs[rawSkillId].AsGodotObject() as SkillDef;
+            SkillDef skillDef = skillDefs[rawSkillId].As<SkillDef>();
             if (IsEmpty(skillId) || skillDef == null)
             {
                 results.Add(new KeyValuePair<StringName, SkillDef>(skillId, null));

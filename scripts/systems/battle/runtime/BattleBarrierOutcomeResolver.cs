@@ -541,8 +541,7 @@ public partial class BattleBarrierOutcomeResolver : RefCounted
     {
         if (dictionary == null || !dictionary.ContainsKey(key))
             return fallback;
-        Variant value = dictionary[key];
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+        return dictionary[key].AsInt32();
     }
 
 }

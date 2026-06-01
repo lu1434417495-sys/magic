@@ -5,6 +5,7 @@ const TestRunner = preload("res://tests/shared/test_runner.gd")
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/AttributeService.cs")
 const BATTLE_DAMAGE_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/rules/BattleDamageResolver.cs")
 const BATTLE_SAVE_RESOLVER_SCRIPT = preload("res://scripts/systems/battle/rules/BattleSaveResolver.cs")
+const BATTLE_SHIELD_SERVICE_SCRIPT = preload("res://scripts/systems/battle/runtime/BattleShieldService.cs")
 const BATTLE_STATUS_EFFECT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleStatusEffectState.cs")
 const BATTLE_UNIT_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleUnitState.cs")
 const COMBAT_EFFECT_DEF_SCRIPT = preload("res://scripts/player/progression/CombatEffectDef.cs")
@@ -20,6 +21,7 @@ func _initialize() -> void:
 func _run() -> void:
 	_test_preview_damage_effect_uses_shared_damage_math_without_mutating_units()
 	_test_preview_damage_effect_uses_save_probability_without_rolling()
+	_test_attribute_scaled_recovery_dice_use_formal_fields()
 	if _failures.is_empty():
 		print("Battle damage resolver preview contract regression: PASS")
 		quit(0)
@@ -41,8 +43,8 @@ func _test_preview_damage_effect_uses_shared_damage_math_without_mutating_units(
 	target.shield_max_hp = 5
 	target.shield_duration = 100
 	var effect = _make_damage_effect(&"fire", 10)
-	effect.params["dice_count"] = 2
-	effect.params["dice_sides"] = 6
+	effect.dice_count = 2
+	effect.dice_sides = 6
 
 	var expected_preview: Dictionary = resolver.preview_damage_effect(
 		source,
@@ -99,6 +101,53 @@ func _test_preview_damage_effect_uses_save_probability_without_rolling() -> void
 	_assert_eq(int(save_estimate.get("save_success_probability_basis_points", -1)), 10000, "save_roll_override=20 应变成 100% 成功概率。")
 	_assert_eq(int(preview.get("post_save_damage", -1)), 10, "成功且 partial save 应把伤害减半。")
 	_assert_eq(int(target.current_hp), 30, "save preview 不应通过真实豁免掷骰改目标。")
+
+
+func _test_attribute_scaled_recovery_dice_use_formal_fields() -> void:
+	var resolver = BATTLE_DAMAGE_RESOLVER_SCRIPT.new()
+	var source = _make_unit(&"recovery_source", &"player")
+	source.attribute_snapshot.set_value(&"constitution", 12)
+	source.attribute_snapshot.set_value(&"constitution_modifier", 1)
+	source.attribute_snapshot.set_value(&"willpower", 14)
+	source.attribute_snapshot.set_value(&"willpower_modifier", 2)
+
+	var heal_target = _make_unit(&"heal_target", &"player")
+	heal_target.current_hp = 10
+	var heal_effect = COMBAT_EFFECT_DEF_SCRIPT.new()
+	heal_effect.effect_type = &"heal"
+	heal_effect.effect_target_team_filter = &"ally"
+	heal_effect.dice_count = 2
+	heal_effect.dice_sides_base = 4
+	heal_effect.dice_sides_per_constitution_mod = 1
+	heal_effect.dice_sides_per_willpower_mod = 1
+	var heal_result: Dictionary = resolver.resolve_effects(source, heal_target, [heal_effect], {})
+	var healing := int(heal_result.get("healing", 0))
+	_assert_true(healing >= 2 and healing <= 14, "治疗应按 2D(4+CON+WILL) typed 骰面公式结算。")
+	_assert_eq(int(heal_target.current_hp), 10 + healing, "typed 治疗骰应正式写回 HP。")
+
+	var stamina_target = _make_unit(&"stamina_target", &"player")
+	stamina_target.current_stamina = 0
+	stamina_target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.STAMINA_MAX_ID(), 30)
+	var stamina_effect = COMBAT_EFFECT_DEF_SCRIPT.new()
+	stamina_effect.effect_type = &"stamina_restore"
+	stamina_effect.effect_target_team_filter = &"ally"
+	stamina_effect.dice_count = 2
+	stamina_effect.dice_sides_base = 4
+	stamina_effect.dice_sides_per_constitution_mod = 1
+	stamina_effect.dice_sides_per_willpower_mod = 1
+	resolver.resolve_effects(source, stamina_target, [stamina_effect], {})
+	_assert_true(stamina_target.current_stamina >= 2 and stamina_target.current_stamina <= 14, "体力恢复应按 typed 骰面公式结算。")
+
+	var shield_service = BATTLE_SHIELD_SERVICE_SCRIPT.new()
+	var shield_effect = COMBAT_EFFECT_DEF_SCRIPT.new()
+	shield_effect.effect_type = &"shield"
+	shield_effect.dice_count = 2
+	shield_effect.dice_sides_base = 4
+	shield_effect.dice_sides_per_constitution_mod = 1
+	shield_effect.dice_sides_per_willpower_mod = 1
+	_assert_true(shield_service._has_shield_dice_config(shield_effect), "护盾服务应识别 typed 属性缩放骰配置。")
+	var shield_hp := int(shield_service._resolve_shield_hp(source, shield_effect, {}))
+	_assert_true(shield_hp >= 2 and shield_hp <= 14, "护盾 HP 应按 typed 属性缩放骰配置结算。")
 
 
 func _make_damage_effect(damage_tag: StringName, power: int):

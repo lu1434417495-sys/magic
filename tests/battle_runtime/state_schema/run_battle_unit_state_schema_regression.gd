@@ -72,26 +72,26 @@ func _test_clone_preserves_ephemeral_charge_state() -> void:
 
 func _test_extended_body_size_categories_roundtrip() -> void:
 	var tiny := _build_unit()
-	_assert_true(tiny.set_body_size_category(BodySizeRules.body_size_category_tiny()()), "tiny category 应可设置。")
+	_assert_true(tiny.set_body_size_category(BodySizeRules.BODY_SIZE_CATEGORY_TINY()), "tiny category 应可设置。")
 	var tiny_payload := tiny.to_dict()
 	_assert_eq(String(tiny_payload.get("body_size_category", "")), "tiny", "to_dict 应保留 tiny category。")
-	_assert_eq(int(tiny_payload.get("body_size", 0)), BodySizeRules.body_size_tiny()(), "tiny 应映射到 BodySizeRules 的 int。")
+	_assert_eq(int(tiny_payload.get("body_size", 0)), BodySizeRules.BODY_SIZE_TINY(), "tiny 应映射到 BodySizeRules 的 int。")
 	_assert_eq(tiny_payload.get("footprint_size", Vector2i.ZERO), Vector2i.ONE, "tiny footprint 应为 1x1。")
 	_assert_true(BattleUnitState.from_dict(tiny_payload) != null, "tiny payload 应可 round-trip。")
 
 	var gargantuan := _build_unit()
-	_assert_true(gargantuan.set_body_size_category(BodySizeRules.body_size_category_gargantuan()()), "gargantuan category 应可设置。")
+	_assert_true(gargantuan.set_body_size_category(BodySizeRules.BODY_SIZE_CATEGORY_GARGANTUAN()), "gargantuan category 应可设置。")
 	var gargantuan_payload := gargantuan.to_dict()
-	_assert_eq(int(gargantuan_payload.get("body_size", 0)), BodySizeRules.body_size_gargantuan()(), "gargantuan 应映射到 BodySizeRules 的 int。")
-	_assert_eq(gargantuan_payload.get("footprint_size", Vector2i.ZERO), Vector2i(3, 3), "gargantuan footprint 应为 3x3。")
-	_assert_eq((gargantuan_payload.get("occupied_coords", []) as Array).size(), 9, "gargantuan 应占 9 格。")
+	_assert_eq(int(gargantuan_payload.get("body_size", 0)), BodySizeRules.BODY_SIZE_GARGANTUAN(), "gargantuan 应映射到 BodySizeRules 的 int。")
+	_assert_eq(gargantuan_payload.get("footprint_size", Vector2i.ZERO), Vector2i(4, 4), "gargantuan footprint 应为 4x4。")
+	_assert_eq((gargantuan_payload.get("occupied_coords", []) as Array).size(), 16, "gargantuan 应占 16 格。")
 	_assert_true(BattleUnitState.from_dict(gargantuan_payload) != null, "gargantuan payload 应可 round-trip。")
 
 	var boss := _build_unit()
-	_assert_true(boss.set_body_size_category(BodySizeRules.body_size_category_boss()()), "boss category 应可设置。")
+	_assert_true(boss.set_body_size_category(BodySizeRules.BODY_SIZE_CATEGORY_BOSS()), "boss category 应可设置。")
 	var boss_payload := boss.to_dict()
-	_assert_eq(int(boss_payload.get("body_size", 0)), BodySizeRules.body_size_boss()(), "boss 应映射到 BodySizeRules 的 int。")
-	_assert_eq(boss_payload.get("footprint_size", Vector2i.ZERO), Vector2i(3, 3), "boss footprint 应为 3x3。")
+	_assert_eq(int(boss_payload.get("body_size", 0)), BodySizeRules.BODY_SIZE_BOSS(), "boss 应映射到 BodySizeRules 的 int。")
+	_assert_eq(boss_payload.get("footprint_size", Vector2i.ZERO), Vector2i(5, 5), "boss footprint 应为 5x5。")
 	_assert_true(BattleUnitState.from_dict(boss_payload) != null, "boss payload 应可 round-trip。")
 
 
@@ -284,7 +284,6 @@ func _build_unit() -> BattleUnitState:
 	unit.shield_family = &"ward"
 	unit.shield_source_unit_id = &"schema_unit"
 	unit.shield_source_skill_id = &"ward_skill"
-	unit.shield_params = {"kind": "test"}
 	unit.action_progress = 20
 	unit.action_threshold = 140
 	unit.known_active_skill_ids = [&"slash"]
@@ -322,7 +321,6 @@ func _build_unit() -> BattleUnitState:
 	effect.stacks = 2
 	effect.duration = 20
 	unit.set_status_effect(effect)
-	unit.combo_state = {"chain": 1}
 	return unit
 
 

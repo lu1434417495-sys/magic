@@ -44,6 +44,20 @@ public partial class PartyState : RefCounted
 
     public bool has_member_state(StringName id) => get_member_state(id) != null;
 
+    public List<PartyMemberState> get_member_states()
+    {
+        var result = new List<PartyMemberState>();
+        foreach (string key in ProgressionDataUtils.sorted_string_keys(member_states))
+        {
+            PartyMemberState memberState = get_member_state(new StringName(key));
+            if (memberState != null)
+            {
+                result.Add(memberState);
+            }
+        }
+        return result;
+    }
+
     public bool is_member_dead(StringName id)
     {
         var m = get_member_state(id);

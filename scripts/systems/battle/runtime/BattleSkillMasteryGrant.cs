@@ -61,53 +61,45 @@ public sealed class BattleSkillMasteryGrant
         StringName fallback = default
     )
     {
-        if (!TryRead(source, key, out Variant value))
+        if (!HasKey(source, key))
             return fallback ?? "";
-        return ProgressionDataUtils.to_string_name(value);
+        if (source.ContainsKey(key))
+            return ProgressionDataUtils.to_string_name(source[key]);
+        return ProgressionDataUtils.to_string_name(source[new StringName(key)]);
     }
 
     private static string ReadString(GDictionary source, string key, string fallback = "")
     {
-        if (!TryRead(source, key, out Variant value))
+        if (!HasKey(source, key))
             return fallback;
-        return value.VariantType switch
-        {
-            Variant.Type.String => value.AsString(),
-            Variant.Type.StringName => value.AsStringName().ToString(),
-            _ => fallback,
-        };
+        string text = source.ContainsKey(key)
+            ? source[key].ToString()
+            : source[new StringName(key)].ToString();
+        return string.IsNullOrEmpty(text) || text == "<null>" ? fallback : text;
     }
 
     private static int ReadInt(GDictionary source, string key, int fallback = 0)
     {
-        if (!TryRead(source, key, out Variant value))
+        if (!HasKey(source, key))
             return fallback;
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+        return source.ContainsKey(key)
+            ? source[key].AsInt32()
+            : source[new StringName(key)].AsInt32();
     }
 
     private static bool ReadBool(GDictionary source, string key, bool fallback = false)
     {
-        if (!TryRead(source, key, out Variant value))
+        if (!HasKey(source, key))
             return fallback;
-        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
+        return source.ContainsKey(key)
+            ? source[key].AsBool()
+            : source[new StringName(key)].AsBool();
     }
 
-    private static bool TryRead(GDictionary source, string key, out Variant value)
+    private static bool HasKey(GDictionary source, string key)
     {
-        value = default;
         if (source == null || key == null)
             return false;
-        if (source.ContainsKey(key))
-        {
-            value = source[key];
-            return value.VariantType != Variant.Type.Nil;
-        }
-        StringName stringNameKey = new(key);
-        if (source.ContainsKey(stringNameKey))
-        {
-            value = source[stringNameKey];
-            return value.VariantType != Variant.Type.Nil;
-        }
-        return false;
+        return source.ContainsKey(key) || source.ContainsKey(new StringName(key));
     }
 }

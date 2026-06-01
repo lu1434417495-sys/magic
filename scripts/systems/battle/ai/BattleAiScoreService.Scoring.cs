@@ -614,77 +614,12 @@ public partial class BattleAiScoreService
         StringName skillId = default
     )
     {
-        string cacheKey = BuildDamageEstimateCacheKey(sourceUnit, effectDefs, targetUnit, skillId);
-        Dictionary<string, object> cache = ContextScoreProjectionCache(context);
-        if (
-            !string.IsNullOrEmpty(cacheKey)
-            && cache.TryGetValue(cacheKey, out object cached)
-            && cached is DamageEstimateResult cachedEstimate
-        )
-        {
-            return cachedEstimate.Clone();
-        }
-
-        DamageEstimateResult result = EstimateDamageForTargetResult(
+        return EstimateDamageForTargetResult(
             sourceUnit,
             effectDefs,
             targetUnit,
             skillId
         );
-        if (!string.IsNullOrEmpty(cacheKey))
-        {
-            cache[cacheKey] = result.Clone();
-        }
-        return result;
-    }
-
-    private static string BuildDamageEstimateCacheKey(
-        BattleUnitState sourceUnit,
-        IReadOnlyList<CombatEffectDef> effectDefs,
-        BattleUnitState targetUnit,
-        StringName skillId
-    )
-    {
-        if (sourceUnit == null || targetUnit == null || effectDefs == null)
-        {
-            return "";
-        }
-
-        var parts = new List<string>
-        {
-            "damage",
-            sourceUnit.unit_id.ToString(),
-            targetUnit.unit_id.ToString(),
-            skillId.ToString(),
-            targetUnit.current_hp.ToString(),
-            targetUnit.current_shield_hp.ToString(),
-            sourceUnit.current_hp.ToString(),
-            sourceUnit.current_shield_hp.ToString(),
-            effectDefs.Count.ToString(),
-        };
-        foreach (CombatEffectDef effectDef in effectDefs)
-        {
-            if (effectDef == null)
-            {
-                parts.Add("null");
-                continue;
-            }
-            parts.Add(effectDef.GetInstanceId().ToString());
-            parts.Add(effectDef.effect_type.ToString());
-            parts.Add(effectDef.damage_tag.ToString());
-            parts.Add(effectDef.power.ToString());
-            parts.Add(effectDef.damage_ratio_percent.ToString());
-            parts.Add(effectDef.save_dc.ToString());
-            parts.Add(effectDef.save_dc_mode.ToString());
-            parts.Add(effectDef.save_dc_source_ability.ToString());
-            parts.Add(effectDef.save_ability.ToString());
-            parts.Add(effectDef.save_partial_on_success ? "1" : "0");
-            parts.Add(effectDef.bonus_condition.ToString());
-            parts.Add(effectDef.trigger_event.ToString());
-            parts.Add(effectDef.trigger_condition.ToString());
-            parts.Add(effectDef.trigger_status_id.ToString());
-        }
-        return string.Join("|", parts);
     }
 
     private DamageEstimateResult EstimateDamageForTargetResult(

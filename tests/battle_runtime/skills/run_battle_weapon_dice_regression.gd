@@ -371,13 +371,13 @@ func _test_warrior_heavy_strike_uses_weapon_plus_skill_dice_template() -> void:
 	for damage_effect_index in range(mini(damage_effects.size(), expected_profiles.size())):
 		var effect := damage_effects[damage_effect_index]
 		var expected := expected_profiles[damage_effect_index]
-		_assert_true(bool(effect.params.get("add_weapon_dice", false)), "重击每段伤害样板都应显式 add_weapon_dice。")
-		_assert_true(bool(effect.params.get("requires_weapon", false)), "重击仍应要求装备武器。")
-		_assert_true(bool(effect.params.get("use_weapon_physical_damage_tag", false)), "重击每段伤害应使用当前武器物理伤害标签。")
+		_assert_true(effect.add_weapon_dice, "重击每段伤害样板都应显式 add_weapon_dice。")
+		_assert_true(effect.requires_weapon, "重击仍应要求装备武器。")
+		_assert_true(effect.use_weapon_physical_damage_tag, "重击每段伤害应使用当前武器物理伤害标签。")
 		_assert_eq(int(effect.min_skill_level), int(expected.get("min_skill_level", 0)), "重击技能骰分段 min_skill_level 应匹配当前样板。")
 		_assert_eq(int(effect.max_skill_level), int(expected.get("max_skill_level", -1)), "重击技能骰分段 max_skill_level 应匹配当前样板。")
-		_assert_eq(int(effect.params.get("dice_count", 0)), int(expected.get("dice_count", 0)), "重击技能骰数量应按等级样板递进。")
-		_assert_eq(int(effect.params.get("dice_sides", 0)), int(expected.get("dice_sides", 0)), "重击技能骰骰面应按等级样板递进。")
+		_assert_eq(int(effect.dice_count), int(expected.get("dice_count", 0)), "重击技能骰数量应按等级样板递进。")
+		_assert_eq(int(effect.dice_sides), int(expected.get("dice_sides", 0)), "重击技能骰骰面应按等级样板递进。")
 
 
 func _build_damage_effect(
@@ -394,11 +394,11 @@ func _build_damage_effect(
 	effect.damage_tag = damage_tag
 	effect.params = {}
 	if add_weapon_dice:
-		effect.params["add_weapon_dice"] = true
+		effect.add_weapon_dice = true
 	if dice_count > 0 and dice_sides > 0:
-		effect.params["dice_count"] = dice_count
-		effect.params["dice_sides"] = dice_sides
-		effect.params["dice_bonus"] = dice_bonus
+		effect.dice_count = dice_count
+		effect.dice_sides = dice_sides
+		effect.dice_bonus = dice_bonus
 	return effect
 
 
@@ -413,8 +413,8 @@ func _build_runtime_damage_skill(
 	var damage_effect := _build_damage_effect(power, add_weapon_dice, dice_count, dice_sides)
 	damage_effect.effect_target_team_filter = &"enemy"
 	if requires_weapon:
-		damage_effect.params["requires_weapon"] = true
-		damage_effect.params["use_weapon_physical_damage_tag"] = true
+		damage_effect.requires_weapon = true
+		damage_effect.use_weapon_physical_damage_tag = true
 
 	var combat_profile := CombatSkillDef.new()
 	combat_profile.skill_id = skill_id

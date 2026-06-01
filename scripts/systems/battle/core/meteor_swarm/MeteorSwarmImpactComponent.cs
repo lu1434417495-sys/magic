@@ -56,12 +56,12 @@ public partial class MeteorSwarmImpactComponent : Resource
     {
         var key = distance_from_anchor.ToString();
         var fallback = (int)Math.Round(ring_weight * 10000.0);
-        var raw_value =
-            ring_damage_scale_bp.ContainsKey(distance_from_anchor)
-                ? ring_damage_scale_bp[distance_from_anchor]
-            : ring_damage_scale_bp.ContainsKey(key) ? ring_damage_scale_bp[key]
-            : Variant.From(fallback);
-        return Math.Max(_variant_to_double(raw_value, fallback) / 10000.0, 0.0);
+        double rawValue = fallback;
+        if (ring_damage_scale_bp.ContainsKey(distance_from_anchor))
+            rawValue = ring_damage_scale_bp[distance_from_anchor].AsDouble();
+        else if (ring_damage_scale_bp.ContainsKey(key))
+            rawValue = ring_damage_scale_bp[key].AsDouble();
+        return Math.Max(rawValue / 10000.0, 0.0);
     }
 
     public int get_average_base_damage(int distance_from_anchor)
@@ -101,22 +101,4 @@ public partial class MeteorSwarmImpactComponent : Resource
         };
     }
 
-    private static double _variant_to_double(object rawValue, double fallback)
-    {
-        if (rawValue is not Variant value)
-        {
-            return double.TryParse(rawValue?.ToString() ?? "", out var parsed)
-                ? parsed
-                : fallback;
-        }
-        return value.VariantType switch
-        {
-            Variant.Type.Int => value.AsInt32(),
-            Variant.Type.Float => value.AsDouble(),
-            Variant.Type.String => double.TryParse(value.AsString(), out var parsed)
-                ? parsed
-                : fallback,
-            _ => fallback,
-        };
-    }
 }

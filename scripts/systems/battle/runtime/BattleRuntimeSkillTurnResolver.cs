@@ -228,9 +228,9 @@ public partial class BattleRuntimeSkillTurnResolver : RefCounted
         unit_state.ai_blackboard.madness_target_any_team = false;
     }
 
-    public GodotObject build_madness_fallback_command(GodotObject unit_state)
+    public BattleCommand build_madness_fallback_command(BattleUnitState unit_state)
     {
-        BattleUnitState activeUnit = unit_state as BattleUnitState;
+        BattleUnitState activeUnit = unit_state;
         BattleState state = _runtime?._state;
         if (_runtime == null || state == null || activeUnit == null)
         {
@@ -257,28 +257,25 @@ public partial class BattleRuntimeSkillTurnResolver : RefCounted
             {
                 continue;
             }
-            GodotObject command = NewBattleCommand();
-            command.Set("command_type", BattleCommand.TYPE_SKILL());
-            command.Set("unit_id", activeUnit.unit_id);
-            command.Set("skill_id", skillId);
-            command.Set("target_unit_id", targetUnit.unit_id);
-            command.Set("target_coord", targetUnit.coord);
+            BattleCommand command = NewBattleCommand();
+            command.command_type = BattleCommand.TYPE_SKILL();
+            command.unit_id = activeUnit.unit_id;
+            command.skill_id = skillId;
+            command.target_unit_id = targetUnit.unit_id;
+            command.target_coord = targetUnit.coord;
             if (_skill_requires_option(skillDef))
             {
                 CombatCastVariantDef firstValue = _pick_first_valid_madness_option(activeUnit, skillDef);
                 if (firstValue != null)
                 {
-                    command.Set(
-                        "skill_variant_id",
-                        new StringName(firstValue.variant_id.ToString())
-                    );
+                    command.skill_variant_id = new StringName(firstValue.variant_id.ToString());
                 }
             }
             return command;
         }
-        GodotObject waitCommand = NewBattleCommand();
-        waitCommand.Set("command_type", BattleCommand.TYPE_WAIT());
-        waitCommand.Set("unit_id", activeUnit.unit_id);
+        BattleCommand waitCommand = NewBattleCommand();
+        waitCommand.command_type = BattleCommand.TYPE_WAIT();
+        waitCommand.unit_id = activeUnit.unit_id;
         return waitCommand;
     }
 
@@ -461,11 +458,9 @@ public partial class BattleRuntimeSkillTurnResolver : RefCounted
     public bool requires_melee_weapon(SkillDef skill_def) =>
         BattleRangeService.requires_current_melee_weapon(skill_def);
 
-    public bool effect_uses_weapon_physical_damage_tag(GodotObject effect_def)
+    public bool effect_uses_weapon_physical_damage_tag(CombatEffectDef effect_def)
     {
-        return BattleRangeService.effect_uses_weapon_physical_damage_tag(
-            effect_def as CombatEffectDef
-        );
+        return BattleRangeService.effect_uses_weapon_physical_damage_tag(effect_def);
     }
 
     public string get_skill_command_block_reason(
@@ -840,7 +835,8 @@ public partial class BattleRuntimeSkillTurnResolver : RefCounted
                 DOOM_SHIFT_SELF_DEBUFF_DURATION_TU,
                 active_unit.unit_id,
                 1,
-                new GDictionary { ["counts_as_debuff"] = true }
+                counts_as_debuff_override: true,
+                counts_as_debuff: true
             );
             AppendLog(
                 batch,
@@ -1513,10 +1509,7 @@ public partial class BattleRuntimeSkillTurnResolver : RefCounted
         {
             return false;
         }
-        int requiredDebuffCount = get_status_param_max_int(
-            active_unit,
-            "main_skill_lock_other_debuff_count"
-        );
+        int requiredDebuffCount = get_main_skill_lock_other_debuff_count(active_unit);
         if (requiredDebuffCount <= 0)
         {
             return false;
@@ -1554,18 +1547,17 @@ public partial class BattleRuntimeSkillTurnResolver : RefCounted
     {
         if (status_entry != null)
         {
-            GDictionary parameters = status_entry.@params;
-            if (_status_params_has_formal_key(parameters, "counts_as_debuff"))
+            if (status_entry.counts_as_debuff_override)
             {
-                return StatusParamsGetFormalBool(parameters, "counts_as_debuff", false);
+                return status_entry.counts_as_debuff;
             }
         }
         return DebuffStatusIds.Contains(status_id);
     }
 
-    public bool has_status_param_bool(BattleUnitState unit_state, StringName param_key)
+    public bool has_counterattack_lock_status(BattleUnitState unit_state)
     {
-        if (unit_state == null || param_key == Empty)
+        if (unit_state == null)
         {
             return false;
         }
@@ -1579,12 +1571,7 @@ public partial class BattleRuntimeSkillTurnResolver : RefCounted
             {
                 continue;
             }
-            bool value = StatusParamsGetFormalBool(
-                statusEntry.@params,
-                param_key.ToString(),
-                false
-            );
-            if (value)
+            if (statusEntry.lock_counterattack)
             {
                 return true;
             }
@@ -1592,9 +1579,9 @@ public partial class BattleRuntimeSkillTurnResolver : RefCounted
         return false;
     }
 
-    public int get_status_param_max_int(BattleUnitState unit_state, StringName param_key)
+    public int get_main_skill_lock_other_debuff_count(BattleUnitState unit_state)
     {
-        if (unit_state == null || param_key == Empty)
+        if (unit_state == null)
         {
             return 0;
         }
@@ -1609,64 +1596,9 @@ public partial class BattleRuntimeSkillTurnResolver : RefCounted
             {
                 continue;
             }
-            int value = StatusParamsGetFormalInt(
-                statusEntry.@params,
-                param_key.ToString(),
-                0
-            );
-            maxValue = Math.Max(value, maxValue);
+            maxValue = Math.Max(statusEntry.main_skill_lock_other_debuff_count, maxValue);
         }
         return maxValue;
-    }
-
-    private static bool _status_params_has_formal_key(GDictionary parameters, string param_key)
-    {
-        return TryGetFormalStatusParam(parameters, param_key, out _);
-    }
-
-    private static bool StatusParamsGetFormalBool(
-        GDictionary parameters,
-        string param_key,
-        bool default_value = false
-    )
-    {
-        if (!TryGetFormalStatusParam(parameters, param_key, out Variant value))
-        {
-            return default_value;
-        }
-        return value.VariantType == Variant.Type.Bool ? value.AsBool() : default_value;
-    }
-
-    private static int StatusParamsGetFormalInt(
-        GDictionary parameters,
-        string param_key,
-        int default_value = 0
-    )
-    {
-        return TryGetFormalStatusParam(parameters, param_key, out Variant value)
-            ? ValueAsInt(value)
-            : default_value;
-    }
-
-    private static bool TryGetFormalStatusParam(
-        GDictionary parameters,
-        string param_key,
-        out Variant value
-    )
-    {
-        if (parameters != null && !string.IsNullOrEmpty(param_key))
-        {
-            foreach (var key in parameters.Keys)
-            {
-                if (key.VariantType == Variant.Type.String && key.AsString() == param_key)
-                {
-                    value = parameters[key];
-                    return true;
-                }
-            }
-        }
-        value = default;
-        return false;
     }
 
     public bool _is_black_contract_push_skill(StringName skill_id)
@@ -1674,7 +1606,7 @@ public partial class BattleRuntimeSkillTurnResolver : RefCounted
         return skill_id == BLACK_CONTRACT_PUSH_SKILL_ID;
     }
 
-    private static GodotObject NewBattleCommand()
+    private static BattleCommand NewBattleCommand()
     {
         return new BattleCommand();
     }
@@ -1684,19 +1616,19 @@ public partial class BattleRuntimeSkillTurnResolver : RefCounted
         return unit?.has_combat_resource_unlocked(resourceId) ?? false;
     }
 
-    private static bool HasStatus(GodotObject unit, StringName statusId)
+    private static bool HasStatus(BattleUnitState unit, StringName statusId)
     {
-        return (unit as BattleUnitState)?.has_status_effect(statusId) ?? false;
+        return unit?.has_status_effect(statusId) ?? false;
     }
 
-    private static BattleStatusEffectState GetStatusEffect(GodotObject unit, StringName statusId)
+    private static BattleStatusEffectState GetStatusEffect(BattleUnitState unit, StringName statusId)
     {
-        return (unit as BattleUnitState)?.get_status_effect(statusId);
+        return unit?.get_status_effect(statusId);
     }
 
-    private static void EraseStatusEffect(GodotObject unit, StringName statusId)
+    private static void EraseStatusEffect(BattleUnitState unit, StringName statusId)
     {
-        (unit as BattleUnitState)?.erase_status_effect(statusId);
+        unit?.erase_status_effect(statusId);
     }
 
     private static void AppendLog(BattleEventBatch batch, string line)
@@ -1708,29 +1640,20 @@ public partial class BattleRuntimeSkillTurnResolver : RefCounted
         batch.log_lines.Add(line);
     }
 
-    private static string DisplayName(GodotObject value)
+    private static string DisplayName(BattleUnitState unitState)
     {
-        return value switch
-        {
-            BattleUnitState unitState => unitState.display_name,
-            SkillDef skillDef => !string.IsNullOrEmpty(skillDef.display_name)
-                ? skillDef.display_name
-                : skillDef.skill_id.ToString(),
-            _ => "",
-        };
+        return unitState?.display_name ?? "";
     }
 
-    private static StringName ToStringName(Variant value)
+    private static string DisplayName(SkillDef skillDef)
     {
-        return value.VariantType == Variant.Type.StringName
-            ? value.AsStringName()
-            : new StringName(value.ToString());
+        return skillDef != null && !string.IsNullOrEmpty(skillDef.display_name)
+            ? skillDef.display_name
+            : skillDef?.skill_id.ToString() ?? "";
     }
 
-    private static int ValueAsInt(Variant value)
-    {
-        return value.AsInt32();
-    }
+    private static StringName ToStringName<TValue>(TValue value) =>
+        ProgressionDataUtils.to_string_name(value);
 
     private static List<string> SortedStringKeys(GDictionary dictionary)
     {
@@ -1772,14 +1695,11 @@ public partial class BattleRuntimeSkillTurnResolver : RefCounted
         return true;
     }
 
-    private static T ResolveWeakRef<T>(WeakReference<T> weakRef)
-        where T : GodotObject
+    private static BattleRuntimeModule ResolveWeakRef(
+        WeakReference<BattleRuntimeModule> weakRef
+    )
     {
-        if (
-            weakRef == null
-            || !weakRef.TryGetTarget(out T target)
-            || !GodotObject.IsInstanceValid(target)
-        )
+        if (weakRef == null || !weakRef.TryGetTarget(out BattleRuntimeModule target))
         {
             return null;
         }

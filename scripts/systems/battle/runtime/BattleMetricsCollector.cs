@@ -322,9 +322,9 @@ public partial class BattleMetricsCollector : RefCounted
 
     private static GDictionary GetDict(GDictionary source, object key)
     {
-        return TryGetValue(source, key, out Variant value)
-            && value.VariantType == Variant.Type.Dictionary
-            ? value.AsGodotDictionary()
+        string keyText = key?.ToString() ?? "";
+        return source != null && source.ContainsKey(keyText)
+            ? source[keyText].AsGodotDictionary()
             : new GDictionary();
     }
 
@@ -334,97 +334,31 @@ public partial class BattleMetricsCollector : RefCounted
         {
             return new GDictionary();
         }
-        if (TryGetValue(source, key, out Variant value) && value.VariantType == Variant.Type.Dictionary)
+        string keyText = key?.ToString() ?? "";
+        if (source.ContainsKey(keyText))
         {
-            return value.AsGodotDictionary();
+            return source[keyText].AsGodotDictionary();
         }
         var created = new GDictionary();
-        source[ToVariantKey(key)] = created;
+        source[keyText] = created;
         return created;
     }
 
     private static int GetInt(GDictionary source, object key, int fallback = 0)
     {
-        if (!TryGetValue(source, key, out Variant value))
+        string keyText = key?.ToString() ?? "";
+        if (source == null || !source.ContainsKey(keyText))
         {
             return fallback;
         }
-        return value.VariantType switch
-        {
-            Variant.Type.Int => value.AsInt32(),
-            Variant.Type.Float => (int)value.AsDouble(),
-            Variant.Type.Bool => value.AsBool() ? 1 : 0,
-            Variant.Type.String => int.TryParse(value.AsString(), out int parsed)
-                ? parsed
-                : fallback,
-            Variant.Type.StringName
-                => int.TryParse(value.AsStringName().ToString(), out int parsed)
-                    ? parsed
-                    : fallback,
-            _ => fallback,
-        };
+        return source[keyText].AsInt32();
     }
 
-    private static bool TryGetValue(GDictionary source, object key, out Variant value)
+    private static BattleRuntimeModule ResolveWeakRef(
+        WeakReference<BattleRuntimeModule> weakRef
+    )
     {
-        if (source == null)
-        {
-            value = default;
-            return false;
-        }
-        Variant variantKey = ToVariantKey(key);
-        if (source.ContainsKey(variantKey))
-        {
-            value = source[variantKey];
-            return true;
-        }
-        if (key is StringName stringNameKey)
-        {
-            string keyText = stringNameKey.ToString();
-            if (source.ContainsKey(keyText))
-            {
-                value = source[keyText];
-                return true;
-            }
-        }
-        else if (key is string stringKey)
-        {
-            var stringName = new StringName(stringKey);
-            if (source.ContainsKey(stringName))
-            {
-                value = source[stringName];
-                return true;
-            }
-        }
-        value = default;
-        return false;
-    }
-
-    private static Variant ToVariantKey(object key)
-    {
-        return key switch
-        {
-            Variant variant => variant,
-            StringName stringName => Variant.From(stringName),
-            string text => Variant.From(text),
-            int intValue => Variant.From(intValue),
-            long longValue => Variant.From(longValue),
-            float floatValue => Variant.From(floatValue),
-            double doubleValue => Variant.From(doubleValue),
-            bool boolValue => Variant.From(boolValue),
-            Vector2I coord => Variant.From(coord),
-            _ => Variant.From(key?.ToString() ?? ""),
-        };
-    }
-
-    private static T ResolveWeakRef<T>(WeakReference<T> weakRef)
-        where T : GodotObject
-    {
-        if (
-            weakRef == null
-            || !weakRef.TryGetTarget(out T target)
-            || !GodotObject.IsInstanceValid(target)
-        )
+        if (weakRef == null || !weakRef.TryGetTarget(out BattleRuntimeModule target))
         {
             return null;
         }

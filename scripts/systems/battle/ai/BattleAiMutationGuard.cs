@@ -27,6 +27,75 @@ public partial class BattleAiMutationGuard : RefCounted
             "turn_decision_count",
         };
 
+    private static readonly HashSet<string> ReportEntrySnapshotKeys =
+        new(StringComparer.Ordinal)
+        {
+            "type",
+            "entry_type",
+            "event_type",
+            "reason_id",
+            "reason_text",
+            "error_code",
+            "ok",
+            "source_unit_id",
+            "target_unit_id",
+            "source_unit_name",
+            "target_unit_name",
+            "attacker_unit_id",
+            "defender_unit_id",
+            "attacker_name",
+            "defender_name",
+            "skill_id",
+            "skill_name",
+            "effect_id",
+            "status_id",
+            "item_id",
+            "instance_id",
+            "slot_id",
+            "damage",
+            "healing",
+            "shield_absorbed",
+            "total_damage",
+            "target_count",
+            "crit_gate_die",
+            "crit_gate_roll",
+            "hit_roll",
+            "required_roll",
+            "display_required_roll",
+            "attack_resolution",
+            "critical_source",
+            "execute_outcome",
+            "mitigation_tier",
+            "absorb_reason_text",
+            "fixed_mitigation_total",
+            "fixed_mitigation_source_text",
+            "world_step",
+            "amount",
+            "quantity",
+        };
+
+    private static readonly HashSet<string> PromotionQueueSnapshotKeys =
+        new(StringComparer.Ordinal)
+        {
+            "reward_type",
+            "entry_type",
+            "member_id",
+            "unit_id",
+            "profession_id",
+            "skill_id",
+            "race_id",
+            "subrace_id",
+            "ascension_id",
+            "bloodline_id",
+            "choice_id",
+            "display_name",
+            "description",
+            "amount",
+            "quantity",
+            "source",
+            "reason_id",
+        };
+
     private BattleAiMutationSnapshot _before_snapshot = BattleAiMutationSnapshot.Empty();
     private StringName _active_unit_id = "";
 
@@ -190,14 +259,22 @@ public partial class BattleAiMutationGuard : RefCounted
             {
                 return results;
             }
-            foreach (
-                GodotDictionaryEntry<Vector2I, BattleCellState> entry in ReadGodotDictionaryEntries<
-                    Vector2I,
-                    BattleCellState
-                >(cells, TryAsVector2I, TryAsBattleCellState)
-            )
+            foreach (var rawKey in cells.Keys)
             {
-                results[entry.Key] = entry.Value.duplicate_cell();
+                Vector2I key;
+                try
+                {
+                    key = rawKey.AsVector2I();
+                }
+                catch
+                {
+                    continue;
+                }
+                BattleCellState cell = cells[rawKey].As<BattleCellState>();
+                if (cell != null)
+                {
+                    results[key] = cell.duplicate_cell();
+                }
             }
             return results;
         }
@@ -211,22 +288,29 @@ public partial class BattleAiMutationGuard : RefCounted
             {
                 return results;
             }
-            foreach (
-                GodotDictionaryEntry<Vector2I, List<BattleCellState>> entry in ReadGodotDictionaryEntries<
-                    Vector2I,
-                    List<BattleCellState>
-                >(columns, TryAsVector2I, TryAsCellColumn)
-            )
+            foreach (var rawKey in columns.Keys)
             {
-                List<BattleCellState> clonedColumn = new();
-                foreach (BattleCellState cell in entry.Value)
+                Vector2I key;
+                GArray column;
+                try
                 {
+                    key = rawKey.AsVector2I();
+                    column = columns[rawKey].AsGodotArray();
+                }
+                catch
+                {
+                    continue;
+                }
+                List<BattleCellState> clonedColumn = new();
+                foreach (var rawCell in column)
+                {
+                    BattleCellState cell = rawCell.As<BattleCellState>();
                     if (cell != null)
                     {
                         clonedColumn.Add(cell.duplicate_cell());
                     }
                 }
-                results[entry.Key] = clonedColumn;
+                results[key] = clonedColumn;
             }
             return results;
         }
@@ -238,14 +322,13 @@ public partial class BattleAiMutationGuard : RefCounted
             {
                 return results;
             }
-            foreach (
-                GodotDictionaryEntry<StringName, BattleUnitState> entry in ReadGodotDictionaryEntries<
-                    StringName,
-                    BattleUnitState
-                >(units, TryAsStringName, TryAsBattleUnitState)
-            )
+            foreach (var rawKey in units.Keys)
             {
-                BattleUnitState unit = entry.Value;
+                BattleUnitState unit = units[rawKey].As<BattleUnitState>();
+                if (unit == null)
+                {
+                    continue;
+                }
                 MaterializeLazyStatusEffects(unit);
                 results[unit.unit_id] = BattleUnitSnapshot.Capture(unit);
             }
@@ -259,14 +342,13 @@ public partial class BattleAiMutationGuard : RefCounted
             {
                 return results;
             }
-            foreach (
-                GodotDictionaryEntry<StringName, SkillDef> entry in ReadGodotDictionaryEntries<
-                    StringName,
-                    SkillDef
-                >(skillDefs, TryAsStringName, TryAsSkillDef)
-            )
+            foreach (var rawKey in skillDefs.Keys)
             {
-                results[entry.Key] = entry.Value;
+                SkillDef skillDef = skillDefs[rawKey].As<SkillDef>();
+                if (skillDef != null)
+                {
+                    results[new StringName(rawKey.ToString())] = skillDef;
+                }
             }
             return results;
         }
@@ -395,14 +477,15 @@ public partial class BattleAiMutationGuard : RefCounted
             return result;
         }
         GDictionary values = attributeSnapshot.get_all_values();
-        foreach (
-            GodotDictionaryEntry<StringName, int> entry in ReadGodotDictionaryEntries<
-                StringName,
-                int
-            >(values, TryAsStringName, TryAsInt)
-        )
+        foreach (var rawKey in values.Keys)
         {
-            result.Set(entry.Key.ToString(), StableValue.FromInteger(entry.Value));
+            try
+            {
+                result.Set(rawKey.ToString(), StableValue.FromInteger(values[rawKey].AsInt32()));
+            }
+            catch
+            {
+            }
         }
         return result;
     }
@@ -758,14 +841,15 @@ public partial class BattleAiMutationGuard : RefCounted
                 return results;
             }
             GDictionary values = attributeSnapshot.get_all_values();
-            foreach (
-                GodotDictionaryEntry<StringName, int> entry in ReadGodotDictionaryEntries<
-                    StringName,
-                    int
-                >(values, TryAsStringName, TryAsInt)
-            )
+            foreach (var rawKey in values.Keys)
             {
-                results[entry.Key] = entry.Value;
+                try
+                {
+                    results[new StringName(rawKey.ToString())] = values[rawKey].AsInt32();
+                }
+                catch
+                {
+                }
             }
             return results;
         }
@@ -819,10 +903,10 @@ public partial class BattleAiMutationGuard : RefCounted
         private StringName _activeUnitId = "";
         private StringName _winnerFactionId = "";
         private List<string> _logEntries = new();
-        private List<RestorableMap> _reportEntries = new();
-        private List<RestorableMap> _promotionQueue = new();
+        private List<KnownFieldSnapshot> _reportEntries = new();
+        private List<KnownFieldSnapshot> _promotionQueue = new();
         private StringName _modalState = "";
-        private RestorableMap _layeredBarrierFields = new();
+        private LayeredBarrierFieldsSnapshot _layeredBarrierFields = new();
 
         public static BattleStateFieldsSnapshot Empty() => new();
 
@@ -848,11 +932,17 @@ public partial class BattleAiMutationGuard : RefCounted
             snapshot._activeUnitId = state.active_unit_id;
             snapshot._winnerFactionId = state.winner_faction_id;
             snapshot._logEntries = StringArrayToList(state.log_entries);
-            snapshot._reportEntries = DictionaryArrayToRestorableMaps(state.report_entries);
-            snapshot._promotionQueue = DictionaryArrayToRestorableMaps(state.promotion_queue);
+            snapshot._reportEntries = FieldArrayToSnapshots(
+                state.report_entries,
+                ReportEntrySnapshotKeys
+            );
+            snapshot._promotionQueue = FieldArrayToSnapshots(
+                state.promotion_queue,
+                PromotionQueueSnapshotKeys
+            );
             snapshot._modalState = state.modal_state;
             snapshot._layeredBarrierFields =
-                RestorableMap.FromGodotDictionary(state.layered_barrier_fields);
+                LayeredBarrierFieldsSnapshot.Capture(state.layered_barrier_fields);
             return snapshot;
         }
 
@@ -900,8 +990,8 @@ public partial class BattleAiMutationGuard : RefCounted
             result.Set("active_unit_id", StableValue.FromText(_activeUnitId.ToString()));
             result.Set("winner_faction_id", StableValue.FromText(_winnerFactionId.ToString()));
             result.Set("log_entries", StableValue.FromArray(StableTextList(_logEntries)));
-            result.Set("report_entries", StableValue.FromArray(StableRestorableMapList(_reportEntries)));
-            result.Set("promotion_queue", StableValue.FromArray(StableRestorableMapList(_promotionQueue)));
+            result.Set("report_entries", StableValue.FromArray(StableKnownFieldSnapshotList(_reportEntries)));
+            result.Set("promotion_queue", StableValue.FromArray(StableKnownFieldSnapshotList(_promotionQueue)));
             result.Set("modal_state", StableValue.FromText(_modalState.ToString()));
             result.Set("layered_barrier_fields", StableValue.FromMap(_layeredBarrierFields.ToStableMap()));
             return result;
@@ -918,7 +1008,7 @@ public partial class BattleAiMutationGuard : RefCounted
         private StringName _controlMode = "";
         private StringName _aiBrainId = "";
         private StringName _aiStateId = "";
-        private RestorableMap _aiBlackboard = new();
+        private BattleAiBlackboardSnapshot _aiBlackboard = new();
         private Vector2I _coord = Vector2I.Zero;
         private int _bodySize;
         private StringName _bodySizeCategory = "";
@@ -943,7 +1033,6 @@ public partial class BattleAiMutationGuard : RefCounted
         private StringName _shieldFamily = "";
         private StringName _shieldSourceUnitId = "";
         private StringName _shieldSourceSkillId = "";
-        private RestorableMap _shieldParams = new();
         private int _actionProgress;
         private int _actionThreshold;
         private List<StringName> _knownActiveSkillIds = new();
@@ -972,7 +1061,6 @@ public partial class BattleAiMutationGuard : RefCounted
         private StringName _weaponPhysicalDamageTag = "";
         private StringNameIntMapSnapshot _cooldowns = new();
         private int _lastTurnTu;
-        private RestorableMap _comboState = new();
         private StringNameIntMapSnapshot _perBattleCharges = new();
         private StringNameIntMapSnapshot _perTurnCharges = new();
         private StringNameIntMapSnapshot _perTurnChargeLimits = new();
@@ -996,7 +1084,7 @@ public partial class BattleAiMutationGuard : RefCounted
             snapshot._controlMode = unit.control_mode;
             snapshot._aiBrainId = unit.ai_brain_id;
             snapshot._aiStateId = unit.ai_state_id;
-            snapshot._aiBlackboard = RestorableMap.FromGodotDictionary(unit.ai_blackboard);
+            snapshot._aiBlackboard = BattleAiBlackboardSnapshot.Capture(unit.ai_blackboard);
             snapshot._coord = unit.coord;
             snapshot._bodySize = unit.body_size;
             snapshot._bodySizeCategory = unit.body_size_category;
@@ -1021,7 +1109,6 @@ public partial class BattleAiMutationGuard : RefCounted
             snapshot._shieldFamily = unit.shield_family;
             snapshot._shieldSourceUnitId = unit.shield_source_unit_id;
             snapshot._shieldSourceSkillId = unit.shield_source_skill_id;
-            snapshot._shieldParams = RestorableMap.FromGodotDictionary(unit.shield_params);
             snapshot._actionProgress = unit.action_progress;
             snapshot._actionThreshold = unit.action_threshold;
             snapshot._knownActiveSkillIds = StringNameArrayToList(unit.known_active_skill_ids);
@@ -1052,7 +1139,6 @@ public partial class BattleAiMutationGuard : RefCounted
             snapshot._weaponPhysicalDamageTag = unit.weapon_physical_damage_tag;
             snapshot._cooldowns = StringNameIntMapSnapshot.FromGodotDictionary(unit.cooldowns);
             snapshot._lastTurnTu = unit.last_turn_tu;
-            snapshot._comboState = RestorableMap.FromGodotDictionary(unit.combo_state);
             snapshot._perBattleCharges = StringNameIntMapSnapshot.FromGodotDictionary(unit.per_battle_charges);
             snapshot._perTurnCharges = StringNameIntMapSnapshot.FromGodotDictionary(unit.per_turn_charges);
             snapshot._perTurnChargeLimits =
@@ -1077,7 +1163,7 @@ public partial class BattleAiMutationGuard : RefCounted
             unit.control_mode = _controlMode;
             unit.ai_brain_id = _aiBrainId;
             unit.ai_state_id = _aiStateId;
-            unit.ai_blackboard = _aiBlackboard.ToGodotDictionary();
+            unit.ai_blackboard = _aiBlackboard.ToBlackboard();
             unit.coord = _coord;
             unit.body_size = _bodySize;
             unit.body_size_category = _bodySizeCategory;
@@ -1102,7 +1188,6 @@ public partial class BattleAiMutationGuard : RefCounted
             unit.shield_family = _shieldFamily;
             unit.shield_source_unit_id = _shieldSourceUnitId;
             unit.shield_source_skill_id = _shieldSourceSkillId;
-            unit.shield_params = _shieldParams.ToGodotDictionary();
             unit.action_progress = _actionProgress;
             unit.action_threshold = _actionThreshold;
             unit.known_active_skill_ids = BuildStringNameArray(_knownActiveSkillIds);
@@ -1131,7 +1216,6 @@ public partial class BattleAiMutationGuard : RefCounted
             unit.weapon_physical_damage_tag = _weaponPhysicalDamageTag;
             unit.cooldowns = _cooldowns.ToGodotDictionary();
             unit.last_turn_tu = _lastTurnTu;
-            unit.combo_state = _comboState.ToGodotDictionary();
             unit.per_battle_charges = _perBattleCharges.ToGodotDictionary();
             unit.per_turn_charges = _perTurnCharges.ToGodotDictionary();
             unit.per_turn_charge_limits = _perTurnChargeLimits.ToGodotDictionary();
@@ -1180,7 +1264,6 @@ public partial class BattleAiMutationGuard : RefCounted
             result.Set("shield_family", StableValue.FromText(_shieldFamily.ToString()));
             result.Set("shield_source_unit_id", StableValue.FromText(_shieldSourceUnitId.ToString()));
             result.Set("shield_source_skill_id", StableValue.FromText(_shieldSourceSkillId.ToString()));
-            result.Set("shield_params", StableValue.FromMap(_shieldParams.ToStableMap()));
             result.Set("action_progress", StableValue.FromInteger(_actionProgress));
             result.Set("action_threshold", StableValue.FromInteger(_actionThreshold));
             result.Set("known_active_skill_ids", StableValue.FromArray(StableStringNameList(_knownActiveSkillIds)));
@@ -1212,7 +1295,6 @@ public partial class BattleAiMutationGuard : RefCounted
             result.Set("weapon_physical_damage_tag", StableValue.FromText(_weaponPhysicalDamageTag.ToString()));
             result.Set("cooldowns", StableValue.FromMap(_cooldowns.ToStableMap()));
             result.Set("last_turn_tu", StableValue.FromInteger(_lastTurnTu));
-            result.Set("combo_state", StableValue.FromMap(_comboState.ToStableMap()));
             result.Set("per_battle_charges", StableValue.FromMap(_perBattleCharges.ToStableMap()));
             result.Set("per_turn_charges", StableValue.FromMap(_perTurnCharges.ToStableMap()));
             result.Set("per_turn_charge_limits", StableValue.FromMap(_perTurnChargeLimits.ToStableMap()));
@@ -1221,475 +1303,217 @@ public partial class BattleAiMutationGuard : RefCounted
         }
     }
 
-    private enum RestorableValueKind
+    private sealed class KnownFieldSnapshot
     {
-        Nil,
-        Bool,
-        Integer,
-        Float,
-        Text,
-        StringName,
-        Vector2I,
-        Vector2,
-        Vector3I,
-        Vector3,
-        Map,
-        Array,
-        BattleUnitState,
-        BattleCellState,
-        BattleStatusEffectState,
-        WarehouseState,
-        WarehouseStackState,
-        EquipmentState,
-        EquipmentEntryState,
-        EquipmentInstanceState,
-        WeaponProjection,
-        WeaponDice,
-        Resource,
-        UnknownObject,
-        Fallback,
-    }
+        private readonly StableMap _values = new();
 
-    private sealed class RestorableValue
-    {
-        private readonly RestorableValueKind _kind;
-        private readonly bool _boolValue;
-        private readonly long _integerValue;
-        private readonly double _floatValue;
-        private readonly string _textValue;
-        private readonly StringName _stringNameValue;
-        private readonly Vector2I _vector2IValue;
-        private readonly Vector2 _vector2Value;
-        private readonly Vector3I _vector3IValue;
-        private readonly Vector3 _vector3Value;
-        private readonly RestorableMap _mapValue;
-        private readonly List<RestorableValue> _arrayValue;
-        private readonly BattleUnitState _unitValue;
-        private readonly BattleCellState _cellValue;
-        private readonly BattleStatusEffectState _statusEffectValue;
-        private readonly WarehouseState _warehouseValue;
-        private readonly WarehouseStackState _warehouseStackValue;
-        private readonly EquipmentState _equipmentValue;
-        private readonly EquipmentEntryState _equipmentEntryValue;
-        private readonly EquipmentInstanceState _equipmentInstanceValue;
-        private readonly WeaponProjection _weaponProjectionValue;
-        private readonly WeaponDice _weaponDiceValue;
-        private readonly Resource _resourceValue;
-        private readonly GodotObject _unknownObjectValue;
-        private readonly Variant _fallbackValue;
+        public static KnownFieldSnapshot Empty() => new();
 
-        private RestorableValue(
-            RestorableValueKind kind,
-            bool boolValue = false,
-            long integerValue = 0,
-            double floatValue = 0.0,
-            string textValue = "",
-            StringName stringNameValue = default,
-            Vector2I vector2IValue = default,
-            Vector2 vector2Value = default,
-            Vector3I vector3IValue = default,
-            Vector3 vector3Value = default,
-            RestorableMap mapValue = null,
-            List<RestorableValue> arrayValue = null,
-            BattleUnitState unitValue = null,
-            BattleCellState cellValue = null,
-            BattleStatusEffectState statusEffectValue = null,
-            WarehouseState warehouseValue = null,
-            WarehouseStackState warehouseStackValue = null,
-            EquipmentState equipmentValue = null,
-            EquipmentEntryState equipmentEntryValue = null,
-            EquipmentInstanceState equipmentInstanceValue = null,
-            WeaponProjection weaponProjectionValue = null,
-            WeaponDice weaponDiceValue = null,
-            Resource resourceValue = null,
-            GodotObject unknownObjectValue = null,
-            Variant fallbackValue = default
+        public static KnownFieldSnapshot CaptureKnownFields(
+            GDictionary source,
+            IReadOnlyCollection<string> allowedKeys
         )
         {
-            _kind = kind;
-            _boolValue = boolValue;
-            _integerValue = integerValue;
-            _floatValue = floatValue;
-            _textValue = textValue ?? "";
-            _stringNameValue = stringNameValue;
-            _vector2IValue = vector2IValue;
-            _vector2Value = vector2Value;
-            _vector3IValue = vector3IValue;
-            _vector3Value = vector3Value;
-            _mapValue = mapValue;
-            _arrayValue = arrayValue;
-            _unitValue = unitValue;
-            _cellValue = cellValue;
-            _statusEffectValue = statusEffectValue;
-            _warehouseValue = warehouseValue;
-            _warehouseStackValue = warehouseStackValue;
-            _equipmentValue = equipmentValue;
-            _equipmentEntryValue = equipmentEntryValue;
-            _equipmentInstanceValue = equipmentInstanceValue;
-            _weaponProjectionValue = weaponProjectionValue;
-            _weaponDiceValue = weaponDiceValue;
-            _resourceValue = resourceValue;
-            _unknownObjectValue = unknownObjectValue;
-            _fallbackValue = fallbackValue;
-        }
-
-        public static RestorableValue FromGodotValue(Variant rawValue) => FromVariant(rawValue);
-
-        public static RestorableValue Nil() => new(RestorableValueKind.Nil);
-
-        public Variant ToGodotValue()
-        {
-            return _kind switch
-            {
-                RestorableValueKind.Nil => default,
-                RestorableValueKind.Bool => Variant.From(_boolValue),
-                RestorableValueKind.Integer => Variant.From(_integerValue),
-                RestorableValueKind.Float => Variant.From(_floatValue),
-                RestorableValueKind.Text => Variant.From(_textValue),
-                RestorableValueKind.StringName => Variant.From(_stringNameValue),
-                RestorableValueKind.Vector2I => Variant.From(_vector2IValue),
-                RestorableValueKind.Vector2 => Variant.From(_vector2Value),
-                RestorableValueKind.Vector3I => Variant.From(_vector3IValue),
-                RestorableValueKind.Vector3 => Variant.From(_vector3Value),
-                RestorableValueKind.Map => Variant.From(_mapValue.ToGodotDictionary()),
-                RestorableValueKind.Array => Variant.From(ToGodotArray(_arrayValue)),
-                RestorableValueKind.BattleUnitState => ToObjectVariant(_unitValue?.clone()),
-                RestorableValueKind.BattleCellState => ToObjectVariant(_cellValue?.duplicate_cell()),
-                RestorableValueKind.BattleStatusEffectState
-                    => ToObjectVariant(DuplicateStatusEffect(_statusEffectValue)),
-                RestorableValueKind.WarehouseState => ToObjectVariant(DuplicateWarehouse(_warehouseValue)),
-                RestorableValueKind.WarehouseStackState
-                    => ToObjectVariant(DuplicateWarehouseStack(_warehouseStackValue)),
-                RestorableValueKind.EquipmentState => ToObjectVariant(DuplicateEquipment(_equipmentValue)),
-                RestorableValueKind.EquipmentEntryState
-                    => ToObjectVariant(DuplicateEquipmentEntry(_equipmentEntryValue)),
-                RestorableValueKind.EquipmentInstanceState
-                    => ToObjectVariant(DuplicateEquipmentInstance(_equipmentInstanceValue)),
-                RestorableValueKind.WeaponProjection
-                    => ToObjectVariant(_weaponProjectionValue?.duplicate_state()),
-                RestorableValueKind.WeaponDice => ToObjectVariant(_weaponDiceValue?.duplicate_state()),
-                RestorableValueKind.Resource => ToObjectVariant(_resourceValue?.Duplicate(true)),
-                RestorableValueKind.UnknownObject => ToObjectVariant(_unknownObjectValue),
-                RestorableValueKind.Fallback => _fallbackValue,
-                _ => default,
-            };
-        }
-
-        public StableValue ToStableValue()
-        {
-            return _kind switch
-            {
-                RestorableValueKind.Nil => StableValue.Nil(),
-                RestorableValueKind.Bool => StableValue.FromBool(_boolValue),
-                RestorableValueKind.Integer => StableValue.FromInteger(_integerValue),
-                RestorableValueKind.Float => StableValue.FromFloat(_floatValue),
-                RestorableValueKind.Text => StableValue.FromText(_textValue),
-                RestorableValueKind.StringName => StableValue.FromText(_stringNameValue.ToString()),
-                RestorableValueKind.Vector2I => StableValue.FromVector2I(_vector2IValue),
-                RestorableValueKind.Vector2 => StableValue.FromVector2(_vector2Value),
-                RestorableValueKind.Vector3I => StableValue.FromVector3I(_vector3IValue),
-                RestorableValueKind.Vector3 => StableValue.FromVector3(_vector3Value),
-                RestorableValueKind.Map => StableValue.FromMap(_mapValue.ToStableMap()),
-                RestorableValueKind.Array => StableValue.FromArray(StableArrayFromRestorable(_arrayValue)),
-                RestorableValueKind.BattleUnitState
-                    => StableValue.FromMap(StableBattleUnitState(_unitValue)),
-                RestorableValueKind.BattleCellState => StableValue.FromMap(StableBattleCell(_cellValue)),
-                RestorableValueKind.BattleStatusEffectState
-                    => StableValue.FromMap(StableStatusEffect(_statusEffectValue)),
-                RestorableValueKind.WarehouseState
-                    => StableValue.FromMap(StableWarehouse(_warehouseValue)),
-                RestorableValueKind.WarehouseStackState
-                    => StableValue.FromMap(StableWarehouseStack(_warehouseStackValue)),
-                RestorableValueKind.EquipmentState
-                    => StableValue.FromMap(StableEquipment(_equipmentValue)),
-                RestorableValueKind.EquipmentEntryState
-                    => StableValue.FromMap(StableEquipmentEntry(_equipmentEntryValue)),
-                RestorableValueKind.EquipmentInstanceState
-                    => StableValue.FromMap(StableEquipmentInstance(_equipmentInstanceValue)),
-                RestorableValueKind.WeaponProjection
-                    => StableValue.FromMap(StableWeaponProjection(_weaponProjectionValue)),
-                RestorableValueKind.WeaponDice => StableValue.FromMap(StableWeaponDice(_weaponDiceValue)),
-                RestorableValueKind.Resource
-                    => _resourceValue != null
-                        ? StableValue.FromObjectId((long)_resourceValue.GetInstanceId())
-                        : StableValue.Nil(),
-                RestorableValueKind.UnknownObject
-                    => _unknownObjectValue != null
-                        ? StableValue.FromObjectId((long)_unknownObjectValue.GetInstanceId())
-                        : StableValue.Nil(),
-                RestorableValueKind.Fallback => StableValue.FromVariantValue(_fallbackValue),
-                _ => StableValue.Nil(),
-            };
-        }
-
-        private static RestorableValue FromVariant(Variant value)
-        {
-            return value.VariantType switch
-            {
-                Variant.Type.Nil => new RestorableValue(RestorableValueKind.Nil),
-                Variant.Type.Bool
-                    => new RestorableValue(RestorableValueKind.Bool, boolValue: value.AsBool()),
-                Variant.Type.Int => FromInteger(value.AsInt64()),
-                Variant.Type.Float => FromFloat(value.AsDouble()),
-                Variant.Type.String
-                    => new RestorableValue(RestorableValueKind.Text, textValue: value.AsString()),
-                Variant.Type.StringName
-                    => new RestorableValue(
-                        RestorableValueKind.StringName,
-                        stringNameValue: value.AsStringName()
-                    ),
-                Variant.Type.Vector2I
-                    => new RestorableValue(
-                        RestorableValueKind.Vector2I,
-                        vector2IValue: value.AsVector2I()
-                    ),
-                Variant.Type.Vector2
-                    => new RestorableValue(
-                        RestorableValueKind.Vector2,
-                        vector2Value: value.AsVector2()
-                    ),
-                Variant.Type.Vector3I
-                    => new RestorableValue(
-                        RestorableValueKind.Vector3I,
-                        vector3IValue: value.AsVector3I()
-                    ),
-                Variant.Type.Vector3
-                    => new RestorableValue(
-                        RestorableValueKind.Vector3,
-                        vector3Value: value.AsVector3()
-                    ),
-                Variant.Type.Dictionary
-                    => new RestorableValue(
-                        RestorableValueKind.Map,
-                        mapValue: RestorableMap.FromGodotDictionary(value.AsGodotDictionary())
-                    ),
-                Variant.Type.Array
-                    => new RestorableValue(
-                        RestorableValueKind.Array,
-                        arrayValue: RestorableArrayFromGodot(value.AsGodotArray())
-                    ),
-                Variant.Type.Object => FromGodotObject(value.AsGodotObject()),
-                _ => new RestorableValue(RestorableValueKind.Fallback, fallbackValue: value),
-            };
-        }
-
-        private static RestorableValue FromGodotObject(GodotObject value)
-        {
-            if (value == null)
-            {
-                return new RestorableValue(RestorableValueKind.Nil);
-            }
-            return value switch
-            {
-                BattleUnitState unitState
-                    => new RestorableValue(
-                        RestorableValueKind.BattleUnitState,
-                        unitValue: unitState.clone()
-                    ),
-                BattleCellState cellState
-                    => new RestorableValue(
-                        RestorableValueKind.BattleCellState,
-                        cellValue: cellState.duplicate_cell()
-                    ),
-                BattleStatusEffectState statusEffectState
-                    => new RestorableValue(
-                        RestorableValueKind.BattleStatusEffectState,
-                        statusEffectValue: DuplicateStatusEffect(statusEffectState)
-                    ),
-                WarehouseState warehouseState
-                    => new RestorableValue(
-                        RestorableValueKind.WarehouseState,
-                        warehouseValue: DuplicateWarehouse(warehouseState)
-                    ),
-                WarehouseStackState warehouseStackState
-                    => new RestorableValue(
-                        RestorableValueKind.WarehouseStackState,
-                        warehouseStackValue: DuplicateWarehouseStack(warehouseStackState)
-                    ),
-                EquipmentState equipmentState
-                    => new RestorableValue(
-                        RestorableValueKind.EquipmentState,
-                        equipmentValue: DuplicateEquipment(equipmentState)
-                    ),
-                EquipmentEntryState equipmentEntryState
-                    => new RestorableValue(
-                        RestorableValueKind.EquipmentEntryState,
-                        equipmentEntryValue: DuplicateEquipmentEntry(equipmentEntryState)
-                    ),
-                EquipmentInstanceState equipmentInstanceState
-                    => new RestorableValue(
-                        RestorableValueKind.EquipmentInstanceState,
-                        equipmentInstanceValue: DuplicateEquipmentInstance(equipmentInstanceState)
-                    ),
-                WeaponProjection weaponProjection
-                    => new RestorableValue(
-                        RestorableValueKind.WeaponProjection,
-                        weaponProjectionValue: weaponProjection.duplicate_state()
-                    ),
-                WeaponDice weaponDice
-                    => new RestorableValue(
-                        RestorableValueKind.WeaponDice,
-                        weaponDiceValue: weaponDice.duplicate_state()
-                    ),
-                Resource resource
-                    => new RestorableValue(
-                        RestorableValueKind.Resource,
-                        resourceValue: resource.Duplicate(true)
-                    ),
-                _ => new RestorableValue(
-                    RestorableValueKind.UnknownObject,
-                    unknownObjectValue: value
-                ),
-            };
-        }
-
-        private static RestorableValue FromInteger(long value) =>
-            new(RestorableValueKind.Integer, integerValue: value);
-
-        private static RestorableValue FromFloat(double value) =>
-            new(RestorableValueKind.Float, floatValue: value);
-
-        private static List<RestorableValue> RestorableArrayFromGodot(GArray source)
-        {
-            return ReadRestorableArrayValues(source);
-        }
-
-        private static GArray ToGodotArray(List<RestorableValue> source)
-        {
-            GArray result = new();
-            foreach (RestorableValue item in source ?? new List<RestorableValue>())
-            {
-                result.Add(item.ToGodotValue());
-            }
-            return result;
-        }
-
-        private static Variant ToObjectVariant(GodotObject value)
-        {
-            return value != null ? Variant.From(value) : default;
-        }
-
-        private static List<StableValue> StableArrayFromRestorable(
-            List<RestorableValue> source
-        )
-        {
-            List<StableValue> result = new();
-            foreach (RestorableValue item in source ?? new List<RestorableValue>())
-            {
-                result.Add(item.ToStableValue());
-            }
-            return result;
-        }
-    }
-
-    private readonly struct RestorableKey
-    {
-        private readonly RestorableKeyKind _kind;
-        private readonly string _textValue;
-        private readonly StringName _stringNameValue;
-        private readonly Vector2I _vector2IValue;
-        private readonly long _integerValue;
-
-        private RestorableKey(
-            RestorableKeyKind kind,
-            string textValue = "",
-            StringName stringNameValue = default,
-            Vector2I vector2IValue = default,
-            long integerValue = 0
-        )
-        {
-            _kind = kind;
-            _textValue = textValue ?? "";
-            _stringNameValue = stringNameValue;
-            _vector2IValue = vector2IValue;
-            _integerValue = integerValue;
-        }
-
-        public string StableText =>
-            _kind switch
-            {
-                RestorableKeyKind.Text => _textValue,
-                RestorableKeyKind.StringName => _stringNameValue.ToString(),
-                RestorableKeyKind.Vector2I => StableKey(_vector2IValue),
-                RestorableKeyKind.Integer => _integerValue.ToString(CultureInfo.InvariantCulture),
-                _ => _textValue,
-            };
-
-        public static RestorableKey FromGodotKey(Variant rawKey) => FromVariantKey(rawKey);
-
-        public Variant ToGodotKey()
-        {
-            return _kind switch
-            {
-                RestorableKeyKind.Text => Variant.From(_textValue),
-                RestorableKeyKind.StringName => Variant.From(_stringNameValue),
-                RestorableKeyKind.Vector2I => Variant.From(_vector2IValue),
-                RestorableKeyKind.Integer => Variant.From(_integerValue),
-                _ => Variant.From(_textValue),
-            };
-        }
-
-        private static RestorableKey FromVariantKey(Variant key)
-        {
-            return key.VariantType switch
-            {
-                Variant.Type.String => new RestorableKey(
-                    RestorableKeyKind.Text,
-                    textValue: key.AsString()
-                ),
-                Variant.Type.StringName => new RestorableKey(
-                    RestorableKeyKind.StringName,
-                    stringNameValue: key.AsStringName()
-                ),
-                Variant.Type.Vector2I => new RestorableKey(
-                    RestorableKeyKind.Vector2I,
-                    vector2IValue: key.AsVector2I()
-                ),
-                Variant.Type.Int => new RestorableKey(
-                    RestorableKeyKind.Integer,
-                    integerValue: key.AsInt64()
-                ),
-                _ => new RestorableKey(
-                    RestorableKeyKind.Fallback,
-                    textValue: $"type{(int)key.VariantType}({key})"
-                ),
-            };
-        }
-    }
-
-    private enum RestorableKeyKind
-    {
-        Text,
-        StringName,
-        Vector2I,
-        Integer,
-        Fallback,
-    }
-
-    private sealed class RestorableMap
-    {
-        private readonly List<KeyValuePair<RestorableKey, RestorableValue>> _entries = new();
-
-        public static RestorableMap FromGodotDictionary(GDictionary source)
-        {
-            RestorableMap result = new();
-            if (source == null)
+            KnownFieldSnapshot result = new();
+            if (source == null || allowedKeys == null)
             {
                 return result;
             }
-            foreach (RestorableDictionaryEntry entry in ReadRestorableDictionaryEntries(source))
+
+            foreach (string key in allowedKeys)
             {
-                result._entries.Add(new KeyValuePair<RestorableKey, RestorableValue>(entry.Key, entry.Value));
+                if (TryReadStableValue(source, key, out StableValue value))
+                {
+                    result._values.Set(key, value);
+                }
             }
             return result;
+        }
+
+        public StableMap ToStableMap() => _values.Clone();
+
+        public GDictionary ToGodotDictionary()
+        {
+            GDictionary result = new();
+            _values.CopyIntoGodotDictionary(result);
+            return result;
+        }
+    }
+
+    private sealed class BattleAiBlackboardSnapshot
+    {
+        private StringName _lastBrainId = "";
+        private StringName _lastStateId = "";
+        private StringName _lastActionId = "";
+        private StringName _lastReasonText = "";
+        private StringName _lastTransitionPreviousStateId = "";
+        private StringName _lastTransitionStateId = "";
+        private StringName _lastTransitionRuleId = "";
+        private StringName _lastTransitionReason = "";
+        private int _turnStartedTu;
+        private int _turnDecisionCount;
+        private bool _hasTurnStartedTu;
+        private bool _hasTurnDecisionCount;
+        private bool _madnessAiControl;
+        private bool _madnessTargetAnyTeam;
+        private bool _lowLuckReverseFateUsed;
+        private bool _lowLuckBlackStarWedgeUsed;
+        private bool _meteorProtectedAlly;
+        private bool _protectedAlly;
+        private bool _summoned;
+        private bool _temporaryUnit;
+        private StringName _summonSourceUnitId = "";
+
+        public static BattleAiBlackboardSnapshot Capture(BattleAiBlackboard blackboard)
+        {
+            BattleAiBlackboardSnapshot snapshot = new();
+            if (blackboard == null)
+            {
+                return snapshot;
+            }
+            snapshot._lastBrainId = blackboard.last_brain_id;
+            snapshot._lastStateId = blackboard.last_state_id;
+            snapshot._lastActionId = blackboard.last_action_id;
+            snapshot._lastReasonText = blackboard.last_reason_text;
+            snapshot._lastTransitionPreviousStateId =
+                blackboard.last_transition_previous_state_id;
+            snapshot._lastTransitionStateId = blackboard.last_transition_state_id;
+            snapshot._lastTransitionRuleId = blackboard.last_transition_rule_id;
+            snapshot._lastTransitionReason = blackboard.last_transition_reason;
+            snapshot._hasTurnStartedTu = blackboard.ContainsKey("turn_started_tu");
+            snapshot._turnStartedTu = blackboard.get_int("turn_started_tu");
+            snapshot._hasTurnDecisionCount = blackboard.ContainsKey("turn_decision_count");
+            snapshot._turnDecisionCount = blackboard.get_int("turn_decision_count");
+            snapshot._madnessAiControl = blackboard.madness_ai_control;
+            snapshot._madnessTargetAnyTeam = blackboard.madness_target_any_team;
+            snapshot._lowLuckReverseFateUsed = blackboard.low_luck_reverse_fate_used;
+            snapshot._lowLuckBlackStarWedgeUsed = blackboard.low_luck_black_star_wedge_used;
+            snapshot._meteorProtectedAlly = blackboard.meteor_protected_ally;
+            snapshot._protectedAlly = blackboard.protected_ally;
+            snapshot._summoned = blackboard.summoned;
+            snapshot._temporaryUnit = blackboard.temporary_unit;
+            snapshot._summonSourceUnitId = blackboard.summon_source_unit_id;
+            return snapshot;
+        }
+
+        public BattleAiBlackboard ToBlackboard()
+        {
+            BattleAiBlackboard blackboard = new()
+            {
+                last_brain_id = _lastBrainId,
+                last_state_id = _lastStateId,
+                last_action_id = _lastActionId,
+                last_reason_text = _lastReasonText,
+                last_transition_previous_state_id = _lastTransitionPreviousStateId,
+                last_transition_state_id = _lastTransitionStateId,
+                last_transition_rule_id = _lastTransitionRuleId,
+                last_transition_reason = _lastTransitionReason,
+                madness_ai_control = _madnessAiControl,
+                madness_target_any_team = _madnessTargetAnyTeam,
+                low_luck_reverse_fate_used = _lowLuckReverseFateUsed,
+                low_luck_black_star_wedge_used = _lowLuckBlackStarWedgeUsed,
+                meteor_protected_ally = _meteorProtectedAlly,
+                protected_ally = _protectedAlly,
+                summoned = _summoned,
+                temporary_unit = _temporaryUnit,
+                summon_source_unit_id = _summonSourceUnitId,
+            };
+            if (_hasTurnStartedTu)
+            {
+                blackboard.set_int("turn_started_tu", _turnStartedTu);
+            }
+            if (_hasTurnDecisionCount)
+            {
+                blackboard.set_int("turn_decision_count", _turnDecisionCount);
+            }
+            return blackboard;
         }
 
         public StableMap ToStableMap()
         {
             StableMap result = new();
-            foreach (KeyValuePair<RestorableKey, RestorableValue> entry in _entries)
+            result.Set("last_brain_id", StableValue.FromText(_lastBrainId.ToString()));
+            result.Set("last_state_id", StableValue.FromText(_lastStateId.ToString()));
+            result.Set("last_action_id", StableValue.FromText(_lastActionId.ToString()));
+            result.Set("last_reason_text", StableValue.FromText(_lastReasonText.ToString()));
+            result.Set(
+                "last_transition_previous_state_id",
+                StableValue.FromText(_lastTransitionPreviousStateId.ToString())
+            );
+            result.Set(
+                "last_transition_state_id",
+                StableValue.FromText(_lastTransitionStateId.ToString())
+            );
+            result.Set(
+                "last_transition_rule_id",
+                StableValue.FromText(_lastTransitionRuleId.ToString())
+            );
+            result.Set(
+                "last_transition_reason",
+                StableValue.FromText(_lastTransitionReason.ToString())
+            );
+            if (_hasTurnStartedTu)
             {
-                result.Set(entry.Key.StableText, entry.Value.ToStableValue());
+                result.Set("turn_started_tu", StableValue.FromInteger(_turnStartedTu));
+            }
+            if (_hasTurnDecisionCount)
+            {
+                result.Set("turn_decision_count", StableValue.FromInteger(_turnDecisionCount));
+            }
+            result.Set("madness_ai_control", StableValue.FromBool(_madnessAiControl));
+            result.Set("madness_target_any_team", StableValue.FromBool(_madnessTargetAnyTeam));
+            result.Set(
+                "low_luck_reverse_fate_used",
+                StableValue.FromBool(_lowLuckReverseFateUsed)
+            );
+            result.Set(
+                "low_luck_black_star_wedge_used",
+                StableValue.FromBool(_lowLuckBlackStarWedgeUsed)
+            );
+            result.Set("meteor_protected_ally", StableValue.FromBool(_meteorProtectedAlly));
+            result.Set("protected_ally", StableValue.FromBool(_protectedAlly));
+            result.Set("summoned", StableValue.FromBool(_summoned));
+            result.Set("temporary_unit", StableValue.FromBool(_temporaryUnit));
+            result.Set(
+                "summon_source_unit_id",
+                StableValue.FromText(_summonSourceUnitId.ToString())
+            );
+            return result;
+        }
+    }
+
+    private sealed class LayeredBarrierFieldsSnapshot
+    {
+        private readonly Dictionary<StringName, BarrierInstanceSnapshot> _barriers = new();
+
+        public static LayeredBarrierFieldsSnapshot Capture(GDictionary source)
+        {
+            LayeredBarrierFieldsSnapshot result = new();
+            if (source == null)
+            {
+                return result;
+            }
+            foreach (var rawKey in source.Keys)
+            {
+                StringName barrierKey = new(rawKey.ToString());
+                if (barrierKey == "")
+                {
+                    continue;
+                }
+                BattleBarrierInstanceState barrier = null;
+                try
+                {
+                    barrier = BattleBarrierInstanceState.from_runtime_dict(
+                        source[rawKey].AsGodotDictionary()
+                    );
+                }
+                catch
+                {
+                }
+                if (barrier != null && !barrier.IsEmpty)
+                {
+                    result._barriers[barrierKey] = BarrierInstanceSnapshot.Capture(barrier);
+                }
             }
             return result;
         }
@@ -1697,18 +1521,277 @@ public partial class BattleAiMutationGuard : RefCounted
         public GDictionary ToGodotDictionary()
         {
             GDictionary result = new();
-            foreach (KeyValuePair<RestorableKey, RestorableValue> entry in _entries)
+            foreach (KeyValuePair<StringName, BarrierInstanceSnapshot> entry in _barriers)
             {
-                SetDictionaryValue(result, entry.Key.ToGodotKey(), entry.Value.ToGodotValue());
+                result[entry.Key] = entry.Value.ToGodotDictionary();
+            }
+            return result;
+        }
+
+        public StableMap ToStableMap()
+        {
+            StableMap result = new();
+            foreach (KeyValuePair<StringName, BarrierInstanceSnapshot> entry in _barriers)
+            {
+                result.Set(entry.Key.ToString(), StableValue.FromMap(entry.Value.ToStableMap()));
             }
             return result;
         }
     }
 
+    private sealed class BarrierInstanceSnapshot
+    {
+        private StringName _barrierInstanceId = "";
+        private StringName _profileId = "";
+        private string _displayName = "";
+        private StringName _sourceUnitId = "";
+        private StringName _sourceSkillId = "";
+        private StringName _anchorMode = "fixed";
+        private Vector2I _anchorCoord = Vector2I.Zero;
+        private int _radiusCells;
+        private StringName _areaPattern = "diamond";
+        private int _remainingTu;
+        private int _createdTu;
+        private int _saveDc;
+        private bool _catchAllProjectedEffects;
+        private List<BarrierLayerSnapshot> _layers = new();
+
+        public static BarrierInstanceSnapshot Capture(BattleBarrierInstanceState barrier)
+        {
+            BarrierInstanceSnapshot snapshot = new();
+            if (barrier == null)
+            {
+                return snapshot;
+            }
+            snapshot._barrierInstanceId = barrier.barrier_instance_id;
+            snapshot._profileId = barrier.profile_id;
+            snapshot._displayName = barrier.display_name ?? "";
+            snapshot._sourceUnitId = barrier.source_unit_id;
+            snapshot._sourceSkillId = barrier.source_skill_id;
+            snapshot._anchorMode = barrier.anchor_mode;
+            snapshot._anchorCoord = barrier.anchor_coord;
+            snapshot._radiusCells = barrier.radius_cells;
+            snapshot._areaPattern = barrier.area_pattern;
+            snapshot._remainingTu = barrier.remaining_tu;
+            snapshot._createdTu = barrier.created_tu;
+            snapshot._saveDc = barrier.save_dc;
+            snapshot._catchAllProjectedEffects = barrier.catch_all_projected_effects;
+            foreach (BattleBarrierLayerState layer in barrier.GetLayersTyped())
+            {
+                snapshot._layers.Add(BarrierLayerSnapshot.Capture(layer));
+            }
+            return snapshot;
+        }
+
+        public GDictionary ToGodotDictionary()
+        {
+            GArray layers = new();
+            foreach (BarrierLayerSnapshot layer in _layers)
+            {
+                layers.Add(layer.ToGodotDictionary());
+            }
+            return new GDictionary
+            {
+                ["barrier_instance_id"] = _barrierInstanceId.ToString(),
+                ["profile_id"] = _profileId.ToString(),
+                ["display_name"] = _displayName,
+                ["source_unit_id"] = _sourceUnitId.ToString(),
+                ["source_skill_id"] = _sourceSkillId.ToString(),
+                ["anchor_mode"] = _anchorMode.ToString(),
+                ["anchor_coord"] = _anchorCoord,
+                ["radius_cells"] = _radiusCells,
+                ["area_pattern"] = _areaPattern.ToString(),
+                ["remaining_tu"] = _remainingTu,
+                ["created_tu"] = _createdTu,
+                ["save_dc"] = _saveDc,
+                ["catch_all_projected_effects"] = _catchAllProjectedEffects,
+                ["layers"] = layers,
+            };
+        }
+
+        public StableMap ToStableMap()
+        {
+            StableMap result = new();
+            result.Set("barrier_instance_id", StableValue.FromText(_barrierInstanceId.ToString()));
+            result.Set("profile_id", StableValue.FromText(_profileId.ToString()));
+            result.Set("display_name", StableValue.FromText(_displayName));
+            result.Set("source_unit_id", StableValue.FromText(_sourceUnitId.ToString()));
+            result.Set("source_skill_id", StableValue.FromText(_sourceSkillId.ToString()));
+            result.Set("anchor_mode", StableValue.FromText(_anchorMode.ToString()));
+            result.Set("anchor_coord", StableValue.FromVector2I(_anchorCoord));
+            result.Set("radius_cells", StableValue.FromInteger(_radiusCells));
+            result.Set("area_pattern", StableValue.FromText(_areaPattern.ToString()));
+            result.Set("remaining_tu", StableValue.FromInteger(_remainingTu));
+            result.Set("created_tu", StableValue.FromInteger(_createdTu));
+            result.Set("save_dc", StableValue.FromInteger(_saveDc));
+            result.Set(
+                "catch_all_projected_effects",
+                StableValue.FromBool(_catchAllProjectedEffects)
+            );
+            List<StableValue> layers = new();
+            foreach (BarrierLayerSnapshot layer in _layers)
+            {
+                layers.Add(StableValue.FromMap(layer.ToStableMap()));
+            }
+            result.Set("layers", StableValue.FromArray(layers));
+            return result;
+        }
+    }
+
+    private sealed class BarrierLayerSnapshot
+    {
+        private StringName _layerId = "";
+        private string _displayName = "";
+        private int _order;
+        private bool _broken;
+        private List<StringName> _blockedCategories = new();
+        private List<StringName> _breakerSkillIds = new();
+        private List<BarrierOutcomeSnapshot> _passageOutcomes = new();
+        private bool _hasSaveRollOverride;
+        private int _saveRollOverride;
+
+        public static BarrierLayerSnapshot Capture(BattleBarrierLayerState layer)
+        {
+            BarrierLayerSnapshot snapshot = new();
+            if (layer == null)
+            {
+                return snapshot;
+            }
+            snapshot._layerId = layer.layer_id;
+            snapshot._displayName = layer.display_name ?? "";
+            snapshot._order = layer.order;
+            snapshot._broken = layer.broken;
+            snapshot._blockedCategories = StringNameArrayToList(layer.blocked_categories);
+            snapshot._breakerSkillIds = StringNameArrayToList(layer.breaker_skill_ids);
+            snapshot._hasSaveRollOverride = layer.has_save_roll_override;
+            snapshot._saveRollOverride = layer.save_roll_override;
+            foreach (BattleBarrierOutcomeState outcome in layer.GetPassageOutcomesTyped())
+            {
+                snapshot._passageOutcomes.Add(BarrierOutcomeSnapshot.Capture(outcome));
+            }
+            return snapshot;
+        }
+
+        public GDictionary ToGodotDictionary()
+        {
+            GArray passageOutcomes = new();
+            foreach (BarrierOutcomeSnapshot outcome in _passageOutcomes)
+            {
+                passageOutcomes.Add(outcome.ToGodotDictionary());
+            }
+            GDictionary result = new()
+            {
+                ["layer_id"] = _layerId.ToString(),
+                ["display_name"] = _displayName,
+                ["order"] = _order,
+                ["broken"] = _broken,
+                ["blocked_categories"] = BuildUntypedStringNameArray(_blockedCategories),
+                ["breaker_skill_ids"] = BuildUntypedStringNameArray(_breakerSkillIds),
+                ["passage_outcomes"] = passageOutcomes,
+            };
+            if (_hasSaveRollOverride)
+            {
+                result["save_roll_override"] = _saveRollOverride;
+            }
+            return result;
+        }
+
+        public StableMap ToStableMap()
+        {
+            StableMap result = new();
+            result.Set("layer_id", StableValue.FromText(_layerId.ToString()));
+            result.Set("display_name", StableValue.FromText(_displayName));
+            result.Set("order", StableValue.FromInteger(_order));
+            result.Set("broken", StableValue.FromBool(_broken));
+            result.Set("blocked_categories", StableValue.FromArray(StableStringNameList(_blockedCategories)));
+            result.Set("breaker_skill_ids", StableValue.FromArray(StableStringNameList(_breakerSkillIds)));
+            List<StableValue> outcomes = new();
+            foreach (BarrierOutcomeSnapshot outcome in _passageOutcomes)
+            {
+                outcomes.Add(StableValue.FromMap(outcome.ToStableMap()));
+            }
+            result.Set("passage_outcomes", StableValue.FromArray(outcomes));
+            if (_hasSaveRollOverride)
+            {
+                result.Set("save_roll_override", StableValue.FromInteger(_saveRollOverride));
+            }
+            return result;
+        }
+    }
+
+    private sealed class BarrierOutcomeSnapshot
+    {
+        private StringName _outcomeType = "";
+        private int _amount;
+        private StringName _damageTag = "";
+        private bool _halfOnSuccess;
+        private int _successAmount;
+        private StringName _successDamageTag = "";
+        private int _fatalDamage = 99999;
+        private StringName _statusId = "";
+        private StringName _saveAbility = "";
+        private StringName _saveTag = "";
+        private int _saveDc;
+
+        public static BarrierOutcomeSnapshot Capture(BattleBarrierOutcomeState outcome)
+        {
+            BarrierOutcomeSnapshot snapshot = new();
+            if (outcome == null)
+            {
+                return snapshot;
+            }
+            snapshot._outcomeType = outcome.outcome_type;
+            snapshot._amount = outcome.amount;
+            snapshot._damageTag = outcome.damage_tag;
+            snapshot._halfOnSuccess = outcome.half_on_success;
+            snapshot._successAmount = outcome.success_amount;
+            snapshot._successDamageTag = outcome.success_damage_tag;
+            snapshot._fatalDamage = Mathf.Max(outcome.fatal_damage, 1);
+            snapshot._statusId = outcome.status_id;
+            snapshot._saveAbility = outcome.save_ability;
+            snapshot._saveTag = outcome.save_tag;
+            snapshot._saveDc = outcome.save_dc;
+            return snapshot;
+        }
+
+        public GDictionary ToGodotDictionary()
+        {
+            return new GDictionary
+            {
+                ["outcome_type"] = _outcomeType.ToString(),
+                ["amount"] = _amount,
+                ["damage_tag"] = _damageTag.ToString(),
+                ["half_on_success"] = _halfOnSuccess,
+                ["success_amount"] = _successAmount,
+                ["success_damage_tag"] = _successDamageTag.ToString(),
+                ["fatal_damage"] = Mathf.Max(_fatalDamage, 1),
+                ["status_id"] = _statusId.ToString(),
+                ["save_ability"] = _saveAbility.ToString(),
+                ["save_tag"] = _saveTag.ToString(),
+                ["save_dc"] = _saveDc,
+            };
+        }
+
+        public StableMap ToStableMap()
+        {
+            StableMap result = new();
+            result.Set("outcome_type", StableValue.FromText(_outcomeType.ToString()));
+            result.Set("amount", StableValue.FromInteger(_amount));
+            result.Set("damage_tag", StableValue.FromText(_damageTag.ToString()));
+            result.Set("half_on_success", StableValue.FromBool(_halfOnSuccess));
+            result.Set("success_amount", StableValue.FromInteger(_successAmount));
+            result.Set("success_damage_tag", StableValue.FromText(_successDamageTag.ToString()));
+            result.Set("fatal_damage", StableValue.FromInteger(Mathf.Max(_fatalDamage, 1)));
+            result.Set("status_id", StableValue.FromText(_statusId.ToString()));
+            result.Set("save_ability", StableValue.FromText(_saveAbility.ToString()));
+            result.Set("save_tag", StableValue.FromText(_saveTag.ToString()));
+            result.Set("save_dc", StableValue.FromInteger(_saveDc));
+            return result;
+        }
+    }
     private sealed class StringNameIntMapSnapshot
     {
         private readonly Dictionary<StringName, int> _values = new();
-        private readonly List<RestorableDictionaryEntry> _untypedEntries = new();
 
         public static StringNameIntMapSnapshot FromGodotDictionary(GDictionary source)
         {
@@ -1720,23 +1803,25 @@ public partial class BattleAiMutationGuard : RefCounted
 
             foreach (var rawKey in source.Keys)
             {
-                bool hasValue = TryGetDictionaryValue(source, rawKey, out Variant rawValue);
-                if (
-                    hasValue
-                    && TryAsStringName(rawKey, out StringName key)
-                    && TryAsInt(rawValue, out int value)
-                )
+                string keyText = rawKey.ToString();
+                if (string.IsNullOrEmpty(keyText))
                 {
-                    result._values[key] = value;
                     continue;
                 }
 
-                result._untypedEntries.Add(
-                    new RestorableDictionaryEntry(
-                        RestorableKey.FromGodotKey(rawKey),
-                        hasValue ? RestorableValue.FromGodotValue(rawValue) : RestorableValue.Nil()
-                    )
-                );
+                int parsedValue;
+                try
+                {
+                    parsedValue = source[rawKey].AsInt32();
+                }
+                catch
+                {
+                    if (!int.TryParse(source[rawKey].ToString(), out parsedValue))
+                    {
+                        continue;
+                    }
+                }
+                result._values[new StringName(keyText)] = parsedValue;
             }
             return result;
         }
@@ -1747,10 +1832,6 @@ public partial class BattleAiMutationGuard : RefCounted
             foreach (KeyValuePair<StringName, int> entry in _values)
             {
                 result[entry.Key] = entry.Value;
-            }
-            foreach (RestorableDictionaryEntry entry in _untypedEntries)
-            {
-                SetDictionaryValue(result, entry.Key.ToGodotKey(), entry.Value.ToGodotValue());
             }
             return result;
         }
@@ -1762,18 +1843,12 @@ public partial class BattleAiMutationGuard : RefCounted
             {
                 result.Set(entry.Key.ToString(), StableValue.FromInteger(entry.Value));
             }
-            foreach (RestorableDictionaryEntry entry in _untypedEntries)
-            {
-                result.Set(entry.Key.StableText, entry.Value.ToStableValue());
-            }
             return result;
         }
     }
-
     private sealed class StringNameStringNameMapSnapshot
     {
         private readonly Dictionary<StringName, StringName> _values = new();
-        private readonly List<RestorableDictionaryEntry> _untypedEntries = new();
 
         public static StringNameStringNameMapSnapshot FromGodotDictionary(GDictionary source)
         {
@@ -1785,23 +1860,13 @@ public partial class BattleAiMutationGuard : RefCounted
 
             foreach (var rawKey in source.Keys)
             {
-                bool hasValue = TryGetDictionaryValue(source, rawKey, out Variant rawValue);
-                if (
-                    hasValue
-                    && TryAsStringName(rawKey, out StringName key)
-                    && TryAsStringName(rawValue, out StringName value)
-                )
+                string keyText = rawKey.ToString();
+                if (string.IsNullOrEmpty(keyText))
                 {
-                    result._values[key] = value;
                     continue;
                 }
-
-                result._untypedEntries.Add(
-                    new RestorableDictionaryEntry(
-                        RestorableKey.FromGodotKey(rawKey),
-                        hasValue ? RestorableValue.FromGodotValue(rawValue) : RestorableValue.Nil()
-                    )
-                );
+                string valueText = source[rawKey].ToString();
+                result._values[new StringName(keyText)] = new StringName(valueText);
             }
             return result;
         }
@@ -1813,10 +1878,6 @@ public partial class BattleAiMutationGuard : RefCounted
             {
                 result[entry.Key] = entry.Value;
             }
-            foreach (RestorableDictionaryEntry entry in _untypedEntries)
-            {
-                SetDictionaryValue(result, entry.Key.ToGodotKey(), entry.Value.ToGodotValue());
-            }
             return result;
         }
 
@@ -1827,29 +1888,18 @@ public partial class BattleAiMutationGuard : RefCounted
             {
                 result.Set(entry.Key.ToString(), StableValue.FromText(entry.Value.ToString()));
             }
-            foreach (RestorableDictionaryEntry entry in _untypedEntries)
-            {
-                result.Set(entry.Key.StableText, entry.Value.ToStableValue());
-            }
             return result;
         }
     }
-
     private sealed class WeaponDiceSnapshot
     {
         private readonly bool _hasTypedDice;
         private readonly WeaponDice _typedDice;
-        private readonly RestorableMap _fallbackMap;
 
-        public WeaponDiceSnapshot(
-            bool hasTypedDice = false,
-            WeaponDice typedDice = null,
-            RestorableMap fallbackMap = null
-        )
+        public WeaponDiceSnapshot(bool hasTypedDice = false, WeaponDice typedDice = null)
         {
             _hasTypedDice = hasTypedDice;
             _typedDice = typedDice;
-            _fallbackMap = fallbackMap;
         }
 
         public static WeaponDiceSnapshot FromGodotDictionary(GDictionary source)
@@ -1860,13 +1910,7 @@ public partial class BattleAiMutationGuard : RefCounted
             }
 
             GDictionary normalized = BattleUnitState._strict_weapon_dice_from_dict(source);
-            if (normalized == null)
-            {
-                return new WeaponDiceSnapshot(
-                    fallbackMap: RestorableMap.FromGodotDictionary(source)
-                );
-            }
-            if (normalized.Count == 0)
+            if (normalized == null || normalized.Count == 0)
             {
                 return new WeaponDiceSnapshot();
             }
@@ -1879,23 +1923,14 @@ public partial class BattleAiMutationGuard : RefCounted
 
         public GDictionary ToGodotDictionary()
         {
-            if (_fallbackMap != null)
-            {
-                return _fallbackMap.ToGodotDictionary();
-            }
             return _hasTypedDice ? _typedDice.to_dict() : new GDictionary();
         }
 
         public StableMap ToStableMap()
         {
-            if (_fallbackMap != null)
-            {
-                return _fallbackMap.ToStableMap();
-            }
             return _hasTypedDice ? StableWeaponDice(_typedDice) : new StableMap();
         }
     }
-
     private static void MaterializeLazyStatusEffects(BattleUnitState unit)
     {
         if (unit == null || unit.status_effects == null)
@@ -2099,18 +2134,19 @@ public partial class BattleAiMutationGuard : RefCounted
         return result;
     }
 
-    private static List<RestorableMap> DictionaryArrayToRestorableMaps(
-        Godot.Collections.Array<GDictionary> values
+    private static List<KnownFieldSnapshot> FieldArrayToSnapshots(
+        Godot.Collections.Array<GDictionary> values,
+        IReadOnlyCollection<string> allowedKeys
     )
     {
-        List<RestorableMap> result = new();
+        List<KnownFieldSnapshot> result = new();
         if (values == null)
         {
             return result;
         }
         foreach (GDictionary value in values)
         {
-            result.Add(RestorableMap.FromGodotDictionary(value));
+            result.Add(KnownFieldSnapshot.CaptureKnownFields(value, allowedKeys));
         }
         return result;
     }
@@ -2150,13 +2186,23 @@ public partial class BattleAiMutationGuard : RefCounted
     }
 
     private static Godot.Collections.Array<GDictionary> BuildDictionaryArray(
-        IEnumerable<RestorableMap> values
+        IEnumerable<KnownFieldSnapshot> values
     )
     {
         Godot.Collections.Array<GDictionary> result = new();
-        foreach (RestorableMap value in values ?? System.Array.Empty<RestorableMap>())
+        foreach (KnownFieldSnapshot value in values ?? System.Array.Empty<KnownFieldSnapshot>())
         {
             result.Add(value?.ToGodotDictionary() ?? new GDictionary());
+        }
+        return result;
+    }
+
+    private static GArray BuildUntypedStringNameArray(IEnumerable<StringName> values)
+    {
+        GArray result = new();
+        foreach (StringName value in values ?? System.Array.Empty<StringName>())
+        {
+            result.Add(value.ToString());
         }
         return result;
     }
@@ -2191,10 +2237,12 @@ public partial class BattleAiMutationGuard : RefCounted
         return result;
     }
 
-    private static List<StableValue> StableRestorableMapList(IEnumerable<RestorableMap> values)
+    private static List<StableValue> StableKnownFieldSnapshotList(
+        IEnumerable<KnownFieldSnapshot> values
+    )
     {
         List<StableValue> result = new();
-        foreach (RestorableMap value in values ?? System.Array.Empty<RestorableMap>())
+        foreach (KnownFieldSnapshot value in values ?? System.Array.Empty<KnownFieldSnapshot>())
         {
             result.Add(StableValue.FromMap(value?.ToStableMap() ?? new StableMap()));
         }
@@ -2268,23 +2316,6 @@ public partial class BattleAiMutationGuard : RefCounted
     private static string StableKey(Vector2I coord)
     {
         return $"Vector2i({coord.X},{coord.Y})";
-    }
-
-    private static string StableKeyFromGodotKey(Variant key)
-    {
-        if (key.VariantType == Variant.Type.String)
-        {
-            return StableKey(key.AsString());
-        }
-        if (key.VariantType == Variant.Type.StringName)
-        {
-            return StableKey(key.AsStringName());
-        }
-        if (key.VariantType == Variant.Type.Vector2I)
-        {
-            return StableKey(key.AsVector2I());
-        }
-        return $"type{(int)key.VariantType}({key})";
     }
 
     private enum StableDiffKind
@@ -2561,6 +2592,18 @@ public partial class BattleAiMutationGuard : RefCounted
 
         public bool TryGet(string key, out StableValue value) => _entries.TryGetValue(key, out value);
 
+        public void CopyIntoGodotDictionary(GDictionary target)
+        {
+            if (target == null)
+            {
+                return;
+            }
+            foreach (KeyValuePair<string, StableValue> entry in _entries)
+            {
+                entry.Value.CopyIntoGodotDictionary(target, entry.Key);
+            }
+        }
+
         public bool TryGetMap(string key, out StableMap map)
         {
             if (_entries.TryGetValue(key, out StableValue value) && value.TryGetMap(out map))
@@ -2623,8 +2666,6 @@ public partial class BattleAiMutationGuard : RefCounted
         public static StableValue FromMap(StableMap value) =>
             new(StableValueKind.Map, mapValue: value ?? new StableMap());
 
-        public static StableValue FromGodotValue(Variant rawValue) => FromVariant(rawValue);
-
         public StableValue Clone()
         {
             if (_kind == StableValueKind.Map)
@@ -2663,6 +2704,110 @@ public partial class BattleAiMutationGuard : RefCounted
             }
             value = null;
             return false;
+        }
+
+        public void CopyIntoGodotDictionary(GDictionary target, string key)
+        {
+            if (target == null || string.IsNullOrEmpty(key) || _kind == StableValueKind.Nil)
+            {
+                return;
+            }
+            switch (_kind)
+            {
+                case StableValueKind.Bool:
+                    target[key] = _boolValue;
+                    break;
+                case StableValueKind.Integer:
+                    target[key] = _integerValue;
+                    break;
+                case StableValueKind.Float:
+                    target[key] = _floatValue;
+                    break;
+                case StableValueKind.Text:
+                case StableValueKind.Fallback:
+                    target[key] = _textValue ?? "";
+                    break;
+                case StableValueKind.Vector2I:
+                    target[key] = _vector2IValue;
+                    break;
+                case StableValueKind.Vector2:
+                    target[key] = _vector2Value;
+                    break;
+                case StableValueKind.Vector3I:
+                    target[key] = _vector3IValue;
+                    break;
+                case StableValueKind.Vector3:
+                    target[key] = _vector3Value;
+                    break;
+                case StableValueKind.ObjectId:
+                    target[key] = _integerValue;
+                    break;
+                case StableValueKind.Map:
+                    GDictionary nested = new();
+                    _mapValue?.CopyIntoGodotDictionary(nested);
+                    target[key] = nested;
+                    break;
+                case StableValueKind.Array:
+                    GArray array = new();
+                    foreach (StableValue item in _arrayValue ?? new List<StableValue>())
+                    {
+                        item.CopyIntoGodotArray(array);
+                    }
+                    target[key] = array;
+                    break;
+            }
+        }
+
+        private void CopyIntoGodotArray(GArray target)
+        {
+            if (target == null || _kind == StableValueKind.Nil)
+            {
+                return;
+            }
+            switch (_kind)
+            {
+                case StableValueKind.Bool:
+                    target.Add(_boolValue);
+                    break;
+                case StableValueKind.Integer:
+                    target.Add(_integerValue);
+                    break;
+                case StableValueKind.Float:
+                    target.Add(_floatValue);
+                    break;
+                case StableValueKind.Text:
+                case StableValueKind.Fallback:
+                    target.Add(_textValue ?? "");
+                    break;
+                case StableValueKind.Vector2I:
+                    target.Add(_vector2IValue);
+                    break;
+                case StableValueKind.Vector2:
+                    target.Add(_vector2Value);
+                    break;
+                case StableValueKind.Vector3I:
+                    target.Add(_vector3IValue);
+                    break;
+                case StableValueKind.Vector3:
+                    target.Add(_vector3Value);
+                    break;
+                case StableValueKind.ObjectId:
+                    target.Add(_integerValue);
+                    break;
+                case StableValueKind.Map:
+                    GDictionary nested = new();
+                    _mapValue?.CopyIntoGodotDictionary(nested);
+                    target.Add(nested);
+                    break;
+                case StableValueKind.Array:
+                    GArray nestedArray = new();
+                    foreach (StableValue item in _arrayValue ?? new List<StableValue>())
+                    {
+                        item.CopyIntoGodotArray(nestedArray);
+                    }
+                    target.Add(nestedArray);
+                    break;
+            }
         }
 
         public bool ScalarEquals(StableValue other)
@@ -2715,73 +2860,6 @@ public partial class BattleAiMutationGuard : RefCounted
             };
         }
 
-        private static StableValue FromVariant(Variant value)
-        {
-            return value.VariantType switch
-            {
-                Variant.Type.Nil => Nil(),
-                Variant.Type.Bool => FromBool(value.AsBool()),
-                Variant.Type.Int => FromInteger(value.AsInt64()),
-                Variant.Type.Float => FromFloat(value.AsDouble()),
-                Variant.Type.String => FromText(value.AsString()),
-                Variant.Type.StringName => FromText(value.AsStringName().ToString()),
-                Variant.Type.Vector2I => FromVector2I(value.AsVector2I()),
-                Variant.Type.Vector2 => FromVector2(value.AsVector2()),
-                Variant.Type.Vector3I => FromVector3I(value.AsVector3I()),
-                Variant.Type.Vector3 => FromVector3(value.AsVector3()),
-                Variant.Type.Dictionary => FromMap(StableMap.FromGodotDictionary(value.AsGodotDictionary())),
-                Variant.Type.Array => FromGodotArray(value.AsGodotArray()),
-                Variant.Type.Object => FromGodotObject(value.AsGodotObject()),
-                _ => FromFallback($"type{(int)value.VariantType}", value.ToString()),
-            };
-        }
-
-        public static StableValue FromVariantValue(Variant value) => FromVariant(value);
-
-        private static StableValue FromGodotObject(GodotObject value)
-        {
-            if (value == null)
-            {
-                return Nil();
-            }
-            return value switch
-            {
-                BattleUnitState unitState => FromMap(StableBattleUnitState(unitState)),
-                BattleCellState cellState => FromMap(StableBattleCell(cellState)),
-                BattleStatusEffectState statusEffectState => FromMap(
-                    StableStatusEffect(statusEffectState)
-                ),
-                BattleTimelineState timelineState => FromMap(StableTimeline(timelineState)),
-                BattleTerrainEffectState terrainEffectState => FromMap(
-                    StableTerrainEffect(terrainEffectState)
-                ),
-                BattleEdgeFeatureState edgeFeatureState => FromMap(
-                    StableEdgeFeature(edgeFeatureState)
-                ),
-                AttributeSnapshot attributeSnapshot => FromMap(StableAttributeSnapshot(attributeSnapshot)),
-                EquipmentState equipmentState => FromMap(StableEquipment(equipmentState)),
-                EquipmentEntryState equipmentEntryState => FromMap(
-                    StableEquipmentEntry(equipmentEntryState)
-                ),
-                EquipmentInstanceState equipmentInstanceState => FromMap(
-                    StableEquipmentInstance(equipmentInstanceState)
-                ),
-                WarehouseState warehouseState => FromMap(StableWarehouse(warehouseState)),
-                WarehouseStackState warehouseStackState => FromMap(
-                    StableWarehouseStack(warehouseStackState)
-                ),
-                WeaponProjection weaponProjection => FromMap(StableWeaponProjection(weaponProjection)),
-                WeaponDice weaponDice => FromMap(StableWeaponDice(weaponDice)),
-                Resource resource => FromObjectId((long)resource.GetInstanceId()),
-                _ => FromObjectId((long)value.GetInstanceId()),
-            };
-        }
-
-        private static StableValue FromGodotArray(GArray source)
-        {
-            return FromArray(ReadStableArrayValues(source));
-        }
-
         public static StableValue FromArray(List<StableValue> value) =>
             new(StableValueKind.Array, arrayValue: value ?? new List<StableValue>());
 
@@ -2811,37 +2889,6 @@ public partial class BattleAiMutationGuard : RefCounted
 
         public static StableValue FromObjectId(long value) =>
             new(StableValueKind.ObjectId, integerValue: value);
-
-        private static StableValue FromFallback(string typeName, string value) =>
-            new(StableValueKind.Fallback, textValue: $"{typeName}({value ?? ""})");
-    }
-
-    private delegate bool GodotValueReader<T>(Variant rawValue, out T value);
-
-    private readonly struct GodotDictionaryEntry<TKey, TValue>
-    {
-        public GodotDictionaryEntry(TKey key, TValue value)
-        {
-            Key = key;
-            Value = value;
-        }
-
-        public TKey Key { get; }
-
-        public TValue Value { get; }
-    }
-
-    private readonly struct RestorableDictionaryEntry
-    {
-        public RestorableDictionaryEntry(RestorableKey key, RestorableValue value)
-        {
-            Key = key;
-            Value = value;
-        }
-
-        public RestorableKey Key { get; }
-
-        public RestorableValue Value { get; }
     }
 
     private readonly struct StableDictionaryEntry
@@ -2877,61 +2924,6 @@ public partial class BattleAiMutationGuard : RefCounted
         public bool IsTyped { get; }
     }
 
-    private static List<GodotDictionaryEntry<TKey, TValue>> ReadGodotDictionaryEntries<
-        TKey,
-        TValue
-    >(
-        GDictionary source,
-        GodotValueReader<TKey> readKey,
-        GodotValueReader<TValue> readValue
-    )
-    {
-        List<GodotDictionaryEntry<TKey, TValue>> result = new();
-        if (source == null || readKey == null || readValue == null)
-        {
-            return result;
-        }
-
-        foreach (var rawKey in source.Keys)
-        {
-            if (
-                readKey(rawKey, out TKey key)
-                && TryGetDictionaryValue(source, rawKey, out Variant rawValue)
-                && readValue(rawValue, out TValue value)
-            )
-            {
-                result.Add(new GodotDictionaryEntry<TKey, TValue>(key, value));
-            }
-        }
-        return result;
-    }
-
-    private static List<RestorableDictionaryEntry> ReadRestorableDictionaryEntries(
-        GDictionary source
-    )
-    {
-        List<RestorableDictionaryEntry> result = new();
-        if (source == null)
-        {
-            return result;
-        }
-
-        foreach (var rawKey in source.Keys)
-        {
-            if (!TryGetDictionaryValue(source, rawKey, out Variant rawValue))
-            {
-                continue;
-            }
-            result.Add(
-                new RestorableDictionaryEntry(
-                    RestorableKey.FromGodotKey(rawKey),
-                    RestorableValue.FromGodotValue(rawValue)
-                )
-            );
-        }
-        return result;
-    }
-
     private static List<StableDictionaryEntry> ReadStableDictionaryEntries(GDictionary source)
     {
         List<StableDictionaryEntry> result = new();
@@ -2942,18 +2934,90 @@ public partial class BattleAiMutationGuard : RefCounted
 
         foreach (var rawKey in source.Keys)
         {
-            string stableKey = StableKeyFromGodotKey(rawKey);
+            string stableKey = rawKey.ToString();
             if (stableKey == "unit_ref")
             {
                 continue;
             }
-            if (!TryGetDictionaryValue(source, rawKey, out Variant rawValue))
+            var rawValue = source[rawKey];
+            try
             {
+                GDictionary dictionary = rawValue.AsGodotDictionary();
+                result.Add(
+                    new StableDictionaryEntry(
+                        stableKey,
+                        StableValue.FromMap(StableMap.FromGodotDictionary(dictionary))
+                    )
+                );
                 continue;
             }
-            result.Add(new StableDictionaryEntry(stableKey, StableValue.FromGodotValue(rawValue)));
+            catch
+            {
+            }
+            try
+            {
+                GArray array = rawValue.AsGodotArray();
+                result.Add(
+                    new StableDictionaryEntry(
+                        stableKey,
+                        StableValue.FromArray(ReadStableArrayValues(array))
+                    )
+                );
+                continue;
+            }
+            catch
+            {
+            }
+            result.Add(new StableDictionaryEntry(stableKey, StableScalarFromText(rawValue.ToString())));
         }
         return result;
+    }
+
+    private static bool TryReadStableValue(GDictionary source, string key, out StableValue value)
+    {
+        value = StableValue.Nil();
+        if (source == null || string.IsNullOrEmpty(key))
+        {
+            return false;
+        }
+
+        bool hasKey = source.ContainsKey(key);
+        StringName stringNameKey = new(key);
+        bool hasStringNameKey = !hasKey && source.ContainsKey(stringNameKey);
+        if (!hasKey && !hasStringNameKey)
+        {
+            return false;
+        }
+
+        var rawValue = hasKey ? source[key] : source[stringNameKey];
+        try
+        {
+            GArray array = rawValue.AsGodotArray();
+            value = StableValue.FromArray(ReadKnownStableArrayValues(array));
+            return true;
+        }
+        catch
+        {
+        }
+        try
+        {
+            value = StableValue.FromVector2I(rawValue.AsVector2I());
+            return true;
+        }
+        catch
+        {
+        }
+        try
+        {
+            value = StableValue.FromVector2(rawValue.AsVector2());
+            return true;
+        }
+        catch
+        {
+        }
+
+        value = StableScalarFromText(rawValue.ToString());
+        return true;
     }
 
     private static List<StatusEffectDictionaryEntry> ReadStatusEffectDictionaryEntries(
@@ -2968,39 +3032,25 @@ public partial class BattleAiMutationGuard : RefCounted
 
         foreach (var rawStatusId in source.Keys)
         {
-            if (
-                !TryAsStringName(rawStatusId, out StringName statusId)
-                || !TryGetDictionaryValue(source, rawStatusId, out Variant rawEffect)
-            )
-            {
-                continue;
-            }
-
-            if (TryAsObject(rawEffect, out BattleStatusEffectState typedEffect))
+            StringName statusId = new(rawStatusId.ToString());
+            var rawEffect = source[rawStatusId];
+            BattleStatusEffectState typedEffect = rawEffect.As<BattleStatusEffectState>();
+            if (typedEffect != null)
             {
                 result.Add(new StatusEffectDictionaryEntry(statusId, typedEffect, true));
                 continue;
             }
 
-            BattleStatusEffectState effect =
-                TryAsDictionary(rawEffect, out GDictionary effectData)
-                    ? BattleStatusEffectState.from_dict(effectData)
-                    : null;
+            BattleStatusEffectState effect = null;
+            try
+            {
+                GDictionary effectData = rawEffect.AsGodotDictionary();
+                effect = BattleStatusEffectState.from_dict(effectData);
+            }
+            catch
+            {
+            }
             result.Add(new StatusEffectDictionaryEntry(statusId, effect, false));
-        }
-        return result;
-    }
-
-    private static List<RestorableValue> ReadRestorableArrayValues(GArray source)
-    {
-        List<RestorableValue> result = new();
-        if (source == null)
-        {
-            return result;
-        }
-        foreach (var item in source)
-        {
-            result.Add(RestorableValue.FromGodotValue(item));
         }
         return result;
     }
@@ -3012,129 +3062,77 @@ public partial class BattleAiMutationGuard : RefCounted
         {
             return result;
         }
-        foreach (var item in source)
+        foreach (var rawValue in source)
         {
-            result.Add(StableValue.FromGodotValue(item));
+            try
+            {
+                GDictionary dictionary = rawValue.AsGodotDictionary();
+                result.Add(StableValue.FromMap(StableMap.FromGodotDictionary(dictionary)));
+                continue;
+            }
+            catch
+            {
+            }
+            try
+            {
+                GArray array = rawValue.AsGodotArray();
+                result.Add(StableValue.FromArray(ReadStableArrayValues(array)));
+                continue;
+            }
+            catch
+            {
+            }
+            result.Add(StableScalarFromText(rawValue.ToString()));
         }
         return result;
     }
 
-    private static bool TryAsStringName(Variant rawValue, out StringName value)
+    private static List<StableValue> ReadKnownStableArrayValues(GArray source)
     {
-        if (rawValue.VariantType == Variant.Type.StringName)
+        List<StableValue> result = new();
+        if (source == null)
         {
-            value = rawValue.AsStringName();
-            return true;
+            return result;
         }
-        if (rawValue.VariantType == Variant.Type.String)
+        foreach (var rawValue in source)
         {
-            value = new StringName(rawValue.AsString());
-            return true;
+            try
+            {
+                result.Add(StableValue.FromVector2I(rawValue.AsVector2I()));
+                continue;
+            }
+            catch
+            {
+            }
+            try
+            {
+                result.Add(StableValue.FromVector2(rawValue.AsVector2()));
+                continue;
+            }
+            catch
+            {
+            }
+            result.Add(StableScalarFromText(rawValue.ToString()));
         }
-        value = default;
-        return false;
+        return result;
     }
 
-    private static bool TryAsBattleCellState(Variant rawValue, out BattleCellState value)
+    private static StableValue StableScalarFromText(string text)
     {
-        return TryAsObject(rawValue, out value);
-    }
-
-    private static bool TryAsBattleUnitState(Variant rawValue, out BattleUnitState value)
-    {
-        return TryAsObject(rawValue, out value);
-    }
-
-    private static bool TryAsSkillDef(Variant rawValue, out SkillDef value)
-    {
-        return TryAsObject(rawValue, out value);
-    }
-
-    private static bool TryAsCellColumn(Variant rawValue, out List<BattleCellState> value)
-    {
-        value = new List<BattleCellState>();
-        if (!TryAsArray(rawValue, out GArray column))
+        text ??= "";
+        if (bool.TryParse(text, out bool boolValue))
         {
-            return false;
+            return StableValue.FromBool(boolValue);
         }
-        foreach (var rawCell in column)
+        if (long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out long integerValue))
         {
-            if (TryAsObject(rawCell, out BattleCellState cell))
-            {
-                value.Add(cell);
-            }
+            return StableValue.FromInteger(integerValue);
         }
-        return true;
-    }
-
-    private static bool TryGetDictionaryValue(GDictionary dictionary, Variant key, out Variant value)
-    {
-        if (dictionary == null)
+        if (double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out double floatValue))
         {
-            value = default;
-            return false;
+            return StableValue.FromFloat(floatValue);
         }
-        if (dictionary.ContainsKey(key))
-        {
-            value = dictionary[key];
-            return true;
-        }
-        if (key.VariantType == Variant.Type.StringName)
-        {
-            StringName stringNameKey = key.AsStringName();
-            if (dictionary.ContainsKey(stringNameKey))
-            {
-                value = dictionary[stringNameKey];
-                return true;
-            }
-            string stringKey = stringNameKey.ToString();
-            if (dictionary.ContainsKey(stringKey))
-            {
-                value = dictionary[stringKey];
-                return true;
-            }
-            value = default;
-            return false;
-        }
-        if (key.VariantType == Variant.Type.String)
-        {
-            string textKey = key.AsString();
-            if (dictionary.ContainsKey(textKey))
-            {
-                value = dictionary[textKey];
-                return true;
-            }
-            var textStringNameKey = new StringName(textKey);
-            if (dictionary.ContainsKey(textStringNameKey))
-            {
-                value = dictionary[textStringNameKey];
-                return true;
-            }
-            value = default;
-            return false;
-        }
-        if (key.VariantType == Variant.Type.Vector2I)
-        {
-            Vector2I coordKey = key.AsVector2I();
-            if (dictionary.ContainsKey(coordKey))
-            {
-                value = dictionary[coordKey];
-                return true;
-            }
-            value = default;
-            return false;
-        }
-        value = default;
-        return false;
-    }
-
-    private static void SetDictionaryValue(GDictionary dictionary, Variant key, Variant value)
-    {
-        if (dictionary == null || key.VariantType == Variant.Type.Nil)
-        {
-            return;
-        }
-        dictionary[key] = value;
+        return StableValue.FromText(text);
     }
 
     private static void RemoveStringNameDictionaryKey(GDictionary dictionary, StringName key)
@@ -3146,63 +3144,6 @@ public partial class BattleAiMutationGuard : RefCounted
         dictionary.Remove(key);
         dictionary.Remove(key.ToString());
     }
-
-    private static bool TryAsObject<T>(Variant rawValue, out T value)
-        where T : GodotObject
-    {
-        if (rawValue.VariantType != Variant.Type.Object)
-        {
-            value = null;
-            return false;
-        }
-        value = rawValue.AsGodotObject() as T;
-        return value != null;
-    }
-
-    private static bool TryAsDictionary(Variant rawValue, out GDictionary value)
-    {
-        if (rawValue.VariantType == Variant.Type.Dictionary)
-        {
-            value = rawValue.AsGodotDictionary();
-            return true;
-        }
-        value = new GDictionary();
-        return false;
-    }
-
-    private static bool TryAsArray(Variant rawValue, out GArray value)
-    {
-        if (rawValue.VariantType == Variant.Type.Array)
-        {
-            value = rawValue.AsGodotArray();
-            return true;
-        }
-        value = new GArray();
-        return false;
-    }
-
-    private static bool TryAsVector2I(Variant rawValue, out Vector2I value)
-    {
-        if (rawValue.VariantType != Variant.Type.Vector2I)
-        {
-            value = Vector2I.Zero;
-            return false;
-        }
-        value = rawValue.AsVector2I();
-        return true;
-    }
-
-    private static bool TryAsInt(Variant rawValue, out int value)
-    {
-        if (rawValue.VariantType == Variant.Type.Nil)
-        {
-            value = 0;
-            return false;
-        }
-        value = rawValue.AsInt32();
-        return true;
-    }
-
     private static bool TryGetContextState(
         BattleAiContext context,
         out BattleState state,

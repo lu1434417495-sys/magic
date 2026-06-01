@@ -26,21 +26,18 @@ public partial class RaceTraitResolver : RefCounted
         if (identityDef == null)
             return;
 
-        _append_unique_string_names(traitTarget, V(identityDef.trait_ids));
+        _append_unique_string_names(traitTarget, identityDef.trait_ids);
 
-        _append_unique_string_names(
-            unitState.vision_tags,
-            V(identityDef.vision_tags)
-        );
+        _append_unique_string_names(unitState.vision_tags, identityDef.vision_tags);
 
         _append_unique_string_names(
             unitState.proficiency_tags,
-            V(identityDef.proficiency_tags)
+            identityDef.proficiency_tags
         );
 
         _append_unique_string_names(
             unitState.save_advantage_tags,
-            V(identityDef.save_advantage_tags)
+            identityDef.save_advantage_tags
         );
 
         _merge_damage_resistances(
@@ -48,10 +45,7 @@ public partial class RaceTraitResolver : RefCounted
             identityDef.damage_resistances
         );
 
-        _initialize_racial_skill_charges(
-            unitState,
-            V(identityDef.racial_granted_skills)
-        );
+        _initialize_racial_skill_charges(unitState, identityDef.racial_granted_skills);
     }
 
     private static void _apply_identity_def_projection(
@@ -63,21 +57,18 @@ public partial class RaceTraitResolver : RefCounted
         if (identityDef == null)
             return;
 
-        _append_unique_string_names(traitTarget, V(identityDef.trait_ids));
+        _append_unique_string_names(traitTarget, identityDef.trait_ids);
 
-        _append_unique_string_names(
-            unitState.vision_tags,
-            V(identityDef.vision_tags)
-        );
+        _append_unique_string_names(unitState.vision_tags, identityDef.vision_tags);
 
         _append_unique_string_names(
             unitState.proficiency_tags,
-            V(identityDef.proficiency_tags)
+            identityDef.proficiency_tags
         );
 
         _append_unique_string_names(
             unitState.save_advantage_tags,
-            V(identityDef.save_advantage_tags)
+            identityDef.save_advantage_tags
         );
 
         _merge_damage_resistances(
@@ -85,21 +76,19 @@ public partial class RaceTraitResolver : RefCounted
             identityDef.damage_resistances
         );
 
-        _initialize_racial_skill_charges(
-            unitState,
-            V(identityDef.racial_granted_skills)
-        );
+        _initialize_racial_skill_charges(unitState, identityDef.racial_granted_skills);
     }
 
     private static void _initialize_racial_skill_charges(
         BattleUnitState unitState,
-        Godot.Collections.Array grants
+        Godot.Collections.Array<RacialGrantedSkill> grants
     )
     {
-        foreach (var grantValue in grants)
-        {
-            var grant = grantValue.AsGodotObject() as RacialGrantedSkill;
+        if (grants == null)
+            return;
 
+        foreach (RacialGrantedSkill grant in grants)
+        {
             if (grant == null || grant.skill_id == "")
                 continue;
 
@@ -133,13 +122,14 @@ public partial class RaceTraitResolver : RefCounted
 
     private static void _append_unique_string_names(
         Godot.Collections.Array<StringName> target,
-        Godot.Collections.Array values
+        Godot.Collections.Array<StringName> values
     )
     {
-        foreach (var rawValue in values)
-        {
-            var value = ProgressionDataUtils.to_string_name(rawValue);
+        if (target == null || values == null)
+            return;
 
+        foreach (StringName value in values)
+        {
             if (value == "" || target.Contains(value))
                 continue;
 
@@ -165,13 +155,4 @@ public partial class RaceTraitResolver : RefCounted
         }
     }
 
-    private static Godot.Collections.Array V<[MustBeVariant] T>(Godot.Collections.Array<T> values)
-    {
-        var result = new Godot.Collections.Array();
-        if (values == null)
-            return result;
-        foreach (T value in values)
-            result.Add(Variant.From(value));
-        return result;
-    }
 }

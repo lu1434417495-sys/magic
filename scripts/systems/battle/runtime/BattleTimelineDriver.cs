@@ -406,9 +406,7 @@ public sealed class BattleTimelineDriver : IDisposable
     public int ResolveTimelineTuPerTick(GDictionary context)
     {
         var tuPerTick =
-            context != null
-            && context.ContainsKey("tu_per_tick")
-            && context["tu_per_tick"].VariantType == Variant.Type.Int
+            context != null && context.ContainsKey("tu_per_tick")
                 ? context["tu_per_tick"].AsInt32()
                 : TuGranularity;
         if (tuPerTick <= 0)

@@ -183,7 +183,7 @@ public partial class run_meteor_swarm_ai_regression : SceneTree
         }
 
         BattleUnitState protectedAlly = BuildUnit("meteor_protected_ally", "受保护友军", "player", new Vector2I(7, 7), 3000);
-        protectedAlly.ai_blackboard["protected_ally"] = true;
+        protectedAlly.ai_blackboard.set_bool("protected_ally", true);
         Fixture protectedSetup = BuildRuntimeFixture(new Vector2I(10, 10), new[] { enemy, protectedAlly });
         BattleAiScoreInput protectedScore = BuildMeteorScoreInput(protectedSetup, new Vector2I(4, 4));
         AssertTrue(protectedScore != null, "protected ally 用例应能构造 score input。");
@@ -248,9 +248,13 @@ public partial class run_meteor_swarm_ai_regression : SceneTree
             }
         }
         state.active_unit_id = caster.unit_id;
-        foreach (Variant unitValue in state.units.Values)
+        foreach (var rawUnitId in state.units.Keys)
         {
-            BattleUnitState unitState = unitValue.AsGodotObject() as BattleUnitState;
+            BattleUnitState unitState = state.units[rawUnitId].As<BattleUnitState>();
+            if (unitState == null)
+            {
+                continue;
+            }
             AssertTrue(
                 runtime.get_grid_service().place_unit(state, unitState, unitState.coord, true),
                 $"单位应能放入 meteor AI 棋盘：{unitState?.unit_id}"
@@ -395,16 +399,23 @@ public partial class run_meteor_swarm_ai_regression : SceneTree
         {
             return null;
         }
-        return skillDefs[skillId].AsGodotObject() as SkillDef;
+        return skillDefs[skillId].As<SkillDef>();
     }
 
-    private static GArray DictArray(GDictionary dictionary, Variant key)
+    private static GArray DictArray(GDictionary dictionary, string key)
     {
-        if (dictionary == null || !dictionary.ContainsKey(key))
+        if (dictionary == null || string.IsNullOrEmpty(key))
         {
             return new GArray();
         }
-        return dictionary[key].AsGodotArray();
+        if (dictionary.ContainsKey(key))
+        {
+            return dictionary[key].AsGodotArray();
+        }
+        StringName stringNameKey = new(key);
+        return dictionary.ContainsKey(stringNameKey)
+            ? dictionary[stringNameKey].AsGodotArray()
+            : new GArray();
     }
 
     private void AssertEq<T>(T actual, T expected, string message)

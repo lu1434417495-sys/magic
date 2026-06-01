@@ -155,7 +155,7 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
         CombatCastVariantDef cast_variant,
         GCombatEffectArray effect_defs,
         BattleEventBatch batch,
-        GDictionary forced_move_context = null
+        BattleForcedMoveContext forced_move_context = default
     )
     {
         return _apply_unit_skill_special_effects_result(
@@ -177,10 +177,30 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
         CombatCastVariantDef cast_variant,
         GCombatEffectArray effect_defs,
         BattleEventBatch batch,
-        GDictionary forced_move_context = null
+        BattleForcedMoveContext forced_move_context = default
     )
     {
-        forced_move_context ??= new GDictionary();
+        return Runtime?.ApplyUnitSkillSpecialEffectsResult(
+                active_unit,
+                target_unit,
+                skill_def,
+                cast_variant,
+                effect_defs ?? new GCombatEffectArray(),
+                batch,
+                forced_move_context
+            ) ?? BattleSpecialSkillResult.Empty();
+    }
+
+    public BattleSpecialSkillResult ApplyUnitSkillSpecialEffectsResult(
+        BattleUnitState active_unit,
+        BattleUnitState target_unit,
+        SkillDef skill_def,
+        CombatCastVariantDef cast_variant,
+        GCombatEffectArray effect_defs,
+        BattleEventBatch batch,
+        BattleForcedMoveContext forced_move_context
+    )
+    {
         return Runtime?.ApplyUnitSkillSpecialEffectsResult(
                 active_unit,
                 target_unit,
@@ -495,14 +515,18 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
         GDictionary shield_roll_context = null
     )
     {
-        return _apply_unit_shield_effects_result(
-                source_unit,
-                target_unit,
-                skill_def,
-                effect_defs,
-                shield_roll_context
-            )
-            .ToDictionary();
+        Dictionary<long, int> rollContext = BattleShieldService.ReadRollContext(
+            shield_roll_context
+        );
+        BattleShieldApplyResult result = _apply_unit_shield_effects_result(
+            source_unit,
+            target_unit,
+            skill_def,
+            effect_defs,
+            rollContext
+        );
+        BattleShieldService.WriteRollContext(shield_roll_context, rollContext);
+        return result.ToDictionary();
     }
 
     public BattleShieldApplyResult _apply_unit_shield_effects_result(
@@ -510,10 +534,10 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
         BattleUnitState target_unit,
         SkillDef skill_def,
         GCombatEffectArray effect_defs,
-        GDictionary shield_roll_context = null
+        Dictionary<long, int> shield_roll_context = null
     )
     {
-        shield_roll_context ??= new GDictionary();
+        shield_roll_context ??= new Dictionary<long, int>();
         if (Runtime == null)
             return new BattleShieldApplyResult(false, 0, 0, -1, new StringName(""));
         return Runtime.ApplyUnitShieldEffectsResult(
@@ -1678,7 +1702,7 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
         BattleRepeatAttackResolver repeatAttackResolver = Runtime?._repeat_attack_resolver;
         while (attemptCount < maxAttempts)
         {
-            GArray chainPool = _build_random_chain_target_pool(
+            List<BattleUnitState> chainPool = BuildRandomChainTargetPool(
                 active_unit,
                 skill_def,
                 chainHitCounts,
@@ -1688,8 +1712,8 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
             {
                 break;
             }
-            _shuffle_random_chain_pool(chainPool);
-            var targetUnit = chainPool[0].AsGodotObject() as BattleUnitState;
+            ShuffleRandomChainPool(chainPool);
+            BattleUnitState targetUnit = chainPool[0];
             if (targetUnit == null)
             {
                 break;
@@ -1752,15 +1776,36 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
         int max_hits_per_target
     )
     {
-        var chainPool = new GArray();
+        var result = new GArray();
+        foreach (
+            BattleUnitState unitState in BuildRandomChainTargetPool(
+                active_unit,
+                skill_def,
+                chain_hit_counts,
+                max_hits_per_target
+            )
+        )
+        {
+            result.Add(unitState);
+        }
+        return result;
+    }
+
+    private List<BattleUnitState> BuildRandomChainTargetPool(
+        BattleUnitState active_unit,
+        SkillDef skill_def,
+        IReadOnlyDictionary<StringName, int> chain_hit_counts,
+        int max_hits_per_target
+    )
+    {
+        var chainPool = new List<BattleUnitState>();
         BattleState state = RtState();
         if (state == null)
         {
             return chainPool;
         }
-        foreach (var unitValue in state.units.Values)
+        foreach (BattleUnitState candidate in state.GetUnitsTyped())
         {
-            var candidate = unitValue.AsGodotObject() as BattleUnitState;
             if (
                 candidate == null
                 || candidate == active_unit
@@ -1808,6 +1853,25 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
             var temp = chain_pool[index];
             chain_pool[index] = chain_pool[swapIndex];
             chain_pool[swapIndex] = temp;
+        }
+    }
+
+    private static void ShuffleRandomChainPool(List<BattleUnitState> chainPool)
+    {
+        if (chainPool == null || chainPool.Count <= 1)
+        {
+            return;
+        }
+        for (int index = chainPool.Count - 1; index > 0; index--)
+        {
+            int swapIndex = TrueRandomSeedService.randi_range(0, index);
+            if (swapIndex == index)
+            {
+                continue;
+            }
+            BattleUnitState temp = chainPool[index];
+            chainPool[index] = chainPool[swapIndex];
+            chainPool[swapIndex] = temp;
         }
     }
 
@@ -2029,7 +2093,7 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
                 combatProfile.max_hits_per_target,
                 1
             );
-            GArray randomChainPool = _build_random_chain_target_pool(
+            List<BattleUnitState> randomChainPool = BuildRandomChainTargetPool(
                 active_unit,
                 skill_def,
                 new Dictionary<StringName, int>(),
@@ -2040,9 +2104,8 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
                 return BattleUnitSkillValidationResult.Denied("没有可用的随机连击目标。");
             }
             var candidateUnitIds = new List<StringName>();
-            foreach (var candidateValue in randomChainPool)
+            foreach (BattleUnitState candidate in randomChainPool)
             {
-                var candidate = candidateValue.AsGodotObject() as BattleUnitState;
                 if (candidate != null)
                 {
                     candidateUnitIds.Add(candidate.unit_id);
@@ -2074,8 +2137,7 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
         var targetUnits = new List<BattleUnitState>();
         foreach (StringName targetUnitId in targetUnitIds)
         {
-            var targetUnit =
-                state.units.GetValueOrDefault(targetUnitId).AsGodotObject() as BattleUnitState;
+            state.TryGetUnitTyped(targetUnitId, out BattleUnitState targetUnit);
             string specialValidationMessage = _get_unit_skill_target_validation_message(
                 active_unit,
                 targetUnit,
@@ -2419,7 +2481,7 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
                 damageResult,
                 SkillDefs()
             );
-        var shieldRollContext = new GDictionary();
+        var shieldRollContext = new Dictionary<long, int>();
         BattleShieldApplyResult shieldResult = _apply_unit_shield_effects_result(
             active_unit,
             target_unit,
@@ -2434,13 +2496,14 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
         _append_changed_unit_id(batch, target_unit?.unit_id ?? new StringName(""));
         _append_changed_unit_coords(batch, target_unit);
         append_result_source_status_effects(batch, active_unit, damageResult);
-        BattleSpecialSkillResult specialResult = _apply_unit_skill_special_effects_result(
+        BattleSpecialSkillResult specialResult = ApplyUnitSkillSpecialEffectsResult(
             active_unit,
             target_unit,
             skill_def,
             cast_variant,
             effect_defs,
-            batch
+            batch,
+            BattleForcedMoveContext.Empty
         );
         mark_applied_statuses_for_turn_timing(
             target_unit,
@@ -2640,7 +2703,7 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
     {
         _apply_equipment_durability_result(
             target_unit,
-            AttackEffectResolutionResultReader.ReadLegacyResolverResult(
+            AttackEffectResolutionResultReader.ReadResolverResult(
                 result,
                 new AttackCheckInput()
             ),
@@ -2798,7 +2861,7 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
             return;
         }
         AttackEffectResolutionResult primaryResolution =
-            AttackEffectResolutionResultReader.ReadLegacyResolverResult(
+            AttackEffectResolutionResultReader.ReadResolverResult(
                 primary_result,
                 new AttackCheckInput(skillId: skill_def?.skill_id ?? new StringName(""))
             );
@@ -2826,7 +2889,7 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
             {
                 continue;
             }
-            GArray chainTargets = _collect_chain_damage_targets(
+            List<BattleUnitState> chainTargets = CollectChainDamageTargets(
                 source_unit,
                 primary_target,
                 skill_def,
@@ -2841,9 +2904,8 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
             int totalDamage = 0;
             int totalHealing = 0;
             int totalKillCount = 0;
-            foreach (var chainTargetValue in chainTargets)
+            foreach (BattleUnitState chainTarget in chainTargets)
             {
-                var chainTarget = chainTargetValue.AsGodotObject() as BattleUnitState;
                 if (chainTarget == null || !chainTarget.is_alive)
                 {
                     continue;
@@ -2855,7 +2917,7 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
                     new GDictionary { ["skill_id"] = skill_def?.skill_id ?? new StringName("") }
                 ) ?? new GDictionary();
                 AttackEffectResolutionResult chainResolution =
-                    AttackEffectResolutionResultReader.ReadLegacyResolverResult(
+                    AttackEffectResolutionResultReader.ReadResolverResult(
                         chainResult,
                         new AttackCheckInput(skillId: skill_def?.skill_id ?? new StringName(""))
                     );
@@ -2985,7 +3047,31 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
         BattleSpellControlResult spell_control_context = default
     )
     {
-        var targets = new GArray();
+        var result = new GArray();
+        foreach (
+            BattleUnitState unitState in CollectChainDamageTargets(
+                source_unit,
+                primary_target,
+                skill_def,
+                chain_effect,
+                spell_control_context
+            )
+        )
+        {
+            result.Add(unitState);
+        }
+        return result;
+    }
+
+    private List<BattleUnitState> CollectChainDamageTargets(
+        BattleUnitState source_unit,
+        BattleUnitState primary_target,
+        SkillDef skill_def,
+        CombatEffectDef chain_effect,
+        BattleSpellControlResult spell_control_context = default
+    )
+    {
+        var targets = new List<BattleUnitState>();
         BattleState state = RtState();
         if (state == null || source_unit == null || primary_target == null || chain_effect == null)
         {
@@ -3011,9 +3097,9 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
         }
 
         BattleGridService gridService = Runtime?.get_grid_service();
-        var visited = new GDictionary();
+        var visited = new HashSet<StringName>();
         var queue = new List<BattleUnitState>();
-        visited[primary_target.unit_id] = true;
+        visited.Add(primary_target.unit_id);
         queue.Add(primary_target);
 
         while (queue.Count != 0)
@@ -3029,7 +3115,7 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
                 }
                 if (
                     preventRepeatTarget
-                    && visited.ContainsKey(candidate.unit_id)
+                    && visited.Contains(candidate.unit_id)
                 )
                 {
                     continue;
@@ -3047,18 +3133,13 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
                     continue;
                 }
 
-                visited[candidate.unit_id] = true;
+                visited.Add(candidate.unit_id);
                 targets.Add(candidate);
                 queue.Add(candidate);
             }
         }
 
-        var targetList = new List<BattleUnitState>();
-        foreach (var t in targets)
-        {
-            targetList.Add(t.AsGodotObject() as BattleUnitState);
-        }
-        targetList.Sort(
+        targets.Sort(
             (a, b) =>
             {
                 int distanceA = gridService?.get_distance_between_units(primary_target, a) ?? 0;
@@ -3077,12 +3158,7 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
                 );
             }
         );
-        var sortedTargets = new GArray();
-        foreach (BattleUnitState t in targetList)
-        {
-            sortedTargets.Add(t);
-        }
-        return sortedTargets;
+        return targets;
     }
 
     public int _resolve_chain_damage_radius(
@@ -3720,10 +3796,7 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
         }
         foreach (var value in src)
         {
-            if (value.VariantType == Variant.Type.Vector2I)
-            {
-                result.Add(value.AsVector2I());
-            }
+            result.Add(value.AsVector2I());
         }
         return result;
     }
@@ -3751,28 +3824,10 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
         }
         foreach (var value in src)
         {
-            var unit = value.AsGodotObject() as BattleUnitState;
+            BattleUnitState unit = value.As<BattleUnitState>();
             if (unit != null)
             {
                 result.Add(unit);
-            }
-        }
-        return result;
-    }
-
-    private static Godot.Collections.Array<CombatEffectDef> ToCombatEffectDefArray(GArray src)
-    {
-        var result = new Godot.Collections.Array<CombatEffectDef>();
-        if (src == null)
-        {
-            return result;
-        }
-        foreach (var value in src)
-        {
-            var effectDef = value.AsGodotObject() as CombatEffectDef;
-            if (effectDef != null)
-            {
-                result.Add(effectDef);
             }
         }
         return result;
@@ -3790,32 +3845,30 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
 
     private static GArray DictArray(GDictionary source, object key)
     {
-        if (!TryGetDictionaryValue(source, key, out Variant value))
+        if (!HasDictionaryKey(source, key))
         {
             return new GArray();
         }
-        return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : new GArray();
+        return ReadDictionaryArrayValue(source, key);
     }
 
     private static int DictInt(GDictionary source, object key, int fallback = 0)
     {
-        if (!TryGetDictionaryValue(source, key, out Variant value))
+        if (!HasDictionaryKey(source, key))
         {
             return fallback;
         }
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+        return ReadDictionaryIntValue(source, key);
     }
 
     private static string DictString(GDictionary source, object key, string fallback = "")
     {
-        if (!TryGetDictionaryValue(source, key, out Variant value))
+        if (!HasDictionaryKey(source, key))
         {
             return fallback;
         }
-        return value.VariantType == Variant.Type.String
-            || value.VariantType == Variant.Type.StringName
-            ? value.AsString()
-            : fallback;
+        StringName parsed = ReadDictionaryStringNameValue(source, key);
+        return StringNameIsEmpty(parsed) ? fallback : parsed.ToString();
     }
 
     private static StringName DictStringName(
@@ -3824,73 +3877,110 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
         StringName fallback = default
     )
     {
-        if (!TryGetDictionaryValue(source, key, out Variant value))
+        if (!HasDictionaryKey(source, key))
         {
             return fallback;
         }
-        return value.VariantType == Variant.Type.StringName
-            ? value.AsStringName()
-            : value.VariantType == Variant.Type.String
-                ? new StringName(value.AsString())
-                : fallback;
+        StringName parsed = ReadDictionaryStringNameValue(source, key);
+        return StringNameIsEmpty(parsed) ? fallback : parsed;
     }
 
     private static IEnumerable<GDictionary> ReadDictionaryItems(GArray values)
     {
-        foreach (Variant value in values ?? new GArray())
+        foreach (var value in values ?? new GArray())
         {
-            if (value.VariantType == Variant.Type.Dictionary)
-            {
-                yield return value.AsGodotDictionary();
-            }
+            yield return value.AsGodotDictionary();
         }
     }
 
-    private static bool TryGetDictionaryValue(
-        GDictionary dictionary,
-        object key,
-        out Variant value
-    )
+    private static bool HasDictionaryKey(GDictionary dictionary, object key)
     {
         if (dictionary == null || key == null)
         {
-            value = default;
             return false;
         }
-        Variant variantKey = key switch
+        if (key is string stringKey)
         {
-            Variant valueKey => valueKey,
-            string stringKey => stringKey,
-            StringName stringNameKey => stringNameKey,
-            int intKey => intKey,
-            long longKey => longKey,
-            _ => default,
-        };
-        if (dictionary.ContainsKey(variantKey))
-        {
-            value = dictionary[variantKey];
-            return true;
+            return dictionary.ContainsKey(stringKey)
+                || dictionary.ContainsKey(new StringName(stringKey));
         }
-        if (variantKey.VariantType == Variant.Type.String)
+        if (key is StringName stringNameKey)
         {
-            StringName stringNameKey = new(variantKey.AsString());
-            if (dictionary.ContainsKey(stringNameKey))
-            {
-                value = dictionary[stringNameKey];
-                return true;
-            }
+            return dictionary.ContainsKey(stringNameKey)
+                || dictionary.ContainsKey(stringNameKey.ToString());
         }
-        else if (variantKey.VariantType == Variant.Type.StringName)
+        if (key is int intKey)
         {
-            string stringKey = variantKey.AsStringName().ToString();
-            if (dictionary.ContainsKey(stringKey))
-            {
-                value = dictionary[stringKey];
-                return true;
-            }
+            return dictionary.ContainsKey(intKey);
         }
-        value = default;
+        if (key is long longKey)
+        {
+            return dictionary.ContainsKey(longKey);
+        }
         return false;
+    }
+
+    private static GArray ReadDictionaryArrayValue(GDictionary dictionary, object key)
+    {
+        if (key is string stringKey)
+        {
+            return dictionary.ContainsKey(stringKey)
+                ? dictionary[stringKey].AsGodotArray()
+                : dictionary[new StringName(stringKey)].AsGodotArray();
+        }
+        if (key is StringName stringNameKey)
+        {
+            return dictionary.ContainsKey(stringNameKey)
+                ? dictionary[stringNameKey].AsGodotArray()
+                : dictionary[stringNameKey.ToString()].AsGodotArray();
+        }
+        if (key is int intKey)
+        {
+            return dictionary[intKey].AsGodotArray();
+        }
+        return dictionary[(long)key].AsGodotArray();
+    }
+
+    private static int ReadDictionaryIntValue(GDictionary dictionary, object key)
+    {
+        if (key is string stringKey)
+        {
+            return dictionary.ContainsKey(stringKey)
+                ? dictionary[stringKey].AsInt32()
+                : dictionary[new StringName(stringKey)].AsInt32();
+        }
+        if (key is StringName stringNameKey)
+        {
+            return dictionary.ContainsKey(stringNameKey)
+                ? dictionary[stringNameKey].AsInt32()
+                : dictionary[stringNameKey.ToString()].AsInt32();
+        }
+        if (key is int intKey)
+        {
+            return dictionary[intKey].AsInt32();
+        }
+        return dictionary[(long)key].AsInt32();
+    }
+
+    private static StringName ReadDictionaryStringNameValue(GDictionary dictionary, object key)
+    {
+        if (key is string stringKey)
+        {
+            return dictionary.ContainsKey(stringKey)
+                ? ProgressionDataUtils.to_string_name(dictionary[stringKey])
+                : ProgressionDataUtils.to_string_name(dictionary[new StringName(stringKey)]);
+        }
+        if (key is StringName stringNameKey)
+        {
+            return dictionary.ContainsKey(stringNameKey)
+                ? ProgressionDataUtils.to_string_name(dictionary[stringNameKey])
+                : ProgressionDataUtils.to_string_name(dictionary[stringNameKey.ToString()]);
+        }
+        if (key is int intKey)
+        {
+            return ProgressionDataUtils.to_string_name(dictionary[intKey]);
+        }
+        return ProgressionDataUtils.to_string_name(dictionary[(long)key]);
     }
 
     private static bool StringNameIsEmpty(StringName value)
@@ -3917,7 +4007,7 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
             payload ??= new GDictionary();
             return new UnitSkillEffectResolution(
                 payload,
-                AttackEffectResolutionResultReader.ReadLegacyResolverResult(payload, attackCheck)
+                AttackEffectResolutionResultReader.ReadResolverResult(payload, attackCheck)
             );
         }
     }

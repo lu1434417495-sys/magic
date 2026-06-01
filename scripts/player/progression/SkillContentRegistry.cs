@@ -117,23 +117,40 @@ public partial class SkillContentRegistry : RefCounted
         "execute",
     };
 
-    private static readonly string[] TypedEffectFlagParamNames =
-    {
-        "add_weapon_dice",
-        "requires_weapon",
-        "use_weapon_physical_damage_tag",
-        "resolve_as_weapon_attack",
-        "allow_repeat_hits_across_steps",
-        "prevent_repeat_target",
-        "stop_on_miss",
-        "stop_on_target_down",
-        "remove_harmful",
-        "remove_harmful_from_allies",
-        "remove_beneficial",
-        "remove_beneficial_from_enemies",
-        "require_damage_applied",
-        "staged_execution",
-    };
+    private static readonly System.Collections.Generic.Dictionary<string, string> TypedEffectParamTargets =
+        new()
+        {
+            { "dice_count", "dice_count" },
+            { "dice_sides", "dice_sides" },
+            { "dice_bonus", "dice_bonus" },
+            { "base_sides", "dice_sides_base" },
+            { "con_mod_sides", "dice_sides_per_constitution_mod" },
+            { "will_mod_sides", "dice_sides_per_willpower_mod" },
+            { "dice_sides_base", "dice_sides_base" },
+            { "dice_sides_per_constitution_mod", "dice_sides_per_constitution_mod" },
+            { "dice_sides_per_willpower_mod", "dice_sides_per_willpower_mod" },
+            { "dr_bypass_tag", "dr_bypass_tag" },
+            { "hp_ratio_threshold_percent", "hp_ratio_threshold_percent" },
+            { "bonus_damage_dice_count", "bonus_damage_dice_count" },
+            { "bonus_damage_dice_sides", "bonus_damage_dice_sides" },
+            { "bonus_damage_dice_bonus", "bonus_damage_dice_bonus" },
+            { "add_weapon_dice", "add_weapon_dice" },
+            { "requires_weapon", "requires_weapon" },
+            { "use_weapon_physical_damage_tag", "use_weapon_physical_damage_tag" },
+            { "resolve_as_weapon_attack", "resolve_as_weapon_attack" },
+            { "allow_repeat_hits_across_steps", "allow_repeat_hits_across_steps" },
+            { "prevent_repeat_target", "prevent_repeat_target" },
+            { "stop_on_miss", "stop_on_miss" },
+            { "stop_on_target_down", "stop_on_target_down" },
+            { "remove_harmful", "remove_harmful" },
+            { "remove_harmful_from_allies", "remove_harmful_from_allies" },
+            { "remove_beneficial", "remove_beneficial" },
+            { "remove_beneficial_from_enemies", "remove_beneficial_from_enemies" },
+            { "require_damage_applied", "require_damage_applied" },
+            { "staged_execution", "staged_execution" },
+            { "ap_gain", "ap_gain" },
+            { "free_move_points_gain", "free_move_points_gain" },
+        };
 
     private static readonly StringName[] PracticeTrackTags = { "meditation", "cultivation" };
     private static readonly HashSet<StringName> ValidPracticeTiers = new()
@@ -888,7 +905,8 @@ public partial class SkillContentRegistry : RefCounted
                     $"Skill {skillId} effect {contextLabel} params.duration_tu must be 0 or a multiple of {TuGranularity}."
                 );
         }
-        _append_weapon_param_validation_errors(errors, skillId, effectDef, contextLabel);
+        _append_typed_effect_param_validation_errors(errors, skillId, effectDef, contextLabel);
+        _append_attribute_scaled_dice_validation_errors(errors, skillId, effectDef, contextLabel);
 
         if (effectDef.effect_type == "damage")
         {
@@ -909,14 +927,14 @@ public partial class SkillContentRegistry : RefCounted
         }
         else if (effectDef.effect_type == "shield")
         {
-            bool hasDiceKeys =
-                parameters.ContainsKey("dice_count") || parameters.ContainsKey("dice_sides");
-            bool hasValidDiceConfig = _has_valid_shield_dice_config(effectDef);
-            if (effectDef.power <= 0 && !hasValidDiceConfig)
+            bool hasFixedDiceKeys = _has_fixed_dice_fields(effectDef);
+            bool hasValidFixedDiceConfig = _has_valid_fixed_dice_config(effectDef);
+            bool hasValidDynamicDiceConfig = _has_valid_attribute_scaled_dice_config(effectDef);
+            if (effectDef.power <= 0 && !hasValidFixedDiceConfig && !hasValidDynamicDiceConfig)
                 errors.Add(
-                    $"Skill {skillId} shield effect in {contextLabel} must have power >= 1 or a valid dice_count/dice_sides config."
+                    $"Skill {skillId} shield effect in {contextLabel} must have power >= 1, a valid dice_count/dice_sides config, or a valid attribute-scaled dice config."
                 );
-            if (hasDiceKeys && !hasValidDiceConfig)
+            if (hasFixedDiceKeys && !hasValidFixedDiceConfig)
                 errors.Add(
                     $"Skill {skillId} shield effect in {contextLabel} must set dice_count and dice_sides >= 1 together."
                 );
@@ -926,6 +944,23 @@ public partial class SkillContentRegistry : RefCounted
             )
                 errors.Add(
                     $"Skill {skillId} shield effect in {contextLabel} must have positive duration_tu in {TuGranularity} TU steps."
+                );
+        }
+        else if (effectDef.effect_type == "heal" || effectDef.effect_type == "stamina_restore")
+        {
+            bool hasFixedDiceKeys = _has_fixed_dice_fields(effectDef);
+            if (hasFixedDiceKeys && !_has_valid_fixed_dice_config(effectDef))
+                errors.Add(
+                    $"Skill {skillId} {effectDef.effect_type} effect in {contextLabel} must set dice_count and dice_sides >= 1 together."
+                );
+            if (
+                effectDef.effect_type == "stamina_restore"
+                && effectDef.power <= 0
+                && !_has_valid_fixed_dice_config(effectDef)
+                && !_has_valid_attribute_scaled_dice_config(effectDef)
+            )
+                errors.Add(
+                    $"Skill {skillId} stamina_restore effect in {contextLabel} must have power >= 1, a valid dice_count/dice_sides config, or a valid attribute-scaled dice config."
                 );
         }
         else if (effectDef.effect_type == "terrain_effect")
@@ -1059,50 +1094,28 @@ public partial class SkillContentRegistry : RefCounted
                 );
         }
 
-        if (parameters.ContainsKey("hp_ratio_threshold_percent"))
-        {
-            if (
-                !TryStrictInt(parameters["hp_ratio_threshold_percent"], out int thresholdValue)
-                || thresholdValue < 1
-                || thresholdValue > 100
-            )
-                errors.Add(
-                    $"Skill {skillId} damage effect in {contextLabel} params.hp_ratio_threshold_percent must be an int from 1 to 100."
-                );
-        }
+        if (effectDef.hp_ratio_threshold_percent < 0 || effectDef.hp_ratio_threshold_percent > 100)
+            errors.Add(
+                $"Skill {skillId} damage effect in {contextLabel} hp_ratio_threshold_percent must be 0 or from 1 to 100."
+            );
 
-        bool hasBonusDiceKey =
-            parameters.ContainsKey("bonus_damage_dice_count")
-            || parameters.ContainsKey("bonus_damage_dice_sides")
-            || parameters.ContainsKey("bonus_damage_dice_bonus");
-        if (!hasBonusDiceKey)
+        bool hasBonusDamageDice =
+            effectDef.bonus_damage_dice_count > 0
+            || effectDef.bonus_damage_dice_sides > 0
+            || effectDef.bonus_damage_dice_bonus != 0;
+        if (!hasBonusDamageDice)
             return;
         if (effectDef.bonus_condition == "")
             errors.Add(
                 $"Skill {skillId} damage effect in {contextLabel} bonus_damage_dice requires bonus_condition."
             );
-        if (
-            !parameters.ContainsKey("bonus_damage_dice_count")
-            || !TryStrictInt(parameters["bonus_damage_dice_count"], out int countValue)
-            || countValue < 1
-        )
+        if (effectDef.bonus_damage_dice_count < 1)
             errors.Add(
-                $"Skill {skillId} damage effect in {contextLabel} params.bonus_damage_dice_count must be a positive int."
+                $"Skill {skillId} damage effect in {contextLabel} bonus_damage_dice_count must be positive."
             );
-        if (
-            !parameters.ContainsKey("bonus_damage_dice_sides")
-            || !TryStrictInt(parameters["bonus_damage_dice_sides"], out int sidesValue)
-            || sidesValue < 1
-        )
+        if (effectDef.bonus_damage_dice_sides < 1)
             errors.Add(
-                $"Skill {skillId} damage effect in {contextLabel} params.bonus_damage_dice_sides must be a positive int."
-            );
-        if (
-            parameters.ContainsKey("bonus_damage_dice_bonus")
-            && !TryStrictInt(parameters["bonus_damage_dice_bonus"], out _)
-        )
-            errors.Add(
-                $"Skill {skillId} damage effect in {contextLabel} params.bonus_damage_dice_bonus must be an int."
+                $"Skill {skillId} damage effect in {contextLabel} bonus_damage_dice_sides must be positive."
             );
     }
 
@@ -1488,7 +1501,7 @@ public partial class SkillContentRegistry : RefCounted
             );
     }
 
-    public void _append_weapon_param_validation_errors(
+    public void _append_typed_effect_param_validation_errors(
         Array<string> errors,
         StringName skillId,
         CombatEffectDef effectDef,
@@ -1496,13 +1509,55 @@ public partial class SkillContentRegistry : RefCounted
     )
     {
         Dictionary parameters = effectDef.@params ?? new Dictionary();
-        foreach (string flagName in TypedEffectFlagParamNames)
+        foreach (var migratedParam in TypedEffectParamTargets)
         {
-            if (parameters.ContainsKey(flagName))
+            if (parameters.ContainsKey(migratedParam.Key))
                 errors.Add(
-                    $"Skill {skillId} effect {contextLabel} params.{flagName} is unsupported; use CombatEffectDef.{flagName}."
+                    $"Skill {skillId} effect {contextLabel} params.{migratedParam.Key} is unsupported; use CombatEffectDef.{migratedParam.Value}."
                 );
         }
+    }
+
+    public void _append_attribute_scaled_dice_validation_errors(
+        Array<string> errors,
+        StringName skillId,
+        CombatEffectDef effectDef,
+        string contextLabel
+    )
+    {
+        if (effectDef == null || !_has_attribute_scaled_dice_fields(effectDef))
+            return;
+        if (effectDef.dice_count < 1)
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} attribute-scaled dice must set dice_count >= 1."
+            );
+        if (effectDef.dice_sides_base < 1)
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} attribute-scaled dice must set dice_sides_base >= 1."
+            );
+        if (effectDef.dice_sides_per_constitution_mod < 0)
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} dice_sides_per_constitution_mod must be >= 0."
+            );
+        if (effectDef.dice_sides_per_willpower_mod < 0)
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} dice_sides_per_willpower_mod must be >= 0."
+            );
+        if (effectDef.dice_sides > 0)
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} cannot combine dice_sides with attribute-scaled dice_sides_base."
+            );
+        if (
+            effectDef.power > 0
+            && (
+                effectDef.effect_type == "heal"
+                || effectDef.effect_type == "shield"
+                || effectDef.effect_type == "stamina_restore"
+            )
+        )
+            errors.Add(
+                $"Skill {skillId} effect {contextLabel} uses attribute-scaled dice; put the dice count in dice_count, not power."
+            );
     }
 
     public void _append_string_name_array_validation_errors(
@@ -1531,10 +1586,43 @@ public partial class SkillContentRegistry : RefCounted
 
     public bool _has_valid_shield_dice_config(CombatEffectDef effectDef)
     {
-        if (effectDef == null || effectDef.@params == null)
+        if (effectDef == null)
             return false;
-        return DictInt(effectDef.@params, "dice_count") > 0
-            && DictInt(effectDef.@params, "dice_sides") > 0;
+        return _has_valid_fixed_dice_config(effectDef)
+            || _has_valid_attribute_scaled_dice_config(effectDef);
+    }
+
+    private static bool _has_fixed_dice_fields(CombatEffectDef effectDef)
+    {
+        if (effectDef == null)
+            return false;
+        bool hasAttributeScaledDice = _has_attribute_scaled_dice_fields(effectDef);
+        return effectDef.dice_sides > 0
+            || (effectDef.dice_bonus != 0 && !hasAttributeScaledDice)
+            || (effectDef.dice_count > 0 && !hasAttributeScaledDice);
+    }
+
+    private static bool _has_valid_fixed_dice_config(CombatEffectDef effectDef)
+    {
+        if (effectDef == null)
+            return false;
+        return effectDef.dice_count > 0 && effectDef.dice_sides > 0;
+    }
+
+    private static bool _has_attribute_scaled_dice_fields(CombatEffectDef effectDef)
+    {
+        if (effectDef == null)
+            return false;
+        return effectDef.dice_sides_base > 0
+            || effectDef.dice_sides_per_constitution_mod != 0
+            || effectDef.dice_sides_per_willpower_mod != 0;
+    }
+
+    private static bool _has_valid_attribute_scaled_dice_config(CombatEffectDef effectDef)
+    {
+        if (effectDef == null)
+            return false;
+        return effectDef.dice_count > 0 && effectDef.dice_sides_base > 0;
     }
 
     private static int DictInt(Dictionary dictionary, string key, int fallback = 0)

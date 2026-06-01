@@ -79,7 +79,8 @@ func _test_fixed_roll_damage_resolver_uses_injected_rolls() -> void:
 	effect.effect_type = &"damage"
 	effect.damage_tag = &"physical_slash"
 	effect.power = 1
-	effect.params = {"dice_count": 1, "dice_sides": 6}
+	effect.dice_count = 1
+	effect.dice_sides = 6
 	var result: Dictionary = resolver.resolve_effects(source, target, [effect], {})
 	_test.assert_eq(int(result.get("damage", 0)), 3, "FixedRollDamageResolver 应使用注入 damage roll。")
 

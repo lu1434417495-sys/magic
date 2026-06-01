@@ -11,10 +11,10 @@ script = ExtResource("3_qi740")
 effect_type = &"shield"
 effect_target_team_filter = &"ally"
 duration_tu = 60
+dice_count = 1
+dice_sides = 8
+dice_bonus = 3
 params = {
-"dice_bonus": 3,
-"dice_count": 1,
-"dice_sides": 8,
 "shield_family": "holy_barrier"
 }
 

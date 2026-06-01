@@ -115,7 +115,7 @@ func _test_two_handed_weapon_dice_ignores_alias_skill_dice_fields() -> void:
 
 func _test_dice_bonus_without_dice_is_ignored() -> void:
 	var effect := _build_damage_effect(4)
-	effect.params["dice_bonus"] = 99
+	effect.dice_bonus = 99
 	var preview := BattleDamagePreviewRangeService.build_skill_damage_preview(null, [effect])
 	_assert_eq(int(preview.get("min_damage", 0)), 4, "缺少有效技能骰时 dice_bonus 不应单独加入最小伤害。")
 	_assert_eq(int(preview.get("max_damage", 0)), 4, "缺少有效技能骰时 dice_bonus 不应单独加入最大伤害。")
@@ -136,11 +136,11 @@ func _build_damage_effect(
 	effect.power = power
 	effect.params = {}
 	if add_weapon_dice:
-		effect.params["add_weapon_dice"] = true
+		effect.add_weapon_dice = true
 	if dice_count > 0 and dice_sides > 0:
-		effect.params["dice_count"] = dice_count
-		effect.params["dice_sides"] = dice_sides
-		effect.params["dice_bonus"] = dice_bonus
+		effect.dice_count = dice_count
+		effect.dice_sides = dice_sides
+		effect.dice_bonus = dice_bonus
 	return effect
 
 

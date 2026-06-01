@@ -430,8 +430,7 @@ public partial class BattleMagicBacklashResolver : RefCounted
     {
         if (data == null || IsEmpty(key) || !data.ContainsKey(key))
             return fallback;
-        var value = data[key];
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+        return data[key].AsInt32();
     }
 
 }

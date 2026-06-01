@@ -98,16 +98,14 @@ public partial class BattleRuntimeLootResolver : RefCounted
             return;
         var dropLuck = _ResolveDropLuckForKillerUnit(killerUnit);
         foreach (
-            var lootEntryValue in _BuildDefeatedUnitLootEntries(
+            Dictionary lootEntry in _BuildDefeatedUnitLootEntries(
                 unitState,
                 enemyTemplate,
                 dropLuck
             )
         )
         {
-            if (lootEntryValue.VariantType != Variant.Type.Dictionary)
-                continue;
-            _runtime._active_loot_entries.Add(lootEntryValue.AsGodotDictionary().Duplicate(true));
+            _runtime._active_loot_entries.Add(lootEntry.Duplicate(true));
         }
     }
 
@@ -129,13 +127,13 @@ public partial class BattleRuntimeLootResolver : RefCounted
             : null;
     }
 
-    private Godot.Collections.Array _BuildDefeatedUnitLootEntries(
+    private Godot.Collections.Array<Dictionary> _BuildDefeatedUnitLootEntries(
         BattleUnitState unitState,
         EnemyTemplateDef enemyTemplate,
         int dropLuck
     )
     {
-        var lootEntries = new Godot.Collections.Array();
+        var lootEntries = new Godot.Collections.Array<Dictionary>();
         if (unitState == null || enemyTemplate == null)
             return lootEntries;
         var sourceLabel = !string.IsNullOrEmpty(unitState.display_name)
@@ -147,12 +145,10 @@ public partial class BattleRuntimeLootResolver : RefCounted
             dropEntries.Add(entry);
         foreach (var dropEntryValue in dropEntries)
         {
-            if (dropEntryValue.VariantType != Variant.Type.Dictionary)
-                return new Godot.Collections.Array();
             var dropEntryData = dropEntryValue.AsGodotDictionary();
             var parsedDropEntry = _ParseDropDefinition(dropEntryData);
             if (parsedDropEntry.Count == 0)
-                return new Godot.Collections.Array();
+                return new Godot.Collections.Array<Dictionary>();
             var dropEntryId = (StringName)parsedDropEntry["drop_entry_id"];
             var dropType = (StringName)parsedDropEntry["drop_type"];
             var itemId = (StringName)parsedDropEntry["item_id"];
@@ -163,7 +159,7 @@ public partial class BattleRuntimeLootResolver : RefCounted
                 if (equipmentDropService != null)
                 {
                     var rolledInstances = equipmentDropService
-                        .roll_item_instances(itemId, quantity, normalizedDropLuck);
+                        .roll_item_instances_typed(itemId, quantity, normalizedDropLuck);
                     for (
                         int instanceIndex = 0;
                         instanceIndex < rolledInstances.Count;
@@ -234,9 +230,7 @@ public partial class BattleRuntimeLootResolver : RefCounted
             && dropType != BattleLootConstants.DROP_TYPE_RANDOM_EQUIPMENT()
         )
             return new Dictionary();
-        if (entryData["quantity"].VariantType != Variant.Type.Int)
-            return new Dictionary();
-        var quantity = (int)entryData["quantity"];
+        var quantity = entryData["quantity"].AsInt32();
         if (quantity <= 0)
             return new Dictionary();
         return new Dictionary
@@ -248,21 +242,8 @@ public partial class BattleRuntimeLootResolver : RefCounted
         };
     }
 
-    private StringName _StrictStringNameValue(object rawValue)
-    {
-        if (rawValue is string textValue)
-            return NormalizeStrictStringNameText(textValue);
-        if (rawValue is StringName stringNameValue)
-            return NormalizeStrictStringNameText(stringNameValue.ToString());
-        if (rawValue is not Variant value)
-            return "";
-        if (
-            value.VariantType != Variant.Type.String
-            && value.VariantType != Variant.Type.StringName
-        )
-            return "";
-        return NormalizeStrictStringNameText(value.ToString());
-    }
+    private StringName _StrictStringNameValue(object rawValue) =>
+        NormalizeStrictStringNameText(rawValue?.ToString() ?? "");
 
     private StringName NormalizeStrictStringNameText(string rawText)
     {
@@ -277,10 +258,10 @@ public partial class BattleRuntimeLootResolver : RefCounted
         StringName dropSourceId,
         string dropSourceLabel,
         string dropEntrySuffix,
-        object rolledInstanceValue
+        EquipmentInstanceState rolledInstance
     )
     {
-        var equipmentInstanceData = _NormalizeEquipmentInstanceLootData(rolledInstanceValue);
+        var equipmentInstanceData = rolledInstance?.to_dict() ?? new Dictionary();
         var itemId = ProgressionDataUtils.to_string_name(
             equipmentInstanceData.GetValueOrDefault("item_id", "")
         );
@@ -316,36 +297,11 @@ public partial class BattleRuntimeLootResolver : RefCounted
         };
     }
 
-    private Dictionary _NormalizeEquipmentInstanceLootData(object rawValue)
-    {
-        if (rawValue is EquipmentInstanceState equipmentInstanceState)
-            return equipmentInstanceState.to_dict();
-        if (rawValue is Dictionary rawDictionary)
-            return NormalizeTransientEquipmentLootDictionary(rawDictionary);
-        if (rawValue is not Variant value || value.VariantType == Variant.Type.Nil)
-            return new Dictionary();
-        if (value.AsGodotObject() is EquipmentInstanceState variantEquipmentInstance)
-            return variantEquipmentInstance.to_dict();
-        if (value.VariantType == Variant.Type.Dictionary)
-        {
-            return NormalizeTransientEquipmentLootDictionary(value.AsGodotDictionary());
-        }
-        return new Dictionary();
-    }
-
-    private Dictionary NormalizeTransientEquipmentLootDictionary(Dictionary value)
-    {
-        var equipmentInstance = EquipmentInstanceState.from_transient_loot_dict(value);
-        if (equipmentInstance == null || equipmentInstance.item_id == "")
-            return new Dictionary();
-        return equipmentInstance.to_dict();
-    }
-
     private int _ResolveDropLuckForKillerUnit(BattleUnitState killerUnit)
     {
         if (killerUnit == null || killerUnit.source_member_id == "" || _runtime == null)
             return 0;
-        if (_runtime._character_gateway is not CharacterManagementModule characterGateway)
+        if (_runtime.GetCharacterGatewayTyped() is not CharacterManagementModule characterGateway)
             return 0;
         PartyMemberState memberState = characterGateway.get_member_state(killerUnit.source_member_id);
         if (memberState == null)
@@ -391,14 +347,11 @@ public partial class BattleRuntimeLootResolver : RefCounted
             return lootEntries;
         foreach (var lootEntryValue in _runtime._active_loot_entries)
         {
-            if (lootEntryValue.VariantType == Variant.Type.Dictionary)
-            {
-                var victoryEntry = _PreparePlayerVictoryLootEntry(
-                    lootEntryValue.AsGodotDictionary()
-                );
-                if (victoryEntry.Count > 0)
-                    lootEntries.Add(victoryEntry);
-            }
+            var victoryEntry = _PreparePlayerVictoryLootEntry(
+                lootEntryValue.AsGodotDictionary()
+            );
+            if (victoryEntry.Count > 0)
+                lootEntries.Add(victoryEntry);
         }
         lootEntries.AddRange(_BuildStatusRewardLootEntries());
         lootEntries.AddRange(_BuildCalamityConversionLootEntries());
@@ -413,13 +366,10 @@ public partial class BattleRuntimeLootResolver : RefCounted
         );
         if (dropType != BattleLootConstants.DROP_TYPE_EQUIPMENT_INSTANCE())
             return entry;
-        var equipmentPayloadValue = entry.GetValueOrDefault(
+        var equipmentPayload = entry.GetValueOrDefault(
             "equipment_instance",
             new Dictionary()
-        );
-        if (equipmentPayloadValue.VariantType != Variant.Type.Dictionary)
-            return new Dictionary();
-        var equipmentPayload = equipmentPayloadValue.AsGodotDictionary().Duplicate(true);
+        ).AsGodotDictionary().Duplicate(true);
         var instanceId = ProgressionDataUtils.to_string_name(
             equipmentPayload.GetValueOrDefault("instance_id", "")
         );

@@ -59,35 +59,36 @@ public sealed class BattleSpellControlMetadata
 
     private static bool BoolField(GDictionary payload, string key, bool fallback = false)
     {
-        Variant value = ValueField(payload, key);
-        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
+        if (!HasKey(payload, key))
+            return fallback;
+        return payload.ContainsKey(key)
+            ? payload[key].AsBool()
+            : payload[new StringName(key)].AsBool();
     }
 
     private static int IntField(GDictionary payload, string key, int fallback = 0)
     {
-        Variant value = ValueField(payload, key);
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+        if (!HasKey(payload, key))
+            return fallback;
+        return payload.ContainsKey(key)
+            ? payload[key].AsInt32()
+            : payload[new StringName(key)].AsInt32();
     }
 
     private static StringName StringNameField(GDictionary payload, string key)
     {
-        Variant value = ValueField(payload, key);
-        return value.VariantType switch
-        {
-            Variant.Type.StringName => value.AsStringName(),
-            Variant.Type.String => new StringName(value.AsString()),
-            _ => new StringName(""),
-        };
+        if (!HasKey(payload, key))
+            return new StringName("");
+        return payload.ContainsKey(key)
+            ? ProgressionDataUtils.to_string_name(payload[key])
+            : ProgressionDataUtils.to_string_name(payload[new StringName(key)]);
     }
 
-    private static Variant ValueField(GDictionary payload, string key)
+    private static bool HasKey(GDictionary payload, string key)
     {
         if (payload == null)
-            return default;
-        if (payload.ContainsKey(key))
-            return payload[key];
-        var stringNameKey = new StringName(key);
-        return payload.ContainsKey(stringNameKey) ? payload[stringNameKey] : default;
+            return false;
+        return payload.ContainsKey(key) || payload.ContainsKey(new StringName(key));
     }
 
     private static GDictionary DuplicateDictionary(GDictionary source) =>
@@ -136,32 +137,36 @@ public readonly record struct BattleSpellControlResult(
 
     private static bool BoolField(GDictionary payload, string key, bool fallback = false)
     {
-        Variant value = ValueField(payload, key);
-        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
+        if (!HasKey(payload, key))
+            return fallback;
+        return payload.ContainsKey(key)
+            ? payload[key].AsBool()
+            : payload[new StringName(key)].AsBool();
     }
 
     private static int IntField(GDictionary payload, string key, int fallback = 0)
     {
-        Variant value = ValueField(payload, key);
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
+        if (!HasKey(payload, key))
+            return fallback;
+        return payload.ContainsKey(key)
+            ? payload[key].AsInt32()
+            : payload[new StringName(key)].AsInt32();
     }
 
     private static GDictionary DictionaryField(GDictionary payload, string key)
     {
-        Variant value = ValueField(payload, key);
-        return value.VariantType == Variant.Type.Dictionary
-            ? value.AsGodotDictionary().Duplicate(true)
-            : new GDictionary();
+        if (!HasKey(payload, key))
+            return new GDictionary();
+        return payload.ContainsKey(key)
+            ? payload[key].AsGodotDictionary().Duplicate(true)
+            : payload[new StringName(key)].AsGodotDictionary().Duplicate(true);
     }
 
-    private static Variant ValueField(GDictionary payload, string key)
+    private static bool HasKey(GDictionary payload, string key)
     {
         if (payload == null)
-            return default;
-        if (payload.ContainsKey(key))
-            return payload[key];
-        var stringNameKey = new StringName(key);
-        return payload.ContainsKey(stringNameKey) ? payload[stringNameKey] : default;
+            return false;
+        return payload.ContainsKey(key) || payload.ContainsKey(new StringName(key));
     }
 }
 
@@ -224,21 +229,25 @@ public readonly record struct BattleGroundBacklashTargetResult(
     private static List<Vector2I> Vector2IListField(GDictionary payload, string key)
     {
         var result = new List<Vector2I>();
-        Variant value = ValueField(payload, key);
-        if (value.VariantType != Variant.Type.Array)
+        if (!HasKey(payload, key))
             return result;
-        foreach (Variant coordValue in value.AsGodotArray())
+        var values = payload.ContainsKey(key)
+            ? payload[key].AsGodotArray()
+            : payload[new StringName(key)].AsGodotArray();
+        foreach (var coordValue in values)
         {
-            if (coordValue.VariantType == Variant.Type.Vector2I)
-                result.Add(coordValue.AsVector2I());
+            result.Add(coordValue.AsVector2I());
         }
         return result;
     }
 
     private static bool BoolField(GDictionary payload, string key, bool fallback = false)
     {
-        Variant value = ValueField(payload, key);
-        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
+        if (!HasKey(payload, key))
+            return fallback;
+        return payload.ContainsKey(key)
+            ? payload[key].AsBool()
+            : payload[new StringName(key)].AsBool();
     }
 
     private static Vector2I Vector2IField(
@@ -247,17 +256,17 @@ public readonly record struct BattleGroundBacklashTargetResult(
         Vector2I fallback = default
     )
     {
-        Variant value = ValueField(payload, key);
-        return value.VariantType == Variant.Type.Vector2I ? value.AsVector2I() : fallback;
+        if (!HasKey(payload, key))
+            return fallback;
+        return payload.ContainsKey(key)
+            ? payload[key].AsVector2I()
+            : payload[new StringName(key)].AsVector2I();
     }
 
-    private static Variant ValueField(GDictionary payload, string key)
+    private static bool HasKey(GDictionary payload, string key)
     {
         if (payload == null)
-            return default;
-        if (payload.ContainsKey(key))
-            return payload[key];
-        var stringNameKey = new StringName(key);
-        return payload.ContainsKey(stringNameKey) ? payload[stringNameKey] : default;
+            return false;
+        return payload.ContainsKey(key) || payload.ContainsKey(new StringName(key));
     }
 }

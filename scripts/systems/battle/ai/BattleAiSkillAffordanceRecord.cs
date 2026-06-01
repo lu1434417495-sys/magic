@@ -164,15 +164,9 @@ internal sealed class BattleAiSkillAffordanceRecord
         {
             return result;
         }
-        foreach (Variant rawValue in values)
+        foreach (var rawValue in values)
         {
-            string value = rawValue.VariantType switch
-            {
-                Variant.Type.String => rawValue.AsString(),
-                Variant.Type.StringName => rawValue.AsStringName().ToString(),
-                _ => "",
-            };
-            StringName normalizedValue = new(value.StripEdges());
+            StringName normalizedValue = ProgressionDataUtils.to_string_name(rawValue);
             if (normalizedValue != "")
             {
                 result.Add(normalizedValue);
@@ -187,12 +181,7 @@ internal sealed class BattleAiSkillAffordanceRecord
         {
             return fallback;
         }
-        Variant value = data[key];
-        if (value.VariantType == Variant.Type.String || value.VariantType == Variant.Type.StringName)
-        {
-            return value.ToString();
-        }
-        return fallback;
+        return data[key].ToString();
     }
 
     private static StringName ReadStringName(GDictionary data, string key)
@@ -207,8 +196,7 @@ internal sealed class BattleAiSkillAffordanceRecord
         {
             return fallback;
         }
-        Variant value = data[key];
-        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
+        return data[key].AsBool();
     }
 
     private static GArray ReadArray(GDictionary data, string key)
@@ -217,8 +205,7 @@ internal sealed class BattleAiSkillAffordanceRecord
         {
             return new GArray();
         }
-        Variant value = data[key];
-        return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : new GArray();
+        return data[key].AsGodotArray();
     }
 
     private static GStringNameArray ToStringNameArray(IEnumerable<StringName> values)

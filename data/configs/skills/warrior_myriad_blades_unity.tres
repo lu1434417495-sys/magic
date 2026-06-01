@@ -15,10 +15,8 @@ max_skill_level = 5
 add_weapon_dice = true
 requires_weapon = true
 use_weapon_physical_damage_tag = true
-params = {
-"dice_count": 2,
-"dice_sides": 8
-}
+dice_count = 2
+dice_sides = 8
 
 [sub_resource type="Resource" id="Resource_ef1"]
 script = ExtResource("3_effect")
@@ -31,10 +29,8 @@ max_skill_level = -1
 add_weapon_dice = true
 requires_weapon = true
 use_weapon_physical_damage_tag = true
-params = {
-"dice_count": 3,
-"dice_sides": 8
-}
+dice_count = 3
+dice_sides = 8
 
 [sub_resource type="Resource" id="Resource_combat"]
 script = ExtResource("4_combat")

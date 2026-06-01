@@ -22,6 +22,10 @@ public partial class BattleStatusEffectState : RefCounted
         "tick_interval_tu",
         "next_tick_at_tu",
         "skip_next_turn_end_decay",
+        "counts_as_debuff_override",
+        "counts_as_debuff",
+        "lock_counterattack",
+        "main_skill_lock_other_debuff_count",
     };
 
     public StringName status_id { get; set; } = "";
@@ -33,6 +37,11 @@ public partial class BattleStatusEffectState : RefCounted
     public int tick_interval_tu { get; set; }
     public int next_tick_at_tu { get; set; }
     public bool skip_next_turn_end_decay { get; set; }
+    public bool forced_move_immune { get; set; }
+    public bool counts_as_debuff_override { get; set; }
+    public bool counts_as_debuff { get; set; }
+    public bool lock_counterattack { get; set; }
+    public int main_skill_lock_other_debuff_count { get; set; }
 
     public bool is_empty()
     {
@@ -57,6 +66,11 @@ public partial class BattleStatusEffectState : RefCounted
             tick_interval_tu = tick_interval_tu,
             next_tick_at_tu = next_tick_at_tu,
             skip_next_turn_end_decay = skip_next_turn_end_decay,
+            forced_move_immune = forced_move_immune,
+            counts_as_debuff_override = counts_as_debuff_override,
+            counts_as_debuff = counts_as_debuff,
+            lock_counterattack = lock_counterattack,
+            main_skill_lock_other_debuff_count = main_skill_lock_other_debuff_count,
         };
     }
 
@@ -85,6 +99,19 @@ public partial class BattleStatusEffectState : RefCounted
         if (skip_next_turn_end_decay)
         {
             payload["skip_next_turn_end_decay"] = true;
+        }
+        if (counts_as_debuff_override)
+        {
+            payload["counts_as_debuff_override"] = true;
+            payload["counts_as_debuff"] = counts_as_debuff;
+        }
+        if (lock_counterattack)
+        {
+            payload["lock_counterattack"] = true;
+        }
+        if (main_skill_lock_other_debuff_count > 0)
+        {
+            payload["main_skill_lock_other_debuff_count"] = main_skill_lock_other_debuff_count;
         }
         return payload;
     }
@@ -163,6 +190,66 @@ public partial class BattleStatusEffectState : RefCounted
             }
         }
 
+        bool countsAsDebuffOverrideValue = false;
+        if (effectDict.ContainsKey("counts_as_debuff_override"))
+        {
+            if (
+                !TryReadBoolField(
+                    effectDict,
+                    "counts_as_debuff_override",
+                    out countsAsDebuffOverrideValue
+                )
+                || !countsAsDebuffOverrideValue
+            )
+            {
+                return null;
+            }
+        }
+
+        bool countsAsDebuffValue = false;
+        if (effectDict.ContainsKey("counts_as_debuff"))
+        {
+            if (
+                !countsAsDebuffOverrideValue
+                || !TryReadBoolField(effectDict, "counts_as_debuff", out countsAsDebuffValue)
+            )
+            {
+                return null;
+            }
+        }
+        else if (countsAsDebuffOverrideValue)
+        {
+            return null;
+        }
+
+        bool lockCounterattackValue = false;
+        if (effectDict.ContainsKey("lock_counterattack"))
+        {
+            if (
+                !TryReadBoolField(effectDict, "lock_counterattack", out lockCounterattackValue)
+                || !lockCounterattackValue
+            )
+            {
+                return null;
+            }
+        }
+
+        int mainSkillLockOtherDebuffCountValue = 0;
+        if (effectDict.ContainsKey("main_skill_lock_other_debuff_count"))
+        {
+            if (
+                !TryGetStrictInt(
+                    effectDict,
+                    "main_skill_lock_other_debuff_count",
+                    out mainSkillLockOtherDebuffCountValue
+                )
+                || mainSkillLockOtherDebuffCountValue <= 0
+            )
+            {
+                return null;
+            }
+        }
+
         return new BattleStatusEffectState
         {
             status_id = new StringName(statusId),
@@ -174,6 +261,10 @@ public partial class BattleStatusEffectState : RefCounted
             tick_interval_tu = tickIntervalValue,
             next_tick_at_tu = nextTickAtValue,
             skip_next_turn_end_decay = skipDecayValue,
+            counts_as_debuff_override = countsAsDebuffOverrideValue,
+            counts_as_debuff = countsAsDebuffValue,
+            lock_counterattack = lockCounterattackValue,
+            main_skill_lock_other_debuff_count = mainSkillLockOtherDebuffCountValue,
         };
     }
 
@@ -186,12 +277,9 @@ public partial class BattleStatusEffectState : RefCounted
                 return false;
             }
         }
-        foreach (object keyValue in effectDict.Keys)
+        foreach (var keyValue in effectDict.Keys)
         {
-            if (!TryAsStrictStringKey(keyValue, out string key))
-            {
-                return false;
-            }
+            string key = keyValue.ToString();
             if (!HasString(RequiredSchemaFields, key) && !HasString(OptionalSchemaFields, key))
             {
                 return false;
@@ -202,9 +290,9 @@ public partial class BattleStatusEffectState : RefCounted
 
     private static bool TryGetStringLike(GDictionary data, string key, out string value)
     {
-        if (TryGetExactValue(data, key, out object rawValue)
-            && TryAsStringLike(rawValue, out value))
+        if (data != null && data.ContainsKey(key) && IsStringLikeField(data, key))
         {
+            value = data[key].ToString();
             return true;
         }
         value = "";
@@ -213,9 +301,9 @@ public partial class BattleStatusEffectState : RefCounted
 
     private static bool TryGetStrictInt(GDictionary data, string key, out int value)
     {
-        if (TryGetExactValue(data, key, out object rawValue)
-            && TryAsStrictInt(rawValue, out value))
+        if (data != null && data.ContainsKey(key) && IsFieldType(data, key, "Int"))
         {
+            value = data[key].AsInt32();
             return true;
         }
         value = 0;
@@ -224,9 +312,9 @@ public partial class BattleStatusEffectState : RefCounted
 
     private static bool TryGetDictionary(GDictionary data, string key, out GDictionary value)
     {
-        if (TryGetExactValue(data, key, out object rawValue)
-            && TryAsDictionary(rawValue, out value))
+        if (data != null && data.ContainsKey(key) && IsFieldType(data, key, "Dictionary"))
         {
+            value = data[key].AsGodotDictionary();
             return true;
         }
         value = new GDictionary();
@@ -235,118 +323,24 @@ public partial class BattleStatusEffectState : RefCounted
 
     private static bool TryReadBoolField(GDictionary data, string key, out bool value)
     {
-        if (TryGetExactValue(data, key, out object rawValue) && TryAsBool(rawValue, out value))
+        if (data != null && data.ContainsKey(key) && IsFieldType(data, key, "Bool"))
         {
+            value = data[key].AsBool();
             return true;
         }
         value = false;
         return false;
     }
 
-    private static bool TryAsStrictStringKey(object rawValue, out string value)
+    private static bool IsStringLikeField(GDictionary data, string key)
     {
-        if (rawValue is Variant variant && variant.VariantType == Variant.Type.String)
-        {
-            value = variant.AsString();
-            return true;
-        }
-        if (rawValue is string stringValue)
-        {
-            value = stringValue;
-            return true;
-        }
-        value = "";
-        return false;
+        string typeName = data[key].VariantType.ToString();
+        return typeName == "String" || typeName == "StringName";
     }
 
-    private static bool TryAsStringLike(object rawValue, out string value)
+    private static bool IsFieldType(GDictionary data, string key, string expectedTypeName)
     {
-        if (rawValue is Variant variant)
-        {
-            if (variant.VariantType == Variant.Type.String)
-            {
-                value = variant.AsString();
-                return true;
-            }
-            if (variant.VariantType == Variant.Type.StringName)
-            {
-                value = variant.AsStringName().ToString();
-                return true;
-            }
-            value = "";
-            return false;
-        }
-        if (rawValue is string stringValue)
-        {
-            value = stringValue;
-            return true;
-        }
-        if (rawValue is StringName stringNameValue)
-        {
-            value = stringNameValue.ToString();
-            return true;
-        }
-        value = "";
-        return false;
-    }
-
-    private static bool TryAsStrictInt(object rawValue, out int value)
-    {
-        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Int)
-        {
-            value = variant.AsInt32();
-            return true;
-        }
-        if (rawValue is int intValue)
-        {
-            value = intValue;
-            return true;
-        }
-        value = 0;
-        return false;
-    }
-
-    private static bool TryAsDictionary(object rawValue, out GDictionary value)
-    {
-        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Dictionary)
-        {
-            value = variant.AsGodotDictionary();
-            return true;
-        }
-        if (rawValue is GDictionary dictionary)
-        {
-            value = dictionary;
-            return true;
-        }
-        value = new GDictionary();
-        return false;
-    }
-
-    private static bool TryAsBool(object rawValue, out bool value)
-    {
-        if (rawValue is Variant variant && variant.VariantType == Variant.Type.Bool)
-        {
-            value = variant.AsBool();
-            return true;
-        }
-        if (rawValue is bool boolValue)
-        {
-            value = boolValue;
-            return true;
-        }
-        value = false;
-        return false;
-    }
-
-    private static bool TryGetExactValue(GDictionary data, string key, out object value)
-    {
-        if (data != null && data.ContainsKey(key))
-        {
-            value = data[key];
-            return true;
-        }
-        value = null;
-        return false;
+        return data[key].VariantType.ToString() == expectedTypeName;
     }
 
     private static bool HasString(string[] values, string value)

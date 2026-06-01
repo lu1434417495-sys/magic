@@ -77,7 +77,6 @@ public partial class BattleUnitState : RefCounted
         "shield_family",
         "shield_source_unit_id",
         "shield_source_skill_id",
-        "shield_params",
         "action_progress",
         "action_threshold",
         "known_active_skill_ids",
@@ -107,7 +106,6 @@ public partial class BattleUnitState : RefCounted
         "cooldowns",
         "last_turn_tu",
         "status_effects",
-        "combo_state",
     };
 
     public static int DEFAULT_MOVE_POINTS_PER_TURN() => DefaultMovePointsPerTurn;
@@ -203,7 +201,6 @@ public partial class BattleUnitState : RefCounted
     public StringName shield_family = "";
     public StringName shield_source_unit_id = "";
     public StringName shield_source_skill_id = "";
-    public GDictionary shield_params = new();
     public int action_progress;
     public int action_threshold = DefaultActionThreshold;
     public GStringNameArray known_active_skill_ids = new();
@@ -233,7 +230,6 @@ public partial class BattleUnitState : RefCounted
     public GDictionary cooldowns = new();
     public int last_turn_tu = -1;
     public GDictionary status_effects = new();
-    public GDictionary combo_state = new();
     public GDictionary per_battle_charges = new();
     public GDictionary per_turn_charges = new();
     public GDictionary per_turn_charge_limits = new();
@@ -360,7 +356,6 @@ public partial class BattleUnitState : RefCounted
         shield_family = "";
         shield_source_unit_id = "";
         shield_source_skill_id = "";
-        shield_params = new GDictionary();
     }
 
     public void normalize_shield_state()
@@ -502,32 +497,13 @@ public partial class BattleUnitState : RefCounted
         );
         weapon_is_versatile = false;
         if (projection.ContainsKey("weapon_is_versatile"))
-        {
-            Variant value = projection["weapon_is_versatile"];
-            if (value.VariantType == Variant.Type.Bool)
-                weapon_is_versatile = value.AsBool();
-        }
-        else if (projection.ContainsKey((StringName)"weapon_is_versatile"))
-        {
-            Variant value = projection[(StringName)"weapon_is_versatile"];
-            if (value.VariantType == Variant.Type.Bool)
-                weapon_is_versatile = value.AsBool();
-        }
+            weapon_is_versatile = ReadBool(projection, "weapon_is_versatile");
         bool hasWeaponUsesTwoHands = false;
         weapon_uses_two_hands = weapon_current_grip == WeaponGripTwoHanded;
         if (projection.ContainsKey("weapon_uses_two_hands"))
         {
             hasWeaponUsesTwoHands = true;
-            Variant value = projection["weapon_uses_two_hands"];
-            if (value.VariantType == Variant.Type.Bool)
-                weapon_uses_two_hands = value.AsBool();
-        }
-        else if (projection.ContainsKey((StringName)"weapon_uses_two_hands"))
-        {
-            hasWeaponUsesTwoHands = true;
-            Variant value = projection[(StringName)"weapon_uses_two_hands"];
-            if (value.VariantType == Variant.Type.Bool)
-                weapon_uses_two_hands = value.AsBool();
+            weapon_uses_two_hands = ReadBool(projection, "weapon_uses_two_hands");
         }
         if (weapon_uses_two_hands)
         {
@@ -567,16 +543,16 @@ public partial class BattleUnitState : RefCounted
         }
         var effectValue = status_effects[normalized];
         BattleStatusEffectState effectState = null;
-        if (effectValue.VariantType == Variant.Type.Object)
+        if (effectValue.VariantType.ToString() == "Object")
         {
-            effectState = effectValue.AsGodotObject() as BattleStatusEffectState;
+            effectState = effectValue.As<BattleStatusEffectState>();
         }
         if (effectState != null && !effectState.is_empty())
         {
             return effectState;
         }
         effectState =
-            effectValue.VariantType == Variant.Type.Dictionary
+            effectValue.VariantType.ToString() == "Dictionary"
                 ? BattleStatusEffectState.from_dict(effectValue.AsGodotDictionary())
                 : null;
         if (effectState == null || effectState.is_empty())
@@ -622,7 +598,7 @@ public partial class BattleUnitState : RefCounted
         foreach (var chargeKeyValue in per_turn_charge_limits.Keys)
         {
             StringName chargeKey = ToStringName(chargeKeyValue);
-            int chargeLimit = Math.Max(GetVariantInt(per_turn_charge_limits[chargeKeyValue]), 0);
+            int chargeLimit = Math.Max(per_turn_charge_limits[chargeKeyValue].AsInt32(), 0);
             if (IsEmpty(chargeKey) || chargeLimit <= 0)
             {
                 continue;
@@ -677,7 +653,6 @@ public partial class BattleUnitState : RefCounted
             shield_family = shield_family,
             shield_source_unit_id = shield_source_unit_id,
             shield_source_skill_id = shield_source_skill_id,
-            shield_params = DuplicateDictionary(shield_params, true),
             action_progress = action_progress,
             action_threshold = action_threshold,
             known_active_skill_ids = DuplicateStringNameArray(known_active_skill_ids),
@@ -710,7 +685,6 @@ public partial class BattleUnitState : RefCounted
             cooldowns = DuplicateDictionary(cooldowns, true),
             last_turn_tu = last_turn_tu,
             status_effects = DuplicateStatusEffects(status_effects),
-            combo_state = DuplicateDictionary(combo_state, true),
             per_battle_charges = DuplicateDictionary(per_battle_charges, true),
             per_turn_charges = DuplicateDictionary(per_turn_charges, true),
             per_turn_charge_limits = DuplicateDictionary(per_turn_charge_limits, true),
@@ -780,7 +754,6 @@ public partial class BattleUnitState : RefCounted
             ["shield_family"] = shield_family.ToString(),
             ["shield_source_unit_id"] = shield_source_unit_id.ToString(),
             ["shield_source_skill_id"] = shield_source_skill_id.ToString(),
-            ["shield_params"] = DuplicateDictionary(shield_params, true),
             ["action_progress"] = action_progress,
             ["action_threshold"] = action_threshold,
             ["known_active_skill_ids"] = _string_name_array_to_strings(known_active_skill_ids),
@@ -812,7 +785,6 @@ public partial class BattleUnitState : RefCounted
             ["cooldowns"] = DuplicateDictionary(cooldowns, true),
             ["last_turn_tu"] = last_turn_tu,
             ["status_effects"] = statusPayloads,
-            ["combo_state"] = DuplicateDictionary(combo_state, true),
         };
     }
 
@@ -835,9 +807,9 @@ public partial class BattleUnitState : RefCounted
         var footprintSizeValue = payload["footprint_size"];
         var occupiedCoordsValue = payload["occupied_coords"];
         if (
-            coordValue.VariantType != Variant.Type.Vector2I
-            || bodySizeValue.VariantType != Variant.Type.Int
-            || footprintSizeValue.VariantType != Variant.Type.Vector2I
+            coordValue.VariantType.ToString() != "Vector2I"
+            || bodySizeValue.VariantType.ToString() != "Int"
+            || footprintSizeValue.VariantType.ToString() != "Vector2I"
         )
         {
             return null;
@@ -847,7 +819,10 @@ public partial class BattleUnitState : RefCounted
         {
             return null;
         }
-        if (!_is_non_empty_string_name_payload_value(bodySizeCategoryValue))
+        if (
+            !IsStringNamePayloadType(bodySizeCategoryValue.VariantType.ToString())
+            || IsEmpty(ToStringName(bodySizeCategoryValue))
+        )
         {
             return null;
         }
@@ -869,14 +844,14 @@ public partial class BattleUnitState : RefCounted
         {
             return null;
         }
-        if (occupiedCoordsValue.VariantType != Variant.Type.Array)
+        if (occupiedCoordsValue.VariantType.ToString() != "Array")
         {
             return null;
         }
         GVector2IArray parsedOccupiedCoords = new();
         foreach (var occupiedCoordValue in occupiedCoordsValue.AsGodotArray())
         {
-            if (occupiedCoordValue.VariantType != Variant.Type.Vector2I)
+            if (occupiedCoordValue.VariantType.ToString() != "Vector2I")
             {
                 return null;
             }
@@ -891,7 +866,10 @@ public partial class BattleUnitState : RefCounted
             string fieldName in new[] { "unit_id", "display_name", "faction_id", "control_mode" }
         )
         {
-            if (!_is_non_empty_string_name_payload_value(payload[fieldName]))
+            if (
+                !IsStringNamePayloadType(payload[fieldName].VariantType.ToString())
+                || IsEmpty(ToStringName(payload[fieldName]))
+            )
             {
                 return null;
             }
@@ -914,7 +892,7 @@ public partial class BattleUnitState : RefCounted
             }
         )
         {
-            if (!_is_string_name_payload_value(payload[fieldName]))
+            if (!IsStringNamePayloadType(payload[fieldName].VariantType.ToString()))
             {
                 return null;
             }
@@ -940,7 +918,7 @@ public partial class BattleUnitState : RefCounted
             }
         )
         {
-            if (payload[fieldName].VariantType != Variant.Type.Int)
+            if (payload[fieldName].VariantType.ToString() != "Int")
             {
                 return null;
             }
@@ -961,7 +939,7 @@ public partial class BattleUnitState : RefCounted
             }
         )
         {
-            if (payload[fieldName].VariantType != Variant.Type.Bool)
+            if (payload[fieldName].VariantType.ToString() != "Bool")
             {
                 return null;
             }
@@ -971,19 +949,17 @@ public partial class BattleUnitState : RefCounted
             {
                 "attribute_snapshot",
                 "equipment_view",
-                "shield_params",
                 "weapon_one_handed_dice",
                 "weapon_two_handed_dice",
                 "cooldowns",
                 "known_skill_level_map",
                 "known_skill_lock_hit_bonus_map",
                 "status_effects",
-                "combo_state",
                 "damage_resistances",
             }
         )
         {
-            if (payload[fieldName].VariantType != Variant.Type.Dictionary)
+            if (payload[fieldName].VariantType.ToString() != "Dictionary")
             {
                 return null;
             }
@@ -1014,7 +990,7 @@ public partial class BattleUnitState : RefCounted
         }
         foreach (var skillId in parsedKnownSkillLockHitBonusMap.Keys)
         {
-            if (GetVariantInt(parsedKnownSkillLockHitBonusMap[skillId]) < 0)
+            if (parsedKnownSkillLockHitBonusMap[skillId].AsInt32() < 0)
             {
                 return null;
             }
@@ -1177,7 +1153,6 @@ public partial class BattleUnitState : RefCounted
             shield_family = ToStringName(payload["shield_family"]),
             shield_source_unit_id = ToStringName(payload["shield_source_unit_id"]),
             shield_source_skill_id = ToStringName(payload["shield_source_skill_id"]),
-            shield_params = DuplicateDictionary(payload["shield_params"].AsGodotDictionary(), true),
             action_progress = payload["action_progress"].AsInt32(),
             action_threshold = payload["action_threshold"].AsInt32(),
             known_active_skill_ids = parsedKnownActiveSkillIds,
@@ -1207,7 +1182,6 @@ public partial class BattleUnitState : RefCounted
             cooldowns = DuplicateDictionary(payload["cooldowns"].AsGodotDictionary(), true),
             last_turn_tu = payload["last_turn_tu"].AsInt32(),
             status_effects = parsedStatusEffects,
-            combo_state = DuplicateDictionary(payload["combo_state"].AsGodotDictionary(), true),
         };
         unitState.attribute_snapshot.set_value("aura_max", payload["aura_max"].AsInt32());
         unitState.normalize_shield_state();
@@ -1226,11 +1200,11 @@ public partial class BattleUnitState : RefCounted
         }
         foreach (var key in values.Keys)
         {
-            if (!_is_string_name_payload_value(key))
+            if (!IsStringNamePayloadType(key.VariantType.ToString()))
             {
                 return null;
             }
-            if (values[key].VariantType != Variant.Type.Int)
+            if (values[key].VariantType.ToString() != "Int")
             {
                 return null;
             }
@@ -1243,8 +1217,8 @@ public partial class BattleUnitState : RefCounted
     {
         if (payload == null || !payload.ContainsKey(key))
             return false;
-        Variant value = payload[key];
-        return value.VariantType == Variant.Type.Bool && value.AsBool();
+        var value = payload[key];
+        return value.VariantType.ToString() == "Bool" && value.AsBool();
     }
 
     public static GDictionary _status_effects_from_dict(GDictionary values)
@@ -1254,12 +1228,15 @@ public partial class BattleUnitState : RefCounted
             return null;
         foreach (var statusKey in values.Keys)
         {
-            if (!_is_non_empty_string_name_payload_value(statusKey))
+            if (
+                !IsStringNamePayloadType(statusKey.VariantType.ToString())
+                || IsEmpty(ToStringName(statusKey))
+            )
             {
                 return null;
             }
             var effectValue = values[statusKey];
-            if (effectValue.VariantType != Variant.Type.Dictionary)
+            if (effectValue.VariantType.ToString() != "Dictionary")
             {
                 return null;
             }
@@ -1302,7 +1279,7 @@ public partial class BattleUnitState : RefCounted
         HashSet<string> seen = new();
         foreach (var key in data.Keys)
         {
-            if (!_is_string_name_payload_value(key))
+            if (!IsStringNamePayloadType(key.VariantType.ToString()))
             {
                 return false;
             }
@@ -1315,22 +1292,9 @@ public partial class BattleUnitState : RefCounted
         return seen.Count == expected.Count;
     }
 
-    private static bool _is_string_name_payload_value(object rawValue)
+    private static bool IsStringNamePayloadType(string valueType)
     {
-        return rawValue switch
-        {
-            Variant value
-                => value.VariantType == Variant.Type.String
-                    || value.VariantType == Variant.Type.StringName,
-            string => true,
-            StringName => true,
-            _ => false,
-        };
-    }
-
-    private static bool _is_non_empty_string_name_payload_value(object value)
-    {
-        return _is_string_name_payload_value(value) && !IsEmpty(ToStringName(value));
+        return valueType == "String" || valueType == "StringName";
     }
 
     private static GDictionary _string_name_int_map_from_dict(
@@ -1345,7 +1309,7 @@ public partial class BattleUnitState : RefCounted
         GDictionary result = new();
         foreach (var key in values.Keys)
         {
-            if (!_is_string_name_payload_value(key))
+            if (!IsStringNamePayloadType(key.VariantType.ToString()))
             {
                 return null;
             }
@@ -1354,7 +1318,7 @@ public partial class BattleUnitState : RefCounted
             {
                 return null;
             }
-            if (values[key].VariantType != Variant.Type.Int)
+            if (values[key].VariantType.ToString() != "Int")
             {
                 return null;
             }
@@ -1370,12 +1334,19 @@ public partial class BattleUnitState : RefCounted
         GDictionary result = new();
         foreach (var key in values.Keys)
         {
-            if (!_is_non_empty_string_name_payload_value(key))
+            if (
+                !IsStringNamePayloadType(key.VariantType.ToString())
+                || IsEmpty(ToStringName(key))
+            )
             {
                 return null;
             }
             StringName damageTag = ToStringName(key);
             if (result.ContainsKey(damageTag))
+            {
+                return null;
+            }
+            if (!IsStringNamePayloadType(values[key].VariantType.ToString()))
             {
                 return null;
             }
@@ -1399,7 +1370,10 @@ public partial class BattleUnitState : RefCounted
         HashSet<StringName> seen = new();
         foreach (var value in values)
         {
-            if (!_is_non_empty_string_name_payload_value(value))
+            if (
+                !IsStringNamePayloadType(value.VariantType.ToString())
+                || IsEmpty(ToStringName(value))
+            )
             {
                 return null;
             }
@@ -1463,7 +1437,7 @@ public partial class BattleUnitState : RefCounted
         }
         foreach (string fieldName in new[] { "dice_count", "dice_sides", "flat_bonus" })
         {
-            if (diceData[fieldName].VariantType != Variant.Type.Int)
+            if (diceData[fieldName].VariantType.ToString() != "Int")
             {
                 return null;
             }
@@ -1597,59 +1571,27 @@ public partial class BattleUnitState : RefCounted
         return value;
     }
 
-    private static StringName ToStringName(object rawValue)
+    private static StringName ToStringName<TValue>(TValue rawValue)
     {
-        if (rawValue is string textValue)
-        {
-            string normalizedText = textValue.Trim();
-            return string.IsNullOrEmpty(normalizedText) ? "" : new StringName(normalizedText);
-        }
-        if (rawValue is StringName stringName)
-        {
-            return stringName;
-        }
-        if (rawValue is not Variant value || value.VariantType == Variant.Type.Nil)
-        {
-            return "";
-        }
-        string text = value.AsString();
-        if (text == "<null>")
-        {
-            return "";
-        }
-        text = text.Trim();
-        return string.IsNullOrEmpty(text) ? "" : new StringName(text);
+        return ProgressionDataUtils.to_string_name(rawValue);
     }
 
-    private static GArray GetArray(GDictionary values, object key)
+    private static GArray GetArray(GDictionary values, string key)
     {
         var value = values.GetValueOrDefault(key, new GArray());
-        return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : null;
+        return value.VariantType.ToString() == "Array" ? value.AsGodotArray() : null;
     }
 
-    private static GDictionary GetDictionary(GDictionary values, object key)
+    private static GDictionary GetDictionary(GDictionary values, string key)
     {
         var value = values.GetValueOrDefault(key, new GDictionary());
-        return value.VariantType == Variant.Type.Dictionary ? value.AsGodotDictionary() : null;
+        return value.VariantType.ToString() == "Dictionary" ? value.AsGodotDictionary() : null;
     }
 
-    private static int GetInt(GDictionary values, object key, int fallback)
+    private static int GetInt(GDictionary values, string key, int fallback)
     {
         var value = values.GetValueOrDefault(key, fallback);
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
-    }
-
-    private static int GetVariantInt(object rawValue)
-    {
-        if (rawValue is int intValue)
-        {
-            return intValue;
-        }
-        if (rawValue is not Variant value)
-        {
-            return 0;
-        }
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : 0;
+        return value.VariantType.ToString() == "Int" ? value.AsInt32() : fallback;
     }
 
     private static GDictionary DuplicateDictionary(GDictionary source, bool deep)
@@ -1695,14 +1637,14 @@ public partial class BattleUnitState : RefCounted
         foreach (string statusIdString in SortedStringKeys(source))
         {
             BattleStatusEffectState effectState = null;
-            Variant value = source.ContainsKey(statusIdString)
+            var value = source.ContainsKey(statusIdString)
                 ? source[statusIdString]
                 : source[new StringName(statusIdString)];
-            if (value.VariantType == Variant.Type.Object)
+            if (value.VariantType.ToString() == "Object")
             {
-                effectState = value.AsGodotObject() as BattleStatusEffectState;
+                effectState = value.As<BattleStatusEffectState>();
             }
-            else if (value.VariantType == Variant.Type.Dictionary)
+            else if (value.VariantType.ToString() == "Dictionary")
             {
                 effectState = BattleStatusEffectState.from_dict(value.AsGodotDictionary());
             }
@@ -1724,7 +1666,7 @@ public partial class BattleUnitState : RefCounted
         GDictionary values = source.get_all_values();
         foreach (var key in values.Keys)
         {
-            if (values[key].VariantType == Variant.Type.Int)
+            if (values[key].VariantType.ToString() == "Int")
             {
                 result.set_value(ToStringName(key), values[key].AsInt32());
             }
@@ -1741,7 +1683,7 @@ public partial class BattleUnitState : RefCounted
         }
         foreach (var key in values.Keys)
         {
-            result[key.AsString()] = GetVariantInt(values[key]);
+            result[key.AsString()] = values[key].AsInt32();
         }
         return result;
     }

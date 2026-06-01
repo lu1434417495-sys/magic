@@ -70,7 +70,9 @@ public partial class BattleAiFailurePolicy : RefCounted
 
     public static bool Report(StringName severity, string message, GDictionary metadata = null)
     {
-        GDictionary sanitized = SanitizeEventMetadata(metadata ?? new GDictionary(), 0);
+        GDictionary sanitized = metadata != null
+            ? (GDictionary)metadata.Duplicate(true)
+            : new GDictionary();
 
         var eventDict = new GDictionary
         {
@@ -91,47 +93,6 @@ public partial class BattleAiFailurePolicy : RefCounted
             AbortProcessNow();
 
         return false;
-    }
-
-    private static GDictionary SanitizeEventMetadata(GDictionary rawDictionary, int depth)
-    {
-        var result = new GDictionary();
-        if (depth > 12)
-        {
-            return result;
-        }
-        foreach (var key in rawDictionary.Keys)
-            result[key] = SanitizeEventMetadataValue(rawDictionary[key], depth + 1);
-        return result;
-    }
-
-    private static GArray SanitizeEventMetadata(GArray rawArray, int depth)
-    {
-        var result = new GArray();
-        if (depth > 12)
-        {
-            result.Add("<max-depth>");
-            return result;
-        }
-        foreach (var entry in rawArray)
-            result.Add(SanitizeEventMetadataValue(entry, depth + 1));
-        return result;
-    }
-
-    private static Variant SanitizeEventMetadataValue(Variant value, int depth)
-    {
-        if (depth > 12)
-            return Variant.From("<max-depth>");
-
-        return value.VariantType switch
-        {
-            Variant.Type.Object => Variant.From("<Object>"),
-            Variant.Type.Callable => Variant.From("<Callable>"),
-            Variant.Type.Dictionary
-                => Variant.From(SanitizeEventMetadata(value.AsGodotDictionary(), depth + 1)),
-            Variant.Type.Array => Variant.From(SanitizeEventMetadata(value.AsGodotArray(), depth + 1)),
-            _ => value,
-        };
     }
 
     public static bool ShouldAbortProcess()

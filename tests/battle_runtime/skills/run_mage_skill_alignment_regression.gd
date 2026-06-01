@@ -604,9 +604,9 @@ func _assert_arcane_missile_current_shape(skill_def) -> void:
 		var damage_effect = skill_def.combat_profile.effect_defs[0]
 		_assert_eq(damage_effect.effect_type, &"damage", "mage_arcane_missile 当前根级效果应为 damage。")
 		_assert_eq(damage_effect.damage_tag, &"force", "mage_arcane_missile 当前应造成 force 伤害。")
-		_assert_eq(int(damage_effect.params.get("dice_count", 0)), 1, "mage_arcane_missile 当前每发应使用 1 个伤害骰。")
-		_assert_eq(int(damage_effect.params.get("dice_sides", 0)), 4, "mage_arcane_missile 当前每发应使用 d4。")
-		_assert_eq(int(damage_effect.params.get("dice_bonus", 0)), 1, "mage_arcane_missile 当前每发应有 +1 固定伤害。")
+		_assert_eq(int(damage_effect.dice_count), 1, "mage_arcane_missile 当前每发应使用 1 个伤害骰。")
+		_assert_eq(int(damage_effect.dice_sides), 4, "mage_arcane_missile 当前每发应使用 d4。")
+		_assert_eq(int(damage_effect.dice_bonus), 1, "mage_arcane_missile 当前每发应有 +1 固定伤害。")
 	for level in range(0, 11):
 		_assert_true(_has_level_description_config(skill_def, level), "mage_arcane_missile 应提供 %d 级描述变量。" % level)
 		_assert_true(_has_effect_available_at_level(skill_def, level), "mage_arcane_missile 在 %d 级应至少有一个可用效果。" % level)
@@ -620,7 +620,9 @@ func _damage_dice_params_use_formal_keys(skill_def) -> bool:
 		if params.has("damage_dice_count") or params.has("damage_dice_sides") or params.has("damage_dice_bonus"):
 			return false
 		if params.has("dice_count") or params.has("dice_sides") or params.has("dice_bonus"):
-			if not params.has("dice_count") or not params.has("dice_sides"):
+			return false
+		if int(effect_def.dice_count) > 0 or int(effect_def.dice_sides) > 0:
+			if int(effect_def.dice_count) <= 0 or int(effect_def.dice_sides) <= 0:
 				return false
 	return true
 

@@ -97,7 +97,7 @@ func _run() -> void:
 	_test_passive_effect_defs_schema_validation()
 	_test_required_weapon_family_schema_validation()
 	_test_special_resolution_profile_id_is_manifest_owned()
-	_test_requires_weapon_param_schema_validation()
+	_test_typed_effect_flag_schema_validation()
 	_test_damage_tag_schema_validation()
 	_test_duration_param_schema_validation()
 	_test_damage_dice_alias_param_schema_validation()
@@ -126,6 +126,7 @@ func _test_seed_skill_resources_scan_and_validate() -> void:
 	var charge := skill_defs.get(&"charge") as SkillDef
 	var heavy_strike := skill_defs.get(&"warrior_heavy_strike") as SkillDef
 	var warrior_toughness := skill_defs.get(&"warrior_toughness") as SkillDef
+	var battle_recovery := skill_defs.get(&"warrior_battle_recovery") as SkillDef
 	var sweeping_slash := skill_defs.get(&"warrior_sweeping_slash") as SkillDef
 	var aura_slash := skill_defs.get(&"warrior_aura_slash") as SkillDef
 	var archer_multishot := skill_defs.get(&"archer_multishot") as SkillDef
@@ -150,9 +151,9 @@ func _test_seed_skill_resources_scan_and_validate() -> void:
 			_assert_eq(int(basic_attack.combat_profile.stamina_cost), 8, "基础攻击体力消耗应为 8。")
 		if basic_attack.combat_profile != null and not basic_attack.combat_profile.effect_defs.is_empty():
 			var basic_damage = basic_attack.combat_profile.effect_defs[0]
-			_assert_true(bool(basic_damage.params.get("add_weapon_dice", false)), "基础攻击应使用当前武器/空手/天生武器骰。")
-			_assert_true(bool(basic_damage.params.get("use_weapon_physical_damage_tag", false)), "基础攻击应使用当前武器/空手/天生武器伤害类型。")
-			_assert_true(not bool(basic_damage.params.get("requires_weapon", false)), "基础攻击不应要求装备武器。")
+			_assert_true(basic_damage.add_weapon_dice, "基础攻击应使用当前武器/空手/天生武器骰。")
+			_assert_true(basic_damage.use_weapon_physical_damage_tag, "基础攻击应使用当前武器/空手/天生武器伤害类型。")
+			_assert_true(not basic_damage.requires_weapon, "基础攻击不应要求装备武器。")
 		_assert_true(basic_attack.attribute_growth_progress.is_empty(), "基础攻击不应直接承接属性成长。")
 	_assert_weapon_training_skill(sword_training, &"sword_training", &"sword", "剑术训练")
 	_assert_weapon_training_skill(bow_training, &"bow_training", &"bow", "弓术训练")
@@ -204,6 +205,29 @@ func _test_seed_skill_resources_scan_and_validate() -> void:
 			_assert_eq(toughness_stamina_modifier.attribute_id, AttributeService.STAMINA_RECOVERY_PERCENT_BONUS_ID(), "强健应写入体力恢复百分比通道。")
 			_assert_eq(toughness_stamina_modifier.mode, &"flat", "体力恢复百分比通道应使用 flat 数值表达百分比点。")
 			_assert_eq(int(toughness_stamina_modifier.value), 50, "强健应提供 50% 体力恢复加成。")
+	_assert_true(battle_recovery != null, "战斗回复资源应成功转成 SkillDef。")
+	if battle_recovery != null and battle_recovery.combat_profile != null:
+		_assert_eq(int(battle_recovery.combat_profile.effect_defs.size()), 7, "战斗回复应保留 6 档体力恢复和满级治疗效果。")
+		var recovery_counts := [1, 2, 4, 6, 8, 10]
+		for recovery_index in range(recovery_counts.size()):
+			var recovery_effect = battle_recovery.combat_profile.effect_defs[recovery_index]
+			_assert_eq(recovery_effect.effect_type, &"stamina_restore", "战斗回复前 6 条效果应是体力恢复。")
+			_assert_eq(int(recovery_effect.power), 0, "战斗回复体力恢复不应再把 power 当骰子数量。")
+			_assert_eq(int(recovery_effect.dice_count), recovery_counts[recovery_index], "战斗回复体力恢复骰子数量应写在 dice_count。")
+			_assert_eq(int(recovery_effect.dice_sides_base), 3, "战斗回复体力恢复基础骰面应写在正式字段。")
+			_assert_eq(int(recovery_effect.dice_sides_per_constitution_mod), 1, "战斗回复体力恢复体质骰面修正应写在正式字段。")
+			_assert_eq(int(recovery_effect.dice_sides_per_willpower_mod), 1, "战斗回复体力恢复意志骰面修正应写在正式字段。")
+			_assert_true(not recovery_effect.params.has("base_sides"), "战斗回复体力恢复不应继续用 params.base_sides。")
+		var recovery_heal = battle_recovery.combat_profile.effect_defs[6]
+		_assert_eq(recovery_heal.effect_type, &"heal", "战斗回复满级追加效果应是治疗。")
+		_assert_eq(int(recovery_heal.power), 0, "战斗回复治疗不应再把 power 当骰子数量。")
+		_assert_eq(int(recovery_heal.dice_count), 2, "战斗回复治疗骰子数量应写在 dice_count。")
+		_assert_eq(int(recovery_heal.dice_sides_base), 3, "战斗回复治疗基础骰面应写在正式字段。")
+		_assert_true(not recovery_heal.params.has("base_sides"), "战斗回复治疗不应继续用 params.base_sides。")
+		_assert_true(String(battle_recovery.level_description_template).find("cooldown_tu") >= 0, "战斗回复等级描述应直接读取正式 cooldown_tu。")
+		var level_five_description_config := battle_recovery.level_description_configs.get("5", {}) as Dictionary
+		_assert_true(not level_five_description_config.has("dice_count"), "战斗回复等级描述不应重复维护 dice_count。")
+		_assert_true(not level_five_description_config.has("heal"), "战斗回复等级描述不应重复维护 heal。")
 	_assert_resource_backed_skill_ids(skill_defs, OFFICIAL_PRIEST_RESOURCE_SKILL_IDS, &"priest", "神术")
 	_assert_resource_backed_skill_ids(skill_defs, OFFICIAL_ARCHER_RESOURCE_SKILL_IDS, &"archer", "弓箭手")
 	_assert_true(archer_shooting_specialization != null, "射击专精资源应成功转成 SkillDef。")
@@ -251,12 +275,12 @@ func _test_seed_skill_resources_scan_and_validate() -> void:
 			if multishot_option.effect_defs.size() >= 1:
 				var multishot_damage = multishot_option.effect_defs[0]
 				_assert_eq(int(multishot_damage.power), 0, "连珠箭不应配置固定技能伤害。")
-				_assert_true(bool(multishot_damage.params.get("add_weapon_dice", false)), "连珠箭应使用当前弓的武器骰。")
-				_assert_true(bool(multishot_damage.params.get("use_weapon_physical_damage_tag", false)), "连珠箭应使用当前弓的物理伤害类型。")
-				_assert_true(bool(multishot_damage.params.get("resolve_as_weapon_attack", false)), "连珠箭每个目标应按武器攻击命中结算。")
-				_assert_true(not bool(multishot_damage.params.get("requires_weapon", false)), "连珠箭应由 required_weapon_families 表达弓类门槛。")
-				_assert_true(not multishot_damage.params.has("dice_count"), "连珠箭不应配置额外技能伤害骰。")
-				_assert_true(not multishot_damage.params.has("dice_sides"), "连珠箭不应配置额外技能伤害骰。")
+				_assert_true(multishot_damage.add_weapon_dice, "连珠箭应使用当前弓的武器骰。")
+				_assert_true(multishot_damage.use_weapon_physical_damage_tag, "连珠箭应使用当前弓的物理伤害类型。")
+				_assert_true(multishot_damage.resolve_as_weapon_attack, "连珠箭每个目标应按武器攻击命中结算。")
+				_assert_true(not multishot_damage.requires_weapon, "连珠箭应由 required_weapon_families 表达弓类门槛。")
+				_assert_eq(int(multishot_damage.dice_count), 0, "连珠箭不应配置额外技能伤害骰。")
+				_assert_eq(int(multishot_damage.dice_sides), 0, "连珠箭不应配置额外技能伤害骰。")
 	_assert_true(archer_arrow_rain != null, "箭雨资源应成功转成 SkillDef。")
 	if archer_arrow_rain != null and archer_arrow_rain.combat_profile != null:
 		_assert_eq(int(archer_arrow_rain.max_level), 7, "箭雨应使用 7 级上限。")
@@ -268,10 +292,10 @@ func _test_seed_skill_resources_scan_and_validate() -> void:
 		_assert_eq(int(archer_arrow_rain.combat_profile.effect_defs.size()), 5, "箭雨应由一条武器伤害和四档压制地形效果组成。")
 		var arrow_rain_damage = archer_arrow_rain.combat_profile.effect_defs[0]
 		_assert_eq(arrow_rain_damage.effect_type, &"damage", "箭雨首段效果应是武器伤害。")
-		_assert_true(bool(arrow_rain_damage.params.get("add_weapon_dice", false)), "箭雨应使用当前弓的武器骰。")
-		_assert_true(bool(arrow_rain_damage.params.get("use_weapon_physical_damage_tag", false)), "箭雨应使用当前弓的物理伤害类型。")
-		_assert_true(bool(arrow_rain_damage.params.get("resolve_as_weapon_attack", false)), "箭雨范围内每个目标应按武器攻击命中结算。")
-		_assert_true(not arrow_rain_damage.params.has("requires_weapon"), "箭雨应由 required_weapon_families 表达弓类门槛。")
+		_assert_true(arrow_rain_damage.add_weapon_dice, "箭雨应使用当前弓的武器骰。")
+		_assert_true(arrow_rain_damage.use_weapon_physical_damage_tag, "箭雨应使用当前弓的物理伤害类型。")
+		_assert_true(arrow_rain_damage.resolve_as_weapon_attack, "箭雨范围内每个目标应按武器攻击命中结算。")
+		_assert_true(not arrow_rain_damage.requires_weapon, "箭雨应由 required_weapon_families 表达弓类门槛。")
 		var suppression_durations := {}
 		var suppression_count := 0
 		var has_unit_slow := false
@@ -322,18 +346,18 @@ func _test_seed_skill_resources_scan_and_validate() -> void:
 		var armor_break_effect = heavy_strike.combat_profile.effect_defs[3]
 		var level_four_armor_break_effect = heavy_strike.combat_profile.effect_defs[4]
 		var level_five_staggered_effect = heavy_strike.combat_profile.effect_defs[5]
-		_assert_eq(int(level_zero_damage.params.get("dice_sides", 0)), 4, "重击 0 级伤害骰应为 1d4。")
-		_assert_true(bool(level_zero_damage.params.get("requires_weapon", false)), "重击 0 级武器伤害标签效果必须显式要求装备武器。")
-		_assert_true(bool(level_zero_damage.params.get("use_weapon_physical_damage_tag", false)), "重击 0 级应使用当前武器物理伤害标签。")
+		_assert_eq(int(level_zero_damage.dice_sides), 4, "重击 0 级伤害骰应为 1d4。")
+		_assert_true(level_zero_damage.requires_weapon, "重击 0 级武器伤害标签效果必须显式要求装备武器。")
+		_assert_true(level_zero_damage.use_weapon_physical_damage_tag, "重击 0 级应使用当前武器物理伤害标签。")
 		_assert_eq(int(level_zero_damage.max_skill_level), 0, "重击 0 级伤害效果应只在 0 级生效。")
-		_assert_eq(int(level_one_damage.params.get("dice_sides", 0)), 6, "重击 1-2 级伤害骰应为 1d6。")
-		_assert_true(bool(level_one_damage.params.get("requires_weapon", false)), "重击 1-2 级武器伤害标签效果必须显式要求装备武器。")
-		_assert_true(bool(level_one_damage.params.get("use_weapon_physical_damage_tag", false)), "重击 1-2 级应使用当前武器物理伤害标签。")
+		_assert_eq(int(level_one_damage.dice_sides), 6, "重击 1-2 级伤害骰应为 1d6。")
+		_assert_true(level_one_damage.requires_weapon, "重击 1-2 级武器伤害标签效果必须显式要求装备武器。")
+		_assert_true(level_one_damage.use_weapon_physical_damage_tag, "重击 1-2 级应使用当前武器物理伤害标签。")
 		_assert_eq(int(level_one_damage.min_skill_level), 1, "重击 1d6 伤害效果应从 1 级生效。")
 		_assert_eq(int(level_one_damage.max_skill_level), 2, "重击 1d6 伤害效果应在 2 级后停止生效。")
-		_assert_eq(int(level_three_damage.params.get("dice_sides", 0)), 8, "重击 3 级伤害骰应为 1d8。")
-		_assert_true(bool(level_three_damage.params.get("requires_weapon", false)), "重击 3 级武器伤害标签效果必须显式要求装备武器。")
-		_assert_true(bool(level_three_damage.params.get("use_weapon_physical_damage_tag", false)), "重击 3 级应使用当前武器物理伤害标签。")
+		_assert_eq(int(level_three_damage.dice_sides), 8, "重击 3 级伤害骰应为 1d8。")
+		_assert_true(level_three_damage.requires_weapon, "重击 3 级武器伤害标签效果必须显式要求装备武器。")
+		_assert_true(level_three_damage.use_weapon_physical_damage_tag, "重击 3 级应使用当前武器物理伤害标签。")
 		_assert_eq(int(level_three_damage.min_skill_level), 3, "重击 1d8 伤害效果应从 3 级生效。")
 		_assert_eq(armor_break_effect.status_id, &"armor_break", "重击满级效果应是 armor_break。")
 		_assert_eq(int(armor_break_effect.min_skill_level), 3, "重击 armor_break 应从 3 级生效。")
@@ -347,11 +371,11 @@ func _test_seed_skill_resources_scan_and_validate() -> void:
 		_assert_eq(int(level_five_staggered_effect.duration_tu), 60, "重击 5 级 staggered 应持续 60 TU。")
 		_assert_eq(level_five_staggered_effect.trigger_event, &"secondary_hit", "重击 5 级 staggered 应在二次命中成功时触发。")
 		var level_five_damage = heavy_strike.combat_profile.effect_defs[6]
-		_assert_eq(int(level_five_damage.params.get("dice_count", 0)), 2, "重击 5 级伤害骰应为 2 颗。")
-		_assert_eq(int(level_five_damage.params.get("dice_sides", 0)), 5, "重击 5 级伤害骰应为 2D5。")
+		_assert_eq(int(level_five_damage.dice_count), 2, "重击 5 级伤害骰应为 2 颗。")
+		_assert_eq(int(level_five_damage.dice_sides), 5, "重击 5 级伤害骰应为 2D5。")
 		_assert_eq(int(level_five_damage.min_skill_level), 5, "重击 2D5 伤害效果应从 5 级生效。")
-		_assert_true(bool(level_five_damage.params.get("requires_weapon", false)), "重击 5 级武器伤害标签效果必须显式要求装备武器。")
-		_assert_true(bool(level_five_damage.params.get("use_weapon_physical_damage_tag", false)), "重击 5 级应使用当前武器物理伤害标签。")
+		_assert_true(level_five_damage.requires_weapon, "重击 5 级武器伤害标签效果必须显式要求装备武器。")
+		_assert_true(level_five_damage.use_weapon_physical_damage_tag, "重击 5 级应使用当前武器物理伤害标签。")
 	_assert_true(sweeping_slash != null, "横扫资源应成功转成 SkillDef。")
 	if sweeping_slash != null and sweeping_slash.combat_profile != null:
 		_assert_eq(int(sweeping_slash.max_level), 5, "横扫应使用 5 级上限。")
@@ -369,12 +393,12 @@ func _test_seed_skill_resources_scan_and_validate() -> void:
 		var sweeping_level_three_damage = sweeping_slash.combat_profile.effect_defs[1]
 		var sweeping_level_five_damage = sweeping_slash.combat_profile.effect_defs[2]
 		_assert_eq(int(sweeping_damage.power), 0, "横扫不应再配置固定技能伤害。")
-		_assert_true(bool(sweeping_damage.params.get("add_weapon_dice", false)), "横扫应使用当前武器骰。")
-		_assert_true(bool(sweeping_damage.params.get("requires_weapon", false)), "横扫应显式要求装备武器。")
-		_assert_true(bool(sweeping_damage.params.get("use_weapon_physical_damage_tag", false)), "横扫应使用当前武器物理伤害类型。")
-		_assert_true(bool(sweeping_damage.params.get("resolve_as_weapon_attack", false)), "横扫每个目标应按武器攻击命中结算。")
-		_assert_eq(int(sweeping_level_three_damage.params.get("dice_sides", 0)), 4, "横扫 3-4 级应追加 1d4 技能骰。")
-		_assert_eq(int(sweeping_level_five_damage.params.get("dice_sides", 0)), 6, "横扫 5 级应追加 1d6 技能骰。")
+		_assert_true(sweeping_damage.add_weapon_dice, "横扫应使用当前武器骰。")
+		_assert_true(sweeping_damage.requires_weapon, "横扫应显式要求装备武器。")
+		_assert_true(sweeping_damage.use_weapon_physical_damage_tag, "横扫应使用当前武器物理伤害类型。")
+		_assert_true(sweeping_damage.resolve_as_weapon_attack, "横扫每个目标应按武器攻击命中结算。")
+		_assert_eq(int(sweeping_level_three_damage.dice_sides), 4, "横扫 3-4 级应追加 1d4 技能骰。")
+		_assert_eq(int(sweeping_level_five_damage.dice_sides), 6, "横扫 5 级应追加 1d6 技能骰。")
 	_assert_true(aura_slash != null, "斗气斩资源应成功转成 SkillDef。")
 	if aura_slash != null and aura_slash.combat_profile != null:
 		_assert_eq(int(aura_slash.max_level), 7, "斗气斩资源默认核心上限应为 7。")
@@ -388,7 +412,7 @@ func _test_seed_skill_resources_scan_and_validate() -> void:
 		_assert_eq(int(aura_slash.combat_profile.effect_defs.size()), 3, "斗气斩应保留三段伤害效果。")
 		var aura_level_five_damage = aura_slash.combat_profile.effect_defs[2]
 		_assert_eq(int(aura_level_five_damage.min_skill_level), 5, "斗气斩最终伤害档应从 5 级起生效。")
-		_assert_eq(int(aura_level_five_damage.params.get("dice_sides", 0)), 10, "斗气斩 5 级起应使用 1d10 技能骰。")
+		_assert_eq(int(aura_level_five_damage.dice_sides), 10, "斗气斩 5 级起应使用 1d10 技能骰。")
 	_assert_cast_variant_compat_shape(fossil_to_mud, "SkillContentRegistry")
 
 
@@ -778,24 +802,20 @@ func _test_special_resolution_profile_id_is_manifest_owned() -> void:
 	)
 
 
-func _test_requires_weapon_param_schema_validation() -> void:
+func _test_typed_effect_flag_schema_validation() -> void:
 	var registry := SkillContentRegistry.new()
 	var valid_effect := CombatEffectDef.new()
 	valid_effect.effect_type = &"damage"
-	valid_effect.params = {
-		"requires_weapon": true,
-		"resolve_as_weapon_attack": true,
-		"use_weapon_physical_damage_tag": true,
-	}
+	valid_effect.requires_weapon = true
+	valid_effect.resolve_as_weapon_attack = true
+	valid_effect.use_weapon_physical_damage_tag = true
 	var valid_errors: Array[String] = []
 	registry._append_effect_validation_errors(valid_errors, &"valid_requires_weapon_skill", valid_effect, "test_effect")
 	_assert_true(valid_errors.is_empty(), "requires_weapon=true 时允许 use_weapon_physical_damage_tag=true 与 resolve_as_weapon_attack=true。")
 
 	var damage_tag_only_effect := CombatEffectDef.new()
 	damage_tag_only_effect.effect_type = &"damage"
-	damage_tag_only_effect.params = {
-		"use_weapon_physical_damage_tag": true,
-	}
+	damage_tag_only_effect.use_weapon_physical_damage_tag = true
 	var damage_tag_only_errors: Array[String] = []
 	registry._append_effect_validation_errors(damage_tag_only_errors, &"damage_tag_only_skill", damage_tag_only_effect, "test_effect")
 	_assert_true(
@@ -803,41 +823,27 @@ func _test_requires_weapon_param_schema_validation() -> void:
 		"use_weapon_physical_damage_tag=true 本身只表达伤害标签覆盖，不应被 schema 当成施展条件。"
 	)
 
-	var non_bool_effect := CombatEffectDef.new()
-	non_bool_effect.effect_type = &"damage"
-	non_bool_effect.params = {
+	var old_params_effect := CombatEffectDef.new()
+	old_params_effect.effect_type = &"damage"
+	old_params_effect.damage_tag = &"physical_slash"
+	old_params_effect.params = {
 		"requires_weapon": "true",
 		"use_weapon_physical_damage_tag": true,
-	}
-	var non_bool_errors: Array[String] = []
-	registry._append_effect_validation_errors(non_bool_errors, &"invalid_requires_weapon_type_skill", non_bool_effect, "test_effect")
-	_assert_true(
-		_has_error_containing(non_bool_errors, "params.requires_weapon must be a bool"),
-		"requires_weapon schema 应拒绝非 bool 值。"
-	)
-
-	var non_bool_damage_tag_effect := CombatEffectDef.new()
-	non_bool_damage_tag_effect.effect_type = &"damage"
-	non_bool_damage_tag_effect.params = {
-		"use_weapon_physical_damage_tag": "true",
-	}
-	var non_bool_damage_tag_errors: Array[String] = []
-	registry._append_effect_validation_errors(non_bool_damage_tag_errors, &"invalid_weapon_damage_tag_type_skill", non_bool_damage_tag_effect, "test_effect")
-	_assert_true(
-		_has_error_containing(non_bool_damage_tag_errors, "params.use_weapon_physical_damage_tag must be a bool"),
-		"use_weapon_physical_damage_tag schema 应拒绝非 bool 值。"
-	)
-
-	var non_bool_weapon_attack_effect := CombatEffectDef.new()
-	non_bool_weapon_attack_effect.effect_type = &"damage"
-	non_bool_weapon_attack_effect.params = {
 		"resolve_as_weapon_attack": "true",
 	}
-	var non_bool_weapon_attack_errors: Array[String] = []
-	registry._append_effect_validation_errors(non_bool_weapon_attack_errors, &"invalid_weapon_attack_type_skill", non_bool_weapon_attack_effect, "test_effect")
+	var old_params_errors: Array[String] = []
+	registry._append_effect_validation_errors(old_params_errors, &"invalid_typed_flag_params_skill", old_params_effect, "test_effect")
 	_assert_true(
-		_has_error_containing(non_bool_weapon_attack_errors, "params.resolve_as_weapon_attack must be a bool"),
-		"resolve_as_weapon_attack schema 应拒绝非 bool 值。"
+		_has_error_containing(old_params_errors, "params.requires_weapon is unsupported; use CombatEffectDef.requires_weapon"),
+		"requires_weapon 旧 params 键应被 schema 静态拒绝。"
+	)
+	_assert_true(
+		_has_error_containing(old_params_errors, "params.use_weapon_physical_damage_tag is unsupported; use CombatEffectDef.use_weapon_physical_damage_tag"),
+		"use_weapon_physical_damage_tag 旧 params 键应被 schema 静态拒绝。"
+	)
+	_assert_true(
+		_has_error_containing(old_params_errors, "params.resolve_as_weapon_attack is unsupported; use CombatEffectDef.resolve_as_weapon_attack"),
+		"resolve_as_weapon_attack 旧 params 键应被 schema 静态拒绝。"
 	)
 
 	var invalid_trigger_effect := CombatEffectDef.new()
@@ -863,9 +869,7 @@ func _test_damage_tag_schema_validation() -> void:
 
 	var weapon_tag_effect := CombatEffectDef.new()
 	weapon_tag_effect.effect_type = &"damage"
-	weapon_tag_effect.params = {
-		"use_weapon_physical_damage_tag": true,
-	}
+	weapon_tag_effect.use_weapon_physical_damage_tag = true
 	var weapon_tag_errors: Array[String] = []
 	registry._append_effect_validation_errors(weapon_tag_errors, &"valid_weapon_damage_tag_skill", weapon_tag_effect, "test_effect")
 	_assert_true(weapon_tag_errors.is_empty(), "damage effect 可通过 use_weapon_physical_damage_tag 从当前武器投影物理伤害类型。")
@@ -875,7 +879,7 @@ func _test_damage_tag_schema_validation() -> void:
 	var missing_tag_errors: Array[String] = []
 	registry._append_effect_validation_errors(missing_tag_errors, &"missing_damage_tag_skill", missing_tag_effect, "test_effect")
 	_assert_true(
-		_has_error_containing(missing_tag_errors, "must declare damage_tag or set params.use_weapon_physical_damage_tag = true"),
+		_has_error_containing(missing_tag_errors, "must declare damage_tag or set use_weapon_physical_damage_tag = true"),
 		"damage effect 缺少显式伤害类型来源时应在启动内容校验中失败。"
 	)
 
@@ -892,13 +896,11 @@ func _test_damage_tag_schema_validation() -> void:
 	var conflicting_tag_effect := CombatEffectDef.new()
 	conflicting_tag_effect.effect_type = &"damage"
 	conflicting_tag_effect.damage_tag = &"physical_slash"
-	conflicting_tag_effect.params = {
-		"use_weapon_physical_damage_tag": true,
-	}
+	conflicting_tag_effect.use_weapon_physical_damage_tag = true
 	var conflicting_tag_errors: Array[String] = []
 	registry._append_effect_validation_errors(conflicting_tag_errors, &"conflicting_damage_tag_skill", conflicting_tag_effect, "test_effect")
 	_assert_true(
-		_has_error_containing(conflicting_tag_errors, "cannot combine damage_tag with params.use_weapon_physical_damage_tag"),
+		_has_error_containing(conflicting_tag_errors, "cannot combine damage_tag with use_weapon_physical_damage_tag"),
 		"damage_tag 与 use_weapon_physical_damage_tag 同时存在应视为配置错误。"
 	)
 
@@ -966,22 +968,58 @@ func _test_damage_dice_alias_param_schema_validation() -> void:
 		"damage_dice_bonus 旧 schema 应被 SkillContentRegistry 静态拒绝。"
 	)
 
+	var old_formal_dice_effect := CombatEffectDef.new()
+	old_formal_dice_effect.effect_type = &"damage"
+	old_formal_dice_effect.damage_tag = &"fire"
+	old_formal_dice_effect.params = {
+		"dice_count": 1,
+		"dice_sides": 6,
+		"dice_bonus": 2,
+		"base_sides": 4,
+		"con_mod_sides": 1,
+		"will_mod_sides": 1,
+	}
+	var old_formal_dice_errors: Array[String] = []
+	registry._append_effect_validation_errors(old_formal_dice_errors, &"old_formal_damage_dice_skill", old_formal_dice_effect, "test_effect")
+	_assert_true(
+		_has_error_containing(old_formal_dice_errors, "params.dice_count is unsupported; use CombatEffectDef.dice_count"),
+		"dice_count 旧 params 键应被 SkillContentRegistry 静态拒绝。"
+	)
+	_assert_true(
+		_has_error_containing(old_formal_dice_errors, "params.dice_sides is unsupported; use CombatEffectDef.dice_sides"),
+		"dice_sides 旧 params 键应被 SkillContentRegistry 静态拒绝。"
+	)
+	_assert_true(
+		_has_error_containing(old_formal_dice_errors, "params.dice_bonus is unsupported; use CombatEffectDef.dice_bonus"),
+		"dice_bonus 旧 params 键应被 SkillContentRegistry 静态拒绝。"
+	)
+	_assert_true(
+		_has_error_containing(old_formal_dice_errors, "params.base_sides is unsupported; use CombatEffectDef.dice_sides_base"),
+		"base_sides 旧 params 键应被 SkillContentRegistry 静态拒绝。"
+	)
+	_assert_true(
+		_has_error_containing(old_formal_dice_errors, "params.con_mod_sides is unsupported; use CombatEffectDef.dice_sides_per_constitution_mod"),
+		"con_mod_sides 旧 params 键应被 SkillContentRegistry 静态拒绝。"
+	)
+	_assert_true(
+		_has_error_containing(old_formal_dice_errors, "params.will_mod_sides is unsupported; use CombatEffectDef.dice_sides_per_willpower_mod"),
+		"will_mod_sides 旧 params 键应被 SkillContentRegistry 静态拒绝。"
+	)
+
 
 func _test_damage_resolver_alias_param_schema_validation() -> void:
 	var registry := SkillContentRegistry.new()
 	var valid_effect := CombatEffectDef.new()
 	valid_effect.effect_type = &"damage"
 	valid_effect.damage_tag = &"fire"
+	valid_effect.dr_bypass_tag = &"armor_pierce"
 	valid_effect.bonus_condition = &"target_low_hp"
-	valid_effect.params = {
-		"dr_bypass_tag": "armor_pierce",
-		"hp_ratio_threshold_percent": 60,
-		"bonus_damage_dice_count": 1,
-		"bonus_damage_dice_sides": 6,
-	}
+	valid_effect.hp_ratio_threshold_percent = 60
+	valid_effect.bonus_damage_dice_count = 1
+	valid_effect.bonus_damage_dice_sides = 6
 	var valid_errors: Array[String] = []
 	registry._append_effect_validation_errors(valid_errors, &"valid_damage_resolver_params_skill", valid_effect, "test_effect")
-	_assert_true(valid_errors.is_empty(), "正式 effect.damage_tag / dr_bypass_tag / hp_ratio_threshold_percent / bonus_damage_dice params 应通过 schema。")
+	_assert_true(valid_errors.is_empty(), "正式 effect.damage_tag / dr_bypass_tag / hp_ratio_threshold_percent / bonus_damage_dice 字段应通过 schema。")
 
 	var legacy_effect := CombatEffectDef.new()
 	legacy_effect.effect_type = &"damage"
@@ -1005,26 +1043,63 @@ func _test_damage_resolver_alias_param_schema_validation() -> void:
 		"params.low_hp_ratio 旧 schema 应被 SkillContentRegistry 静态拒绝。"
 	)
 
+	var old_formal_damage_params_effect := CombatEffectDef.new()
+	old_formal_damage_params_effect.effect_type = &"damage"
+	old_formal_damage_params_effect.damage_tag = &"fire"
+	old_formal_damage_params_effect.params = {
+		"dr_bypass_tag": "armor_pierce",
+		"hp_ratio_threshold_percent": 60,
+	}
+	var old_formal_damage_params_errors: Array[String] = []
+	registry._append_effect_validation_errors(old_formal_damage_params_errors, &"old_formal_damage_params_skill", old_formal_damage_params_effect, "test_effect")
+	_assert_true(
+		_has_error_containing(old_formal_damage_params_errors, "params.dr_bypass_tag is unsupported; use CombatEffectDef.dr_bypass_tag"),
+		"dr_bypass_tag 旧 params 键应被 SkillContentRegistry 静态拒绝。"
+	)
+	_assert_true(
+		_has_error_containing(old_formal_damage_params_errors, "params.hp_ratio_threshold_percent is unsupported; use CombatEffectDef.hp_ratio_threshold_percent"),
+		"hp_ratio_threshold_percent 旧 params 键应被 SkillContentRegistry 静态拒绝。"
+	)
+
+	var old_bonus_dice_effect := CombatEffectDef.new()
+	old_bonus_dice_effect.effect_type = &"damage"
+	old_bonus_dice_effect.damage_tag = &"fire"
+	old_bonus_dice_effect.bonus_condition = &"target_low_hp"
+	old_bonus_dice_effect.hp_ratio_threshold_percent = 60
+	old_bonus_dice_effect.params = {
+		"bonus_damage_dice_count": 1,
+		"bonus_damage_dice_sides": 6,
+		"bonus_damage_dice_bonus": 2,
+	}
+	var old_bonus_dice_errors: Array[String] = []
+	registry._append_effect_validation_errors(old_bonus_dice_errors, &"old_bonus_damage_dice_skill", old_bonus_dice_effect, "test_effect")
+	_assert_true(
+		_has_error_containing(old_bonus_dice_errors, "params.bonus_damage_dice_count is unsupported; use CombatEffectDef.bonus_damage_dice_count"),
+		"bonus_damage_dice_count 旧 params 键应被 SkillContentRegistry 静态拒绝。"
+	)
+	_assert_true(
+		_has_error_containing(old_bonus_dice_errors, "params.bonus_damage_dice_sides is unsupported; use CombatEffectDef.bonus_damage_dice_sides"),
+		"bonus_damage_dice_sides 旧 params 键应被 SkillContentRegistry 静态拒绝。"
+	)
+	_assert_true(
+		_has_error_containing(old_bonus_dice_errors, "params.bonus_damage_dice_bonus is unsupported; use CombatEffectDef.bonus_damage_dice_bonus"),
+		"bonus_damage_dice_bonus 旧 params 键应被 SkillContentRegistry 静态拒绝。"
+	)
+
 	var invalid_bonus_effect := CombatEffectDef.new()
 	invalid_bonus_effect.effect_type = &"damage"
+	invalid_bonus_effect.damage_tag = &"fire"
 	invalid_bonus_effect.bonus_condition = &"target_low_hp"
-	invalid_bonus_effect.params = {
-		"hp_ratio_threshold_percent": 60.0,
-		"bonus_damage_dice_count": 1.5,
-		"bonus_damage_dice_sides": 0,
-	}
+	invalid_bonus_effect.hp_ratio_threshold_percent = 101
+	invalid_bonus_effect.bonus_damage_dice_count = 1
 	var invalid_bonus_errors: Array[String] = []
 	registry._append_effect_validation_errors(invalid_bonus_errors, &"invalid_bonus_damage_dice_skill", invalid_bonus_effect, "test_effect")
 	_assert_true(
-		_has_error_containing(invalid_bonus_errors, "params.hp_ratio_threshold_percent must be an int from 1 to 100"),
-		"hp_ratio_threshold_percent 应要求整数百分比。"
+		_has_error_containing(invalid_bonus_errors, "hp_ratio_threshold_percent must be 0 or from 1 to 100"),
+		"hp_ratio_threshold_percent 应要求 1 到 100 的整数百分比或 0 默认值。"
 	)
 	_assert_true(
-		_has_error_containing(invalid_bonus_errors, "params.bonus_damage_dice_count must be a positive int"),
-		"bonus_damage_dice_count 应要求正整数。"
-	)
-	_assert_true(
-		_has_error_containing(invalid_bonus_errors, "params.bonus_damage_dice_sides must be a positive int"),
+		_has_error_containing(invalid_bonus_errors, "bonus_damage_dice_sides must be positive"),
 		"bonus_damage_dice_sides 应要求正整数。"
 	)
 

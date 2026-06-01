@@ -396,22 +396,19 @@ public partial class BattleSkillMasteryService : RefCounted
     }
 
     public GArray BuildBattleRatingMasteryRewardEntries(
-        GDictionary stats,
+        BattleRatingMemberStats stats,
         int score,
         string ratingLabel
     )
     {
         int masteryAmount = ResolveBattleRatingMasteryAmount(score);
-        if (masteryAmount <= 0)
+        if (masteryAmount <= 0 || stats == null)
             return new GArray();
         var rewardEntries = new GArray();
-        var castCounts = stats
-            .GetValueOrDefault("cast_counts", new GDictionary())
-            .AsGodotDictionary();
-        foreach (var skillKey in castCounts.Keys)
+        foreach (KeyValuePair<StringName, int> castCount in stats.cast_counts)
         {
-            var skillId = ProgressionDataUtils.to_string_name(skillKey);
-            if (skillId == "" || castCounts[skillKey].AsInt32() <= 0)
+            StringName skillId = castCount.Key;
+            if (skillId == "" || castCount.Value <= 0)
                 continue;
             rewardEntries.Add(
                 new GDictionary
@@ -433,7 +430,11 @@ public partial class BattleSkillMasteryService : RefCounted
         string rating_label
     )
     {
-        return BuildBattleRatingMasteryRewardEntries(stats, score, rating_label);
+        return BuildBattleRatingMasteryRewardEntries(
+            BattleRatingMemberStats.FromDictionary(stats),
+            score,
+            rating_label
+        );
     }
 
     public int ResolveBattleRatingMasteryAmount(int score)
@@ -582,9 +583,7 @@ public partial class BattleSkillMasteryService : RefCounted
     {
         foreach (var effectValue in effectDefs)
         {
-            if (effectValue.AsGodotObject() == null)
-                continue;
-            var effectDef = effectValue.AsGodotObject() as CombatEffectDef;
+            CombatEffectDef effectDef = effectValue.As<CombatEffectDef>();
             if (effectDef == null || effectDef.effect_type != "damage")
                 continue;
             var tag = ProgressionDataUtils.to_string_name(effectDef.damage_tag);
@@ -940,9 +939,7 @@ public partial class BattleSkillMasteryService : RefCounted
             var results = new System.Collections.Generic.List<SkillMasteryDamageEventSnapshot>();
             foreach (var eventValue in damageEvents)
             {
-                if (eventValue.VariantType != Variant.Type.Dictionary)
-                    continue;
-                var evt = eventValue.AsGodotDictionary();
+                GDictionary evt = eventValue.AsGodotDictionary();
                 results.Add(
                     new SkillMasteryDamageEventSnapshot(
                         BooleanField(evt, "damage_dice_high_total_roll"),
@@ -986,24 +983,21 @@ public partial class BattleSkillMasteryService : RefCounted
         {
             if (dictionary == null || !dictionary.ContainsKey(key))
                 return false;
-            Variant value = dictionary[key];
-            return value.VariantType == Variant.Type.Bool && value.AsBool();
+            return dictionary[key].AsBool();
         }
 
         private static int IntegerField(GDictionary dictionary, string key)
         {
             if (dictionary == null || !dictionary.ContainsKey(key))
                 return 0;
-            Variant value = dictionary[key];
-            return value.VariantType == Variant.Type.Int ? value.AsInt32() : 0;
+            return dictionary[key].AsInt32();
         }
 
         private static GArray ArrayField(GDictionary dictionary, string key)
         {
             if (dictionary == null || !dictionary.ContainsKey(key))
                 return new GArray();
-            Variant value = dictionary[key];
-            return value.VariantType == Variant.Type.Array ? value.AsGodotArray() : new GArray();
+            return dictionary[key].AsGodotArray();
         }
     }
 

@@ -796,7 +796,7 @@ public partial class BattleAiScoreService
             }
             else if (effectType == "heal")
             {
-                metrics.Healing += Math.Max(effectDef.power, 1) * hitCount;
+                metrics.Healing += EstimateRecoveryAmount(effectDef, sourceUnit) * hitCount;
             }
             else if (
                 effectType == "status"
@@ -849,6 +849,58 @@ public partial class BattleAiScoreService
             metrics.DamageEstimates = CloneDamageEstimates(estimateResult.DamageEstimates);
         }
         return metrics;
+    }
+
+    private static int EstimateRecoveryAmount(CombatEffectDef effectDef, BattleUnitState sourceUnit)
+    {
+        if (effectDef == null)
+        {
+            return 0;
+        }
+        if (HasAttributeScaledDiceConfig(effectDef))
+        {
+            int diceCount = Math.Max(effectDef.dice_count, 1);
+            int diceSides = EstimateAttributeScaledDiceSides(effectDef, sourceUnit);
+            return Math.Max((int)Math.Round(diceCount * (diceSides + 1) / 2.0), 1);
+        }
+        int amount = Math.Max(effectDef.power, 0);
+        if (effectDef.dice_count > 0 && effectDef.dice_sides > 0)
+        {
+            amount += (int)Math.Round(
+                Math.Max(effectDef.dice_count, 0) * (Math.Max(effectDef.dice_sides, 0) + 1) / 2.0
+            );
+        }
+        return Math.Max(amount, 1);
+    }
+
+    private static bool HasAttributeScaledDiceConfig(CombatEffectDef effectDef)
+    {
+        return effectDef != null && effectDef.dice_count > 0 && effectDef.dice_sides_base > 0;
+    }
+
+    private static int EstimateAttributeScaledDiceSides(
+        CombatEffectDef effectDef,
+        BattleUnitState sourceUnit
+    )
+    {
+        int conMod = GetBaseAttributeModifier(sourceUnit, UnitBaseAttributes.CONSTITUTION());
+        int willMod = GetBaseAttributeModifier(sourceUnit, UnitBaseAttributes.WILLPOWER());
+        int baseSides = Math.Max(effectDef.dice_sides_base, 0);
+        int conModSides = Math.Max(effectDef.dice_sides_per_constitution_mod, 0);
+        int willModSides = Math.Max(effectDef.dice_sides_per_willpower_mod, 0);
+        long diceSidesRaw =
+            (long)baseSides + (long)conMod * conModSides + (long)willMod * willModSides;
+        return (int)Math.Clamp(diceSidesRaw, 4L, int.MaxValue);
+    }
+
+    private static int GetBaseAttributeModifier(BattleUnitState unitState, StringName attributeId)
+    {
+        if (unitState?.attribute_snapshot == null || attributeId == "")
+        {
+            return 0;
+        }
+        StringName modifierId = AttributeSnapshot.get_base_attribute_modifier_id(attributeId);
+        return modifierId == "" ? 0 : unitState.attribute_snapshot.get_value(modifierId);
     }
 
     private static List<CombatEffectDef> RepeatEffects(

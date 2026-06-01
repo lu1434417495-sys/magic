@@ -269,10 +269,10 @@ public partial class BattleStatusSemanticTable : RefCounted
     }
 
     public static BattleStatusEffectState merge_status(
-        GodotObject effectDef,
+        CombatEffectDef effectDef,
         StringName sourceUnitId,
         BattleStatusEffectState existingEntry = null
-    ) => merge_status_typed(effectDef as CombatEffectDef, sourceUnitId, existingEntry);
+    ) => merge_status_typed(effectDef, sourceUnitId, existingEntry);
 
     public static BattleStatusEffectState merge_status_typed(
         CombatEffectDef effectDef,
@@ -287,6 +287,13 @@ public partial class BattleStatusSemanticTable : RefCounted
         se.status_id = ProgressionDataUtils.to_string_name(effectDef.status_id);
         se.source_unit_id = sourceUnitId;
         se.@params = _clone_effect_params(effectDef);
+        se.counts_as_debuff_override = effectDef.counts_as_debuff_override;
+        se.counts_as_debuff = effectDef.counts_as_debuff;
+        se.lock_counterattack = effectDef.lock_counterattack;
+        se.main_skill_lock_other_debuff_count = Mathf.Max(
+            effectDef.main_skill_lock_other_debuff_count,
+            0
+        );
         int incomingPower = Mathf.Max(effectDef.power, 1);
         int prevPower = Mathf.Max(se.power, 0);
         int prevStacks = Mathf.Max(se.stacks, 0);
@@ -520,19 +527,14 @@ public partial class BattleStatusSemanticTable : RefCounted
         if (@params == null || pk == "")
             return fb;
         if (@params.ContainsKey(pk))
-            return _read_bool_value(@params[pk], fb);
+            return @params[pk].AsBool();
         string pn = (string)pk;
         if (@params.ContainsKey(pn))
-            return _read_bool_value(@params[pn], fb);
+            return @params[pn].AsBool();
         foreach (var k in @params.Keys)
             if (ProgressionDataUtils.to_string_name(k) == pk)
-                return _read_bool_value(@params[k], fb);
+                return @params[k].AsBool();
         return fb;
-    }
-
-    private static bool _read_bool_value(Variant value, bool fallback)
-    {
-        return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
     }
 
     private static int _get_effect_intensity(BattleStatusEffectState se) =>

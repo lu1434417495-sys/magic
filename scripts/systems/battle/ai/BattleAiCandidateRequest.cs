@@ -59,20 +59,17 @@ public partial class BattleAiCandidateRequest : RefCounted
 
     public int MaxCandidateCount = 0;
 
-    private CandidatePayloadSection _pathSearchBudget =
-        CandidatePayloadSection.Empty("path_search_budget");
+    private MoveToRangePathSearchBudget _pathSearchBudget = new();
 
-    private CandidatePayloadSection _tacticalParams =
-        CandidatePayloadSection.Empty("tactical_params");
+    private MoveToRangeTacticalParams _tacticalParams = new();
 
-    private CandidatePayloadSection _runtimeMetadata =
-        CandidatePayloadSection.Empty("runtime_metadata");
+    private MoveToRangeRuntimeMetadata _runtimeMetadata = new();
 
-    private MoveToRangePathSearchBudget _typedPathSearchBudget;
+    private string _pathSearchBudgetError = "path_search_budget.max_cost must be int.";
 
-    private MoveToRangeTacticalParams _typedTacticalParams;
+    private string _tacticalParamsError = "";
 
-    private MoveToRangeRuntimeMetadata _typedRuntimeMetadata;
+    private string _runtimeMetadataError = "";
 
     internal MoveToRangePathSearchBudget ParsedPathSearchBudget { get; private set; } = new();
 
@@ -132,32 +129,47 @@ public partial class BattleAiCandidateRequest : RefCounted
     }
     public GDictionary PathSearchBudget
     {
-        get => _typedPathSearchBudget?.ToDictionary() ?? _pathSearchBudget.ToDictionary();
+        get => _pathSearchBudget.ToDictionary();
         set
         {
-            _typedPathSearchBudget = null;
-            _pathSearchBudget = CandidatePayloadSection.FromDictionary(
-                value,
-                "path_search_budget"
-            );
+            if (TryReadPathBudgetDictionary(value, out MoveToRangePathSearchBudget parsed, out string error))
+            {
+                _pathSearchBudget = parsed;
+                _pathSearchBudgetError = "";
+                return;
+            }
+            _pathSearchBudget = parsed ?? new MoveToRangePathSearchBudget();
+            _pathSearchBudgetError = error;
         }
     }
     public GDictionary TacticalParams
     {
-        get => _typedTacticalParams?.ToDictionary() ?? _tacticalParams.ToDictionary();
+        get => _tacticalParams.ToDictionary();
         set
         {
-            _typedTacticalParams = null;
-            _tacticalParams = CandidatePayloadSection.FromDictionary(value, "tactical_params");
+            if (TryReadTacticalParamsDictionary(value, out MoveToRangeTacticalParams parsed, out string error))
+            {
+                _tacticalParams = parsed;
+                _tacticalParamsError = "";
+                return;
+            }
+            _tacticalParams = parsed ?? new MoveToRangeTacticalParams();
+            _tacticalParamsError = error;
         }
     }
     public GDictionary RuntimeMetadata
     {
-        get => _typedRuntimeMetadata?.ToDictionary() ?? _runtimeMetadata.ToDictionary();
+        get => _runtimeMetadata.ToDictionary();
         set
         {
-            _typedRuntimeMetadata = null;
-            _runtimeMetadata = CandidatePayloadSection.FromDictionary(value, "runtime_metadata");
+            if (TryReadRuntimeMetadataDictionary(value, out MoveToRangeRuntimeMetadata parsed, out string error))
+            {
+                _runtimeMetadata = parsed;
+                _runtimeMetadataError = "";
+                return;
+            }
+            _runtimeMetadata = parsed ?? new MoveToRangeRuntimeMetadata();
+            _runtimeMetadataError = error;
         }
     }
     public GDictionary path_search_budget
@@ -182,12 +194,12 @@ public partial class BattleAiCandidateRequest : RefCounted
         MoveToRangeRuntimeMetadata runtimeMetadata
     )
     {
-        _typedPathSearchBudget = pathSearchBudget?.Clone() ?? new MoveToRangePathSearchBudget();
-        _typedTacticalParams = tacticalParams?.Clone() ?? new MoveToRangeTacticalParams();
-        _typedRuntimeMetadata = runtimeMetadata?.Clone() ?? new MoveToRangeRuntimeMetadata();
-        _pathSearchBudget = CandidatePayloadSection.Empty("path_search_budget");
-        _tacticalParams = CandidatePayloadSection.Empty("tactical_params");
-        _runtimeMetadata = CandidatePayloadSection.Empty("runtime_metadata");
+        _pathSearchBudget = pathSearchBudget?.Clone() ?? new MoveToRangePathSearchBudget();
+        _tacticalParams = tacticalParams?.Clone() ?? new MoveToRangeTacticalParams();
+        _runtimeMetadata = runtimeMetadata?.Clone() ?? new MoveToRangeRuntimeMetadata();
+        _pathSearchBudgetError = "";
+        _tacticalParamsError = "";
+        _runtimeMetadataError = "";
     }
 
     public bool RequireValidPayload()
@@ -237,15 +249,6 @@ public partial class BattleAiCandidateRequest : RefCounted
             return Fail(error);
         ParsedRuntimeMetadata = parsedRuntimeMetadata;
 
-        foreach (CandidatePayloadSection payload in new[]
-                 {
-                     _pathSearchBudget,
-                     _tacticalParams,
-                     _runtimeMetadata,
-                 })
-            if (!ValidateNoForbiddenObject(payload))
-                return false;
-
         return true;
     }
 
@@ -279,83 +282,10 @@ public partial class BattleAiCandidateRequest : RefCounted
         out string error
     )
     {
-        error = "";
-        if (_typedPathSearchBudget != null)
-        {
-            pathBudget = _typedPathSearchBudget.Clone();
-            return ValidatePathBudget(pathBudget, out error);
-        }
-
-        pathBudget = new MoveToRangePathSearchBudget();
-        foreach (CandidatePayloadField field in _pathSearchBudget.Fields)
-        {
-            if (!PathBudgetKeys.Contains(field.Key))
-            {
-                error = $"Unsupported path_search_budget key {field.Key}.";
-                return false;
-            }
-        }
-
-        if (!TryGetInt(_pathSearchBudget, "max_cost", out pathBudget.MaxCost))
-        {
-            error = "path_search_budget.max_cost must be int.";
+        pathBudget = _pathSearchBudget.Clone();
+        error = _pathSearchBudgetError;
+        if (!string.IsNullOrEmpty(error))
             return false;
-        }
-
-        if (pathBudget.MaxCost < 0)
-        {
-            error = "path_search_budget.max_cost must be int >= 0.";
-            return false;
-        }
-
-        if (
-            !TryReadOptionalNonNegativeInt(
-                _pathSearchBudget,
-                "max_nodes",
-                out pathBudget.MaxNodes,
-                out error
-            )
-        )
-            return false;
-        if (
-            !TryReadOptionalNonNegativeInt(
-                _pathSearchBudget,
-                "max_destinations",
-                out pathBudget.MaxDestinations,
-                out error
-            )
-        )
-            return false;
-        if (
-            !TryReadOptionalNonNegativeInt(
-                _pathSearchBudget,
-                "path_tree_min_destination_count",
-                out pathBudget.PathTreeMinDestinationCount,
-                out error
-            )
-        )
-            return false;
-
-        if (
-            !TryReadOptionalBool(
-                _pathSearchBudget,
-                "include_origin",
-                out pathBudget.IncludeOrigin,
-                out error
-            )
-        )
-            return false;
-        if (
-            !TryReadOptionalBool(
-                _pathSearchBudget,
-                "prefer_progress",
-                out pathBudget.PreferProgress,
-                out error,
-                true
-            )
-        )
-            return false;
-
         return ValidatePathBudget(pathBudget, out error);
     }
 
@@ -364,97 +294,10 @@ public partial class BattleAiCandidateRequest : RefCounted
         out string error
     )
     {
-        error = "";
-        if (_typedTacticalParams != null)
-        {
-            tacticalParams = _typedTacticalParams.Clone();
-            return ValidateTacticalParams(tacticalParams, out error);
-        }
-
-        tacticalParams = new MoveToRangeTacticalParams();
-        foreach (CandidatePayloadField field in _tacticalParams.Fields)
-        {
-            if (!MoveToRangeTacticalKeys.Contains(field.Key))
-            {
-                error = $"Unsupported tactical_params key {field.Key}.";
-                return false;
-            }
-        }
-
-        if (
-            !TryReadOptionalStringName(
-                _tacticalParams,
-                "target_selector",
-                out tacticalParams.TargetSelector,
-                out error
-            )
-        )
+        tacticalParams = _tacticalParams.Clone();
+        error = _tacticalParamsError;
+        if (!string.IsNullOrEmpty(error))
             return false;
-        if (
-            !TryReadOptionalStringName(
-                _tacticalParams,
-                "position_objective_kind",
-                out tacticalParams.PositionObjectiveKind,
-                out error,
-                "distance_band_progress"
-            )
-        )
-            return false;
-        if (
-            !TryReadOptionalStringNameList(
-                _tacticalParams,
-                "range_skill_ids",
-                tacticalParams.RangeSkillIds,
-                out error
-            )
-        )
-            return false;
-        if (
-            !TryReadOptionalBool(
-                _tacticalParams,
-                "aoe_setup_enabled",
-                out tacticalParams.AoeSetupEnabled,
-                out error
-            )
-        )
-            return false;
-        if (
-            !TryReadOptionalNonNegativeInt(
-                _tacticalParams,
-                "aoe_setup_min_target_count",
-                out tacticalParams.AoeSetupMinTargetCount,
-                out error
-            )
-        )
-            return false;
-        if (
-            !TryReadOptionalNonNegativeInt(
-                _tacticalParams,
-                "aoe_setup_target_count_weight",
-                out tacticalParams.AoeSetupTargetCountWeight,
-                out error
-            )
-        )
-            return false;
-        if (
-            !TryReadOptionalNonNegativeInt(
-                _tacticalParams,
-                "aoe_setup_improvement_weight",
-                out tacticalParams.AoeSetupImprovementWeight,
-                out error
-            )
-        )
-            return false;
-        if (
-            !TryReadOptionalNonNegativeInt(
-                _tacticalParams,
-                "aoe_setup_friendly_fire_penalty",
-                out tacticalParams.AoeSetupFriendlyFirePenalty,
-                out error
-            )
-        )
-            return false;
-
         return ValidateTacticalParams(tacticalParams, out error);
     }
 
@@ -463,51 +306,9 @@ public partial class BattleAiCandidateRequest : RefCounted
         out string error
     )
     {
-        error = "";
-        if (_typedRuntimeMetadata != null)
-        {
-            runtimeMetadata = _typedRuntimeMetadata.Clone();
-            return true;
-        }
-
-        runtimeMetadata = new MoveToRangeRuntimeMetadata();
-        foreach (CandidatePayloadField field in _runtimeMetadata.Fields)
-        {
-            if (!MoveToRangeRuntimeKeys.Contains(field.Key))
-            {
-                error = $"Unsupported runtime_metadata key {field.Key}.";
-                return false;
-            }
-        }
-
-        if (
-            !TryReadOptionalInt(
-                _runtimeMetadata,
-                "configured_desired_min_distance",
-                out runtimeMetadata.ConfiguredDesiredMinDistance,
-                out error
-            )
-        )
-            return false;
-        if (
-            !TryReadOptionalInt(
-                _runtimeMetadata,
-                "configured_desired_max_distance",
-                out runtimeMetadata.ConfiguredDesiredMaxDistance,
-                out error
-            )
-        )
-            return false;
-        if (
-            !TryReadOptionalInt(
-                _runtimeMetadata,
-                "effective_attack_range",
-                out runtimeMetadata.EffectiveAttackRange,
-                out error
-            )
-        )
-            return false;
-        return true;
+        runtimeMetadata = _runtimeMetadata.Clone();
+        error = _runtimeMetadataError;
+        return string.IsNullOrEmpty(error);
     }
 
     private static bool ValidatePathBudget(
@@ -578,25 +379,133 @@ public partial class BattleAiCandidateRequest : RefCounted
         return true;
     }
 
-    private static bool TryReadOptionalNonNegativeInt(
-        CandidatePayloadSection source,
-        string key,
-        out int value,
+    private static bool TryReadPathBudgetDictionary(
+        GDictionary source,
+        out MoveToRangePathSearchBudget pathBudget,
         out string error
     )
     {
-        if (!TryReadOptionalInt(source, key, out value, out error))
+        pathBudget = new MoveToRangePathSearchBudget();
+        error = "";
+        if (!ValidateKnownKeys(source, PathBudgetKeys, "path_search_budget", out error))
             return false;
-        if (value < 0)
+        if (!TryReadRequiredInt(source, "path_search_budget", "max_cost", out pathBudget.MaxCost, out error))
+            return false;
+        if (!TryReadOptionalNonNegativeInt(source, "path_search_budget", "max_nodes", out pathBudget.MaxNodes, out error))
+            return false;
+        if (!TryReadOptionalNonNegativeInt(source, "path_search_budget", "max_destinations", out pathBudget.MaxDestinations, out error))
+            return false;
+        if (!TryReadOptionalNonNegativeInt(source, "path_search_budget", "path_tree_min_destination_count", out pathBudget.PathTreeMinDestinationCount, out error))
+            return false;
+        if (!TryReadOptionalBool(source, "path_search_budget", "include_origin", out pathBudget.IncludeOrigin, out error))
+            return false;
+        return TryReadOptionalBool(source, "path_search_budget", "prefer_progress", out pathBudget.PreferProgress, out error, true)
+            && ValidatePathBudget(pathBudget, out error);
+    }
+
+    private static bool TryReadTacticalParamsDictionary(
+        GDictionary source,
+        out MoveToRangeTacticalParams tacticalParams,
+        out string error
+    )
+    {
+        tacticalParams = new MoveToRangeTacticalParams();
+        error = "";
+        if (!ValidateKnownKeys(source, MoveToRangeTacticalKeys, "tactical_params", out error))
+            return false;
+        if (!TryReadOptionalStringName(source, "tactical_params", "target_selector", out tacticalParams.TargetSelector, out error))
+            return false;
+        if (!TryReadOptionalStringName(source, "tactical_params", "position_objective_kind", out tacticalParams.PositionObjectiveKind, out error, "distance_band_progress"))
+            return false;
+        if (!TryReadOptionalStringNameList(source, "tactical_params", "range_skill_ids", tacticalParams.RangeSkillIds, out error))
+            return false;
+        if (!TryReadOptionalBool(source, "tactical_params", "aoe_setup_enabled", out tacticalParams.AoeSetupEnabled, out error))
+            return false;
+        if (!TryReadOptionalNonNegativeInt(source, "tactical_params", "aoe_setup_min_target_count", out tacticalParams.AoeSetupMinTargetCount, out error))
+            return false;
+        if (!TryReadOptionalNonNegativeInt(source, "tactical_params", "aoe_setup_target_count_weight", out tacticalParams.AoeSetupTargetCountWeight, out error))
+            return false;
+        if (!TryReadOptionalNonNegativeInt(source, "tactical_params", "aoe_setup_improvement_weight", out tacticalParams.AoeSetupImprovementWeight, out error))
+            return false;
+        if (!TryReadOptionalNonNegativeInt(source, "tactical_params", "aoe_setup_friendly_fire_penalty", out tacticalParams.AoeSetupFriendlyFirePenalty, out error))
+            return false;
+        return ValidateTacticalParams(tacticalParams, out error);
+    }
+
+    private static bool TryReadRuntimeMetadataDictionary(
+        GDictionary source,
+        out MoveToRangeRuntimeMetadata runtimeMetadata,
+        out string error
+    )
+    {
+        runtimeMetadata = new MoveToRangeRuntimeMetadata();
+        error = "";
+        if (!ValidateKnownKeys(source, MoveToRangeRuntimeKeys, "runtime_metadata", out error))
+            return false;
+        if (!TryReadOptionalInt(source, "runtime_metadata", "configured_desired_min_distance", out runtimeMetadata.ConfiguredDesiredMinDistance, out error))
+            return false;
+        if (!TryReadOptionalInt(source, "runtime_metadata", "configured_desired_max_distance", out runtimeMetadata.ConfiguredDesiredMaxDistance, out error))
+            return false;
+        return TryReadOptionalInt(source, "runtime_metadata", "effective_attack_range", out runtimeMetadata.EffectiveAttackRange, out error);
+    }
+
+    private static bool ValidateKnownKeys(
+        GDictionary source,
+        HashSet<string> allowedKeys,
+        string path,
+        out string error
+    )
+    {
+        error = "";
+        if (source == null)
+            return true;
+        foreach (var rawKey in source.Keys)
         {
-            error = $"{source.Path}.{key} must be int >= 0.";
+            string key = ReadDictionaryKey(rawKey);
+            if (!string.IsNullOrEmpty(key) && allowedKeys.Contains(key))
+                continue;
+            error = $"Unsupported {path} key {key}.";
             return false;
         }
         return true;
     }
 
+    private static bool TryReadRequiredInt(
+        GDictionary source,
+        string path,
+        string key,
+        out int value,
+        out string error
+    )
+    {
+        error = "";
+        if (TryReadIntValue(source, key, out value))
+            return true;
+        value = 0;
+        error = $"{path}.{key} must be int.";
+        return false;
+    }
+
+    private static bool TryReadOptionalNonNegativeInt(
+        GDictionary source,
+        string path,
+        string key,
+        out int value,
+        out string error,
+        int defaultValue = 0
+    )
+    {
+        if (!TryReadOptionalInt(source, path, key, out value, out error, defaultValue))
+            return false;
+        if (value >= 0)
+            return true;
+        error = $"{path}.{key} must be int >= 0.";
+        return false;
+    }
+
     private static bool TryReadOptionalInt(
-        CandidatePayloadSection source,
+        GDictionary source,
+        string path,
         string key,
         out int value,
         out string error,
@@ -605,18 +514,17 @@ public partial class BattleAiCandidateRequest : RefCounted
     {
         value = defaultValue;
         error = "";
-        if (source == null || !source.TryGetValue(key, out CandidatePayloadValue rawValue))
+        if (!HasDictionaryValue(source, key))
             return true;
-        if (!rawValue.TryGetInt(out value))
-        {
-            error = $"{source.Path}.{key} must be int.";
-            return false;
-        }
-        return true;
+        if (TryReadIntValue(source, key, out value))
+            return true;
+        error = $"{path}.{key} must be int.";
+        return false;
     }
 
     private static bool TryReadOptionalBool(
-        CandidatePayloadSection source,
+        GDictionary source,
+        string path,
         string key,
         out bool value,
         out string error,
@@ -625,18 +533,17 @@ public partial class BattleAiCandidateRequest : RefCounted
     {
         value = defaultValue;
         error = "";
-        if (source == null || !source.TryGetValue(key, out CandidatePayloadValue rawValue))
+        if (!HasDictionaryValue(source, key))
             return true;
-        if (!rawValue.TryReadBool(out value))
-        {
-            error = $"{source.Path}.{key} must be bool.";
-            return false;
-        }
-        return true;
+        if (TryReadBoolValue(source, key, out value))
+            return true;
+        error = $"{path}.{key} must be bool.";
+        return false;
     }
 
     private static bool TryReadOptionalStringName(
-        CandidatePayloadSection source,
+        GDictionary source,
+        string path,
         string key,
         out StringName value,
         out string error,
@@ -645,18 +552,21 @@ public partial class BattleAiCandidateRequest : RefCounted
     {
         value = defaultValue;
         error = "";
-        if (source == null || !source.TryGetValue(key, out CandidatePayloadValue rawValue))
+        if (!HasDictionaryValue(source, key))
             return true;
-        if (!rawValue.TryGetStrictStringName(out value))
+        StringName normalized = ReadStringNameValue(source, key);
+        if (normalized != null && !string.IsNullOrEmpty(normalized.ToString()))
         {
-            error = $"{source.Path}.{key} must be StringName.";
-            return false;
+            value = normalized;
+            return true;
         }
-        return true;
+        error = $"{path}.{key} must be StringName.";
+        return false;
     }
 
     private static bool TryReadOptionalStringNameList(
-        CandidatePayloadSection source,
+        GDictionary source,
+        string path,
         string key,
         List<StringName> target,
         out string error
@@ -664,27 +574,130 @@ public partial class BattleAiCandidateRequest : RefCounted
     {
         error = "";
         target?.Clear();
-        if (source == null || !source.TryGetValue(key, out CandidatePayloadValue rawValue))
+        if (!HasDictionaryValue(source, key))
             return true;
-        if (!rawValue.IsArray)
+        if (!TryReadArrayValue(source, key, out GArray values))
         {
-            error = $"{source.Path}.{key} must be Array.";
+            error = $"{path}.{key} must be Array.";
             return false;
         }
-        if (!rawValue.TryGetStringNameList(target))
+        foreach (var item in values)
         {
-            error = $"{source.Path}.{key} elements must be StringName/String.";
-            return false;
+            StringName normalized = ProgressionDataUtils.to_string_name(item);
+            if (normalized == null || string.IsNullOrEmpty(normalized.ToString()))
+            {
+                error = $"{path}.{key} elements must be StringName/String.";
+                return false;
+            }
+            target?.Add(normalized);
         }
         return true;
     }
 
-    private static bool TryGetInt(CandidatePayloadSection source, string key, out int value)
+    private static bool HasDictionaryValue(GDictionary source, string key)
+    {
+        if (source == null || string.IsNullOrEmpty(key))
+            return false;
+        if (source.ContainsKey(key))
+            return source[key].ToString() != "<null>";
+        StringName stringNameKey = key;
+        if (source.ContainsKey(stringNameKey))
+            return source[stringNameKey].ToString() != "<null>";
+        return false;
+    }
+
+    private static string ReadDictionaryKey<T>(T rawKey)
+    {
+        StringName normalized = ProgressionDataUtils.to_string_name(rawKey);
+        if (normalized != null && !string.IsNullOrEmpty(normalized.ToString()))
+            return normalized.ToString();
+        string text = rawKey?.ToString() ?? "";
+        return text == "<null>" ? "" : text;
+    }
+
+    private static bool TryReadIntValue(GDictionary source, string key, out int value)
     {
         value = 0;
-        if (source == null || !source.TryGetValue(key, out CandidatePayloadValue rawValue))
-            return false;
-        return rawValue.TryGetInt(out value);
+        try
+        {
+            if (source.ContainsKey(key))
+            {
+                value = source[key].AsInt32();
+                return true;
+            }
+            StringName stringNameKey = key;
+            if (source.ContainsKey(stringNameKey))
+            {
+                value = source[stringNameKey].AsInt32();
+                return true;
+            }
+        }
+        catch
+        {
+        }
+        return false;
+    }
+
+    private static bool TryReadBoolValue(GDictionary source, string key, out bool value)
+    {
+        value = false;
+        try
+        {
+            if (source.ContainsKey(key))
+            {
+                value = source[key].AsBool();
+                return true;
+            }
+            StringName stringNameKey = key;
+            if (source.ContainsKey(stringNameKey))
+            {
+                value = source[stringNameKey].AsBool();
+                return true;
+            }
+        }
+        catch
+        {
+        }
+        return false;
+    }
+
+    private static StringName ReadStringNameValue(GDictionary source, string key)
+    {
+        try
+        {
+            if (source.ContainsKey(key))
+                return ProgressionDataUtils.to_string_name(source[key]);
+            StringName stringNameKey = key;
+            if (source.ContainsKey(stringNameKey))
+                return ProgressionDataUtils.to_string_name(source[stringNameKey]);
+        }
+        catch
+        {
+        }
+        return "";
+    }
+
+    private static bool TryReadArrayValue(GDictionary source, string key, out GArray value)
+    {
+        value = null;
+        try
+        {
+            if (source.ContainsKey(key))
+            {
+                value = source[key].AsGodotArray();
+                return value != null;
+            }
+            StringName stringNameKey = key;
+            if (source.ContainsKey(stringNameKey))
+            {
+                value = source[stringNameKey].AsGodotArray();
+                return value != null;
+            }
+        }
+        catch
+        {
+        }
+        return false;
     }
 
     private bool Fail(string message)
@@ -695,16 +708,6 @@ public partial class BattleAiCandidateRequest : RefCounted
         );
     }
 
-    private static bool ValidateNoForbiddenObject(CandidatePayloadSection payload)
-    {
-        string error = payload?.FindForbiddenObject("BattleAiCandidateRequest") ?? "";
-        if (string.IsNullOrEmpty(error))
-            return true;
-        return BattleAiPayloadGuard.FailLoud(
-            error,
-            new GDictionary { ["context"] = "BattleAiCandidateRequest" }
-        );
-    }
 }
 
 internal sealed class MoveToRangePathSearchBudget
@@ -740,296 +743,6 @@ internal sealed class MoveToRangePathSearchBudget
             ["include_origin"] = IncludeOrigin,
             ["prefer_progress"] = PreferProgress,
         };
-    }
-}
-
-internal sealed class CandidatePayloadSection
-{
-    private readonly List<CandidatePayloadField> _fields = new();
-
-    private CandidatePayloadSection(string path)
-    {
-        Path = string.IsNullOrEmpty(path) ? "payload" : path;
-    }
-
-    public string Path { get; }
-
-    public IReadOnlyList<CandidatePayloadField> Fields => _fields;
-
-    public static CandidatePayloadSection Empty(string path) => new(path);
-
-    public static CandidatePayloadSection FromDictionary(GDictionary source, string path)
-    {
-        var section = new CandidatePayloadSection(path);
-        if (source == null)
-            return section;
-        foreach (var rawKey in source.Keys)
-        {
-            string key = ReadKey(rawKey);
-            if (string.IsNullOrEmpty(key))
-                continue;
-            section._fields.Add(
-                new CandidatePayloadField(
-                    key,
-                    CandidatePayloadValue.FromVariant(source[rawKey])
-                )
-            );
-        }
-        return section;
-    }
-
-    public bool TryGetValue(string key, out CandidatePayloadValue value)
-    {
-        foreach (CandidatePayloadField field in _fields)
-        {
-            if (field.Key == key)
-            {
-                value = field.Value;
-                return true;
-            }
-        }
-        value = CandidatePayloadValue.Nil();
-        return false;
-    }
-
-    public GDictionary ToDictionary()
-    {
-        var result = new GDictionary();
-        foreach (CandidatePayloadField field in _fields)
-            result[field.Key] = field.Value.ToVariant();
-        return result;
-    }
-
-    public string FindForbiddenObject(string rootPath)
-    {
-        foreach (CandidatePayloadField field in _fields)
-        {
-            string error = field.Value.FindForbiddenObject($"{rootPath}.{Path}.{field.Key}");
-            if (!string.IsNullOrEmpty(error))
-                return error;
-        }
-        return "";
-    }
-
-    private static string ReadKey(Variant rawKey)
-    {
-        return rawKey.VariantType switch
-        {
-            Variant.Type.String => rawKey.AsString(),
-            Variant.Type.StringName => rawKey.AsStringName().ToString(),
-            Variant.Type.Nil => "",
-            _ => rawKey.ToString(),
-        };
-    }
-}
-
-internal readonly struct CandidatePayloadField
-{
-    public CandidatePayloadField(string key, CandidatePayloadValue value)
-    {
-        Key = key ?? "";
-        Value = value ?? CandidatePayloadValue.Nil();
-    }
-
-    public string Key { get; }
-    public CandidatePayloadValue Value { get; }
-}
-
-internal enum CandidatePayloadValueKind
-{
-    Nil,
-    Bool,
-    Int,
-    StringName,
-    Text,
-    StringNameArray,
-    Array,
-    Dictionary,
-    Object,
-    Fallback,
-}
-
-internal sealed class CandidatePayloadValue
-{
-    private readonly CandidatePayloadValueKind _kind;
-    private readonly bool _boolValue;
-    private readonly int _intValue;
-    private readonly StringName _stringNameValue;
-    private readonly string _textValue;
-    private readonly List<StringName> _stringNameArrayValue;
-    private readonly GArray _arrayValue;
-    private readonly GDictionary _dictionaryValue;
-    private readonly GodotObject _objectValue;
-    private readonly Variant _fallbackValue;
-
-    private CandidatePayloadValue(
-        CandidatePayloadValueKind kind,
-        bool boolValue = false,
-        int intValue = 0,
-        StringName stringNameValue = default,
-        string textValue = "",
-        List<StringName> stringNameArrayValue = null,
-        GArray arrayValue = null,
-        GDictionary dictionaryValue = null,
-        GodotObject objectValue = null,
-        Variant fallbackValue = default
-    )
-    {
-        _kind = kind;
-        _boolValue = boolValue;
-        _intValue = intValue;
-        _stringNameValue = stringNameValue;
-        _textValue = textValue ?? "";
-        _stringNameArrayValue = stringNameArrayValue ?? new List<StringName>();
-        _arrayValue = arrayValue?.Duplicate(true) ?? new GArray();
-        _dictionaryValue = dictionaryValue?.Duplicate(true) ?? new GDictionary();
-        _objectValue = objectValue;
-        _fallbackValue = fallbackValue;
-    }
-
-    public bool IsArray =>
-        _kind == CandidatePayloadValueKind.StringNameArray
-        || _kind == CandidatePayloadValueKind.Array;
-
-    public static CandidatePayloadValue Nil() => new(CandidatePayloadValueKind.Nil);
-
-    public bool TryGetInt(out int value)
-    {
-        value = _intValue;
-        return _kind == CandidatePayloadValueKind.Int;
-    }
-
-    public bool TryReadBool(out bool value)
-    {
-        value = _boolValue;
-        return _kind == CandidatePayloadValueKind.Bool;
-    }
-
-    public bool TryGetStrictStringName(out StringName value)
-    {
-        value = _stringNameValue;
-        return _kind == CandidatePayloadValueKind.StringName;
-    }
-
-    public bool TryGetStringNameList(List<StringName> target)
-    {
-        target?.Clear();
-        if (_kind != CandidatePayloadValueKind.StringNameArray)
-            return false;
-        foreach (StringName value in _stringNameArrayValue)
-            target?.Add(value);
-        return true;
-    }
-
-    public Variant ToVariant()
-    {
-        return _kind switch
-        {
-            CandidatePayloadValueKind.Nil => default,
-            CandidatePayloadValueKind.Bool => Variant.From(_boolValue),
-            CandidatePayloadValueKind.Int => Variant.From(_intValue),
-            CandidatePayloadValueKind.StringName => Variant.From(_stringNameValue),
-            CandidatePayloadValueKind.Text => Variant.From(_textValue),
-            CandidatePayloadValueKind.StringNameArray => Variant.From(ToStringNameArray()),
-            CandidatePayloadValueKind.Array => Variant.From(_arrayValue.Duplicate(true)),
-            CandidatePayloadValueKind.Dictionary => Variant.From(_dictionaryValue.Duplicate(true)),
-            CandidatePayloadValueKind.Object => Variant.From(_objectValue),
-            CandidatePayloadValueKind.Fallback => _fallbackValue,
-            _ => default,
-        };
-    }
-
-    public string FindForbiddenObject(string path)
-    {
-        return _kind switch
-        {
-            CandidatePayloadValueKind.Object => BattleAiPayloadGuard.FindForbiddenObject(
-                _objectValue,
-                path
-            ),
-            CandidatePayloadValueKind.Array => BattleAiPayloadGuard.FindForbiddenObject(
-                _arrayValue,
-                path
-            ),
-            CandidatePayloadValueKind.Dictionary => BattleAiPayloadGuard.FindForbiddenObject(
-                _dictionaryValue,
-                path
-            ),
-            CandidatePayloadValueKind.Fallback => BattleAiPayloadGuard.FindForbiddenObject(
-                _fallbackValue,
-                path
-            ),
-            _ => "",
-        };
-    }
-
-    public static CandidatePayloadValue FromVariant(Variant value)
-    {
-        return value.VariantType switch
-        {
-            Variant.Type.Nil => Nil(),
-            Variant.Type.Bool => new CandidatePayloadValue(
-                CandidatePayloadValueKind.Bool,
-                boolValue: value.AsBool()
-            ),
-            Variant.Type.Int => new CandidatePayloadValue(
-                CandidatePayloadValueKind.Int,
-                intValue: value.AsInt32()
-            ),
-            Variant.Type.StringName => new CandidatePayloadValue(
-                CandidatePayloadValueKind.StringName,
-                stringNameValue: value.AsStringName()
-            ),
-            Variant.Type.String => new CandidatePayloadValue(
-                CandidatePayloadValueKind.Text,
-                textValue: value.AsString()
-            ),
-            Variant.Type.Array => FromArray(value.AsGodotArray()),
-            Variant.Type.Dictionary => new CandidatePayloadValue(
-                CandidatePayloadValueKind.Dictionary,
-                dictionaryValue: value.AsGodotDictionary()
-            ),
-            Variant.Type.Object => new CandidatePayloadValue(
-                CandidatePayloadValueKind.Object,
-                objectValue: value.AsGodotObject()
-            ),
-            _ => new CandidatePayloadValue(
-                CandidatePayloadValueKind.Fallback,
-                fallbackValue: value
-            ),
-        };
-    }
-
-    private static CandidatePayloadValue FromArray(GArray source)
-    {
-        var stringNames = new List<StringName>();
-        bool allStringLike = true;
-        foreach (var rawValue in source ?? new GArray())
-        {
-            if (
-                rawValue.VariantType != Variant.Type.String
-                && rawValue.VariantType != Variant.Type.StringName
-            )
-            {
-                allStringLike = false;
-                break;
-            }
-            stringNames.Add(ProgressionDataUtils.to_string_name(rawValue));
-        }
-        return allStringLike
-            ? new CandidatePayloadValue(
-                CandidatePayloadValueKind.StringNameArray,
-                stringNameArrayValue: stringNames
-            )
-            : new CandidatePayloadValue(CandidatePayloadValueKind.Array, arrayValue: source);
-    }
-
-    private GArray ToStringNameArray()
-    {
-        var result = new GArray();
-        foreach (StringName value in _stringNameArrayValue)
-            result.Add(value);
-        return result;
     }
 }
 

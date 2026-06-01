@@ -37,9 +37,6 @@ public partial class BarrierOutcomeDef : Resource
     [Export]
     public int save_dc = 0;
 
-    [Export]
-    public Dictionary @params = new();
-
     public Dictionary ToRuntimeDict(int defaultSaveDc = 0)
     {
         int resolvedSaveDc = save_dc;
@@ -58,7 +55,6 @@ public partial class BarrierOutcomeDef : Resource
             { "save_ability", (string)save_ability },
             { "save_tag", (string)save_tag },
             { "save_dc", resolvedSaveDc },
-            { "params", @params?.Duplicate(true) ?? new Dictionary() },
         };
     }
 }

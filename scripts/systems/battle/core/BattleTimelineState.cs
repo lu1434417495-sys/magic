@@ -130,10 +130,12 @@ public partial class BattleTimelineState : RefCounted
         var results = new Godot.Collections.Array<StringName>();
         foreach (var value in values)
         {
-            if (!TryAsStringLike(value, out string idText))
+            string valueTypeName = value.VariantType.ToString();
+            if (valueTypeName != "String" && valueTypeName != "StringName")
             {
                 return null;
             }
+            string idText = value.ToString();
             if (string.IsNullOrEmpty(idText))
             {
                 return null;
@@ -145,9 +147,9 @@ public partial class BattleTimelineState : RefCounted
 
     private static bool TryGetStrictInt(GDictionary data, string key, out int value)
     {
-        if (TryGetExactValue(data, key, out Variant rawValue)
-            && TryAsStrictInt(rawValue, out value))
+        if (data != null && data.ContainsKey(key) && IsFieldType(data, key, "Int"))
         {
+            value = data[key].AsInt32();
             return true;
         }
         value = 0;
@@ -156,8 +158,9 @@ public partial class BattleTimelineState : RefCounted
 
     private static bool TryReadBoolField(GDictionary data, string key, out bool value)
     {
-        if (TryGetExactValue(data, key, out Variant rawValue) && TryAsBool(rawValue, out value))
+        if (data != null && data.ContainsKey(key) && IsFieldType(data, key, "Bool"))
         {
+            value = data[key].AsBool();
             return true;
         }
         value = false;
@@ -170,72 +173,18 @@ public partial class BattleTimelineState : RefCounted
         out Godot.Collections.Array value
     )
     {
-        if (TryGetExactValue(data, key, out Variant rawValue) && TryRawArray(rawValue, out value))
+        if (data != null && data.ContainsKey(key) && IsFieldType(data, key, "Array"))
         {
+            value = data[key].AsGodotArray();
             return true;
         }
         value = new Godot.Collections.Array();
         return false;
     }
 
-    private static bool TryAsStrictInt(Variant rawValue, out int value)
+    private static bool IsFieldType(GDictionary data, string key, string expectedTypeName)
     {
-        if (rawValue.VariantType == Variant.Type.Int)
-        {
-            value = rawValue.AsInt32();
-            return true;
-        }
-        value = 0;
-        return false;
-    }
-
-    private static bool TryAsBool(Variant rawValue, out bool value)
-    {
-        if (rawValue.VariantType == Variant.Type.Bool)
-        {
-            value = rawValue.AsBool();
-            return true;
-        }
-        value = false;
-        return false;
-    }
-
-    private static bool TryAsStringLike(Variant rawValue, out string value)
-    {
-        if (rawValue.VariantType == Variant.Type.String)
-        {
-            value = rawValue.AsString();
-            return true;
-        }
-        if (rawValue.VariantType == Variant.Type.StringName)
-        {
-            value = rawValue.AsStringName().ToString();
-            return true;
-        }
-        value = "";
-        return false;
-    }
-
-    private static bool TryGetExactValue(GDictionary data, string key, out Variant value)
-    {
-        if (data != null && data.ContainsKey(key))
-        {
-            value = data[key];
-            return true;
-        }
-        value = default;
-        return false;
-    }
-
-    private static bool TryRawArray(Variant rawValue, out Godot.Collections.Array values)
-    {
-        if (rawValue.VariantType == Variant.Type.Array)
-        {
-            values = rawValue.AsGodotArray();
-            return true;
-        }
-        values = new Godot.Collections.Array();
-        return false;
+        return data[key].VariantType.ToString() == expectedTypeName;
     }
 
 }

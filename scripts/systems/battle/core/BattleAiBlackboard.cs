@@ -34,11 +34,15 @@ public partial class BattleAiBlackboard : RefCounted
 
     public static implicit operator BattleAiBlackboard(GDictionary data) => FromDictionary(data);
 
-    public bool ContainsKey(object key) => HasKey(NormalizeKey(key));
+    public bool ContainsKey(string key) => HasKey(NormalizeKey(key));
 
-    public bool has(object key) => ContainsKey(key);
+    public bool ContainsKey(StringName key) => HasKey(NormalizeKey(key));
 
-    public bool Remove(object key)
+    public bool has(string key) => ContainsKey(key);
+
+    public bool has(StringName key) => ContainsKey(key);
+
+    public bool Remove(string key)
     {
         string normalizedKey = NormalizeKey(key);
         if (!HasKey(normalizedKey))
@@ -47,22 +51,50 @@ public partial class BattleAiBlackboard : RefCounted
         return true;
     }
 
-    public Variant GetValueOrDefault(object key, object fallback)
+    public bool Remove(StringName key) => Remove(NormalizeKey(key));
+
+    public string get(string key, string fallback = "")
     {
         string normalizedKey = NormalizeKey(key);
-        return HasKey(normalizedKey) ? this[normalizedKey] : ObjectToVariant(fallback);
+        return HasKey(normalizedKey) ? ReadTextValue(normalizedKey) : fallback;
     }
 
-    public Variant get(object key, Variant fallback = default)
+    public StringName get_string_name(string key, StringName fallback = default)
     {
         string normalizedKey = NormalizeKey(key);
-        return HasKey(normalizedKey) ? this[normalizedKey] : fallback;
+        return HasKey(normalizedKey) ? ReadStringNameValue(normalizedKey) : fallback;
     }
 
-    public Variant this[object key]
+    public int get_int(string key, int fallback = 0)
     {
-        get => ReadValue(NormalizeKey(key));
-        set => WriteValue(NormalizeKey(key), value);
+        string normalizedKey = NormalizeKey(key);
+        return HasKey(normalizedKey) ? ReadIntValue(normalizedKey) : fallback;
+    }
+
+    public bool get_bool(string key, bool fallback = false)
+    {
+        string normalizedKey = NormalizeKey(key);
+        return HasKey(normalizedKey) ? ReadBoolValue(normalizedKey) : fallback;
+    }
+
+    public void set_string_name(string key, StringName value)
+    {
+        WriteStringNameValue(NormalizeKey(key), value);
+    }
+
+    public void set_text(string key, string value)
+    {
+        WriteStringNameValue(NormalizeKey(key), new StringName(value ?? ""));
+    }
+
+    public void set_int(string key, int value)
+    {
+        WriteIntValue(NormalizeKey(key), value);
+    }
+
+    public void set_bool(string key, bool value)
+    {
+        WriteBoolValue(NormalizeKey(key), value);
     }
 
     public GDictionary Duplicate(bool deep = false) => ToDictionary();
@@ -103,10 +135,10 @@ public partial class BattleAiBlackboard : RefCounted
         var blackboard = new BattleAiBlackboard();
         if (data == null)
             return blackboard;
-        foreach (object key in data.Keys)
+        foreach (var rawKey in data.Keys)
         {
-            string normalizedKey = NormalizeKey(key);
-            blackboard[normalizedKey] = ObjectToVariant(data[normalizedKey]);
+            string normalizedKey = rawKey.ToString();
+            blackboard.WriteDictionaryValue(normalizedKey, data);
         }
         return blackboard;
     }
@@ -123,32 +155,9 @@ public partial class BattleAiBlackboard : RefCounted
             result[key] = value;
     }
 
-    private static string NormalizeKey(object key)
-    {
-        return key switch
-        {
-            null => "",
-            StringName stringNameKey => stringNameKey.ToString(),
-            Variant variantKey => variantKey.AsString(),
-            _ => key.ToString() ?? "",
-        };
-    }
+    private static string NormalizeKey(string key) => key ?? "";
 
-    private static Variant ObjectToVariant(object value) =>
-        value switch
-        {
-            null => default,
-            Variant variantValue => variantValue,
-            bool boolValue => Variant.From(boolValue),
-            int intValue => Variant.From(intValue),
-            long longValue => Variant.From(longValue),
-            float floatValue => Variant.From(floatValue),
-            double doubleValue => Variant.From(doubleValue),
-            string stringValue => Variant.From(stringValue),
-            StringName stringNameValue => Variant.From(stringNameValue),
-            Vector2I vector2IValue => Variant.From(vector2IValue),
-            _ => Variant.From(value.ToString() ?? ""),
-        };
+    private static string NormalizeKey(StringName key) => key.ToString();
 
     private bool HasKey(string key) =>
         key switch
@@ -175,116 +184,196 @@ public partial class BattleAiBlackboard : RefCounted
             _ => false,
         };
 
-    private Variant ReadValue(string key) =>
+    private string ReadTextValue(string key) =>
         key switch
         {
-            "last_brain_id" => Variant.From(last_brain_id),
-            "last_state_id" => Variant.From(last_state_id),
-            "last_action_id" => Variant.From(last_action_id),
-            "last_reason_text" => Variant.From(last_reason_text),
-            "last_transition_previous_state_id" => Variant.From(last_transition_previous_state_id),
-            "last_transition_state_id" => Variant.From(last_transition_state_id),
-            "last_transition_rule_id" => Variant.From(last_transition_rule_id),
-            "last_transition_reason" => Variant.From(last_transition_reason),
-            "turn_started_tu" => Variant.From(turn_started_tu),
-            "turn_decision_count" => Variant.From(turn_decision_count),
-            "madness_ai_control" => Variant.From(madness_ai_control),
-            "madness_target_any_team" => Variant.From(madness_target_any_team),
-            "low_luck_reverse_fate_used" => Variant.From(low_luck_reverse_fate_used),
-            "low_luck_black_star_wedge_used" => Variant.From(low_luck_black_star_wedge_used),
-            "meteor_protected_ally" => Variant.From(meteor_protected_ally),
-            "protected_ally" => Variant.From(protected_ally),
-            "summoned" => Variant.From(summoned),
-            "temporary_unit" => Variant.From(temporary_unit),
-            "summon_source_unit_id" => Variant.From(summon_source_unit_id),
-            _ => default,
+            "last_brain_id" => last_brain_id.ToString(),
+            "last_state_id" => last_state_id.ToString(),
+            "last_action_id" => last_action_id.ToString(),
+            "last_reason_text" => last_reason_text.ToString(),
+            "last_transition_previous_state_id" => last_transition_previous_state_id.ToString(),
+            "last_transition_state_id" => last_transition_state_id.ToString(),
+            "last_transition_rule_id" => last_transition_rule_id.ToString(),
+            "last_transition_reason" => last_transition_reason.ToString(),
+            "turn_started_tu" => turn_started_tu.ToString(),
+            "turn_decision_count" => turn_decision_count.ToString(),
+            "madness_ai_control" => madness_ai_control.ToString(),
+            "madness_target_any_team" => madness_target_any_team.ToString(),
+            "low_luck_reverse_fate_used" => low_luck_reverse_fate_used.ToString(),
+            "low_luck_black_star_wedge_used" => low_luck_black_star_wedge_used.ToString(),
+            "meteor_protected_ally" => meteor_protected_ally.ToString(),
+            "protected_ally" => protected_ally.ToString(),
+            "summoned" => summoned.ToString(),
+            "temporary_unit" => temporary_unit.ToString(),
+            "summon_source_unit_id" => summon_source_unit_id.ToString(),
+            _ => "",
         };
 
-    private void WriteValue(string key, Variant value)
+    private StringName ReadStringNameValue(string key) => new(ReadTextValue(key));
+
+    private int ReadIntValue(string key) =>
+        key switch
+        {
+            "turn_started_tu" => turn_started_tu,
+            "turn_decision_count" => turn_decision_count,
+            _ => 0,
+        };
+
+    private bool ReadBoolValue(string key) =>
+        key switch
+        {
+            "madness_ai_control" => madness_ai_control,
+            "madness_target_any_team" => madness_target_any_team,
+            "low_luck_reverse_fate_used" => low_luck_reverse_fate_used,
+            "low_luck_black_star_wedge_used" => low_luck_black_star_wedge_used,
+            "meteor_protected_ally" => meteor_protected_ally,
+            "protected_ally" => protected_ally,
+            "summoned" => summoned,
+            "temporary_unit" => temporary_unit,
+            _ => false,
+        };
+
+    private void WriteDictionaryValue(string key, GDictionary data)
     {
         switch (key)
         {
             case "last_brain_id":
-                last_brain_id = value.AsStringName();
-                break;
             case "last_state_id":
-                last_state_id = value.AsStringName();
-                break;
             case "last_action_id":
-                last_action_id = value.AsStringName();
-                break;
             case "last_reason_text":
-                last_reason_text = value.AsStringName();
-                break;
             case "last_transition_previous_state_id":
-                last_transition_previous_state_id = value.AsStringName();
-                break;
             case "last_transition_state_id":
-                last_transition_state_id = value.AsStringName();
-                break;
             case "last_transition_rule_id":
-                last_transition_rule_id = value.AsStringName();
-                break;
             case "last_transition_reason":
-                last_transition_reason = value.AsStringName();
+            case "summon_source_unit_id":
+                WriteStringNameValue(key, new StringName(ReadDictionaryText(data, key)));
                 break;
             case "turn_started_tu":
-                turn_started_tu = value.AsInt32();
+            case "turn_decision_count":
+                WriteIntValue(key, ReadDictionaryInt(data, key));
+                break;
+            case "madness_ai_control":
+            case "madness_target_any_team":
+            case "low_luck_reverse_fate_used":
+            case "low_luck_black_star_wedge_used":
+            case "meteor_protected_ally":
+            case "protected_ally":
+            case "summoned":
+            case "temporary_unit":
+                WriteBoolValue(key, ReadDictionaryBool(data, key));
+                break;
+        }
+    }
+
+    private static string ReadDictionaryText(GDictionary data, string key)
+    {
+        if (data == null || string.IsNullOrEmpty(key))
+            return "";
+        if (data.ContainsKey(key))
+            return data[key].ToString();
+        StringName stringNameKey = new(key);
+        return data.ContainsKey(stringNameKey) ? data[stringNameKey].ToString() : "";
+    }
+
+    private static int ReadDictionaryInt(GDictionary data, string key)
+    {
+        if (data == null || string.IsNullOrEmpty(key))
+            return 0;
+        if (data.ContainsKey(key))
+            return data[key].AsInt32();
+        StringName stringNameKey = new(key);
+        return data.ContainsKey(stringNameKey) ? data[stringNameKey].AsInt32() : 0;
+    }
+
+    private static bool ReadDictionaryBool(GDictionary data, string key)
+    {
+        if (data == null || string.IsNullOrEmpty(key))
+            return false;
+        if (data.ContainsKey(key))
+            return data[key].AsBool();
+        StringName stringNameKey = new(key);
+        return data.ContainsKey(stringNameKey) && data[stringNameKey].AsBool();
+    }
+
+    private void WriteStringNameValue(string key, StringName value)
+    {
+        switch (key)
+        {
+            case "last_brain_id":
+                last_brain_id = value;
+                break;
+            case "last_state_id":
+                last_state_id = value;
+                break;
+            case "last_action_id":
+                last_action_id = value;
+                break;
+            case "last_reason_text":
+                last_reason_text = value;
+                break;
+            case "last_transition_previous_state_id":
+                last_transition_previous_state_id = value;
+                break;
+            case "last_transition_state_id":
+                last_transition_state_id = value;
+                break;
+            case "last_transition_rule_id":
+                last_transition_rule_id = value;
+                break;
+            case "last_transition_reason":
+                last_transition_reason = value;
+                break;
+            case "summon_source_unit_id":
+                summon_source_unit_id = value;
+                break;
+        }
+    }
+
+    private void WriteIntValue(string key, int value)
+    {
+        switch (key)
+        {
+            case "turn_started_tu":
+                turn_started_tu = value;
                 _hasTurnStartedTu = true;
                 break;
             case "turn_decision_count":
-                turn_decision_count = value.AsInt32();
+                turn_decision_count = value;
                 _hasTurnDecisionCount = true;
                 break;
+        }
+    }
+
+    private void WriteBoolValue(string key, bool value)
+    {
+        switch (key)
+        {
             case "madness_ai_control":
-                if (TryReadStrictBool(value, out bool madnessAiControl))
-                    madness_ai_control = madnessAiControl;
+                madness_ai_control = value;
                 break;
             case "madness_target_any_team":
-                if (TryReadStrictBool(value, out bool madnessTargetAnyTeam))
-                    madness_target_any_team = madnessTargetAnyTeam;
+                madness_target_any_team = value;
                 break;
             case "low_luck_reverse_fate_used":
-                if (TryReadStrictBool(value, out bool lowLuckReverseFateUsed))
-                    low_luck_reverse_fate_used = lowLuckReverseFateUsed;
+                low_luck_reverse_fate_used = value;
                 break;
             case "low_luck_black_star_wedge_used":
-                if (TryReadStrictBool(value, out bool lowLuckBlackStarWedgeUsed))
-                    low_luck_black_star_wedge_used = lowLuckBlackStarWedgeUsed;
+                low_luck_black_star_wedge_used = value;
                 break;
             case "meteor_protected_ally":
-                if (TryReadStrictBool(value, out bool meteorProtectedAlly))
-                    meteor_protected_ally = meteorProtectedAlly;
+                meteor_protected_ally = value;
                 break;
             case "protected_ally":
-                if (TryReadStrictBool(value, out bool protectedAlly))
-                    protected_ally = protectedAlly;
+                protected_ally = value;
                 break;
             case "summoned":
-                if (TryReadStrictBool(value, out bool summonedValue))
-                    summoned = summonedValue;
+                summoned = value;
                 break;
             case "temporary_unit":
-                if (TryReadStrictBool(value, out bool temporaryUnit))
-                    temporary_unit = temporaryUnit;
-                break;
-            case "summon_source_unit_id":
-                summon_source_unit_id = value.AsStringName();
+                temporary_unit = value;
                 break;
         }
     }
-
-    private static bool TryReadStrictBool(Variant value, out bool result)
-    {
-        if (value.VariantType == Variant.Type.Bool)
-        {
-            result = value.AsBool();
-            return true;
-        }
-        result = false;
-        return false;
-    }
-
     private void ClearKey(string key)
     {
         switch (key)
