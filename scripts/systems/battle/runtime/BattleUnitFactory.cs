@@ -908,11 +908,11 @@ public partial class BattleUnitFactory : RefCounted
             us.clear_weapon_projection();
             return;
         }
-        us.set_natural_weapon_projection(
+        us.SetNaturalWeaponProjectionTyped(
             (string)pt != "" ? pt : "natural_weapon",
             dt,
             ar,
-            new Godot.Collections.Dictionary(),
+            null,
             fam
         );
     }

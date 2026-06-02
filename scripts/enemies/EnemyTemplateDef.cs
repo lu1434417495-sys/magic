@@ -98,33 +98,57 @@ public partial class EnemyTemplateDef : Resource
         Godot.Collections.Dictionary itemDefs = null
     )
     {
+        WeaponProjection projection = GetWeaponProjectionTyped(itemDefs);
+        return projection != null && !projection.IsEmpty()
+            ? projection.ToDictionary()
+            : new Godot.Collections.Dictionary();
+    }
+
+    internal WeaponProjection GetWeaponProjectionTyped(Godot.Collections.Dictionary itemDefs = null)
+    {
         itemDefs ??= new Godot.Collections.Dictionary();
         if (has_tag(TagBeast))
-            return get_natural_weapon_projection();
-        var aep = get_attack_equipment_projection(itemDefs);
-        if (aep.Count > 0)
+            return GetNaturalWeaponProjectionTyped();
+        WeaponProjection aep = GetAttackEquipmentProjectionTyped(itemDefs);
+        if (aep != null && !aep.IsEmpty())
             return aep;
-        return get_unarmed_weapon_projection();
+        return GetUnarmedWeaponProjectionTyped();
     }
 
     public Godot.Collections.Dictionary get_attack_equipment_projection(
         Godot.Collections.Dictionary itemDefs = null
     )
     {
+        WeaponProjection projection = GetAttackEquipmentProjectionTyped(itemDefs);
+        return projection != null && !projection.IsEmpty()
+            ? projection.ToDictionary()
+            : new Godot.Collections.Dictionary();
+    }
+
+    internal WeaponProjection GetAttackEquipmentProjectionTyped(
+        Godot.Collections.Dictionary itemDefs = null
+    )
+    {
         itemDefs ??= new Godot.Collections.Dictionary();
         var itemId = get_attack_equipment_item_id_resolved();
         if (itemId == "")
-            return new Godot.Collections.Dictionary();
+            return new WeaponProjection();
         var itemDef = _resolve_attack_equipment_item_def(itemId, itemDefs);
-        return itemDef != null
-            ? _build_weapon_projection_from_item_def(itemDef)
-            : new Godot.Collections.Dictionary();
+        return itemDef != null ? _build_weapon_projection_from_item_def(itemDef) : new WeaponProjection();
     }
 
     public Godot.Collections.Dictionary get_natural_weapon_projection()
     {
+        WeaponProjection projection = GetNaturalWeaponProjectionTyped();
+        return projection != null && !projection.IsEmpty()
+            ? projection.ToDictionary()
+            : new Godot.Collections.Dictionary();
+    }
+
+    internal WeaponProjection GetNaturalWeaponProjectionTyped()
+    {
         if (!has_tag(TagBeast))
-            return new Godot.Collections.Dictionary();
+            return new WeaponProjection();
         return new WeaponProjection
         {
             weapon_profile_kind = BattleUnitState.WEAPON_PROFILE_KIND_NATURAL(),
@@ -133,10 +157,15 @@ public partial class EnemyTemplateDef : Resource
             weapon_attack_range = Mathf.Max(natural_weapon_attack_range, 1),
             weapon_one_handed_dice = _build_natural_weapon_dice(),
             weapon_physical_damage_tag = get_natural_weapon_damage_tag_resolved(),
-        }.ToDictionary();
+        };
     }
 
     public Godot.Collections.Dictionary get_unarmed_weapon_projection()
+    {
+        return GetUnarmedWeaponProjectionTyped().ToDictionary();
+    }
+
+    internal WeaponProjection GetUnarmedWeaponProjectionTyped()
     {
         return new WeaponProjection
         {
@@ -151,7 +180,7 @@ public partial class EnemyTemplateDef : Resource
                 flat_bonus = 0,
             },
             weapon_physical_damage_tag = "physical_blunt",
-        }.ToDictionary();
+        };
     }
 
     public StringName get_natural_weapon_damage_tag_resolved()
@@ -448,13 +477,13 @@ public partial class EnemyTemplateDef : Resource
             : null;
     }
 
-    private Godot.Collections.Dictionary _build_weapon_projection_from_item_def(ItemDef itemDef)
+    private WeaponProjection _build_weapon_projection_from_item_def(ItemDef itemDef)
     {
         if (itemDef == null || !itemDef.is_weapon())
-            return new Godot.Collections.Dictionary();
+            return new WeaponProjection();
         var profile = itemDef.weapon_profile as WeaponProfileDef;
         if (profile == null)
-            return new Godot.Collections.Dictionary();
+            return new WeaponProjection();
         var ohd = WeaponDice.FromResource(profile.one_handed_dice);
         var thd = WeaponDice.FromResource(profile.two_handed_dice);
         var props = _weapon_profile_properties(profile);
@@ -472,7 +501,7 @@ public partial class EnemyTemplateDef : Resource
             weapon_is_versatile = isV,
             weapon_uses_two_hands = ut,
             weapon_physical_damage_tag = itemDef.get_weapon_physical_damage_tag(),
-        }.ToDictionary();
+        };
     }
 
     private static bool _resolve_weapon_uses_two_hands(

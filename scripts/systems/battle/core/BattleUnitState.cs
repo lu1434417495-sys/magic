@@ -409,27 +409,38 @@ public partial class BattleUnitState : RefCounted
         int attack_range = 1
     )
     {
-        if (IsEmpty(damage_tag))
+        SetUnarmedWeaponProjectionTyped(damage_tag, WeaponDice.FromDictionary(dice), attack_range);
+    }
+
+    internal void SetUnarmedWeaponProjectionTyped(
+        StringName damageTag = default,
+        WeaponDice dice = null,
+        int attackRange = 1
+    )
+    {
+        if (IsEmpty(damageTag))
         {
-            damage_tag = "physical_blunt";
+            damageTag = "physical_blunt";
         }
-        dice ??= new GDictionary
-        {
-            ["dice_count"] = 1,
-            ["dice_sides"] = 4,
-            ["flat_bonus"] = 0,
-        };
-        apply_weapon_projection(
-            new GDictionary
+        dice = dice == null || dice.IsEmpty()
+            ? new WeaponDice
             {
-                ["weapon_profile_kind"] = WeaponProfileKindUnarmed.ToString(),
-                ["weapon_profile_type_id"] = "unarmed",
-                ["weapon_family"] = "unarmed",
-                ["weapon_current_grip"] = WeaponGripOneHanded.ToString(),
-                ["weapon_attack_range"] = attack_range,
-                ["weapon_one_handed_dice"] = dice,
-                ["weapon_uses_two_hands"] = false,
-                ["weapon_physical_damage_tag"] = damage_tag.ToString(),
+                dice_count = 1,
+                dice_sides = 4,
+                flat_bonus = 0,
+            }
+            : dice;
+        ApplyWeaponProjectionTyped(
+            new WeaponProjection
+            {
+                weapon_profile_kind = WeaponProfileKindUnarmed,
+                weapon_profile_type_id = "unarmed",
+                weapon_family = "unarmed",
+                weapon_current_grip = WeaponGripOneHanded,
+                weapon_attack_range = attackRange,
+                weapon_one_handed_dice = dice,
+                weapon_uses_two_hands = false,
+                weapon_physical_damage_tag = damageTag,
             }
         );
     }
@@ -442,22 +453,77 @@ public partial class BattleUnitState : RefCounted
         StringName family = default
     )
     {
-        dice ??= new GDictionary();
-        apply_weapon_projection(
-            new GDictionary
+        SetNaturalWeaponProjectionTyped(
+            profile_type_id,
+            damage_tag,
+            attack_range,
+            WeaponDice.FromDictionary(dice),
+            family
+        );
+    }
+
+    internal void SetNaturalWeaponProjectionTyped(
+        StringName profileTypeId,
+        StringName damageTag,
+        int attackRange,
+        WeaponDice dice = null,
+        StringName family = default
+    )
+    {
+        ApplyWeaponProjectionTyped(
+            new WeaponProjection
             {
-                ["weapon_profile_kind"] = WeaponProfileKindNatural.ToString(),
-                ["weapon_profile_type_id"] = profile_type_id.ToString(),
-                ["weapon_family"] = family.ToString(),
-                ["weapon_current_grip"] = (
-                    attack_range > 0 ? WeaponGripOneHanded : WeaponGripNone
-                ).ToString(),
-                ["weapon_attack_range"] = attack_range,
-                ["weapon_one_handed_dice"] = dice,
-                ["weapon_uses_two_hands"] = false,
-                ["weapon_physical_damage_tag"] = damage_tag.ToString(),
+                weapon_profile_kind = WeaponProfileKindNatural,
+                weapon_profile_type_id = !IsEmpty(profileTypeId) ? profileTypeId : "natural_weapon",
+                weapon_family = family,
+                weapon_current_grip = attackRange > 0 ? WeaponGripOneHanded : WeaponGripNone,
+                weapon_attack_range = attackRange,
+                weapon_one_handed_dice = dice ?? new WeaponDice(),
+                weapon_uses_two_hands = false,
+                weapon_physical_damage_tag = damageTag,
             }
         );
+    }
+
+    internal void ApplyWeaponProjectionTyped(WeaponProjection projection)
+    {
+        if (projection == null || projection.IsEmpty())
+        {
+            clear_weapon_projection();
+            return;
+        }
+        weapon_profile_kind = _normalize_weapon_profile_kind(
+            ToStringName(projection.weapon_profile_kind)
+        );
+        weapon_item_id = ToStringName(projection.weapon_item_id);
+        weapon_profile_type_id = ToStringName(projection.weapon_profile_type_id);
+        weapon_family = ToStringName(projection.weapon_family);
+        weapon_current_grip = _normalize_weapon_grip(ToStringName(projection.weapon_current_grip));
+        weapon_attack_range = Math.Max(projection.weapon_attack_range, 0);
+        weapon_one_handed_dice = NormalizeWeaponDice(projection.weapon_one_handed_dice);
+        weapon_two_handed_dice = NormalizeWeaponDice(projection.weapon_two_handed_dice);
+        weapon_is_versatile = projection.weapon_is_versatile;
+        weapon_uses_two_hands = projection.weapon_uses_two_hands;
+        if (weapon_uses_two_hands)
+        {
+            weapon_current_grip = WeaponGripTwoHanded;
+        }
+        else if (weapon_current_grip == WeaponGripTwoHanded)
+        {
+            weapon_current_grip =
+                weapon_one_handed_dice.Count > 0 ? WeaponGripOneHanded : WeaponGripNone;
+        }
+        weapon_physical_damage_tag = ToStringName(projection.weapon_physical_damage_tag);
+        if (weapon_profile_kind == WeaponProfileKindNone)
+        {
+            clear_weapon_projection();
+            return;
+        }
+        if (weapon_attack_range <= 0)
+        {
+            weapon_current_grip = WeaponGripNone;
+            weapon_uses_two_hands = false;
+        }
     }
 
     public void apply_weapon_projection(GDictionary projection)
@@ -1470,6 +1536,20 @@ public partial class BattleUnitState : RefCounted
         };
     }
 
+    private static GDictionary NormalizeWeaponDice(WeaponDice dice)
+    {
+        if (dice == null || dice.IsEmpty())
+        {
+            return new GDictionary();
+        }
+        return new GDictionary
+        {
+            ["dice_count"] = dice.dice_count,
+            ["dice_sides"] = dice.dice_sides,
+            ["flat_bonus"] = dice.flat_bonus,
+        };
+    }
+
     public GDictionary _build_current_weapon_projection_payload()
     {
         return new GDictionary
@@ -1577,12 +1657,12 @@ public partial class BattleUnitState : RefCounted
 
     private static bool IsEmpty(StringName value)
     {
-        return string.IsNullOrEmpty(value.ToString());
+        return value == null || string.IsNullOrEmpty(value.ToString());
     }
 
     private static StringName ToStringName(StringName value)
     {
-        return value;
+        return value ?? new StringName("");
     }
 
     private static StringName ToStringName<TValue>(TValue rawValue)

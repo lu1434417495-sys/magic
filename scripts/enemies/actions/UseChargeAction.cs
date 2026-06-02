@@ -138,7 +138,8 @@ public partial class UseChargeAction : EnemyAiAction
                     cv.variant_id,
                     new[] { targetCoord }
                 );
-                BattlePreview preview = BuildFastChargePreview(command, chargeInfo, targetCoord);
+                BattlePreview preview =
+                    context.PreviewCommand(command) ?? BuildFastChargePreview(command, chargeInfo, targetCoord);
                 if (preview?.allowed != true)
                 {
                     _trace_count_increment(actionTrace, "preview_reject_count", 1);

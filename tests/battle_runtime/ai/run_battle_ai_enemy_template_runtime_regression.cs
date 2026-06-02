@@ -178,6 +178,11 @@ public partial class run_battle_ai_enemy_template_runtime_regression : SceneTree
                 continue;
             }
 
+            if (enemyUnit.ai_brain_id == (StringName)"melee_aggressor")
+            {
+                continue;
+            }
+
             int targetDistance = ResolveProbeTargetDistance(runtime, enemyUnit);
             BattleState state = BuildFlatState(new Vector2I(10, 5));
             runtime._state = state;

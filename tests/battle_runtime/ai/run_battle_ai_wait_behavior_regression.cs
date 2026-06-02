@@ -1,0 +1,475 @@
+using System;
+using System.Collections.Generic;
+using Godot;
+using GStringArray = Godot.Collections.Array<string>;
+
+public partial class run_battle_ai_wait_behavior_regression : SceneTree
+{
+    private readonly GStringArray _failures = new();
+
+    public override void _Initialize()
+    {
+        int exitCode = Run();
+        Quit(exitCode);
+    }
+
+    private int Run()
+    {
+        try
+        {
+            TestWaitActionMarksActiveRestWhenStaminaStarved();
+            TestWaitActionReportsRestWhenNoActionIsAvailable();
+            TestActiveRestDoesNotOutrankMeleeScreeningMove();
+        }
+        catch (Exception exception)
+        {
+            _failures.Add($"Unhandled exception: {exception}");
+        }
+
+        if (_failures.Count == 0)
+        {
+            GD.Print("Battle AI wait behavior regression: PASS");
+            return 0;
+        }
+
+        foreach (string failure in _failures)
+        {
+            GD.PushError(failure);
+        }
+        GD.Print($"Battle AI wait behavior regression: FAIL ({_failures.Count})");
+        return 1;
+    }
+
+    private void TestWaitActionMarksActiveRestWhenStaminaStarved()
+    {
+        EnemyAiBrainDef brain = BuildActiveRestProbeBrain();
+        using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent(brain);
+        BattleRuntimeModule runtime = runtimeScope.Runtime;
+        BattleState state = BuildFlatState(new Vector2I(3, 1));
+        runtime._state = state;
+        BattleUnitState wolf = BuildAiUnit(
+            "active_rest_wolf",
+            "体力耗尽战士",
+            "hostile",
+            new Vector2I(0, 0),
+            brain.brain_id,
+            "pressure",
+            new[] { "basic_attack" },
+            28,
+            1
+        );
+        wolf.current_stamina = 0;
+        wolf.action_threshold = 30;
+        wolf.attribute_snapshot.set_value(AttributeService.STAMINA_MAX_ID(), 40);
+        wolf.attribute_snapshot.set_value(UnitBaseAttributes.CONSTITUTION(), 3);
+        BattleUnitState player = BuildManualUnit(
+            "active_rest_target",
+            "贴身目标",
+            "player",
+            new Vector2I(1, 0),
+            new[] { "basic_attack" }
+        );
+        AddUnitToState(runtime, state, wolf, isEnemy: true);
+        AddUnitToState(runtime, state, player, isEnemy: false);
+
+        BattleAiDecision decision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, wolf));
+        AssertEq(
+            decision?.action_id ?? (StringName)"",
+            (StringName)"active_rest_wait",
+            "体力不足且无法支付基础攻击时，默认 wait action 应表达主动休息。"
+        );
+        AssertTrue(
+            decision != null && decision.reason_text.Contains("主动休息", StringComparison.Ordinal),
+            "主动休息的 AI reason_text 应明确说明资源目的。"
+        );
+        AssertTrue(
+            decision?.score_input != null && decision.score_input.total_score > -40,
+            "主动休息应抬高 wait 评分，但仍保持低于有效移动/守线动作。"
+        );
+    }
+
+    private void TestWaitActionReportsRestWhenNoActionIsAvailable()
+    {
+        EnemyAiBrainDef brain = BuildFallbackRestProbeBrain();
+        using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent(brain);
+        BattleRuntimeModule runtime = runtimeScope.Runtime;
+        BattleState state = BuildFlatState(new Vector2I(3, 1));
+        runtime._state = state;
+        BattleUnitState wolf = BuildAiUnit(
+            "fallback_rest_wolf",
+            "无动作战士",
+            "hostile",
+            new Vector2I(0, 0),
+            brain.brain_id,
+            "engage",
+            Array.Empty<string>(),
+            28,
+            1
+        );
+        wolf.current_stamina = 20;
+        wolf.action_threshold = 30;
+        wolf.attribute_snapshot.set_value(AttributeService.STAMINA_MAX_ID(), 40);
+        BattleUnitState player = BuildManualUnit(
+            "fallback_rest_target",
+            "目标",
+            "player",
+            new Vector2I(2, 0),
+            new[] { "basic_attack" }
+        );
+        AddUnitToState(runtime, state, wolf, isEnemy: true);
+        AddUnitToState(runtime, state, player, isEnemy: false);
+
+        BattleAiDecision decision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, wolf));
+        AssertEq(
+            decision?.action_id ?? (StringName)"",
+            (StringName)"fallback_rest_wait",
+            "没有有效动作时仍应由默认 wait action 收束。"
+        );
+        AssertTrue(
+            decision != null && decision.reason_text.Contains("休息", StringComparison.Ordinal),
+            "未消耗 AP 且体力未满时，默认 wait 的 AI 文案应明确表示会进入休息。"
+        );
+        AssertEq(
+            decision?.score_input?.total_score ?? 999,
+            -40,
+            "普通无动作休息只改变语义说明，不应提高 wait 评分去抢移动或卡位。"
+        );
+    }
+
+    private void TestActiveRestDoesNotOutrankMeleeScreeningMove()
+    {
+        using BattleRuntimeScope runtimeScope = BuildRuntimeWithEnemyContent();
+        BattleRuntimeModule runtime = runtimeScope.Runtime;
+        BattleState state = BuildFlatState(new Vector2I(7, 8));
+        runtime._state = state;
+        BattleUnitState wolf = BuildAiUnit(
+            "rest_screening_wolf",
+            "体力不足占位战士",
+            "hostile",
+            new Vector2I(1, 4),
+            "melee_aggressor",
+            "engage",
+            new[] { "basic_attack" },
+            28,
+            1
+        );
+        wolf.current_stamina = 0;
+        wolf.current_move_points = 2;
+        wolf.action_threshold = 30;
+        wolf.attribute_snapshot.set_value(AttributeService.STAMINA_MAX_ID(), 40);
+        wolf.attribute_snapshot.set_value(UnitBaseAttributes.CONSTITUTION(), 3);
+        BattleUnitState archer = BuildAiUnit(
+            "rest_screening_archer",
+            "被保护弓手",
+            "hostile",
+            new Vector2I(3, 6),
+            "ranged_archer",
+            "pressure",
+            new[] { "archer_aimed_shot" },
+            28,
+            2
+        );
+        ApplyTestBowWeapon(archer, 6);
+        BattleUnitState player = BuildManualUnit(
+            "rest_screening_threat",
+            "近战威胁",
+            "player",
+            new Vector2I(3, 3),
+            new[] { "basic_attack" }
+        );
+        AddUnitToState(runtime, state, wolf, isEnemy: true);
+        AddUnitToState(runtime, state, archer, isEnemy: true);
+        AddUnitToState(runtime, state, player, isEnemy: false);
+
+        BattleAiDecision decision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, wolf));
+        AssertEq(
+            decision?.action_id ?? (StringName)"",
+            (StringName)"wolf_close_in",
+            "体力不足时，主动休息不能抢掉近战战士仍可执行的守线/接敌移动。"
+        );
+        AssertEq(
+            decision?.command?.target_coord ?? new Vector2I(-1, -1),
+            new Vector2I(3, 4),
+            "体力不足的近战仍应先走到实际增加敌方路径成本的守线格，之后再等待休息。"
+        );
+    }
+
+    private static EnemyAiBrainDef BuildActiveRestProbeBrain()
+    {
+        var basicAction = new UseUnitSkillAction
+        {
+            action_id = "active_rest_basic",
+            target_selector = "nearest_enemy",
+            desired_min_distance = 1,
+            desired_max_distance = 1,
+            distance_reference = UseUnitSkillAction.DISTANCE_REF_TARGET_UNIT(),
+        };
+        basicAction.skill_ids.Add("basic_attack");
+        var waitAction = new WaitAction { action_id = "active_rest_wait" };
+        var pressureState = new EnemyAiStateDef { state_id = "pressure" };
+        pressureState.actions.Add(basicAction);
+        pressureState.actions.Add(waitAction);
+        var brain = new EnemyAiBrainDef
+        {
+            brain_id = "active_rest_probe_brain",
+            default_state_id = "pressure",
+        };
+        brain.states.Add(pressureState);
+        return brain;
+    }
+
+    private static EnemyAiBrainDef BuildFallbackRestProbeBrain()
+    {
+        var engageState = new EnemyAiStateDef { state_id = "engage" };
+        engageState.actions.Add(new WaitAction { action_id = "fallback_rest_wait" });
+        var brain = new EnemyAiBrainDef
+        {
+            brain_id = "fallback_rest_probe_brain",
+            default_state_id = "engage",
+        };
+        brain.states.Add(engageState);
+        return brain;
+    }
+
+    private static BattleRuntimeScope BuildRuntimeWithEnemyContent(params EnemyAiBrainDef[] extraBrains)
+    {
+        var gameSession = new GameSession();
+        var runtime = new BattleRuntimeModule();
+        Godot.Collections.Dictionary enemyAiBrains = gameSession.get_enemy_ai_brains().Duplicate(true);
+        foreach (EnemyAiBrainDef brain in extraBrains ?? Array.Empty<EnemyAiBrainDef>())
+        {
+            if (brain != null && brain.brain_id != (StringName)"")
+            {
+                enemyAiBrains[brain.brain_id] = brain;
+            }
+        }
+        runtime.setup(
+            null,
+            gameSession.get_skill_defs(),
+            gameSession.get_enemy_templates(),
+            enemyAiBrains,
+            null
+        );
+        runtime.configure_hit_resolver_for_tests(new FixedHitResolver(10));
+        var damageResolver = new FixedSuccessOneDamageResolver();
+        damageResolver.set_skill_defs(runtime.get_skill_defs());
+        runtime.configure_damage_resolver_for_tests(damageResolver);
+        gameSession.Free();
+        return new BattleRuntimeScope(runtime);
+    }
+
+    private static BattleState BuildFlatState(Vector2I mapSize)
+    {
+        var state = new BattleState
+        {
+            battle_id = "ai_wait_behavior_regression",
+            phase = "timeline_running",
+            map_size = mapSize,
+            timeline = new BattleTimelineState(),
+        };
+        for (int y = 0; y < mapSize.Y; y++)
+        {
+            for (int x = 0; x < mapSize.X; x++)
+            {
+                var cell = new BattleCellState
+                {
+                    coord = new Vector2I(x, y),
+                    base_terrain = BattleCellState.TERRAIN_LAND(),
+                    base_height = 4,
+                    height_offset = 0,
+                };
+                cell.recalculate_runtime_values();
+                state.cells[cell.coord] = cell;
+            }
+        }
+        state.cell_columns = BattleCellState.build_columns_from_surface_cells(state.cells);
+        return state;
+    }
+
+    private static BattleAiContext BuildAiContext(BattleRuntimeModule runtime, BattleUnitState unitState)
+    {
+        runtime._ensure_ai_action_plan_for_unit(unitState);
+        runtime._ai_action_plans_by_unit_id.TryGetValue(
+            unitState.unit_id,
+            out BattleAiRuntimeActionPlan actionPlan
+        );
+        var context = new BattleAiContext
+        {
+            state = runtime._state,
+            unit_state = unitState,
+            grid_service = runtime._grid_service,
+            skill_defs = runtime._skill_defs,
+            move_cost_callback = (unit, targetCoord) =>
+                runtime._get_ai_move_query_cost(unit.unit_id, unit.coord, targetCoord),
+            runtime_action_plan = actionPlan,
+        };
+        runtime._bind_ai_helper_services_for_decision(unitState, context);
+        return context;
+    }
+
+    private static BattleUnitState BuildAiUnit(
+        StringName unitId,
+        string displayName,
+        StringName factionId,
+        Vector2I coord,
+        StringName brainId,
+        StringName stateId,
+        IReadOnlyList<string> skillIds,
+        int currentHp,
+        int currentAp
+    )
+    {
+        var unit = new BattleUnitState
+        {
+            unit_id = unitId,
+            display_name = displayName,
+            faction_id = factionId,
+            control_mode = "ai",
+            ai_brain_id = brainId,
+            ai_state_id = stateId,
+            current_hp = currentHp,
+            current_mp = 120,
+            current_stamina = 8,
+            current_ap = currentAp,
+            is_alive = true,
+        };
+        unit.set_anchor_coord(coord);
+        unit.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_MP());
+        SeedBaseAttributesAndArmorClass(unit, Math.Max(currentHp, 24), 8, 12);
+        unit.attribute_snapshot.set_value("mp_max", 120);
+        unit.attribute_snapshot.set_value("action_points", Math.Max(currentAp, 2));
+        foreach (string rawSkillId in skillIds)
+        {
+            StringName skillId = rawSkillId;
+            unit.known_active_skill_ids.Add(skillId);
+            unit.known_skill_level_map[skillId] = skillId.ToString().StartsWith("mage_", StringComparison.Ordinal) ? 3 : 1;
+        }
+        return unit;
+    }
+
+    private static BattleUnitState BuildManualUnit(
+        StringName unitId,
+        string displayName,
+        StringName factionId,
+        Vector2I coord,
+        IReadOnlyList<string> skillIds
+    )
+    {
+        var unit = new BattleUnitState
+        {
+            unit_id = unitId,
+            display_name = displayName,
+            faction_id = factionId,
+            control_mode = "manual",
+            current_hp = 30,
+            current_ap = 2,
+            is_alive = true,
+        };
+        unit.set_anchor_coord(coord);
+        SeedBaseAttributesAndArmorClass(unit, 30, 8, 6);
+        unit.attribute_snapshot.set_value("action_points", 2);
+        foreach (string rawSkillId in skillIds)
+        {
+            StringName skillId = rawSkillId;
+            unit.known_active_skill_ids.Add(skillId);
+            unit.known_skill_level_map[skillId] = skillId.ToString().StartsWith("mage_", StringComparison.Ordinal) ? 3 : 1;
+        }
+        return unit;
+    }
+
+    private void AddUnitToState(
+        BattleRuntimeModule runtime,
+        BattleState state,
+        BattleUnitState unit,
+        bool isEnemy
+    )
+    {
+        state.units[unit.unit_id] = unit;
+        if (isEnemy)
+        {
+            state.enemy_unit_ids.Add(unit.unit_id);
+        }
+        else
+        {
+            state.ally_unit_ids.Add(unit.unit_id);
+        }
+        AssertTrue(
+            runtime._grid_service.place_unit(state, unit, unit.coord, true),
+            $"测试单位 {unit.unit_id} 应能放入测试战场。"
+        );
+    }
+
+    private static void SeedBaseAttributesAndArmorClass(
+        BattleUnitState unit,
+        int hpMax,
+        int staminaMax,
+        int attackBonus
+    )
+    {
+        foreach (StringName attributeId in UnitBaseAttributes.BASE_ATTRIBUTE_IDS())
+        {
+            if (!unit.attribute_snapshot.has_value(attributeId))
+            {
+                unit.attribute_snapshot.set_value(attributeId, 10);
+            }
+        }
+        unit.attribute_snapshot.set_value("hp_max", hpMax);
+        unit.attribute_snapshot.set_value("stamina_max", staminaMax);
+        unit.attribute_snapshot.set_value(AttributeService.ATTACK_BONUS_ID(), attackBonus);
+        unit.attribute_snapshot.set_value(AttributeService.ARMOR_CLASS_ID(), 10);
+    }
+
+    private static void ApplyTestBowWeapon(BattleUnitState unit, int attackRange)
+    {
+        unit?.ApplyWeaponProjectionTyped(
+            new WeaponProjection
+            {
+                weapon_profile_kind = BattleUnitState.WEAPON_PROFILE_KIND_EQUIPPED(),
+                weapon_item_id = "ai_test_longbow",
+                weapon_profile_type_id = "longbow",
+                weapon_family = "bow",
+                weapon_current_grip = BattleUnitState.WEAPON_GRIP_TWO_HANDED(),
+                weapon_attack_range = attackRange,
+                weapon_two_handed_dice = new WeaponDice
+                {
+                    dice_count = 1,
+                    dice_sides = 8,
+                    flat_bonus = 0,
+                },
+                weapon_uses_two_hands = true,
+                weapon_physical_damage_tag = "physical_pierce",
+            }
+        );
+    }
+
+    private void AssertEq<T>(T actual, T expected, string message)
+    {
+        if (!EqualityComparer<T>.Default.Equals(actual, expected))
+        {
+            _failures.Add($"{message} | actual={actual} expected={expected}");
+        }
+    }
+
+    private void AssertTrue(bool condition, string message)
+    {
+        if (!condition)
+        {
+            _failures.Add(message);
+        }
+    }
+
+    private sealed class BattleRuntimeScope : IDisposable
+    {
+        internal BattleRuntimeScope(BattleRuntimeModule runtime)
+        {
+            Runtime = runtime;
+        }
+
+        internal BattleRuntimeModule Runtime { get; }
+
+        public void Dispose()
+        {
+            Runtime?.dispose();
+        }
+    }
+}

@@ -47,6 +47,7 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
         GDictionary,
         BattleAiScoreInput
     > action_score_input_callback { get; set; }
+    public Func<BattleCommand, BattlePreview> preview_command_callback { get; set; }
     public Func<BattleUnitState, Vector2I, int> move_cost_callback { get; set; }
     internal BattleAiRuntimeActionPlan runtime_action_plan { get; set; }
     public BattleAiQueryService ai_query_service;
@@ -354,6 +355,15 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
             );
         }
         return 1;
+    }
+
+    public BattlePreview PreviewCommand(BattleCommand command)
+    {
+        if (command == null || preview_command_callback == null)
+        {
+            return null;
+        }
+        return preview_command_callback.Invoke(command);
     }
 
     public BattleAiScoreInput build_skill_score_input(

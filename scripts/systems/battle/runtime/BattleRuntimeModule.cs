@@ -614,6 +614,7 @@ public partial class BattleRuntimeModule : RefCounted
             return;
         ai_context.move_cost_callback ??= (unitState, targetCoord) =>
             _get_move_cost_for_unit_target(unitState, targetCoord);
+        ai_context.preview_command_callback ??= preview_command;
         ai_context.skill_score_input_callback ??=
             (context, skillDef, command, preview, effectDefs, metadata) =>
                 _ai_service.GetScoreService()

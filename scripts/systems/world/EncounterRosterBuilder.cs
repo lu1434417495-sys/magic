@@ -792,16 +792,13 @@ public partial class EncounterRosterBuilder : RefCounted
         {
             return;
         }
-        GDictionary projection =
-            template != null
-                ? template.get_weapon_projection(new GDictionary())
-                : new GDictionary();
-        if (projection.Count == 0)
+        WeaponProjection projection = template?.GetWeaponProjectionTyped(new GDictionary());
+        if (projection == null || projection.IsEmpty())
         {
             unitState.clear_weapon_projection();
             return;
         }
-        unitState.apply_weapon_projection(projection);
+        unitState.ApplyWeaponProjectionTyped(projection);
     }
 
     private static GDictionary ResolveEnemyBaseAttributes(
