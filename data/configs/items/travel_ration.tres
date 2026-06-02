@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
 
-[ext_resource type="Script" path="res://scripts/player/warehouse/item_def.gd" id="1_item"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/ItemDef.cs" id="1_item"]
 
 [resource]
 script = ExtResource("1_item")
@@ -10,6 +10,8 @@ description = "压缩过的干粮包，适合据点补给与野外远行的基�
 icon = "res://icon.svg"
 is_stackable = true
 base_price = 14
+buy_price = 14
+sell_price = 7
 sellable = true
 max_stack = 30
 tags = Array[StringName](["consumable", "ration", "supply"])

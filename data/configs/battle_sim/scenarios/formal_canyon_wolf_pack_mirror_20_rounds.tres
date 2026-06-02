@@ -1,7 +1,7 @@
 [gd_resource type="Resource" script_class="BattleSimScenarioDef" format=3]
 
-[ext_resource type="Script" path="res://scripts/systems/battle_sim_scenario_def.gd" id="1_scenario"]
-[ext_resource type="Script" path="res://scripts/systems/battle_sim_unit_spec.gd" id="2_unit"]
+[ext_resource type="Script" path="res://scripts/systems/battle/sim/BattleSimScenarioDef.cs" id="1_scenario"]
+[ext_resource type="Script" path="res://scripts/systems/battle/sim/BattleSimUnitSpec.cs" id="2_unit"]
 
 [sub_resource type="Resource" id="Resource_ally_wolf_01"]
 script = ExtResource("2_unit")
@@ -17,14 +17,20 @@ current_stamina = 12
 current_ap = 2
 current_move_points = 2
 action_threshold = 120
+base_attributes = {
+"strength": 6,
+"agility": 7,
+"constitution": 5,
+"perception": 5,
+"intelligence": 3,
+"willpower": 4
+}
 attribute_overrides = {
 "hp_max": 24,
 "mp_max": 0,
 "stamina_max": 12,
 "action_points": 2,
-"attack_bonus": 8,
-"armor_class": 13,
-"armor_ac_bonus": 0
+"attack_bonus": 8
 }
 skill_ids = Array[StringName]([&"charge", &"warrior_heavy_strike"])
 skill_level_map = {
@@ -46,14 +52,20 @@ current_stamina = 12
 current_ap = 2
 current_move_points = 2
 action_threshold = 120
+base_attributes = {
+"strength": 6,
+"agility": 7,
+"constitution": 5,
+"perception": 5,
+"intelligence": 3,
+"willpower": 4
+}
 attribute_overrides = {
 "hp_max": 24,
 "mp_max": 0,
 "stamina_max": 12,
 "action_points": 2,
-"attack_bonus": 8,
-"armor_class": 13,
-"armor_ac_bonus": 0
+"attack_bonus": 8
 }
 skill_ids = Array[StringName]([&"charge", &"warrior_heavy_strike"])
 skill_level_map = {
@@ -75,14 +87,20 @@ current_stamina = 12
 current_ap = 2
 current_move_points = 2
 action_threshold = 120
+base_attributes = {
+"strength": 6,
+"agility": 7,
+"constitution": 5,
+"perception": 5,
+"intelligence": 3,
+"willpower": 4
+}
 attribute_overrides = {
 "hp_max": 24,
 "mp_max": 0,
 "stamina_max": 12,
 "action_points": 2,
-"attack_bonus": 8,
-"armor_class": 13,
-"armor_ac_bonus": 0
+"attack_bonus": 8
 }
 skill_ids = Array[StringName]([&"charge", &"warrior_heavy_strike"])
 skill_level_map = {
@@ -104,14 +122,20 @@ current_stamina = 12
 current_ap = 2
 current_move_points = 2
 action_threshold = 120
+base_attributes = {
+"strength": 6,
+"agility": 7,
+"constitution": 5,
+"perception": 5,
+"intelligence": 3,
+"willpower": 4
+}
 attribute_overrides = {
 "hp_max": 24,
 "mp_max": 0,
 "stamina_max": 12,
 "action_points": 2,
-"attack_bonus": 8,
-"armor_class": 13,
-"armor_ac_bonus": 0
+"attack_bonus": 8
 }
 skill_ids = Array[StringName]([&"charge", &"warrior_heavy_strike"])
 skill_level_map = {
@@ -130,7 +154,7 @@ use_formal_terrain_generation = true
 world_coord = Vector2i(7, 11)
 ally_units = Array[Resource]([SubResource("Resource_ally_wolf_01"), SubResource("Resource_ally_wolf_02")])
 enemy_units = Array[Resource]([SubResource("Resource_enemy_wolf_01"), SubResource("Resource_enemy_wolf_02")])
-tick_interval_seconds = 0.1
+timeline_ticks_per_step = 1
 tu_per_tick = 5
 max_iterations = 1500
 manual_policy = &"wait"

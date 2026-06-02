@@ -1,10 +1,10 @@
 [gd_resource type="Resource" script_class="SkillDef" format=3]
 
-[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_gtxk4"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_xdj0b"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_xfrxl"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_ejim8"]
-[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_toqsx"]
+[ext_resource type="Script" path="res://scripts/player/progression/AttributeModifier.cs" id="1_gtxk4"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="2_xdj0b"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="3_xfrxl"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="4_ejim8"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="5_toqsx"]
 
 [sub_resource type="Resource" id="Resource_j0glf"]
 script = ExtResource("3_xfrxl")
@@ -30,7 +30,46 @@ script = ExtResource("5_toqsx")
 skill_id = &"archer_split_bolt"
 display_name = "裂风重矢"
 icon_id = &"archer_split_bolt"
-description = "粗重箭矢沿直线贯穿最多 `2` 个敌人，适合打站位重叠目标。"
+description = "粗重箭矢沿直线贯穿最多 2 个敌人，适合打站位重叠目标。"
+level_description_template = "造成{dmg}伤害，射程{range}，直线范围，攻击检定{attack}，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU"
+level_description_configs = {
+	"0": {
+		"dmg": "14",
+		"range": "5",
+		"area_pattern": "line",
+		"attack": "-1",
+		"ap": "2",
+		"stamina": "2",
+		"cooldown": "10"
+	},
+	"1": {
+		"dmg": "14",
+		"range": "5",
+		"area_pattern": "line",
+		"attack": "-1",
+		"ap": "2",
+		"stamina": "2",
+		"cooldown": "10"
+	},
+	"2": {
+		"dmg": "14",
+		"range": "5",
+		"area_pattern": "line",
+		"attack": "-1",
+		"ap": "2",
+		"stamina": "2",
+		"cooldown": "10"
+	},
+	"3": {
+		"dmg": "14",
+		"range": "5",
+		"area_pattern": "line",
+		"attack": "-1",
+		"ap": "2",
+		"stamina": "2",
+		"cooldown": "10"
+	},
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"archer", &"ranged", &"bow", &"output"])

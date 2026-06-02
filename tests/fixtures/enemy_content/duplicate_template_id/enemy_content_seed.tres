@@ -1,8 +1,8 @@
 [gd_resource type="Resource" script_class="EnemyContentSeed" load_steps=5 format=3]
 
-[ext_resource type="Script" path="res://scripts/enemies/enemy_content_seed.gd" id="1_seed"]
+[ext_resource type="Script" path="res://scripts/enemies/EnemyContentSeed.cs" id="1_seed"]
 [ext_resource type="Resource" path="res://data/configs/enemies/brains/melee_aggressor.tres" id="2_brain_melee"]
-[ext_resource type="Script" path="res://scripts/enemies/enemy_template_def.gd" id="3_template"]
+[ext_resource type="Script" path="res://scripts/enemies/EnemyTemplateDef.cs" id="3_template"]
 
 [sub_resource type="Resource" id="Resource_duplicate_template_a"]
 script = ExtResource("3_template")
@@ -11,7 +11,7 @@ display_name = "Duplicate Enemy A"
 brain_id = "melee_aggressor"
 initial_state_id = "engage"
 enemy_count = 1
-body_size = 1
+body_size = 2
 
 [sub_resource type="Resource" id="Resource_duplicate_template_b"]
 script = ExtResource("3_template")
@@ -20,7 +20,7 @@ display_name = "Duplicate Enemy B"
 brain_id = "melee_aggressor"
 initial_state_id = "engage"
 enemy_count = 1
-body_size = 1
+body_size = 2
 
 [resource]
 script = ExtResource("1_seed")

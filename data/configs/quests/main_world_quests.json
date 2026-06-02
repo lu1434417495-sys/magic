@@ -1,0 +1,402 @@
+{
+  "quests": [
+    {
+      "quest_id": "tutorial_first_blood",
+      "display_name": "初阵",
+      "description": "村长告诉你，最近商路不太平。去村外清理几只在农田边缘徘徊的荒狼，证明你能保护自己。",
+      "provider_interaction_id": "service_contract_board",
+      "tags": ["tutorial", "main_story"],
+      "accept_requirements": [],
+      "objective_defs": [
+        {
+          "objective_id": "defeat_wolves",
+          "objective_type": "defeat_enemy",
+          "target_id": "wolf_pack",
+          "target_value": 3
+        },
+        {
+          "objective_id": "report_back",
+          "objective_type": "settlement_action",
+          "target_id": "service_contract_board",
+          "target_value": 1
+        }
+      ],
+      "reward_entries": [
+        {
+          "reward_type": "gold",
+          "amount": 50
+        },
+        {
+          "reward_type": "pending_character_reward",
+          "member_id": "hero",
+          "entries": [
+            {
+              "entry_type": "skill_unlock",
+              "target_id": "charge",
+              "amount": 1
+            }
+          ]
+        }
+      ],
+      "is_repeatable": false
+    },
+    {
+      "quest_id": "tutorial_gather_herbs",
+      "display_name": "采集药材",
+      "description": "村里的药草不够了。去野外采集一些 healing_herb，医师会教你如何处理伤口。",
+      "provider_interaction_id": "service_contract_board",
+      "tags": ["tutorial", "main_story"],
+      "accept_requirements": [],
+      "objective_defs": [
+        {
+          "objective_id": "gather_herbs",
+          "objective_type": "submit_item",
+          "target_id": "healing_herb",
+          "target_value": 3
+        }
+      ],
+      "reward_entries": [
+        {
+          "reward_type": "gold",
+          "amount": 30
+        },
+        {
+          "reward_type": "item",
+          "item_id": "bandage_roll",
+          "quantity": 2
+        }
+      ],
+      "is_repeatable": false
+    },
+    {
+      "quest_id": "tutorial_wolf_alpha",
+      "display_name": "狼群首领",
+      "description": "普通荒狼只是前锋。一只体型巨大的狼群首领正在组织更有威胁的袭击。击败它，让商路恢复安全。",
+      "provider_interaction_id": "service_contract_board",
+      "tags": ["tutorial", "main_story"],
+      "accept_requirements": [
+        {
+          "requirement_type": "quest_completed",
+          "quest_id": "tutorial_first_blood"
+        }
+      ],
+      "objective_defs": [
+        {
+          "objective_id": "defeat_alpha",
+          "objective_type": "defeat_enemy",
+          "target_id": "wolf_alpha",
+          "target_value": 1
+        },
+        {
+          "objective_id": "report_back",
+          "objective_type": "settlement_action",
+          "target_id": "service_contract_board",
+          "target_value": 1
+        }
+      ],
+      "reward_entries": [
+        {
+          "reward_type": "gold",
+          "amount": 150
+        },
+        {
+          "reward_type": "pending_character_reward",
+          "member_id": "hero",
+          "entries": [
+            {
+              "entry_type": "skill_unlock",
+              "target_id": "warrior_guard",
+              "amount": 1
+            }
+          ]
+        }
+      ],
+      "is_repeatable": false
+    },
+    {
+      "quest_id": "main_border_patrol",
+      "display_name": "边境巡逻",
+      "description": "边境巡逻队报告称，狼骑兵的活动频率异常升高。它们似乎在躲避什么东西——或者，被什么东西驱赶。",
+      "provider_interaction_id": "service_contract_board",
+      "tags": ["main_story", "contract"],
+      "accept_requirements": [
+        {
+          "requirement_type": "quest_completed",
+          "quest_id": "tutorial_wolf_alpha"
+        }
+      ],
+      "objective_defs": [
+        {
+          "objective_id": "defeat_raiders",
+          "objective_type": "defeat_enemy",
+          "target_id": "wolf_raider",
+          "target_value": 5
+        }
+      ],
+      "reward_entries": [
+        {
+          "reward_type": "gold",
+          "amount": 200
+        },
+        {
+          "reward_type": "item",
+          "item_id": "iron_ore",
+          "quantity": 3
+        }
+      ],
+      "is_repeatable": false
+    },
+    {
+      "quest_id": "main_mist_investigation",
+      "display_name": "迷雾调查",
+      "description": "巡逻队在裂隙边缘发现了一种灰色的雾。那不是自然现象——雾里有建筑轮廓，不属于这个世界。收集现场证据。",
+      "provider_interaction_id": "service_contract_board",
+      "tags": ["main_story", "contract"],
+      "accept_requirements": [
+        {
+          "requirement_type": "quest_completed",
+          "quest_id": "main_border_patrol"
+        }
+      ],
+      "objective_defs": [
+        {
+          "objective_id": "collect_insignia",
+          "objective_type": "submit_item",
+          "target_id": "bandit_insignia",
+          "target_value": 2
+        },
+        {
+          "objective_id": "collect_moonfern",
+          "objective_type": "submit_item",
+          "target_id": "moonfern_sample",
+          "target_value": 1
+        }
+      ],
+      "reward_entries": [
+        {
+          "reward_type": "gold",
+          "amount": 300
+        },
+        {
+          "reward_type": "pending_character_reward",
+          "member_id": "hero",
+          "entries": [
+            {
+              "entry_type": "knowledge_unlock",
+              "target_id": "mist_lore",
+              "amount": 1
+            }
+          ]
+        }
+      ],
+      "is_repeatable": false
+    },
+    {
+      "quest_id": "main_crack_seal",
+      "display_name": "裂隙封印",
+      "description": "裂隙正在扩大。从雾里走出来的东西不再是普通的野兽——它们披着灰烬，眼里没有瞳孔。阻止它们。",
+      "provider_interaction_id": "service_contract_board",
+      "tags": ["main_story", "contract"],
+      "accept_requirements": [
+        {
+          "requirement_type": "quest_completed",
+          "quest_id": "main_mist_investigation"
+        }
+      ],
+      "objective_defs": [
+        {
+          "objective_id": "defeat_mist_beasts",
+          "objective_type": "defeat_enemy",
+          "target_id": "mist_beast",
+          "target_value": 2
+        },
+        {
+          "objective_id": "defeat_mist_weaver",
+          "objective_type": "defeat_enemy",
+          "target_id": "mist_weaver",
+          "target_value": 1
+        }
+      ],
+      "reward_entries": [
+        {
+          "reward_type": "gold",
+          "amount": 500
+        },
+        {
+          "reward_type": "item",
+          "item_id": "calamity_shard",
+          "quantity": 1
+        },
+        {
+          "reward_type": "pending_character_reward",
+          "member_id": "hero",
+          "entries": [
+            {
+              "entry_type": "attribute_progress",
+              "target_id": "intelligence",
+              "amount": 20
+            }
+          ]
+        }
+      ],
+      "is_repeatable": false
+    },
+    {
+      "quest_id": "main_ashen_gate",
+      "display_name": "灰烬之门",
+      "description": "裂隙无法被封印——因为它不是意外。穿过它，你会闻到三百年前的硝烟。另一侧有人（或者什么东西）在等你。",
+      "provider_interaction_id": "service_contract_board",
+      "tags": ["main_story", "contract"],
+      "accept_requirements": [
+        {
+          "requirement_type": "quest_completed",
+          "quest_id": "main_crack_seal"
+        }
+      ],
+      "objective_defs": [
+        {
+          "objective_id": "report_to_board",
+          "objective_type": "settlement_action",
+          "target_id": "service_contract_board",
+          "target_value": 1
+        }
+      ],
+      "reward_entries": [
+        {
+          "reward_type": "gold",
+          "amount": 1000
+        },
+        {
+          "reward_type": "pending_character_reward",
+          "member_id": "hero",
+          "entries": [
+            {
+              "entry_type": "skill_unlock",
+              "target_id": "warrior_backstep",
+              "amount": 1
+            }
+          ]
+        }
+      ],
+      "is_repeatable": false
+    },
+    {
+      "quest_id": "side_iron_delivery",
+      "display_name": "铁矿运送",
+      "description": "村里的铁匠急需原料。帮他收集一些铁矿，他会给你一把像样的武器。",
+      "provider_interaction_id": "service_contract_board",
+      "tags": ["contract", "side"],
+      "accept_requirements": [],
+      "objective_defs": [
+        {
+          "objective_id": "deliver_iron",
+          "objective_type": "submit_item",
+          "target_id": "iron_ore",
+          "target_value": 5
+        }
+      ],
+      "reward_entries": [
+        {
+          "reward_type": "gold",
+          "amount": 100
+        },
+        {
+          "reward_type": "item",
+          "item_id": "bronze_sword",
+          "quantity": 1
+        }
+      ],
+      "is_repeatable": false
+    },
+    {
+      "quest_id": "side_herb_moonfern",
+      "display_name": "月蕨寻觅",
+      "description": "月蕨只在迷雾边缘生长。医师说它对抗灰烬毒素有奇效——如果真有那种东西的话。",
+      "provider_interaction_id": "service_contract_board",
+      "tags": ["contract", "side"],
+      "accept_requirements": [],
+      "objective_defs": [
+        {
+          "objective_id": "gather_moonfern",
+          "objective_type": "submit_item",
+          "target_id": "moonfern_sample",
+          "target_value": 2
+        }
+      ],
+      "reward_entries": [
+        {
+          "reward_type": "gold",
+          "amount": 80
+        },
+        {
+          "reward_type": "item",
+          "item_id": "antidote_herb",
+          "quantity": 3
+        }
+      ],
+      "is_repeatable": false
+    },
+    {
+      "quest_id": "side_dispatch_delivery",
+      "display_name": "封缄急件",
+      "description": "一份封缄的急件需要送到邻镇。路途不长，但最近不太平。小心保管。",
+      "provider_interaction_id": "service_contract_board",
+      "tags": ["contract", "side"],
+      "accept_requirements": [],
+      "objective_defs": [
+        {
+          "objective_id": "deliver_dispatch",
+          "objective_type": "submit_item",
+          "target_id": "sealed_dispatch",
+          "target_value": 1
+        }
+      ],
+      "reward_entries": [
+        {
+          "reward_type": "gold",
+          "amount": 60
+        },
+        {
+          "reward_type": "pending_character_reward",
+          "member_id": "hero",
+          "entries": [
+            {
+              "entry_type": "attribute_progress",
+              "target_id": "perception",
+              "amount": 10
+            }
+          ]
+        }
+      ],
+      "is_repeatable": false
+    },
+    {
+      "quest_id": "side_bandit_cleansing",
+      "display_name": "匪徒清剿",
+      "description": "一群装备精良的匪徒占据了商道。他们身上的纹章你不认识——也许来自裂隙另一侧？",
+      "provider_interaction_id": "service_contract_board",
+      "tags": ["contract", "side"],
+      "accept_requirements": [],
+      "objective_defs": [
+        {
+          "objective_id": "defeat_raiders",
+          "objective_type": "defeat_enemy",
+          "target_id": "wolf_raider",
+          "target_value": 8
+        }
+      ],
+      "reward_entries": [
+        {
+          "reward_type": "gold",
+          "amount": 250
+        },
+        {
+          "reward_type": "item",
+          "item_id": "bandit_insignia",
+          "quantity": 2
+        }
+      ],
+      "is_repeatable": false
+    }
+  ]
+}

@@ -1,10 +1,9 @@
 [gd_resource type="Resource" script_class="SkillDef" format=3]
 
-[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_j0fpq"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_657aj"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_l0y4u"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_h3ew0"]
-[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_gp03o"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="2_657aj"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="3_l0y4u"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="4_h3ew0"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="5_gp03o"]
 
 [sub_resource type="Resource" id="Resource_hguor"]
 script = ExtResource("3_l0y4u")
@@ -21,13 +20,25 @@ params = {
 "skill_id": "warrior_whirlwind_slash"
 }
 
-[sub_resource type="Resource" id="Resource_ivcde"]
+[sub_resource type="Resource" id="Resource_path_aoe"]
 script = ExtResource("3_l0y4u")
 effect_type = &"path_step_aoe"
-power = 10
+power = 0
+damage_tag = &"physical_slash"
+add_weapon_dice = true
+requires_weapon = true
+use_weapon_physical_damage_tag = true
+resolve_as_weapon_attack = true
+allow_repeat_hits_across_steps = true
 params = {
-"allow_repeat_hits_across_steps": true,
 "apply_on_successful_step_only": true,
+"path_step_log_label": "旋斩",
+"repeat_hit_status_duration_tu": 60,
+"repeat_hit_status_id": "staggered",
+"repeat_hit_status_log_template": "{target} 被{skill}连续命中 {hit_count} 次，陷入踉跄。",
+"repeat_hit_status_min_skill_level": 9,
+"repeat_hit_status_power": 1,
+"repeat_hit_status_threshold": 4,
 "step_radius": 1,
 "step_shape": "diamond"
 }
@@ -36,18 +47,54 @@ params = {
 script = ExtResource("2_657aj")
 variant_id = &"whirlwind_charge"
 display_name = "旋风斩"
-description = "兼容期内仍沿用冲锋选点，但额外挂出路径 AOE 的定义语义。"
-effect_defs = Array[ExtResource("3_l0y4u")]([SubResource("Resource_hguor"), SubResource("Resource_ivcde")])
+description = "冲锋至指定地格，并在成功前进的路径步骤上对周边敌人触发武器攻击。"
+effect_defs = Array[ExtResource("3_l0y4u")]([SubResource("Resource_hguor"), SubResource("Resource_path_aoe")])
 
 [sub_resource type="Resource" id="Resource_qaif8"]
 script = ExtResource("4_h3ew0")
 skill_id = &"warrior_whirlwind_slash"
 target_mode = &"ground"
 range_value = 6
-ap_cost = 2
-stamina_cost = 2
-cooldown_tu = 15
-aura_cost = 1
+ap_cost = 1
+stamina_cost = 60
+cooldown_tu = 120
+aura_cost = 100
+attack_roll_bonus = -4
+level_overrides = {
+1: {
+"attack_roll_bonus": -3
+},
+2: {
+"attack_roll_bonus": -3,
+"cooldown_tu": 110
+},
+3: {
+"attack_roll_bonus": -2,
+"cooldown_tu": 110
+},
+4: {
+"attack_roll_bonus": -2,
+"cooldown_tu": 100
+},
+5: {
+"attack_roll_bonus": -1,
+"cooldown_tu": 100
+},
+6: {
+"attack_roll_bonus": -1,
+"cooldown_tu": 90
+},
+7: {
+"attack_roll_bonus": 0,
+"cooldown_tu": 90
+},
+8: {
+"attack_roll_bonus": 1,
+"cooldown_tu": 90
+}
+}
+mastery_trigger_mode = &"weapon_attack_quality"
+mastery_amount_mode = &"per_target_rank"
 cast_variants = Array[ExtResource("2_657aj")]([SubResource("Resource_xn254")])
 
 [resource]
@@ -55,9 +102,32 @@ script = ExtResource("5_gp03o")
 skill_id = &"warrior_whirlwind_slash"
 display_name = "旋风斩"
 icon_id = &"warrior_whirlwind_slash"
-description = "冲锋与旋斩合并后的升级技能。"
-max_level = 3
-mastery_curve = PackedInt32Array(28, 46, 72)
+description = "向指定地格冲锋，每次成功前进后对周边敌人触发武器攻击。"
+max_level = 9
+non_core_max_level = 7
+mastery_curve = PackedInt32Array(240, 600, 1320, 2400, 3840, 5640, 7800, 10320, 13200)
+level_description_template = "冲锋距离{distance}{{?attack_roll_bonus}}，攻击检定{attack_roll_bonus}{{/attack_roll_bonus}}，冷却{cooldown_tu}TU，消耗{ap_cost}AP/{stamina_cost}体力/{{?aura_cost}}{aura_cost}斗气{{/aura_cost}}。每进一步对周边敌人触发武器攻击。{{?stagger}}被连续命中超过3次的敌人陷入踓跄。{{/stagger}}"
+level_description_configs = {
+"7": {
+"attack_roll_bonus": ""
+},
+"8": {
+"attack_roll_bonus": "+1"
+},
+"9": {
+"attack_roll_bonus": "+1",
+"stagger": "true"
+}
+}
+growth_tier = &"advanced"
+attribute_growth_progress = {
+"strength": 90,
+"agility": 90
+}
 tags = Array[StringName]([&"warrior", &"melee", &"aoe", &"mobility"])
-learn_requirements = Array[StringName]([&"charge", &"warrior_combo_strike"])
+learn_requirements = Array[StringName]([&"charge", &"warrior_spin_slash"])
+skill_level_requirements = {
+"charge": 5,
+"warrior_spin_slash": 5
+}
 combat_profile = SubResource("Resource_qaif8")

@@ -1,0 +1,313 @@
+[gd_resource type="Resource" script_class="EnemyAiBrainDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/EnemyAiBrainDef.cs" id="1_brain"]
+[ext_resource type="Script" path="res://scripts/enemies/EnemyAiStateDef.cs" id="2_state"]
+[ext_resource type="Script" path="res://scripts/enemies/actions/UseGroundSkillAction.cs" id="3_ground"]
+[ext_resource type="Script" path="res://scripts/enemies/actions/UseUnitSkillAction.cs" id="4_unit"]
+[ext_resource type="Script" path="res://scripts/enemies/actions/MoveToRangeAction.cs" id="5_move"]
+[ext_resource type="Script" path="res://scripts/enemies/actions/WaitAction.cs" id="6_wait"]
+[ext_resource type="Script" path="res://scripts/enemies/actions/RetreatAction.cs" id="7_retreat"]
+[ext_resource type="Script" path="res://scripts/enemies/actions/MoveToAdvantagePositionAction.cs" id="8_adv_pos"]
+[ext_resource type="Script" path="res://scripts/enemies/actions/UseGroundRepositionSkillAction.cs" id="9_reposition"]
+[ext_resource type="Script" path="res://scripts/enemies/EnemyAiGenerationSlotDef.cs" id="10_slot"]
+[ext_resource type="Script" path="res://scripts/enemies/EnemyAiTransitionRuleDef.cs" id="11_transition_rule"]
+[ext_resource type="Script" path="res://scripts/enemies/EnemyAiTransitionConditionDef.cs" id="12_transition_condition"]
+[ext_resource type="Script" path="res://scripts/enemies/actions/UseRandomChainSkillAction.cs" id="13_random_chain"]
+
+[sub_resource type="Resource" id="Action_blink_escape"]
+script = ExtResource("9_reposition")
+action_id = &"mage_blink_escape"
+score_bucket_id = &"archer_survival"
+skill_ids = Array[StringName]([&"mage_blink"])
+target_selector = &"nearest_enemy"
+minimum_safe_distance = 4
+safe_distance_margin = 0
+desired_max_distance_bonus = 3
+
+[sub_resource type="Resource" id="Action_survival_position"]
+script = ExtResource("8_adv_pos")
+action_id = &"mage_survival_position"
+score_bucket_id = &"archer_survival"
+target_selector = &"nearest_enemy"
+desired_min_distance = 4
+desired_max_distance = 5
+range_skill_ids = Array[StringName]([&"mage_fireball", &"mage_chain_lightning"])
+minimum_safe_distance = 4
+safe_distance_margin = 1
+positioning_mode = &"survival"
+
+[sub_resource type="Resource" id="Action_high_ground_position"]
+script = ExtResource("8_adv_pos")
+action_id = &"mage_high_ground_position"
+score_bucket_id = &"archer_positioning"
+target_selector = &"nearest_enemy"
+desired_min_distance = 4
+desired_max_distance = 5
+range_skill_ids = Array[StringName]([&"mage_fireball", &"mage_chain_lightning"])
+minimum_safe_distance = 4
+safe_distance_margin = 1
+positioning_mode = &"high_ground"
+
+[sub_resource type="Resource" id="Action_control_cone"]
+script = ExtResource("3_ground")
+action_id = &"mage_control_cone"
+score_bucket_id = &"mist_control"
+skill_ids = Array[StringName]([&"mage_cone_of_cold", &"mage_gust_of_wind"])
+minimum_hit_count = 2
+desired_min_distance = 1
+desired_max_distance = 1
+distance_reference = &"target_coord"
+
+[sub_resource type="Resource" id="Action_protective_gust"]
+script = ExtResource("3_ground")
+action_id = &"mage_protective_gust"
+score_bucket_id = &"archer_survival"
+skill_ids = Array[StringName]([&"mage_gust_of_wind"])
+minimum_hit_count = 1
+minimum_ally_threat_hit_count = 1
+threat_minimum_safe_distance = 1
+desired_min_distance = 1
+desired_max_distance = 1
+distance_reference = &"target_coord"
+
+[sub_resource type="Resource" id="Action_fireball"]
+script = ExtResource("3_ground")
+action_id = &"mage_fireball_cluster"
+score_bucket_id = &"mist_offense"
+skill_ids = Array[StringName]([&"mage_fireball"])
+minimum_hit_count = 1
+desired_min_distance = 4
+desired_max_distance = 5
+distance_reference = &"target_coord"
+
+[sub_resource type="Resource" id="Action_chain_lightning"]
+script = ExtResource("13_random_chain")
+action_id = &"mage_chain_lightning"
+score_bucket_id = &"mist_offense"
+skill_ids = Array[StringName]([&"mage_chain_lightning"])
+target_selector = &"lowest_hp_enemy"
+desired_min_distance = 4
+desired_max_distance = 5
+distance_reference = &"candidate_pool"
+minimum_candidate_count = 2
+
+[sub_resource type="Resource" id="Action_take_position"]
+script = ExtResource("5_move")
+action_id = &"mage_take_position"
+target_selector = &"nearest_enemy"
+desired_min_distance = 4
+desired_max_distance = 5
+range_skill_ids = Array[StringName]([&"mage_fireball", &"mage_chain_lightning"])
+
+[sub_resource type="Resource" id="Action_retreat_move"]
+script = ExtResource("7_retreat")
+action_id = &"mage_retreat"
+score_bucket_id = &"archer_survival"
+minimum_safe_distance = 4
+use_dynamic_threat_safe_distance = true
+safe_distance_margin = 1
+
+[sub_resource type="Resource" id="Action_wait"]
+script = ExtResource("6_wait")
+action_id = &"mage_wait"
+
+[sub_resource type="Resource" id="Slot_engage_ground"]
+script = ExtResource("10_slot")
+slot_id = &"engage_ground"
+slot_role = &"offense"
+order = 10
+allowed_affordances = Array[StringName]([&"ground_hostile.aoe", &"ground_control", &"terrain_control", &"special_ground"])
+action_families = Array[StringName]([&"use_ground_skill"])
+style_template_action_id = &"mage_fireball_cluster"
+score_bucket_id = &"mist_offense"
+target_selector = &"nearest_enemy"
+desired_min_distance = 4
+desired_max_distance = 5
+distance_reference = &"target_coord"
+
+[sub_resource type="Resource" id="Slot_engage_unit"]
+script = ExtResource("10_slot")
+slot_id = &"engage_unit"
+slot_role = &"offense"
+order = 20
+allowed_affordances = Array[StringName]([&"unit_hostile.damage", &"unit_hostile.control", &"random_chain"])
+action_families = Array[StringName]([&"use_unit_skill", &"use_random_chain_skill"])
+style_template_action_id = &"mage_chain_lightning"
+score_bucket_id = &"mist_offense"
+target_selector = &"lowest_hp_enemy"
+desired_min_distance = 4
+desired_max_distance = 5
+distance_reference = &"target_unit"
+
+[sub_resource type="Resource" id="Slot_engage_position"]
+script = ExtResource("10_slot")
+slot_id = &"engage_position"
+slot_role = &"positioning"
+order = 30
+allowed_affordances = Array[StringName]([&"random_chain", &"unit_hostile.damage", &"ground_hostile.aoe", &"ground_control"])
+action_families = Array[StringName]([&"move_to_range"])
+style_template_action_id = &"mage_take_position"
+score_bucket_id = &"archer_positioning"
+target_selector = &"nearest_enemy"
+desired_min_distance = 4
+desired_max_distance = 5
+
+[sub_resource type="Resource" id="State_engage"]
+script = ExtResource("2_state")
+state_id = &"engage"
+actions = Array[Resource]([SubResource("Action_survival_position"), SubResource("Action_fireball"), SubResource("Action_chain_lightning"), SubResource("Action_take_position"), SubResource("Action_wait")])
+generation_slots = Array[Resource]([SubResource("Slot_engage_ground"), SubResource("Slot_engage_unit"), SubResource("Slot_engage_position")])
+
+[sub_resource type="Resource" id="Slot_pressure_ground"]
+script = ExtResource("10_slot")
+slot_id = &"pressure_ground"
+slot_role = &"control"
+order = 10
+allowed_affordances = Array[StringName]([&"ground_hostile.aoe", &"ground_control", &"terrain_control", &"special_ground"])
+action_families = Array[StringName]([&"use_ground_skill"])
+style_template_action_id = &"mage_control_cone"
+score_bucket_id = &"mist_control"
+target_selector = &"nearest_enemy"
+desired_min_distance = 1
+desired_max_distance = 1
+distance_reference = &"target_coord"
+
+[sub_resource type="Resource" id="Slot_pressure_unit"]
+script = ExtResource("10_slot")
+slot_id = &"pressure_unit"
+slot_role = &"offense"
+order = 20
+allowed_affordances = Array[StringName]([&"unit_hostile.damage", &"unit_hostile.control", &"random_chain"])
+action_families = Array[StringName]([&"use_unit_skill", &"use_random_chain_skill"])
+style_template_action_id = &"mage_chain_lightning"
+score_bucket_id = &"mist_offense"
+target_selector = &"lowest_hp_enemy"
+desired_min_distance = 4
+desired_max_distance = 5
+distance_reference = &"target_unit"
+
+[sub_resource type="Resource" id="Slot_pressure_position"]
+script = ExtResource("10_slot")
+slot_id = &"pressure_position"
+slot_role = &"positioning"
+order = 30
+allowed_affordances = Array[StringName]([&"random_chain", &"unit_hostile.damage", &"ground_hostile.aoe", &"ground_control"])
+action_families = Array[StringName]([&"move_to_range"])
+style_template_action_id = &"mage_take_position"
+score_bucket_id = &"archer_positioning"
+target_selector = &"nearest_enemy"
+desired_min_distance = 4
+desired_max_distance = 5
+
+[sub_resource type="Resource" id="Slot_retreat_ground"]
+script = ExtResource("10_slot")
+slot_id = &"retreat_ground"
+slot_role = &"survival"
+order = 10
+allowed_affordances = Array[StringName]([&"ground_hostile.aoe", &"ground_control", &"terrain_control", &"special_ground"])
+action_families = Array[StringName]([&"use_ground_skill"])
+style_template_action_id = &"mage_protective_gust"
+score_bucket_id = &"archer_survival"
+target_selector = &"nearest_enemy"
+desired_min_distance = 1
+desired_max_distance = 1
+distance_reference = &"target_coord"
+
+[sub_resource type="Resource" id="Slot_retreat_unit"]
+script = ExtResource("10_slot")
+slot_id = &"retreat_unit"
+slot_role = &"survival"
+order = 20
+allowed_affordances = Array[StringName]([&"unit_hostile.damage", &"unit_hostile.control", &"random_chain"])
+action_families = Array[StringName]([&"use_unit_skill", &"use_random_chain_skill"])
+style_template_action_id = &"mage_chain_lightning"
+score_bucket_id = &"mist_offense"
+target_selector = &"lowest_hp_enemy"
+desired_min_distance = 4
+desired_max_distance = 5
+distance_reference = &"target_unit"
+
+[sub_resource type="Resource" id="Slot_retreat_position"]
+script = ExtResource("10_slot")
+slot_id = &"retreat_position"
+slot_role = &"positioning"
+order = 30
+allowed_affordances = Array[StringName]([&"random_chain", &"unit_hostile.damage", &"ground_hostile.aoe", &"ground_control"])
+action_families = Array[StringName]([&"move_to_range"])
+style_template_action_id = &"mage_survival_position"
+score_bucket_id = &"archer_survival"
+target_selector = &"nearest_enemy"
+desired_min_distance = 4
+desired_max_distance = 5
+
+[sub_resource type="Resource" id="State_pressure"]
+script = ExtResource("2_state")
+state_id = &"pressure"
+actions = Array[Resource]([SubResource("Action_blink_escape"), SubResource("Action_survival_position"), SubResource("Action_protective_gust"), SubResource("Action_control_cone"), SubResource("Action_fireball"), SubResource("Action_chain_lightning"), SubResource("Action_take_position"), SubResource("Action_wait")])
+generation_slots = Array[Resource]([SubResource("Slot_pressure_ground"), SubResource("Slot_pressure_unit"), SubResource("Slot_pressure_position")])
+
+[sub_resource type="Resource" id="State_retreat"]
+script = ExtResource("2_state")
+state_id = &"retreat"
+actions = Array[Resource]([SubResource("Action_blink_escape"), SubResource("Action_survival_position"), SubResource("Action_fireball"), SubResource("Action_chain_lightning"), SubResource("Action_protective_gust"), SubResource("Action_retreat_move"), SubResource("Action_wait")])
+generation_slots = Array[Resource]([SubResource("Slot_retreat_ground"), SubResource("Slot_retreat_unit"), SubResource("Slot_retreat_position")])
+
+[sub_resource type="Resource" id="Condition_retreat_low_hp"]
+script = ExtResource("12_transition_condition")
+predicate = &"self_hp_at_or_below_basis_points"
+basis_points = 6500
+
+[sub_resource type="Resource" id="Condition_pressure_current"]
+script = ExtResource("12_transition_condition")
+predicate = &"current_state_is"
+state_ids = Array[StringName]([&"pressure"])
+
+[sub_resource type="Resource" id="Condition_pressure_sticky_distance"]
+script = ExtResource("12_transition_condition")
+predicate = &"nearest_enemy_distance_at_or_below"
+max_distance = 6
+
+[sub_resource type="Resource" id="Condition_pressure_enter_distance"]
+script = ExtResource("12_transition_condition")
+predicate = &"nearest_enemy_distance_at_or_below"
+max_distance = 5
+
+[sub_resource type="Resource" id="Condition_always"]
+script = ExtResource("12_transition_condition")
+predicate = &"always"
+
+[sub_resource type="Resource" id="Rule_retreat_low_hp"]
+script = ExtResource("11_transition_rule")
+rule_id = &"retreat_low_hp"
+order = 10
+target_state_id = &"retreat"
+conditions = Array[Resource]([SubResource("Condition_retreat_low_hp")])
+
+[sub_resource type="Resource" id="Rule_pressure_sticky"]
+script = ExtResource("11_transition_rule")
+rule_id = &"pressure_sticky"
+order = 30
+from_state_ids = Array[StringName]([&"pressure"])
+target_state_id = &"pressure"
+conditions = Array[Resource]([SubResource("Condition_pressure_current"), SubResource("Condition_pressure_sticky_distance")])
+
+[sub_resource type="Resource" id="Rule_pressure_enter"]
+script = ExtResource("11_transition_rule")
+rule_id = &"pressure_enter"
+order = 40
+target_state_id = &"pressure"
+conditions = Array[Resource]([SubResource("Condition_pressure_enter_distance")])
+
+[sub_resource type="Resource" id="Rule_engage_default"]
+script = ExtResource("11_transition_rule")
+rule_id = &"engage_default"
+order = 90
+target_state_id = &"engage"
+conditions = Array[Resource]([SubResource("Condition_always")])
+
+[resource]
+script = ExtResource("1_brain")
+brain_id = &"mage_controller"
+default_state_id = &"pressure"
+states = Array[Resource]([SubResource("State_engage"), SubResource("State_pressure"), SubResource("State_retreat")])
+transition_rules = Array[Resource]([SubResource("Rule_retreat_low_hp"), SubResource("Rule_pressure_sticky"), SubResource("Rule_pressure_enter"), SubResource("Rule_engage_default")])

@@ -1,12 +1,15 @@
 extends SceneTree
 
-const GameSessionScript = preload("res://scripts/systems/game_session.gd")
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
+const GameSessionScript = preload("res://scripts/systems/persistence/GameSession.cs")
 const WorldMapScene = preload("res://scenes/main/world_map.tscn")
-const EncounterAnchorData = preload("res://scripts/systems/encounter_anchor_data.gd")
+const EncounterAnchorData = preload("res://scripts/systems/world/EncounterAnchorData.cs")
 
 const TEST_CONFIG_PATH := "res://data/configs/world_map/test_world_map_config.tres"
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 var _game_session = null
 
 
@@ -53,7 +56,7 @@ func _test_battle_start_confirm_stays_non_cancellable_on_world_map_scene() -> vo
 
 	var encounter_anchor = _find_encounter_anchor_by_kind(
 		_game_session.get_world_data(),
-		EncounterAnchorData.ENCOUNTER_KIND_SINGLE
+		EncounterAnchorData.ENCOUNTER_KIND_SINGLE()
 	)
 	_assert_true(encounter_anchor != null, "battle-start confirm 场景回归需要至少一个单体野怪遭遇。")
 	if encounter_anchor == null:
@@ -111,8 +114,8 @@ func _test_battle_start_confirm_stays_non_cancellable_on_world_map_scene() -> vo
 
 
 func _find_encounter_anchor_by_kind(world_data: Dictionary, encounter_kind: StringName):
-	for encounter_variant in world_data.get("encounter_anchors", []):
-		var encounter_anchor = encounter_variant as EncounterAnchorData
+	for encounter_option in world_data.get("encounter_anchors", []):
+		var encounter_anchor = encounter_option as EncounterAnchorData
 		if encounter_anchor == null:
 			continue
 		if encounter_anchor.encounter_kind == encounter_kind:
@@ -154,9 +157,9 @@ func _cleanup() -> void:
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])

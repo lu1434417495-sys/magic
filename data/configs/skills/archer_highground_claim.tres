@@ -1,10 +1,10 @@
 [gd_resource type="Resource" script_class="SkillDef" format=3]
 
-[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_16lie"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_qkjxf"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_6ld6h"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_ix3qi"]
-[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_b5ixq"]
+[ext_resource type="Script" path="res://scripts/player/progression/AttributeModifier.cs" id="1_16lie"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="2_qkjxf"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="3_6ld6h"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="4_ix3qi"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="5_b5ixq"]
 
 [sub_resource type="Resource" id="Resource_7q6gf"]
 script = ExtResource("3_6ld6h")
@@ -31,7 +31,42 @@ script = ExtResource("5_b5ixq")
 skill_id = &"archer_highground_claim"
 display_name = "抢高位"
 icon_id = &"archer_highground_claim"
-description = "向指定高低差合法格位移动最多 `3` 格；若落点为高地，额外获得 `预瞄`。"
+description = "向指定高低差合法格位移动最多 3 格；若落点为高地，额外获得 预瞄。"
+level_description_template = "向指定格位移最多{range}格，获得{status}（{duration}TU），自身生效，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU"
+level_description_configs = {
+	"0": {
+		"status": "预瞄",
+		"duration": "60",
+		"range": "3",
+		"ap": "2",
+		"stamina": "2",
+		"cooldown": "15"
+	},
+	"1": {
+		"status": "预瞄",
+		"duration": "60",
+		"range": "3",
+		"ap": "2",
+		"stamina": "2",
+		"cooldown": "15"
+	},
+	"2": {
+		"status": "预瞄",
+		"duration": "60",
+		"range": "3",
+		"ap": "2",
+		"stamina": "2",
+		"cooldown": "15"
+	},
+	"3": {
+		"status": "预瞄",
+		"duration": "60",
+		"range": "3",
+		"ap": "2",
+		"stamina": "2",
+		"cooldown": "15"
+	},
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"archer", &"ranged", &"bow", &"mobility"])

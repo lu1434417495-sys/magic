@@ -1,24 +1,26 @@
 [gd_resource type="Resource" script_class="SkillDef" format=3]
 
-[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_3pvug"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_1mjqn"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_k6vtb"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_t20up"]
-[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_yikjp"]
+[ext_resource type="Script" path="res://scripts/player/progression/AttributeModifier.cs" id="1_3pvug"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="2_1mjqn"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="3_k6vtb"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="4_t20up"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="5_yikjp"]
 
 [sub_resource type="Resource" id="Resource_25jub"]
 script = ExtResource("3_k6vtb")
 effect_type = &"damage"
-power = 8
-damage_tag = &"physical_pierce"
+power = 0
+add_weapon_dice = true
+use_weapon_physical_damage_tag = true
+resolve_as_weapon_attack = true
 
 [sub_resource type="Resource" id="Resource_lbxdn"]
 script = ExtResource("2_1mjqn")
 variant_id = &"multishot_volley"
 display_name = "连珠箭"
-description = "依次锁定 2 到 3 个不同敌方目标格，并按选择顺序逐个结算射击。"
+description = "依次锁定多个不同敌方单位，并按选择顺序逐个结算弓箭武器攻击。"
 footprint_pattern = &"unordered"
-required_coord_count = 3
+required_coord_count = 1
 effect_defs = Array[ExtResource("3_k6vtb")]([SubResource("Resource_25jub")])
 
 [sub_resource type="Resource" id="Resource_1xid3"]
@@ -26,16 +28,42 @@ script = ExtResource("4_t20up")
 skill_id = &"archer_multishot"
 target_mode = &"ground"
 range_value = 5
-ap_cost = 2
-stamina_cost = 2
-cooldown_tu = 10
+ap_cost = 1
+stamina_cost = 45
+cooldown_tu = 0
 attack_roll_bonus = -1
+level_overrides = {
+1: {
+"max_target_count": 3
+},
+2: {
+"attack_roll_bonus": 0
+},
+3: {
+"max_target_count": 4
+},
+4: {
+"attack_roll_bonus": 1
+},
+5: {
+"max_target_count": 5
+},
+6: {
+"attack_roll_bonus": 2
+},
+7: {
+"stamina_cost": 40
+}
+}
+mastery_trigger_mode = &"weapon_attack_quality"
+mastery_amount_mode = &"per_target_rank"
 ai_tags = Array[StringName]([&"multi_target", &"focus_fire"])
 target_selection_mode = &"multi_unit"
-min_target_count = 2
-max_target_count = 3
+min_target_count = 1
+max_target_count = 2
 selection_order_mode = &"manual"
 cast_variants = Array[ExtResource("2_1mjqn")]([SubResource("Resource_lbxdn")])
+required_weapon_families = Array[StringName]([&"bow"])
 
 [resource]
 script = ExtResource("5_yikjp")
@@ -43,7 +71,64 @@ skill_id = &"archer_multishot"
 display_name = "连珠箭"
 icon_id = &"archer_multishot"
 description = "通过依次锁定多个目标来铺开点杀火力，是弓箭手的招牌多目标技能。"
-max_level = 3
-mastery_curve = PackedInt32Array(28, 46, 72)
+level_description_template = "最多{targets}个目标，各进行一次弓箭武器攻击，攻击检定{attack}，消耗{ap}AP/{stamina}体力，无冷却"
+level_description_configs = {
+	"0": {
+		"targets": "2",
+		"attack": "-1",
+		"ap": "1",
+		"stamina": "45"
+	},
+	"1": {
+		"targets": "3",
+		"attack": "-1",
+		"ap": "1",
+		"stamina": "45"
+	},
+	"2": {
+		"targets": "3",
+		"attack": "0",
+		"ap": "1",
+		"stamina": "45"
+	},
+	"3": {
+		"targets": "4",
+		"attack": "0",
+		"ap": "1",
+		"stamina": "45"
+	},
+	"4": {
+		"targets": "4",
+		"attack": "+1",
+		"ap": "1",
+		"stamina": "45"
+	},
+	"5": {
+		"targets": "5",
+		"attack": "+1",
+		"ap": "1",
+		"stamina": "45"
+	},
+	"6": {
+		"targets": "5",
+		"attack": "+2",
+		"ap": "1",
+		"stamina": "45"
+	},
+	"7": {
+		"targets": "5",
+		"attack": "+2",
+		"ap": "1",
+		"stamina": "40"
+	}
+}
+max_level = 7
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(300, 750, 1650, 3000, 4800, 7050, 9750)
+growth_tier = &"intermediate"
+attribute_growth_progress = {
+"agility": 80,
+"strength": 40
+}
 tags = Array[StringName]([&"archer", &"ranged", &"bow", &"aoe"])
 combat_profile = SubResource("Resource_1xid3")

@@ -1,29 +1,55 @@
 [gd_resource type="Resource" script_class="SkillDef" format=3]
 
-[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_70ynd"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_2ya7s"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_wa3jm"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_id5ew"]
-[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_v7utl"]
+[ext_resource type="Script" path="res://scripts/player/progression/AttributeModifier.cs" id="1_70ynd"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="2_2ya7s"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="3_wa3jm"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="4_id5ew"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="5_v7utl"]
 
 [sub_resource type="Resource" id="Resource_nnti8"]
 script = ExtResource("3_wa3jm")
 effect_type = &"damage"
-power = 10
-damage_tag = &"physical_slash"
+power = 0
+add_weapon_dice = true
+requires_weapon = true
+use_weapon_physical_damage_tag = true
 
 [sub_resource type="Resource" id="Resource_pc1q2"]
 script = ExtResource("3_wa3jm")
-effect_type = &"status"
-power = 1
-status_id = &"staggered"
-duration_tu = 60
+effect_type = &"repeat_attack_until_fail"
+stop_on_miss = true
+stop_on_target_down = true
+params = {
+"same_target_only": true,
+"cost_resource": "stamina",
+"follow_up_fixed_cost": 5,
+"follow_up_damage_multiplier": 1,
+"follow_up_attack_penalty": 1,
+"exponential_penalty": true,
+"penalty_free_stages_by_level": {
+"1": 1,
+"3": 2,
+"5": 3
+},
+"stop_on_insufficient_resource": true
+}
 
 [sub_resource type="Resource" id="Resource_8476s"]
 script = ExtResource("4_id5ew")
 skill_id = &"warrior_combo_strike"
-stamina_cost = 1
-cooldown_tu = 5
+ap_cost = 1
+stamina_cost = 30
+cooldown_tu = 0
+level_overrides = {
+2: {
+"stamina_cost": 25
+},
+4: {
+"stamina_cost": 20
+}
+}
+mastery_trigger_mode = &"weapon_attack_quality"
+mastery_amount_mode = &"per_target_rank"
 effect_defs = Array[ExtResource("3_wa3jm")]([SubResource("Resource_nnti8"), SubResource("Resource_pc1q2")])
 
 [resource]
@@ -31,8 +57,53 @@ script = ExtResource("5_v7utl")
 skill_id = &"warrior_combo_strike"
 display_name = "连击"
 icon_id = &"warrior_combo_strike"
-description = "圣剑连斩的来源技能之一。"
+description = "连续进行武器攻击，命中惩罚随段数指数提升。高等级增加免惩罚段数并降低体力消耗。精通：命中且暴击/武器骰最大值时获得基础精通；第5段起逐段额外翻倍奖励。"
+level_description_template = "连续武器攻击，体力消耗{stamina}。{penalty_desc}，后续逐段翻倍（-{penalty_value}起）。额外段消耗{follow_up_cost}体力。"
+level_description_configs = {
+"0": {
+"stamina": "30",
+"penalty_desc": "无命中惩罚减免",
+"penalty_value": "1",
+"follow_up_cost": "5"
+},
+"1": {
+"stamina": "30",
+"penalty_desc": "前1段无命中惩罚",
+"penalty_value": "1",
+"follow_up_cost": "5"
+},
+"2": {
+"stamina": "25",
+"penalty_desc": "前1段无命中惩罚",
+"penalty_value": "1",
+"follow_up_cost": "5"
+},
+"3": {
+"stamina": "25",
+"penalty_desc": "前2段无命中惩罚",
+"penalty_value": "1",
+"follow_up_cost": "5"
+},
+"4": {
+"stamina": "20",
+"penalty_desc": "前2段无命中惩罚",
+"penalty_value": "1",
+"follow_up_cost": "5"
+},
+"5": {
+"stamina": "20",
+"penalty_desc": "前3段无命中惩罚",
+"penalty_value": "1",
+"follow_up_cost": "5"
+}
+}
 max_level = 5
-mastery_curve = PackedInt32Array(24, 40, 62, 90, 126)
+non_core_max_level = 3
+mastery_curve = PackedInt32Array(200, 500, 1100, 2000, 3200)
+growth_tier = &"basic"
+attribute_growth_progress = {
+"agility": 50,
+"strength": 10
+}
 tags = Array[StringName]([&"warrior", &"melee", &"combo"])
 combat_profile = SubResource("Resource_8476s")

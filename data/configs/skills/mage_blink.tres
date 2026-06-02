@@ -1,28 +1,107 @@
 [gd_resource type="Resource" script_class="SkillDef" format=3]
 
-[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_0nll5"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_w6kpn"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_408kx"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_6uebt"]
-[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_uve3t"]
+[ext_resource type="Script" path="res://scripts/player/progression/AttributeModifier.cs" id="1_0nll5"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="1_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="2_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="2_w6kpn"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="3_skill"]
 
-[sub_resource type="Resource" id="Resource_07wau"]
-script = ExtResource("4_6uebt")
+[sub_resource type="Resource" id="BlinkJump"]
+script = ExtResource("1_effect")
+effect_type = &"forced_move"
+forced_move_mode = &"blink"
+forced_move_distance = 5
+
+[sub_resource type="Resource" id="Combat"]
+script = ExtResource("2_combat")
 skill_id = &"mage_blink"
+target_mode = &"ground"
 target_team_filter = &"ally"
-range_value = 0
-area_pattern = &"self"
-mp_cost = 1
-cooldown_tu = 5
-target_selection_mode = &"self"
+range_value = 3
+mp_cost = 80
+cooldown_tu = 20
+level_overrides = {
+3: {
+"cooldown_tu": 15,
+"range_value": 4
+},
+5: {
+"cooldown_tu": 15,
+"range_value": 4
+},
+7: {
+"range_value": 5
+}
+}
+mastery_trigger_mode = &"effect_applied"
+ai_tags = Array[StringName]([&"mobility", &"escape"])
+effect_defs = Array[ExtResource("1_effect")]([SubResource("BlinkJump")])
 
 [resource]
-script = ExtResource("5_uve3t")
+script = ExtResource("3_skill")
 skill_id = &"mage_blink"
 display_name = "闪现术"
 icon_id = &"mage_blink"
-description = "立即位移最多 `3` 格；不穿重障碍，但可快速脱离近战。"
-max_level = 3
-mastery_curve = PackedInt32Array(28, 46, 72)
-tags = Array[StringName]([&"mage", &"magic", &"support"])
-combat_profile = SubResource("Resource_07wau")
+description = "短距离空间跃迁。只按平面距离与落点可占用性验证目标地格，高等级提升距离。"
+max_level = 7
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000)
+tags = Array[StringName]([&"mage", &"magic", &"mobility"])
+growth_tier = &"advanced"
+attribute_growth_progress = {
+"intelligence": 90,
+"perception": 20,
+"willpower": 70
+}
+level_description_template = "选地格位移最多{range}格。消耗1AP/{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "1",
+"cooldown": "20",
+"mp": "80",
+"range": "3"
+},
+"1": {
+"ap": "1",
+"cooldown": "20",
+"mp": "80",
+"range": "3"
+},
+"2": {
+"ap": "1",
+"cooldown": "20",
+"mp": "80",
+"range": "3"
+},
+"3": {
+"ap": "1",
+"cooldown": "15",
+"mp": "80",
+"range": "4"
+},
+"4": {
+"ap": "1",
+"cooldown": "15",
+"mp": "80",
+"range": "4"
+},
+"5": {
+"ap": "1",
+"cooldown": "15",
+"mp": "80",
+"range": "4"
+},
+"6": {
+"ap": "1",
+"cooldown": "15",
+"mp": "80",
+"range": "4"
+},
+"7": {
+"ap": "1",
+"cooldown": "15",
+"mp": "80",
+"range": "5"
+}
+}
+combat_profile = SubResource("Combat")

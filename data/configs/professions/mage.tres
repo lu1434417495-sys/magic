@@ -1,9 +1,9 @@
 [gd_resource type="Resource" script_class="ProfessionDef" load_steps=16 format=3]
 
-[ext_resource type="Script" path="res://scripts/player/progression/profession_def.gd" id="1_profession"]
-[ext_resource type="Script" path="res://scripts/player/progression/profession_promotion_requirement.gd" id="2_unlock"]
-[ext_resource type="Script" path="res://scripts/player/progression/tag_requirement.gd" id="3_tag"]
-[ext_resource type="Script" path="res://scripts/player/progression/profession_rank_requirement.gd" id="4_rank"]
+[ext_resource type="Script" path="res://scripts/player/progression/ProfessionDef.cs" id="1_profession"]
+[ext_resource type="Script" path="res://scripts/player/progression/ProfessionPromotionRequirement.cs" id="2_unlock"]
+[ext_resource type="Script" path="res://scripts/player/progression/TagRequirement.cs" id="3_tag"]
+[ext_resource type="Script" path="res://scripts/player/progression/ProfessionRankRequirement.cs" id="4_rank"]
 
 [sub_resource type="Resource" id="Resource_unlock_mage_learned"]
 script = ExtResource("3_tag")
@@ -84,7 +84,8 @@ profession_id = "mage"
 display_name = "法师"
 description = "以范围法术、元素压制和远距离点杀为核心的施法职业。"
 max_rank = 5
+hit_die_sides = 6
+bab_progression = &"half"
 is_initial_profession = true
 unlock_requirement = SubResource("Resource_unlock_requirement")
 rank_requirements = Array[Resource]([SubResource("Resource_rank_2_requirement"), SubResource("Resource_rank_3_requirement"), SubResource("Resource_rank_4_requirement"), SubResource("Resource_rank_5_requirement")])
-

@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="EnemyTemplateDef" format=3]
 
-[ext_resource type="Script" path="res://scripts/enemies/enemy_template_def.gd" id="1_template"]
+[ext_resource type="Script" path="res://scripts/enemies/EnemyTemplateDef.cs" id="1_template"]
 
 [resource]
 script = ExtResource("1_template")
@@ -10,6 +10,7 @@ brain_id = &"ranged_controller"
 initial_state_id = &"support"
 action_threshold = 45
 tags = Array[StringName]([&"wolf", &"shaman"])
+attack_equipment_item_id = &"watchman_mace"
 base_attribute_overrides = {
 "strength": 5,
 "agility": 6,
@@ -19,12 +20,13 @@ base_attribute_overrides = {
 "willpower": 8,
 }
 skill_ids = Array[StringName]([&"mage_ice_lance", &"mage_temporal_rewind"])
+skill_level_map = {
+&"mage_ice_lance": 3,
+&"mage_temporal_rewind": 3,
+}
 attribute_overrides = {
 "hp_max": 22,
-"mp_max": 12,
-"stamina_max": 0,
+"mp_max": 120,
 "action_points": 2,
 "attack_bonus": 6,
-"armor_class": 12,
-"armor_ac_bonus": 0,
 }

@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="EnemyContentSeed" format=3]
 
-[ext_resource type="Script" path="res://scripts/enemies/enemy_content_seed.gd" id="1_seed"]
+[ext_resource type="Script" path="res://scripts/enemies/EnemyContentSeed.cs" id="1_seed"]
 [ext_resource type="Resource" path="res://tests/fixtures/enemy_content/missing_brain/templates/orphan_template.tres" id="2_template_orphan"]
 
 [resource]

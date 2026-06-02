@@ -1,171 +1,39 @@
-# 当前 Godot 项目的最优上下文单元
+# 当前 Godot 项目的上下文装载单元
 
-更新日期：`2026-04-26`
+更新日期：`2026-06-02`
 
-## 目的
+## 使用规则
 
-- 这份文档按“真相源 + 运行期职责 + 改动边界”切分当前仓库。
-- 它不是目录导览，而是给 agent / 开发者做装载决策用的：改一个需求时，应该一起读哪些文件，哪些不要顺手混进来。
-- 本次刷新基于当前仓库实际文件树与入口脚本，覆盖登录壳、世界预设与存档、世界/战斗双态 runtime、共享仓库与装备基础流转、角色成长/成就、战斗棋盘主链、敌方内容注册表、headless 文本指令链，以及现有自动化回归。
+- 这份文档只用于给 agent / 开发者划分文件读取范围，不是系统设计说明。
+- 先按“推荐装载组合”匹配任务；没有命中时，从“单元总览”选择 1 个桥接单元、1 到 2 个叶子单元，再补 1 个测试 / headless 辅助单元。
+- 优先读取“文件”列表；只有任务明确跨边界时，才按“邻接单元”补读。
+- 遇到 save/schema/历史 payload 兼容问题时，不要自行添加迁移、别名、fallback 或旧格式支持，先向用户确认。
+- 常规全量测试不包含 battle simulation、balance simulation、benchmark 或交互式 REPL。
 
-## 读取范围
+## 全局排除
 
-- 主运行链：
-  - `project.godot`
-  - `scenes/main/*.tscn`
-  - `scenes/ui/*.tscn`
-  - `scenes/common/*.tscn`
-  - `scripts/systems/*.gd`
-  - `scripts/ui/*.gd`
-  - `scripts/player/equipment/*.gd`
-  - `scripts/player/progression/*.gd`
-  - `scripts/player/warehouse/*.gd`
-  - `scripts/enemies/*.gd`
-  - `scripts/enemies/actions/*.gd`
-  - `scripts/utils/*.gd`
-- 数据与内容：
-  - `data/configs/world_map/*.tres`
-  - `data/configs/items/*.tres`
-  - `data/configs/skills/*.tres`
-  - `data/configs/professions/*.tres`
-  - `data/configs/enemies/**/*.tres`
-  - `assets/main/battle/terrain/canyon/*.png`
-- 自动化与辅助：
-  - `tests/equipment/*.gd`
-  - `tests/warehouse/*.gd`
-  - `tests/battle_runtime/*.gd`
-  - `tests/progression/*.gd`
-  - `tests/text_runtime/*.gd`
-  - `tests/text_runtime/scenarios/*.txt`
-- 不作为核心运行时单元：
-  - `.godot/`
-  - 所有 `.uid`
-  - `prompts/`
-  - `example/`
-  - `.vscode/`
-  - `scenes/main/game_placeholder.tscn`
-  - `battle_board_canyon_capture.png`
-  - `login_screen_capture.png`
-  - `world_map_capture.png`
-  - `world_map_flow_capture.png`
+- `.godot/`
+- 所有 `.uid`
+- `prompts/`
+- `example/`
+- `.vscode/`
+- `scenes/main/game_placeholder.tscn`
+- `battle_board_canyon_capture.png`
+- `login_screen_capture.png`
+- `world_map_capture.png`
+- `world_map_flow_capture.png`
 
-## 当前主干关系
+## 关键桥接链
 
 ```text
-LoginScreen
-  -> WorldPresetPicker / SaveList / DisplaySettings
-  -> GameSession
-
-GameSession
-  -> SaveSerializer
-  -> GameLogService
-  -> WorldPresetRegistry
-  -> WorldMapSpawnSystem
-      -> TrueRandomSeedService
-  -> ProgressionSerialization
-  -> ProgressionContentRegistry
-      -> SkillContentRegistry
-      -> ProfessionContentRegistry
-  -> ItemContentRegistry
-  -> EnemyContentRegistry
-
-WorldMapSystem
-  -> WorldMapRuntimeProxy
-      -> GameRuntimeFacade
-          -> BattleSessionFacade
-              -> TrueRandomSeedService
-          -> GameRuntimeBattleSelection
-          -> GameRuntimeBattleSelectionState
-          -> LowLuckEventService
-              -> CharacterManagementModule
-              -> BattleFateEventBus
-          -> FortunaGuidanceService
-              -> CharacterManagementModule
-              -> BattleFateEventBus
-          -> MisfortuneGuidanceService
-              -> CharacterManagementModule
-              -> BattleRuntimeModule
-          -> GameRuntimeSettlementCommandHandler
-              -> TrueRandomSeedService
-              -> SettlementShopService
-                  -> TrueRandomSeedService
-          -> GameRuntimeWarehouseHandler
-          -> GameRuntimePartyCommandHandler
-          -> GameRuntimeRewardFlowHandler
-          -> GameRuntimeSnapshotBuilder
-          -> WorldMapGridSystem / WorldMapFogSystem
-          -> PartyWarehouseService / PartyEquipmentService
-          -> CharacterManagementModule
-          -> BattleRuntimeModule
-          -> BattleHudAdapter
-          -> GameTextSnapshotRenderer
-
-PartyEquipmentService
-  -> EquipmentState / EquipmentRules
-  -> PartyWarehouseService
-
-CharacterManagementModule
-  -> PartyEquipmentService
-  -> ProgressionService / ProfessionRuleService / ProfessionAssignmentService / SkillMergeService
-  -> AttributeService
-  -> achievement progress
-  -> PendingCharacterReward queue
-
-BattleRuntimeModule
-  -> BattleChargeResolver
-  -> BattleRepeatAttackResolver
-  -> BattleFateAttackRules
-  -> BattleSkillResolutionRules
-  -> BattleSpawnReachabilityService
-  -> BattleTerrainEffectSystem
-  -> BattleRatingSystem
-  -> BattleUnitFactory
-  -> BattleState / BattleUnitState / BattleCellState / BattleTimelineState / BattleTerrainEffectState
-  -> BattleGridService / BattleEdgeService / BattleDamageResolver / BattleHitResolver / BattleAiService / BattleAiScoreService
-  -> BattleTerrainRules / BattleTerrainTopologyService
-  -> BattleTerrainGenerator / EncounterRosterBuilder
-  -> TrueRandomSeedService
-
-BattleAiService
-  -> BattleAiContext / BattleAiScoreInput / BattleAiScoreService
-  -> EnemyTemplateDef / EnemyAiBrainDef / EnemyAiStateDef
-  -> enemy actions/*
-
-BattleMapPanel
-  -> BattleHudAdapter
-      -> BattleSkillResolutionRules
-      -> BattleHitResolver
-  -> BattleBoard2D
-      -> BattleBoardController
-      -> BattleBoardPropCatalog / BattleBoardProp
-
-HeadlessGameTestSession
-  -> GameSession
-  -> GameRuntimeFacade
-  -> GameTextCommandRunner
-      -> GameTextCommandResult
+LoginScreen -> GameSession
+GameSession -> GameRuntimeFacade -> WorldMapRuntimeProxy -> WorldMapSystem
+GameRuntimeFacade -> BattleSessionFacade -> BattleRuntimeModule
+GameRuntimeFacade -> CharacterManagementModule -> Progression / Equipment / Attribute services
+WorldMapSystem -> BattleMapPanel -> BattleHudAdapter
+BattleMapPanel -> BattleBoard2D -> BattleBoardController
+HeadlessGameTestSession -> GameSession + GameRuntimeFacade -> GameTextCommandRunner
 ```
-
-## 切分原则
-
-- 先找真相源，再找桥接层，再找展示层。
-- 当前最重的桥接单元已经从单一 `WorldMapSystem` 变成三层：
-  - `GameSession` 负责全局持久化与内容缓存。
-  - `GameRuntimeFacade` 负责世界/战斗/奖励/窗口状态的核心运行时。
-  - `WorldMapRuntimeProxy` 负责给场景层暴露稳定的命令 / 读取表面，并在命令后统一触发渲染回调。
-  - `WorldMapSystem` 主要承担场景节点接线、输入捕获、窗口信号回调与 UI 渲染同步，不再对外暴露 runtime 命令 / snapshot 透传接口。
-- `BattleMapPanel -> BattleBoard2D -> BattleBoardController` 仍是当前正式战斗展示主链。
-- `PartyState.pending_character_rewards` 是当前唯一正式奖励队列；旧 `pending_mastery_rewards` 兼容桥已移除。
-- 共享仓库现在是独立单元，不再只是队伍窗口的附属功能。
-- `PartyEquipmentService` 已经是正式 bridge，不应再把“装备基础流转”误判为纯 UI 或纯仓库任务。
-- 敌方模板与 AI brain 已经是单独的内容单元，不应再塞进 battle runtime 文件里顺手改。
-- headless / text runtime 已经是正式辅助链路，不是临时测试脚本，也不是主启动链或正式玩家 UI。
-- 当前自动化覆盖已经扩展到：
-  - 装备种子内容与装备 / 卸装回归
-  - 共享仓库规则
-  - battle runtime smoke 与 battle board 渲染契约
-  - progression / achievement / reward queue
-  - text command headless 回归
 
 ## 单元总览
 
@@ -173,1109 +41,697 @@ HeadlessGameTestSession
 
 - 文件：
   - `project.godot`
+  - `magic.csproj`
   - `scenes/main/login_screen.tscn`
-  - `scripts/ui/login_screen.gd`
+  - `scripts/ui/LoginScreen.cs`
   - `scenes/ui/world_preset_picker_window.tscn`
-  - `scripts/ui/world_preset_picker_window.gd`
+  - `scripts/ui/WorldPresetPickerWindow.cs`
   - `scenes/ui/save_list_window.tscn`
-  - `scripts/ui/save_list_window.gd`
+  - `scripts/ui/SaveListWindow.cs`
   - `scenes/ui/display_settings_window.tscn`
-  - `scripts/ui/display_settings_window.gd`
-  - `scripts/utils/display_settings_service.gd`
-  - `scripts/utils/world_preset_registry.gd`
-- 真相源：
-  - 启动页当前交互状态。
-  - 世界预设列表与新世界入口。
-  - `user://display_settings.cfg`。
-- 主要职责：
-  - 选择新世界、现有存档、测试世界。
-  - `测试地图` 入口和正式世界预设一样走 `GameSession.create_new_save()`，使用 `test_world_map_config.tres` 重新生成程序化测试世界。
-  - 应用与保存显示设置。
-  - 调用 `GameSession` 后切场景到 `world_map.tscn`。
-- 邻接单元：
-  - CU-02
-  - CU-03
-- 适合任务：
-  - 改登录流程。
-  - 改 save list 展示。
-  - 改世界预设入口。
-  - 改显示设置。
-- 不要顺手带上：
-  - `scripts/systems/world_map_system.gd`
-  - `scripts/systems/game_runtime_facade.gd`
+  - `scripts/ui/DisplaySettingsWindow.cs`
+  - `scenes/ui/character_creation_window.tscn`
+  - `scripts/ui/CharacterCreationWindow.cs`
+  - `scripts/utils/DisplaySettingsService.cs`
+  - `scripts/utils/WorldPresetRegistry.cs`
+- 负责：启动页、世界预设入口、存档列表、显示设置、建卡窗口到 `GameSession` 的入口；建卡窗口的 race/subrace 候选缓存消费 `CharacterCreationIdentityOptionService` 的 typed list 结果；`DisplaySettingsService` 是 plain C# typed settings service，分辨率选项与保存/加载请求使用 `DisplaySettings` / `ResolutionOption`，Godot Dictionary/Array 不再作为显示设置服务边界；`WorldPresetRegistry` 是 plain C# static preset catalog，正式读取面返回 typed `WorldPresetInfo`，Godot Dictionary/Array 只作为 UI/headless 投影，不再作为 Godot 注册类暴露。
+- 适合：登录流程、建卡 UI、save list、世界预设入口、显示设置。
+- 邻接单元：CU-02、CU-03、CU-14。
+- 不带：CU-06、CU-18，除非任务进入世界或战斗场景。
 
 ### CU-02 GameSession、存档、序列化、全局内容缓存
 
 - 文件：
-  - `scripts/systems/game_session.gd`
-  - `scripts/systems/game_log_service.gd`
-  - `scripts/systems/progression_serialization.gd`
-  - `scripts/systems/save_serializer.gd`
-  - `scripts/utils/true_random_seed_service.gd`
-- 真相源：
-  - 当前 active save id / path / meta。
-  - 当前 generation config path / object。
-  - 当前 `world_data`、玩家坐标、玩家 faction。
-  - 旧存档或外部写入缺失 `world_data.map_seed` 时，`SaveSerializer.normalize_world_data()` 会通过 `TrueRandomSeedService` 补运行时地图 seed。
-  - 当前 `PartyState`。
-  - 缓存后的 `skill_defs` / `profession_defs` / `achievement_defs` / `item_defs` / `recipe_defs` / `enemy_templates` / `enemy_ai_brains`。
-- 主要职责：
-  - 创建新存档、读取现有存档。
-  - 管理 `user://saves/index.dat` 与 slot payload，当前全局 `SAVE_VERSION = 5`。
-  - 统一持久化 `world_data + party_state`。
-  - `GameLogService` 现在作为开发侧 sidecar 挂在 `GameSession` 下，负责维护内存 ring buffer 并把结构化运行日志追加到 `user://logs/*.jsonl`；create/load/unload world 会显式轮转日志会话边界。它不是存档真相源，也不参与 `SAVE_VERSION`。
-  - `SaveSerializer` 负责 save payload、V5 解码、save meta、world/party 归一化和 save index 的编码格式。
-  - 提供 progression / item / recipe / enemy 内容注册表的统一访问口。
-  - 提供战斗中的 save lock。
-- 邻接单元：
-  - CU-01
-  - CU-03
-  - CU-04
-  - CU-10
-  - CU-11
-  - CU-13
-  - CU-20
-  - CU-21
-- 适合任务：
-  - 改 save payload。
-  - 改 slot meta。
-  - 改 active world 生命周期。
-  - 改 serialization / legacy 兼容。
-  - 改内容注册表接入。
-- 不要顺手带上：
-  - `scripts/ui/world_map_view.gd`
-  - `scripts/ui/battle_board_controller.gd`
+  - `scripts/systems/persistence/GameSession.cs`
+  - `scripts/systems/persistence/FileIOCoordinator.cs`
+  - `scripts/systems/persistence/GameLogService.cs`
+  - `scripts/systems/persistence/ProgressionSerialization.cs`
+  - `scripts/systems/persistence/SaveSerializer.cs`
+  - `scripts/systems/progression/RacialSkillGrantService.cs`
+  - `scripts/utils/TrueRandomSeedService.cs`
+  - `scripts/player/progression/*content_registry.gd`
+  - `scripts/player/progression/*ContentRegistry.cs`
+  - `scripts/systems/battle/core/special_profiles/BattleSpecialProfileRegistry.cs`
+  - `scripts/systems/battle/core/special_profiles/BattleSpecialProfileManifestValidator.cs`
+  - `scripts/player/warehouse/ItemContentRegistry.cs`
+  - `scripts/player/warehouse/RecipeContentRegistry.cs`
+  - `scripts/player/warehouse/skill_book_item_content_validator.gd`
+  - `scripts/enemies/EnemyContentRegistry.cs`
+  - `scripts/enemies/EnemyContentSeed.cs`
+- 负责：active save、slot meta、save payload、save index、全局内容注册表、world-level 装备实例 ID、battle save lock；`TrueRandomSeedService` 是 plain C# static helper，不再作为 Godot `RefCounted` / `GlobalClass` 暴露。
+- 适合：save payload、slot meta、active world 生命周期、序列化严格校验、内容注册表接入。
+- 邻接单元：CU-01、CU-03、CU-04、CU-10、CU-11、CU-13、CU-20、CU-21。
+- 不带：世界地图渲染、战斗棋盘展示。
 
 ### CU-03 世界配置资源与预设数据
 
 - 文件：
-  - `scripts/utils/world_map_generation_config.gd`
-  - `scripts/utils/world_map_settlement_bundle.gd`
-  - `scripts/utils/world_map_settlement_name_pool.gd`
-  - `scripts/utils/world_map_wild_spawn_bundle.gd`
-  - `scripts/utils/settlement_config.gd`
-  - `scripts/utils/settlement_distribution_rule.gd`
-  - `scripts/utils/facility_config.gd`
-  - `scripts/utils/facility_slot_config.gd`
-  - `scripts/utils/facility_npc_config.gd`
-  - `scripts/utils/weighted_facility_entry.gd`
-  - `scripts/utils/wild_spawn_rule.gd`
-  - `data/configs/world_map/test_world_map_config.tres`
-  - `data/configs/world_map/small_world_map_config.tres`
-  - `data/configs/world_map/medium_world_map_config.tres`
-  - `data/configs/world_map/demo_world_map_config.tres`
-  - `data/configs/world_map/shared/main_world_default_settlement_bundle.tres`
-  - `data/configs/world_map/shared/main_world_settlement_name_pool.tres`
-  - `data/configs/world_map/shared/main_world_town_name_pool.tres`
-  - `data/configs/world_map/shared/main_world_city_name_pool.tres`
-  - `data/configs/world_map/shared/main_world_capital_name_pool.tres`
-  - `data/configs/world_map/shared/main_world_metropolis_name_pool.tres`
-  - `data/configs/world_map/shared/main_world_default_wild_spawn_bundle.tres`
-- 真相源：
-  - `demo/test/small/medium` 这类通用主世界预设只持有世界尺寸、chunk、玩家视野、程序化生成开关、程序化野怪 chunk 抽签分母、起始野外遭遇保底与数量参数。
-  - 通用主世界的据点模板、设施模板、设施槽位、服务 NPC 模板由 `main_world_default_settlement_bundle.tres` 持有；默认据点实例展示名由 `main_world_settlement_name_pool.tres` 持有，`template_town` / `template_city` / `template_capital` / `template_metropolis` 分别额外优先使用 `main_world_town_name_pool.tres`、`main_world_city_name_pool.tres`、`main_world_capital_name_pool.tres`、`main_world_metropolis_name_pool.tres`；野外遭遇规则由 `main_world_default_wild_spawn_bundle.tres` 持有。
-  - 世界据点通过 `SettlementConfig.tier = WORLD_STRONGHOLD` 标记，不再单独拆资源。
-  - `ashen_intersection` 这类主题化世界仍可在各自 `tres` 内持有专属模板；运行时实例 id 由世界生成阶段分配。
-- 主要职责：
-  - 定义 world spawn 输入资源。
-  - 区分“主世界参数模板”和“共享主世界内容模板”的持有边界。
-  - 为登录预设与 `GameSession` 提供 generation config。
-- 邻接单元：
-  - CU-01
-  - CU-02
-  - CU-04
-- 适合任务：
-  - 新增世界规模。
-  - 改据点模板与设施组合。
-  - 改野怪分布规则。
-- 不要顺手带上：
-  - `scripts/ui/world_map_view.gd`
-  - `scripts/systems/battle_runtime_module.gd`
+  - `scripts/utils/WorldMapGenerationConfig.cs`
+  - `scripts/utils/WorldMapSettlementBundle.cs`
+  - `scripts/utils/WorldMapSettlementNamePool.cs`
+  - `scripts/utils/WorldMapWildSpawnBundle.cs`
+  - `scripts/utils/WorldMapContentValidator.cs`
+  - `scripts/utils/SettlementConfig.cs`
+  - `scripts/utils/SettlementDistributionRule.cs`
+  - `scripts/utils/FacilityConfig.cs`
+  - `scripts/utils/FacilitySlotConfig.cs`
+  - `scripts/utils/FacilityNpcConfig.cs`
+  - `scripts/utils/WeightedFacilityEntry.cs`
+  - `scripts/utils/WildSpawnRule.cs`
+  - `data/configs/world_map/*.tres`
+  - `data/configs/world_map/shared/*.tres`
+- 负责：world preset、world generation config、settlement bundle、facility、wild spawn bundle 的静态数据。
+- 适合：新增/调整世界预设、设施分布、野外遭遇配置、世界内容校验。
+- 邻接单元：CU-01、CU-02、CU-04。
+- 不带：runtime 场景接线、battle runtime。
 
 ### CU-04 世界生成、据点服务注入、遭遇锚点
 
 - 文件：
   - `docs/design/settlement.md`
-  - `scripts/systems/world_map_spawn_system.gd`
-  - `scripts/systems/encounter_anchor_data.gd`
-  - `scripts/utils/true_random_seed_service.gd`
-  - `scripts/utils/world_event_config.gd`
-  - `scripts/utils/mounted_submap_config.gd`
-  - 依赖 CU-03 资源定义
-- 真相源：
-  - `world_data` 的生成结构。
-  - `world_data.map_seed` 是当前地图实例运行时随机种子记录；正式生成时由 `TrueRandomSeedService` 通过 Godot `Crypto.generate_random_bytes()` 分配，而不是直接使用 `.tres` 配置里的固定 `seed`。
-  - settlements / world_npcs / encounter_anchors / world_events / mounted_submaps / player_start_* 的输出形状。
-  - settlement / facility / service npc 的实例 id 与 `template_id` 绑定关系。
-  - 据点实例内部对象图与字段解释见 `docs/design/settlement.md` 第 3 节。
-- 主要职责：
-  - 生成固定或程序化据点。
-  - 在 `inject_default_main_world_content = true` 时，把共享主世界据点/设施包、默认据点名称池、town / city / capital 专用名称池与共享野怪规则包分别注入到生成链里，再叠加当前 world config 的局部内容。
-  - 按模板生成据点实例、设施实例、服务 NPC 实例与 `available_services` 绑定。
-  - 注入兜底的共享仓库服务 `interaction_script_id = "party_warehouse"`。
-  - 生成玩家开局位置、遭遇锚点、世界事件与挂载子地图定义；程序化野怪锚点密度由 `WorldMapGenerationConfig.procedural_wild_spawn_chunk_chance_denominator` 与 `WildSpawnRule.density_per_chunk` 共同控制。
-  - 据点名称池洗牌、程序化遭遇筛选、默认据点遭遇补位等地图域随机 seed 都从 `TrueRandomSeedService` 取值；配置资源里的 `seed` 只保留为编辑器字段，不再作为正式地图随机入口。
-- 邻接单元：
-  - CU-02
-  - CU-03
-  - CU-05
-  - CU-06
-- 适合任务：
-  - 改世界生成结构。
-  - 改据点服务注入规则。
-  - 改起始据点 / 起始遭遇保障。
-- 不要顺手带上：
-  - `scripts/ui/party_warehouse_window.gd`
-  - `scripts/ui/battle_board_2d.gd`
+  - `scripts/systems/world/WorldMapSpawnSystem.cs`
+  - `scripts/systems/world/EncounterAnchorData.cs`
+  - `scripts/systems/world/WildEncounterGrowthSystem.cs`
+  - `scripts/utils/TrueRandomSeedService.cs`
+  - `scripts/utils/WorldEventConfig.cs`
+  - `scripts/utils/MountedSubmapConfig.cs`
+  - CU-03 的配置资源
+- 负责：世界生成、据点服务注入、遭遇锚点、挂载子地图事件；`WorldMapSpawnSystem` 是 plain C# generator service，通过 Godot Resource 配置读取内容后输出世界数据 Dictionary 边界，不再作为 Godot 注册类暴露；`WildEncounterGrowthSystem` 是 plain C# growth helper，正式入口消费 typed `IEnumerable<EncounterAnchorData>` 与 `IReadOnlyDictionary<StringName, WildEncounterRosterDef>`，不再从 `world_data` / roster Godot Dictionary 回读。
+- 适合：世界生成规则、起始遭遇、据点/设施生成、mounted submap 事件。
+- 邻接单元：CU-02、CU-03、CU-05、CU-06、CU-20。
+- 不带：UI 窗口和战斗展示，除非任务要求进入场景。
 
 ### CU-05 世界网格与迷雾基础设施
 
 - 文件：
-  - `scripts/systems/world_map_grid_system.gd`
-  - `scripts/systems/world_map_fog_system.gd`
-  - `scripts/utils/world_map_cell_data.gd`
-  - `scripts/utils/vision_source_data.gd`
-- 真相源：
-  - 大地图格子尺寸、占格、walkable。
-  - faction 级 visible / explored / unexplored。
-- 主要职责：
-  - 提供世界地图空间层 API。
-  - 为 world move、选中、迷雾刷新提供纯逻辑支持。
-- 邻接单元：
-  - CU-04
-  - CU-06
-  - CU-07
-- 适合任务：
-  - 改迷雾判定。
-  - 改世界 footprint。
-  - 改坐标与边界逻辑。
-- 不要顺手带上：
-  - `scripts/ui/settlement_window.gd`
-  - `scripts/systems/battle_runtime_module.gd`
+  - `scripts/systems/world/WorldMapGridSystem.cs`
+  - `scripts/systems/world/WorldMapFogSystem.cs`
+  - `scripts/systems/world/WorldMapFogFactionState.cs`
+  - `scripts/utils/WorldMapCellData.cs`
+  - `scripts/utils/VisionSourceData.cs`
+- 负责：世界网格、坐标、迷雾、视野来源；`WorldMapGridSystem` 是普通 C# 网格/footprint 计算器，`WorldMapFogSystem` 是普通 C# 迷雾状态 service，`WorldMapCellData` / `VisionSourceData` 是普通 C# 数据对象，不再作为 Godot `RefCounted`/`GlobalClass` 或 GDScript preload 边界；迷雾视野重建输入使用 typed `IEnumerable<VisionSourceData>`，paid reveal 返回 typed `List<Vector2I>`，持久化 `GDictionary` 只保留在 save/world-data 边界，需要 Godot Array 时只在调用边界投影。
+- 适合：world move 判定、迷雾刷新、地图 cell 数据。
+- 邻接单元：CU-04、CU-06、CU-07。
+- 不带：据点窗口、战斗 runtime。
 
 ### CU-06 世界/战斗运行时总编排与场景适配
 
 - 文件：
-  - `scripts/systems/settlement_forge_service.gd`
-  - `scripts/systems/settlement_shop_service.gd`
-  - `scripts/systems/settlement_research_service.gd`
-  - `scripts/systems/settlement_service_context.gd`
-  - `scripts/systems/settlement_service_result.gd`
-  - `scripts/systems/world_time_system.gd`
-  - `scripts/utils/true_random_seed_service.gd`
   - `scenes/main/world_map.tscn`
   - `scenes/ui/runtime_log_dock.tscn`
   - `scenes/ui/submap_entry_window.tscn`
-  - `scripts/systems/game_runtime_facade.gd`
-  - `scripts/systems/world_map_data_context.gd`
-  - `scripts/systems/battle_session_facade.gd`
-  - `scripts/systems/game_runtime_battle_selection.gd`
-  - `scripts/systems/game_runtime_battle_selection_state.gd`
-  - `scripts/systems/game_runtime_settlement_command_handler.gd`
-  - `scripts/systems/game_runtime_warehouse_handler.gd`
-  - `scripts/systems/game_runtime_party_command_handler.gd`
-  - `scripts/systems/game_runtime_reward_flow_handler.gd`
-  - `scripts/systems/game_runtime_snapshot_builder.gd`
-  - `scripts/systems/world_map_runtime_proxy.gd`
-  - `scripts/systems/world_map_system.gd`
-  - `scripts/ui/runtime_log_dock.gd`
-  - `scripts/ui/submap_entry_window.gd`
+  - `scripts/systems/game_runtime/BattleSessionFacade.cs`
+  - `scripts/systems/game_runtime/GameRuntimeFacade.cs`
+  - `scripts/systems/game_runtime/GameRuntimeBattleSelection.cs`
+  - `scripts/systems/game_runtime/GameRuntimeBattleSelectionState.cs`
+  - `scripts/systems/game_runtime/GameRuntimeSettlementCommandHandler.cs`
+  - `scripts/systems/game_runtime/GameRuntimeWarehouseHandler.cs`
+  - `scripts/systems/game_runtime/GameRuntimePartyCommandHandler.cs`
+  - `scripts/systems/game_runtime/GameRuntimeRewardFlowHandler.cs`
+  - `scripts/systems/game_runtime/GameRuntimeQuestCommandHandler.cs`
+  - `scripts/systems/game_runtime/IGameRuntimeSnapshotSource.cs`
+  - `scripts/systems/game_runtime/GameRuntimeSnapshotBuilder.cs`
+  - `scripts/systems/game_runtime/GameRuntimeCommandLogger.cs`
+  - `scripts/systems/game_runtime/GameRuntimeBattleWritebackService.cs`
+  - `scripts/systems/game_runtime/GameRuntimeBattleLootCommitService.cs`
+  - `scripts/systems/game_runtime/GameRuntimeCharacterInfoBuilder.cs`
+  - `scripts/systems/world/WorldMapDataContext.cs`
+  - `scripts/systems/world/WorldTimeSystem.cs`
+  - `scripts/systems/game_runtime/WorldMapRuntimeProxy.cs`
+  - `scripts/systems/game_runtime/WorldMapSystem.cs`
+  - `scripts/systems/settlement/*.cs`
+  - `scripts/ui/RuntimeLogDock.cs`
+  - `scripts/ui/SubmapEntryWindow.cs`
+  - `scripts/utils/TrueRandomSeedService.cs`
   - `assets/main/basic_map/log.png`
-- 真相源：
-  - 当前 world / battle 模式。
-  - 当前 modal 互斥状态。
-  - 当前 battle 技能选择、目标缓存、待处理奖励、待处理晋升。
-  - 当前 headless snapshot 的结构化输出。
-  - 当前场景节点与 runtime 的同步方式。
-- 主要职责：
-  - `GameRuntimeFacade` 持有真正的世界/战斗/奖励/仓库/窗口运行时编排状态。
-  - `WorldMapDataContext` 是正式的 world-data context owner：持有 root world / active map data、坐标索引查表、active map 标识 / 展示名，以及 mounted submap generation config cache，并负责把根世界结构映射成当前激活地图视图。
-  - `GameRuntimeFacade` 继续编排 mounted submap 进入确认、battle start 确认、active map 切换、返回栈和统一持久化，但不再直接持有整组 world-data cache 字段。
-  - `BattleSessionFacade` 承载开战、battle tick / resolve、batch 同步、战斗输入桥接、战斗只读查询与战后回写，作为 `GameRuntimeFacade -> BattleRuntimeModule` 的 battle session 控制器；战斗开始/结束链路优先通过 `GameRuntimeFacade` 的显式 battle-support helper 协调，不再散写 runtime 私有字段；terrain 生成未就绪时，`GameRuntimeFacade` 还负责挂起 pending request、维持 `battle_loading` modal，并在 world 模式下持续重试直至拿到正式 battle state。
-  - `BattleSessionFacade.build_battle_seed()` 现在为每次开战调用 `TrueRandomSeedService` 分配 battle map seed；战斗内命中 d20、crit gate 与 disadvantage 底层骰也逐次调用 `TrueRandomSeedService.randi_range()`，`BattleState.attack_roll_nonce` 只记录消耗次数，不再参与复现骰序。
-  - 进入战斗地图后的 TU 暂停口径只认 `BattleState.modal_state` 这类 battle 内流程状态；`character_info` 这类 runtime overlay 只阻断战斗输入，不暂停 TU；`reward` / `game_over` 属于战后流程，不再纳入 battle TU 判定域。
-  - 技能命令的最终 `preview-first` 放行口径由 `BattleRuntimeModule.issue_command()` 持有；`BattleSessionFacade.issue_battle_command()` 只负责转发命令、应用 batch，并在技能确认执行后处理 selection target 清理等 session 侧副作用。
-  - `GameRuntimeBattleSelectionState` 持有战斗技能选择、目标队列与选中格等运行时状态。
-  - `GameRuntimeBattleSelection` 承载战斗技能选择、目标队列与相关只读查询逻辑，并通过 `GameRuntimeBattleSelectionState` 读写状态；技能选择与目标队列的运行时读写优先通过 `GameRuntimeFacade` 的显式 selection helper / state accessor 协调，不再直接散写 runtime 私有字段。
-  - `GameRuntimeSettlementCommandHandler` 承载据点动作 payload 组装、据点动作执行、任务板 / 商店 / 驿站 / forge modal 分流、据点状态回写与角色奖励 payload 归并；据点窗口状态、任务板 / 商店 / forge / 驿站窗口状态、据点反馈文本、默认交互成员和据点成功动作后的奖励 / 持久化链路优先通过 `GameRuntimeFacade` 的显式 settlement helper / state accessor 协调，不再直接散写 runtime 私有字段。
-  - 任务板 `submit_item` 正式目标由 `GameRuntimeSettlementCommandHandler` 只负责解析活跃 objective / provider payload，并委托 `GameRuntimeFacade -> CharacterManagementModule` 执行正式仓库扣除；不要把任务缴纳扣库规则塞回据点窗口或 handler 本体。
-  - `GameRuntimeSettlementCommandHandler` 创建缺失 settlement state 时也通过 `TrueRandomSeedService` 补 `shop_inventory_seed`，避免地图运行时新状态继续落固定 seed。
-  - `SettlementShopService` 承载商店库存生成、买卖结算和 shop runtime state 刷新；商店库存 `seed` 由 `TrueRandomSeedService` 分配并随 shop state 持久化，不再用 settlement/shop/world_step 哈希派生；不要把商店定价和库存更新逻辑回塞到 `WorldMapSystem` 或 `SettlementWindow`。
-  - `SettlementForgeService` 承载 `RecipeDef` 装载、设施标签校验以及通过 `PartyWarehouseService` 的原子扣料 / 入仓；不要把 forge 规则回塞到 `GameRuntimeSettlementCommandHandler` 或 `GameRuntimeFacade`。
-  - `GameRuntimeWarehouseHandler` 承载共享仓库窗口数据、默认目标成员解析和 `warehouse` 命令处理；仓库窗口状态、当前入口标签、默认目标成员和仓库持久化链路的运行时读写优先通过 `GameRuntimeFacade` 的显式 warehouse helper / state accessor 协调，不再直接散写 runtime 私有字段。
-  - `GameRuntimeFacade` 现在也持有“普通战 calamity 结算碎片”的 chapter 级持久化闸门：`BattleRuntimeModule` 只产出 raw `calamity_conversion` / fate fixed loot 条目，是否受本章普通战上限约束、以及上限计数落在 `PartyState.fate_run_flags` 的哪几个槽位，统一由 facade 在 battle loot commit 分流时裁切与记账；不要把 chapter cap 逻辑塞回 battle runtime 或仓库服务。
-  - `GameRuntimePartyCommandHandler` 承载队伍管理窗口打开、成员选择、队长切换、编成提交，以及装备 / 卸装与队伍持久化回写；队伍窗口、当前选中成员和队伍持久化链路的运行时读写优先通过 `GameRuntimeFacade` 的显式 party helper / state accessor 协调，不再直接散写 runtime 私有字段。
-  - `GameRuntimeRewardFlowHandler` 承载角色奖励确认、晋升选择、reward/promotion modal 编排与待领奖励呈现时机；奖励 modal 需要继续避让据点任务板 / 商店 / forge / 驿站等互斥窗口，相关运行时读写优先通过 `GameRuntimeFacade` 的显式 reward helper / state accessor 协调，不再直接散写 runtime 私有字段。
-  - `GameRuntimeSnapshotBuilder` 负责组织 headless 结构化快照，并通过 `GameRuntimeFacade` 的显式只读接口取数。
-  - 初始化 `WorldMapGridSystem`、`WorldMapFogSystem`、`PartyWarehouseService`、`CharacterManagementModule`、`BattleRuntimeModule`。
-  - `GameRuntimeFacade` 继续处理世界移动、battle/world 总编排、模态状态真相源与统一持久化桥接，不再直接承载队伍命令或奖励确认流程细节。
-  - 战后“真实死亡”与主角死亡后的 `game_over` modal 归 `GameRuntimeFacade` 判定；不要把主角死亡判定或标题返回流程塞进 `BattleRuntimeModule` 或 `WorldMapView`。
-  - 正式 `command_*` 结果日志、battle batch 战报镜像、以及供 headless / agent 消费的最近日志快照，现在从这里汇总到 `GameSession -> GameLogService`；不要把日志真相源塞回 `WorldMapSystem`。
-  - mounted submap 进入确认、battle start 确认、active map 切换、任意点击返回和 submap player coord 持久化，都属于这里的正式运行时主链。
-  - 维护 headless 可消费的结构化 snapshot 与状态文本。
-  - `WorldMapRuntimeProxy` 负责给 `WorldMapSystem` 提供唯一正式的命令 / 读取接口，并在命令执行后统一触发渲染回调。
-  - `WorldMapSystem` 负责场景树接线、输入捕获、窗口信号绑定，并把 runtime 状态渲染到 `WorldMapView` / `BattleMapPanel` / `RuntimeLogDock` / 各 modal；右侧日志框与地图视口的响应式布局也归这里维护，日志框宽度锁定、高度随窗口高度自适应，世界态会让 `MapViewport` 避让日志框，战斗态则恢复 `MapViewport` 全宽并让日志框覆盖在战斗地图上；世界态底部 `BottomActionBar` / `PartyButton` 只是打开队伍窗口的场景入口，真正命令仍走 `WorldMapRuntimeProxy.command_open_party()`；`RuntimeLogDock` 只负责自身九宫格纹理、边距、字体和日志内容呈现；据点侧现在正式包含 `SettlementWindow`、复用 `ShopWindow` shell 的 `contract_board` / `shop` / forge / `stagecoach` entry-list modal，`SubmapEntryWindow` 继续作为通用确认窗承接 submap 进入确认、battle start 确认与主角死亡后的返回标题入口；战斗键盘输入也归这里集中分流：方向键发战斗移动命令，WASD 只做战斗镜头平移，Enter 执行等待 / 结算，Space 复位 battle focus；战斗技能已选中时，`BattleMapPanel` 的 hover 格只用于刷新 HUD overlay 预览与目标上方命中率浮标，不写入 runtime 目标队列；场景层不再承担 `command_*` / snapshot 对外透传，并且需要在 `battle_loading` modal 下维持根层 `BattleLoadingOverlay` 可见。
-- 邻接单元：
-  - CU-02
-  - CU-04
-  - CU-05
-  - CU-07
-  - CU-08
-  - CU-09
-  - CU-10
-  - CU-12
-  - CU-18
-  - CU-21
-- 适合任务：
-  - 改 world / battle 模式切换。
-  - 改 modal 互斥。
-  - 改奖励 / 仓库 / 晋升入口接线。
-  - 改 scene adapter 与 runtime 的同步。
-  - 改 headless snapshot 结构。
-- 不要把它当成：
-  - 世界生成本体。
-  - 仓库规则本体。
-  - 战斗 renderer 本体。
+- 负责：C# `GameRuntimeFacade` 持有 world/battle 模式、modal 状态、battle start context、据点/仓库/队伍/奖励/任务命令分发、headless snapshot 组织、战后回写与持久化边界；战后本地回写先物化 `BattleLocalWritebackResult`，正式结算链不再从回写 Dictionary 读取 `ok`；战后回写和仓库事务回滚使用 `PartyState.duplicate_state()` 做运行时深拷贝，不通过 `from_dict(to_dict())` 借存档 schema 克隆；battle loot commit 正式链使用 `BattleLootCommitResult` 聚合提交状态、日志和 snapshot，公开边界再组装 `Dictionary`；battle selection state 是 plain C# 状态对象，目标坐标/单位队列使用 `List<Vector2I>` / `List<StringName>`，只有 facade/UI 边界投影 Godot Array；command logger 是 plain C# helper，active command scope 留在 logger 内部 typed 对象，facade 不再持有公开 Dictionary scope；party / warehouse / quest / reward flow command handlers 是 plain C# runtime helpers，命令结果、奖励窗口与窗口 payload 的 Godot Dictionary/Array 只保留在 facade/UI 边界；snapshot builder 是 plain C# headless/UI 投影 helper，通过 `IGameRuntimeSnapshotSource` 消费 typed runtime source，Godot Dictionary/Array 只作为外层 snapshot/text 边界；character info builder 是 plain C# UI payload helper，人物信息 section 的 Godot Dictionary/Array 只作为 facade/UI 展示边界；`WorldMapRuntimeProxy` 是 plain C# scene adapter，负责把场景层命令/getter 转发到 runtime，只有 adapter 方法签名保留 Godot Dictionary/Array UI 边界；settlement handler 在正式执行链直接消费 typed `SettlementServiceResult`，`FromDictionary` 只保留给公开 Dictionary 边界，并用 typed validation / persist result / service metadata / stagecoach destination / runtime command result snapshot 处理正式命令流，把 pending character reward 物化委托给 `CharacterManagementModule`；shop service buy/sell 返回 typed trade result，商店窗口正式路径消费 typed `WarehouseInventoryEntry` 后再投影公开 Dictionary；forge service 正式路径使用 typed warehouse/party 参数构建窗口与执行配方，仓库预览/提交消费 typed `WarehouseBatchSwapResult`，配方物品校验用 typed result，misfortune forge guidance 通知经 `FateRuntimeModule` 解析为 `MisfortuneForgeGuidanceInput` 与 typed item-def index 后进入 service，公开 Dictionary 只留在 runtime adapter；research service 内部使用 typed member availability 与 typed service metadata 后再投影窗口 payload；quest command handler 从 `CharacterManagementModule` 消费 typed submit/claim result，并通过 typed `QuestDef` 读取任务定义字段；`WorldTimeSystem` 是 plain C# step/day 计算器，`world_step` 的 Godot Dictionary 读写保留在 `GameRuntimeFacade` / plain `WorldMapDataContext` 边界；GDScript/UI 边界通过 `is_world_coord_visible()` 查询迷雾，不把 plain `WorldMapFogSystem` 当 Godot API 返回给脚本；`WorldMapDataContext` 是 plain C# world-context helper，持有 active world 同步、子地图进出、迷雾存取、据点状态 `WorldMapSettlementStateData`、据点/NPC/事件/遭遇锚点 typed 查询与运行时 schema 校验；`WorldMapSystem.cs` 只作为 Godot 场景脚本层。
+- 适合：world/battle 切换、窗口互斥、runtime 接线、场景同步、battle loading、reward/party/warehouse/settlement 命令入口。
+- 邻接单元：CU-02、CU-04、CU-05、CU-07、CU-08、CU-09、CU-10、CU-12、CU-15、CU-18、CU-21。
+- 不带：世界生成本体、仓库规则本体、battle renderer 本体。
 
 ### CU-07 世界地图渲染叶子单元
 
 - 文件：
-  - `scripts/ui/world_map_view.gd`
-  - `assets/main/basic_map/village.png`
-- 真相源：
-  - 当前视口内 world map 的绘制结果。
-- 主要职责：
-  - 格子背景、迷雾、据点、NPC、遭遇点、世界事件、玩家、选中框绘制。
-  - 鼠标坐标到 world coord 的映射。
-- 邻接单元：
-  - CU-05
-  - CU-06
-- 适合任务：
-  - 改大地图视觉。
-  - 改点击命中。
-  - 改玩家贴图与相机感受。
-- 不要顺手带上：
-  - `scripts/systems/game_session.gd`
-  - `scripts/systems/party_warehouse_service.gd`
+  - `scripts/ui/WorldMapView.cs`
+  - `assets/main/basic_map/village_dark.png`
+- 负责：大地图绘制、世界事件图标、点击/选中表现。
+- 适合：地图视觉、cell 绘制、图标、submap 返回提示。
+- 邻接单元：CU-05、CU-06。
+- 不带：战斗棋盘、存档序列化。
 
 ### CU-08 据点窗口与人物信息窗口
 
 - 文件：
   - `scenes/ui/settlement_window.tscn`
-  - `scripts/ui/settlement_window.gd`
+  - `scripts/ui/SettlementWindow.cs`
+  - `scripts/ui/PartyMemberOptionUtils.cs`
   - `scenes/ui/shop_window.tscn`
-  - `scripts/ui/shop_window.gd`
+  - `scripts/ui/ShopWindow.cs`
   - `scenes/ui/character_info_window.tscn`
-  - `scripts/ui/character_info_window.gd`
-- 真相源：
-  - `SettlementWindow` 的当前展示态。
-  - 复用 `ShopWindow` shell 的 shop / forge / stagecoach entry-list modal 的当前展示态。
-  - 人物信息窗口上下文。
-  - 当前 scene 层据点按钮与关闭信号的发射边界。
-- 主要职责：
-  - 展示设施、服务、服务 NPC、服务按钮，以及据点成员选择 / 成本 / 状态摘要。
-  - 展示商店买卖条目与驿站路线条目，并把选中的结算参数回传给 runtime。
-  - 展示 world / battle 单位详情。
-  - 发出据点服务按钮、商店买卖请求、驿站出发请求和关闭窗口信号，由 runtime handler 执行真正的据点动作。
-- 邻接单元：
-  - CU-04
-  - CU-06
-  - CU-09
-  - CU-12
-- 适合任务：
-  - 改据点窗口字段。
-  - 改服务按钮与 payload。
-  - 改人物详情展示。
-- 不要顺手带上：
-  - `scripts/systems/battle_runtime_module.gd`
-  - `scripts/systems/progression_service.gd`
+  - `scripts/ui/CharacterInfoWindow.cs`
+- 负责：据点服务窗口、商店/任务板/forge shell、人物信息窗口展示。
+- 适合：据点 UI、服务反馈、人物信息 section 展示。
+- 邻接单元：CU-06、CU-12、CU-14。
+- 不带：服务规则本体、世界生成。
 
 ### CU-09 队伍管理、成就摘要、转职、角色奖励窗口层
 
 - 文件：
   - `scenes/ui/party_management_window.tscn`
-  - `scripts/ui/party_management_window.gd`
-  - `assets/main/basic_map/log.png`
+  - `scripts/ui/PartyManagementWindow.cs`
   - `scenes/ui/promotion_choice_window.tscn`
-  - `scripts/ui/promotion_choice_window.gd`
+  - `scripts/ui/PromotionChoiceWindow.cs`
   - `scenes/ui/mastery_reward_window.tscn`
-  - `scripts/ui/mastery_reward_window.gd`
-- 真相源：
-  - 各窗口自身的选中态与展示态。
-- 主要职责：
-  - 展示 active / reserve roster、leader 切换。
-  - `PartyManagementWindow` 现在是“人物管理”窗口：用九宫格外框、响应式内容边距和列表 / 概览 / 详情 tabs 展示成员信息。
-  - 展示成员概览、最终属性快照、装备槽、已学技能、职业进度与成就摘要；显示数据由 `WorldMapSystem` 注入的 item / skill / profession defs 与本地临时 `AttributeService` snapshot 生成。
-  - 展示待转职选择。
-  - 展示通用 `PendingCharacterReward` 队列。
-  - 只发出动作，不负责真正改 `PartyState` / progression。
-- 邻接单元：
-  - CU-06
-  - CU-10
-  - CU-11
-  - CU-12
-  - CU-13
-  - CU-14
-- 适合任务：
-  - 改队伍管理 UI。
-  - 改成就摘要展示。
-  - 改转职 / 奖励弹窗文案与交互。
-- 不要顺手带上：
-  - `scripts/systems/battle_grid_service.gd`
-  - `scripts/systems/world_map_spawn_system.gd`
+  - `scripts/ui/MasteryRewardWindow.cs`
+  - `assets/main/basic_map/log.png`
+- 负责：队伍窗口、成员选择、成就摘要、转职选择、角色奖励确认。
+- 适合：队伍编成 UI、角色奖励弹窗、转职 UI、装备摘要展示。
+- 邻接单元：CU-06、CU-10、CU-11、CU-12、CU-14。
+- 不带：battle board、世界生成。
 
-### CU-10 共享仓库、物品定义与装备基础流转
+### CU-10 队伍共享背包、物品定义与装备基础流转
 
 - 文件：
-  - `scripts/player/equipment/equipment_rules.gd`
-  - `scripts/player/equipment/equipment_state.gd`
-  - `scripts/player/warehouse/item_def.gd`
-  - `scripts/player/warehouse/item_content_registry.gd`
-  - `scripts/player/warehouse/recipe_def.gd`
-  - `scripts/player/warehouse/recipe_content_registry.gd`
-  - `scripts/player/warehouse/warehouse_state.gd`
-  - `scripts/player/warehouse/warehouse_stack_state.gd`
-  - `data/configs/items_templates/*.tres`
-  - `scripts/systems/equipment_drop_service.gd`
-  - `scripts/systems/party_warehouse_service.gd`
-  - `scripts/systems/party_equipment_service.gd`
-  - `scripts/systems/party_item_use_service.gd`
+  - `scripts/player/equipment/*.gd`
+  - `scripts/player/equipment/*.cs`
+  - `scripts/player/warehouse/*.gd`
+  - `scripts/systems/inventory/*.gd`
+  - `scripts/systems/inventory/*.cs`
+  - `scripts/systems/persistence/GameSession.cs`
+  - `scripts/systems/persistence/SaveSerializer.cs`
   - `scenes/ui/party_warehouse_window.tscn`
-  - `scripts/ui/party_warehouse_window.gd`
+  - `scripts/ui/PartyWarehouseWindow.cs`
+  - `data/configs/items/*.tres`
+  - `data/configs/items_templates/*.tres`
   - `data/configs/recipes/*.tres`
-  - `data/configs/items/bronze_sword.tres`
-  - `data/configs/items/militia_axe.tres`
-  - `data/configs/items/watchman_mace.tres`
-  - `data/configs/items/scout_dagger.tres`
-  - `data/configs/items/leather_cap.tres`
-  - `data/configs/items/leather_jerkin.tres`
-  - `data/configs/items/scout_charm.tres`
-  - `data/configs/items/healing_herb.tres`
-  - `data/configs/items/bandage_roll.tres`
-  - `data/configs/items/travel_ration.tres`
-  - `data/configs/items/torch_bundle.tres`
-  - `data/configs/items/antidote_herb.tres`
-  - `data/configs/items/iron_ore.tres`
-  - `data/configs/items/beast_hide.tres`
-  - `data/configs/items/hardwood_lumber.tres`
-  - `data/configs/items/linen_cloth.tres`
-- 真相源：
-  - 物品定义与 `item_id -> ItemDef`。
-  - 配方定义与 `recipe_id -> RecipeDef`。
-  - 仓库堆栈状态。
-  - 装备槽位状态与固定槽位规则。
-  - 武器 `ItemDef.weapon_attack_range` 是武器攻击范围真相源；战斗内武器技能射程从装备进入角色 attribute snapshot 后读取，不应在技能资源里另配攻击距离。
-  - `EquipmentDropService` 当前持有装备掉落稀有度公式：`3d6 + drop_luck`。
-  - 当前容量 / 已用 / 超容规则。
-- 主要职责：
-  - 按堆栈管理共享仓库。
-  - 用全队 `storage_space` 统计容量。
-  - `ItemContentRegistry` 在注册阶段先扫描 `data/configs/items_templates`，再扫描 `data/configs/items`；实例若声明 `base_item_id` 会沿模板链合并（标量空回退、tags/modifiers 合并去重、equipment_slot_ids 覆盖、attribute_modifiers 深拷贝并把 source_id 重写为最终 item_id），合并产物才进入 `_item_defs`。模板自身不暴露给运行时；循环或缺失模板在校验阶段报错。
-  - `RecipeContentRegistry` 负责扫描 / 校验 `RecipeDef`，供据点 forge 流读取。
-  - `EquipmentDropService` 负责把调用方已 clamp 的 `drop_luck` 映射为正式装备稀有度；当前不持有掉落表内容，也不二次 clamp。
-  - 战斗内随机装备掉落现在由 `BattleRuntimeModule` 在敌人死亡瞬间调用 `EquipmentDropService` 预 roll，`GameRuntimeFacade` 只负责把已解析好的 `equipment_instance` 写入共享仓库。
-  - `preview_add_item` / `add_item` / `remove_item`。
-  - 处理仓库与装备槽位之间的基础装备 / 卸装事务。
-  - 维护武器攻击范围等装备侧战斗属性，并通过 `AttributeService` 写入角色属性快照供战斗读取。
-  - 仓库列表、详情、丢弃单件 / 全部。
-- 说明：
-  - 当前装备仍以静态 `item_id` 流转为基线；统一设计与延后的耐久 / 实例化边界见 `docs/design/equipment_system_plan.md`。
-  - 如果任务进入“装备实例化 / 耐久 / 战斗内装备损坏”，不要把它当成 CU-10 单独任务，至少还要补 CU-11、CU-12、CU-15、CU-16。
-- 邻接单元：
-  - CU-02
-  - CU-09
-  - CU-06
-  - CU-11
-  - CU-12
-  - CU-19
-  - CU-21
-- 适合任务：
-  - 改堆叠规则。
-  - 改容量规则。
-  - 增减物品内容。
-  - 改基础装备 / 卸装与仓库联动。
-  - 改仓库窗口。
-- 不要顺手带上：
-  - `scripts/systems/battle_runtime_module.gd`
-  - `scripts/ui/world_map_view.gd`
+- 负责：队伍共享背包、堆叠/容量、物品/配方定义、技能书跨表校验、装备实例、装备/卸装、物品使用、装备掉落基础服务；`EquipmentRules` 是 plain static C# slot helper，内部 slot 顺序和存在性检查使用普通 `string[]` / `HashSet<string>`，正式 C# 调用使用 `GetAllSlotIdsTyped()` / `NormalizeSlotIdsTyped()`，公开查询结果再投影为 `StringName` / Godot Array；`EquipmentDurabilityRules` 是 plain static C# durability helper，不再作为 Godot `RefCounted` / `GlobalClass` 或 Godot Dictionary 规则表暴露；`EquipmentState` 内部装备槽持有 `Dictionary<StringName, EquipmentEntryState>`，正式 C# 调用使用 `GetEntrySlotIdsTyped()` / `GetFilledSlotIdsTyped()` / `GetOccupiedSlotIdsForEntryTyped()` / `SetEquippedEntryTyped()`，Godot Array 方法只作为 GDS/UI/serializer 边界投影，不要恢复 Godot Dictionary / `AsGodotObject()` entry 归一化或让生产 C# 回读 Godot Array；`EquipmentEntryState` 是 plain C# entry DTO，`occupied_slot_ids` 使用 `List<StringName>`，只在 `to_dict()` / UI/headless/battle event 边界投影 Godot Array；`WarehouseState` 当前仍保留旧 GDS 入口需要的 Godot Array 字段，但正式 C# 读侧应走 `GetStacksTyped()` / `GetEquipmentInstancesTyped()` / `GetNonEmptyStacksTyped()` / `GetNonEmptyEquipmentInstancesTyped()`，写侧应走 `AddStack()` / `AddEquipmentInstance()` / `RemoveStackAt()` / `RemoveEquipmentInstanceAt()` / `ReplaceStacks()` / `ReplaceEquipmentInstances()`，不要在 validator、runtime projection 或 service 逻辑里直接遍历或改写公开数组字段；`WarehouseStateItemValidator` 是 plain static C# warehouse-state validator，正式入口消费 `IReadOnlyDictionary<StringName, ItemDef>` 并返回 `List<string>`，通过 `WarehouseState` typed read-side 读取 stack / equipment instance，保持原索引错误文本，不要恢复 Godot Dictionary item-def 表或 `AsGodotObject()` 读取；`SkillBookItemFactory` / `SkillBookItemContentValidator` 是 plain static C# skill-book helpers，正式入口消费 typed `Dictionary<StringName, SkillDef/ItemDef>` 并返回 typed map / `List<string>`，不要恢复 Godot Dictionary 业务表、GDS preload、`RefCounted` 或 `GlobalClass`；`PartyWarehouseService` add/preview item 与 add equipment instance 的正式路径返回 `WarehouseAddItemResult`，allocated equipment ids 在内部保持 `List<string>`，公开 Godot API 再投影 Dictionary/Array；remove item / remove equipment instance 正式路径返回 `WarehouseRemoveItemResult`，batch swap 事务不要回读公开 Dictionary；装备实例索引 helper 返回 `List<int>`；容量计算遍历 `PartyState.get_member_states()`，不要回到 `member_states.Values` / `AsGodotObject()`；item-def setup 边界立即索引为 `Dictionary<StringName, ItemDef>`，服务内部不要持有 Godot Dictionary item cache；GDS `Callable` 装备实例 allocator 只在公开 setup 边界适配为 typed `Func<StringName>`；batch swap 的 Godot 数组入口只在边界解析为 typed `WarehouseBatchItemEntry` / `WarehouseBatchSwapResult`，装备和仓库内部 preview/commit 应直接传 typed batch entries，纯 item-id 的正式 C# 调用应传 `IReadOnlyList<StringName>` / `List<StringName>`，不要恢复 `Variant.From(...).AsGodotArray()` 往返或在任务提交/领奖路径构造 `GStringNameArray`；库存展示先生成 typed `WarehouseInventoryEntry`，公开 `get_inventory_entries()` 再投影 Godot Dictionary，内部事务不再恢复 untyped entry loop 或显式 `Variant` 解析；`PartyEquipmentService` 是 plain C# service，不再作为 Godot `RefCounted` / `GlobalClass` 或 GDS preload 边界；setup 边界立即索引为 `Dictionary<StringName, ItemDef>`，装备 preview 内部使用 typed result / `List<string>` blockers / `List<StringName>` occupied slots / displaced entry，并通过 `EquipmentRequirement.CheckResult()` 消费需求检查；`PartyItemUseService` 是 plain C# service，不再作为 Godot `RefCounted` / `GlobalClass` 或 GDS preload 边界；setup 边界立即物化 `Dictionary<StringName, ItemDef/SkillDef>`，正式使用路径返回 typed `PartyItemUseResult` 并通过 typed `WarehouseRemoveItemResult` 消费库存，只在公开 `use_item()` / options 边界投影或解析 Godot Dictionary。
+- 迁移备注：`EquipmentRequirement` 本体是 `.tres` 装备需求资源，保留 `Resource` / `[GlobalClass]`；`EquipmentRequirementCheckResult` 是运行时 result，blockers 保持 `IReadOnlyList<string>` / `List<string>`，公开 `Check()` 才投影 Godot Dictionary/Array。
+- 适合：堆叠规则、容量规则、物品内容、装备实例、基础装备流转、仓库窗口。
+- 邻接单元：CU-02、CU-06、CU-09、CU-11、CU-12、CU-19、CU-21。
+- 不带：battle runtime，除非是战斗内换装、装备损坏或战后回写。
 
 ### CU-11 队伍与角色成长运行时数据模型
 
 - 文件：
-  - `scripts/player/progression/party_state.gd`
-  - `scripts/player/progression/party_member_state.gd`
-  - `scripts/player/progression/unit_progress.gd`
-  - `scripts/player/progression/unit_skill_progress.gd`
-  - `scripts/player/progression/unit_profession_progress.gd`
-  - `scripts/player/progression/unit_reputation_state.gd`
-  - `scripts/player/progression/unit_base_attributes.gd`
-  - `scripts/player/progression/attribute_snapshot.gd`
+  - `scripts/player/progression/PartyState.cs`
+  - `scripts/player/progression/PartyMemberState.cs`
+  - `scripts/player/progression/UnitProgress.cs`
+  - `scripts/player/progression/UnitSkillProgress.cs`
+  - `scripts/player/progression/UnitProfessionProgress.cs`
+  - `scripts/player/progression/UnitReputationState.cs`
+  - `scripts/player/progression/UnitBaseAttributes.cs`
+  - `scripts/player/progression/AttributeSnapshot.cs`
   - `scripts/player/progression/pending_profession_choice.gd`
-  - `scripts/player/progression/achievement_progress_state.gd`
-  - `scripts/player/progression/quest_state.gd`
-  - `scripts/player/progression/faith_deity_def.gd`
-  - `scripts/player/progression/faith_rank_def.gd`
-  - `scripts/systems/character_progression_delta.gd`
-  - `scripts/systems/pending_character_reward.gd`
-  - `scripts/systems/pending_character_reward_entry.gd`
-- 真相源：
-  - `PartyState` 本体。
-  - 每个成员的 progression / achievements / 当前资源。
-  - `PartyState.main_character_member_id` 与 `PartyMemberState.is_dead`。
-  - 正式角色奖励队列 `pending_character_rewards`。
-  - 正式任务状态 `active_quests` / `claimable_quests` / `completed_quest_ids`。
-  - 正式角色奖励结构。
-  - `PartyMemberState -> UnitBaseAttributes.get_drop_luck()` 是正式掉落幸运值来源；当前 battle loot 改为按击杀者逐次读取，`PartyState` 不再持有整场战斗共用的掉落承担者字段。
-  - `UnitBaseAttributes.ACTION_THRESHOLD` / `AttributeService.ACTION_THRESHOLD` 是友军行动阈值的角色侧属性入口；角色快照缺省值为 `30 TU`，战斗单位不再只吃 battle 层默认值。
-- 主要职责：
-  - 定义 party / member / progression / reward 数据模型。
-  - 负责模型级 `to_dict` / `from_dict`。
-  - 当前 `PartyState.version = 3`，包含 `main_character_member_id`、`warehouse_state`、`pending_character_rewards`、`active_quests`、`claimable_quests`、`completed_quest_ids` 与通用周目剧情去重字典 `meta_flags`；`PartyMemberState` 额外持有 `is_dead`。
-  - `PartyState` 现在不再保存任何“整场战斗共用掉落承担者”字段；战斗掉落 lucky source 的时点与归属完全下放到 battle runtime。
-  - `FaithDeityDef` / `FaithRankDef` 持有 faith 阵营与阶级静态内容，与 quest / fate sidecar 的运行时读写共用这层数据模型。
-  - `main_character_member_id` 现在是严格合同字段，不再对缺失/坏引用做 leader 或 roster fallback；旧 shape / 坏存档会在反序列化阶段直接失败。
-  - `active_quests` / `claimable_quests` / `completed_quest_ids` 现在是互斥 bucket：同一 quest 只能存在于其中一个；模型 API 会主动迁移 bucket，反序列化遇到重叠坏 shape 会直接失败。
-  - 若后续落地耐久 / 装备实例化，schema 升级会优先发生在本单元与 CU-10，不会只改 battle runtime。
-- 邻接单元：
-  - CU-02
-  - CU-09
-  - CU-10
-  - CU-12
-  - CU-13
-  - CU-14
-- 适合任务：
-  - 改 party schema。
-  - 改 achievement progress 或 reward queue 字段。
-  - 改角色基础属性存储。
-- 不要顺手带上：
-  - `scripts/ui/battle_board_controller.gd`
-  - 登录壳
+  - `scripts/player/progression/AchievementProgressState.cs`
+  - `scripts/player/progression/QuestState.cs`
+  - `scripts/player/progression/FaithDeityDef.cs`
+  - `scripts/player/progression/FaithRankDef.cs`
+  - `scripts/systems/progression/CharacterProgressionDelta.cs`
+  - `scripts/systems/progression/PendingCharacterReward.cs`
+  - `scripts/systems/progression/PendingCharacterRewardEntry.cs`
+- 负责：`PartyState`、成员状态、技能/职业进度、属性快照、成就/任务/信仰状态、角色奖励 payload；`PartyState` 及其成员/进度/任务/奖励嵌套状态提供 typed `duplicate_state()`，供 runtime 回写、事务回滚等正式代码深拷贝使用；正式服务需要遍历成员时走 `PartyState.get_member_states()`。
+- 适合：party schema、角色状态字段、奖励队列、成长状态序列化。
+- 邻接单元：CU-02、CU-09、CU-10、CU-12、CU-13、CU-14、CU-19。
+- 不带：UI 或 battle runtime，除非字段已经投影到对应层。
 
 ### CU-12 CharacterManagement、成就记录、奖励归并桥
 
 - 文件：
-  - `scripts/systems/character_management_module.gd`
-  - `scripts/systems/misfortune_black_omen_service.gd`
-  - `scripts/systems/quest_progress_service.gd`
-  - `scripts/systems/faith_service.gd`
-- 真相源：
-  - battle / settlement / headless 与 party/progression / quest state 之间的桥接规则。
-- 主要职责：
-  - 提供 `PartyMemberState`、attribute snapshot 与 progression 查询，作为 `BattleUnitFactory` 构建 / 刷新战斗单位时的角色侧桥接。
-  - 记录成就事件。
-  - 直接解锁一次性 achievement，并把无奖励的剧情门票稳定写进 `UnitProgress.achievement_progress`。
-  - 生成与应用 `PendingCharacterReward`。
-  - 统一使用 `PendingCharacterReward`。
-  - `MisfortuneBlackOmenService` 现在持有 `doom_marked` 的受控写入口与默认黑兆 hook 样板；黑兆事件脚本应通过这里把 `doom_marked = 1` 写回角色，而不是复用 `hidden_luck_at_birth` 的 protected custom-stat 白名单链路。
-  - `MisfortuneBlackOmenService` 还承接 `dead_road_lantern_black_omen_path` 这类“路径已命中黑兆”的后端 hook；亡途灯笼只在这里受控写入 `doom_marked`，路径显隐判断则继续由 `LowLuckRelicRules` 统一封装，UI 展示留给专门界面单元。
-  - 通过 `QuestProgressService` 接受 `quest_progress_events`，维护 `PartyState.active_quests` / `claimable_quests` / `completed_quest_ids`，并把事件上下文写入 `QuestState.last_progress_context`。
-  - `submit_item` 正式任务目标的仓库扣除与进度推进也归这里协调：先按 objective 需求预览共享仓库可提交数量，再通过 `PartyWarehouseService` 做原子扣除，只有 quest progress 成功时才提交扣除结果。
-  - 处理 profession promotion、战后 hp/mp/真实死亡回写，以及死亡成员装备回收。
-  - 未来若存在战斗内装备损坏或耐久归零后的属性变化，也必须通过这里提供的角色状态 / attribute snapshot，让 `BattleUnitFactory` 把 party 与 battle 单位重新对齐。
-- 邻接单元：
-  - CU-06
-  - CU-09
-  - CU-10
-  - CU-11
-  - CU-13
-  - CU-14
-  - CU-15
-- 适合任务：
-  - 改战斗后成长回写。
-  - 改 achievement unlock 流程。
-  - 改角色奖励队列。
-  - 改任务进度事件归并与 quest state 迁移。
-- 不要顺手带上：
-  - `scripts/ui/world_map_view.gd`
-  - `scripts/ui/battle_board_2d.gd`
+  - `scripts/systems/progression/CharacterManagementModule.cs`
+  - `scripts/systems/progression/PassiveSourceContext.cs`
+  - `scripts/systems/progression/BloodlineApplyService.cs`
+  - `scripts/systems/progression/AscensionApplyService.cs`
+  - `scripts/systems/progression/StageAdvancementApplyService.cs`
+  - `scripts/systems/progression/ProgressionContentBundleAdapter.cs`
+  - `scripts/systems/progression/RacialSkillGrantService.cs`
+  - `scripts/systems/progression/AgeStageResolver.cs`
+  - `scripts/systems/progression/MisfortuneBlackOmenService.cs`
+  - `scripts/systems/progression/QuestProgressService.cs`
+  - `scripts/systems/progression/FaithService.cs`
+  - `scripts/systems/progression/LevelGrowthEvaluationService.cs`
+  - `scripts/systems/progression/LevelGrowthTriggerResult.cs`
+  - `scripts/systems/progression/PracticeGrowthService.cs`
+  - `scripts/systems/progression/PracticeSkillLearnStatus.cs`
+  - `scripts/systems/progression/QuestCommandResultData.cs`
+  - `scripts/systems/progression/AgeStageResolution.cs`
+  - `scripts/systems/progression/AttributeGrowthResult.cs`
+  - `scripts/systems/attributes/AttributeSourceContext.cs`
+- 负责：角色管理门面、奖励归并、成就/任务进度、任务进度事件 typed 解析、任务定义正式 `StringName` key 查找、quest submit-item / reward claim 的 typed preview/result 物化，公开 GDictionary 边界只由 typed result `ToDictionary()` 组装，quest result 内部 id 集合使用 `List<StringName>`，只在边界投影 Godot Array；pending character reward 条目 typed 解析与聚合、属性成长 typed result 入账、active level trigger typed result 入账；`FaithService` 是 plain C# faith rank service，deity 索引使用 `Dictionary<StringName, FaithDeityDef>`，devotion 返回 `FaithDevotionResult`，rank reward 配置通过 `FaithRankRewardEntrySpec` typed 投影进入 pending reward，不要恢复 `RefCounted`/`GlobalClass`、GDS preload、snake_case API 或 Dictionary result；`BloodlineApplyService`、`AscensionApplyService`、`StageAdvancementApplyService`、`LevelGrowthEvaluationService`、`PracticeGrowthService` 与 `MisfortuneBlackOmenService` 是 plain C# service，不再作为 Godot `RefCounted`/`GlobalClass` 或 GDScript preload 边界，黑兆 hook 使用 typed `MisfortuneBlackOmenHookPayload` / `MisfortuneBlackOmenResult`，物品定义状态使用 `Dictionary<StringName, ItemDef>`；身份 apply 服务通过 `ProgressionContentBundleAdapter` 在 setup 边界把内容包转换为 `Dictionary<StringName, Def>` 后执行；技能定义缓存使用 `Dictionary<StringName, SkillDef>`，Godot Dictionary 只作为 setup 适配输入；practice track 集合使用 `HashSet<StringName>`，practice skill learn status / daily practice growth typed result 入账；有效年龄阶段 typed resolution 入账；`AgeStageResolver` 与 `RacialSkillGrantService` 是 plain static C# helper，阶段进阶输入消费 `IEnumerable<StageAdvancementModifier>`，身份技能 grant entry 与 active grant lookup 使用 typed DTO / `HashSet<string>`，`CharacterManagementModule` 收集 active stage modifiers 时使用 `List<StageAdvancementModifier>`，不再作为 Godot Array 业务边界；技能/职业/成就/物品/身份定义 typed index 查询，构建 `AttributeSourceContext` 时传递 typed skill/profession maps、装备属性 modifier list 与 stage modifier list；`PassiveSourceContext` 是 plain C# DTO，只携带 battle passive 投影实际消费的成员、进度与身份 Def 引用，通过显式 `IBattleRuntimeCharacterGateway` 实现进入 battle factory；战斗运行时通过 `IBattleRuntimeCharacterGateway.get_item_def()` 读取物品定义，身份内容 resolver 从内容包边界直接返回具体 Def 类型、身份应用、属性上下文、装备/技能/成长桥接。
+- 适合：奖励入账、成就记录、任务推进、身份刷新、角色信息摘要、功法学习/同轨替换、跨系统成长接线。
+- 邻接单元：CU-06、CU-08、CU-09、CU-10、CU-11、CU-13、CU-14、CU-15、CU-19。
+- 不带：展示层，除非任务是窗口 payload。
 
 ### CU-13 progression 内容定义、条件模型、seed 内容
 
 - 文件：
-  - `scripts/player/progression/skill_content_registry.gd`
-  - `scripts/player/progression/skill_def.gd`
-  - `scripts/player/progression/combat_skill_def.gd`
-  - `scripts/player/progression/combat_cast_variant_def.gd`
-  - `scripts/player/progression/combat_effect_def.gd`
-  - `scripts/player/progression/profession_def.gd`
-  - `scripts/player/progression/tag_requirement.gd`
-  - `scripts/player/progression/attribute_requirement.gd`
-  - `scripts/player/progression/reputation_requirement.gd`
-  - `scripts/player/progression/profession_promotion_requirement.gd`
-  - `scripts/player/progression/profession_rank_requirement.gd`
-  - `scripts/player/progression/profession_rank_gate.gd`
-  - `scripts/player/progression/profession_granted_skill.gd`
-  - `scripts/player/progression/profession_active_condition.gd`
-  - `scripts/player/progression/profession_promotion_record.gd`
-  - `scripts/player/progression/profession_content_registry.gd`
-  - `scripts/player/progression/attribute_modifier.gd`
-  - `scripts/player/progression/derived_attribute_rule.gd`
-  - `scripts/player/progression/achievement_def.gd`
-  - `scripts/player/progression/achievement_reward_def.gd`
-  - `scripts/player/progression/quest_def.gd`
+  - `scripts/player/progression/*Def.cs`
+  - `scripts/player/progression/*Requirement.cs`
+  - `scripts/player/progression/CombatSkillResourceCosts.cs`
+  - `scripts/player/progression/*ContentRegistry.cs`
+  - `scripts/player/progression/*ContentRules.cs`
+  - `scripts/player/progression/*_def.gd`
+  - `scripts/player/progression/*_requirement.gd`
+  - `scripts/player/progression/*content_registry.gd`
   - `scripts/player/progression/progression_content_registry.gd`
-  - `scripts/player/progression/progression_data_utils.gd`
+  - `scripts/player/progression/ProgressionDataUtils.cs`
+  - `scripts/player/progression/BarrierContentRegistry.cs`
+  - `scripts/player/progression/identity_content_registry_base.gd`
+  - `scripts/player/progression/*content_rules.gd`
+  - `scripts/player/progression/BattleExecuteContentRules.cs`
+  - `scripts/player/progression/CombatTargetTeamContentRules.cs`
+  - `scripts/player/progression/*content_validator.gd`
+  - `scripts/player/progression/QuestContentValidator.cs`
   - `data/configs/skills/*.tres`
   - `data/configs/professions/*.tres`
-- 真相源：
-  - 技能、职业、条件、修正器、achievement、quest 的静态定义与 seed 内容。
-- 主要职责：
-  - 定义 progression 语义，不直接执行业务流程。
-  - `SkillContentRegistry` 负责扫描 `data/configs/skills/*.tres`，并报告 skill_id、嵌套战斗资源结构与基础 schema 相关的静态错误；warrior / archer / mage 正式技能 seed 现在都以这些 SkillDef 资源为真相源，`DesignSkillCatalog` 代码承载路径已全部下线。
-  - `CombatSkillDef` 的命中修正字段是 `attack_roll_bonus`，并可通过 `level_overrides` 按技能等级覆盖消耗 / 冷却；`CombatEffectDef` 可用 `min_skill_level` / `max_skill_level` 表达分级效果，不再持有攻击 / 防御属性缩放字段，伤害类型通过 `damage_tag` 表达，完全免疫、减半与易伤等承伤档位通过状态参数 `mitigation_tier` 表达，实际命中与伤害公式归 CU-16 执行。
-  - `ProfessionContentRegistry` 负责扫描 `data/configs/professions/*.tres`，并报告 profession_id、技能/职业引用与 rank requirement 相关的静态错误。
-  - `ProgressionContentRegistry` 负责聚合 skill/profession registry、补齐剩余未迁移的 code fallback（当前主要只剩 `charge`），并汇总 skill/profession registry 的静态校验结果。
-  - Fortuna guidance 这类剧情门票 achievement 现在允许无奖励定义；正式效果由 rank gate 或剧情脚本消费，不强制进入 reward queue。
-  - 做静态内容校验。
-- 邻接单元：
-  - CU-02
-  - CU-11
-  - CU-12
-  - CU-14
-  - CU-15
-- 适合任务：
-  - 新技能。
-  - 新职业。
-  - 新成就。
-  - 改 requirement / reward 语义。
-- 不要顺手带上：
-  - 各类窗口脚本。
-  - `scripts/systems/world_map_system.gd`
+  - `data/configs/races/*.tres`
+  - `data/configs/subraces/*.tres`
+  - `data/configs/race_traits/*.tres`
+  - `data/configs/age_profiles/*.tres`
+  - `data/configs/bloodlines/*.tres`
+  - `data/configs/ascensions/*.tres`
+  - `data/configs/stage_advancements/*.tres`
+  - `data/configs/barriers/*.tres`
+  - `data/configs/faith/*.tres`
+- 负责：技能、职业、身份、血脉、升华、阶段进阶、成就、任务等静态内容与跨表校验；content validation runner 重载 fixture 目录时走 registry 公开目录加载入口（`load_from_directory()` / identity 多目录 `load_from_directories()`），不要在 GDScript 测试中清空或扫描 C# registry 私有 backing 字段；combat-targeting、target-team、damage-tag、battle-save、execute、attribute-growth、body-size、quest-provider、trait-trigger、skill-level-description 与 pending-character-reward content rule helper 是 plain static C#，合法集合使用 `HashSet<StringName>` / `IReadOnlySet<StringName>` / typed map，不再作为 Godot `RefCounted`/`GlobalClass` 或 Godot Dictionary 规则表暴露；`ProgressionDataUtils.sorted_string_keys()` 是 C# 内部 typed helper，返回 `List<string>`，`to_string_name_int_dictionary()` 返回 `Dictionary<StringName,int>`，不要恢复 Godot Array 返回值或 GDScript 直调边界；skill-level-description 校验核心通过 `CollectValidationErrors()` 返回 `List<string>`，不要恢复 Godot Array 追加式入口；`CombatEffectDef` 直接拥有正式 effect bool、基础骰、属性缩放骰面公式、追加伤害骰、DR bypass、低血阈值、击杀资源收益与状态语义字段（`counts_as_debuff_*` / `lock_counterattack` / `lock_crit` / `main_skill_lock_other_debuff_count`），`SkillContentRegistry` 必须拒绝这些字段继续写在 `params` 里；装备耐久伤害 effect 参数先物化 `EquipmentDurabilityDamageValidationParameters`，内容校验不要通过宽松 `DictBool` 把非 bool 当成 `require_damage_applied`。
+- 适合：新增/改技能、职业、身份内容、条件模型、功法 tag / practice_tier schema、静态内容引用校验。
+- 邻接单元：CU-02、CU-11、CU-12、CU-14、CU-15、CU-16、CU-19。
+- 不带：运行时服务，除非内容改动需要验证行为。
 
-### CU-14 progression 规则与属性服务
+### CU-14 progression 规则与跨系统属性服务
 
 - 文件：
-  - `scripts/systems/progression_service.gd`
-  - `scripts/systems/profession_rule_service.gd`
-  - `scripts/systems/profession_assignment_service.gd`
-  - `scripts/systems/skill_merge_service.gd`
-  - `scripts/systems/attribute_service.gd`
-  - `scripts/systems/attribute_growth_service.gd`
-  - `scripts/systems/character_creation_service.gd`
-- 真相源：
-  - progression 规则执行结果。
-  - attribute modifier / snapshot 计算结果。
-  - 建卡 reroll 次数到 `hidden_luck_at_birth` 的烘焙规则。
-- 主要职责：
-  - 学习技能与知识。
-  - 授予 mastery、重算角色等级。
-  - 判断职业解锁 / 升级 / active 状态。
-  - 技能合并与核心技能分配。
-  - 派生属性计算。
-  - 满级核心技能提供的基础属性成长进度累计与转化。
-  - `AttributeService` 的战斗属性真相源是 `attack_bonus`、单一展示用 `armor_class`，以及内部 AC 组件 `armor_ac_bonus / shield_ac_bonus / dodge_bonus / deflection_bonus`；旧物理 / 魔法攻击、防御、命中、闪避属性不再进入正式快照。
-  - `AttributeService` 会把 `action_threshold` 纳入角色 attribute snapshot，默认角色行动阈值为 `30 TU`，并按 `5 TU` 粒度归一，供战斗时间轴直接消费。
-  - `CharacterCreationService` 持有建卡 reroll → `hidden_luck_at_birth` 的纯函数映射，以及通过 `AttributeService` 写回受保护 custom stat 的最小烘焙入口。
-- 邻接单元：
-  - CU-11
-  - CU-12
-  - CU-13
-  - CU-15
-- 适合任务：
-  - 改属性公式。
-  - 改建卡出生 luck 烘焙规则。
-  - 改职业规则。
-  - 改技能合并。
-- 不要顺手带上：
-  - `scripts/ui/battle_map_panel.gd`
-  - `scripts/ui/login_screen.gd`
+  - `scripts/systems/progression/ProgressionService.cs`
+  - `scripts/systems/progression/ProfessionRuleService.cs`
+  - `scripts/systems/progression/ProfessionAssignmentService.cs`
+  - `scripts/systems/progression/SkillMergeService.cs`
+  - `scripts/systems/progression/SkillEffectiveMaxLevelRules.cs`
+  - `scripts/systems/progression/AttributeGrowthService.cs`
+  - `scripts/systems/progression/AttributeGrowthResult.cs`
+  - `scripts/systems/progression/LevelGrowthEvaluationService.cs`
+  - `scripts/systems/progression/LevelGrowthTriggerResult.cs`
+  - `scripts/systems/progression/PracticeGrowthService.cs`
+  - `scripts/systems/progression/PracticeSkillLearnStatus.cs`
+  - `scripts/systems/progression/AgeStageResolution.cs`
+  - `scripts/systems/progression/SkillLevelDescriptionFormatter.cs`
+  - `scripts/systems/progression/CharacterCreationService.cs`
+  - `scripts/systems/progression/CharacterCreationIdentityOptionService.cs`
+  - `scripts/systems/progression/IdentityPayloadValidator.cs`
+  - `scripts/player/progression/BodySizeContentRules.cs`
+  - `scripts/systems/progression/AgeStageResolver.cs`
+  - `scripts/systems/attributes/AttributeService.cs`
+  - `scripts/systems/attributes/AttributeSourceContext.cs`
+- 负责：成长规则、职业规则、技能合成、属性成长 typed result、active level trigger typed result、practice skill learn status、有效年龄阶段 typed resolution、属性快照、建卡、建卡身份候选、身份 payload 校验、体型、年龄阶段；`SkillEffectiveMaxLevelRules`、`AgeStageResolver`、`RacialSkillGrantService`、`CharacterCreationIdentityOptionService` 与 `IdentityPayloadValidator` 是 plain static C# 规则/helper，不再作为 Godot `RefCounted`/`GlobalClass` 或 GDScript preload 边界；`BodySizeContentRules` 是 plain static C# 体型规则表，category/body-size/footprint 集合使用 `IReadOnlySet` / `IReadOnlyDictionary`，C# 正式路径直接调用它，旧 `BodySizeRules` Godot wrapper 已移除，GDS 回归不得再 preload 它；建卡身份候选与身份 payload 校验内部使用 `Dictionary<StringName, Def>`、`HashSet<StringName>`、`IReadOnlyList<StringName>` / `IReadOnlyList<string>`，Godot Dictionary 内容源只在 content bundle / registry 边界通过 `ProgressionContentBundleAdapter` 物化；`AttributeGrowthService`、`LevelGrowthEvaluationService`、`PracticeGrowthService`、`ProfessionAssignmentService`、`ProfessionRuleService` 与 `SkillMergeService` 是 plain C# service，不再作为 Godot `RefCounted`/`GlobalClass` 或 GDScript preload 边界，年龄阶段 resolver、level trigger skill-def 缓存、practice skill-def 缓存、profession assignment skill/profession-def 缓存、profession rule skill/profession-def 缓存、skill merge skill-def 缓存、practice track 集合、profession accepted tag 去重、profession rule 候选 skill id 与 preview assignment 集合、racial grant entry/lookup、merge source id 规范化使用 C# typed 集合；`SkillLevelDescriptionFormatter` 是 plain static C# formatter，内部 effect/字段遍历使用 C# typed 集合，Godot Dictionary 只保留为 `.tres` 等级描述变量和 UI runtime context 投影；`AttributeSourceContext` 是 plain C# DTO，不再作为 Godot `RefCounted`/`GlobalClass` 暴露；`AttributeService` 的 source context、skill/profession def 缓存、equipment/passive/temporary modifier state 与 modifier pipeline 使用 typed `Dictionary` / `List` / record entry，Godot Dictionary/Array 只在 setup、setter 与永久属性 source context 边界解析；永久属性变更在入口处把 Godot source context 物化为 typed source，保护自定义属性写入判断不要在正式流程里回读 Dictionary bool。
+- 适合：成长公式、属性公式、职业/技能规则、功法同轨替换规则、建卡规则、建卡身份候选、身份 payload 校验、体型派生。
+- 邻接单元：CU-01、CU-09、CU-11、CU-12、CU-13、CU-15、CU-19。
+- 不带：内容资源，除非规则和 seed 内容同时变化。
 
 ### CU-15 战斗运行时总编排
 
 - 文件：
-  - `scripts/systems/battle_runtime_module.gd`
-  - `scripts/systems/battle_session_facade.gd`
-  - `scripts/systems/battle_resolution_result.gd`
-  - `scripts/systems/fortune_service.gd`
-  - `scripts/systems/misfortune_service.gd`
-  - `scripts/systems/fortuna_guidance_service.gd`
-  - `scripts/systems/misfortune_guidance_service.gd`
-  - `scripts/systems/low_luck_event_service.gd`
-  - `scripts/systems/low_luck_relic_rules.gd`
-  - `scripts/systems/battle_charge_resolver.gd`
-  - `scripts/systems/battle_repeat_attack_resolver.gd`
-  - `scripts/systems/battle_skill_resolution_rules.gd`
-  - `scripts/systems/battle_spawn_reachability_service.gd`
-  - `scripts/systems/battle_target_collection_service.gd`
-  - `scripts/systems/battle_terrain_effect_system.gd`
-  - `scripts/systems/battle_rating_system.gd`
-  - `scripts/systems/battle_report_formatter.gd`
-  - `scripts/systems/battle_unit_factory.gd`
-  - `scripts/systems/battle_unit_factory_runtime.gd`
-  - `scripts/utils/true_random_seed_service.gd`
-  - `scripts/systems/battle_command.gd`
-  - `scripts/systems/battle_preview.gd`
-  - `scripts/systems/battle_event_batch.gd`
-  - `scripts/systems/battle_sim_runner.gd`
-  - `scripts/systems/battle_sim_report_builder.gd`
-  - `scripts/systems/battle_sim_override_applier.gd`
-  - `scripts/systems/battle_sim_scenario_def.gd`
-  - `scripts/systems/battle_sim_profile_def.gd`
-  - `scripts/systems/battle_sim_unit_spec.gd`
-- 真相源：
-  - 当前 `BattleState` 生命周期。
-  - 当前 active unit / phase / modal。
-  - preview、event batch、battle rating 统计、战斗内技能熟练度条件触发与 post-battle reward 产出。
-  - battle simulation 的 AI turn trace、全单位 battle metrics、profile override 与 report schema。
-- 主要职责：
-  - 开战、推进时间轴、接手 AI / manual command。
-  - 战斗时间轴的行动进度按 `tu_per_tick` 固定累加到 `BattleUnitState.action_progress`；实际入队阈值必须由每个 `BattleUnitState.action_threshold` 持有，`BattleTimelineState` 不再保存全局行动阈值。
-  - 预览与执行移动、单体技能、地面技能、charge、terrain effect。
-  - `BattleRuntimeModule.issue_command()` 现在是 `TYPE_SKILL` 的唯一正式 `preview-first` 门禁；无论来自玩家、AI、facade 还是测试，只要命令真正落到 runtime，都先复用 `preview_command()` 的技能合法性口径。
-  - `BattleChargeResolver` 负责冲锋路径推演、受阻停步、碰撞推挤、陷阱触发与路径 AOE。
-  - `BattleRepeatAttackResolver` 负责 `repeat_attack_until_fail` 的逐段执行、资源消耗与日志归并，并把命中判定委托给 `BattleHitResolver`。
-  - `BattleTerrainEffectSystem` 负责 timed terrain effect 的写入、推进与 tick 结算。
-  - `BattleState.log_entries` 现在由 runtime 作为 battle 内正式日志 ring buffer 维护，按 `10000` 条与 `10 MiB` 双阈值自动淘汰最旧记录；不要再把 battle log 上限控制散写到 HUD 或 facade。
-  - `BattleRatingSystem` 负责战斗评分统计、标签与结算奖励映射。
-  - `BattleRuntimeModule` 负责把技能配置里的 `mastery_sources` 接到正式战斗事件：主动技能成功施放走 `battle`，`金刚不坏` 这类被动受击技能按 `heavy_hit_taken` / `max_damage_die_taken` / `elite_or_boss_damage_taken` 等条件即时写入角色成长，并通过 `BattleUnitFactory.refresh_known_skills()` 回灌当前战斗单位。
-  - `BattleUnitFactory` 负责正式友军 / 敌军单位构建、战斗单位刷新桥接与 terrain 数据装配。
-  - `BattleUnitFactory` 构建 / 刷新友军单位时从角色 attribute snapshot 读取 `action_threshold` 写入 `BattleUnitState.action_threshold`；正式主角初始默认值为 `30 TU`。
-  - `BattleUnitFactory` 构建单位时继续消费 `attack_bonus`、`armor_class` 与 AC 组件属性；UI / snapshot 对外显示单一 AC，内部组件只服务装备、状态与后续规则扩展。
-  - 武器技能射程由 `BattleRuntimeModule` / selection / HUD 从 `BattleUnitState.attribute_snapshot.weapon_attack_range` 读取；需要当前近战武器伤害类型的近战技能必须同时具备 `weapon_attack_range > 0` 与 `weapon_physical_damage_tag`，不再从技能资源或 1 格保底推断可施放距离；弓类旧夹具无该属性时暂时回退技能配置，正式武器内容应补 `ItemDef.weapon_attack_range`。
-  - `BattleUnitFactory` 不再为 `map_size` / `cells` / spawn payload 手工拼 fallback 地图；battle terrain 正式输入只认 `battle_map_size`，`map_size` 旧 key 已废弃且不会再透传给正式 generator，`ally_spawns` / `enemy_spawns` 仅作为 generator 结果的显式覆写。
-  - `BattleUnitFactoryRuntime` 是 `BattleUnitFactory` 读取角色网关、skill defs、terrain generator、grid service 与最小地表高度的显式 bridge 契约；不要再把任意 runtime 对象直接塞给 `BattleUnitFactory.setup()`。
-  - `BattleSpawnReachabilityService` 负责开战摆放后的敌方出生可达性验收：每个已摆放敌方单位必须能按 `BattleGridService` 的正式 footprint / 高差 / 墙 / 地形规则抵达至少一个可攻击玩家单位的位置；`BattleRuntimeModule.start_battle()` 在非显式 `enemy_units` 的正式生成链里，于 terrain + unit placement 后调用它，失败时用稳定 terrain seed 偏移重试，最终仍失败才返回空 battle state 交给现有 battle loading/failure 链路处理。手工 `enemy_units` 夹具默认不走该验收，可用 context `validate_spawn_reachability = true` 强制启用；该服务只判断位置与技能目标可达性，不把当前 MP/stamina 等资源不足误判成地图生成失败。
-  - `BattleRuntimeModule` 现在会维护 `_ai_turn_traces` 与 `_battle_metrics` 两套正式 sidecar：前者记录 AI 每回合候选动作与最终选择，后者覆盖全单位 / 全阵营的行动、施法、伤害、治疗、击杀统计；做数值实验时不要再靠日志字符串反推。
-  - `BattleUnitState` 现在把“普通移动预算”和“技能 AP”拆成两条资源线：`current_move_points` 负责普通移动消耗，`current_ap` 继续只服务技能/攻击等行动；turn start 重置与 snapshot/HUD 展示都必须同步两者，不能再把普通移动回写成 AP 消耗。
-  - `BattleRuntimeModule` 现在还负责把 `BattleDamageResolver` 返回的 source-side status effect 一并写进 batch，并处理血债披肩的“队友倒地返 1 AP”副作用；preview 路径必须用克隆单位，避免提前消耗黑星楔钉这类 battle-local 首次触发锁。
-  - `BattleSkillResolutionRules` 现在是 battle skill 变体解析、unit/ground 路由与 fate 接入 policy 的共享真相源；`BattleRuntimeModule` 与 `BattleHudAdapter` 都必须复用它，不要再在 runtime / HUD 各写一套 skill fate 判定。
-  - `FortuneService` 现在作为 `BattleRuntimeModule` 持有的战斗 sidecar，订阅 `BattleFateEventBus` 的 `critical_success_under_disadvantage` 事件，负责按 per-run 尝试锁与二次确认规则写入 `PartyState.fate_run_flags` / `fortune_marked`；不要把 Fortuna 标记逻辑塞回 `GameRuntimeFacade` 或 UI。
-  - `MisfortuneService` 现在作为 `BattleRuntimeModule` 持有的 battle-local sidecar，订阅 `critical_fail / ordinary_miss` fate payload，并接收 runtime 的强 debuff / 相邻队友倒地 / 低血结束回合 / boss 相变显式 hook，维护 `calamity_by_member_id`、`reverse_fortune` 与 `black_star_brand` 的“每战首次免费 / 后续消耗 1 calamity”施法锁；这些数据不进入永久存档，只按需进入 battle snapshot。
-  - `LowLuckEventService` 现在作为 `GameRuntimeFacade` 持有的剧情 sidecar，订阅 `hardship_survival / critical_fail` fate payload，并在据点休整与 battle resolution 边界把 low luck 专属事件翻译成 fixed loot / pending reward，同时把周目去重写进 `PartyState.meta_flags`；不要把这类剧情奖励再塞回 drop_luck 或命运属性写口。
-  - FATE_11 固定低 luck 奖励池（逆命护符 / 黑星楔钉 / 血债披肩 / 亡途灯笼）现在也归 `LowLuckEventService` 编排：统一产出 `drop_type=item` + `drop_source_kind=low_luck_event` 的固定 loot，不参与随机装备掉落 roll，共享 flag / path helper 收口在 `LowLuckRelicRules`。
-  - `FortunaGuidanceService` 现在作为 `GameRuntimeFacade` 持有的 guidance sidecar，先于 `FortuneService` 绑定同一条 `BattleFateEventBus`，把 rare fate payload 与 battle/chapter 结束回调翻译成一次性 guidance achievement；不要回退到计数型 achievement event。
-  - `MisfortuneGuidanceService` 现在作为 `GameRuntimeFacade` 持有的 guidance sidecar，消费 `BattleRuntimeModule` 已有的 calamity/reason 状态、seal/boss 结算结果以及 forge canonical result，把 `misfortune_guidance_*` 写成一次性 achievement；不要再额外增加 farm 型计数事件。
-  - `BattleSimRunner` 负责按 scenario/profile 批量起 battle runtime、驱动 manual policy、应用 skill/brain/action/score-profile override，并输出 JSON report + turn-trace JSONL。
-  - 统计战斗评分并产出 canonical post-battle character reward。
-  - 消费 `GameSession` 提供的 skill defs、enemy templates、enemy AI brains。
-  - `BattleRuntimeModule` 现在会在敌方单位死亡时，按 `BattleUnitState.enemy_template_id -> EnemyTemplateDef.drop_entries` 逐次生成 loot：固定材料直接累积到 `_active_loot_entries`，随机装备按击杀者 `drop_luck` 立刻 roll 成 `equipment_instance`；`BattleResolutionResult.loot_entries` 只承接这些已解析好的 per-kill 掉落与 fate bonus loot。普通战未消耗 calamity 仍先产出 raw `calamity_conversion` 条目，chapter 级普通战 shard 上限不在 runtime 内裁切。
-  - `BattleUnitState.enemy_template_id` 现在是 battle 内掉落归因的正式 bridge；如果改敌方构建链路，必须保证这个字段仍能稳定映射回 `EnemyTemplateDef`。
-  - `GameRuntimeFacade` 不再决定随机装备该读谁的 luck；它只负责提交 battle runtime 已经解析好的 fixed item / `equipment_instance` / 仍需 chapter-cap 裁切的固定 fate loot。
-  - `BattleRuntimeModule.start_battle()` 现在统一通过 `BattleUnitFactory` 构建友军 / 敌军 / terrain，并在实际摆放后通过 `BattleSpawnReachabilityService` 验证敌方出生点最终能抵达攻击玩家的位置；`CharacterManagementModule` 不再直接产出 `BattleUnitState`。
-  - 若以后实现“近战命中驱动的装备耐久 / 装备损坏”，这里是命中触发点，但正式状态写回仍要经过 CU-10 / CU-11 / CU-12。
-- 邻接单元：
-  - CU-12
-  - CU-13
-  - CU-14
-  - CU-16
-  - CU-17
-  - CU-18
-  - CU-20
-- 适合任务：
-  - 改指令生命周期。
-  - 改地面技能流程。
-  - 改战斗评分奖励。
-  - 改 AI / 手动切换时序。
-- 不要顺手带上：
-  - 登录壳。
-  - 共享仓库窗口。
+  - `scripts/systems/battle/runtime/BattleRuntimeModule.cs`
+  - `scripts/systems/battle/runtime/BattleTimelineDriver.cs`
+  - `scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs`
+  - `scripts/systems/battle/runtime/BattleChargeResolver.cs`
+  - `scripts/systems/battle/runtime/BattleGroundSkillValidationResult.cs`
+  - `scripts/systems/battle/runtime/BattleUnitSkillValidationResult.cs`
+  - `scripts/systems/battle/runtime/BattleGroundEffectApplicationResult.cs`
+  - `scripts/systems/battle/runtime/BattleMagicBacklashResult.cs`
+  - `scripts/systems/battle/runtime/BattleTargetCollectionResult.cs`
+  - `scripts/systems/battle/runtime/BattleMagicBacklashResolver.cs`
+  - `scripts/systems/battle/runtime/TraitTriggerHooks.cs`
+  - `scripts/systems/battle/fate/*.gd`
+  - `scripts/systems/battle/fate/FateRuntimeModule.cs`
+  - `scripts/systems/battle/fate/FortuneService.cs`
+  - `scripts/systems/battle/fate/MisfortuneService.cs`
+  - `scripts/systems/battle/fate/MisfortuneSkillCastResult.cs`
+  - `scripts/systems/fate/LowLuckRelicRules.cs`
+  - `scripts/systems/game_runtime/BattleSessionFacade.cs`
+  - `scripts/systems/game_runtime/GameRuntimeFacade.cs`
+  - `scripts/systems/battle/core/BattleCommand.cs`
+  - `scripts/systems/battle/core/BattlePreview.cs`
+  - `scripts/systems/battle/core/BattleEventBatch.cs`
+  - `scripts/systems/battle/core/BattleResolutionResult.cs`
+  - `scripts/systems/battle/core/BattleLootConstants.cs`
+  - `scripts/systems/battle/core/BattleCommonSkillOutcome.cs`
+  - `scripts/systems/battle/core/BattleBarrier*.cs`
+  - `scripts/systems/battle/core/battle_special_profile*.gd`
+  - `scripts/systems/battle/core/special_profiles/*.gd`
+  - `scripts/systems/battle/core/meteor_swarm/*.cs`
+  - `scripts/systems/battle/rules/BattleSkillResolutionRules.cs`
+  - `scripts/systems/battle/rules/BattleTargetTeamRules.cs`
+  - `scripts/systems/battle/rules/BattleDamageResolver.cs`
+  - `scripts/systems/battle/rules/BattleSaveResolver.cs`
+  - `scripts/systems/battle/rules/BattleDamagePreviewRangeService.cs`
+  - `scripts/systems/battle/rules/BattleRangeService.cs`
+  - `scripts/systems/battle/rules/BattleEquipmentRequirementRules.cs`
+  - `scripts/systems/battle/rules/BattleReportFormatter.cs`
+  - `scripts/systems/battle/terrain/battle_terrain_effect_system.gd`
+  - `scripts/systems/battle/ai/BattleAiActionAssembler.cs`
+  - `scripts/systems/battle/ai/BattleAiContext.cs`
+  - `scripts/systems/battle/ai/BattleAiRuntimeActionPlan.cs`
+  - `scripts/systems/battle/ai/BattleAiService.cs`
+  - `scripts/systems/battle/ai/BattleAiScoreOrdering.cs`
+  - `scripts/systems/battle/ai/BattleAiScoreService*.cs`
+  - `scripts/systems/battle/ai/BattleAiMutationGuard.cs`
+  - `scripts/systems/battle/ai/BattleAiSkillAffordanceClassifier.cs`
+  - `scripts/systems/battle/sim/*.gd`
+  - `scripts/systems/battle/sim/*.cs`
+  - `data/configs/skill_special_profiles/**/*.tres`
+  - `data/configs/barriers/*.tres`
+- 负责：开战、时间轴、命令 preview/issue、技能执行、战斗内换装、loot、评分、fate、battle-local 状态、simulation runner；时间轴驱动正式路径通过 typed status tick / turn-control / trait dispatch result 判定 changed、defeat source、skip turn 与 AI override，公开 Dictionary 方法只保留给 Godot/GDScript 合同；`LowLuckRelicRules` 是 plain static C# relic/fate rules 与常量 holder，不再作为 Godot `RefCounted` / `GlobalClass` 或 GDScript preload 边界；`BattleSaveResolver` 是 plain static C# save resolver，save tag/mode 内容常量归 `BattleSaveContentRules`，正式路径通过 `BattleSaveContext` 传 skill 与 roll override，`BattleSaveSource` / `BattleSaveResult` / `BattleSaveProbabilityResult` 的 Godot Dictionary/Array 只通过 internal `ToDictionary()` 汇入 damage/runtime 公开边界，DTO public API 不暴露 Godot Dictionary/Array/Variant；不再暴露 GDScript preload / snake_case Dictionary API；隐藏路径可见 tag 使用 `IReadOnlySet<StringName>`。
+- 适合：指令生命周期、战斗流程、战斗结算、特殊技能 profile、战斗内装备事务、AI/手动时序、模拟链路。
+- 邻接单元：CU-02、CU-10、CU-11、CU-12、CU-13、CU-14、CU-16、CU-17、CU-18、CU-20、CU-21。
+- 不带：登录壳、共享背包窗口、battle board 展示，除非任务涉及界面。
 
 ### CU-16 战斗状态模型、边规则、伤害、AI 规则层
 
 - 文件：
-  - `scripts/systems/battle_state.gd`
-  - `scripts/systems/battle_timeline_state.gd`
-  - `scripts/systems/battle_unit_state.gd`
-  - `scripts/systems/battle_cell_state.gd`
-  - `scripts/systems/battle_status_effect_state.gd`
-  - `scripts/systems/battle_terrain_effect_state.gd`
-  - `scripts/systems/battle_edge_face_state.gd`
-  - `scripts/systems/battle_edge_feature_state.gd`
-  - `scripts/systems/battle_terrain_rules.gd`
-  - `scripts/systems/battle_terrain_topology_service.gd`
-  - `scripts/systems/battle_grid_service.gd`
-  - `scripts/systems/battle_edge_service.gd`
-  - `scripts/systems/battle_fate_event_bus.gd`
-  - `scripts/systems/battle_fate_attack_rules.gd`
-  - `scripts/systems/fate_attack_formula.gd`
-  - `scripts/systems/battle_damage_resolver.gd`
-  - `scripts/systems/battle_status_semantic_table.gd`
-  - `scripts/systems/battle_hit_resolver.gd`
-  - `scripts/utils/true_random_seed_service.gd`
-  - `scripts/systems/battle_ai_context.gd`
-  - `scripts/systems/battle_ai_score_input.gd`
-  - `scripts/systems/battle_ai_score_profile.gd`
-  - `scripts/systems/battle_ai_score_service.gd`
-  - `scripts/systems/battle_ai_decision.gd`
-  - `scripts/systems/battle_ai_service.gd`
-- 真相源：
-  - battle cells / columns / units / occupancy / height / terrain effect / edge feature / timeline。
-  - per-unit 移动标签与地形基础规则的组合判定。
-- 主要职责：
-  - 提供 battle 纯规则层 API。
-  - 处理 footprint、移动、墙边 / 高差 / 占位规则。
-  - `BattleTerrainRules` 负责 `land / shallow_water / flowing_water / deep_water / mud / spike` 的基础通行与显示语义。
-  - `BattleTerrainTopologyService` 负责按局部连通分量把水体重分类为 `shallow_water / flowing_water / deep_water`，供地形变化后的运行时修复复用。
-  - `BattleStatusSemanticTable` 负责 `status_effects` 的正式 stack / duration / tick 语义表，并作为 `BattleDamageResolver + BattleRuntimeModule` 的共享状态语义真相源；当前已正式覆盖 `burning / slow / staggered` 与首批常驻 buff/debuff 的统一 turn-end 持续时间口径（如 `attack_up / archer_pre_aim / pinned / taunted`）。
-  - `BattleDamageResolver` 现已正式切到“攻击侧倍率一次聚合取整 -> `IMMUNE / HALF / NORMAL / DOUBLE` -> 固定值减伤 -> 护盾后吸收”的 M1 流水线；元素抗性不再是人物主属性派生值，完全免疫、减半与易伤一律通过状态参数 `mitigation_tier` 结算。`armor_break` 不再提供承伤易伤倍率，而是在 `BattleHitResolver` 中按 `power * 2` 降低目标有效 AC；`damage_reduction_up`、`guarding` 不再按旧百分比链解释。`black_star_brand_elite` 的“禁暴击 / 首次受击穿透部分格挡”也在这层消费，不要把这一击穿透逻辑回写到 skill resource。
-  - `BattleDamageResolver` 不再从攻击 / 防御属性计算基础伤害；技能伤害以 `CombatEffectDef.power` 为基础，再进入倍率、承伤档位、固定减伤、护盾流水线，伤害分类由 `damage_tag` 提供。
-  - `BattleDamageResolver` 现在还消费 `LowLuckRelicRules` 的 battle-local 遗物逻辑：逆命护符会把首次 `critical_fail` 降级为普通 miss 并施加 2 回合输出下降，黑星楔钉会在首击忽视部分 guard 后于未击杀时给自己挂 1 回合 exposed，血债披肩会在低血时减伤；这些 battle-local 首次触发锁不要散写到 skill / item resource。
-- `BattleFateAttackRules` 现在是 battle attack roll 语义的共享 helper，负责统一“命中线 / 封暴击状态 / d20 是否命中”的纯判定；`BattleDamageResolver` 与 `BattleHitResolver` 都必须复用它，避免 runtime 执行与 preview/AI 评分再次分叉。
-- `BattleDamageResolver` 现在还持有 battle-local `BattleFateEventBus`，并在攻击结算后派发只读 fate payload（如 `critical_fail / critical_success_under_disadvantage / ordinary_miss / hardship_survival`）；`FortuneService` 已通过该 payload 订阅 Fortuna 标记逻辑，后续 Faith / 剧情系统继续沿用这条 bus，而不是拿运行时对象直接改命运属性。
-  - `BattleDamageResolver` 现在还会额外派发 `high_threat_critical_hit`，并在 payload 中补出低血 hardship / 强 debuff 快照，供 `FortunaGuidanceService` 直接判定 devout / exalted 条件，而不是另起 battle 计数器。
-  - `BattleDamageResolver` 的攻击结算骰不接受测试注入 RNG，也不从 `BattleState.seed` 派生；crit gate、命中 d20 与 disadvantage 的第二颗底层骰都会逐次调用 `TrueRandomSeedService.randi_range()`。
-  - `resolve_fall_damage()` / `resolve_collision_damage()` 现在也复用同一 damage contract，正式返回 `damage`、`shield_absorbed`、`shield_broken` 与 `damage_events`；不要再把环境伤害 helper 当成只回裸整数的旧接口。
-  - `BattleUnitState` 现在直接持有 `current_shield_hp / shield_max_hp / shield_duration / shield_family / shield_source_*` 等护盾字段；`BattleRuntimeModule` 负责技能写入 / 刷新护盾；护盾等效果骰逐次调用 `TrueRandomSeedService.randi_range()`，不再维护效果骰游标或可复现种子；`BattleDamageResolver` 只负责消费护盾。
-- `BattleHitResolver` 负责当前命中率合成、真随机命中掷骰，以及普通单体攻击 / repeat-attack 的 fate-aware 成功率预览口径；当前命中线为 `d20 + attack_bonus + skill/situational bonus >= target armor_class`，高位大成功自动命中和低幸运门骰带来的额外成功率也在这里统一并入 HUD / AI 评分，不要再让 UI 或 AI 各自重算。
-  - `BattleAiScoreService` 现在同时负责技能候选与 move / retreat / wait 的正式评分输入包，并通过 `BattleAiScoreProfile` 承接权重、bucket priority 与 action base score；不要再把局部 magic number 散写回各个 action。
-  - `UseChargeAction` 现在按“位移型技能”参与评分，并按实际冲锋位移长度抬高基础分，避免在普通移动改为消耗 `current_move_points` 后被一步走位稳定压掉。
-  - `BattleAiContext` 同时负责暴露 battle 内强制目标语义（当前是 `taunted`），`BattleAiService` 的状态解析与 `EnemyAiAction` 的正式 target selector 必须共用这条入口，不能各自散写一套目标改写逻辑。
-  - `BattlePreview` 对会位移施法者的技能会补出 `resolved_anchor_coord`；`BattleChargeResolver.validate_charge_command()` 与 AI 评分都必须共用这条正式 preview 真相源，而不是再按目标格手推“理论落点”。
-  - `BattlePreview` 对移动类指令现在还会补出 `move_cost`；`MoveToRangeAction / RetreatAction / WaitAction` 的正式 score input 必须共用这条 runtime preview 口径，而不是再各自手写距离分。
-  - `BattleAiContext / EnemyAiAction / BattleAiService` 现在共同维护 action trace：每个 action 至少要能解释 blocked reason、preview reject、top candidates 与最终 chosen decision，供后续自动分析改 skill 数值和 AI 评分逻辑。
-  - `UseUnitSkillAction / UseGroundSkillAction` 现在必须显式声明 `desired_min_distance / desired_max_distance / distance_reference`；`BattleAiScoreService` 不再对缺省距离语义做“越近越好”的隐式补全，带内站位默认等价，战术距离只允许由 action/content 明确表达。
-  - 处理伤害、状态、AI 决策上下文与产出。
-- 邻接单元：
-  - CU-15
-  - CU-17
-  - CU-18
-  - CU-20
-- 适合任务：
-  - 改地格规则。
-  - 改边缘阻挡 / 墙 / 高差逻辑。
-  - 改碰撞 / 伤害 / 行动点。
-  - 改 AI 规则。
-  - 改单位状态字段。
-- 不要顺手带上：
-  - `scripts/ui/party_management_window.gd`
-  - `scripts/systems/world_map_spawn_system.gd`
+  - `docs/design/ai_candidate_evaluation_pipeline.md`
+  - `docs/design/ai_readonly_candidate_pipeline_consensus_2026-05-19.md`
+  - `scripts/systems/battle/core/BattleState.cs`
+  - `scripts/systems/battle/core/BattleTimelineState.cs`
+  - `scripts/systems/battle/core/BattleUnitConstants.cs`
+  - `scripts/systems/battle/core/BattleUnitState.cs`
+  - `scripts/systems/battle/core/BattleCellState.cs`
+  - `scripts/systems/battle/core/BattleStatusEffectState.cs`
+  - `scripts/systems/battle/core/BattleBarrier*.cs`
+  - `scripts/systems/battle/core/BattleEdge*.cs`
+  - `scripts/systems/battle/core/BattleEdgeFaceState.cs`
+  - `scripts/systems/battle/core/BattleAttackRollModifierBundle.cs`
+  - `scripts/systems/battle/core/BattleAttackRollModifierSpec.cs`
+  - `scripts/systems/battle/core/AttackPreviewData.cs`
+  - `scripts/systems/battle/core/AttackCheckInput.cs`
+  - `scripts/systems/battle/core/AttackRollResult.cs`
+  - `scripts/systems/battle/core/AttackContext.cs`
+  - `scripts/systems/battle/core/AttackTraitTriggerResult.cs`
+  - `scripts/systems/battle/core/AttackResolutionMetadata.cs`
+  - `scripts/systems/battle/core/AttackEffectResolutionResult.cs`
+  - `scripts/systems/battle/core/CombatResourceKind.cs`
+  - `scripts/systems/battle/core/BattleRepeatAttackStageSpec.cs`
+  - `scripts/systems/battle/core/BattleAttackCheckPolicyContext.cs`
+  - `scripts/systems/battle/terrain/BattleTerrainRules.cs`
+  - `scripts/systems/battle/terrain/BattleTerrainTopologyService.cs`
+  - `scripts/systems/battle/terrain/BattleGridService.cs`
+  - `scripts/systems/battle/terrain/BattleGridDistanceService.cs`
+  - `scripts/systems/battle/terrain/BattleEdgeService.cs`
+  - `scripts/systems/battle/terrain/BattleTerrainEffectState.cs`
+  - `scripts/systems/battle/fate/BattleFateEventBus.cs`
+  - `scripts/systems/battle/fate/BattleFateAttackRules.cs`
+  - `scripts/systems/battle/fate/FateAttackFormula.cs`
+  - `scripts/systems/battle/rules/BattleDamageResolver.cs`
+  - `scripts/systems/battle/rules/BattleDeathResolutionRules.cs`
+  - `scripts/systems/battle/rules/BattleEffectCategoryResolver.cs`
+  - `scripts/systems/battle/rules/BattleExecutionRules.cs`
+  - `scripts/systems/battle/rules/BattleDamagePreviewResult.cs`
+  - `scripts/systems/battle/rules/BattleDamagePreviewRangeService.cs`
+  - `scripts/systems/battle/rules/BattleStatusModifierRules.cs`
+  - `scripts/systems/battle/rules/BattleStatusSemanticTable.cs`
+  - `scripts/systems/battle/rules/BattleTargetTeamRules.cs`
+  - `scripts/systems/battle/rules/BattleHitResolver.cs`
+  - `scripts/systems/battle/rules/BattleAttackCheckPolicyService.cs`
+  - `scripts/systems/battle/rules/BattleRangeService.cs`
+  - `scripts/systems/battle/rules/BattleEquipmentRequirementRules.cs`
+  - `scripts/systems/battle/ai/*.cs`
+  - `scripts/systems/battle/ai/BattleAiRuntimeActionPlan.cs`
+  - `scripts/systems/battle/_interop/BattleTypedEnums.cs`
+  - `scripts/systems/battle/ai/BattleAiActionIntent.cs`
+  - `scripts/systems/battle/ai/BattleAiCandidateEvaluationService.cs`
+  - `scripts/systems/battle/ai/BattleAiContext.cs`
+  - `scripts/systems/battle/ai/BattleAiDecision.cs`
+  - `scripts/systems/battle/ai/BattleAiDecisionEngine.cs`
+  - `scripts/systems/battle/ai/BattleAiMoveToRangeCandidateEvaluator.cs`
+  - `scripts/systems/battle/ai/BattleAiMutationGuard.cs`
+  - `scripts/systems/battle/ai/BattleAiQueryService.cs`
+  - `scripts/systems/battle/ai/BattleAiService.cs`
+  - `scripts/systems/battle/ai/BattleAiScoreService*.cs`
+  - `scripts/systems/battle/ai/BattleAiScoreContextAdapter.cs`
+  - `scripts/systems/battle/ai/BattleAiTypedActionHelper.cs`
+  - `scripts/systems/battle/ai/BattleAiUnitSkillCandidateEvaluator.cs`
+  - `scripts/systems/battle/runtime/BattleRuntimeModule.cs`
+  - `scripts/systems/battle/runtime/BattleChargeResolver.cs`
+  - `scripts/systems/battle/runtime/BattleMovePathResult.cs`
+  - `scripts/systems/battle/runtime/BattleMovementService.cs`
+  - `scripts/systems/battle/runtime/BattleMovementQueryService.cs`
+  - `scripts/systems/battle/runtime/BattleRepeatAttackResolver.cs`
+  - `scripts/systems/battle/runtime/BattleRuntimeSkillTurnResolver.cs`
+  - `scripts/systems/battle/runtime/BattleGroundSkillValidationResult.cs`
+  - `scripts/systems/battle/runtime/BattleUnitSkillValidationResult.cs`
+  - `scripts/systems/battle/runtime/BattleGroundEffectApplicationResult.cs`
+  - `scripts/systems/battle/runtime/BattleMagicBacklashResult.cs`
+  - `scripts/systems/battle/runtime/BattleTargetCollectionResult.cs`
+  - `scripts/systems/battle/runtime/BattleBarrierGeometryService.cs`
+  - `scripts/systems/battle/runtime/BattleBarrierService.cs`
+  - `scripts/systems/battle/runtime/BattleBarrierOutcomeResolver.cs`
+  - `scripts/systems/battle/runtime/BattleSkillOutcomeCommitter.cs`
+  - `scripts/systems/battle/runtime/BattleSpecialProfileCommitAdapter.cs`
+  - `scripts/systems/battle/runtime/BattleGroundEffectService.cs`
+  - `scripts/systems/battle/runtime/BattleTargetCollectionService.cs`
+  - `scripts/systems/battle/runtime/BattleShieldService.cs`
+  - `scripts/systems/battle/runtime/BattleMetricsCollector.cs`
+  - `scripts/systems/battle/runtime/BattleRatingSystem.cs`
+  - `scripts/systems/battle/runtime/BattleSkillMasteryService.cs`
+  - `scripts/systems/battle/runtime/BattleSkillMasteryGrant.cs`
+  - `scripts/systems/battle/runtime/BattleContributionEvent.cs`
+  - `scripts/systems/battle/runtime/BattleContributionEventBuilder.cs`
+  - `scripts/systems/battle/runtime/BattleContributionLedger.cs`
+  - `scripts/systems/battle/terrain/BattleVirtualBoardOverlay.cs`
+  - `scripts/systems/battle/runtime/TraitTriggerHooks.cs`
+  - `scripts/player/progression/combat_effect_def.gd`
+  - `scripts/enemies/actions/*.cs`
+  - `scripts/systems/battle/core/WeaponDice.cs`
+  - `scripts/systems/battle/core/WeaponProjection.cs`
+  - `scripts/systems/battle/core/meteor_swarm/MeteorSwarmNumericSummary.cs`
+  - `scripts/player/warehouse/WeaponProfileDef.cs`
+  - `scripts/player/warehouse/WeaponDamageDiceDef.cs`
+  - `scripts/utils/GodotVariantReadExtensions.cs`
+- 负责：BattleState 数据模型、terrain/edge/grid 规则、伤害/即死/死亡链、命中/豁免/状态语义、状态数值倍率、AI 评分、只读 candidate request/query/evaluator 管线、AI fail-loud/runtime fault 策略、AI state transition resolver、decision state patch/提交边界、runtime action plan 与技能 affordance 分类；AI candidate request / evaluation service / move-to-range evaluator 是 plain C# typed payload/service/helper，正式路径不保留任意 metadata / Dictionary unknown key 往返。
+- AI query 边界：`BattleAiQueryService` 是 sealed plain C# query helper，不再作为 `RefCounted` / `GlobalClass` 或 GDScript preload 边界；正式入口使用 `Setup()` 和 PascalCase typed query 方法，skill records 从 `BattleRuntimeModule.GetSkillDefIndexTyped()` 注入的 `IReadOnlyDictionary<StringName, SkillDef>` 构建，fail-loud metadata 使用 typed `Dictionary<string,string>`，action-score callback 的 Godot Dictionary metadata 只作为 score-input 外层投影边界。不要恢复 `setup()` / `get_*()` / `build_*()` snake_case API、`get_skill_record()` Dictionary 投影、skill-score callback、`GDictionary` alias 或 public Godot Dictionary/Array 查询方法。
+- AI score service / context 适配边界：`BattleAiScoreService` 是 sealed plain C# score assembly helper，不再继承 `RefCounted` 或注册 `GlobalClass`，正式入口使用 internal `Setup()` / `SetProfile()` / `GetProfile()` / `GetBucketPriority()` / `BuildActionScoreInput()` / `BuildSkillScoreInput()`；`BattleAiScoreContextAdapter` 是 `internal sealed` plain C# helper，正式入口使用 `Setup()` / `BuildActionScoreInput()` / `BuildSkillScoreInput()`；`BattleAiScoreInput` 是 sealed plain C# DTO，不再作为 Godot `RefCounted` / `GlobalClass` 或 GDScript preload 边界，fingerprint、ordering facts 和 Godot Dictionary projection 只作为 internal C# helper；旧 `run_battle_runtime_ai_regression.gd` 不得再直接 `preload()` / `new()` score input，相关 ordering / ground-control 断言迁到 C# runner。内部 skill-def lookup 使用 `Dictionary<StringName, SkillDef>`，`IBattleAiScoreContext.skill_defs` 的显式 Godot Dictionary 投影仅保留给 score service 当前 score-input assembly 边界。不要恢复 score input / score service / adapter 的 `RefCounted`/`GlobalClass`、public `skill_defs`、`setup()` / `set_profile()` / `get_profile()` / `get_bucket_priority()` / `build_action_score_input()` / `build_skill_score_input()` / `_resolve_estimated_hit_rate_percent()` / `seal()` / `is_sealed()` / `matches_sealed_fingerprint()` / `to_move_to_range_ordering_facts()` / `to_dict()` snake_case public API，或在 adapter 内部恢复 `Variant` key 循环。score service 的 C# 正式 skill-score 入口使用 typed `IReadOnlyList<CombatEffectDef>` effect list；Godot Array effect_defs 只能作为旧 context/callback 入口的薄适配并立即解码，后续应继续把 score metadata 收敛为 typed metadata DTO；`BattleAiContext.merge_current_action_metadata()` 合并 typed runtime metadata 时必须保留 action_base_score / position_objective_kind 等 score metadata 顶层输入，不要把 score-service 输入截断成 runtime metadata；`WaitAction` 的 active-rest profile 是私有 typed C# 状态，trace/score metadata 只在外层边界投影。
+- AI decision service/engine 边界：`BattleAiService` / `BattleAiDecisionEngine` 是 sealed plain C# helper，不再继承 `RefCounted`、注册 `GlobalClass` 或公开 `setup()` / `choose_command()` / `get_score_service()` / `choose_command_impl()` / `is_better_score_input()` 这类 GDScript-style API；`BattleAiService.Setup()` 从 `BattleRuntimeModule` 的 typed enemy brain index 接收 `IReadOnlyDictionary<StringName, EnemyAiBrainDef>`，服务内部不再保留 enemy brain `GDictionary` 或 string-key fallback。`BattleAiDecisionEngine` 决策 trace / runtime metadata 的 Godot Dictionary 投影仍只作为 trace/score-service 外层边界，正式 brain lookup 不要回读 Dictionary。
+- 适合：战斗规则、伤害、即死判定、死亡来源优先级、命中、AI 评分、AI 状态转移、AI 行动生成、只读 AI candidate 管线、AI runtime fault/fail-loud 处理、AI 决策提交、terrain effect、状态语义、武器射程规则。
+- 关系提示：AI damage scoring 必须通过 `BattleDamageResolver.preview_damage_sequence()` 读取正式伤害、save 分支、护盾吸收与稳定击杀口径；不要回退到 `BattleDamagePreviewRangeService.cs` 的范围估算。C# 内部闭环优先通过 `BattleTypedEnums.cs` 把 Godot 边界 `StringName` 解析成 enum，再进入评分、范围、目标过滤等 typed 分支；跨 GDScript/Resource/存档的 ID 字段仍保持 `StringName`。攻击命中输入、投掷结果、攻击 metadata、spell-control metadata 与重复攻击 stage 结果在 C# 闭环内分别使用 `AttackCheckInput`、`AttackRollResult`、`AttackResolutionMetadata`、`BattleSpellControlMetadata`、`AttackEffectResolutionResult`；不要在这些边界恢复字典 payload，旧 resolver 字典只允许在尚未改造的 Godot/report 入口被一次性读取。`FateAttackFormula` 与 `BattleFateAttackRules` 是 plain static C# helper，正式路径只调用 PascalCase API，测试用 `IRollSource` 注入掷骰；暴击锁读取 typed `BattleStatusEffectState.lock_crit`，不要恢复 RefCounted/GlobalClass、snake_case GDS wrapper、GDScript preload 或 status `params.lock_crit`。重复攻击 stage spec 是 C# 值类型，资源类型与每段资源消耗归属 `BattleRepeatAttackStageSpec.cost_resource_kind` / `stage_resource_cost`，不要放回 `AttackCheckInput` 或改回 `RefCounted` payload。敌方 AI brain 的 C# `states` / `transition_rules` 属性不要按 `get_states()` / `get_transition_rules()` 方法调用；GDScript 边界优先读 `get_resolved_states()` 或原始属性。AI action 的 `.gd` 文件作为 C# action wrapper 的按路径加载实现脚本使用，不再声明同名 `class_name`。AI runtime action plan 的 metadata 真相源是 typed `RuntimeActionMetadata` map；正式路径判断 generated / identity 时不要通过 `get_action_metadata()` 回读 Dictionary。`BattleAiSkillAffordanceClassifier` 是 plain C# service，正式路径只消费 `ClassifySkill()` 与 typed `BattleAiSkillAffordanceRecord`；不要恢复 `RefCounted`/`GlobalClass` 或 GDScript-style `classify_skill()` Dictionary API。`BattleAiStateResolver` 是 plain C# service，正式路径只消费 `ResolveTyped()` 与 typed `TransitionResult`；`BattleAiDecision` 是 sealed plain C# DTO，内部持有 typed transition / state patch，transition Godot Dictionary 只在 `BattleAiContext.build_turn_trace()` 输出边界投影。不要恢复 `RefCounted`/`GlobalClass`、GDScript-style `resolve()` Dictionary API、resolver 内 `GDictionary` / `GArray` alias、decision `transition` / `trace_counters` / `state_patch` Godot Dictionary mirror 或 transition DTO `ToDictionary()`。`BattleAiActionIntent` / `BattleAiSafetyGate` / `BattleAiScoreOrdering` 是 plain static C# helper，正式路径使用 PascalCase API（`IsValid()` / `DefaultFromSlotRole()` / `GetRejectionReason()` / `IsEligible()` / `IsBetter()`）；不要恢复 `RefCounted`/`GlobalClass` 或 `INTENT_*()`、`is_valid()`、`default_from_slot_role()`、`is_eligible()`、`get_rejection_reason()`、`is_better()` 这类 GDScript-style API。`BattleAiCandidateRequest` / `BattleAiCandidateEvaluationService` / `BattleAiMoveToRangeCandidateEvaluator` 是 plain C# typed request/service/helper，正式入口使用 `TryValidateMoveToRange()` / `Evaluate()` / `EvaluateMoveToRangeRequest()`；不要恢复 `RefCounted`/`GlobalClass`、`PathSearchBudget` / `TacticalParams` / `RuntimeMetadata` Godot Dictionary 属性、`RequireValidPayload()`、`setup()`、`evaluate()`、`evaluate_move_to_range_request()` 或 `register_evaluator()` snake_case API。`BattleAiDecisionCommitter` 是 plain static C# commit helper，正式入口使用 `Commit()` 并消费 `BattleAiDecision.StatePatch` / typed transition；不要恢复 `RefCounted`/`GlobalClass`、`commit()` / `build_state_patch()` / `validate_state_patch()` snake_case API 或从 Godot Dictionary patch/transition 回读提交状态。`BattleAiFailurePolicy` 是 plain static C# fail-loud policy，事件历史使用 `BattleAiFailureEvent` 与 `IReadOnlyDictionary<string, string>` metadata；`BattleAiPayloadGuard` 是 plain static boundary helper，只在 Godot payload 检查边界把 `GDictionary` metadata 投影为 typed string map，policy 内不要恢复 `RefCounted`/`GlobalClass`、`LastEvent`/`Events` Godot Dictionary/Array 或 Dictionary metadata 回读。`BattleAiUnitSnapshot` / `BattleAiUnitBlackboardSnapshot` 是 plain C# snapshot DTO，业务集合使用 `List<Vector2I>`、`List<StringName>`、`Dictionary<StringName,int>` 与固定 blackboard 字段，正式创建走 `FromUnit()`，`ToPayload()` 是唯一 Godot Dictionary/Array 投影；不要恢复 `RefCounted`/`GlobalClass`、`from_unit()` / `to_payload()` 兼容别名、`Godot.Collections.Array<BattleAiUnitSnapshot>` 查询结果或 snapshot 内部 Godot Dictionary/Array 状态。AI preview / score / candidate / move-cost 回调是 C# delegate 闭环，不要恢复 `Callable` provider 桥。`MoveToRangeAction` 构造 candidate request、读取 movement path budget 和正式路径查询结果时应走 `BattleAiCandidateRequest.SetMoveToRangeSections()`、`BattleMovementQueryService.TryBuildPathSearchBudgetTyped()` 与 `BattleGridService.resolve_unit_move_path_typed()`，不要恢复 `path_search_budget` / `tactical_params` / `runtime_metadata` / path result 的正式路径字典往返。`BattleRangeService` 是 plain static C# helper，正式路径只调用 PascalCase API，公开武器家族集合参数使用 `IEnumerable<StringName>`；地面范围技能同时存在实际威胁距离与 AI 站位距离合同：`BattleRangeService.GetEffectiveSkillThreatRange()` 对齐 `battle_grid_service.get_area_coords()` 的最远可命中格，`BattleRangeService.GetEffectiveSkillDistanceContractRange()` 供 `UseGroundSkillAction` 等站位合同使用，不要恢复 RefCounted/GlobalClass、snake_case API 或 Godot Dictionary/Array/Variant 公开参数。死亡律令 / execute 的分支合同由 `BattleExecutionRules.BuildExecutePlan()` 产出 `BattleExecutePlan`，`BattleDamageResolver` 只负责按 typed plan 执行 save、裂魂状态、穿盾即死与死亡来源标记。战斗评分不再消费 source-only 聚合伤害；正式路径应通过逐目标 `BattleContributionEvent` typed 快照进入 `BattleContributionLedger`，再由 `BattleRatingSystem` 归约正向评分、友伤、治疗敌方和友方击倒字段；贡献事件 DTO 使用 PascalCase 属性，只有 `ToDictionary()` / `ToDictionaryArray()` 在公开边界投影，正式记录入口使用 `RecordContributionFromUnits()` / `RecordBattleContributionResult()`。`BattleRuntimeModule` 的角色网关只通过 `GetCharacterGatewayTyped()` 进入正式路径。special profile 提交通用结果的目标结算与状态计时使用 `BattleCommonSkillTargetResult` / typed status map，`BattleSkillOutcomeCommitter` 不再回读 target result Dictionary。`BattleBarrierService` 持有 `BarrierContentRegistry` 的运行时实例并负责释放；屏障运行时路径不要绕回 `GodotObject.Get` / `.Call()` 读取 `BattleRuntimeModule`。`BattleUnitFactory` 只绑定 `BattleRuntimeModule` 和 `IBattleRuntimeCharacterGateway`，不要恢复 fake runtime / raw GodotObject 属性读取；passive 状态投影消费 plain `PassiveSourceContext` 与 runtime typed skill-def index，`PassiveStatusOrchestrator` / `RaceTraitResolver` / `AscensionTraitResolver` / `SkillPassiveResolver` 是 plain static helper，不再作为 Godot 注册类或 GDS preload 边界。`BattleMovementService` 的移动执行、路径和 move-cost 热路径应保持 `BattleRuntimeModule` / `BattleGridService` / delegate 强类型闭环，移动执行结果用 `BattleValidatedMoveExecutionResult`，不要恢复 `Callable`、grid `.Call()` 或执行结果 Dictionary 自读。`BattleGroundEffectService` 与 `BattleMovementService` 的屏障交互调用应直接走 `BattleLayeredBarrierService` 强类型方法，不要恢复 `Resolve*Barrier*` 的 Godot `.Call()`；地面落点验证需要 cell 信息时优先用 `BattleGridService` 的 primitive 查询，避免把大量 `BattleCellState` wrapper 带出 grid 服务。`GodotVariantReadExtensions.cs` 是删除 `GdInterop` 后的临时迁移 shim，只能作为待清理边界读法定位入口，新正式逻辑不要新增依赖。
+- special profile gate 边界：`BattleSpecialProfileGate` 是 plain C# runtime gate，不再继承 `RefCounted` / 注册 `GlobalClass` 或作为 GDScript preload 服务；正式入口使用 `Setup()` / `PreflightSkill()` / `PreviewSkill()` / `CanExecuteSkill()`，`Setup()` 只在 registry snapshot 边界一次性解析成 typed profile map。`BattleSpecialProfileGateResult` 使用 PascalCase typed fields 与 `Dictionary<string, object>` debug details，Godot Dictionary/Array/Variant 只通过 internal `ToDictionary()` 汇入 Godot 边界投影，DTO public API 不暴露 Godot payload；不要恢复 `setup()` / `preview_skill()` / `can_execute_skill()` snake_case API、内部 Godot Dictionary snapshot/debug state 或 GDScript manifest gate runner。
+- AI unit snapshot 投影边界：`BattleAiUnitSnapshot.ToPayload()` / `BattleAiUnitBlackboardSnapshot.ToPayload()` 只作为 internal Godot Dictionary/Array 边界投影，public API 不暴露 Godot Dictionary/Array/Variant；正式 AI 查询、candidate 和 move-to-range 路径消费 typed snapshot 字段。
+- AI fail-loud metadata 边界：`BattleAiPayloadGuard` public API 只接收 typed `IReadOnlyDictionary<string,string>` metadata；Godot Dictionary metadata overload 只保留为 internal payload-check 边界并立即投影为 typed string map，`BattleAiFailurePolicy` 不回读 Dictionary。
+- AI score context adapter 边界：`BattleAiScoreContextAdapter` 只在 `IBattleAiScoreContext.skill_defs` 显式接口上保留给 `BattleAiScoreService` 的 Godot Dictionary 投影，内部 skill lookup 使用 typed `Dictionary<StringName, SkillDef>`；score service 的 score metadata / effect defs 仍是 internal assembly 边界，不是 public API。不要恢复 `GDictionary` / `GArray` alias、public `skill_defs`、score service `RefCounted`/`GlobalClass` 或 string/StringName 双 key fallback。
+- AI runtime action plan 边界：`BattleAiRuntimeActionPlan` 只暴露 typed action list、typed runtime metadata 和 typed skill-affordance records；Godot Array/Dictionary 投影只允许留在 `BattleAiContext` / decision trace 等外层适配面。不要恢复 plan 内部的 `GDictionary` / `GArray` alias、`GetActionsArray()`、`GetActionMetadataDictionary()`、`GetSkillAffordanceRecordDictionary()` 或 metadata `ToDictionary()` 投影方法。
+- AI skill affordance 边界：`BattleAiSkillAffordanceRecord` 是 plain typed DTO，正式路径只通过 typed field/List 传递；`get_skill_affordance_record()` 的 Godot Dictionary 只在 `BattleAiContext` 公开边界投影。`EnemyAiGenerationSlotDef` 匹配技能 affordance 时使用 typed `MatchesAffordance(record, family)`；不要恢复 record 的 `FromDictionary()` / `ToDictionary()` / typed-key schema helper、slot 的 `matches_affordance(Dictionary)` wrapper，或在 assembler/runtime plan 内把 skill affordance record 退回 Godot Dictionary。
+- enemy AI transition schema 边界：`EnemyAiTransitionRuleDef` / `EnemyAiTransitionConditionDef` 作为 `.tres` Resource 保留 Godot export Array，但 schema 校验内部使用 typed `HashSet<StringName>` / `List<string>` 与 PascalCase internal API；`BattleAiStateResolver` 和 runtime plan 只调用 `AppliesToState()` / `ValidateSchema()` / `ToSignature()` 与 typed predicate properties。不要恢复 `VALID_PREDICATES()` Godot Dictionary 表、condition `to_trace_dict()`、rule/condition public `validate_schema(Dictionary)`、`applies_to_state()` 或 `to_signature()` snake_case API。
+- terrain timed tick 处理伤害结果和战报 summary 时先物化 typed snapshot（`TerrainDamageEffectResult` / `TerrainDamageSummary`），日志、贡献与击杀记录不要在正式循环里反复读 summary Dictionary bool。
+- `BattleRepeatAttackResolver` 进入连斩正式循环前先用 `RepeatAttackRuntimeParameters` 解析停止条件与后续段伤害倍率；miss / target down 分支不要在循环里直接回读 repeat effect params bool。
+- `BattleHitResolver` 的 repeat attack 命中检查复用 `BattleRepeatAttackStageSpec` 计算基础命中与追击惩罚；不要在 hit resolver 里重新解析 `exponential_penalty` 或 penalty-free params。
+- `BattleGroundEffectService` 判断地面效果是否按武器攻击结算时先通过 `GroundEffectRuntimeParameters` 解析 `resolve_as_weapon_attack`；wind-push 的 affected/moved/recursion 查重状态使用 C# `HashSet<StringName>` / `HashSet<ulong>`，强制位移方向在正式 ground / special 执行链中用 `BattleForcedMoveContext` 传递，Godot Dictionary 只保留在 `_collect_*` / `_try_*` / `_apply_*` 调试或公开边界；地面技能执行链不要直接扫描 effect params bool。
+- `BattleRuntimeModule` 的击倒、开战、结算 options 与 AI trace snapshot 由 `BattleRuntimeDictionaryOptions` 在入口处读取；runtime 正式流程不要散落 `Variant.AsBool()`。
+- `BattleRuntimeSkillTurnResolver` 和 fate attack rules 的反击锁、暴击锁、主技能锁与 debuff 计数读取 `BattleStatusEffectState` typed 字段（`lock_counterattack` / `lock_crit` / `main_skill_lock_other_debuff_count` / `counts_as_debuff_*`）；不要恢复 status params helper 或从 `params` 字典读取这些状态语义。
+- `BattleAiContext` / `BattleAiRuntimeActionPlan` / `BattleAiCandidateRequest` 的 runtime metadata 只接受固定 typed schema；不要恢复 `RuntimeMetadataValue`、unknown extra field、任意 `WriteToDictionary` 或 score projection object cache。
+- `BattleAiMutationGuard` 只用显式 snapshot 容器检测和恢复 AI 决策副作用；AI blackboard、layered barrier、report/promotion 使用固定字段快照；layered barrier snapshot 通过 `BattleBarrierInstanceState.FromRuntimeDict()` 与 PascalCase typed DTO 字段物化，不要恢复 `from_runtime_dict()`、snake_case 字段、Godot Array/Dictionary 业务集合或 `RefCounted` / `GlobalClass` 屏障 state；`BattleUnitState` 正式 schema 不再包含 `shield_params` / `combo_state`；不要恢复 `RestorableValue` / `RestorableKey` / `Variant` / `GodotObject` 快照层，也不要为未知字典项做保真回写。
+- `BattleSpawnReachabilityService` 是 plain C# service，不再继承 `RefCounted` / 注册 `GlobalClass` 或提供 GDScript `validate_state()` / Godot Dictionary wrapper；正式入口消费 `IReadOnlyDictionary<StringName, SkillDef>` 与 typed `BattleSpawnReachabilityOptions`，结果通过 `BattleSpawnReachabilityResult` / `BattleSpawnReachabilityUnitResult` 暴露 typed invalid unit ids 和 details，Godot Dictionary/Array 只通过 internal `ToDictionary()` 汇入 battle start failure 公开投影。
+- damage preview / AI save scoring 使用 `BattleSaveProbabilityResult`、`BattleDamagePreviewResult`、typed preview save estimate 与 AI `DamagePreviewSnapshot`；公开 `preview_damage_effect()` / `preview_damage_sequence()` 只投影 Dictionary，AI 正式评分必须调用 typed preview，不要把 save probability、preview save estimate 或 damage preview 组装成 Dictionary 后再在正式路径回读 `has_save` / `immune` / `stable_lethal` / lethal 分支 bool。
+- AI chain damage 评分路径使用 `ChainDamageParameters` 解析 `CombatEffectDef.@params`，目标 BFS 与半径判定不要在正式循环里直接回读 `prevent_repeat_target` / chain radius Dictionary bool。
+- AI runtime action plan 对 authored/generated action 直接写入 typed `RuntimeActionMetadata`；自动生成 action 不要先构造 metadata Dictionary 再回读 `generated` / identity bool。
+- `BattleRuntimeModule` 持有 AI action plan 时使用 C# typed map，正式 AI 上下文直接读取 `BattleAiRuntimeActionPlan`。
+- 战斗 loot 生成随机装备实例时通过 plain C# `EquipmentDropService.RollItemInstances()` 消费 typed `List<EquipmentInstanceState>`。
+- `BattleAiActionAssembler` / `BattleAiRuntimeActionPlan` 是 plain sealed C# 边界，不再继承 `GodotObject` / `RefCounted` 或注册 `GlobalClass`；正式入口使用 `BuildUnitActionPlan()`、`SetSource()`、`AddStateActions()`、`GetActions()`、`HasState()`、`IsStaleFor()`，不要恢复 `build_unit_action_plan()`、`set_source()`、`add_state_actions()`、`get_actions()`、`has_state()`、`is_stale_for()` 等 GDScript-style API。
+- AI action assembler 与 `BattleAiRuntimeActionPlan` 之间直接传递 typed `BattleAiSkillAffordanceRecord`；不要恢复 `set_skill_affordance_record(Dictionary)` 或通过 Godot Dictionary skill-def index 构建正式 runtime action plan。
+- 陨星雨 preview runtime 先构建 `MeteorSwarmNumericSummary` / `MeteorSwarmHostileTerrainConsequence` typed summary，AI 评分读取 typed facts；meteor damage effect 直接写 `CombatEffectDef.dice_count/dice_sides/pre_resistance_damage_multiplier`，不要恢复 `params.dice_count` / `params.dice_sides` / `params.runtime_pre_resistance_damage_multiplier`；`target_numeric_summary` / `friendly_fire_numeric_summary` 仅作为 UI/GDScript 公开 Dictionary 投影。
+- `BattleDamagePreviewRangeService` 是 plain static C# preview helper，不再作为 `RefCounted` / `GlobalClass` 或 GDScript preload 边界；C# 内部只调用 `BuildSkillDamagePreview()` 并消费 typed `SkillDamagePreview` / `DamageEffectRange`，基础伤害骰读取 `CombatEffectDef.dice_count/dice_sides/dice_bonus`，damage range 明细只通过 internal `ToDictionary()` 在 HUD/runtime wrapper 边界投影 Godot Array，DTO public API 不暴露 Godot Dictionary/Array/Variant；AI fallback damage 估算不要调用 Godot Dictionary preview API 后再读 `has_damage` / `add_weapon_dice`。`WeaponDice` / `WeaponProjection` 是 plain C# DTO，`WeaponDice.FromDictionary()` / `WeaponDice.FromResource()` / `WeaponDice.ToDictionary()` / `WeaponProjection.ToDictionary()` 只作为 internal 武器投影边界转换，DTO public API 不暴露 Godot Dictionary/Array/Variant 或 Resource；不要恢复 `RefCounted` / `GlobalClass`、`from_dict()` / `from_resource()` / `to_dict()` / `is_empty()` snake_case DTO API 或 Godot 注册类。
+- `BattleRangeService` 的 effect 武器标签/武器需求判定通过 `CombatEffectDef.requires_weapon` / `use_weapon_physical_damage_tag` typed 字段；射程、武器门槛与目标距离合同不要在正式分支直接读对应 `params` bool。
+- `BattleAttackCheckPolicyContext`、`BattleAttackRollModifierSpec`、`BattleAttackRollModifierBundle` 与 `BattleAttackCheckPolicyService` 是 plain C# policy/modifier 族；policy service 正式 API 使用 `Setup()` / `BuildAttackContext()` / `BuildAttackCheck()` / `BuildAttackPreview()` / `BuildRepeatAttackStageContext()` / `BuildFateAwareRepeatAttackStageHitCheck()` / `ResolveStackedSpecs()`，stacking 输入输出使用 `IReadOnlyList<BattleAttackRollModifierSpec>` / `List<BattleAttackRollModifierSpec>`，bundle breakdown 暴露 typed `IReadOnlyList`，`AttackPreviewData` 内部 modifier breakdown 保存为 typed `List<BattleAttackRollModifierSpec>`，`AttackRollModifierBreakdown` 只返回 Godot Array 投影。`BattleAttackRollModifierSpec` / `BattleAttackRollModifierBundle` 的 Dictionary schema 转换 helper 只作为 internal 边界，DTO public API 不暴露 Godot Dictionary/Array/Variant。不要恢复 `RefCounted`/`GlobalClass`、GDS preload regression、snake_case policy API、Godot Array 作为 stacking 业务集合、public Godot payload DTO API，或在 policy service / `AttackPreviewData` 内部直接保存 preview breakdown Godot Array；policy service 单格读取应走 `BattleState.TryGetCellTyped()`。Godot Dictionary/Array 只保留为 accuracy modifier schema 与 preview breakdown 的外层 payload 投影。
+- `BattleEffectCategoryResolver` 是 plain static C# effect-category helper，正式 API 接收 `IEnumerable<CombatEffectDef>` 并返回 `IReadOnlyList<StringName>`；`BattleBarrierService` 只在 Godot Array 入口一次性解析 effect defs，不要恢复 resolver 实例、`RefCounted`/`GlobalClass`、GDS preload regression 或 `params.barrier_categories` 旧读法。
+- `BattleBarrierService` / `BattleLayeredBarrierService` 是 plain C# runtime service，不再继承 `RefCounted` 或注册 `GlobalClass`；`BattleRuntimeModule` 直接持有并调用 `Setup()` / `Dispose()`，不要恢复 GDS preload 边界、`GodotObject.Get` / `.Call()` 或 service 继承壳的 Godot 注册。
+- `BattleTargetTeamRules` 是 plain static C# target-filter helper，正式路径使用 `ResolveEffectTargetFilter()` / `IsUnitValidForFilter()` / `IsBeneficialFilter()` / `IsEnemyFilter()`；不要恢复 `RefCounted`/`GlobalClass`、snake_case GDS wrapper 或 GDS preload 回归。
+- `BattleSkillResolutionRules` 是 plain sealed C# skill-route/effect-selection helper，正式 API 使用 `BuildSkillResolutionPolicy()` / `Resolve*CastVariant()` / `Collect*EffectDefs()` / `ShouldResolveUnitSkillAsFateAttack()`，policy 内部持有 `IReadOnlyList<StringName>` / `IReadOnlyList<CombatEffectDef>`；Godot Dictionary/Array 只在 internal `BattleSkillResolutionPolicy.ToDictionary()` 边界投影，不要恢复 `RefCounted`/`GlobalClass`、`build_skill_resolution_policy()` snake_case API、Godot Array 业务集合、public Godot 投影 API 或让 HUD/runtime 从 policy Dictionary 回读。
+- `BattleEquipmentRequirementRules` 是 plain static C# 装备需求规则 helper；盾牌需求调用点传入 `IReadOnlyDictionary<StringName, ItemDef>`，`BattleRuntimeModule.BuildItemDefIndexSnapshotTyped()` 只在 runtime item_defs 边界即时投影 Godot Dictionary，不要把 GDictionary/RefCounted/GlobalClass 恢复进规则层。
+- `BattleSpecialSkillResolver` 不应在正式代码中使用 `Variant` / `GodotObject`；forced move 免疫读取 `BattleStatusEffectState.forced_move_immune`，方向上下文通过 `BattleForcedMoveContext` 进入正式选点/评分路径，击杀资源收益读取 `CombatEffectDef.ap_gain/free_move_points_gain`；敌方强制位移阻挡判定不要在正式逻辑里直接读状态 params bool。
+- `FortuneService` 是 plain C# mark service，fate bus Dictionary 解析只在 `FateRuntimeModule` adapter，service 消费 `FortuneMarkEventInput`，确认骰通过 `FateAttackFormula.IRollSource` typed 注入；`FateRuntimeModule` 必须保持 Fortuna guidance 事件订阅先于 Fortune mark adapter，避免同一事件先授予 `fortune_marked` 再误解锁 guidance_true。不要恢复 FortuneService 的 `RefCounted`/`GlobalClass`、GDS preload、snake_case API、Dictionary payload 入口或旧 rng test hook。
+- `FortunaGuidanceService` 是 plain C# guidance service，fate bus / chapter Dictionary 解析只在 `FateRuntimeModule` adapter，service 消费 `FortunaGuidanceEventInput` / `FortunaChapterCompletionInput` 并返回 C# `List<StringName>`；不要恢复 Fortuna guidance 的 `RefCounted`/`GlobalClass`、GDS preload、snake_case API 或 Dictionary payload 解析。
+- `MisfortuneService` 的每战使用标记、已处理失败单位与成员 reason flags 是 C# `HashSet` / `Dictionary` 运行时状态，并通过 typed calamity snapshot 给 guidance 读取；`adjacent_ally_defeated` 通过 `HandleTrigger` 进入相邻队友倒地 reason 链；`MisfortuneGuidanceService` 是 plain C# guidance service，战斗/forge 解锁返回 C# `List<StringName>`，forge 输入使用 `MisfortuneForgeGuidanceInput` 和 `IReadOnlyDictionary<StringName, ItemDef>`；不要恢复为 Godot `RefCounted`/`GlobalClass`、GDS preload 边界、Godot Dictionary bool map、`DictBool` forge result 解析或 `GodotObject` item-def 中间模型。
+- `LowLuckEventService` 是 plain C# low-luck 事件服务，不再作为 Godot `RefCounted` / `GlobalClass` 或 fate bus 订阅者；`FateRuntimeModule` 是 Godot Dictionary / `BattleState` / settlement context 的唯一适配层，服务本体消费 `LowLuckFateEventPayload`、`LowLuckBattleResolutionInput`、`LowLuckSettlementActionInput` 并返回 `LowLuckEventResult` / typed loot entries，battleId -> memberId 追踪表保持 C# `Dictionary<StringName, HashSet<StringName>>`；事件 payload bool 只在边界读取一次，不要恢复 GDScript preload、snake_case API、Dictionary result 或内部 Dictionary bool map。
+- low-luck relic 的战斗规则直接调用 `LowLuckRelicRules.UnitHasFlag()` / `SnapshotHasFlag()` 与常量；不要恢复 snake_case GDS wrapper，也不要用 `BattleUnitState.to_dict()` -> `from_dict()` 克隆运行时单位来测试或传递破绽状态。
+- equipment durability damage effect 在 `BattleDamageResolver` 内使用 typed `EquipmentDurabilityDamageEffectResult` 聚合是否有事件、耐久损失、销毁和 save result；对外事件 payload 才投影 Dictionary。
+- `BattleDamageResolver` 的正式伤害应用、execute 分支、damage outcome、damage context、trait trigger 与 dice roll 分别使用 `AppliedDamageResult` / `ExecuteEffectResult` / `DamageOutcomeResult` / `DamageApplicationInput` / `DamageResolutionContext` / `TraitTriggerResultSnapshot` / `DicePoolRollResult`；预览、结算、即死、staged execute 和治疗/耐力骰不要先生成 Dictionary 再用 `DictBool` / `DictInt` 回读本地结果；治疗/体力恢复的属性缩放骰直接消费 `CombatEffectDef.dice_count/dice_sides_base/dice_sides_per_*_mod`，不要把 `power` 当骰子数量或恢复 `params.base_sides`。
+- `BattleExecutionRules` 是 plain static C# execute helper，不再继承 `RefCounted` 或注册 `GlobalClass`；正式入口使用 `BattleExecutionRuleParams`、`BattleExecutePlan` 与 `BattleExecuteSoulFractureParams`，调用 `ResolveThreshold()` / `BuildExecutePlan()` / `ResolveNonLethalDamage()` / `IsBossTarget()` / `IsEliteOrBossTarget()`，不要恢复 GDScript-style snake_case API 或让 execute plan 通过 Godot Dictionary 往返。
+- `BattleStatusSemanticTable` 是 plain static C# 状态语义表，正式 API 使用 `GetSemantic()` / `MergeStatus()` / `Get*()` / `Is*()` PascalCase 方法，状态模板通过 `BattleStatusSemantic` 值类型表达；不要恢复 `RefCounted`/`GlobalClass`、GDS preload regression、`get_semantic()` Dictionary payload、`merge_status(_typed)` snake_case 入口或 `advance_timeline_duration()` Dictionary wrapper。`CombatEffectDef.@params` / `BattleStatusEffectState.params` 仍只作为尚未迁完的资源/状态参数边界，不能把语义表本身退回 Godot Dictionary。
+- `BattleStatusModifierRules` 是 plain static C# 状态倍率 helper，正式路径通过 `BattleUnitState.GetStatusEffectsTyped()` 读取状态集合，并通过 `BattleStatusEffectState.TryGetIntParam()` 读取固定 int 参数；不要恢复 `RefCounted`/`GlobalClass`、snake_case API、直接遍历 `status_effects.Values` 或在规则 helper 内使用 `GDictionary`。
+- `BattleDeathResolutionRules` 是 plain static C# 死亡来源规则 helper，死亡来源和优先级使用 `DeathResolutionContext` 在正式路径传递；Godot damage event payload 只在 `BattleDamageResolver` 边界写入 `death_source` / `death_source_priority`，不要恢复规则层 `GDictionary` 读法或 `RefCounted`/`GlobalClass`。
+- `BattleDamageResolver` 的武器伤害标签、附加武器骰、基础骰、追加伤害骰、DR bypass、低血阈值、驱散、装备耐久损伤和 staged execute 分支直接消费 `CombatEffectDef` typed 字段；剩余 `params` 只服务尚未迁移的专用 effect schema，不要新增通用 bool/dice Dictionary 读法。
+- `BattleShieldService` 的屏障 HP 骰同样读取 `CombatEffectDef.dice_count/dice_sides/dice_bonus` 或属性缩放骰面公式，正式执行链的护盾 roll cache 使用 C# `Dictionary<long,int>`，Godot `shield_roll_context` 只在公开 `_apply_*` / `_resolve_*` 边界读写；属性缩放护盾不要把 `power` 当骰子数量，也不要恢复 `params.dice_*` / `params.base_sides` 作为正式配置入口。
+- `BattleReportFormatter` 是 plain sealed C# formatter，不再继承 `RefCounted` 或注册 `GlobalClass`；Godot Dictionary/Array formatter 方法只作为 internal runtime/report wrapper 边界，public API 不暴露 Godot Dictionary/Array/Variant；正式入口使用 typed attack metadata 与 typed `AttackEffectResolutionResult` 重载，legacy report payload 只在尚未迁完的 wrapper 边界一次性读取，不要恢复 GDScript-style snake_case formatter API。伤害日志路径先构建 `DamageResultSummary`，其内部标签集合使用 C# `List<string>`，只在 internal `ToDictionary()` 投影边界转 Godot Array；攻击报告从 `BattleDamageResolver` 正式路径接收 `AttackResolutionMetadata`，日志文本、吸收原因、伤害倍率后缀与攻击原因判定不要在正式路径反复读 summary / attackResult Dictionary bool。
+- damage dice event 聚合由 `DamageOutcomeResult` / `DamageApplicationInput` / `AppliedDamageResult.DamageDiceEvent` 携带 `DamageDiceEventSnapshot`，正式伤害应用和 `resolve_effects()` / 环境伤害聚合不要在本地 result 或 aggregate loop 内直接回读 damage event Dictionary bool；公开 preview/旧 payload 包装可在边界扫描。
+- spell-control 检查入口在正式路径使用 `SpellControlCheckContext` / `BattleState + skill_id` 重载，命中解析优先调用 `BattleHitResolver.resolve_spell_control_metadata_typed()` 并消费 `BattleSpellControlMetadata` typed 字段构造 fate event payload/tag；`resolve_spell_control_metadata()` 的 Dictionary payload 只在 Godot/report 边界一次性物化，不要在 `BattleDamageResolver` 正式派发路径恢复 `DictBool` / `DictInt` 回读，也不要恢复 `BattleSpellControlMetadata.Payload` / `BattleSpellControlResult.SpellControl` Dictionary 状态。
+- trait trigger 的 savage attacks 条件通过 `SavageAttacksContext` 物化 attack context，暴击与濒死触发在 `BattleDamageResolver` 正式路径直接消费 typed `AttackTraitTriggerResult` / `TraitTriggerResultSnapshot`；不要把 `critical_hit` / `add_weapon_dice` / `projected_hp` 组装成 Dictionary 后再回读 bool 结果。
+- chain damage 半径/防重复目标和 spell-control backlash flags 在 `BattleSkillExecutionOrchestrator` 内通过 `ChainDamageParameters` / `BattleSpellControlResult` 物化；BFS、随机链候选池与连锁伤害目标池使用 typed unit list，正式分支不要直接回读 params/context bool，`BattleRuntimeModule` 的公开 Dictionary 参数只作边界转换。backlash ground drift 目标坐标在 `BattleMagicBacklashResolver.build_ground_backlash_target_coords_result()` 和 `BattleGroundBacklashTargetResult` 内使用 `IReadOnlyList<Vector2I>` / typed list，Godot Array 只在公开 wrapper 或 `ToDictionary()` 投影边界出现。
+- skill mastery 的公开 Dictionary result 入口只在边界物化 `SkillMasteryResultSnapshot`；主动熟练度事件缓存使用 `SkillMasteryResolutionEvent`，guard grant 与金刚不坏受击 grant 的正式路径直接消费 `AttackEffectResolutionResult`，不要在正式 helper 内回读 result Dictionary bool。
+- 熟练度 grant 的正式运行时应用使用 `BattleSkillMasteryGrant`，last-stand mastery 队列在 `BattleDamageResolver` 内持有 typed grant；guard grant 构建和 last-stand flush 后不要在 `BattleRuntimeModule` 内从 Dictionary 回读 `allow_unlocks` / `record_near_death_unbroken_manual`。
+- `BattleRatingSystem` 的运行时统计以 `BattleRatingMemberStats` typed map 为真相源；技能成功、贡献归约、评分和奖励生成不要回到字段字典读写，`get_battle_rating_stats()` 仅作为展示/测试投影。
+- `BattleMetricsCollector` / `BattleMetricsState` / `BattleMetricEntry` 是 plain C# metrics 运行时统计边界，`BattleRuntimeModule._battle_metrics` 持有 typed state；entry/state 的 `ToDictionary()` 只作为 internal 投影 helper，`BattleRuntimeModule.get_battle_metrics()` 才是公开 Godot Dictionary 边界。不要恢复 collector 的 `RefCounted`/`GlobalClass`、snake_case API、内部 Godot Dictionary 累积状态、public Godot Dictionary/Array DTO API，或让公开 metrics Dictionary 反向污染运行时统计。
+- `BattleRuntimeModule.start_battle()` 的正式启动流程先把单位列表物化为 typed unit array，AI brain 读取走 runtime typed index；校验、摆放和 AI plan 构建不要回到通用对象读取 helper。
+- 冲锋执行链直接消费 `BattleGroundSkillValidationResult` 的 typed direction / distance；Dictionary 校验结果只通过 internal `BattleGroundSkillValidationResult.FromDictionary()` 在 string-key 边界物化，不要在 `BattleSkillExecutionOrchestrator` 和 `BattleChargeResolver` 之间做 Dictionary 往返；`BattleTargetCollectionService` 是 plain C# typed target 收集服务，正式入口只用 `CollectCombatProfileTargetCoords()`，目标坐标/目标单位集合使用 `IEnumerable<Vector2I>` / `IEnumerable<BattleUnitState>`；`BattleTerrainTopologyService` 是 plain C# typed 水域拓扑服务，正式入口只用 `ReclassifyAllWaterTerrain()` / `ReclassifyWaterTerrainNearCoords()`，返回 `BattleTerrainTopologyChange` typed result，地形应用方直接消费 result 属性；`BattleUnitSkillValidationResult` / `BattleGroundSkillValidationResult` / `BattleTargetCollectionResult` 的 Godot Array/Dictionary 只通过 internal `To*Array()` / `ToDictionary()` 边界投影，正式路径消费 typed list / record 字段，DTO public API 不暴露 Godot Dictionary/Array/Variant。不要恢复 target collection service 的 `RefCounted`/`GlobalClass`、`collect_combat_profile_target_coords()` GDScript wrapper 或公开 Godot Array/Dictionary 入参；不要恢复 terrain topology service 的 `RefCounted`/`GlobalClass`、`reclassify_*` snake_case API、cell Dictionary 入参或 change Dictionary/Array 输出。
+- `BattleGroundUnitEffectsResult` / `BattleGroundTerrainEffectsResult` / `BattleGroundWindPushResult` / `BattleShieldApplyResult` 是 plain C# result DTO，Godot Dictionary/Array 只通过 internal `ToDictionary()` 汇入公开 shield/ground wrapper 边界，DTO public API 不暴露 Godot Dictionary/Array/Variant；不要恢复 `GDictionary` / `GArray` alias 或让正式路径回读这些投影。
+- `BattleMovePathResult` / `BattleValidatedMoveExecutionResult` 的路径真相源是 C# `IReadOnlyList<Vector2I>` / `List<Vector2I>`，`BattleMovePathTreeResult` 的 cost/previous/steps 保持 typed map；Godot Array/Dictionary 只在 internal `ToDictionary()` helper 或 movement/grid wrapper 边界投影，DTO public API 不暴露 Godot Dictionary/Array/Variant，AI move-to-range 正式路径不要恢复 Godot Array path 入参。
+- 冲锋 path-step AOE 在进入命中循环前解析 `ChargePathStepAoeParameters`；循环内不要反复从 effect params 读取 `allow_repeat_hits_across_steps` / `resolve_as_weapon_attack` bool，武器攻击命中后的熟练度记录应消费 typed `AttackEffectResolutionResult`。
+- `BattleBarrierGeometryService` 是 plain static C# 几何 helper，正式 API 使用 `ClassifyFootprintTransition()` / `LineCrossesBarrierArea()` / `CoordInsideBarrier()`，输入集合为 `IEnumerable<Vector2I>`，返回 `BattleBarrierFootprintTransition`；不要恢复 `RefCounted`/`GlobalClass`、GDS preload regression、`classify_footprint_transition()` Dictionary wrapper 或 Godot Array 作为几何业务集合。`BattleBarrierInstanceState` / `BattleBarrierLayerState` / `BattleBarrierOutcomeState` 与 `BattleBarrierOutcomeResolver` 是 plain C# typed runtime state/resolver，正式字段使用 PascalCase 与 C# list view；不要恢复 `RefCounted`/`GlobalClass`、snake_case DTO API、Godot Array 业务集合或 passage outcome Dictionary wrapper。barrier outcome 的公开 Dictionary 投影只作 Godot 边界包装；正式移动穿越与层效果路径使用 `BattleBarrierFootprintTransition`、`BattleBarrierPassageResult`、`BattleBarrierOutcomeResult`。
+- AI blackboard 的正式运行标记（如 madness targeting、meteor protected ally、low-luck used flags）归属 `BattleAiBlackboard` typed 字段；Dictionary-like 写入口只接受严格 bool，AI 目标过滤、meteor 评分、黑星楔钉触发不要通过 Dictionary bool key 回读。
+- special profile 提交边界：`BattleSpecialProfileCommitAdapter` 是 plain C# typed commit adapter，不再作为 `RefCounted` / `GlobalClass` 或 GDScript preload 边界；正式入口使用 `Setup()` / `Dispose()` / `CommitMeteorSwarmResult()`，直接从 `MeteorSwarmCommitResult` typed state 构造 `BattleCommonSkillOutcome`，不要恢复 `setup()` / `dispose()` / `commit_meteor_swarm_result()` snake_case API、`MeteorSwarmCommitResult.to_common_outcome_payload()`、提交 payload Dictionary 或 adapter 内 typed -> Dictionary -> typed 往返。
+- 邻接单元：CU-13、CU-15、CU-17、CU-18、CU-20。
+- 不带：战斗流程 sidecar，除非规则改动需要执行链验证。
 
 ### CU-17 战斗地形 profile、敌人 roster、prop 注入
 
 - 文件：
-  - `scripts/systems/battle_terrain_generator.gd`
-  - `scripts/systems/encounter_roster_builder.gd`
-  - `scripts/systems/wild_encounter_growth_system.gd`
-  - `scripts/utils/battle_board_prop_catalog.gd`
-- 真相源：
-  - battle terrain profile id。
-  - encounter -> enemy units / map / prop_ids / loot 预览摘要的构建规则。
-- 主要职责：
-  - 生成 `default` / `canyon` 地形。
-  - 维护 canyon 的高度、terrain、wall、spawn、objective marker / tent / torch / spike barricade。
-  - 生成阶段会先标记水体区域，再通过 `BattleTerrainTopologyService` 归类成 `shallow_water / flowing_water / deep_water`。
-  - 为 roster / template 型遭遇生成基于 `EnemyTemplateDef.drop_entries` 的 loot 预览摘要，供 headless / 测试快速判断该遭遇是否有正式战利品。
-  - `EncounterRosterBuilder` 现在只负责“预览摘要”和“敌方单位构建”，不再生产 battle resolution 直接消费的正式掉落条目。
-  - 维护 prop id 枚举与排序优先级。
-- 说明：
-  - 当前正式 battle start 由 `BattleRuntimeModule.start_battle()` 调 `BattleTerrainGenerator.generate()`；`GameRuntimeFacade` 会在 world 模式下持有 pending battle-start request，并在 generator 返回空结果时维持 `battle_loading` modal、持续重试，直到拿到正式 terrain 数据。
-  - `WildEncounterRosterDef` 现在只描述成长阶段、单位编成和压制参数；不要再把掉落写回 roster 资源。
-- 邻接单元：
-  - CU-15
-  - CU-16
-  - CU-18
-  - CU-19
-  - CU-20
-- 适合任务：
-  - 改 canyon profile。
-  - 改战斗出生点与 prop 注入。
-  - 清理旧 / 新 battle build 边界。
-- 不要顺手带上：
-  - `scripts/ui/save_list_window.gd`
-  - `scripts/systems/party_warehouse_service.gd`
+  - `scripts/systems/battle/terrain/BattleTerrainGenerator.cs`
+  - `scripts/systems/world/EncounterRosterBuilder.cs`
+  - `scripts/systems/world/WildEncounterGrowthSystem.cs`
+  - `scripts/utils/BattleBoardPropCatalog.cs`
+  - `data/configs/enemies/rosters/*.tres`
+  - `assets/main/battle/terrain/canyon/*.png`
+- 负责：battle terrain 生成、roster 装配、prop catalog 注入。
+- 适合：canyon 地形、spawn/roster、战斗 props、terrain profile。
+- 邻接单元：CU-15、CU-16、CU-18、CU-20。
+- 不带：HUD/棋盘渲染，除非 prop 或 terrain 视觉也变化。
 
 ### CU-18 战斗展示主链
 
 - 文件：
   - `scenes/ui/battle_map_panel.tscn`
-  - `scripts/ui/battle_map_panel.gd`
-  - `scripts/ui/battle_hud_adapter.gd`
+  - `scripts/ui/BattleMapPanel.cs`
+  - `scripts/ui/BattleSkillSlotButton.cs`
+  - `scripts/ui/BattleHoverPreviewOverlay.cs`
+  - `scripts/systems/battle/presentation/BattleHudAdapter.cs`
   - `scenes/ui/battle_board_2d.tscn`
-  - `scripts/ui/battle_board_2d.gd`
-  - `scripts/ui/battle_board_render_profile.gd`
-  - `scripts/ui/battle_board_controller.gd`
+  - `scripts/ui/BattleBoard2D.cs`
+  - `scripts/ui/BattleBoardRenderProfile.cs`
+  - `scripts/ui/BattleBoardController.cs`
   - `scenes/common/battle_board_prop.tscn`
-  - `scripts/ui/battle_board_prop.gd`
+  - `scripts/ui/BattleBoardProp.cs`
   - `assets/main/battle/terrain/canyon/*.png`
-- 真相源：
-  - 当前 battle HUD 展示态。
-  - 当前 TileMap board 的渲染结果、镜头位置、缩放和平移状态。
-- 主要职责：
-  - `BattleMapPanel` 负责 HUD 容器、技能槽、viewport 事件转发、战斗首帧加载状态与黑底子视口；鼠标悬停战斗格时会转发 hover 坐标给 `WorldMapSystem`，由场景适配层按当前技能合法目标做只读 HUD overlay 预览，并把命中率浮标文本传给棋盘目标高亮层显示在目标上方；内置移动复位 / 变体切换 / 清技能 / 结算按钮已下线，完整战斗日志滚动窗现在由根层共享的 `RuntimeLogDock` 承接。
-  - `BattleHudAdapter` 把 `BattleState` 转成 HUD snapshot，并复用 `BattleSkillResolutionRules` 产出技能 fate / variant 相关预览；当前 focus/queue/resource snapshot 会同时暴露 `AP` 与 `行动`（`move_current/move_max`）两套资源，但不再生成旧 hint / command / battle-log 文本字段。
-  - `BattleBoardRenderProfile` 是 `terrain_profile_id -> render_profile_id -> asset_dir/source spec` 与棋盘视觉协议的唯一 owner；它持有 `visual_height_step`、`tile_half_size`、`surface_pick_shape`、`camera_margin`、unit / prop anchor bias，以及 TileSet source 的 `atlas_region_size`、`board_tile_size`、`visual_origin` / `texture_origin`、`layer_role`。
-  - 逻辑 `current_height` 不等于视觉 `visual_height_step`：`current_height` 是 battle rules / grid / AI 读取的格子高度，`visual_height_step` 只是 render profile/source spec 决定的像素层距；战斗规则层不拥有也不反推视觉层距。
-  - `BattleBoard2D` 负责 viewport 坐标、滚轮缩放、中键拖拽、键盘平移、hover 格检测和 focus，并从 `BattleBoardRenderProfile` 读取点击面、视觉高度与镜头边界；键盘平移入口由 `WorldMapSystem -> BattleMapPanel.pan_battle_camera() -> BattleBoard2D.pan_viewport_direction()` 串接。
-  - `BattleBoardController` 负责填充 TileMap layers、marker、prop、unit 排序，并按 `BattleBoardRenderProfile` 的 source spec 表注册 TileSet source；source 可持有独立 `atlas_region_size` 与 `visual_origin`，用于 tall cliff / wall 这类高于棋盘 tile 的 source。
-  - `BattleBoardProp` 负责 prop scene 的简易绘制。
-  - 所有 terrain profile 共用 `canyon` 资产目录与 20px `visual_height_step`；source spec 允许生成占位 fallback 以便缺图时仍能跑通回归。cliff/wall face source 默认 atlas region 64×36（上 8 切角 + 20 崖面 + 下 8 切角），`visual_origin` 默认 (0,0)。
-- 邻接单元：
-  - CU-06
-  - CU-15
-  - CU-16
-  - CU-17
-  - CU-19
-- 适合任务：
-  - 改 battle HUD。
-  - 改 board 点击 / 缩放 / 平移。
-  - 改 tile / cliff / overlay / prop / unit 排序。
-  - 改 canyon 战斗视觉。
-- 不要默认带上：
-  - `scripts/systems/game_session.gd`
-  - 登录壳
+- 负责：battle HUD、棋盘绘制、TileMap/prop/unit 渲染、相机、hover/overlay 展示；`WorldMapSystem` 向 `BattleMapPanel` 注入 typed runtime context，`BattleMapPanel` 再交给 `BattleHudAdapter`，不要恢复 Callable/provider/metadata 桥。
+- 适合：battle HUD、棋盘、TileMap、相机、目标浮标、视觉层级。
+- 邻接单元：CU-06、CU-15、CU-16、CU-17、CU-19、CU-20。
+- 不带：progression、仓库规则，除非展示字段来自这些系统。
 
 ### CU-19 自动化回归与截图辅助
 
 - 文件：
-  - `tests/equipment/run_party_equipment_regression.gd`
-  - `tests/equipment/run_equipment_drop_service_regression.gd`
-  - `tests/warehouse/run_party_warehouse_regression.gd`
-  - `tests/warehouse/run_item_recipe_schema_regression.gd`
-  - `tests/warehouse/run_item_template_inheritance_regression.gd`
-  - `tests/world_map/runtime/run_settlement_forge_service_regression.gd`
-  - `tests/battle_runtime/run_battle_runtime_smoke.gd`
-  - `tests/battle_runtime/run_battle_runtime_ai_regression.gd`
-  - `tests/battle_runtime/run_battle_board_regression.gd`
-  - `tests/battle_runtime/run_battle_spawn_reachability_regression.gd`
-  - `tests/battle_runtime/run_battle_resolution_contract_regression.gd`
-  - `tests/battle_runtime/run_battle_state_disadvantage_regression.gd`
-  - `tests/battle_runtime/run_battle_unit_factory_regression.gd`
-  - `tests/battle_runtime/run_battle_skill_protocol_regression.gd`
-  - `tests/battle_runtime/run_battle_ui_regression.gd`
-  - `tests/battle_runtime/run_battle_loot_drop_luck_regression.gd`
-  - `tests/battle_runtime/run_battle_6v40_headless_benchmark.gd`
-  - `tests/battle_runtime/run_battle_panel_full_refresh_benchmark.gd`
-  - `tests/battle_runtime/run_status_effect_semantics_regression.gd`
-  - `tests/battle_runtime/run_warrior_skill_semantics_regression.gd`
-  - `tests/battle_runtime/run_warrior_advanced_skill_regression.gd`
-  - `tests/battle_runtime/run_archer_skill_semantics_regression.gd`
-  - `tests/battle_runtime/run_fate_attack_formula_regression.gd`
-  - `tests/battle_runtime/run_fate_calamity_drop_regression.gd`
-  - `tests/battle_runtime/run_fate_low_luck_tactical_skills_regression.gd`
-  - `tests/battle_runtime/run_low_luck_relic_regression.gd`
-  - `tests/battle_runtime/run_misfortune_service_regression.gd`
-  - `tests/battle_runtime/run_black_star_brand_regression.gd`
-  - `tests/battle_runtime/run_crown_break_regression.gd`
-  - `tests/battle_runtime/run_doom_sentence_regression.gd`
-  - `tests/battle_runtime/run_game_runtime_battle_selection_regression.gd`
-  - `tests/battle_runtime/run_save_index_resilience_regression.gd`
-  - `tests/battle_runtime/run_wild_encounter_regression.gd`
-  - `tests/battle_runtime/run_battle_simulation_regression.gd`
-  - `tests/battle_runtime/run_battle_ai_vs_ai_simulation_regression.gd`
-  - `tests/battle_runtime/run_battle_balance_simulation.gd`
-  - `tests/battle_runtime/capture_canyon_battle_board.gd`
-  - `tests/progression/run_progression_tests.gd`
-  - `tests/progression/run_character_creation_service_regression.gd`
-  - `tests/progression/run_quest_schema_regression.gd`
-  - `tests/progression/run_skill_schema_regression.gd`
-  - `tests/progression/run_profession_schema_regression.gd`
-  - `tests/progression/run_luck_getter_regression.gd`
-  - `tests/progression/run_protected_custom_stat_regression.gd`
-  - `tests/progression/run_party_state_fate_regression.gd`
-  - `tests/progression/run_fortune_service_regression.gd`
-  - `tests/progression/run_fortuna_guidance_regression.gd`
-  - `tests/progression/run_misfortune_black_omen_regression.gd`
-  - `tests/progression/run_misfortune_guidance_regression.gd`
-  - `tests/progression/run_low_luck_event_service_regression.gd`
-  - `tests/progression/run_faith_service_regression.gd`
-  - `tests/runtime/run_game_log_service_regression.gd`
-  - `tests/runtime/run_game_runtime_quest_progress_regression.gd`
-  - `tests/runtime/run_game_runtime_reward_flow_regression.gd`
-  - `tests/runtime/run_game_runtime_snapshot_builder_regression.gd`
-  - `tests/runtime/run_bootstrap_session_regression.gd`
-  - `tests/runtime/run_battle_permadeath_regression.gd`
-  - `tests/runtime/run_save_serializer_quest_round_trip_regression.gd`
-  - `tests/runtime/content_validation_runner.gd`
-  - `tests/runtime/run_resource_validation_regression.gd`
-  - `tests/runtime/run_settlement_service_result_regression.gd`
-  - `tests/text_runtime/run_text_command_regression.gd`
-  - `tests/text_runtime/run_text_command_parse_regression.gd`
-  - `tests/text_runtime/run_headless_game_test_session_regression.gd`
-  - `tests/text_runtime/run_submap_text_command_regression.gd`
-  - `tests/text_runtime/run_text_save_load_regression.gd`
-  - `tests/text_runtime/run_validation_text_surface_regression.gd`
-  - `tests/text_runtime/run_text_command_script.gd`
-  - `tests/text_runtime/run_text_command_repl.gd`
-  - `tests/text_runtime/scenarios/smoke_startup.txt`
-  - `tests/world_map/runtime/run_game_runtime_settlement_command_handler_regression.gd`
-  - `tests/world_map/runtime/run_game_runtime_party_command_handler_regression.gd`
-  - `tests/world_map/runtime/run_game_runtime_reward_flow_handler_regression.gd`
-  - `tests/world_map/runtime/run_world_map_battle_loading_overlay_regression.gd`
-  - `tests/world_map/runtime/run_world_map_battle_start_confirm_regression.gd`
-  - `tests/world_map/runtime/run_world_map_input_routing_regression.gd`
-  - `tests/world_map/runtime/run_world_map_settlement_entry_regression.gd`
-  - `tests/world_map/runtime/run_world_map_system_surface_regression.gd`
-  - `tests/world_map/runtime/run_world_map_view_color_config_regression.gd`
-  - `tests/world_map/runtime/run_world_submap_regression.gd`
+  - `tests/run_regression_suite.py`
+  - `tests/shared/*.gd`
+  - `tests/shared/*.cs`
+  - `tests/equipment/run_*.gd`
+  - `tests/equipment/run_*.cs`
+  - `tests/warehouse/run_*.gd`
+  - `tests/battle_runtime/**/*.gd`
+  - `tests/battle_runtime/**/run_*.cs`
+  - `tests/progression/**/*.gd`
+  - `tests/runtime/**/*.gd`
+  - `tests/runtime/**/*.cs`
+  - `tests/text_runtime/**/*.gd`
+  - `tests/world_map/**/*.gd`
+  - `tests/world_map/**/*.cs`
+  - `tests/battle_runtime/benchmarks/profile_seeds*.json`
+  - `scripts/dev_tools/*.gd`
   - `tools/build_battle_sim_analysis_packet.py`
   - `tools/character_creation_reroll_simulation.gd`
   - `.codex/skills/battle-sim-analysis/SKILL.md`
 - 执行约束：
-  - 常规“全量测试”只覆盖确定性 headless 回归 / smoke / schema / runtime contract；不要把数值模拟、平衡模拟或交互式开发入口混进默认测试集合。
-  - `tests/battle_runtime/run_battle_simulation_regression.gd`、`tests/battle_runtime/run_battle_ai_vs_ai_simulation_regression.gd` 与 `tests/battle_runtime/run_battle_balance_simulation.gd` 属于 battle simulation / balance analysis 入口，不作为常规测试用例；只有用户明确要求 battle simulation、数值模拟、AI 对战模拟或平衡分析时才运行。
-  - `tests/text_runtime/run_text_command_repl.gd` 是开发 REPL，不作为自动化全量测试入口。
-- 主要职责：
-  - equipment：
-    - 装备种子内容校验
-    - 装备 / 卸装与共享仓库联动
-    - 装备属性进入角色快照
-    - `PartyState` round-trip 后保留装备状态
-    - `EquipmentDropService` 的 3d6 掉落稀有度阈值与 `drop_luck` 极值边界
-  - warehouse：
-    - 当前 schema 严格校验
-    - 堆叠 / 容量 / 超容规则
-    - save round-trip
-    - 队伍入口与据点入口打开共享仓库
-  - battle runtime smoke：
-    - terrain effect 时序
-    - 真堆叠列移动规则
-    - 墙 / 高差阻挡
-    - move command 扣行动点（`current_move_points`）且不误扣 AP，并完成占位更新
-    - height delta 与 column cache 同步
-  - battle spawn reachability：
-    - `BattleSpawnReachabilityService` 脚本存在性
-    - 深水完全隔断时敌方出生点判定 invalid 并返回可定位 details
-    - 平地直连时敌方出生点判定 valid
-  - battle status semantics：
-    - `status_effects` 的 stack / duration / tick 语义回归
-    - `burning / slow / staggered` 的正式 runtime 口径
-    - battle smoke 对 self-buff / target-debuff 的持续时间与 `BattleUnitState` 序列化回归
-  - battle simulation：
-    - scenario/profile 批量模拟链路
-    - AI turn trace / chosen score input / comparison report 稳定性
-    - skill / AI profile override 对最终 summary 的可观测差异
-    - ally/enemy 双边 AI 对战场景回归
-    - full report -> low-token analysis packet 导出
-    - focus trace 切片与 LLM handoff 工作流
-  - battle resolution contract：
-    - `BattleResolutionResult` round-trip
-    - battle end 构造 canonical result
-    - `BattleSessionFacade -> GameRuntimeFacade` 的 canonical handoff
-    - canonical battle resolution result handoff
-    - per-kill fixed loot / `equipment_instance` 的 battle-end 提交链路
-  - battle board：
-    - canyon 生成稳定性
-    - layer / cliff / prop / unit 排序契约
-    - `InputLayer.local_to_map()` 点击映射
-    - 同 state 渲染签名稳定
-    - `BattleBoardRenderProfile` 映射、source spec、`canyon` 资产完整性、face source 区域注册与视觉层距分离；`visual_height_step` 属于展示验收，不替代规则层 `current_height`
-    - 后续 terrain profile authoring：所有 profile 复用 `canyon` 资产 + 20px 层距，新美术契约（顶面尺寸 / atlas region / anchor bias）变化时再新增独立 source spec / render profile
-  - progression：
-    - achievement registry seed 校验
-    - 建卡 reroll -> `hidden_luck_at_birth` 档位边界与溢出回退
-    - profession / combat skill seed 内容
-    - member-scoped achievement progress
-    - pending character reward 顺序与序列化
-    - character reward 序列化与展示
-  - runtime：
-    - `GameLogService` ring buffer 与 jsonl 追加写盘
-    - `SettlementServiceResult` canonical 契约
-    - battle / quest runtime 桥的最小回写链
-    - runtime snapshot / text snapshot 的日志分段稳定性
-  - resource validation runner：
-    - 统一汇总 profession / skill / enemy / item / recipe / quest 的静态校验输出
-    - 覆盖 missing id / duplicate id / invalid reference 三类夹具回归
-    - 输出按 domain 分组，便于 headless 回归与本地排障直接复用
-  - text runtime：
-    - `game new/load`
-    - `world/party/settlement/warehouse/battle/reward/promotion/close/snapshot/expect`
-    - headless snapshot 与文本快照稳定性
-    - `validation` 结构化快照 / `[VALIDATION]` 文本分段，以及不依赖日志抓取的校验失败断言面
-  - capture：
-    - headless 下导出 `battle_board_canyon_capture.signature.txt` 做稳定签名检查，非 headless 下导出 `battle_board_canyon_capture.png` 做人工验收
-  - world_map runtime：
-    - `GameRuntimeSettlementCommandHandler` 的据点动作分发
-    - canonical settlement result / quest progress / modal 路由
-- 说明：
-  - `capture_canyon_battle_board.gd` 只是截图辅助，不是断言型回归。
-  - battle board v2 视觉改动的最小验收是 `run_battle_board_regression.gd`；若改 terrain 生成、高度列、edge feature、spawn 或可达性，再补 `run_battle_runtime_smoke.gd` / `run_battle_spawn_reachability_regression.gd`。
-  - progression 测试现在是单 runner 脚本，不再走旧的 `helpers/` + `cases/` 目录。
-- 邻接单元：
-  - CU-10
-  - CU-15
-  - CU-17
-  - CU-18
-  - CU-21
+  - 常规测试优先用 `python tests/run_regression_suite.py` 或相关 `godot --headless --script tests/.../run_*.gd` / `run_*.cs`。
+  - 默认不要运行 `tests/battle_runtime/simulation/*`、`tests/battle_runtime/benchmarks/*`、`tests/text_runtime/tools/*`。
+  - 只有用户明确要求 battle simulation、数值模拟、AI 对战模拟或平衡分析时，才运行 simulation / benchmark 入口。
+- 负责：headless 回归、schema/runtime contract、测试 fixture、截图/签名辅助、文本命令回归、AI function-level profiling helper 与 profile gate 校验；`GameTextSnapshotRenderer` 是 plain C# static snapshot renderer，不再作为 Godot `RefCounted` / GDScript preload 边界；装备基础回归入口是 `tests/equipment/run_party_equipment_regression.cs`，不要恢复为 GDScript preload 调用 `PartyEquipmentService`；世界生成 shared-content 回归入口是 `tests/world_map/runtime/run_world_map_shared_content_injection_regression.cs`，不要恢复为通过 GDScript preload 实例化 `WorldMapGridSystem`；fate attack formula 回归入口是 `tests/battle_runtime/fate/run_fate_attack_formula_regression.cs`，不要恢复为 GDScript preload 调用 `FateAttackFormula`；fate attack crit-lock / status typed field 回归入口是 `tests/battle_runtime/rules/run_status_effect_typed_fields_regression.cs` 与 `tests/battle_runtime/rules/run_battle_rule_status_param_schema_regression.cs`，不要恢复为 GDScript preload 调用 `BattleFateAttackRules` 或从 status params 读取 `lock_crit`；effect category resolver 回归入口是 `tests/battle_runtime/rules/run_battle_effect_category_resolver_contract_regression.cs`，不要恢复为 GDScript preload 调用 `BattleEffectCategoryResolver` 或读取 `params.barrier_categories`；execute rules 合同回归入口是 `tests/battle_runtime/rules/run_battle_execution_rules_contract_regression.cs`，不要恢复 `BattleExecutionRules` 的 `RefCounted`/`GlobalClass`、snake_case API 或 execute plan Dictionary 往返；execute effect 回归入口是 `tests/battle_runtime/runtime/run_battle_execute_effect_regression.cs`，不要恢复为 GDScript preload 调用 `BattleDamageResolver` 或只通过 Dictionary 检查死亡来源；black star brand、doom sentence 与 fate calamity drop runtime 回归入口分别是 `tests/battle_runtime/fate/run_black_star_brand_regression.cs`、`tests/battle_runtime/fate/run_doom_sentence_regression.cs` 和 `tests/battle_runtime/fate/run_fate_calamity_drop_regression.cs`，不要恢复为 GDScript preload 调用 `BattleRuntimeModule.setup()` / `GameRuntimeFacade` / `BattleLootConstants`、不要用 status Dictionary 直接写 fixture 状态，也不要用 `BattleUnitState.to_dict()` -> `from_dict()` 克隆测试状态；battle loot drop luck 回归入口是 `tests/battle_runtime/runtime/run_battle_loot_drop_luck_regression.cs`，不要恢复为 GDScript duck-typed `EquipmentDropService` spy 或 GDScript preload 调用 `GameRuntimeFacade` / `BattleRuntimeModule` 强类型边界；FaithService 回归入口是 `tests/progression/fate/run_faith_service_regression.cs`，不要恢复为 GDScript preload 调用 `FaithService`、snake_case API 或 devotion Dictionary result；FortuneService 回归入口是 `tests/progression/fate/run_fortune_service_regression.cs`，不要恢复为 GDScript preload 调用 `FortuneService` 或旧 rng test hook；Fortuna / Misfortune guidance 回归入口分别是 `tests/progression/fate/run_fortuna_guidance_regression.cs` 与 `tests/progression/fate/run_misfortune_guidance_regression.cs`，不要恢复为 GDScript preload 调用 `FortunaGuidanceService` / `MisfortuneGuidanceService` / `BattleLootConstants` 或 duck-typed RefCounted battle gateway；LowLuckEventService 回归入口是 `tests/progression/fate/run_low_luck_event_service_regression.cs`，low-luck relic 回归入口是 `tests/battle_runtime/fate/run_low_luck_relic_regression.cs`，不要恢复为 GDScript preload 调用 `LowLuckEventService` / `LowLuckRelicRules`、snake_case API、Dictionary result 或 C# interface setup。
+- 状态语义回归入口是 `tests/battle_runtime/rules/run_status_effect_semantics_regression.cs`；不要恢复为 GDScript preload 调用 `BattleStatusSemanticTable`、snake_case API 或语义 Dictionary payload。
+- barrier architecture 回归入口是 `tests/battle_runtime/runtime/run_barrier_architecture_contract_regression.cs`；不要恢复为 GDScript runner、只扫描 `.gd` 的合同、屏障 state/service `RefCounted`/`GlobalClass` 或 snake_case runtime dict API。
+- barrier geometry 回归入口是 `tests/battle_runtime/runtime/run_barrier_geometry_contract_regression.cs`；不要恢复为 GDScript preload 调用 `BattleBarrierGeometryService`、snake_case API 或 geometry Dictionary result。
+- prismatic sphere 行为回归入口是 `tests/battle_runtime/runtime/run_prismatic_sphere_regression.cs`；不要恢复为 GDScript preload 调用 `BattleRuntimeModule.setup()`、不要在测试 fixture 里直接把 barrier layer 当匿名 Dictionary 业务状态读写。
+- battle metrics collector 回归入口是 `tests/battle_runtime/runtime/run_battle_metrics_collector_regression.cs`；不要恢复 `BattleMetricsCollector` 的 GDScript preload/`RefCounted`/`GlobalClass`、内部 metrics Godot Dictionary 状态或公开 metrics Dictionary 回读。
+- battle target collection service 回归入口是 `tests/battle_runtime/runtime/run_battle_target_collection_service_regression.cs`；不要恢复 `BattleTargetCollectionService` 的 `RefCounted`/`GlobalClass`、GDScript-style `collect_combat_profile_target_coords()` wrapper、`BattleTargetCollectionResult` 的 public Godot Array/Dictionary 投影 API 或 Godot Array/Dictionary 公开参数。
+- battle terrain topology service 回归入口是 `tests/battle_runtime/terrain/run_battle_terrain_topology_service_regression.cs`；不要恢复 `BattleTerrainTopologyService` 的 `RefCounted`/`GlobalClass`、GDScript-style `reclassify_*` API、Godot Dictionary cell 入参或 Godot Array/Dictionary change result。
+- battle validation result 投影回归入口是 `tests/battle_runtime/runtime/run_battle_validation_result_projection_regression.cs`；不要恢复 `BattleUnitSkillValidationResult` / `BattleGroundSkillValidationResult` / `BattleTargetCollectionResult` 的 GDictionary alias、StringName-key fallback、public Godot Dictionary/Array 投影 API 或旧 `TargetCoordsArray()` / `ToGodotCoords()` 投影 API。
+- battle ground/shield result 投影由 `tests/battle_runtime/runtime/run_battle_ground_effect_typed_sets_regression.cs` 与 `tests/battle_runtime/runtime/run_battle_shield_service_typed_context_regression.cs` 覆盖；不要恢复 ground effect / shield result DTO 的 `GDictionary` / `GArray` alias、public Godot Dictionary/Array 投影 API、roll context `Variant.From` key 读取或正式路径投影回读。
+- battle move path result 投影回归入口是 `tests/battle_runtime/runtime/run_battle_move_path_result_projection_regression.cs`；不要恢复 `BattleMovePathResult.Path` / `BattleValidatedMoveExecutionResult.ExecutedPath` 的 Godot Array 业务状态、`GDictionary` / `GVector2IArray` result alias 或 AI move-to-range Godot Array path 入参。
+- battle spawn reachability 回归入口是 `tests/battle_runtime/runtime/run_battle_spawn_reachability_regression.cs`；不要恢复 `BattleSpawnReachabilityService` 的 `RefCounted`/`GlobalClass`、GDScript preload 回归、`validate_state()` / `ValidateState()` Dictionary wrapper、Godot Dictionary skill-def 入参或 result DTO 的 public Godot Dictionary/Array 投影 API，业务断言应直接消费 typed result。
+- magic backlash 回归入口是 `tests/battle_runtime/skills/run_magic_backlash_regression.cs`，命中 BAB / spell-control roll 回归入口是 `tests/battle_runtime/rules/run_battle_hit_resolver_bab_regression.cs`；不要恢复 `BattleSpellControlMetadata.Payload`、`BattleSpellControlResult.SpellControl` Godot Dictionary、`resolve_spell_control_metadata()` 正式路径回读或 backlash drift 结果中的 Godot Array 业务状态。
+- damage preview range 回归入口是 `tests/battle_runtime/rules/run_battle_damage_preview_range_contract_regression.cs`；不要恢复 `BattleDamagePreviewRangeService` 的 `RefCounted`/`GlobalClass`、GDScript preload runner、`build_skill_damage_preview()` / `build_skill_damage_preview_typed()` snake_case API、Godot Array typed 入口、`SkillDamagePreview` / `DamageEffectRange` public Godot 投影 API，或 `WeaponDice` / `WeaponProjection` 的 public Godot payload/Resource conversion API、Godot 注册 DTO 形态。
+- attack roll modifier 回归入口是 `tests/battle_runtime/rules/run_attack_roll_modifier_bundle_regression.cs`；不要恢复 `BattleAttackRollModifierSpec` / `BattleAttackRollModifierBundle` 的 public Godot Dictionary/Array/Variant DTO API、Godot Array stacking 业务集合或 GDScript preload runner。
+- battle range service 合同回归入口是 `tests/battle_runtime/rules/run_battle_range_service_contract_regression.cs`；不要恢复 `BattleRangeService` 的 `RefCounted`/`GlobalClass`、GDScript preload/smoke 直连、snake_case API 或 Godot Dictionary/Array/Variant 公开参数。
+- skill resolution rules 回归入口是 `tests/battle_runtime/rules/run_battle_skill_resolution_rules_regression.cs`；不要恢复 `BattleSkillResolutionRules` / `BattleSkillResolutionPolicy` 的 `RefCounted`/`GlobalClass`、`build_skill_resolution_policy()` snake_case API、Godot Array policy 业务状态、public Godot Dictionary/Array 投影 API，或让 HUD/runtime 从 policy Dictionary 回读正式字段。
+- battle report formatter 合同回归入口是 `tests/battle_runtime/rules/run_battle_report_formatter_contract_regression.cs`；不要恢复 `BattleReportFormatter` 的 `RefCounted`/`GlobalClass`、snake_case formatter API、public Godot Dictionary/Array/Variant API、`GDictionary` / `GArray` test alias 或 formatter 内部 Godot Array 标签状态。
+- battle save resolver 回归入口是 `tests/battle_runtime/runtime/run_battle_save_resolver_regression.cs`，damage preview contract 回归入口是 `tests/battle_runtime/rules/run_battle_damage_resolver_preview_contract_regression.cs`；不要恢复 `BattleSaveResolver` 的 `RefCounted`/`GlobalClass`、GDScript preload runner、`resolve_save()` / `resolve_save_result()` / `estimate_save_success_probability()` snake_case Dictionary API、save tag/mode mirror 常量方法、`BattleSave*` result DTO public Godot 投影 API、`GDictionary` / `GArray` alias、string/StringName 双 key fallback，或让 save resolver 从 Godot Dictionary context 回读正式字段。
+- meteor swarm manifest gate 回归入口是 `tests/battle_runtime/runtime/run_meteor_swarm_manifest_gate_regression.cs`；不要恢复 GDScript preload runner、旧 `BattleSpecialProfileGateResult` snake_case/Godot Dictionary debug surface 或 public Godot Dictionary/Array/Variant 投影 API。
+- meteor swarm commit payload boundary 回归入口是 `tests/battle_runtime/runtime/run_meteor_swarm_commit_payload_boundary_regression.cs`；不要恢复 GDScript preload runner、`BattleSpecialProfileCommitAdapter` 的 `RefCounted`/`GlobalClass`/snake_case API、`MeteorSwarmCommitResult.to_common_outcome_payload()` 或提交 payload Dictionary 回读。
+- resource validation 回归入口是 `tests/runtime/validation/run_resource_validation_regression.gd` / `tests/runtime/validation/content_validation_runner.gd`；fixture 目录重载应调用 registry 公开目录加载 API，enemy invalid coverage 包含 `tests/fixtures/enemy_content/invalid_roster_initial_stage/` 与 `tests/fixtures/enemy_content/invalid_skill_level_map/`，不要恢复 runner 对 C# registry 私有字段或 `_scan_directory()` 的直接访问。
+- enemy template runtime start 回归入口是 `tests/battle_runtime/ai/run_enemy_template_runtime_start_regression.cs`；不要把敌方模板 stable id / 初始 AI 状态 / 初始技能 / stamina 池或 `BattleUnitFactory` 禁止 fallback enemy 的断言恢复到 `run_battle_runtime_ai_regression.gd` 的 GDScript `BattleRuntimeModule.setup()` / `start_battle()` preload 路径。
+- enemy AI generation slot schema/content 回归入口是 `tests/battle_runtime/ai/run_enemy_ai_generation_slots_schema_regression.cs` 与 `tests/battle_runtime/ai/run_enemy_ai_generation_slots_content_regression.cs`；不要恢复为 GDScript preload 调用 `EnemyAiGenerationSlotDef` / `EnemyContentRegistry` / action resources，也不要恢复 `EnemyAiTargetSelectorRules` 的 Godot Dictionary/Array wrapper 或 `EnemyAiGenerationSlotDef.VALID_*()` Dictionary validation tables。
+- battle AI action intent / safety gate 回归入口是 `tests/battle_runtime/ai/run_battle_ai_action_intent_safety_gate_regression.cs`；不要恢复 `BattleAiActionIntent` / `BattleAiSafetyGate` 的 GDScript-style snake_case API、`RefCounted` 或 `GlobalClass`。
+- battle AI score ordering 回归入口是 `tests/battle_runtime/ai/run_battle_ai_score_ordering_regression.cs`；不要恢复 `BattleAiScoreOrdering` 的 GDScript-style `is_better()` API、`RefCounted` 或 `GlobalClass`。
+- battle AI role-threat / lethal-threat scoring 回归入口是 `tests/battle_runtime/ai/run_battle_ai_role_threat_scoring_regression.cs`；不要把 role-threat target priority、lethal threat target count 或 low-HP formal bonus 参数断言恢复到 `run_battle_runtime_ai_regression.gd` 的 GDScript score-service preload 路径。
+- battle AI failure policy 回归入口是 `tests/battle_runtime/ai/run_battle_ai_failure_policy_regression.cs`；不要恢复 `BattleAiFailurePolicy` 的 `RefCounted`/`GlobalClass`、Godot Dictionary/Array event state、Dictionary metadata 入参或旧 GDScript preload 回归。
+- battle AI mutation guard / decision commit 回归入口是 `tests/battle_runtime/ai/run_battle_ai_mutation_guard_regression.cs`；不要恢复 `BattleAiDecisionCommitter` 的 `RefCounted`/`GlobalClass`、GDScript preload 回归、snake_case API 或从 Godot Dictionary state patch 回读提交状态。
+- battle AI query service 回归入口是 `tests/battle_runtime/ai/run_battle_ai_query_service_regression.cs`；不要恢复 `BattleAiQueryService` 的 `RefCounted`/`GlobalClass`、GDScript-style public query API、`get_skill_record()` Dictionary 投影、skill-score callback 或从 Godot Dictionary skill defs 构建正式 skill records。
+- battle AI score context adapter 回归入口是 `tests/battle_runtime/ai/run_battle_ai_score_context_adapter_regression.cs`；不要恢复 `BattleAiScoreContextAdapter` 的 `RefCounted`/`GlobalClass`、public `skill_defs`、snake_case API、`Variant` key 循环或把 live `SkillDef` 留在 score input 出口。
+- battle AI save probability scoring 回归入口是 `tests/battle_runtime/ai/run_battle_ai_score_save_probability_regression.cs`；不要恢复 GDScript preload runner、score service `build_skill_score_input()` GDS API 或把 effect_defs 主入口退回 Godot Array。
+- battle AI score input metrics 回归入口是 `tests/battle_runtime/ai/run_battle_ai_score_input_metrics_regression.cs`；不要把空地控场 target count / ground control score、地面技能资源与站位指标、友伤地面有效目标数、链闪友伤预估或 fate-aware repeat attack 成功率断言恢复到 `run_battle_runtime_ai_regression.gd` 的 GDScript `build_skill_score_input()` 路径。
+- battle AI score selection 回归入口是 `tests/battle_runtime/ai/run_battle_ai_score_selection_regression.cs`；不要把 melee 后声明高分技能选择、ranged 单体技能压过单体范围技能、unit skill 多目标 hit payoff 选择断言恢复到 `run_battle_runtime_ai_regression.gd` 的 GDScript `build_skill_score_input()` 路径。
+- battle AI enemy template runtime 回归入口是 `tests/battle_runtime/ai/run_battle_ai_enemy_template_runtime_regression.cs`；不要把正式模板 start_battle stable id、wolf stamina、fallback enemy 禁止、非 melee pressure 技能 probe、depleted basic_attack fallback 或 canonical template id 断言恢复到 `run_battle_runtime_ai_regression.gd` 的 GDScript `BattleRuntimeModule.setup/start_battle` 路径。
+- battle AI melee/charge 行为回归入口是 `tests/battle_runtime/ai/run_battle_ai_melee_charge_behavior_regression.cs`；不要把自然武器 basic_attack fallback、melee_aggressor/frontline_bulwark charge 日志、短距 close_in 优先级或 charge resolved stop anchor 断言恢复到 `run_battle_runtime_ai_regression.gd` 的 GDScript `BattleRuntimeModule.setup()` / AI action preload 路径。
+- 冲锋 AI 候选评分需要通过 `BattleRuntimeModule._bind_ai_helper_services_for_decision()` 给 `BattleAiContext.PreviewCommand()` 绑定正式 `preview_command()`，由 `UseChargeAction` 读取正式 `resolved_anchor_coord` 后评分；不要让冲锋评分只依赖 fast preview 的预测终点，否则障碍中途停点会重新偏向错误的远端 target coord。
+- battle AI unit snapshot 回归入口是 `tests/battle_runtime/ai/run_battle_ai_unit_snapshot_regression.cs`；不要恢复 `BattleAiPayloadGuard` / `BattleAiUnitSnapshot` / `BattleAiUnitBlackboardSnapshot` 的 `RefCounted`/`GlobalClass`、public Godot Dictionary/Array/Variant API、snapshot 内部 Godot Dictionary/Array 状态或 `Godot.Collections.Array<BattleAiUnitSnapshot>` 查询结果。
+- enemy AI transition schema 回归入口是 `tests/battle_runtime/ai/run_enemy_ai_transition_schema_regression.cs`；不要恢复 GDScript preload runner、`EnemyAiTransitionConditionDef.VALID_PREDICATES()` Godot Dictionary 表、condition `to_trace_dict()`、rule/condition public `validate_schema(Dictionary)` 或 transition rule/condition snake_case API。
+- battle AI state resolver 回归入口是 `tests/battle_runtime/ai/run_battle_ai_state_resolver_regression.cs`；不要恢复 `BattleAiStateResolver` 的 `RefCounted`/`GlobalClass`、GDScript preload 回归、`resolve()` Dictionary API、`GDictionary` / `GArray` alias 或 transition DTO `ToDictionary()` 投影。
+- battle AI skill affordance classifier 回归入口是 `tests/battle_runtime/ai/run_battle_ai_skill_affordance_classifier_regression.cs`；不要恢复 `BattleAiSkillAffordanceClassifier` 的 `RefCounted`/`GlobalClass`、GDScript preload 回归、`classify_skill()` Dictionary API、`BattleAiSkillAffordanceRecord` 的 Dictionary conversion API 或 `EnemyAiGenerationSlotDef.matches_affordance(Dictionary)` wrapper。
+- battle AI action assembler plan 回归入口是 `tests/battle_runtime/ai/run_battle_ai_action_assembler_plan_regression.cs`；不要恢复 `BattleAiActionAssembler` 的 `RefCounted`/`GlobalClass`、GDScript preload 回归、`build_unit_action_plan()` snake_case API、Godot Dictionary skill-def 入参或 `GodotObject.Set()` 属性写法。
+- battle AI runtime action plan 回归入口是 `tests/battle_runtime/ai/run_battle_ai_runtime_action_plan_regression.cs`；不要恢复 `BattleAiRuntimeActionPlan` 的 `RefCounted`/`GlobalClass`、GDScript preload 回归、public Godot Array/Dictionary mirror state 或 `set_source()` / `get_actions()` / `get_action_metadata()` snake_case API。
+- battle AI trace summary 回归入口是 `tests/battle_runtime/ai/run_battle_ai_trace_summary_regression.cs`；action trace 运行时状态走 `AiActionTrace` / `AiCandidateSummary` / `AiCommandSummary` typed DTO，`EnemyAiActionHelper` 是 internal static helper，`BattleAiContext` 内部持有 typed trace list，仅 `action_traces` / turn trace 输出时投影 Godot Dictionary/Array；不要恢复这些 trace DTO/helper 的 `RefCounted`/`GlobalClass`、public Godot 集合字段、public Godot Dictionary/Array 投影 API、`EnemyAiActionHelper` public GDScript-style API、trace 状态 Dictionary 往返，或 `to_dict()` / `from_command()` / `is_empty()` snake_case API。
+- battle AI unit skill candidate evaluator 回归入口是 `tests/battle_runtime/ai/run_battle_ai_unit_skill_candidate_evaluator_regression.cs`；不要恢复 `BattleAiUnitSkillCandidateEvaluator` 的 `RefCounted`/`GlobalClass` 或 `evaluate()` snake_case API。
+- move-to-range candidate request/progress 回归入口是 `tests/battle_runtime/ai/run_move_to_range_progress_regression.cs`；不要恢复 `BattleAiCandidateRequest` / `BattleAiCandidateEvaluationService` / `BattleAiMoveToRangeCandidateEvaluator` 的 `RefCounted`/`GlobalClass`、GDScript preload 回归、Godot Dictionary section 属性或 snake_case evaluator API。
+- 适合：为任意运行时改动补测试、定位回归入口、截图验收、AI hotspot/profile gate 工具链。
+- 邻接单元：按业务域补 CU-10、CU-12、CU-15、CU-17、CU-18、CU-21 等。
 
 ### CU-20 敌方模板、AI brain、行动定义种子内容
 
 - 文件：
-  - `scripts/enemies/enemy_content_registry.gd`
-  - `scripts/enemies/enemy_content_seed.gd`
-  - `scripts/enemies/enemy_template_def.gd`
-  - `scripts/enemies/wild_encounter_roster_def.gd`
-  - `scripts/enemies/enemy_ai_brain_def.gd`
-  - `scripts/enemies/enemy_ai_state_def.gd`
-  - `scripts/enemies/enemy_ai_action.gd`
-  - `scripts/enemies/actions/move_to_range_action.gd`
-  - `scripts/enemies/actions/retreat_action.gd`
-  - `scripts/enemies/actions/use_charge_action.gd`
-  - `scripts/enemies/actions/use_ground_skill_action.gd`
-  - `scripts/enemies/actions/use_unit_skill_action.gd`
-  - `scripts/enemies/actions/wait_action.gd`
+  - `scripts/enemies/*.gd`
+  - `scripts/enemies/AiActionTrace.cs`
+  - `scripts/enemies/AiCandidateSummary.cs`
+  - `scripts/enemies/AiCommandSummary.cs`
+  - `scripts/enemies/TraceDictionaryProjection.cs`
+  - `scripts/enemies/EnemyAiActionHelper.cs`
+  - `scripts/enemies/EnemyAiGenerationSlotDef.cs`
+  - `scripts/enemies/EnemyAiBrainDef.cs`
+  - `scripts/enemies/EnemyAiStateDef.cs`
+  - `scripts/enemies/EnemyAiTargetSelectorRules.cs`
+  - `scripts/enemies/EnemyAiTransitionRuleDef.cs`
+  - `scripts/enemies/EnemyAiTransitionConditionDef.cs`
+  - `scripts/enemies/EnemyContentSeed.cs`
+  - `scripts/enemies/WildEncounterRosterDef.cs`
+  - `scripts/enemies/actions/*.cs`
+  - `scripts/systems/world/EncounterRosterBuilder.cs`
+  - `scripts/player/warehouse/item_def.gd`
+  - `scripts/player/warehouse/WeaponProfileDef.cs`
+  - `scripts/player/warehouse/WeaponDamageDiceDef.cs`
   - `data/configs/enemies/enemy_content_seed.tres`
   - `data/configs/enemies/brains/*.tres`
   - `data/configs/enemies/templates/*.tres`
   - `data/configs/enemies/rosters/*.tres`
-- 真相源：
-  - `enemy_template_id -> EnemyTemplateDef`
-  - `brain_id -> EnemyAiBrainDef`
-  - `encounter_profile_id -> WildEncounterRosterDef`
-  - `EnemyTemplateDef.drop_entries` 作为敌方单位 per-kill 掉落配置真相源。
-  - 各状态下的 action 顺序、目标选择与距离策略。
-- 主要职责：
-  - 读取 `data/configs/enemies/enemy_content_seed.tres`，把正式 enemy template / AI brain / wild encounter roster 的资源清单装配进 registry。
-  - 兼容测试夹具通过目录扫描临时覆写 seed 输入，但正式运行链不再把敌方 seed 硬编码在 registry 脚本内。
-  - 在 registry 阶段校验 template -> brain、template.drop_entries、roster stage -> template 等静态引用。
-  - `EnemyTemplateDef` 同时承担“这个敌人怎么打”和“这个敌人死后掉什么”的静态作者职责；`WildEncounterRosterDef` 只负责回答“这一场会出现哪些敌人、各几只”。
-  - `EnemyTemplateDef` 现在同时拥有敌方六维来源：非野兽模板必须显式提供 `base_attribute_overrides`，带 `beast` 标签的模板在 `EncounterRosterBuilder` 入场时按 deterministic `5D3-1` 生成六维，然后再叠加 `attribute_overrides` 写出正式战斗面板。
-  - `EnemyTemplateDef.attribute_overrides` 继续使用 `attack_bonus`、`armor_class` 与可选 AC 组件属性描述战斗面板；不要再写旧攻击 / 防御 / 命中 / 闪避属性。
-  - 定义近战压迫型、远程控制型等默认行为树形态。
-  - 为 `BattleRuntimeModule / BattleAiService` 提供静态敌方内容。
-  - `EnemyAiAction` 的 `nearest_enemy / lowest_hp_enemy` 等正式 target selector 只负责排序候选，不拥有独立的 taunt 语义真相源；battle 内强制目标一律从 `BattleAiContext` 读取。
-  - `UseUnitSkillAction` 的 `distance_reference` 当前支持 `target_unit / enemy_frontline`；`UseGroundSkillAction` 当前支持 `target_coord / enemy_frontline`。不要再依赖 score service 默认距离带推断站位。
-- 邻接单元：
-  - CU-02
-  - CU-15
-  - CU-16
-  - CU-17
-- 适合任务：
-  - 新敌人模板。
-  - 改敌人技能表。
-  - 改 AI state / action 顺序。
-  - 改 target selector / distance 策略。
-- 不要顺手带上：
-  - `scripts/ui/*`
-  - `scripts/player/warehouse/*`
+  - 改 `attack_equipment_item_id` 时按需读取 `data/configs/items/*.tres`
+- 负责：敌方模板、AI brain/state/action/generation slot/transition rule、wild encounter roster、敌方攻击装备和掉落静态内容；`EnemyAiTargetSelectorRules` 是 plain static C# selector helper，固定 selector ID 用 `HashSet<string>` / `StringComparer.Ordinal` 校验，`EnemyAiGenerationSlotDef` 仍是 `.tres` Resource 但 generation slot schema 枚举表不再公开为 Godot Dictionary，runtime action plan 使用 typed string slot signature 而不是 Dictionary signature 中间态，generation slot affordance 匹配只消费 typed `BattleAiSkillAffordanceRecord`；transition rule/condition 仍是 `.tres` Resource，但 validation predicate/state 表在内部使用 typed `HashSet`，trace 走 `BattleAiStateResolver.TransitionConditionTrace` typed DTO；`AiActionTrace` / `AiCandidateSummary` / `AiCommandSummary` 是 plain sealed C# trace DTO，内部集合使用 `List<T>` / `Dictionary<string,T>`，`EnemyAiActionHelper` 是 internal static typed trace helper，action / evaluator / `BattleAiContext` 不再把 action trace 作为 Godot Dictionary 业务状态往返，只在 internal `ToDictionary()` trace 投影边界通过 `TraceDictionaryProjection` 输出 Godot Dictionary/Array，不要恢复 `RefCounted`、`GlobalClass`、public Godot 集合字段、public Godot 投影 API、helper public snake_case API 或 `to_dict()` / `from_command()` / `is_empty()` snake_case API。
+- 适合：新敌人、敌方棋盘贴图、敌人技能表、AI state transition、AI action 顺序、generation slot、target selector、distance 策略。
+- 邻接单元：CU-02、CU-10、CU-15、CU-16、CU-17、CU-18。
+- 不带：玩家 UI、仓库规则实现，除非新增装备引用或展示字段。
 
 ### CU-21 Headless runtime、文本命令与快照渲染
 
 - 文件：
-  - `scripts/systems/headless_game_test_session.gd`
-  - `scripts/systems/game_text_command_runner.gd`
-  - `scripts/systems/game_text_command_result.gd`
-  - `scripts/utils/game_text_snapshot_renderer.gd`
-  - `tests/text_runtime/*.gd`
+  - `scripts/systems/game_runtime/headless/HeadlessGameTestSession.cs`
+  - `scripts/systems/game_runtime/headless/GameTextCommandRunner.cs`
+  - `scripts/systems/game_runtime/headless/game_text_command_result.gd`
+  - `scripts/utils/GameTextSnapshotRenderer.cs`
+  - `tests/text_runtime/commands/run_*.gd`
+  - `tests/text_runtime/headless/run_*.gd`
+  - `tests/text_runtime/tools/run_*.gd`
   - `tests/text_runtime/README.md`
-- 真相源：
-  - headless 模式下的 session / world loaded / runtime snapshot 语义。
-  - 文本命令域、参数格式、expect 断言语法。
-  - 文本快照渲染格式。
-- 定位：
-  - 开发 / 自动化辅助链路。
-- 主要职责：
-  - 用 `HeadlessGameTestSession` 在无 UI 环境挂起 `GameSession + GameRuntimeFacade`。
-  - 用 `GameTextCommandRunner` 执行命令与断言。
-  - 用 `GameTextCommandResult` 输出可读结果。
-  - 用 `GameTextSnapshotRenderer` 渲染稳定文本快照；当前快照已正式包含 `validation` 段与 `[VALIDATION]` 文本分段、`logs` 段与 `[LOG]` 文本分段、`game_over` 段与 `[GAME_OVER]` 文本分段，以及据点 `contract_board` / forge modal 的 `[CONTRACT_BOARD]` / `[FORGE]` 分段，供自动化 / agent / 人工排障读取结构化校验摘要、最近运行日志、主角死亡上下文与服务窗口状态。
-  - 当前还覆盖 mounted submap 的确认进入、返回原坐标和 active map snapshot / 文本命令。
-  - 当前文本命令域已包含最小 `quest accept/progress/complete` 调试接口；party 快照与文本快照会稳定暴露 `party.quests` / `[QUEST]` 分段，其中 quest state 至少区分 `active_quest_ids` / `claimable_quest_ids` / `completed_quest_ids`，并可验证 settlement / battle 自动 quest progress 结果。
-  - 为回归、调试、agent 驱动提供非 UI 入口，但不参与正式启动链。
-- 邻接单元：
-  - CU-02
-  - CU-06
-  - CU-10
-  - CU-15
-  - CU-19
-- 适合任务：
-  - 新增 headless 指令域。
-  - 改 snapshot schema。
-  - 改 REPL / 脚本执行 / expect 断言。
-  - 为 agent 或自动化增加纯文本回归入口。
-- 不要把它当成：
-  - 主界面或登录入口。
-  - 正式玩家 UI。
-  - 世界生成真相源。
+- 负责：无 UI session、文本命令、expect 断言、结构化/文本快照、agent 自动化入口。
+- 适合：新增 headless 指令域、改 snapshot schema、改 REPL/脚本执行/expect、为 agent 增加文本回归入口。
+- 邻接单元：CU-02、CU-06、CU-10、CU-15、CU-16、CU-19、CU-20。
+- 不带：正式玩家 UI、主启动链、世界生成真相源。
 
 ## 推荐装载组合
 
@@ -1312,8 +768,8 @@ HeadlessGameTestSession
   - CU-05
   - CU-06
   - CU-07
-- 说明：
-  - 如果改的是世界事件图标、submap 返回提示或点击返回表现，仍按这组读取。
+- 按需补：
+  - 改世界事件图标、submap 返回提示或点击返回表现仍按这组读取
 
 ### 只改据点服务、人物信息、服务反馈
 
@@ -1321,8 +777,8 @@ HeadlessGameTestSession
   - CU-06
   - CU-08
 - 按需补：
-  - 如果服务会发奖励或记成就，补 CU-12
-  - 如果服务项来自 world spawn，补 CU-04
+  - 服务会发奖励或记成就补 CU-12
+  - 服务项来自 world spawn 补 CU-04
 
 ### 只改队伍编成、成就摘要、转职或角色奖励弹窗
 
@@ -1333,17 +789,17 @@ HeadlessGameTestSession
 - 按需补：
   - 真正改成长规则时补 CU-12 / CU-14
 
-### 只改共享仓库规则、物品内容、装备基础流转、仓库窗口
+### 只改队伍共享背包规则、物品内容、装备基础流转、仓库窗口
 
 - 必带：
   - CU-10
   - CU-11
   - CU-19
 - 按需补：
-  - 如果改队伍管理里的装备摘要展示，补 CU-09
-  - 如果改 runtime 接线，补 CU-06
-  - 如果改 save schema 或严格校验链，补 CU-02
-  - 如果改 headless 文本流，补 CU-21
+  - 改队伍管理里的装备摘要展示补 CU-09
+  - 改 runtime 接线补 CU-06
+  - 改 save schema 或严格校验链补 CU-02
+  - 改 headless 文本流补 CU-21
 
 ### 只做装备耐久、装备实例化前置或战斗内装备损坏
 
@@ -1355,9 +811,9 @@ HeadlessGameTestSession
   - CU-16
   - CU-19
 - 按需补：
-  - 如果改 runtime 场景接线或持久化落盘，补 CU-06
-  - 如果改文本快照或 headless 指令断言，补 CU-21
-  - 如果只是继续优化设计口径，可先对照 `docs/design/equipment_system_plan.md`
+  - 改 runtime 场景接线或持久化落盘补 CU-06
+  - 改文本快照或 headless 指令断言补 CU-21
+  - 只优化设计口径时先读 `docs/design/equipment_system_plan.md`
 
 ### 只改角色成长、成就、奖励归并
 
@@ -1367,8 +823,8 @@ HeadlessGameTestSession
   - CU-13
   - CU-14
 - 按需补：
-  - 如果来源是战斗事件，补 CU-15
-  - 如果要跑回归，补 CU-19
+  - 来源是战斗事件补 CU-15
+  - 要跑回归补 CU-19
 
 ### 只改敌方模板、敌方技能表、AI brain
 
@@ -1376,7 +832,8 @@ HeadlessGameTestSession
   - CU-20
   - CU-16
 - 按需补：
-  - 如果改开战装配与 roster，补 CU-15 / CU-17
+  - 改非野兽模板的 `attack_equipment_item_id` 或新增引用物品补 CU-10
+  - 改开战装配与 roster 补 CU-15 / CU-17
 
 ### 只改战斗规则、伤害、AI、terrain effect
 
@@ -1384,9 +841,21 @@ HeadlessGameTestSession
   - CU-15
   - CU-16
 - 按需补：
-  - 如果改 terrain profile / spawn / prop 注入，补 CU-17
-  - 如果改 enemy static content，补 CU-20
-  - 如果改展示反馈，补 CU-18
+  - 改 terrain profile / spawn / prop 注入补 CU-17
+  - 改 enemy static content 补 CU-20
+  - 改展示反馈补 CU-18
+
+### 只改特殊技能 profile / 陨星雨结算
+
+- 必带：
+  - CU-15
+  - CU-16
+  - CU-19
+- 按需补：
+  - 改棋盘 overlay / HUD payload 补 CU-18
+  - 改 AI 使用策略或 action 过滤补 CU-20
+  - 改 terrain profile / prop 衔接补 CU-17
+  - 改 GameSession 内容校验快照补 CU-02
 
 ### 只改 canyon 地形、战斗 props、battle build
 
@@ -1395,7 +864,7 @@ HeadlessGameTestSession
   - CU-18
   - CU-19
 - 按需补：
-  - 如果改真正 battle start 装配，补 CU-15
+  - 改真正 battle start 装配补 CU-15
 
 ### 只改 battle HUD、棋盘、TileMap 渲染、相机
 
@@ -1412,7 +881,7 @@ HeadlessGameTestSession
   - CU-02
   - CU-11
 - 按需补：
-  - 仓库字段补 CU-10
+  - 队伍共享背包 / `warehouse_state` 字段补 CU-10
   - reward 归并逻辑补 CU-12
 
 ### 只改 headless 文本命令、快照、REPL 或脚本化回归
@@ -1424,85 +893,11 @@ HeadlessGameTestSession
   - 改 runtime schema 补 CU-06
   - 改具体业务领域补对应叶子单元
 
-## 当前 sidecar / 兼容层 / 漂移点
-
-- `tests/progression/`
-  - 旧 `helpers/` + `cases/` 目录已经移除；当前只保留单 runner 模式。
-- 结论：
-  - world / battle 运行时已经拆成 `GameRuntimeFacade`、`WorldMapRuntimeProxy` 与 `WorldMapSystem` 三层。
-  - battle renderer 主线已经完成换代。
-  - reward queue 主线与边界命名已经统一到 `pending_character_rewards`。
-
-### 兼容项清单（2026-04-17）
-
-当前主线已不再保留历史存档、legacy alias、旧 payload 或旧运行时 fallback 兼容项。
-
-#### 当前仍生效的兼容项
-
-- 无。
-
-#### 已移除的兼容项
-
-| ID | 位置 | 已移除内容 |
-| --- | --- | --- |
-| `R01` | `scripts/player/progression/party_state.gd` / `scripts/systems/battle_resolution_result.gd` / `scripts/systems/settlement_service_result.gd` | `pending_mastery_rewards -> pending_character_rewards` 全链路兼容桥 |
-| `R02` | `scripts/systems/pending_mastery_reward.gd` / `scripts/systems/pending_mastery_reward_entry.gd` | 旧 `PendingMasteryReward*` 类型 |
-| `R03` | `scripts/systems/world_map_system.gd` / `scripts/ui/shop_window.gd` / `scripts/ui/settlement_window.gd` | 旧 UI payload `cost_text` alias；正式字段只保留 `cost_label` |
-| `R04` | `scripts/systems/battle_state_factory.gd` | 旧 `BattleStateFactory` sidecar / fallback builder |
-| `R05` | `scripts/systems/settlement_window_system.gd` / `scenes/main/world_map.tscn` | 旧 `SettlementWindowSystem` sidecar 与场景节点 |
-| `R06` | `scripts/systems/save_serializer.gd` | 旧 save meta 默认值回填、旧 `Vector2i` 表达（`Vector2` / `Array`）与旧 save index entry 形状 |
-| `R07` | `scripts/systems/game_session.gd` | 旧单文件存档 `user://world_map_state.dat` 清理入口 |
-| `R08` | `scripts/systems/attribute_service.gd` / battle skill 与 enemy/item configs | 旧 `physical_attack / magic_attack / physical_defense / magic_defense / hit_rate / evasion` 战斗属性 schema |
-| `R09` | `scripts/systems/game_runtime_facade.gd` / text runtime log snapshots | 旧命令日志 `context.after` 后态 alias，正式字段只保留 `context.runtime` |
-| `R08` | `scripts/systems/game_session.gd` | 旧仓库装备堆叠格式的显式拒绝兼容分支 |
-| `R09` | `scripts/player/progression/party_state.gd` | 旧 `PartyState` 缺字段补全与 `version` 下限归一 |
-| `R10` | `scripts/player/equipment/equipment_state.gd` / `scripts/player/equipment/equipment_entry_state.gd` | 旧顶层槽位映射、`set_equipped_item()` 与缺 `occupied_slot_ids` 装备数据 |
-| `R11` | `scripts/systems/world_map_fog_system.gd` | 旧 fog `Dictionary -> WorldMapFogFactionState` 自动迁移 |
-| `R12` | `scripts/systems/save_serializer.gd` | `world_preset_name` 缺失时按 `generation_config_path` 回填 fallback preset name |
-| `R13` | `scripts/enemies/enemy_content_registry.gd` / `scripts/enemies/enemy_template_def.gd` | 敌人模板 `alias_ids` / `display_name` alias 查找 |
-| `R14` | `scripts/systems/encounter_roster_builder.gd` | `monster_name` / `monster_display_name` 作为候选模板 ID 的兼容查找 |
-| `R15` | `scripts/systems/battle_terrain_rules.gd` | legacy `water -> deep_water` 归一映射 |
-| `R16` | `scripts/systems/battle_ai_service.gd` | 缺少 brain 时的旧版 AI 决策 `_choose_legacy_command()` |
-| `R17` | `scripts/systems/battle_terrain_generator.gd` / `scripts/systems/game_runtime_facade.gd` | terrain 生成返回空结果时保留 `battle_loading` pending 并持续重试 |
-| `R18` | `scripts/systems/battle_session_facade.gd` | 缺少 `BattleResolutionResult` 时按 `runtime_state` 临时拼 fallback result |
-
-#### 使用建议
-
-- 当前如果读到旧 schema、旧 alias 或缺失正式 battle result，应直接视为无效输入或配置错误，而不是继续做隐式迁移。
-
 ## 不推荐的切法
 
-- 不要把 `GameSession`、`GameRuntimeFacade`、`CharacterManagementModule`、`BattleRuntimeModule`、`BattleBoardController` 一次性全装，除非任务确实跨越“登录 -> 世界 -> 战斗 -> 战后成长 -> 存档 -> 文本测试”整条链。
-- 不要在只改共享仓库时把 `battle_runtime_module.gd`、`battle_board_2d.gd` 一起带上。
-- 不要在只改 battle HUD / TileMap 时把 `progression_service.gd`、`party_warehouse_service.gd` 一起带上。
-- 不要在只改 achievement / reward queue 时默认把 `battle_board_controller.gd` 一起带上。
-- 不要把 `WorldMapSystem` 当成当前唯一运行时真相源；核心状态现在主要落在 `GameRuntimeFacade`，场景侧命令 / 读取边界则落在 `WorldMapRuntimeProxy`。
-- 不要把旧奖励设计文档里的 `pending_mastery_rewards` 示例误认为当前正式奖励真相源。
-
-## 结论
-
-- 当前最关键的桥接单元是：
-  - CU-02 `GameSession`
-  - CU-06 `GameRuntimeFacade + WorldMapDataContext + WorldMapRuntimeProxy + WorldMapSystem`
-  - CU-12 `CharacterManagementModule`
-  - CU-15 `BattleRuntimeModule`
-- 当前最适合独立处理的叶子单元是：
-  - CU-07 世界地图渲染
-  - CU-08 据点与人物信息窗口
-  - CU-09 队伍管理 / 转职 / 角色奖励窗口
-  - CU-10 共享仓库 / 装备基础流转
-  - CU-14 progression 规则服务
-  - CU-16 战斗规则层
-  - CU-18 battle 展示主链
-  - CU-20 敌方静态内容
-  - CU-21 headless 文本链
-- 现在最容易失控的同步点是：
-  - `PartyState` 字段升级
-  - `warehouse_state / equipment_state / battle refresh` 三者同步
-  - `GameRuntimeFacade`、`WorldMapRuntimeProxy` 与 `WorldMapSystem` 的状态同步
-  - world / battle 模式切换后的统一持久化
-  - `terrain_profile_id / prop_ids / board renderer` 三者一致性
-- 后续做 agent 化拆分时，最稳的装载方式仍然是：
-  - 1 个桥接单元
-  - 加 1 到 2 个叶子单元
-  - 再加 1 个当前真实存在的测试 / headless 辅助单元
+- 不要把 CU-02、CU-06、CU-12、CU-15、CU-18 一次性全装，除非任务确实跨越登录、世界、战斗、战后成长、存档和文本测试整条链。
+- 不要在只改队伍共享背包时默认带 CU-15 或 CU-18。
+- 不要在只改 battle HUD / TileMap 时默认带 CU-12 或 CU-10。
+- 不要在只改 achievement / reward queue 时默认带 CU-18。
+- 不要把 `WorldMapSystem` 当成唯一运行时真相源；核心状态在 `GameRuntimeFacade`，场景侧命令 / 读取边界在 `WorldMapRuntimeProxy`。
+- 不要把旧奖励设计文档里的 `pending_mastery_rewards` 示例当作当前正式奖励真相源。

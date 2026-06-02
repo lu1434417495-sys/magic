@@ -1,0 +1,48 @@
+[gd_resource type="Resource" script_class="SkillDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="3_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="4_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="5_skill"]
+
+[sub_resource type="Resource" id="Resource_shield"]
+script = ExtResource("3_effect")
+effect_type = &"shield"
+dice_count = 10
+dice_sides_base = 4
+dice_sides_per_constitution_mod = 1
+duration_tu = 40
+
+[sub_resource type="Resource" id="Resource_slow"]
+script = ExtResource("3_effect")
+effect_type = &"status"
+status_id = &"slow"
+power = 1
+duration_tu = 80
+
+[sub_resource type="Resource" id="Resource_combat"]
+script = ExtResource("4_combat")
+skill_id = &"warrior_rock_armor"
+target_mode = &"unit"
+target_team_filter = &"self"
+target_selection_mode = &"self"
+range_value = 0
+ap_cost = 1
+aura_cost = 25
+cooldown_tu = 160
+mastery_trigger_mode = &"effect_applied"
+mastery_amount_mode = &"per_target_rank"
+effect_defs = Array[ExtResource("3_effect")]([SubResource("Resource_shield"), SubResource("Resource_slow")])
+
+[resource]
+script = ExtResource("5_skill")
+skill_id = &"warrior_rock_armor"
+display_name = "巨岩护甲"
+icon_id = &"warrior_rock_armor"
+description = "召唤岩石护盾保护自身，但会降低移动力。"
+max_level = 3
+non_core_max_level = 3
+mastery_curve = PackedInt32Array(100, 250, 550)
+growth_tier = &"intermediate"
+attribute_growth_progress = { "constitution": 120 }
+tags = Array[StringName]([&"warrior", &"melee", &"defense"])
+combat_profile = SubResource("Resource_combat")

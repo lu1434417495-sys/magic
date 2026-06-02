@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
 
-[ext_resource type="Script" path="res://scripts/player/warehouse/item_def.gd" id="1_item"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/ItemDef.cs" id="1_item"]
 
 [resource]
 script = ExtResource("1_item")
@@ -10,6 +10,8 @@ description = "细颗粒打磨石，可用于粗修刃口与金属部件，是�
 icon = "res://icon.svg"
 is_stackable = true
 base_price = 12
+buy_price = 12
+sell_price = 6
 sellable = true
 max_stack = 25
 tags = Array[StringName](["material", "abrasive", "stone"])

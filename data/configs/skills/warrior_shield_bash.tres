@@ -1,38 +1,186 @@
 [gd_resource type="Resource" script_class="SkillDef" format=3]
 
-[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_q5gla"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_y8g81"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_mhiph"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_cughq"]
-[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_83vub"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="3_mhiph"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="4_cughq"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="5_83vub"]
 
-[sub_resource type="Resource" id="Resource_w0g8u"]
+[sub_resource type="Resource" id="Resource_bash_damage_l0"]
 script = ExtResource("3_mhiph")
 effect_type = &"damage"
-power = 11
+power = 0
+max_skill_level = 2
 damage_tag = &"physical_blunt"
+dice_count = 1
+dice_sides = 4
 
-[sub_resource type="Resource" id="Resource_cycsq"]
+[sub_resource type="Resource" id="Resource_bash_damage_l3"]
+script = ExtResource("3_mhiph")
+effect_type = &"damage"
+power = 0
+min_skill_level = 3
+max_skill_level = -1
+damage_tag = &"physical_blunt"
+dice_count = 1
+dice_sides = 6
+
+[sub_resource type="Resource" id="Resource_bash_stagger_l0"]
 script = ExtResource("3_mhiph")
 effect_type = &"status"
 power = 1
+min_skill_level = 0
+max_skill_level = 0
+status_id = &"staggered"
+duration_tu = 30
+trigger_event = &"secondary_hit"
+params = {
+"secondary_hit_dc_base": 8
+}
+
+[sub_resource type="Resource" id="Resource_bash_stagger_l1"]
+script = ExtResource("3_mhiph")
+effect_type = &"status"
+power = 1
+min_skill_level = 1
+max_skill_level = 1
+status_id = &"staggered"
+duration_tu = 40
+trigger_event = &"secondary_hit"
+params = {
+"secondary_hit_dc_base": 9
+}
+
+[sub_resource type="Resource" id="Resource_bash_stagger_l2"]
+script = ExtResource("3_mhiph")
+effect_type = &"status"
+power = 1
+min_skill_level = 2
+max_skill_level = 2
+status_id = &"staggered"
+duration_tu = 50
+trigger_event = &"secondary_hit"
+params = {
+"secondary_hit_dc_base": 9
+}
+
+[sub_resource type="Resource" id="Resource_bash_stagger_l3"]
+script = ExtResource("3_mhiph")
+effect_type = &"status"
+power = 1
+min_skill_level = 3
+max_skill_level = 4
 status_id = &"staggered"
 duration_tu = 60
+trigger_event = &"secondary_hit"
+params = {
+"secondary_hit_dc_base": 10
+}
+
+[sub_resource type="Resource" id="Resource_bash_stagger_l5"]
+script = ExtResource("3_mhiph")
+effect_type = &"status"
+power = 2
+min_skill_level = 5
+max_skill_level = 5
+status_id = &"staggered"
+duration_tu = 60
+trigger_event = &"secondary_hit"
+params = {
+"secondary_hit_dc_base": 12
+}
 
 [sub_resource type="Resource" id="Resource_8hxbh"]
 script = ExtResource("4_cughq")
 skill_id = &"warrior_shield_bash"
-stamina_cost = 1
+ap_cost = 1
+stamina_cost = 25
 cooldown_tu = 10
-effect_defs = Array[ExtResource("3_mhiph")]([SubResource("Resource_w0g8u"), SubResource("Resource_cycsq")])
+attack_roll_bonus = 0
+level_overrides = {
+1: {
+"attack_roll_bonus": 1
+},
+2: {
+"stamina_cost": 20
+},
+3: {
+"attack_roll_bonus": 2
+},
+4: {
+"cooldown_tu": 5
+},
+5: {
+"attack_roll_bonus": 3
+}
+}
+requires_equipped_shield = true
+mastery_trigger_mode = &"secondary_hit"
+mastery_amount_mode = &"per_target_rank"
+effect_defs = Array[ExtResource("3_mhiph")]([SubResource("Resource_bash_damage_l0"), SubResource("Resource_bash_damage_l3"), SubResource("Resource_bash_stagger_l0"), SubResource("Resource_bash_stagger_l1"), SubResource("Resource_bash_stagger_l2"), SubResource("Resource_bash_stagger_l3"), SubResource("Resource_bash_stagger_l5")])
 
 [resource]
 script = ExtResource("5_83vub")
 skill_id = &"warrior_shield_bash"
 display_name = "盾击"
 icon_id = &"warrior_shield_bash"
-description = "近身控制技。"
-max_level = 3
-mastery_curve = PackedInt32Array(24, 40, 62)
+description = "用盾牌近身砸击目标，命中后目标需进行体质豁免（DC 随等级成长 + 施法者力量修正），失败则被晕眩。高等级提升技能骰、攻击检定与豁免难度。"
+max_level = 5
+non_core_max_level = 3
+mastery_curve = PackedInt32Array(160, 400, 900, 1600, 2600)
+growth_tier = &"intermediate"
+attribute_growth_progress = {
+"strength": 60,
+"constitution": 60
+}
+level_description_template = "攻击检定{attack}，造成{dice_desc}伤害，命中后目标体质豁免（DC = {dc}）失败则晕眩（{stagger_duration}TU）。体力消耗{stamina}，冷却{cooldown}TU。"
+level_description_configs = {
+"0": {
+"attack": "0",
+"dice_desc": "1D4",
+"stagger_duration": "30",
+"dc": "8+力量修正",
+"stamina": "25",
+"cooldown": "10"
+},
+"1": {
+"attack": "+1",
+"dice_desc": "1D4",
+"stagger_duration": "40",
+"dc": "9+力量修正",
+"stamina": "25",
+"cooldown": "10"
+},
+"2": {
+"attack": "+1",
+"dice_desc": "1D4",
+"stagger_duration": "50",
+"dc": "9+力量修正",
+"stamina": "20",
+"cooldown": "10"
+},
+"3": {
+"attack": "+2",
+"dice_desc": "1D6",
+"stagger_duration": "60",
+"dc": "10+力量修正",
+"stamina": "20",
+"cooldown": "10"
+},
+"4": {
+"attack": "+2",
+"dice_desc": "1D6",
+"stagger_duration": "60",
+"dc": "10+力量修正",
+"stamina": "20",
+"cooldown": "5"
+},
+"5": {
+"attack": "+3",
+"dice_desc": "1D6",
+"stagger_duration": "60",
+"dc": "12+力量修正",
+"stamina": "20",
+"cooldown": "5"
+}
+}
 tags = Array[StringName]([&"warrior", &"melee", &"control", &"shield"])
 combat_profile = SubResource("Resource_8hxbh")

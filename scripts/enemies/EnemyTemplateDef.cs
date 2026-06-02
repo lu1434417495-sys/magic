@@ -1,0 +1,577 @@
+using Godot;
+using VT = Godot.Variant.Type;
+
+[GlobalClass]
+public partial class EnemyTemplateDef : Resource
+{
+    private static readonly StringName DROP_TYPE_ITEM = "item",
+        DROP_TYPE_RANDOM_EQUIPMENT = "random_equipment";
+    private static readonly Godot.Collections.Array<StringName> UNSUPPORTED_WEAPON_ATTRIBUTE_OVERRIDE_KEYS =
+        new() { "weapon_attack_range", "weapon_physical_damage_tag" };
+    private static readonly StringName TagBeast = "beast",
+        NATURAL_WEAPON_PROFILE_TYPE_ID = "natural_weapon",
+        NATURAL_WEAPON_DEFAULT_DAMAGE_TAG = "physical_blunt";
+    private const int NATURAL_WEAPON_DEFAULT_ATTACK_RANGE = 1;
+
+    public static StringName TAG_BEAST() => TagBeast;
+
+    [Export]
+    public StringName template_id { get; set; } = "";
+
+    [Export]
+    public string display_name { get; set; } = "";
+
+    [Export]
+    public Texture2D battle_sprite_texture { get; set; }
+
+    [Export]
+    public StringName brain_id { get; set; } = "";
+
+    [Export]
+    public StringName initial_state_id { get; set; } = "";
+
+    [Export]
+    public int enemy_count { get; set; } = 1;
+
+    [Export]
+    public int body_size { get; set; } = BattleUnitState.BODY_SIZE_MEDIUM();
+
+    [Export]
+    public int action_threshold { get; set; } = BattleUnitState.DEFAULT_ACTION_THRESHOLD();
+
+    [Export]
+    public Godot.Collections.Array<StringName> tags { get; set; } = new();
+
+    [Export]
+    public StringName attack_equipment_item_id { get; set; } = "";
+
+    [Export]
+    public StringName natural_weapon_damage_tag { get; set; } = "";
+
+    [Export]
+    public int natural_weapon_attack_range { get; set; } = NATURAL_WEAPON_DEFAULT_ATTACK_RANGE;
+
+    [Export]
+    public Godot.Collections.Dictionary base_attribute_overrides { get; set; } = new();
+
+    [Export]
+    public Godot.Collections.Array<StringName> skill_ids { get; set; } = new();
+
+    [Export]
+    public Godot.Collections.Dictionary skill_level_map { get; set; } = new();
+
+    [Export]
+    public Godot.Collections.Dictionary attribute_overrides { get; set; } = new();
+
+    [Export]
+    public StringName target_rank { get; set; } = "normal";
+
+    [Export]
+    public Godot.Collections.Array<DropEntryDef> drop_entries { get; set; } = new();
+
+    public StringName get_initial_state_id(EnemyAiBrainDef brain)
+    {
+        if (initial_state_id != "")
+            return initial_state_id;
+        if (brain != null && brain.has_state(brain.default_state_id))
+            return brain.default_state_id;
+        return "engage";
+    }
+
+    public Godot.Collections.Array<Godot.Collections.Dictionary> get_drop_entries_resolved()
+    {
+        var r = new Godot.Collections.Array<Godot.Collections.Dictionary>();
+        foreach (var ev in drop_entries)
+        {
+            if (ev != null)
+                r.Add(ev.to_dict());
+        }
+        return r;
+    }
+
+    public bool has_tag(StringName tag) => tag != "" && tags.Contains(tag);
+
+    public StringName get_attack_equipment_item_id_resolved() =>
+        ProgressionDataUtils.to_string_name(attack_equipment_item_id);
+
+    public Godot.Collections.Dictionary get_weapon_projection(
+        Godot.Collections.Dictionary itemDefs = null
+    )
+    {
+        WeaponProjection projection = GetWeaponProjectionTyped(itemDefs);
+        return projection != null && !projection.IsEmpty()
+            ? projection.ToDictionary()
+            : new Godot.Collections.Dictionary();
+    }
+
+    internal WeaponProjection GetWeaponProjectionTyped(Godot.Collections.Dictionary itemDefs = null)
+    {
+        itemDefs ??= new Godot.Collections.Dictionary();
+        if (has_tag(TagBeast))
+            return GetNaturalWeaponProjectionTyped();
+        WeaponProjection aep = GetAttackEquipmentProjectionTyped(itemDefs);
+        if (aep != null && !aep.IsEmpty())
+            return aep;
+        return GetUnarmedWeaponProjectionTyped();
+    }
+
+    public Godot.Collections.Dictionary get_attack_equipment_projection(
+        Godot.Collections.Dictionary itemDefs = null
+    )
+    {
+        WeaponProjection projection = GetAttackEquipmentProjectionTyped(itemDefs);
+        return projection != null && !projection.IsEmpty()
+            ? projection.ToDictionary()
+            : new Godot.Collections.Dictionary();
+    }
+
+    internal WeaponProjection GetAttackEquipmentProjectionTyped(
+        Godot.Collections.Dictionary itemDefs = null
+    )
+    {
+        itemDefs ??= new Godot.Collections.Dictionary();
+        var itemId = get_attack_equipment_item_id_resolved();
+        if (itemId == "")
+            return new WeaponProjection();
+        var itemDef = _resolve_attack_equipment_item_def(itemId, itemDefs);
+        return itemDef != null ? _build_weapon_projection_from_item_def(itemDef) : new WeaponProjection();
+    }
+
+    public Godot.Collections.Dictionary get_natural_weapon_projection()
+    {
+        WeaponProjection projection = GetNaturalWeaponProjectionTyped();
+        return projection != null && !projection.IsEmpty()
+            ? projection.ToDictionary()
+            : new Godot.Collections.Dictionary();
+    }
+
+    internal WeaponProjection GetNaturalWeaponProjectionTyped()
+    {
+        if (!has_tag(TagBeast))
+            return new WeaponProjection();
+        return new WeaponProjection
+        {
+            weapon_profile_kind = BattleUnitState.WEAPON_PROFILE_KIND_NATURAL(),
+            weapon_profile_type_id = NATURAL_WEAPON_PROFILE_TYPE_ID,
+            weapon_current_grip = BattleUnitState.WEAPON_GRIP_ONE_HANDED(),
+            weapon_attack_range = Mathf.Max(natural_weapon_attack_range, 1),
+            weapon_one_handed_dice = _build_natural_weapon_dice(),
+            weapon_physical_damage_tag = get_natural_weapon_damage_tag_resolved(),
+        };
+    }
+
+    public Godot.Collections.Dictionary get_unarmed_weapon_projection()
+    {
+        return GetUnarmedWeaponProjectionTyped().ToDictionary();
+    }
+
+    internal WeaponProjection GetUnarmedWeaponProjectionTyped()
+    {
+        return new WeaponProjection
+        {
+            weapon_profile_kind = BattleUnitState.WEAPON_PROFILE_KIND_UNARMED(),
+            weapon_profile_type_id = "unarmed",
+            weapon_current_grip = BattleUnitState.WEAPON_GRIP_ONE_HANDED(),
+            weapon_attack_range = 1,
+            weapon_one_handed_dice = new WeaponDice
+            {
+                dice_count = 1,
+                dice_sides = 4,
+                flat_bonus = 0,
+            },
+            weapon_physical_damage_tag = "physical_blunt",
+        };
+    }
+
+    public StringName get_natural_weapon_damage_tag_resolved()
+    {
+        var et = ProgressionDataUtils.to_string_name(natural_weapon_damage_tag);
+        if (et != "")
+            return et;
+        foreach (var tt in tags)
+        {
+            var mt = _natural_weapon_damage_tag_for_template_tag(tt);
+            if (mt != "")
+                return mt;
+        }
+        return NATURAL_WEAPON_DEFAULT_DAMAGE_TAG;
+    }
+
+    public Godot.Collections.Dictionary get_base_attribute_overrides_resolved()
+    {
+        var r = new Godot.Collections.Dictionary();
+        foreach (
+            string aid in new[]
+            {
+                "strength",
+                "agility",
+                "constitution",
+                "perception",
+                "intelligence",
+                "willpower",
+            }
+        )
+        {
+            var san = new StringName(aid);
+            if (base_attribute_overrides.ContainsKey(san))
+                r[san] = (long)base_attribute_overrides[san];
+            else if (base_attribute_overrides.ContainsKey(aid))
+                r[san] = (long)base_attribute_overrides[aid];
+        }
+        return r;
+    }
+
+    public Godot.Collections.Array<string> validate_schema(
+        Godot.Collections.Dictionary knownBrains = null,
+        Godot.Collections.Dictionary itemDefs = null,
+        Godot.Collections.Dictionary skillDefs = null
+    )
+    {
+        knownBrains ??= new Godot.Collections.Dictionary();
+        itemDefs ??= new Godot.Collections.Dictionary();
+        skillDefs ??= new Godot.Collections.Dictionary();
+        var errors = new Godot.Collections.Array<string>();
+        if (template_id == "")
+        {
+            errors.Add("Enemy template is missing template_id.");
+            return errors;
+        }
+        if (display_name.StripEdges().Length == 0)
+            errors.Add($"Enemy template {template_id} is missing display_name.");
+        if (brain_id == "")
+            errors.Add($"Enemy template {template_id} is missing brain_id.");
+        else
+        {
+            var brain = knownBrains.ContainsKey(brain_id)
+                ? knownBrains[brain_id].AsGodotObject() as EnemyAiBrainDef
+                : null;
+            if (brain == null)
+                errors.Add($"Enemy template {template_id} references missing brain {brain_id}.");
+            else if (initial_state_id != "" && !brain.has_state(initial_state_id))
+                errors.Add(
+                    $"Enemy template {template_id} initial_state_id {initial_state_id} is not declared by brain {brain_id}."
+                );
+        }
+        if (enemy_count <= 0)
+            errors.Add($"Enemy template {template_id} must have enemy_count >= 1.");
+        if (body_size <= 0)
+            errors.Add($"Enemy template {template_id} must have body_size >= 1.");
+        if (action_threshold <= 0)
+            errors.Add($"Enemy template {template_id} action_threshold must be > 0.");
+        else if (action_threshold % 5 != 0)
+            errors.Add(
+                $"Enemy template {template_id} action_threshold must be a multiple of 5 TU."
+            );
+        var ntr = ProgressionDataUtils.to_string_name(target_rank);
+        if (ntr != "normal" && ntr != "elite" && ntr != "boss")
+            errors.Add(
+                $"Enemy template {template_id} target_rank must be normal, elite, or boss; got {target_rank}."
+            );
+        foreach (var fk in new StringName[] { "boss_target", "fortune_mark_target" })
+            if (_dictionary_has_unsupported_key(attribute_overrides, fk))
+                errors.Add(
+                    $"Enemy template {template_id} attribute_overrides must not declare {fk}; use target_rank instead."
+                );
+        if (_dictionary_has_unsupported_key(attribute_overrides, "armor_class"))
+            errors.Add(
+                $"Enemy template {template_id} must not declare attribute_overrides.armor_class; use base attributes and AC component bonuses."
+            );
+        foreach (var e in _validate_template_skill_ids(skillDefs))
+            errors.Add(e);
+        foreach (var e in _validate_template_skill_level_map(skillDefs))
+            errors.Add(e);
+        foreach (var uk in UNSUPPORTED_WEAPON_ATTRIBUTE_OVERRIDE_KEYS)
+            if (_dictionary_has_unsupported_key(attribute_overrides, uk))
+                errors.Add(
+                    $"Enemy template {template_id} must not declare attribute_overrides.{uk}; use attack_equipment_item_id or beast natural weapon config."
+                );
+        var eba = get_base_attribute_overrides_resolved();
+        foreach (
+            string aid in new[]
+            {
+                "strength",
+                "agility",
+                "constitution",
+                "perception",
+                "intelligence",
+                "willpower",
+            }
+        )
+        {
+            var san = new StringName(aid);
+            if (!eba.ContainsKey(san))
+                errors.Add($"Enemy template {template_id} is missing base attribute {aid}.");
+            else if ((long)eba[san] <= 0)
+                errors.Add($"Enemy template {template_id} base attribute {aid} must be > 0.");
+        }
+        if (has_tag(TagBeast))
+        {
+            if (natural_weapon_attack_range < 1)
+                errors.Add(
+                    $"Enemy template {template_id} natural_weapon_attack_range must be >= 1."
+                );
+            var endt = ProgressionDataUtils.to_string_name(natural_weapon_damage_tag);
+            if (endt != "" && !_is_valid_weapon_physical_damage_tag(endt))
+                errors.Add(
+                    $"Enemy template {template_id} natural_weapon_damage_tag {endt} is not supported."
+                );
+        }
+        else
+        {
+            foreach (var e in _validate_attack_equipment(itemDefs))
+                errors.Add(e);
+        }
+        foreach (var entry in drop_entries)
+        {
+            if (entry == null)
+            {
+                errors.Add($"Enemy template {template_id} contains a null drop entry.");
+                continue;
+            }
+            var dei = ProgressionDataUtils.to_string_name(entry.drop_entry_id);
+            var dt = ProgressionDataUtils.to_string_name(entry.drop_type);
+            var ii = ProgressionDataUtils.to_string_name(entry.item_id);
+            if (dei == "")
+                errors.Add(
+                    $"Enemy template {template_id} contains a drop entry without drop_entry_id."
+                );
+            if (dt != DROP_TYPE_ITEM && dt != DROP_TYPE_RANDOM_EQUIPMENT)
+                errors.Add(
+                    $"Enemy template {template_id} drop {dei} declares unsupported drop_type {dt}."
+                );
+            if (ii == "")
+                errors.Add($"Enemy template {template_id} drop {dei} is missing item_id.");
+            else if (_resolve_item_def(ii, itemDefs) == null)
+                errors.Add(
+                    $"Enemy template {template_id} drop {dei} references missing item_id {ii}."
+                );
+            if (entry.quantity <= 0)
+                errors.Add($"Enemy template {template_id} drop {dei} must have quantity >= 1.");
+        }
+        return errors;
+    }
+
+    private Godot.Collections.Array<string> _validate_template_skill_ids(
+        Godot.Collections.Dictionary skillDefs
+    )
+    {
+        var errors = new Godot.Collections.Array<string>();
+        var seen = new Godot.Collections.Dictionary();
+        foreach (var rsi in skill_ids)
+        {
+            var si = ProgressionDataUtils.to_string_name(rsi);
+            if (si == "")
+            {
+                errors.Add($"Enemy template {template_id} contains an empty skill_id.");
+                continue;
+            }
+            if (seen.ContainsKey(si))
+            {
+                errors.Add($"Enemy template {template_id} declares duplicate skill_id {si}.");
+                continue;
+            }
+            seen[si] = true;
+            if (!skillDefs.ContainsKey(si))
+                errors.Add($"Enemy template {template_id} references missing skill {si}.");
+        }
+        return errors;
+    }
+
+    private Godot.Collections.Array<string> _validate_template_skill_level_map(
+        Godot.Collections.Dictionary skillDefs
+    )
+    {
+        var errors = new Godot.Collections.Array<string>();
+        foreach (var lk in skill_level_map.Keys)
+        {
+            var rlv = skill_level_map[lk];
+            if (lk.VariantType != Variant.Type.String && lk.VariantType != Variant.Type.StringName)
+            {
+                errors.Add(
+                    $"Enemy template {template_id} skill_level_map key {lk} must be a String or StringName."
+                );
+                continue;
+            }
+            var si = new StringName(lk.AsString());
+            if (!_has_skill_id(si))
+                errors.Add(
+                    $"Enemy template {template_id} skill_level_map key {si} does not match any declared skill_id."
+                );
+            if (rlv.VariantType != Variant.Type.Int)
+            {
+                errors.Add($"Enemy template {template_id} skill_level_map[{si}] must be an int.");
+                continue;
+            }
+            int lv = rlv.AsInt32();
+            if (lv < 1)
+                errors.Add($"Enemy template {template_id} skill_level_map[{si}] must be >= 1.");
+            else if (skillDefs.ContainsKey(si))
+            {
+                var sd = skillDefs[si].AsGodotObject() as SkillDef;
+                if (sd != null && sd.max_level > 0 && lv > sd.max_level)
+                    errors.Add(
+                        $"Enemy template {template_id} skill_level_map[{si}] = {lv} exceeds skill max_level {sd.max_level}."
+                    );
+            }
+        }
+        return errors;
+    }
+
+    private bool _has_skill_id(StringName si)
+    {
+        foreach (var ri in skill_ids)
+            if (ProgressionDataUtils.to_string_name(ri) == si)
+                return true;
+        return false;
+    }
+
+    private Godot.Collections.Array<string> _validate_attack_equipment(
+        Godot.Collections.Dictionary itemDefs
+    )
+    {
+        var errors = new Godot.Collections.Array<string>();
+        var iid = get_attack_equipment_item_id_resolved();
+        if (iid == "")
+        {
+            errors.Add(
+                $"Enemy template {template_id} must declare attack_equipment_item_id for non-beast attack equipment."
+            );
+            return errors;
+        }
+        var id = _resolve_attack_equipment_item_def(iid, itemDefs);
+        if (id == null)
+        {
+            errors.Add(
+                $"Enemy template {template_id} references missing attack_equipment_item_id {iid}."
+            );
+            return errors;
+        }
+        if (!id.is_weapon())
+            errors.Add(
+                $"Enemy template {template_id} attack_equipment_item_id {iid} must reference a weapon equipment item."
+            );
+        if (id.get_weapon_attack_range() <= 0)
+            errors.Add(
+                $"Enemy template {template_id} attack_equipment_item_id {iid} must project weapon attack range >= 1."
+            );
+        if (id.get_weapon_physical_damage_tag() == "")
+            errors.Add(
+                $"Enemy template {template_id} attack_equipment_item_id {iid} must project a weapon physical damage tag."
+            );
+        return errors;
+    }
+
+    private static ItemDef _resolve_attack_equipment_item_def(
+        StringName iid,
+        Godot.Collections.Dictionary itemDefs
+    ) => _resolve_item_def(iid, itemDefs);
+
+    private static ItemDef _resolve_item_def(StringName iid, Godot.Collections.Dictionary itemDefs)
+    {
+        if (itemDefs != null && itemDefs.ContainsKey(iid))
+            return itemDefs[iid].AsGodotObject() as ItemDef;
+        using var reg = new ItemContentRegistry();
+        var resolvedItemDefs = reg.get_item_defs();
+        return resolvedItemDefs.ContainsKey(iid)
+            ? resolvedItemDefs[iid].AsGodotObject() as ItemDef
+            : null;
+    }
+
+    private WeaponProjection _build_weapon_projection_from_item_def(ItemDef itemDef)
+    {
+        if (itemDef == null || !itemDef.is_weapon())
+            return new WeaponProjection();
+        var profile = itemDef.weapon_profile as WeaponProfileDef;
+        if (profile == null)
+            return new WeaponProjection();
+        var ohd = WeaponDice.FromResource(profile.one_handed_dice);
+        var thd = WeaponDice.FromResource(profile.two_handed_dice);
+        var props = _weapon_profile_properties(profile);
+        bool isV = props.Contains("versatile");
+        bool ut = _resolve_weapon_uses_two_hands(itemDef, ohd, thd, isV);
+        return new WeaponProjection
+        {
+            weapon_profile_kind = BattleUnitState.WEAPON_PROFILE_KIND_EQUIPPED(),
+            weapon_item_id = itemDef.item_id,
+            weapon_profile_type_id = ProgressionDataUtils.to_string_name(profile.weapon_type_id),
+            weapon_current_grip = _resolve_weapon_current_grip(ohd, thd, ut),
+            weapon_attack_range = Mathf.Max(profile.attack_range, 0),
+            weapon_one_handed_dice = ohd,
+            weapon_two_handed_dice = thd,
+            weapon_is_versatile = isV,
+            weapon_uses_two_hands = ut,
+            weapon_physical_damage_tag = itemDef.get_weapon_physical_damage_tag(),
+        };
+    }
+
+    private static bool _resolve_weapon_uses_two_hands(
+        ItemDef itemDef,
+        WeaponDice ohd,
+        WeaponDice thd,
+        bool isV
+    )
+    {
+        if (itemDef == null)
+            return false;
+        if (itemDef.get_final_occupied_slot_ids("main_hand").Contains("off_hand"))
+            return true;
+        if (ohd.IsEmpty() && !thd.IsEmpty())
+            return true;
+        return isV && !thd.IsEmpty();
+    }
+
+    private static StringName _resolve_weapon_current_grip(WeaponDice ohd, WeaponDice thd, bool ut)
+    {
+        if (ut)
+            return BattleUnitState.WEAPON_GRIP_TWO_HANDED();
+        if (!ohd.IsEmpty())
+            return BattleUnitState.WEAPON_GRIP_ONE_HANDED();
+        if (!thd.IsEmpty())
+            return BattleUnitState.WEAPON_GRIP_TWO_HANDED();
+        return BattleUnitState.WEAPON_GRIP_NONE();
+    }
+
+    private static Godot.Collections.Array<StringName> _weapon_profile_properties(
+        WeaponProfileDef profile
+    )
+    {
+        var r = new Godot.Collections.Array<StringName>();
+        if (profile == null)
+            return r;
+        foreach (var rp in profile.get_properties())
+        {
+            var pid = ProgressionDataUtils.to_string_name(rp);
+            if (pid != "" && !r.Contains(pid))
+                r.Add(pid);
+        }
+        return r;
+    }
+
+    private static WeaponDice _build_natural_weapon_dice() =>
+        new WeaponDice
+        {
+            dice_count = 1,
+            dice_sides = 6,
+            flat_bonus = 0,
+        };
+
+    private static StringName _natural_weapon_damage_tag_for_template_tag(StringName tag)
+    {
+        var n = (string)tag;
+        if (n == "bite" || n == "sting" || n == "horn")
+            return "physical_pierce";
+        if (n == "claw" || n == "tear")
+            return "physical_slash";
+        if (n == "slam" || n == "charge" || n == "trample")
+            return "physical_blunt";
+        return new StringName("");
+    }
+
+    private static bool _dictionary_has_unsupported_key(
+        Godot.Collections.Dictionary data,
+        StringName key
+    ) => data.ContainsKey((string)key) || data.ContainsKey(key);
+
+    private static bool _is_valid_weapon_physical_damage_tag(StringName dt) =>
+        dt == "physical_slash" || dt == "physical_pierce" || dt == "physical_blunt";
+}

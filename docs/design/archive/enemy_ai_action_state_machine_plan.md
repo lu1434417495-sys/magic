@@ -36,7 +36,7 @@
 - 世界遭遇生成目前把 `EncounterAnchorData.enemy_roster_template_id` 直接写成 `display_name`：
   - `WorldMapSpawnSystem._build_encounter_anchor(...)`
   - 这意味着当前模板 id 不是稳定 slug，而是显示名别名。
-- `WildSpawnRule` 当前已包含正式 `monster_template_id`；`monster_name` 只负责展示文案。
+- `WildSpawnRule` 当前已包含正式 `enemy_roster_template_id`；`monster_name` 只负责展示文案。
 - `GameSession` 当前没有敌方模板或 AI brain 的正式加载/提供入口。
 
 ## 设计目标
@@ -101,10 +101,10 @@
 
 ### 世界生成与内容入口
 
-- `WildSpawnRule` 新增 `monster_template_id: StringName`
+- `WildSpawnRule` 新增 `enemy_roster_template_id: StringName`
 - `EncounterAnchorData.enemy_roster_template_id` 语义收敛为稳定模板 id，而不是显示名。
-- `WorldMapSpawnSystem` 改为优先写入 `monster_template_id`。
-- 当前主线不再为旧配置补 `monster_template_id` fallback。
+- `WorldMapSpawnSystem` 改为写入 `enemy_roster_template_id`。
+- 当前主线不再为旧配置补敌方模板字段 fallback。
 
 ### GameSession
 
@@ -123,7 +123,7 @@
   - AI state 定义脚本
   - AI action 基类与若干具体 action
   - 敌方内容注册表
-- `data/configs/world_map/*.tres` 只负责写稳定的 `monster_template_id`，不直接承载整套 AI 细节。
+- `data/configs/world_map/*.tres` 只负责写稳定的 `enemy_roster_template_id`，不直接承载整套 AI 细节。
 
 ## Action 模型
 
@@ -215,7 +215,7 @@
 
 ### 战斗开始
 
-- 世界生成提供稳定 `monster_template_id`
+- 世界生成提供稳定 `enemy_roster_template_id`
 - 遭遇锚点把该 id 写入 `enemy_roster_template_id`
 - `BattleRuntimeModule.start_battle()` 从敌方模板注册表构建单位
 - 每个敌方单位带上：
@@ -250,7 +250,7 @@
 
 - 新增独立的 `battle_runtime` AI 回归脚本，不把状态机断言塞进现有 timed terrain smoke。
 - 覆盖模板接线：
-  - `monster_template_id` 能正确映射到敌方模板
+  - `enemy_roster_template_id` 能正确映射到敌方模板
 - 旧 `monster_name/display_name` 不再参与模板解析
 - 覆盖命令生成：
   - 单体技能 action 能产出合法 `BattleCommand`

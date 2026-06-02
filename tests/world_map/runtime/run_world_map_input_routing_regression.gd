@@ -1,12 +1,15 @@
 extends SceneTree
 
-const GameSessionScript = preload("res://scripts/systems/game_session.gd")
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
+const GameSessionScript = preload("res://scripts/systems/persistence/GameSession.cs")
 const WorldMapScene = preload("res://scenes/main/world_map.tscn")
-const EncounterAnchorData = preload("res://scripts/systems/encounter_anchor_data.gd")
+const EncounterAnchorData = preload("res://scripts/systems/world/EncounterAnchorData.cs")
 
 const TEST_CONFIG_PATH := "res://data/configs/world_map/test_world_map_config.tres"
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 var _game_session = null
 
 
@@ -102,7 +105,7 @@ func _test_battle_reset_key_split_and_modal_block() -> void:
 
 	var encounter_anchor = _find_encounter_anchor_by_kind(
 		_game_session.get_world_data(),
-		EncounterAnchorData.ENCOUNTER_KIND_SINGLE
+		EncounterAnchorData.ENCOUNTER_KIND_SINGLE()
 	)
 	_assert_true(encounter_anchor != null, "battle input routing 回归需要至少一个单体野怪遭遇。")
 	if encounter_anchor == null:
@@ -258,25 +261,24 @@ func _instantiate_world_map():
 func _find_visible_settlement_coord(runtime) -> Vector2i:
 	if runtime == null:
 		return Vector2i(-1, -1)
-	var fog_system = runtime.get_fog_system()
 	var faction_id := String(runtime.get_player_faction_id())
-	for settlement_variant in runtime.get_world_data().get("settlements", []):
-		if settlement_variant is not Dictionary:
+	for settlement_option in runtime.get_world_data().get("settlements", []):
+		if settlement_option is not Dictionary:
 			continue
-		var settlement: Dictionary = settlement_variant
+		var settlement: Dictionary = settlement_option
 		var origin: Vector2i = settlement.get("origin", Vector2i.ZERO)
 		var footprint_size: Vector2i = settlement.get("footprint_size", Vector2i.ONE)
 		for offset_y in range(footprint_size.y):
 			for offset_x in range(footprint_size.x):
 				var coord := origin + Vector2i(offset_x, offset_y)
-				if fog_system != null and fog_system.is_visible(coord, faction_id):
+				if runtime.is_world_coord_visible(coord, faction_id):
 					return coord
 	return Vector2i(-1, -1)
 
 
 func _find_encounter_anchor_by_kind(world_data: Dictionary, encounter_kind: StringName):
-	for encounter_variant in world_data.get("encounter_anchors", []):
-		var encounter_anchor = encounter_variant as EncounterAnchorData
+	for encounter_option in world_data.get("encounter_anchors", []):
+		var encounter_anchor = encounter_option as EncounterAnchorData
 		if encounter_anchor == null:
 			continue
 		if encounter_anchor.encounter_kind == encounter_kind:
@@ -288,7 +290,7 @@ func _await_battle_input_ready(world_map) -> void:
 	var deadline_msec := Time.get_ticks_msec() + 1500
 	while world_map != null and world_map.battle_map_panel != null and world_map.battle_map_panel.is_loading_battle():
 		if Time.get_ticks_msec() >= deadline_msec:
-			_failures.append("等待 battle loading 结束超时，无法验证战斗键位。")
+			_test.fail("等待 battle loading 结束超时，无法验证战斗键位。")
 			return
 		await _wait_seconds(0.05)
 		await process_frame
@@ -300,9 +302,9 @@ func _advance_to_manual_battle_turn(runtime, world_map) -> bool:
 	for _attempt in range(20):
 		if runtime.get_manual_battle_unit() != null:
 			return true
-		var tick_result: Dictionary = runtime.command_battle_tick(1.0)
+		var tick_result: Dictionary = runtime.command_battle_tick(1)
 		if not bool(tick_result.get("ok", false)):
-			_failures.append("推进 battle tick 时失败，无法验证战斗键位。")
+			_test.fail("推进 battle tick 时失败，无法验证战斗键位。")
 			return false
 		if world_map != null:
 			world_map._render_from_runtime(true)
@@ -354,9 +356,9 @@ func _cleanup() -> void:
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])

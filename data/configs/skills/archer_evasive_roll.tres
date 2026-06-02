@@ -1,10 +1,10 @@
 [gd_resource type="Resource" script_class="SkillDef" format=3]
 
-[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_7f2p8"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_2lic5"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_dni0c"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_oupf8"]
-[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_oyb7v"]
+[ext_resource type="Script" path="res://scripts/player/progression/AttributeModifier.cs" id="1_7f2p8"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="2_2lic5"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="3_dni0c"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="4_oupf8"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="5_oyb7v"]
 
 [sub_resource type="Resource" id="Resource_b6xu7"]
 script = ExtResource("3_dni0c")
@@ -18,10 +18,6 @@ script = ExtResource("3_dni0c")
 effect_type = &"forced_move"
 forced_move_mode = &"retreat"
 forced_move_distance = 2
-params = {
-"distance": 2,
-"mode": "retreat"
-}
 
 [sub_resource type="Resource" id="Resource_lbryq"]
 script = ExtResource("4_oupf8")
@@ -39,7 +35,42 @@ script = ExtResource("5_oyb7v")
 skill_id = &"archer_evasive_roll"
 display_name = "翻滚卸力"
 icon_id = &"archer_evasive_roll"
-description = "向更安全的位置位移 `2` 格，并获得持续 `60 TU` 的 `闪避 +20%`，适合脱离贴身威胁。"
+description = "向更安全的位置位移 2 格，并获得持续 60 TU 的 闪避 +20%，适合脱离贴身威胁。"
+level_description_template = "获得{status}（{duration}TU），位移{move}格，自身生效，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU"
+level_description_configs = {
+	"0": {
+		"status": "闪避提升",
+		"duration": "60",
+		"move": "2",
+		"ap": "1",
+		"stamina": "1",
+		"cooldown": "10"
+	},
+	"1": {
+		"status": "闪避提升",
+		"duration": "60",
+		"move": "2",
+		"ap": "1",
+		"stamina": "1",
+		"cooldown": "10"
+	},
+	"2": {
+		"status": "闪避提升",
+		"duration": "60",
+		"move": "2",
+		"ap": "1",
+		"stamina": "1",
+		"cooldown": "10"
+	},
+	"3": {
+		"status": "闪避提升",
+		"duration": "60",
+		"move": "2",
+		"ap": "1",
+		"stamina": "1",
+		"cooldown": "10"
+	},
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"archer", &"ranged", &"bow", &"mobility"])

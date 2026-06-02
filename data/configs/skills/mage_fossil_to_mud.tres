@@ -1,10 +1,10 @@
 [gd_resource type="Resource" script_class="SkillDef" format=3]
 
-[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_jioog"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_0vatg"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_o0jes"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_f3njh"]
-[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_d2mrt"]
+[ext_resource type="Script" path="res://scripts/player/progression/AttributeModifier.cs" id="1_jioog"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="2_0vatg"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="3_o0jes"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="4_f3njh"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="5_d2mrt"]
 
 [sub_resource type="Resource" id="Resource_pu46y"]
 script = ExtResource("3_o0jes")
@@ -70,8 +70,21 @@ script = ExtResource("4_f3njh")
 skill_id = &"mage_fossil_to_mud"
 target_mode = &"ground"
 range_value = 3
-mp_cost = 2
-cooldown_tu = 5
+mp_cost = 80
+cooldown_tu = 10
+level_overrides = {
+3: {
+"range_value": 4
+},
+5: {
+"cooldown_tu": 5,
+"range_value": 4
+},
+7: {
+"range_value": 5
+}
+}
+mastery_trigger_mode = &"effect_applied"
 cast_variants = Array[ExtResource("2_0vatg")]([SubResource("Resource_cb1ig"), SubResource("Resource_6qv13"), SubResource("Resource_pkivc"), SubResource("Resource_c0vs3")])
 
 [resource]
@@ -79,8 +92,82 @@ script = ExtResource("5_d2mrt")
 skill_id = &"mage_fossil_to_mud"
 display_name = "化石为泥"
 icon_id = &"mage_fossil_to_mud"
-description = "法师地形改造技能的文档前缀别名，当前继续沿用既有 ground + cast_variants 兼容表达。"
-max_level = 5
-mastery_curve = PackedInt32Array(20, 30, 45, 60, 80)
+description = "将指定平地或地刺改造成泥沼；随等级解锁单格降层、连续双格降层与2x2泥沼改造。"
+max_level = 7
+non_core_max_level = 5
+mastery_curve = PackedInt32Array(400, 1000, 2200, 4000, 6500, 9500, 13000)
 tags = Array[StringName]([&"mage", &"magic", &"earth", &"terrain"])
+growth_tier = &"advanced"
+attribute_growth_progress = {
+"constitution": 50,
+"intelligence": 100,
+"willpower": 30
+}
+level_description_template = "改造地形为泥沼。消耗{mp}法力，冷却{cooldown}TU"
+level_description_configs = {
+"0": {
+"ap": "1",
+"cooldown": "10",
+"duration": "60",
+"hit": "+0",
+"mp": "80",
+"range": "3"
+},
+"1": {
+"ap": "1",
+"cooldown": "10",
+"duration": "60",
+"hit": "+0",
+"mp": "80",
+"range": "3"
+},
+"2": {
+"ap": "1",
+"cooldown": "10",
+"duration": "60",
+"hit": "+0",
+"mp": "80",
+"range": "3"
+},
+"3": {
+"ap": "1",
+"cooldown": "10",
+"duration": "80",
+"hit": "+0",
+"mp": "80",
+"range": "4"
+},
+"4": {
+"ap": "1",
+"cooldown": "10",
+"duration": "80",
+"hit": "+0",
+"mp": "80",
+"range": "4"
+},
+"5": {
+"ap": "1",
+"cooldown": "5",
+"duration": "100",
+"hit": "+0",
+"mp": "80",
+"range": "4"
+},
+"6": {
+"ap": "1",
+"cooldown": "5",
+"duration": "100",
+"hit": "+0",
+"mp": "80",
+"range": "4"
+},
+"7": {
+"ap": "1",
+"cooldown": "5",
+"duration": "120",
+"hit": "+0",
+"mp": "80",
+"range": "5"
+}
+}
 combat_profile = SubResource("Resource_sjstb")

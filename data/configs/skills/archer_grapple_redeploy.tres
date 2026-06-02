@@ -1,10 +1,10 @@
 [gd_resource type="Resource" script_class="SkillDef" format=3]
 
-[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_n2p70"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_oljqi"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_57ewk"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_r2n3l"]
-[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_x3p2b"]
+[ext_resource type="Script" path="res://scripts/player/progression/AttributeModifier.cs" id="1_n2p70"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="2_oljqi"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="3_57ewk"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="4_r2n3l"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="5_x3p2b"]
 
 [sub_resource type="Resource" id="Resource_10qsy"]
 script = ExtResource("3_57ewk")
@@ -30,7 +30,42 @@ script = ExtResource("5_x3p2b")
 skill_id = &"archer_grapple_redeploy"
 display_name = "索钩转位"
 icon_id = &"archer_grapple_redeploy"
-description = "牵引至高地、障碍物边缘或己方布置点附近；转位后下一个弓技射程 `+1`。"
+description = "牵引至高地、障碍物边缘或己方布置点附近；转位后下一个弓技射程 +1。"
+level_description_template = "牵引至目标点，获得{status}（{duration}TU），自身生效，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU"
+level_description_configs = {
+	"0": {
+		"status": "射程提升",
+		"duration": "60",
+		"range": "4",
+		"ap": "1",
+		"stamina": "1",
+		"cooldown": "15"
+	},
+	"1": {
+		"status": "射程提升",
+		"duration": "60",
+		"range": "4",
+		"ap": "1",
+		"stamina": "1",
+		"cooldown": "15"
+	},
+	"2": {
+		"status": "射程提升",
+		"duration": "60",
+		"range": "4",
+		"ap": "1",
+		"stamina": "1",
+		"cooldown": "15"
+	},
+	"3": {
+		"status": "射程提升",
+		"duration": "60",
+		"range": "4",
+		"ap": "1",
+		"stamina": "1",
+		"cooldown": "15"
+	},
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"archer", &"ranged", &"bow", &"mobility"])

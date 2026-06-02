@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="RaceTraitDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/player/progression/RaceTraitDef.cs" id="1_trait"]
+
+[resource]
+script = ExtResource("1_trait")
+trait_id = &"darkvision"
+display_name = "黑暗视觉"
+description = "可在昏暗或黑暗环境中保持视野的被动视觉特性。"
+trigger_type = &"passive"
+effect_type = &"darkvision"
+params = {
+&"range": 12
+}

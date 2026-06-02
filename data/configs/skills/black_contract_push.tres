@@ -1,9 +1,9 @@
 [gd_resource type="Resource" script_class="SkillDef" format=3]
 
-[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="1_variant"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="2_effect"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="3_combat"]
-[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="4_skill"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="1_option"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="2_effect"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="3_combat"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="4_skill"]
 
 [sub_resource type="Resource" id="Resource_damage"]
 script = ExtResource("2_effect")
@@ -12,21 +12,21 @@ power = 12
 damage_tag = &"physical_blunt"
 
 [sub_resource type="Resource" id="Resource_blood"]
-script = ExtResource("1_variant")
+script = ExtResource("1_option")
 variant_id = &"blood_tithe"
 display_name = "血契"
 description = "主动失去生命，换取一次必定命中但不暴击的推进打击。"
 target_mode = &"unit"
 
 [sub_resource type="Resource" id="Resource_guard"]
-script = ExtResource("1_variant")
+script = ExtResource("1_option")
 variant_id = &"guard_tithe"
 display_name = "护契"
 description = "主动拆解 Guard，换取一次必定命中但不暴击的推进打击。"
 target_mode = &"unit"
 
 [sub_resource type="Resource" id="Resource_action"]
-script = ExtResource("1_variant")
+script = ExtResource("1_option")
 variant_id = &"action_tithe"
 display_name = "行契"
 description = "主动透支下一回合行动力，换取一次必定命中但不暴击的推进打击。"
@@ -40,7 +40,7 @@ target_team_filter = &"enemy"
 range_value = 5
 ap_cost = 1
 effect_defs = Array[ExtResource("2_effect")]([SubResource("Resource_damage")])
-cast_variants = Array[ExtResource("1_variant")]([SubResource("Resource_blood"), SubResource("Resource_guard"), SubResource("Resource_action")])
+cast_variants = Array[ExtResource("1_option")]([SubResource("Resource_blood"), SubResource("Resource_guard"), SubResource("Resource_action")])
 
 [resource]
 script = ExtResource("4_skill")

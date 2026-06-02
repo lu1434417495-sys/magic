@@ -1,0 +1,239 @@
+using System.Collections.Generic;
+using Godot;
+using GDictionary = Godot.Collections.Dictionary;
+
+public partial class run_encounter_anchor_schema_regression : SceneTree
+{
+    private readonly List<string> _failures = new();
+
+    public override void _Initialize()
+    {
+        CallDeferred(nameof(Run));
+    }
+
+    private void Run()
+    {
+        TestValidRoundtripPreservesCurrentSchema();
+        TestEmptyOptionalRosterAndProfileFieldsAreAcceptedWhenPresent();
+        TestExtraFieldsAreRejected();
+        TestMissingRequiredFieldIsRejected();
+        TestWrongFieldTypeIsRejected();
+        TestEmptyRequiredIdentityFieldsAreRejected();
+        TestInvalidEncounterKindIsRejected();
+
+        if (_failures.Count == 0)
+        {
+            GD.Print("Encounter anchor schema regression: PASS");
+            Quit(0);
+            return;
+        }
+
+        foreach (string failure in _failures)
+        {
+            GD.PushError(failure);
+        }
+        GD.Print($"Encounter anchor schema regression: FAIL ({_failures.Count})");
+        Quit(1);
+    }
+
+    private void TestValidRoundtripPreservesCurrentSchema()
+    {
+        EncounterAnchorData encounterAnchor = new()
+        {
+            entity_id = "wild_den_roundtrip",
+            display_name = "Wild Den",
+            world_coord = new Vector2I(12, 7),
+            faction_id = "hostile",
+            enemy_roster_template_id = "wolf_pack",
+            region_tag = "north_wilds",
+            vision_range = 3,
+            is_cleared = true,
+            encounter_kind = EncounterAnchorData.ENCOUNTER_KIND_SETTLEMENT(),
+            encounter_profile_id = "wolf_den",
+            growth_stage = 2,
+            suppressed_until_step = 11,
+        };
+
+        EncounterAnchorData restoredAnchor = EncounterAnchorData.from_dict(encounterAnchor.to_dict());
+        AssertTrue(restoredAnchor != null, "valid to_dict payload should deserialize.");
+        if (restoredAnchor == null)
+        {
+            return;
+        }
+        AssertDictionaryEq(
+            restoredAnchor.to_dict(),
+            encounterAnchor.to_dict(),
+            "valid roundtrip should preserve all serialized fields."
+        );
+    }
+
+    private void TestEmptyOptionalRosterAndProfileFieldsAreAcceptedWhenPresent()
+    {
+        StringName[] encounterKinds =
+        {
+            EncounterAnchorData.ENCOUNTER_KIND_SINGLE(),
+            EncounterAnchorData.ENCOUNTER_KIND_SETTLEMENT(),
+        };
+        foreach (StringName encounterKind in encounterKinds)
+        {
+            GDictionary payload = BuildValidPayload();
+            payload["encounter_kind"] = encounterKind;
+            payload["enemy_roster_template_id"] = "";
+            payload["encounter_profile_id"] = "";
+
+            EncounterAnchorData restoredAnchor = EncounterAnchorData.from_dict(payload);
+            AssertTrue(
+                restoredAnchor != null,
+                $"{encounterKind} payload should accept present empty roster/profile string fields."
+            );
+        }
+    }
+
+    private void TestMissingRequiredFieldIsRejected()
+    {
+        foreach (string fieldName in EncounterAnchorData.REQUIRED_SERIALIZED_FIELDS())
+        {
+            GDictionary payload = BuildValidPayload();
+            payload.Remove(fieldName);
+            AssertTrue(
+                EncounterAnchorData.from_dict(payload) == null,
+                $"missing required field {fieldName} should be rejected."
+            );
+        }
+    }
+
+    private void TestExtraFieldsAreRejected()
+    {
+        GDictionary payload = BuildValidPayload();
+        payload["legacy_encounter_type"] = "hostile";
+        AssertTrue(
+            EncounterAnchorData.from_dict(payload) == null,
+            "payload with extra legacy fields should be rejected."
+        );
+    }
+
+    private void TestWrongFieldTypeIsRejected()
+    {
+        (string Field, Variant Value)[] cases =
+        {
+            ("entity_id", Variant.From(12)),
+            ("display_name", Variant.From(new StringName("Wild Den"))),
+            ("world_coord", Variant.From(new Vector2(1.0f, 2.0f))),
+            ("faction_id", Variant.From(1)),
+            ("enemy_roster_template_id", Variant.From(1)),
+            ("region_tag", Variant.From(1)),
+            ("vision_range", Variant.From("2")),
+            ("is_cleared", Variant.From(0)),
+            ("encounter_kind", Variant.From(1)),
+            ("encounter_profile_id", Variant.From(1)),
+            ("growth_stage", Variant.From("0")),
+            ("suppressed_until_step", Variant.From("0")),
+        };
+
+        foreach ((string field, Variant value) in cases)
+        {
+            GDictionary payload = BuildValidPayload();
+            payload[field] = value;
+            AssertTrue(
+                EncounterAnchorData.from_dict(payload) == null,
+                $"wrong type for {field} should be rejected."
+            );
+        }
+    }
+
+    private void TestEmptyRequiredIdentityFieldsAreRejected()
+    {
+        string[] fieldNames =
+        {
+            "entity_id",
+            "display_name",
+            "faction_id",
+            "encounter_kind",
+        };
+        foreach (string fieldName in fieldNames)
+        {
+            GDictionary payload = BuildValidPayload();
+            payload[fieldName] = "";
+            AssertTrue(
+                EncounterAnchorData.from_dict(payload) == null,
+                $"empty required identity field {fieldName} should be rejected."
+            );
+        }
+    }
+
+    private void TestInvalidEncounterKindIsRejected()
+    {
+        GDictionary payload = BuildValidPayload();
+        payload["encounter_kind"] = "legacy_default_hostile";
+        AssertTrue(
+            EncounterAnchorData.from_dict(payload) == null,
+            "invalid encounter_kind should be rejected."
+        );
+    }
+
+    private static GDictionary BuildValidPayload()
+    {
+        return new GDictionary
+        {
+            ["entity_id"] = "wild_anchor",
+            ["display_name"] = "Wild Anchor",
+            ["world_coord"] = new Vector2I(4, 5),
+            ["faction_id"] = "hostile",
+            ["enemy_roster_template_id"] = "wolf_pack",
+            ["region_tag"] = "north_wilds",
+            ["vision_range"] = 2,
+            ["is_cleared"] = false,
+            ["encounter_kind"] = "single",
+            ["encounter_profile_id"] = "wolf_den",
+            ["growth_stage"] = 0,
+            ["suppressed_until_step"] = 0,
+        };
+    }
+
+    private void AssertDictionaryEq(GDictionary actual, GDictionary expected, string message)
+    {
+        if (actual.Count != expected.Count)
+        {
+            _failures.Add($"{message} | actual_count={actual.Count} expected_count={expected.Count}");
+            return;
+        }
+        foreach (Variant key in expected.Keys)
+        {
+            if (!actual.ContainsKey(key))
+            {
+                _failures.Add($"{message} | missing_key={key}");
+                return;
+            }
+            if (!VariantValueEquals(actual[key], expected[key]))
+            {
+                _failures.Add($"{message} | key={key} actual={actual[key]} expected={expected[key]}");
+                return;
+            }
+        }
+    }
+
+    private static bool VariantValueEquals(Variant actual, Variant expected)
+    {
+        if (actual.VariantType != expected.VariantType)
+        {
+            return false;
+        }
+        return actual.VariantType switch
+        {
+            Variant.Type.String => actual.AsString() == expected.AsString(),
+            Variant.Type.StringName => actual.AsStringName() == expected.AsStringName(),
+            Variant.Type.Vector2I => actual.AsVector2I() == expected.AsVector2I(),
+            Variant.Type.Int => actual.AsInt64() == expected.AsInt64(),
+            Variant.Type.Bool => actual.AsBool() == expected.AsBool(),
+            _ => Equals(actual, expected),
+        };
+    }
+
+    private void AssertTrue(bool condition, string message)
+    {
+        if (!condition)
+        {
+            _failures.Add(message);
+        }
+    }
+}

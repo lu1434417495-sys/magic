@@ -1,0 +1,1282 @@
+using System;
+using System.Collections.Generic;
+using Godot;
+using GArray = Godot.Collections.Array;
+using GDictionary = Godot.Collections.Dictionary;
+using GStringArray = Godot.Collections.Array<string>;
+using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
+
+internal sealed class BattleChangeEquipmentResult
+{
+    internal bool Allowed;
+    internal string ErrorCode = "";
+    internal string Message = "";
+    internal StringName Operation = "";
+    internal StringName SlotId = "";
+    internal StringName TargetUnitId = "";
+    internal StringName ItemId = "";
+    internal StringName InstanceId = "";
+    internal GStringNameArray OccupiedSlotIds = new();
+
+    internal int ApBefore;
+    internal int ApAfter;
+    internal int HpBefore;
+    internal int HpAfter;
+    internal int HpMaxBefore;
+    internal int HpMaxAfter;
+    internal bool HpClamped;
+    internal StringName WeaponProfileKind = "";
+    internal StringName WeaponItemId = "";
+    internal StringName WeaponProfileTypeId = "";
+    internal StringName WeaponCurrentGrip = "";
+    internal int WeaponAttackRange;
+    internal bool WeaponUsesTwoHands;
+    internal StringName WeaponPhysicalDamageTag = "";
+
+    internal BattleChangeEquipmentResult Clone()
+    {
+        return new BattleChangeEquipmentResult
+        {
+            Allowed = Allowed,
+            ErrorCode = ErrorCode,
+            Message = Message,
+            Operation = Operation,
+            SlotId = SlotId,
+            TargetUnitId = TargetUnitId,
+            ItemId = ItemId,
+            InstanceId = InstanceId,
+            OccupiedSlotIds = CloneStringNameArray(OccupiedSlotIds),
+            ApBefore = ApBefore,
+            ApAfter = ApAfter,
+            HpBefore = HpBefore,
+            HpAfter = HpAfter,
+            HpMaxBefore = HpMaxBefore,
+            HpMaxAfter = HpMaxAfter,
+            HpClamped = HpClamped,
+            WeaponProfileKind = WeaponProfileKind,
+            WeaponItemId = WeaponItemId,
+            WeaponProfileTypeId = WeaponProfileTypeId,
+            WeaponCurrentGrip = WeaponCurrentGrip,
+            WeaponAttackRange = WeaponAttackRange,
+            WeaponUsesTwoHands = WeaponUsesTwoHands,
+            WeaponPhysicalDamageTag = WeaponPhysicalDamageTag,
+        };
+    }
+
+    internal GDictionary ToDictionary()
+    {
+        return new GDictionary
+        {
+            ["allowed"] = Allowed,
+            ["error_code"] = ErrorCode ?? "",
+            ["message"] = Message ?? "",
+            ["operation"] = Operation.ToString(),
+            ["slot_id"] = SlotId.ToString(),
+            ["slot_label"] = EquipmentRules.get_slot_label(SlotId),
+            ["target_unit_id"] = TargetUnitId.ToString(),
+            ["item_id"] = ItemId.ToString(),
+            ["instance_id"] = InstanceId.ToString(),
+            ["occupied_slot_ids"] = StringifyStringNameArray(OccupiedSlotIds),
+            ["ap_before"] = ApBefore,
+            ["ap_after"] = ApAfter,
+            ["hp_before"] = HpBefore,
+            ["hp_after"] = HpAfter,
+            ["hp_max_before"] = HpMaxBefore,
+            ["hp_max_after"] = HpMaxAfter,
+            ["hp_clamped"] = HpClamped,
+            ["weapon_profile_kind"] = WeaponProfileKind.ToString(),
+            ["weapon_item_id"] = WeaponItemId.ToString(),
+            ["weapon_profile_type_id"] = WeaponProfileTypeId.ToString(),
+            ["weapon_current_grip"] = WeaponCurrentGrip.ToString(),
+            ["weapon_attack_range"] = WeaponAttackRange,
+            ["weapon_uses_two_hands"] = WeaponUsesTwoHands,
+            ["weapon_physical_damage_tag"] = WeaponPhysicalDamageTag.ToString(),
+        };
+    }
+
+    private static GStringNameArray CloneStringNameArray(GStringNameArray values)
+    {
+        var clone = new GStringNameArray();
+        foreach (StringName value in values ?? new GStringNameArray())
+        {
+            clone.Add(value);
+        }
+        return clone;
+    }
+
+    private static GStringArray StringifyStringNameArray(GStringNameArray values)
+    {
+        var result = new GStringArray();
+        foreach (StringName value in values ?? new GStringNameArray())
+        {
+            result.Add(value.ToString());
+        }
+        return result;
+    }
+}
+
+internal readonly struct ChangeEquipmentRuleResult
+{
+    internal readonly bool Allowed;
+    internal readonly string ErrorCode;
+    internal readonly string Message;
+    internal readonly GStringNameArray OccupiedSlotIds;
+
+    internal ChangeEquipmentRuleResult(
+        bool allowed,
+        string errorCode = "",
+        string message = "",
+        GStringNameArray occupiedSlotIds = null
+    )
+    {
+        Allowed = allowed;
+        ErrorCode = errorCode ?? "";
+        Message = message ?? "";
+        OccupiedSlotIds = occupiedSlotIds ?? new GStringNameArray();
+    }
+
+    internal GDictionary ToDictionary()
+    {
+        return new GDictionary
+        {
+            ["allowed"] = Allowed,
+            ["error_code"] = ErrorCode,
+            ["message"] = Message,
+            ["occupied_slot_ids"] = StringifyStringNameArray(OccupiedSlotIds),
+        };
+    }
+
+    private static GStringArray StringifyStringNameArray(GStringNameArray values)
+    {
+        var result = new GStringArray();
+        foreach (StringName value in values ?? new GStringNameArray())
+        {
+            result.Add(value.ToString());
+        }
+        return result;
+    }
+}
+
+// 翻译自 battle_change_equipment_resolver.gd（2026-05-25，战斗换装 C# 迁移）。
+// runtime 耦合：战斗实体/视图使用 C# runtime state；command 为 C# BattleCommand。
+[GlobalClass]
+public partial class BattleChangeEquipmentResolver : RefCounted
+{
+    private const int CHANGE_EQUIPMENT_AP_COST = 2;
+
+    private WeakReference<BattleRuntimeModule> _runtimeRef;
+
+    private BattleRuntimeModule _runtime
+    {
+        get => ResolveWeakRef(_runtimeRef);
+        set => _runtimeRef = value != null ? new WeakReference<BattleRuntimeModule>(value) : null;
+    }
+
+    public void setup(BattleRuntimeModule runtime)
+    {
+        _runtime = runtime;
+    }
+
+    public void dispose()
+    {
+        _runtime = null;
+    }
+
+    public void preview_command(BattleUnitState active_unit, BattleCommand command, BattlePreview preview)
+    {
+        PreviewChangeEquipmentCommand(active_unit, command, preview);
+    }
+
+    public void handle_command(BattleUnitState active_unit, BattleCommand command, BattleEventBatch batch)
+    {
+        HandleChangeEquipmentCommand(active_unit, command, batch);
+    }
+
+    public int get_unit_hp_max(BattleUnitState unit_state)
+    {
+        return GetUnitHpMax(unit_state);
+    }
+
+    public int get_unit_stamina_max(BattleUnitState unit_state)
+    {
+        return GetUnitStaminaMax(unit_state);
+    }
+
+    private void PreviewChangeEquipmentCommand(
+        BattleUnitState activeUnit,
+        BattleCommand command,
+        BattlePreview preview
+    )
+    {
+        if (preview == null)
+        {
+            return;
+        }
+        BattleChangeEquipmentResult validation = ValidateChangeEquipmentCommand(activeUnit, command);
+        if (!validation.Allowed)
+        {
+            preview.log_lines.Add(
+                string.IsNullOrEmpty(validation.Message) ? "换装命令无效。" : validation.Message
+            );
+            return;
+        }
+
+        EquipmentState equipmentView = activeUnit.get_equipment_view()?.duplicate_state();
+        WarehouseState backpackView = RuntimeState()?.get_party_backpack_view()?.duplicate_state();
+        BattleChangeEquipmentResult applyResult = ApplyChangeEquipmentToViews(
+            command,
+            validation,
+            equipmentView,
+            backpackView
+        );
+        if (applyResult.Allowed)
+        {
+            preview.allowed = true;
+            preview.log_lines.Add(
+                string.IsNullOrEmpty(applyResult.Message) ? "换装可执行。" : applyResult.Message
+            );
+        }
+        else
+        {
+            preview.log_lines.Add(
+                string.IsNullOrEmpty(applyResult.Message) ? "换装命令无效。" : applyResult.Message
+            );
+        }
+    }
+
+    private void HandleChangeEquipmentCommand(
+        BattleUnitState activeUnit,
+        BattleCommand command,
+        BattleEventBatch batch
+    )
+    {
+        BattleChangeEquipmentResult validation = ValidateChangeEquipmentCommand(activeUnit, command);
+        if (!validation.Allowed)
+        {
+            AppendChangeEquipmentReport(batch, activeUnit, validation, false);
+            return;
+        }
+
+        EquipmentState equipmentView = activeUnit.get_equipment_view()?.duplicate_state();
+        WarehouseState backpackView = RuntimeState()?.get_party_backpack_view()?.duplicate_state();
+        BattleChangeEquipmentResult applyResult = ApplyChangeEquipmentToViews(
+            command,
+            validation,
+            equipmentView,
+            backpackView
+        );
+        if (!applyResult.Allowed)
+        {
+            AppendChangeEquipmentReport(batch, activeUnit, applyResult, false);
+            return;
+        }
+
+        int apBefore = activeUnit.current_ap;
+        activeUnit.set_equipment_view(equipmentView);
+        RuntimeState()?.set_party_backpack_view(backpackView);
+        RefreshChangeEquipmentProjection(activeUnit, applyResult);
+        activeUnit.current_ap = Math.Max(activeUnit.current_ap - CHANGE_EQUIPMENT_AP_COST, 0);
+        applyResult.ApBefore = apBefore;
+        applyResult.ApAfter = activeUnit.current_ap;
+        _runtime?._record_action_issued(
+            activeUnit,
+            BattleCommand.TYPE_CHANGE_EQUIPMENT(),
+            CHANGE_EQUIPMENT_AP_COST
+        );
+        if (batch != null && !batch.changed_unit_ids.Contains(activeUnit.unit_id))
+            batch.changed_unit_ids.Add(activeUnit.unit_id);
+        AppendChangeEquipmentReport(batch, activeUnit, applyResult, true);
+    }
+
+    private void RefreshChangeEquipmentProjection(
+        BattleUnitState activeUnit,
+        BattleChangeEquipmentResult result
+    )
+    {
+        if (activeUnit == null)
+        {
+            return;
+        }
+        int hpBefore = activeUnit.current_hp;
+        int hpMaxBefore = GetUnitHpMax(activeUnit);
+        if (
+            !StringNameIsEmpty(activeUnit.source_member_id)
+            && _runtime?.GetCharacterGatewayTyped() != null
+        )
+        {
+            _runtime._unit_factory?.refresh_equipment_projection(activeUnit);
+        }
+        int hpMaxAfter = GetUnitHpMax(activeUnit);
+        bool hpClamped = false;
+        if (hpMaxAfter > 0 && hpMaxAfter < hpMaxBefore && hpBefore > hpMaxAfter)
+        {
+            activeUnit.current_hp = hpMaxAfter;
+            hpClamped = true;
+        }
+        if (activeUnit.current_hp < 0)
+        {
+            activeUnit.current_hp = 0;
+            hpClamped = true;
+        }
+        activeUnit.is_alive = activeUnit.current_hp > 0;
+        result.HpBefore = hpBefore;
+        result.HpAfter = activeUnit.current_hp;
+        result.HpMaxBefore = hpMaxBefore;
+        result.HpMaxAfter = hpMaxAfter;
+        result.HpClamped = hpClamped;
+        result.WeaponProfileKind = activeUnit.weapon_profile_kind;
+        result.WeaponItemId = activeUnit.weapon_item_id;
+        result.WeaponProfileTypeId = activeUnit.weapon_profile_type_id;
+        result.WeaponCurrentGrip = activeUnit.weapon_current_grip;
+        result.WeaponAttackRange = activeUnit.weapon_attack_range;
+        result.WeaponUsesTwoHands = activeUnit.weapon_uses_two_hands;
+        result.WeaponPhysicalDamageTag = activeUnit.weapon_physical_damage_tag;
+    }
+
+    private int GetUnitHpMax(BattleUnitState unitState)
+    {
+        AttributeSnapshot snapshot = unitState?.attribute_snapshot;
+        if (unitState == null || snapshot == null)
+        {
+            return 0;
+        }
+        return Math.Max(snapshot.get_value(AttributeService.HP_MAX), 1);
+    }
+
+    private int GetUnitStaminaMax(BattleUnitState unitState)
+    {
+        AttributeSnapshot snapshot = unitState?.attribute_snapshot;
+        if (unitState == null || snapshot == null)
+        {
+            return 0;
+        }
+        return Math.Max(snapshot.get_value(AttributeService.STAMINA_MAX), 0);
+    }
+
+    private BattleChangeEquipmentResult ValidateChangeEquipmentCommand(
+        BattleUnitState activeUnit,
+        BattleCommand command
+    )
+    {
+        BattleChangeEquipmentResult result = BuildChangeEquipmentResult(
+            false,
+            "invalid_command",
+            "换装命令无效。",
+            command
+        );
+        BattleState state = RuntimeState();
+        if (state == null || activeUnit == null || command == null)
+        {
+            return result;
+        }
+
+        StringName operation = GetChangeEquipmentOperation(command);
+        StringName slotId = GetChangeEquipmentSlotId(command);
+        result.Operation = operation;
+        result.SlotId = slotId;
+        result.TargetUnitId = ResolveChangeEquipmentTargetUnitId(activeUnit, command);
+        result.ItemId = ResolveChangeEquipmentItemId(command);
+        result.InstanceId = ResolveChangeEquipmentInstanceId(command);
+        result.OccupiedSlotIds = ResolveChangeEquipmentOccupiedSlots(command, slotId);
+
+        StringName targetUnitId = ResolveChangeEquipmentTargetUnitId(activeUnit, command);
+        if (state.active_unit_id != activeUnit.unit_id)
+        {
+            return WithChangeEquipmentError(
+                result,
+                "target_not_self",
+                "只能为当前行动单位自己换装。"
+            );
+        }
+        if (targetUnitId != activeUnit.unit_id)
+        {
+            return WithChangeEquipmentError(
+                result,
+                "target_not_self",
+                "只能为当前行动单位自己换装。"
+            );
+        }
+        if (activeUnit.current_ap < CHANGE_EQUIPMENT_AP_COST)
+        {
+            return WithChangeEquipmentError(
+                result,
+                "ap_insufficient",
+                $"AP不足，换装需要 {CHANGE_EQUIPMENT_AP_COST} 点 AP。"
+            );
+        }
+        if (
+            operation != BattleCommand.EQUIPMENT_OPERATION_EQUIP()
+            && operation != BattleCommand.EQUIPMENT_OPERATION_UNEQUIP()
+        )
+        {
+            return WithChangeEquipmentError(result, "operation_invalid", "换装操作无效。");
+        }
+        if (!EquipmentRules.is_valid_slot(slotId))
+        {
+            return WithChangeEquipmentError(result, "slot_invalid", $"装备槽无效：{slotId}。");
+        }
+
+        EquipmentState equipmentView = activeUnit.get_equipment_view();
+        if (equipmentView == null)
+        {
+            return WithChangeEquipmentError(
+                result,
+                "equipment_view_unavailable",
+                "战斗内装备状态不可用。"
+            );
+        }
+        WarehouseState backpackView = state.get_party_backpack_view();
+        if (backpackView == null)
+        {
+            return WithChangeEquipmentError(
+                result,
+                "backpack_view_unavailable",
+                "战斗内背包状态不可用。"
+            );
+        }
+
+        if (operation == BattleCommand.EQUIPMENT_OPERATION_EQUIP())
+        {
+            StringName instanceId = ResolveChangeEquipmentInstanceId(command);
+            if (StringNameIsEmpty(instanceId))
+            {
+                return WithChangeEquipmentError(
+                    result,
+                    "equipment_instance_required",
+                    "装备命令缺少装备实例。"
+                );
+            }
+            int backpackIndex = FindBackpackEquipmentInstanceIndex(backpackView, instanceId);
+            if (backpackIndex < 0)
+            {
+                return WithChangeEquipmentError(
+                    result,
+                    "equipment_instance_not_found",
+                    $"战斗背包中找不到装备实例 {instanceId}。"
+                );
+            }
+            EquipmentInstanceState backpackInstance = backpackView.GetEquipmentInstanceAt(
+                backpackIndex
+            );
+            StringName resolvedItemId = ProgressionDataUtils.to_string_name(
+                backpackInstance.item_id
+            );
+            StringName commandItemId = ResolveChangeEquipmentItemId(command);
+            if (!StringNameIsEmpty(commandItemId) && commandItemId != resolvedItemId)
+            {
+                return WithChangeEquipmentError(
+                    result,
+                    "equipment_instance_item_mismatch",
+                    "装备实例与命令物品不一致。"
+                );
+            }
+            result.ItemId = resolvedItemId;
+            ChangeEquipmentRuleResult itemRule = ResolveChangeEquipmentItemRule(
+                resolvedItemId,
+                slotId,
+                command,
+                activeUnit
+            );
+            if (!itemRule.Allowed)
+            {
+                return WithChangeEquipmentError(
+                    result,
+                    string.IsNullOrEmpty(itemRule.ErrorCode)
+                        ? "item_not_equipment"
+                        : itemRule.ErrorCode,
+                    string.IsNullOrEmpty(itemRule.Message)
+                        ? "装备实例不能放入该槽位。"
+                        : itemRule.Message,
+                    itemRule.OccupiedSlotIds
+                );
+            }
+            result.OccupiedSlotIds = itemRule.OccupiedSlotIds;
+        }
+        else
+        {
+            StringName entrySlot = ProgressionDataUtils.to_string_name(
+                equipmentView.get_entry_slot_for_slot(slotId)
+            );
+            if (StringNameIsEmpty(entrySlot))
+            {
+                return WithChangeEquipmentError(
+                    result,
+                    "slot_empty",
+                    $"{EquipmentRules.get_slot_label(slotId)} 当前没有已装备物品。"
+                );
+            }
+            StringName equippedInstanceId = ProgressionDataUtils.to_string_name(
+                equipmentView.get_equipped_instance_id(slotId)
+            );
+            StringName commandInstanceId = ResolveChangeEquipmentInstanceId(command);
+            if (
+                !StringNameIsEmpty(commandInstanceId)
+                && !StringNameIsEmpty(equippedInstanceId)
+                && commandInstanceId != equippedInstanceId
+            )
+            {
+                return WithChangeEquipmentError(
+                    result,
+                    "equipment_instance_item_mismatch",
+                    "装备实例与当前槽位不一致。"
+                );
+            }
+            result.ItemId = ProgressionDataUtils.to_string_name(
+                equipmentView.get_equipped_item_id(slotId)
+            );
+            result.InstanceId = equippedInstanceId;
+            result.OccupiedSlotIds = new GStringNameArray(
+                equipmentView.GetOccupiedSlotIdsForEntryTyped(entrySlot)
+            );
+        }
+
+        result.Allowed = true;
+        result.ErrorCode = "";
+        result.Message = BuildChangeEquipmentSuccessMessage(activeUnit, result);
+        return result;
+    }
+
+    private BattleChangeEquipmentResult ApplyChangeEquipmentToViews(
+        BattleCommand command,
+        BattleChangeEquipmentResult validation,
+        EquipmentState equipmentView,
+        WarehouseState backpackView
+    )
+    {
+        if (equipmentView == null || backpackView == null)
+        {
+            return BuildChangeEquipmentResult(
+                false,
+                "state_unavailable",
+                "战斗内换装状态不可用。",
+                command
+            );
+        }
+
+        StringName operation = validation.Operation;
+        StringName slotId = validation.SlotId;
+        StringName itemId = validation.ItemId;
+        StringName instanceId = validation.InstanceId;
+        BattleChangeEquipmentResult result = validation.Clone();
+
+        if (operation == BattleCommand.EQUIPMENT_OPERATION_EQUIP())
+        {
+            int backpackIndex = FindBackpackEquipmentInstanceIndex(backpackView, instanceId);
+            if (backpackIndex < 0)
+            {
+                return WithChangeEquipmentError(
+                    result,
+                    "equipment_instance_not_found",
+                    $"战斗背包中找不到装备实例 {instanceId}。"
+                );
+            }
+            EquipmentInstanceState newInstance = backpackView.GetEquipmentInstanceAt(backpackIndex);
+            itemId = newInstance.item_id;
+            backpackView.RemoveEquipmentInstanceAt(backpackIndex);
+
+            GStringNameArray occupiedSlots = validation.OccupiedSlotIds;
+            if (occupiedSlots.Count == 0)
+            {
+                occupiedSlots = new GStringNameArray { slotId };
+            }
+            var displacedEntrySlots = new HashSet<StringName>();
+            foreach (StringName occupiedSlotId in occupiedSlots)
+            {
+                StringName existingEntrySlot = ProgressionDataUtils.to_string_name(
+                    equipmentView.get_entry_slot_for_slot(occupiedSlotId)
+                );
+                if (
+                    StringNameIsEmpty(existingEntrySlot)
+                    || displacedEntrySlots.Contains(existingEntrySlot)
+                )
+                {
+                    continue;
+                }
+                displacedEntrySlots.Add(existingEntrySlot);
+                EquipmentInstanceState displacedInstance = equipmentView.pop_equipped_instance(
+                    existingEntrySlot
+                );
+                if (displacedInstance != null)
+                {
+                    if (
+                        BackpackHasEquipmentInstance(
+                            backpackView,
+                            displacedInstance.instance_id
+                        )
+                    )
+                    {
+                        return WithChangeEquipmentError(
+                            result,
+                            "equipment_instance_already_in_backpack",
+                            $"战斗背包中已存在装备实例 {displacedInstance.instance_id}。"
+                        );
+                    }
+                    backpackView.AddEquipmentInstance(displacedInstance);
+                }
+            }
+            equipmentView.SetEquippedEntryTyped(slotId, itemId, occupiedSlots, newInstance);
+            result.ItemId = itemId;
+            result.InstanceId = instanceId;
+            result.OccupiedSlotIds = occupiedSlots;
+        }
+        else
+        {
+            StringName entrySlot = ProgressionDataUtils.to_string_name(
+                equipmentView.get_entry_slot_for_slot(slotId)
+            );
+            if (StringNameIsEmpty(entrySlot))
+            {
+                return WithChangeEquipmentError(
+                    result,
+                    "slot_empty",
+                    $"{EquipmentRules.get_slot_label(slotId)} 当前没有已装备物品。"
+                );
+            }
+            EquipmentInstanceState removedInstance = equipmentView.pop_equipped_instance(entrySlot);
+            if (removedInstance == null)
+            {
+                return WithChangeEquipmentError(
+                    result,
+                    "slot_empty",
+                    $"{EquipmentRules.get_slot_label(slotId)} 当前没有已装备物品。"
+                );
+            }
+            StringName removedInstanceId = removedInstance.instance_id;
+            if (
+                !StringNameIsEmpty(removedInstanceId)
+                && BackpackHasEquipmentInstance(backpackView, removedInstanceId)
+            )
+            {
+                return WithChangeEquipmentError(
+                    result,
+                    "equipment_instance_already_in_backpack",
+                    $"战斗背包中已存在装备实例 {removedInstanceId}。"
+                );
+            }
+            backpackView.AddEquipmentInstance(removedInstance);
+            result.ItemId = removedInstance.item_id;
+            result.InstanceId = removedInstanceId;
+        }
+
+        ChangeEquipmentRuleResult ownershipResult = ValidateChangeEquipmentInstanceOwnership(
+            equipmentView,
+            backpackView
+        );
+        if (!ownershipResult.Allowed)
+        {
+            return WithChangeEquipmentError(
+                result,
+                string.IsNullOrEmpty(ownershipResult.ErrorCode)
+                    ? "equipment_instance_write_failed"
+                    : ownershipResult.ErrorCode,
+                string.IsNullOrEmpty(ownershipResult.Message)
+                    ? "装备实例写入失败。"
+                    : ownershipResult.Message
+            );
+        }
+        ChangeEquipmentRuleResult capacityResult = ValidateChangeEquipmentBackpackCapacity(backpackView);
+        if (!capacityResult.Allowed)
+        {
+            return WithChangeEquipmentError(
+                result,
+                string.IsNullOrEmpty(capacityResult.ErrorCode)
+                    ? "backpack_capacity_exceeded"
+                    : capacityResult.ErrorCode,
+                string.IsNullOrEmpty(capacityResult.Message)
+                    ? "战斗背包容量不足。"
+                    : capacityResult.Message
+            );
+        }
+
+        result.Allowed = true;
+        result.ErrorCode = "";
+        result.Message = BuildChangeEquipmentSuccessMessage(null, result);
+        return result;
+    }
+
+    internal BattleChangeEquipmentResult BuildChangeEquipmentResult(
+        bool allowed,
+        string errorCode,
+        string message,
+        BattleCommand command
+    )
+    {
+        StringName slotId = GetChangeEquipmentSlotId(command);
+        return new BattleChangeEquipmentResult
+        {
+            Allowed = allowed,
+            ErrorCode = errorCode ?? "",
+            Message = message ?? "",
+            Operation = GetChangeEquipmentOperation(command),
+            SlotId = slotId,
+            TargetUnitId = "",
+            ItemId = ResolveChangeEquipmentItemId(command),
+            InstanceId = ResolveChangeEquipmentInstanceId(command),
+            OccupiedSlotIds = ResolveChangeEquipmentOccupiedSlots(command, slotId),
+        };
+    }
+
+    private BattleChangeEquipmentResult WithChangeEquipmentError(
+        BattleChangeEquipmentResult result,
+        string errorCode,
+        string message
+    )
+    {
+        return WithChangeEquipmentError(result, errorCode, message, null);
+    }
+
+    private BattleChangeEquipmentResult WithChangeEquipmentError(
+        BattleChangeEquipmentResult result,
+        string errorCode,
+        string message,
+        GStringNameArray occupiedSlotIds
+    )
+    {
+        BattleChangeEquipmentResult output = result?.Clone() ?? new BattleChangeEquipmentResult();
+        if (occupiedSlotIds != null)
+        {
+            output.OccupiedSlotIds = occupiedSlotIds;
+        }
+        output.Allowed = false;
+        output.ErrorCode = errorCode ?? "";
+        output.Message = message ?? "";
+        return output;
+    }
+
+    internal void AppendChangeEquipmentReport(
+        BattleEventBatch batch,
+        BattleUnitState activeUnit,
+        BattleChangeEquipmentResult result,
+        bool success
+    )
+    {
+        result ??= new BattleChangeEquipmentResult();
+        bool hasUnit = activeUnit != null;
+        int hpBefore = result.HpBefore != 0 || !hasUnit ? result.HpBefore : activeUnit.current_hp;
+        int hpAfter = result.HpAfter != 0 || !hasUnit ? result.HpAfter : activeUnit.current_hp;
+        int hpMaxBefore =
+            result.HpMaxBefore != 0 || !hasUnit ? result.HpMaxBefore : GetUnitHpMax(activeUnit);
+        int hpMaxAfter =
+            result.HpMaxAfter != 0 || !hasUnit ? result.HpMaxAfter : GetUnitHpMax(activeUnit);
+        var reportEntry = new GDictionary
+        {
+            ["entry_type"] = "change_equipment",
+            ["type"] = "change_equipment",
+            ["ok"] = success,
+            ["error_code"] = success ? "" : (result.ErrorCode ?? "change_equipment_failed"),
+            ["reason_id"] = result.Operation.ToString(),
+            ["event_tags"] = new GArray { "equipment", "change_equipment" },
+            ["unit_id"] = hasUnit ? activeUnit.unit_id.ToString() : "",
+            ["target_unit_id"] = result.TargetUnitId.ToString(),
+            ["operation"] = result.Operation.ToString(),
+            ["slot_id"] = result.SlotId.ToString(),
+            ["slot_label"] = EquipmentRules.get_slot_label(result.SlotId),
+            ["item_id"] = result.ItemId.ToString(),
+            ["instance_id"] = result.InstanceId.ToString(),
+            ["ap_cost"] = success ? CHANGE_EQUIPMENT_AP_COST : 0,
+            ["ap_before"] = result.ApBefore,
+            ["ap_after"] = success ? result.ApAfter : (hasUnit ? activeUnit.current_ap : 0),
+            ["current_ap"] = hasUnit ? activeUnit.current_ap : 0,
+            ["hp_before"] = hpBefore,
+            ["hp_after"] = hpAfter,
+            ["hp_max_before"] = hpMaxBefore,
+            ["hp_max_after"] = hpMaxAfter,
+            ["hp_clamped"] = result.HpClamped,
+            ["weapon_profile_kind"] = !StringNameIsEmpty(result.WeaponProfileKind)
+                ? result.WeaponProfileKind.ToString()
+                : (hasUnit ? activeUnit.weapon_profile_kind.ToString() : ""),
+            ["weapon_item_id"] = !StringNameIsEmpty(result.WeaponItemId)
+                ? result.WeaponItemId.ToString()
+                : (hasUnit ? activeUnit.weapon_item_id.ToString() : ""),
+            ["weapon_profile_type_id"] = !StringNameIsEmpty(result.WeaponProfileTypeId)
+                ? result.WeaponProfileTypeId.ToString()
+                : (hasUnit ? activeUnit.weapon_profile_type_id.ToString() : ""),
+            ["weapon_current_grip"] = !StringNameIsEmpty(result.WeaponCurrentGrip)
+                ? result.WeaponCurrentGrip.ToString()
+                : (hasUnit ? activeUnit.weapon_current_grip.ToString() : ""),
+            ["weapon_attack_range"] = result.WeaponAttackRange != 0 || !hasUnit
+                ? result.WeaponAttackRange
+                : activeUnit.weapon_attack_range,
+            ["weapon_uses_two_hands"] = result.WeaponUsesTwoHands
+                || (hasUnit && activeUnit.weapon_uses_two_hands),
+            ["weapon_physical_damage_tag"] = !StringNameIsEmpty(result.WeaponPhysicalDamageTag)
+                ? result.WeaponPhysicalDamageTag.ToString()
+                : (hasUnit ? activeUnit.weapon_physical_damage_tag.ToString() : ""),
+            ["text"] = string.IsNullOrEmpty(result.Message) ? "换装命令无效。" : result.Message,
+        };
+        _runtime?._append_report_entry_to_batch(batch, reportEntry);
+    }
+
+    private string BuildChangeEquipmentSuccessMessage(
+        BattleUnitState activeUnit,
+        BattleChangeEquipmentResult result
+    )
+    {
+        string unitName =
+            activeUnit != null && !string.IsNullOrEmpty(activeUnit.display_name)
+                ? activeUnit.display_name
+                : result?.TargetUnitId.ToString() ?? "";
+        if (string.IsNullOrEmpty(unitName))
+        {
+            unitName = "当前单位";
+        }
+        StringName operation = result?.Operation ?? new StringName("");
+        string slotLabel = EquipmentRules.get_slot_label(result?.SlotId ?? new StringName(""));
+        string itemId = result?.ItemId.ToString() ?? "";
+        string instanceId = result?.InstanceId.ToString() ?? "";
+        if (operation == BattleCommand.EQUIPMENT_OPERATION_EQUIP())
+        {
+            return $"{unitName} 换装：{slotLabel} 装备 {itemId}（实例 {instanceId}），消耗 {CHANGE_EQUIPMENT_AP_COST} AP。";
+        }
+        return $"{unitName} 换装：卸下 {slotLabel} 的 {itemId}（实例 {instanceId}），消耗 {CHANGE_EQUIPMENT_AP_COST} AP。";
+    }
+
+    private StringName GetChangeEquipmentOperation(BattleCommand command)
+    {
+        if (command == null)
+        {
+            return "";
+        }
+        return ProgressionDataUtils.to_string_name(command.equipment_operation);
+    }
+
+    private StringName GetChangeEquipmentSlotId(BattleCommand command)
+    {
+        if (command == null)
+        {
+            return "";
+        }
+        return ProgressionDataUtils.to_string_name(command.equipment_slot_id);
+    }
+
+    private StringName ResolveChangeEquipmentTargetUnitId(
+        BattleUnitState activeUnit,
+        BattleCommand command
+    )
+    {
+        if (command == null)
+        {
+            return "";
+        }
+        StringName explicitTarget = ProgressionDataUtils.to_string_name(command.target_unit_id);
+        if (!StringNameIsEmpty(explicitTarget))
+        {
+            return explicitTarget;
+        }
+        return activeUnit != null
+            ? activeUnit.unit_id
+            : new StringName("");
+    }
+
+    private StringName ResolveChangeEquipmentItemId(BattleCommand command)
+    {
+        if (command == null)
+        {
+            return "";
+        }
+        StringName itemId = ProgressionDataUtils.to_string_name(command.equipment_item_id);
+        if (!StringNameIsEmpty(itemId))
+        {
+            return itemId;
+        }
+        return "";
+    }
+
+    private StringName ResolveChangeEquipmentInstanceId(BattleCommand command)
+    {
+        if (command == null)
+        {
+            return "";
+        }
+        StringName instanceId = ProgressionDataUtils.to_string_name(command.equipment_instance_id);
+        if (!StringNameIsEmpty(instanceId))
+        {
+            return instanceId;
+        }
+        return "";
+    }
+
+    private GStringNameArray ResolveChangeEquipmentOccupiedSlots(
+        BattleCommand command,
+        StringName slotId
+    )
+    {
+        var occupiedSlots = new GStringNameArray();
+        if (command != null)
+        {
+            occupiedSlots = new GStringNameArray(
+                EquipmentRules.NormalizeSlotIdsTyped(command.equipment_occupied_slot_ids)
+            );
+        }
+        StringName normSlot = ProgressionDataUtils.to_string_name(slotId);
+        if (occupiedSlots.Count == 0 && EquipmentRules.is_valid_slot(normSlot))
+        {
+            occupiedSlots.Add(normSlot);
+        }
+        else if (EquipmentRules.is_valid_slot(normSlot) && !occupiedSlots.Contains(normSlot))
+        {
+            occupiedSlots.Insert(0, normSlot);
+        }
+        return occupiedSlots;
+    }
+
+    private ChangeEquipmentRuleResult ResolveChangeEquipmentItemRule(
+        StringName itemId,
+        StringName slotId,
+        BattleCommand command,
+        BattleUnitState activeUnit
+    )
+    {
+        StringName normItem = ProgressionDataUtils.to_string_name(itemId);
+        StringName normSlot = ProgressionDataUtils.to_string_name(slotId);
+        GStringNameArray fallbackOccupied = ResolveChangeEquipmentOccupiedSlots(command, normSlot);
+        ItemDef itemDef = GetChangeEquipmentItemDef(normItem);
+        if (itemDef == null)
+        {
+            if (HasChangeEquipmentItemCatalog())
+            {
+                return new ChangeEquipmentRuleResult(
+                    false,
+                    "item_not_found",
+                    $"找不到装备定义：{normItem}。",
+                    fallbackOccupied
+                );
+            }
+            return new ChangeEquipmentRuleResult(true, occupiedSlotIds: fallbackOccupied);
+        }
+        if (!itemDef.is_equipment())
+        {
+            return new ChangeEquipmentRuleResult(
+                false,
+                "item_not_equipment",
+                $"{normItem} 不是可装备物品。",
+                fallbackOccupied
+            );
+        }
+        GStringNameArray allowedSlots = itemDef.get_equipment_slot_ids();
+        if (!allowedSlots.Contains(normSlot))
+        {
+            return new ChangeEquipmentRuleResult(
+                false,
+                "slot_not_allowed",
+                $"{normItem} 不能装备到 {EquipmentRules.get_slot_label(normSlot)}。",
+                fallbackOccupied
+            );
+        }
+        ChangeEquipmentRuleResult requirementRule = ResolveChangeEquipmentRequirementRule(
+            activeUnit,
+            itemDef,
+            normItem
+        );
+        if (!requirementRule.Allowed)
+        {
+            return requirementRule;
+        }
+        GStringNameArray occupiedSlots = ProgressionDataUtils.to_string_name_array(
+            itemDef.get_final_occupied_slot_ids(normSlot)
+        );
+        if (occupiedSlots.Count == 0)
+        {
+            occupiedSlots = new GStringNameArray { normSlot };
+        }
+        else if (!occupiedSlots.Contains(normSlot))
+        {
+            occupiedSlots.Insert(0, normSlot);
+        }
+        return new ChangeEquipmentRuleResult(true, occupiedSlotIds: occupiedSlots);
+    }
+
+    private ChangeEquipmentRuleResult ResolveChangeEquipmentRequirementRule(
+        BattleUnitState activeUnit,
+        ItemDef itemDef,
+        StringName itemId
+    )
+    {
+        if (itemDef == null)
+        {
+            return new ChangeEquipmentRuleResult(true);
+        }
+        EquipmentRequirement equipReq = itemDef.equip_requirement as EquipmentRequirement;
+        if (equipReq == null)
+        {
+            return new ChangeEquipmentRuleResult(true);
+        }
+        string itemLabel = GetChangeEquipmentItemDisplayName(itemDef, itemId);
+        if (
+            activeUnit == null
+            || StringNameIsEmpty(activeUnit.source_member_id)
+        )
+        {
+            return new ChangeEquipmentRuleResult(
+                false,
+                "item_not_equippable",
+                BuildChangeEquipmentRequirementFailureMessage(itemLabel)
+            );
+        }
+        IBattleRuntimeCharacterGateway characterGateway = _runtime?.GetCharacterGatewayTyped();
+        if (characterGateway == null)
+        {
+            return new ChangeEquipmentRuleResult(
+                false,
+                "item_not_equippable",
+                BuildChangeEquipmentRequirementFailureMessage(itemLabel)
+            );
+        }
+        PartyMemberState memberState = characterGateway.get_member_state(activeUnit.source_member_id);
+        if (memberState == null)
+        {
+            return new ChangeEquipmentRuleResult(
+                false,
+                "item_not_equippable",
+                BuildChangeEquipmentRequirementFailureMessage(itemLabel)
+            );
+        }
+        if (equipReq.CheckResult(memberState).Allowed)
+        {
+            return new ChangeEquipmentRuleResult(true);
+        }
+        return new ChangeEquipmentRuleResult(
+            false,
+            "item_not_equippable",
+            BuildChangeEquipmentRequirementFailureMessage(itemLabel)
+        );
+    }
+
+    private string BuildChangeEquipmentRequirementFailureMessage(string itemLabel)
+    {
+        return $"当前无法装备 {itemLabel}。";
+    }
+
+    private string GetChangeEquipmentItemDisplayName(ItemDef itemDef, StringName itemId)
+    {
+        if (itemDef != null && !string.IsNullOrEmpty(itemDef.display_name))
+        {
+            return itemDef.display_name;
+        }
+        return itemId.ToString();
+    }
+
+    private ItemDef GetChangeEquipmentItemDef(StringName itemId)
+    {
+        StringName normalized = ProgressionDataUtils.to_string_name(itemId);
+        IBattleRuntimeCharacterGateway characterGateway = _runtime?.GetCharacterGatewayTyped();
+        if (StringNameIsEmpty(normalized) || characterGateway == null)
+        {
+            return null;
+        }
+        return characterGateway.get_item_def(normalized);
+    }
+
+    private bool HasChangeEquipmentItemCatalog()
+    {
+        return _runtime?.GetCharacterGatewayTyped()?.has_item_def_catalog() ?? false;
+    }
+
+    private ChangeEquipmentRuleResult ValidateChangeEquipmentInstanceOwnership(
+        EquipmentState equipmentView,
+        WarehouseState backpackView
+    )
+    {
+        var owners = new Dictionary<StringName, string>();
+        if (backpackView == null)
+        {
+            return new ChangeEquipmentRuleResult(
+                false,
+                "backpack_view_unavailable",
+                "战斗内背包状态不可用。"
+            );
+        }
+        foreach (EquipmentInstanceState instance in backpackView.GetNonEmptyEquipmentInstancesTyped())
+        {
+            StringName instanceId = ProgressionDataUtils.to_string_name(
+                instance != null ? instance.instance_id : new StringName("")
+            );
+            StringName itemId = ProgressionDataUtils.to_string_name(
+                instance != null ? instance.item_id : new StringName("")
+            );
+            ChangeEquipmentRuleResult ownerResult = ClaimChangeEquipmentInstanceOwner(
+                owners,
+                instanceId,
+                itemId,
+                "backpack"
+            );
+            if (!ownerResult.Allowed)
+            {
+                return ownerResult;
+            }
+        }
+        if (equipmentView == null)
+        {
+            return new ChangeEquipmentRuleResult(
+                false,
+                "equipment_view_unavailable",
+                "战斗内装备状态不可用。"
+            );
+        }
+        foreach (StringName entrySlotId in equipmentView.GetEntrySlotIdsTyped())
+        {
+            StringName itemId = ProgressionDataUtils.to_string_name(
+                equipmentView.get_equipped_item_id(entrySlotId)
+            );
+            StringName instanceId = ProgressionDataUtils.to_string_name(
+                equipmentView.get_equipped_instance_id(entrySlotId)
+            );
+            string ownerName = $"equipment:{entrySlotId}";
+            ChangeEquipmentRuleResult ownerResult = ClaimChangeEquipmentInstanceOwner(
+                owners,
+                instanceId,
+                itemId,
+                ownerName
+            );
+            if (!ownerResult.Allowed)
+            {
+                return ownerResult;
+            }
+        }
+        return new ChangeEquipmentRuleResult(true);
+    }
+
+    private ChangeEquipmentRuleResult ClaimChangeEquipmentInstanceOwner(
+        Dictionary<StringName, string> owners,
+        StringName instanceId,
+        StringName itemId,
+        string ownerName
+    )
+    {
+        if (StringNameIsEmpty(instanceId) || StringNameIsEmpty(itemId))
+        {
+            return new ChangeEquipmentRuleResult(
+                false,
+                "equipment_instance_write_failed",
+                $"装备实例写入失败：{ownerName} 存在空实例或空物品。"
+            );
+        }
+        if (owners.ContainsKey(instanceId))
+        {
+            return new ChangeEquipmentRuleResult(
+                false,
+                "equipment_instance_duplicate_owner",
+                $"装备实例 {instanceId} 同时存在于多个位置。"
+            );
+        }
+        owners[instanceId] = ownerName;
+        return new ChangeEquipmentRuleResult(true);
+    }
+
+    private ChangeEquipmentRuleResult ValidateChangeEquipmentBackpackCapacity(
+        WarehouseState backpackView
+    )
+    {
+        int capacity = GetChangeEquipmentBackpackCapacity();
+        if (capacity < 0)
+        {
+            return new ChangeEquipmentRuleResult(true);
+        }
+        int usedSlots = GetChangeEquipmentBackpackUsedSlots(backpackView);
+        if (usedSlots <= capacity)
+        {
+            return new ChangeEquipmentRuleResult(true);
+        }
+        return new ChangeEquipmentRuleResult(
+            false,
+            "backpack_capacity_exceeded",
+            $"战斗背包容量不足：需要 {usedSlots} 格，当前容量 {capacity} 格。"
+        );
+    }
+
+    private int GetChangeEquipmentBackpackCapacity()
+    {
+        PartyState partyState = _runtime?.GetCharacterGatewayTyped()?.get_party_state();
+        if (partyState == null)
+        {
+            return -1;
+        }
+        int totalCapacity = 0;
+        foreach (PartyMemberState memberState in partyState.get_member_states())
+        {
+            UnitProgress progression = memberState?.progression;
+            if (progression == null)
+            {
+                continue;
+            }
+            UnitBaseAttributes unitBaseAttributes = progression.unit_base_attributes;
+            if (unitBaseAttributes == null)
+            {
+                continue;
+            }
+            totalCapacity += Math.Max(
+                unitBaseAttributes.get_attribute_value(new StringName("storage_space")),
+                0
+            );
+        }
+        return Math.Max(totalCapacity, 0);
+    }
+
+    private int GetChangeEquipmentBackpackUsedSlots(WarehouseState backpackView)
+    {
+        if (backpackView == null)
+        {
+            return 0;
+        }
+        return backpackView.GetNonEmptyStacksTyped().Count
+            + backpackView.GetNonEmptyEquipmentInstancesTyped().Count;
+    }
+
+    private int FindBackpackEquipmentInstanceIndex(WarehouseState backpackView, StringName instanceId)
+    {
+        StringName normalizedId = ProgressionDataUtils.to_string_name(instanceId);
+        if (backpackView == null || StringNameIsEmpty(normalizedId))
+        {
+            return -1;
+        }
+        IReadOnlyList<EquipmentInstanceState> instances = backpackView.GetEquipmentInstancesTyped();
+        for (int index = 0; index < instances.Count; index++)
+        {
+            EquipmentInstanceState instance = instances[index];
+            if (instance == null)
+            {
+                continue;
+            }
+            if (ProgressionDataUtils.to_string_name(instance.instance_id) == normalizedId)
+            {
+                return index;
+            }
+        }
+        return -1;
+    }
+
+    private bool BackpackHasEquipmentInstance(WarehouseState backpackView, StringName instanceId)
+    {
+        return FindBackpackEquipmentInstanceIndex(backpackView, instanceId) >= 0;
+    }
+
+    private static GStringArray StringifyStringNameArray(GStringNameArray values)
+    {
+        var result = new GStringArray();
+        foreach (StringName value in values)
+        {
+            result.Add(value.ToString());
+        }
+        return result;
+    }
+
+    private static bool StringNameIsEmpty(StringName value)
+    {
+        return value == null || string.IsNullOrEmpty(value.ToString());
+    }
+
+    private BattleState RuntimeState()
+    {
+        return _runtime?.get_state();
+    }
+
+    private static T ResolveWeakRef<T>(WeakReference<T> weakRef)
+        where T : class
+    {
+        if (weakRef == null || !weakRef.TryGetTarget(out T target))
+        {
+            return null;
+        }
+        return target;
+    }
+}

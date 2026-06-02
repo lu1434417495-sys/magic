@@ -1,15 +1,81 @@
 [gd_resource type="Resource" script_class="SkillDef" format=3]
 
-[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_5w33g"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_m4kj0"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_hefuc"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_k1cg4"]
-[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_wpb1n"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="3_hefuc"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="4_k1cg4"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="5_wpb1n"]
 
-[sub_resource type="Resource" id="Resource_wkr88"]
+[sub_resource type="Resource" id="Resource_recovery_l0"]
+script = ExtResource("3_hefuc")
+effect_type = &"stamina_restore"
+dice_count = 1
+dice_sides_base = 3
+dice_sides_per_constitution_mod = 1
+dice_sides_per_willpower_mod = 1
+max_skill_level = 0
+effect_target_team_filter = &"ally"
+
+[sub_resource type="Resource" id="Resource_recovery_l1"]
+script = ExtResource("3_hefuc")
+effect_type = &"stamina_restore"
+dice_count = 2
+dice_sides_base = 3
+dice_sides_per_constitution_mod = 1
+dice_sides_per_willpower_mod = 1
+min_skill_level = 1
+max_skill_level = 1
+effect_target_team_filter = &"ally"
+
+[sub_resource type="Resource" id="Resource_recovery_l2"]
+script = ExtResource("3_hefuc")
+effect_type = &"stamina_restore"
+dice_count = 4
+dice_sides_base = 3
+dice_sides_per_constitution_mod = 1
+dice_sides_per_willpower_mod = 1
+min_skill_level = 2
+max_skill_level = 2
+effect_target_team_filter = &"ally"
+
+[sub_resource type="Resource" id="Resource_recovery_l3"]
+script = ExtResource("3_hefuc")
+effect_type = &"stamina_restore"
+dice_count = 6
+dice_sides_base = 3
+dice_sides_per_constitution_mod = 1
+dice_sides_per_willpower_mod = 1
+min_skill_level = 3
+max_skill_level = 3
+effect_target_team_filter = &"ally"
+
+[sub_resource type="Resource" id="Resource_recovery_l4"]
+script = ExtResource("3_hefuc")
+effect_type = &"stamina_restore"
+dice_count = 8
+dice_sides_base = 3
+dice_sides_per_constitution_mod = 1
+dice_sides_per_willpower_mod = 1
+min_skill_level = 4
+max_skill_level = 4
+effect_target_team_filter = &"ally"
+
+[sub_resource type="Resource" id="Resource_recovery_l5"]
+script = ExtResource("3_hefuc")
+effect_type = &"stamina_restore"
+dice_count = 10
+dice_sides_base = 3
+dice_sides_per_constitution_mod = 1
+dice_sides_per_willpower_mod = 1
+min_skill_level = 5
+effect_target_team_filter = &"ally"
+
+[sub_resource type="Resource" id="Resource_heal_l5"]
 script = ExtResource("3_hefuc")
 effect_type = &"heal"
-power = 10
+dice_count = 2
+dice_sides_base = 3
+dice_sides_per_constitution_mod = 1
+dice_sides_per_willpower_mod = 1
+min_skill_level = 5
 effect_target_team_filter = &"ally"
 
 [sub_resource type="Resource" id="Resource_j1thy"]
@@ -17,18 +83,39 @@ script = ExtResource("4_k1cg4")
 skill_id = &"warrior_battle_recovery"
 target_team_filter = &"ally"
 range_value = 0
-stamina_cost = 1
-cooldown_tu = 10
+ap_cost = 1
+stamina_cost = 0
+cooldown_tu = 120
+attack_roll_bonus = 0
+mastery_trigger_mode = &"effect_applied"
+mastery_amount_mode = &"per_cast_hp_ratio"
 target_selection_mode = &"self"
-effect_defs = Array[ExtResource("3_hefuc")]([SubResource("Resource_wkr88")])
+effect_defs = Array[ExtResource("3_hefuc")]([SubResource("Resource_recovery_l0"), SubResource("Resource_recovery_l1"), SubResource("Resource_recovery_l2"), SubResource("Resource_recovery_l3"), SubResource("Resource_recovery_l4"), SubResource("Resource_recovery_l5"), SubResource("Resource_heal_l5")])
 
 [resource]
 script = ExtResource("5_wpb1n")
 skill_id = &"warrior_battle_recovery"
 display_name = "战斗回复"
 icon_id = &"warrior_battle_recovery"
-description = "稳定恢复自身生命。"
-max_level = 3
-mastery_curve = PackedInt32Array(24, 40, 62)
+description = "通过意志集中恢复自身体力，骰子数量随等级增加，骰子面数由体质与意志决定。Lv5额外恢复生命。"
+level_description_template = "恢复体力{dice_count}D{dice_sides}{{?heal}}，并恢复生命{heal}D{dice_sides}{{/heal}}。冷却{cooldown_tu}TU。"
+level_description_configs = {
+"0": {},
+"1": {},
+"2": {},
+"3": {},
+"4": {},
+"5": {}
+}
+max_level = 5
+non_core_max_level = 3
+mastery_curve = PackedInt32Array(100, 250, 550, 1000, 1600)
+growth_tier = &"basic"
+attribute_requirements = {
+"willpower": 12
+}
+attribute_growth_progress = {
+"willpower": 60
+}
 tags = Array[StringName]([&"warrior", &"melee", &"recovery"])
 combat_profile = SubResource("Resource_j1thy")

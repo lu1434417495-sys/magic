@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
 
-[ext_resource type="Script" path="res://scripts/player/warehouse/item_def.gd" id="1_item"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/ItemDef.cs" id="1_item"]
 
 [resource]
 script = ExtResource("1_item")
@@ -10,6 +10,8 @@ description = "切割平整的硬木板材，可用于盾架、器柄与据点�
 icon = "res://icon.svg"
 is_stackable = true
 base_price = 9
+buy_price = 9
+sell_price = 5
 sellable = true
 max_stack = 30
 tags = Array[StringName](["material", "wood", "timber"])

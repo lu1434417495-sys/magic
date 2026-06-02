@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="EnemyTemplateDef" format=3]
 
-[ext_resource type="Script" path="res://scripts/enemies/enemy_template_def.gd" id="1_template"]
+[ext_resource type="Script" path="res://scripts/enemies/EnemyTemplateDef.cs" id="1_template"]
 
 [resource]
 script = ExtResource("1_template")
@@ -9,7 +9,9 @@ display_name = "雾沼猎压者"
 brain_id = &"ranged_suppressor"
 initial_state_id = &"pressure"
 action_threshold = 30
-tags = Array[StringName]([&"mist", &"harrier"])
+tags = Array[StringName]([&"beast", &"mist", &"harrier"])
+natural_weapon_damage_tag = &"physical_pierce"
+natural_weapon_attack_range = 5
 base_attribute_overrides = {
 "strength": 5,
 "agility": 7,
@@ -22,9 +24,7 @@ skill_ids = Array[StringName]([&"archer_suppressive_fire", &"archer_pinning_shot
 attribute_overrides = {
 "hp_max": 26,
 "mp_max": 0,
-"stamina_max": 4,
 "action_points": 2,
 "attack_bonus": 5,
-"armor_class": 13,
-"armor_ac_bonus": 0,
+"deflection_bonus": 4,
 }

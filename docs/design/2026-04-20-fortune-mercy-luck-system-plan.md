@@ -2,6 +2,30 @@
 # 命运的怜悯与黑冕诅咒 · 命运系统 v2 方案
 
 更新日期：`2026-04-20`
+进度更新：`2026-04-26`
+
+## 实施状态总览
+
+| 章节 | 状态 | 备注 |
+|---|---|---|
+| 一、命运值数据模型 | 已落地 | 队友模板 / 剧情写入 `hidden_luck_at_birth` 的入口尚未启用 |
+| 二、命中 / 大成功 / 大失败统一判定 | 已落地 | 命运怜悯、门骰、fumble、高位威胁全部接入 |
+| 三、随机掉落与固定成长分流 | 已落地 | per-kill `drop_luck`、3d6 稀有度、`+5` 软封顶都已落地 |
+| 四、Fortuna 神迹 + 随机成长 | 已落地 | `FortuneService` + `FortunaGuidanceService` + 5 阶 rank tres |
+| 五、Misfortune boss 控制 + 固定成长 | 已落地 | `MisfortuneService` + 黑兆 hook + 三技能 tres + 5 阶 rank |
+| 六、低 luck 平衡 | 已落地 | `LowLuckEventService` + 四件遗物 tres |
+| 七、UI 与可读性 | 大部分已落地 | 缺第 14 节相关的属性 breakpoint tooltip 合并 |
+| 八、数据模型与持久化 | 已落地 | `custom_stats` / 保护列表 / `PartyState.fate_run_flags` |
+| 九、运行链路 | 已落地 | 攻击结算 / Fortuna 标记 / Misfortune 标记 / 掉落主链路 |
+| 十、测试计划 | 已落地 | `tests/progression`、`tests/battle_runtime` 已有对应 regression |
+| 十一、Public Interfaces | 已落地 | `fate_attack_formula.gd`、`equipment_drop_service.gd`、`PartyMemberState` 接口齐全 |
+| 十二、实施顺序建议 1~9 | 已落地 | — |
+| 十三、两条路线总预算对照表 | 设计原则 | 不需要"落地"，作为后续平衡指引 |
+| 十四、六大属性的 Breakpoint 设计 | **未落地** | STR / AGI / CON / WIL 的 breakpoint 全未接入 |
+
+> 已落地章节内仍可能存在小条目缺口，已在该章节正文内行内标注 `**[未落地]**`。
+
+---
 
 ## 关联上下文单元
 
@@ -100,7 +124,7 @@
 
 ## 核心设计结论
 
-## 一、命运值数据模型
+## 一、命运值数据模型 **[已落地]**
 
 ### 1.1 角色级命运数据
 
@@ -141,14 +165,16 @@
 
 ### 1.4 队友默认口径
 
-- 普通队友默认 `hidden_luck_at_birth = 0`
-- 特殊模板队友可以带 `+1 / +2 / -1 / -2 ...`
-- 某些重大剧情可以永久改写队友的出生命运标签
+- 普通队友默认 `hidden_luck_at_birth = 0` **[已落地]**
+- 特殊模板队友可以带 `+1 / +2 / -1 / -2 ...` **[未落地]**：`PROTECTED_CUSTOM_STAT_SOURCE_STORY_SCRIPT` 常量已存在，但模板加载入口仍按 `0` 进入
+- 某些重大剧情可以永久改写队友的出生命运标签 **[未落地]**：受保护写入路径未挂上剧情脚本
 - 这类事件应被视为**稀有世界观事件**，而不是普通成长按钮
 
 ---
 
-## 二、命中 / 大成功 / 大失败统一判定
+## 二、命中 / 大成功 / 大失败统一判定 **[已落地]**
+
+> 实现位置：`scripts/systems/fate_attack_formula.gd`、`scripts/systems/battle_hit_resolver.gd`、`scripts/systems/battle_state.gd`、`scripts/systems/battle_fate_attack_rules.gd`。
 
 v2 把“命运”正式并入攻击主流程。
 
@@ -290,7 +316,9 @@ func resolve_attack(attacker, defender) -> AttackResult:
 
 ---
 
-## 三、随机掉落与固定成长分流
+## 三、随机掉落与固定成长分流 **[已落地]**
+
+> 实现位置：`scripts/systems/equipment_drop_service.gd`、`scripts/systems/battle_runtime_module.gd`、`UnitBaseAttributes.get_drop_luck()`。
 
 ### 3.1 掉落仍采用三段式
 
@@ -344,7 +372,9 @@ func roll_drop_rarity(drop_luck: int) -> int:
 
 ---
 
-## 四、Fortuna：神迹 + 随机成长路线
+## 四、Fortuna：神迹 + 随机成长路线 **[已落地]**
+
+> 实现位置：`scripts/systems/fortune_service.gd`、`scripts/systems/fortuna_guidance_service.gd`、`data/configs/faith/fortuna.tres`。
 
 ### 4.1 定位
 
@@ -428,7 +458,9 @@ Fortuna rank 仍沿用：
 
 ---
 
-## 五、Misfortune：boss 控制 + 固定成长路线
+## 五、Misfortune：boss 控制 + 固定成长路线 **[已落地]**
+
+> 实现位置：`scripts/systems/misfortune_service.gd`、`scripts/systems/misfortune_black_omen_service.gd`、`scripts/systems/misfortune_guidance_service.gd`、`data/configs/skills/{black_star_brand,crown_break,doom_sentence}.tres`、`data/configs/faith/misfortune_black_crown.tres`。
 
 ### 5.1 定位
 
@@ -556,7 +588,9 @@ Misfortune 的 guidance 不做“多打几次就行”的计数条，而绑定�
 
 ---
 
-## 六、低 luck 的平衡原则：补“维度”，不补“主轴”
+## 六、低 luck 的平衡原则：补”维度”，不补”主轴” **[已落地]**
+
+> 实现位置：`scripts/systems/low_luck_event_service.gd`、`scripts/systems/low_luck_relic_rules.gd`、`data/configs/items/{reverse_fate_amulet,black_star_wedge,blood_debt_shawl,dead_road_lantern}.tres`。
 
 ### 6.1 设计原则
 
@@ -635,26 +669,32 @@ v2 的平衡原则不是去偷偷把这些东西补回去，而是：
 
 ---
 
-## 七、UI 与可读性要求
+## 七、UI 与可读性要求 **[大部分已落地]**
 
-由于 v2 大幅提高了系统复杂度，UI 不再能只显示“劣势大成功”。
+由于 v2 大幅提高了系统复杂度，UI 不再能只显示”劣势大成功”。
 
-### 7.1 战斗前/悬浮提示必须显示
+### 7.1 战斗前/悬浮提示必须显示 **[已落地]**
+
+> 实现位置：`scripts/ui/battle_hud_adapter.gd`、`scripts/systems/battle_hit_resolver.gd::_format_fate_aware_attack_check_preview`。
 
 - 当前是否处于劣势
 - 当前 `crit_gate_die`
 - 当前大失败区间
 - 当前高位大成功区间（若 `crit_gate_die == d20`）
-- 当前是否吃到“命运的怜悯”
+- 当前是否吃到”命运的怜悯”
 
-### 7.2 战报必须解释
+### 7.2 战报必须解释 **[已落地]**
+
+> 实现位置：`scripts/systems/battle_report_formatter.gd`。
 
 - 为什么这个 20 只是普通命中
 - 为什么这个 2 直接是大失败
-- 这次大成功是“门骰命中”还是“高位威胁区命中”
+- 这次大成功是”门骰命中”还是”高位威胁区命中”
 - 这次攻击是否满足 Fortuna / Misfortune 相关触发条件
 
-### 7.3 CharacterInfoWindow
+### 7.3 CharacterInfoWindow **[已落地]**
+
+> 实现位置：`scripts/ui/character_info_window.gd`。
 
 显示角色级命运信息：
 
@@ -667,7 +707,9 @@ v2 的平衡原则不是去偷偷把这些东西补回去，而是：
 
 ---
 
-## 八、数据模型与持久化
+## 八、数据模型与持久化 **[已落地]**
+
+> 实现位置：`scripts/player/progression/unit_base_attributes.gd`、`scripts/systems/attribute_service.gd`、`scripts/player/progression/party_state.gd`。
 
 ### 8.1 `custom_stats` 新键
 
@@ -699,7 +741,7 @@ var fate_run_flags: Dictionary = {}
 var meta_flags: Dictionary = {}
 ```
 
-旧计划里的 `party_drop_luck_source_member_id` 已废弃，不进入 `PartyState` 存档；对应回归见 `tests/progression/run_party_state_fate_regression.gd`。
+旧计划里的 `party_drop_luck_source_member_id` 已废弃，不进入 `PartyState` 存档；对应回归见 `tests/progression/fate/run_party_state_fate_regression.cs`。
 
 ### 8.4 `BattleRuntime` 临时字段
 
@@ -715,7 +757,9 @@ var calamity_by_member_id: Dictionary = {}
 
 ---
 
-## 九、运行链路
+## 九、运行链路 **[已落地]**
+
+> 实现位置：`scripts/systems/battle_runtime_module.gd`、`scripts/systems/battle_hit_resolver.gd`、`scripts/systems/fortune_service.gd`、`scripts/systems/misfortune_black_omen_service.gd`、`scripts/systems/equipment_drop_service.gd`、`scripts/systems/game_runtime_facade.gd`。
 
 ### 9.1 攻击结算
 
@@ -759,7 +803,9 @@ var calamity_by_member_id: Dictionary = {}
 
 ---
 
-## 十、测试计划
+## 十、测试计划 **[已落地]**
+
+> 已有 regression：`tests/progression/fate/run_party_state_fate_regression.cs`、`run_fortune_service_regression.gd`、`run_fortuna_guidance_regression.gd`、`run_misfortune_guidance_regression.gd`、`run_low_luck_event_service_regression.gd`、`run_faith_service_regression.gd`，以及 `tests/battle_runtime/fate/run_fate_calamity_drop_regression.gd`、`run_low_luck_relic_regression.gd`、`run_fate_low_luck_tactical_skills_regression.gd`。
 
 ### 10.1 progression / serialization
 
@@ -819,7 +865,7 @@ var calamity_by_member_id: Dictionary = {}
 
 ---
 
-## 十一、Public Interfaces
+## 十一、Public Interfaces **[已落地]**
 
 ### `PartyMemberState`
 - `get_hidden_luck_at_birth() -> int`
@@ -854,20 +900,20 @@ var calamity_by_member_id: Dictionary = {}
 
 ## 十二、实施顺序建议
 
-1. 先扩展 `custom_stats` 读取封装：
+1. 先扩展 `custom_stats` 读取封装： **[已落地]**
    - `get_hidden_luck_at_birth()`
    - `get_faith_luck_bonus()`
    - `get_effective_luck()`
    - `get_combat_luck_score()`
    - `get_drop_luck()`
-2. 新增 `fate_attack_formula.gd`，先只做公式与单测
-3. 在 `battle_state.gd` 中把“劣势”收窄到真正 Hardship 条件
-4. 把新版攻击流程接进 `battle_damage_resolver.gd`
-5. 接入 `critical_fail`、`critical_success_under_disadvantage` 事件
-6. 扩展 `equipment_drop_service.gd` 与 `EquipmentInstanceState.rarity`
-7. 先落 Fortuna 标记逻辑与 rank 1~5 空骨架
-8. 再落 Misfortune 的 `doom_marked / doom_authority / calamity`
-9. 最后补 low luck 专属事件池、黑市、固定制作池与 UI 解释层
+2. 新增 `fate_attack_formula.gd`，先只做公式与单测 **[已落地]**
+3. 在 `battle_state.gd` 中把”劣势”收窄到真正 Hardship 条件 **[已落地]**
+4. 把新版攻击流程接进 `battle_damage_resolver.gd` **[已落地]**
+5. 接入 `critical_fail`、`critical_success_under_disadvantage` 事件 **[已落地]**
+6. 扩展 `equipment_drop_service.gd` 与 `EquipmentInstanceState.rarity` **[已落地]**
+7. 先落 Fortuna 标记逻辑与 rank 1~5 空骨架 **[已落地]**
+8. 再落 Misfortune 的 `doom_marked / doom_authority / calamity` **[已落地]**
+9. 最后补 low luck 专属事件池、黑市、固定制作池与 UI 解释层 **[已落地]**（黑市 / 固定制作池仍为占位骨架）
 
 ---
 
@@ -881,7 +927,7 @@ var calamity_by_member_id: Dictionary = {}
 
 ---
 
-## 十三、两条路线总预算对照表（属性超高权重前提）
+## 十三、两条路线总预算对照表（属性超高权重前提） **[设计原则·非落地项]**
 
 > 本节用于明确：
 > - **高 luck + Fortuna** 与 **低 luck + Misfortune** 不要求“神恩包逐项对等”
@@ -978,7 +1024,15 @@ v2 推荐采用以下总原则：
 
 ---
 
-## 十四、六大属性的 Breakpoint 设计
+## 十四、六大属性的 Breakpoint 设计 **[未落地]**
+
+> 实施缺口：全 repo `breakpoint / crowded_threshold / fumble_compression / wil_fumble` 关键字均未命中实际代码。
+> 影响范围：
+> - `fate_attack_formula.calc_fumble_low_end` 不读 WIL
+> - `battle_state.gd` 的 `MIN_ADJACENT_ENEMIES_FOR_ATTACK_DISADVANTAGE` 是硬常量 `2`，不读 AGI
+> - `BattleState.LOW_HP_ATTACK_DISADVANTAGE_PERCENT` 不读 CON
+> - `misfortune_service._calculate_calamity_cap` 只读独立 stat `calamity_capacity_bonus`，不从 CON 派生
+> - `CharacterInfoWindow` 没有"下一个 breakpoint" / "已达上限"的属性提示
 
 > 本节与前 13 节是同源设计：前文解决命运轴，本节解决属性轴。
 > 背景：v2 要求"每 1 点属性都非常值钱，并跨越关键 breakpoint"。

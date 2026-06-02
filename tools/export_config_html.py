@@ -767,8 +767,14 @@ FIELD_LABELS = {
 	"world_events": "世界事件",
 	"world_size_in_chunks": "世界区块尺寸",
 	"world_stronghold_spacing_cells": "世界要塞间距格",
-	"accessory_1": "饰品槽1",
-	"accessory_2": "饰品槽2",
+	"hands": "手部",
+	"feet": "脚部",
+	"cloak": "披风",
+	"necklace": "项链",
+	"ring_1": "戒指一",
+	"ring_2": "戒指二",
+	"special_trinket": "特殊饰品",
+	"badge": "徽章",
 }
 
 

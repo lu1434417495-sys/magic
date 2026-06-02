@@ -1,7 +1,7 @@
 [gd_resource type="Resource" script_class="BattleSimProfileDef" format=3]
 
-[ext_resource type="Script" path="res://scripts/systems/battle_sim_profile_def.gd" id="1_profile"]
-[ext_resource type="Script" path="res://scripts/systems/battle_ai_score_profile.gd" id="2_score"]
+[ext_resource type="Script" path="res://scripts/systems/battle/sim/BattleSimProfileDef.cs" id="1_profile"]
+[ext_resource type="Script" path="res://scripts/systems/battle/ai/BattleAiScoreProfile.cs" id="2_score"]
 
 [sub_resource type="Resource" id="Resource_score"]
 script = ExtResource("2_score")
@@ -25,13 +25,13 @@ bucket_priorities = {
 script = ExtResource("1_profile")
 profile_id = &"ranged_suppressor_cautious"
 display_name = "Ranged Suppressor Cautious"
-description = "提高撤退与站位价值，并直接修改 ranged_suppressor 的 retreat/pressure 行为参数。"
+description = "提高撤退与站位价值，并通过 transition rule patch 修改 ranged_suppressor 的 retreat 行为参数。"
 ai_score_profile = SubResource("Resource_score")
 override_patches = Array[Dictionary]([{
 "target_type": "brain",
 "target_id": "ranged_suppressor",
-"path": "retreat_hp_ratio",
-"value": 0.6
+"path": "transition_rules.0.conditions.0.basis_points",
+"value": 6000
 }, {
 "target_type": "action",
 "brain_id": "ranged_suppressor",

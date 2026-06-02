@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="ItemDef" load_steps=2 format=3]
 
-[ext_resource type="Script" path="res://scripts/player/warehouse/item_def.gd" id="1_item"]
+[ext_resource type="Script" path="res://scripts/player/warehouse/ItemDef.cs" id="1_item"]
 
 [resource]
 script = ExtResource("1_item")
@@ -10,6 +10,8 @@ description = "预先卷好的止血绷带，适合在远行前批量备入共�
 icon = "res://icon.svg"
 is_stackable = true
 base_price = 18
+buy_price = 18
+sell_price = 9
 sellable = true
 max_stack = 20
 tags = Array[StringName](["consumable", "medical", "bandage"])

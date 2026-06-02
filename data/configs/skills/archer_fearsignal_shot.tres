@@ -1,10 +1,10 @@
 [gd_resource type="Resource" script_class="SkillDef" format=3]
 
-[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_havv1"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_4lh0j"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_uq7kv"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_one4w"]
-[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_lhpqj"]
+[ext_resource type="Script" path="res://scripts/player/progression/AttributeModifier.cs" id="1_havv1"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="2_4lh0j"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="3_uq7kv"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="4_one4w"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="5_lhpqj"]
 
 [sub_resource type="Resource" id="Resource_28qud"]
 script = ExtResource("3_uq7kv")
@@ -29,7 +29,42 @@ script = ExtResource("5_lhpqj")
 skill_id = &"archer_fearsignal_shot"
 display_name = "惊禽哨箭"
 icon_id = &"archer_fearsignal_shot"
-description = "扇形压制射击，命中敌人获得 `压制`；若目标本就带有 `标记`，额外后退 `1` 格。"
+description = "扇形压制射击，命中敌人获得 压制；若目标本就带有 标记，额外后退 1 格。"
+level_description_template = "造成{dmg}伤害，射程{range}，锥形范围，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU"
+level_description_configs = {
+	"0": {
+		"dmg": "8",
+		"range": "5",
+		"area_pattern": "cone",
+		"ap": "2",
+		"stamina": "2",
+		"cooldown": "15"
+	},
+	"1": {
+		"dmg": "8",
+		"range": "5",
+		"area_pattern": "cone",
+		"ap": "2",
+		"stamina": "2",
+		"cooldown": "15"
+	},
+	"2": {
+		"dmg": "8",
+		"range": "5",
+		"area_pattern": "cone",
+		"ap": "2",
+		"stamina": "2",
+		"cooldown": "15"
+	},
+	"3": {
+		"dmg": "8",
+		"range": "5",
+		"area_pattern": "cone",
+		"ap": "2",
+		"stamina": "2",
+		"cooldown": "15"
+	},
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"archer", &"ranged", &"bow", &"control"])

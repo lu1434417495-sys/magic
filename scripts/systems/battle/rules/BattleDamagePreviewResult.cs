@@ -1,0 +1,328 @@
+using System;
+using System.Collections.Generic;
+using Godot;
+using GArray = Godot.Collections.Array;
+using GDictionary = Godot.Collections.Dictionary;
+using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
+
+public sealed class BattleDamagePreviewSaveEstimate
+{
+    public bool HasSave { get; private set; }
+    public int DamageBeforeSave { get; private set; }
+    public int DamageAfterSave { get; private set; }
+    public int DamageAfterSaveEstimate { get; private set; }
+    public int DamageAfterSaveWorst { get; private set; }
+    public int DamageOnSaveFailure { get; private set; }
+    public int DamageOnSaveSuccess { get; private set; }
+    public bool SavePartialOnSuccess { get; private set; }
+    public int SaveSuccessProbabilityBasisPoints { get; private set; }
+    public int SaveSuccessRatePercent { get; private set; }
+    public int SaveFailureProbabilityBasisPoints { get; private set; }
+    public int Dc { get; private set; }
+    public string Ability { get; private set; } = "";
+    public string SaveTag { get; private set; } = "";
+    public string AdvantageState { get; private set; } = "";
+    public int AbilityValue { get; private set; }
+    public int AbilityModifier { get; private set; }
+    public int Bonus { get; private set; }
+    public bool Immune { get; private set; }
+    public IReadOnlyList<BattleSaveSource> Sources { get; private set; } =
+        Array.Empty<BattleSaveSource>();
+
+    public static BattleDamagePreviewSaveEstimate Create(
+        bool hasSave,
+        int damageBeforeSave,
+        int damageAfterSave,
+        int damageAfterSaveEstimate,
+        int damageAfterSaveWorst,
+        int damageOnSaveFailure,
+        int damageOnSaveSuccess,
+        bool savePartialOnSuccess,
+        int saveSuccessProbabilityBasisPoints,
+        int saveSuccessRatePercent,
+        int saveFailureProbabilityBasisPoints,
+        int dc,
+        string ability,
+        string saveTag,
+        string advantageState,
+        int abilityValue,
+        int abilityModifier,
+        int bonus,
+        bool immune,
+        IReadOnlyList<BattleSaveSource> sources
+    )
+    {
+        return new BattleDamagePreviewSaveEstimate
+        {
+            HasSave = hasSave,
+            DamageBeforeSave = Math.Max(damageBeforeSave, 0),
+            DamageAfterSave = Math.Max(damageAfterSave, 0),
+            DamageAfterSaveEstimate = Math.Max(damageAfterSaveEstimate, 0),
+            DamageAfterSaveWorst = Math.Max(damageAfterSaveWorst, 0),
+            DamageOnSaveFailure = Math.Max(damageOnSaveFailure, 0),
+            DamageOnSaveSuccess = Math.Max(damageOnSaveSuccess, 0),
+            SavePartialOnSuccess = savePartialOnSuccess,
+            SaveSuccessProbabilityBasisPoints = Math.Max(saveSuccessProbabilityBasisPoints, 0),
+            SaveSuccessRatePercent = Math.Max(saveSuccessRatePercent, 0),
+            SaveFailureProbabilityBasisPoints = Math.Max(saveFailureProbabilityBasisPoints, 0),
+            Dc = dc,
+            Ability = ability ?? "",
+            SaveTag = saveTag ?? "",
+            AdvantageState = advantageState ?? "",
+            AbilityValue = abilityValue,
+            AbilityModifier = abilityModifier,
+            Bonus = bonus,
+            Immune = immune,
+            Sources = sources ?? Array.Empty<BattleSaveSource>(),
+        };
+    }
+
+    public static BattleDamagePreviewSaveEstimate None(int damageBeforeSave)
+    {
+        int normalizedDamage = Math.Max(damageBeforeSave, 0);
+        return Create(
+            false,
+            normalizedDamage,
+            normalizedDamage,
+            normalizedDamage,
+            normalizedDamage,
+            normalizedDamage,
+            normalizedDamage,
+            false,
+            0,
+            0,
+            10000,
+            0,
+            "",
+            "",
+            "",
+            0,
+            0,
+            0,
+            false,
+            Array.Empty<BattleSaveSource>()
+        );
+    }
+
+    public GDictionary ToDictionary()
+    {
+        if (!HasSave)
+        {
+            return new GDictionary
+            {
+                ["has_save"] = false,
+                ["damage_before_save"] = DamageBeforeSave,
+                ["damage_after_save"] = DamageAfterSave,
+                ["damage_after_save_estimate"] = DamageAfterSaveEstimate,
+                ["damage_after_save_worst"] = DamageAfterSaveWorst,
+            };
+        }
+        return new GDictionary
+        {
+            ["has_save"] = true,
+            ["damage_before_save"] = DamageBeforeSave,
+            ["damage_after_save"] = DamageAfterSave,
+            ["damage_after_save_estimate"] = DamageAfterSaveEstimate,
+            ["damage_after_save_worst"] = DamageAfterSaveWorst,
+            ["damage_on_save_failure"] = DamageOnSaveFailure,
+            ["damage_on_save_success"] = DamageOnSaveSuccess,
+            ["save_partial_on_success"] = SavePartialOnSuccess,
+            ["save_success_probability_basis_points"] = SaveSuccessProbabilityBasisPoints,
+            ["save_success_rate_percent"] = SaveSuccessRatePercent,
+            ["save_failure_probability_basis_points"] = SaveFailureProbabilityBasisPoints,
+            ["dc"] = Dc,
+            ["ability"] = Ability,
+            ["save_tag"] = SaveTag,
+            ["advantage_state"] = AdvantageState,
+            ["ability_value"] = AbilityValue,
+            ["ability_modifier"] = AbilityModifier,
+            ["bonus"] = Bonus,
+            ["immune"] = Immune,
+            ["sources"] = BuildSaveSourceArray(Sources),
+        };
+    }
+
+    private static GArray BuildSaveSourceArray(IReadOnlyList<BattleSaveSource> sources)
+    {
+        var result = new GArray();
+        if (sources == null)
+        {
+            return result;
+        }
+        foreach (BattleSaveSource source in sources)
+        {
+            result.Add(source.ToDictionary());
+        }
+        return result;
+    }
+}
+
+public sealed class BattleDamagePreviewResult
+{
+    public bool Applied { get; private set; }
+    public StringName RollMode { get; private set; }
+    public StringName SaveMode { get; private set; }
+    public int PreSaveDamage { get; private set; }
+    public int PostSaveDamage { get; private set; }
+    public int HpDamage { get; private set; }
+    public int Damage { get; private set; }
+    public int IncomingBudgetDamage { get; private set; }
+    public int ShieldAbsorbed { get; private set; }
+    public bool ShieldBroken { get; private set; }
+    public int ShieldHpBefore { get; private set; }
+    public int ShieldHpAfter { get; private set; }
+    public bool StableLethal { get; private set; }
+    public int LethalProbabilityBasisPoints { get; private set; }
+    public string ErrorCode { get; private set; } = "";
+    public GDictionary DamageOutcome { get; private set; } = new();
+    public GDictionary DamageResult { get; private set; } = new();
+    public BattleDamagePreviewSaveEstimate SaveEstimate { get; private set; } =
+        BattleDamagePreviewSaveEstimate.None(0);
+    public IReadOnlyList<BattleDamagePreviewSaveEstimate> SaveEstimates { get; private set; } =
+        Array.Empty<BattleDamagePreviewSaveEstimate>();
+    public GArray DamageEvents { get; private set; } = new();
+    public GArray Diagnostics { get; private set; } = new();
+    public BattleUnitState SourcePreviewAfter { get; private set; }
+    public BattleUnitState TargetPreviewAfter { get; private set; }
+
+    public static BattleDamagePreviewResult Empty() => Create();
+
+    public static BattleDamagePreviewResult Create(
+        bool applied = false,
+        StringName rollMode = default,
+        StringName saveMode = default,
+        int preSaveDamage = 0,
+        int postSaveDamage = 0,
+        int hpDamage = 0,
+        int damage = 0,
+        int incomingBudgetDamage = 0,
+        int shieldAbsorbed = 0,
+        bool shieldBroken = false,
+        int shieldHpBefore = 0,
+        int shieldHpAfter = 0,
+        bool stableLethal = false,
+        int lethalProbabilityBasisPoints = 0,
+        string errorCode = "",
+        GDictionary damageOutcome = null,
+        GDictionary damageResult = null,
+        BattleDamagePreviewSaveEstimate saveEstimate = null,
+        IReadOnlyList<BattleDamagePreviewSaveEstimate> saveEstimates = null,
+        GArray damageEvents = null,
+        GArray diagnostics = null,
+        BattleUnitState sourcePreviewAfter = null,
+        BattleUnitState targetPreviewAfter = null
+    )
+    {
+        return new BattleDamagePreviewResult
+        {
+            Applied = applied,
+            RollMode = rollMode,
+            SaveMode = saveMode,
+            PreSaveDamage = Math.Max(preSaveDamage, 0),
+            PostSaveDamage = Math.Max(postSaveDamage, 0),
+            HpDamage = Math.Max(hpDamage, 0),
+            Damage = Math.Max(damage, 0),
+            IncomingBudgetDamage = Math.Max(incomingBudgetDamage, 0),
+            ShieldAbsorbed = Math.Max(shieldAbsorbed, 0),
+            ShieldBroken = shieldBroken,
+            ShieldHpBefore = Math.Max(shieldHpBefore, 0),
+            ShieldHpAfter = Math.Max(shieldHpAfter, 0),
+            StableLethal = stableLethal,
+            LethalProbabilityBasisPoints = Math.Max(lethalProbabilityBasisPoints, 0),
+            ErrorCode = errorCode ?? "",
+            DamageOutcome = damageOutcome?.Duplicate(true) ?? new GDictionary(),
+            DamageResult = damageResult?.Duplicate(true) ?? new GDictionary(),
+            SaveEstimate = saveEstimate ?? BattleDamagePreviewSaveEstimate.None(preSaveDamage),
+            SaveEstimates = saveEstimates ?? Array.Empty<BattleDamagePreviewSaveEstimate>(),
+            DamageEvents = damageEvents?.Duplicate(true) ?? new GArray(),
+            Diagnostics = diagnostics?.Duplicate(true) ?? new GArray(),
+            SourcePreviewAfter = sourcePreviewAfter,
+            TargetPreviewAfter = targetPreviewAfter,
+        };
+    }
+
+    public GDictionary ToDictionary()
+    {
+        GDictionary result = new()
+        {
+            ["applied"] = Applied,
+            ["pre_save_damage"] = PreSaveDamage,
+            ["post_save_damage"] = PostSaveDamage,
+            ["damage"] = Damage,
+            ["hp_damage"] = HpDamage,
+            ["healing"] = 0,
+            ["incoming_budget_damage"] = IncomingBudgetDamage,
+            ["shield_absorbed"] = ShieldAbsorbed,
+            ["shield_broken"] = ShieldBroken,
+            ["shield_hp_before"] = ShieldHpBefore,
+            ["shield_hp_after"] = ShieldHpAfter,
+            ["damage_events"] = DamageEvents.Duplicate(true),
+            ["equipment_durability_events"] = new GArray(),
+            ["dispel_events"] = new GArray(),
+            ["damage_dice_high_total_roll"] = false,
+            ["skill_damage_dice_is_max"] = false,
+            ["weapon_damage_dice_is_max"] = false,
+            ["status_effect_ids"] = new GStringNameArray(),
+            ["removed_status_effect_ids"] = new GStringNameArray(),
+            ["source_status_effect_ids"] = new GStringNameArray(),
+            ["terrain_effect_ids"] = new GStringNameArray(),
+            ["height_delta"] = 0,
+            ["diagnostics"] = Diagnostics.Duplicate(true),
+            ["save_estimates"] = BuildSaveEstimateArray(SaveEstimates),
+            ["stable_lethal"] = StableLethal,
+            ["lethal_probability_basis_points"] = LethalProbabilityBasisPoints,
+        };
+        if (RollMode != default)
+        {
+            result["roll_mode"] = RollMode.ToString();
+        }
+        if (SaveMode != default)
+        {
+            result["save_mode"] = SaveMode.ToString();
+        }
+        if (DamageOutcome.Count > 0)
+        {
+            result["damage_outcome"] = DamageOutcome.Duplicate(true);
+        }
+        if (DamageResult.Count > 0)
+        {
+            result["damage_result"] = DamageResult.Duplicate(true);
+        }
+        if (SaveEstimate != null)
+        {
+            result["save_estimate"] = SaveEstimate.ToDictionary();
+        }
+        if (!string.IsNullOrEmpty(ErrorCode))
+        {
+            result["error_code"] = ErrorCode;
+        }
+        if (SourcePreviewAfter != null)
+        {
+            result["source_preview_after"] = SourcePreviewAfter;
+        }
+        if (TargetPreviewAfter != null)
+        {
+            result["target_preview_after"] = TargetPreviewAfter;
+        }
+        return result;
+    }
+
+    private static GArray BuildSaveEstimateArray(
+        IReadOnlyList<BattleDamagePreviewSaveEstimate> estimates
+    )
+    {
+        var result = new GArray();
+        if (estimates == null)
+        {
+            return result;
+        }
+        foreach (BattleDamagePreviewSaveEstimate estimate in estimates)
+        {
+            if (estimate != null && estimate.HasSave)
+            {
+                result.Add(estimate.ToDictionary());
+            }
+        }
+        return result;
+    }
+}

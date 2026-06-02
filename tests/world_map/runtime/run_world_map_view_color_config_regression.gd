@@ -1,12 +1,15 @@
 extends SceneTree
 
-const GameSessionScript = preload("res://scripts/systems/game_session.gd")
+const TestRunner = preload("res://tests/shared/test_runner.gd")
+
+const GameSessionScript = preload("res://scripts/systems/persistence/GameSession.cs")
 const WorldMapScene = preload("res://scenes/main/world_map.tscn")
-const SettlementConfig = preload("res://scripts/utils/settlement_config.gd")
+const SettlementConfig = preload("res://scripts/utils/SettlementConfig.cs")
 
 const TEST_CONFIG_PATH := "res://data/configs/world_map/test_world_map_config.tres"
 
-var _failures: Array[String] = []
+var _test := TestRunner.new()
+var _failures: Array[String] = _test.failures
 var _game_session = null
 
 
@@ -89,17 +92,17 @@ func _test_world_map_scene_exposes_default_view_palette() -> void:
 		if village_texture != null:
 			_assert_eq(
 				village_texture.resource_path,
-				"res://assets/main/basic_map/village.png",
-				"world_map.tscn 的村级据点贴图应指向重命名后的 village.png。"
+				"res://assets/main/basic_map/village_dark.png",
+				"world_map.tscn 的村级据点贴图应指向暗黑风的 village_dark.png。"
 			)
 
 		var tier_to_property := {
-			SettlementConfig.SettlementTier.VILLAGE: "village_tier_color",
-			SettlementConfig.SettlementTier.TOWN: "town_tier_color",
-			SettlementConfig.SettlementTier.CITY: "city_tier_color",
-			SettlementConfig.SettlementTier.CAPITAL: "capital_tier_color",
-			SettlementConfig.SettlementTier.WORLD_STRONGHOLD: "world_stronghold_tier_color",
-			SettlementConfig.SettlementTier.METROPOLIS: "metropolis_tier_color",
+			0: "village_tier_color",
+			1: "town_tier_color",
+			2: "city_tier_color",
+			3: "capital_tier_color",
+			4: "world_stronghold_tier_color",
+			5: "metropolis_tier_color",
 		}
 		for tier in tier_to_property.keys():
 			var property_name: String = tier_to_property[tier]
@@ -140,12 +143,12 @@ func _cleanup() -> void:
 
 func _assert_true(condition: bool, message: String) -> void:
 	if not condition:
-		_failures.append(message)
+		_test.fail(message)
 
 
 func _assert_eq(actual, expected, message: String) -> void:
 	if actual != expected:
-		_failures.append("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
+		_test.fail("%s | actual=%s expected=%s" % [message, str(actual), str(expected)])
 
 
 func _property_list_has_name(instance: Object, property_name: String) -> bool:

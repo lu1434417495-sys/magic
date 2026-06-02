@@ -1,10 +1,10 @@
 [gd_resource type="Resource" script_class="SkillDef" format=3]
 
-[ext_resource type="Script" path="res://scripts/player/progression/attribute_modifier.gd" id="1_fdp41"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_cast_variant_def.gd" id="2_6egyy"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_effect_def.gd" id="3_whq1c"]
-[ext_resource type="Script" path="res://scripts/player/progression/combat_skill_def.gd" id="4_ofv7n"]
-[ext_resource type="Script" path="res://scripts/player/progression/skill_def.gd" id="5_8f1kl"]
+[ext_resource type="Script" path="res://scripts/player/progression/AttributeModifier.cs" id="1_fdp41"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatCastVariantDef.cs" id="2_6egyy"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatEffectDef.cs" id="3_whq1c"]
+[ext_resource type="Script" path="res://scripts/player/progression/CombatSkillDef.cs" id="4_ofv7n"]
+[ext_resource type="Script" path="res://scripts/player/progression/SkillDef.cs" id="5_8f1kl"]
 
 [sub_resource type="Resource" id="Resource_o57a1"]
 script = ExtResource("3_whq1c")
@@ -33,6 +33,37 @@ skill_id = &"archer_double_nock"
 display_name = "双弦连射"
 icon_id = &"archer_double_nock"
 description = "连续射出两箭；第一箭未命中时不触发第二箭。"
+level_description_template = "射出两箭，各造成{dmg}伤害，射程{range}，消耗{ap}AP/{stamina}体力，冷却{cooldown}TU"
+level_description_configs = {
+	"0": {
+		"dmg": "7",
+		"range": "4",
+		"ap": "2",
+		"stamina": "1",
+		"cooldown": "10"
+	},
+	"1": {
+		"dmg": "7",
+		"range": "4",
+		"ap": "2",
+		"stamina": "1",
+		"cooldown": "10"
+	},
+	"2": {
+		"dmg": "7",
+		"range": "4",
+		"ap": "2",
+		"stamina": "1",
+		"cooldown": "10"
+	},
+	"3": {
+		"dmg": "7",
+		"range": "4",
+		"ap": "2",
+		"stamina": "1",
+		"cooldown": "10"
+	},
+}
 max_level = 3
 mastery_curve = PackedInt32Array(28, 46, 72)
 tags = Array[StringName]([&"archer", &"ranged", &"bow", &"output"])

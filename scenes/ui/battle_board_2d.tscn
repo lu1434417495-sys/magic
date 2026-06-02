@@ -4,7 +4,7 @@
 
 
 ; External scripts, scenes, and shared assets referenced by this scene.
-[ext_resource type="Script" path="res://scripts/ui/battle_board_2d.gd" id="1_board2d"]
+[ext_resource type="Script" path="res://scripts/ui/BattleBoard2D.cs" id="1_board2d"]
 
 ; Root node and primary scene tree.
 [node name="BattleBoard2D" type="Node2D"]
