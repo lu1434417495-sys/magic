@@ -659,9 +659,9 @@ public partial class BattleAiScoreService
                 continue;
             }
             BattleDamagePreviewRangeService.SkillDamagePreview damagePreview =
-                BattleDamagePreviewRangeService.build_skill_damage_preview_typed(
+                BattleDamagePreviewRangeService.BuildSkillDamagePreview(
                     sourceUnit,
-                    new GArray { effectDef }
+                    new[] { effectDef }
                 );
             int baseDamage = EstimateDamageFromPreview(damagePreview);
             int bonusDamage = EstimateConditionalBonusDamage(effectDef, targetUnit);
@@ -870,17 +870,12 @@ public partial class BattleAiScoreService
         StringName skillId
     )
     {
-        var saveContext = new GDictionary();
-        if (!IsEmpty(skillId))
-        {
-            saveContext["skill_id"] = skillId;
-        }
         BattleSaveProbabilityResult probability =
-            BattleSaveResolver.estimate_save_success_probability_result(
+            BattleSaveResolver.EstimateSaveSuccessProbabilityResult(
             sourceUnit,
             targetUnit,
             effectDef,
-            saveContext
+            BattleSaveContext.ForSkill(skillId)
         );
         if (!probability.HasSave)
         {
@@ -1200,12 +1195,12 @@ public partial class BattleAiScoreService
             }
             bestRange = Math.Max(
                 bestRange,
-                BattleRangeService.get_effective_skill_threat_range(threatUnit, skillDef)
+                BattleRangeService.GetEffectiveSkillThreatRange(threatUnit, skillDef)
             );
         }
         if (bestRange <= 0)
         {
-            bestRange = BattleRangeService.get_weapon_attack_range(threatUnit);
+            bestRange = BattleRangeService.GetWeaponAttackRange(threatUnit);
         }
         return bestRange;
     }

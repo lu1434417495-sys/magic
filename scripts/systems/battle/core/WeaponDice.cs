@@ -1,8 +1,6 @@
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class WeaponDice : RefCounted
+public sealed class WeaponDice
 {
     public int dice_count { get; set; }
     public int dice_sides { get; set; }
@@ -10,19 +8,19 @@ public partial class WeaponDice : RefCounted
 
     public WeaponDice() { }
 
-    public WeaponDice duplicate_state()
+    public WeaponDice DuplicateState()
     {
         return FromValues(dice_count, dice_sides, flat_bonus);
     }
 
-    public bool is_empty()
+    public bool IsEmpty()
     {
         return dice_count <= 0 || dice_sides <= 0;
     }
 
-    public GDictionary to_dict()
+    internal Godot.Collections.Dictionary ToDictionary()
     {
-        return new GDictionary
+        return new Godot.Collections.Dictionary
         {
             ["dice_count"] = dice_count,
             ["dice_sides"] = dice_sides,
@@ -30,7 +28,7 @@ public partial class WeaponDice : RefCounted
         };
     }
 
-    public static WeaponDice from_dict(GDictionary data)
+    internal static WeaponDice FromDictionary(Godot.Collections.Dictionary data)
     {
         if (data == null)
         {
@@ -46,20 +44,20 @@ public partial class WeaponDice : RefCounted
         return FromValues(count, sides, bonus);
     }
 
-    public static WeaponDice from_resource(WeaponDamageDiceDef dice_resource)
+    internal static WeaponDice FromResource(WeaponDamageDiceDef diceResource)
     {
-        if (dice_resource == null)
+        if (diceResource == null)
         {
             return new WeaponDice();
         }
         return FromValues(
-            dice_resource.get_dice_count(),
-            dice_resource.get_dice_sides(),
-            dice_resource.flat_bonus
+            diceResource.get_dice_count(),
+            diceResource.get_dice_sides(),
+            diceResource.flat_bonus
         );
     }
 
-    private static int GetInt(GDictionary values, string key)
+    private static int GetInt(Godot.Collections.Dictionary values, string key)
     {
         return values.ContainsKey(key) ? values[key].AsInt32() : 0;
     }

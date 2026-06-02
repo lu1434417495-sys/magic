@@ -495,14 +495,13 @@ public partial class GameRuntimeBattleLootCommitService : RefCounted
                 new GArray()
             );
         var equipmentDropService = _runtime._equipment_drop_service;
-        var rolledInstances = equipmentDropService.roll_item_instances(itemId, quantity, dropLuck);
+        var rolledInstances = equipmentDropService.RollItemInstances(itemId, quantity, dropLuck);
         var committedItemCount = 0;
         var overflowQuantity = 0;
-        foreach (var rolledInstanceValue in rolledInstances)
+        foreach (EquipmentInstanceState rolledInstance in rolledInstances)
         {
-            if (rolledInstanceValue.VariantType == Variant.Type.Nil)
+            if (rolledInstance == null)
                 continue;
-            var rolledInstance = rolledInstanceValue.AsGodotObject() as EquipmentInstanceState;
             var rolledItemId = rolledInstance?.item_id ?? new StringName("");
             var partyWarehouseService = _runtime._party_warehouse_service;
             var addResult = partyWarehouseService.AddEquipmentInstanceTyped(rolledInstance);

@@ -350,6 +350,30 @@ public partial class run_world_map_low_level_defensive_regression : SceneTree
             typeof(SkillLevelDescriptionContentRules),
             "SkillLevelDescriptionContentRules"
         );
+        AssertPlainRuntimeType(
+            typeof(ProgressionDataUtils),
+            "ProgressionDataUtils"
+        );
+        AssertEq(
+            typeof(ProgressionDataUtils)
+                .GetMethod(
+                    "sorted_string_keys",
+                    BindingFlags.NonPublic | BindingFlags.Static
+                )
+                ?.ReturnType,
+            typeof(List<string>),
+            "ProgressionDataUtils.sorted_string_keys() 应返回 C# List<string>，不应继续返回 Godot Array。"
+        );
+        AssertEq(
+            typeof(ProgressionDataUtils)
+                .GetMethod(
+                    "to_string_name_int_dictionary",
+                    BindingFlags.NonPublic | BindingFlags.Static
+                )
+                ?.ReturnType,
+            typeof(Dictionary<StringName, int>),
+            "ProgressionDataUtils.to_string_name_int_dictionary() 应返回 C# Dictionary<StringName,int>。"
+        );
         AssertEq(
             typeof(SkillLevelDescriptionContentRules)
                 .GetMethod(nameof(SkillLevelDescriptionContentRules.CollectValidationErrors))
@@ -518,6 +542,35 @@ public partial class run_world_map_low_level_defensive_regression : SceneTree
             ),
             "_handle_halfling_luck",
             "TraitTriggerContentRules 应继续解析 halfling luck dispatch 方法。"
+        );
+        AssertEq(
+            string.Join(
+                ",",
+                ProgressionDataUtils.sorted_string_keys(
+                    new GDictionary { ["beta"] = 2, ["alpha"] = 1 }
+                )
+            ),
+            "alpha,beta",
+            "ProgressionDataUtils.sorted_string_keys() 应继续按 ordinal 文本顺序返回 key。"
+        );
+        AssertEq(
+            ProgressionDataUtils.sorted_string_keys(null).Count,
+            0,
+            "ProgressionDataUtils.sorted_string_keys(null) 应返回空 typed list。"
+        );
+        Dictionary<StringName, int> normalizedIntMap =
+            ProgressionDataUtils.to_string_name_int_dictionary(
+                new GDictionary { ["alpha"] = 2, [new StringName("beta")] = 3 }
+            );
+        AssertEq(
+            normalizedIntMap[new StringName("alpha")],
+            2,
+            "ProgressionDataUtils.to_string_name_int_dictionary() 应规范化 string key。"
+        );
+        AssertEq(
+            normalizedIntMap[new StringName("beta")],
+            3,
+            "ProgressionDataUtils.to_string_name_int_dictionary() 应保留 StringName key。"
         );
 
         List<string> levelDescriptionErrors =

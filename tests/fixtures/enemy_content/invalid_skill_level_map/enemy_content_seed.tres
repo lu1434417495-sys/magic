@@ -1,0 +1,37 @@
+[gd_resource type="Resource" script_class="EnemyContentSeed" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/enemies/EnemyContentSeed.cs" id="1_seed"]
+[ext_resource type="Resource" path="res://data/configs/enemies/brains/melee_aggressor.tres" id="2_brain_melee"]
+[ext_resource type="Script" path="res://scripts/enemies/EnemyTemplateDef.cs" id="3_template"]
+
+[sub_resource type="Resource" id="Resource_invalid_skill_level_map_template"]
+script = ExtResource("3_template")
+template_id = &"invalid_skill_level_map_enemy"
+display_name = "Invalid Skill Level Map Enemy"
+brain_id = &"melee_aggressor"
+initial_state_id = &"engage"
+enemy_count = 1
+body_size = 2
+action_threshold = 50
+tags = Array[StringName]([&"beast"])
+base_attribute_overrides = {
+"strength": 7,
+"agility": 5,
+"constitution": 8,
+"perception": 5,
+"intelligence": 3,
+"willpower": 6,
+}
+skill_ids = Array[StringName]([&"charge", &"warrior_heavy_strike"])
+skill_level_map = {
+123: 1,
+"phantom_skill": 1,
+"charge": "two",
+"warrior_heavy_strike": 0,
+}
+
+[resource]
+script = ExtResource("1_seed")
+enemy_ai_brains = Array[Resource]([ExtResource("2_brain_melee")])
+enemy_templates = Array[Resource]([SubResource("Resource_invalid_skill_level_map_template")])
+wild_encounter_rosters = Array[Resource]([])

@@ -17,6 +17,7 @@ public partial class run_magic_backlash_regression : SceneTree
 
     private int Run()
     {
+        TestSpellControlMetadataUsesTypedStateAndProjection();
         TestFireballNormalCastHitsFriendAtFullDamageRoute();
         TestFireballBurnAppliesToEveryTeamInArea();
         TestFireballCriticalRefundsMpWithoutBlockingFriendlyFire();
@@ -35,6 +36,41 @@ public partial class run_magic_backlash_regression : SceneTree
         }
         GD.Print($"Magic backlash regression: FAIL ({_failures.Count})");
         return 1;
+    }
+
+    private void TestSpellControlMetadataUsesTypedStateAndProjection()
+    {
+        Type metadataType = typeof(BattleSpellControlMetadata);
+        AssertTrue(
+            !typeof(GodotObject).IsAssignableFrom(metadataType),
+            "BattleSpellControlMetadata 不应继承 GodotObject/RefCounted。"
+        );
+        AssertTrue(
+            typeof(BattleSpellControlResult).GetProperty("SpellControl")?.PropertyType
+                == typeof(BattleSpellControlMetadata),
+            "BattleSpellControlResult 应持有 typed BattleSpellControlMetadata，而不是 Godot Dictionary。"
+        );
+
+        var metadata = new BattleSpellControlMetadata
+        {
+            AttackResolution = "critical_hit",
+            SpellControlResolution = "critical_success",
+            AttackSuccess = true,
+            CriticalHit = true,
+            HitRoll = 20,
+            EffectiveHitRoll = 20,
+        };
+        BattleSpellControlResult result =
+            BattleSpellControlResult.None(metadata) with { MpRefund = 5 };
+        GDictionary payload = result.ToDictionary();
+        GDictionary spellControl = payload["spell_control"].AsGodotDictionary();
+
+        AssertEq(payload["mp_refund"].AsInt32(), 5, "spell-control result 应投影 MP 返还。");
+        AssertEq(
+            spellControl["spell_control_resolution"].AsString(),
+            "critical_success",
+            "spell-control metadata 只在 ToDictionary 边界投影。"
+        );
     }
 
     private void TestFireballNormalCastHitsFriendAtFullDamageRoute()
@@ -325,9 +361,8 @@ public partial class run_magic_backlash_regression : SceneTree
         state.active_unit_id = "";
         state.timeline.ready_unit_ids.Clear();
         state.timeline.tu_per_tick = 5;
-        foreach (Variant unitValue in state.units.Values)
+        foreach (BattleUnitState unitState in state.GetUnitsTyped())
         {
-            BattleUnitState unitState = unitValue.AsGodotObject() as BattleUnitState;
             if (unitState != null)
             {
                 unitState.action_threshold = 1_000_000;
@@ -352,7 +387,7 @@ public partial class run_magic_backlash_regression : SceneTree
         }
     }
 
-    private static int DictInt(GDictionary dictionary, Variant key, int fallback)
+    private static int DictInt(GDictionary dictionary, StringName key, int fallback)
     {
         if (dictionary == null || !dictionary.ContainsKey(key))
         {

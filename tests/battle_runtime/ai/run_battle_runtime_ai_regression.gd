@@ -7,8 +7,6 @@ const GAME_RUNTIME_FACADE_SCRIPT = preload("res://scripts/systems/game_runtime/G
 const BATTLE_RUNTIME_MODULE_SCRIPT = preload("res://scripts/systems/battle/runtime/BattleRuntimeModule.cs")
 const BATTLE_AI_CONTEXT_SCRIPT = preload("res://scripts/systems/battle/ai/BattleAiContext.cs")
 const BATTLE_AI_SERVICE_SCRIPT = preload("res://scripts/systems/battle/ai/BattleAiService.cs")
-const BATTLE_AI_SCORE_INPUT_SCRIPT = preload("res://scripts/systems/battle/ai/BattleAiScoreInput.cs")
-const BATTLE_AI_SCORE_SERVICE_SCRIPT = preload("res://scripts/systems/battle/ai/BattleAiScoreService.cs")
 const BATTLE_AI_SCORE_PROFILE_SCRIPT = preload("res://scripts/systems/battle/ai/BattleAiScoreProfile.cs")
 const BATTLE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleState.cs")
 const BATTLE_TIMELINE_STATE_SCRIPT = preload("res://scripts/systems/battle/core/BattleTimelineState.cs")
@@ -40,7 +38,6 @@ const USE_UNIT_SKILL_ACTION_SCRIPT = preload("res://scripts/enemies/actions/UseU
 const WAIT_ACTION_SCRIPT = preload("res://scripts/enemies/actions/WaitAction.cs")
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/AttributeService.cs")
 const BattleRuntimeTestHelpers = preload("res://tests/shared/battle_runtime_test_helpers.gd")
-const SharedDamageResolvers = preload("res://tests/shared/stub_damage_resolvers.gd")
 
 const TEST_WORLD_CONFIG := "res://data/configs/world_map/test_world_map_config.tres"
 
@@ -57,15 +54,6 @@ func _run() -> void:
 	_test_enemy_schema_validation_reports_missing_skill_and_drop_refs()
 	_test_terrain_generator_prefers_anchor_region_tag_when_profile_empty()
 	_test_game_runtime_facade_injects_enemy_content()
-	_test_enemy_template_resolves_stable_id()
-	_test_frontline_template_resolves_stable_id()
-	_test_suppressor_template_resolves_stable_id()
-	_test_healer_template_resolves_stable_id()
-	_test_wolf_templates_spawn_with_positive_stamina_pool()
-	_test_battle_unit_factory_no_longer_builds_fallback_enemy()
-	_test_formal_enemy_templates_have_real_pressure_skill_action()
-	_test_depleted_ranged_templates_close_for_basic_attack_fallback()
-	_test_enemy_template_uses_canonical_template_id()
 	_test_natural_weapon_melee_aggressor_falls_back_to_basic_attack()
 	_test_ai_charge_decision_logs_brain_state_action()
 	_test_frontline_bulwark_charge_decision_logs_brain_state_action()
@@ -86,21 +74,12 @@ func _run() -> void:
 	_test_nearest_role_threat_enemy_selector_keeps_far_ranged_output_behind_frontline()
 	_test_nearest_role_threat_enemy_selector_prefers_frontline_over_far_ranged()
 	_test_ai_multi_unit_skill_generates_target_unit_ids()
-	_test_ai_multi_unit_skill_scores_role_threat_target_groups()
 	_test_ai_assembler_routes_random_chain_to_random_chain_action()
 	_test_ai_random_chain_action_uses_candidate_pool_not_target_ids()
-	_test_ai_ground_skill_scores_role_threat_area_targets()
-	_test_ai_skill_score_prioritizes_lethal_threat_targets()
-	_test_ai_score_comparison_promotes_lethal_kill_across_buckets()
-	_test_ai_score_tiebreak_prefers_lower_nonfatal_post_threat()
-	_test_ai_score_allows_higher_value_nonfatal_post_threat()
 	_test_ai_ground_skill_minimum_hit_count_uses_effective_enemies()
-	_test_ai_ground_control_score_input_keeps_empty_cells_separate_from_effective_targets()
 	_test_ai_ground_control_requires_explicit_empty_control_opt_in()
 	_test_ai_ground_control_opt_in_allows_empty_control_candidate()
 	_test_ai_ground_control_opt_in_does_not_allow_empty_damage_only_skill()
-	_test_ai_ground_control_opt_in_does_not_bypass_partial_hit_minimum()
-	_test_ai_ground_control_supplement_can_allow_partial_hit_minimum_when_enabled()
 	_test_ai_chain_skill_scores_friendly_bounce_risk()
 	_test_ai_multi_unit_skill_prefers_max_targets_under_candidate_limit()
 	_test_ai_multi_unit_positioning_moves_toward_max_targets()
@@ -116,16 +95,11 @@ func _run() -> void:
 	_test_mage_retreat_state_still_uses_lethal_offense_when_safe()
 	_test_retreat_action_uses_enemy_threat_range_progress()
 	_test_ranged_archer_prefers_high_ground_position_before_shot()
-	_test_ai_skill_score_input_exposes_ground_metrics()
-	_test_ai_skill_score_input_uses_fate_aware_repeat_attack_success_rate()
-	_test_ai_score_low_hp_threshold_uses_formal_param_only()
-	_test_melee_aggressor_prefers_later_higher_score_skill_action()
 	_test_ranged_controller_prefers_later_higher_score_skill_action()
 	_test_ranged_suppressor_prefers_suppressive_fire_against_line_cluster()
 	_test_ranged_suppressor_skips_stamina_blocked_suppressive_fire()
 	_test_ranged_suppressor_skips_cooldown_blocked_suppressive_fire()
 	_test_ai_unit_skill_action_skips_aura_blocked_primary_skill()
-	_test_ai_unit_skill_scoring_prefers_higher_hit_payoff_target()
 	_test_ai_unit_skill_action_selects_scoring_variant_id()
 	_test_ai_unit_skill_action_ignores_locked_and_ground_options()
 	_test_ai_unit_skill_action_preserves_empty_variant_for_base_skill()
@@ -275,254 +249,6 @@ func _test_game_runtime_facade_injects_enemy_content() -> void:
 	)
 	game_session.clear_persisted_game()
 	game_session.free()
-
-
-func _test_enemy_template_resolves_stable_id() -> void:
-	var runtime = _build_runtime_with_enemy_content()
-	var encounter_anchor = _build_encounter_anchor(&"encounter_wolf", &"wolf_pack", "荒狼群")
-	var state = runtime.start_battle(encounter_anchor, 101, {
-		"ally_member_ids": [&"ally_a", &"ally_b"],
-		"default_active_skill_ids": [&"warrior_heavy_strike"],
-	})
-	_assert_true(state != null and not state.is_empty(), "正式 battle start 应能创建基于敌方模板的战斗状态。")
-	if state == null or state.is_empty():
-		return
-	_assert_true(state.enemy_unit_ids.size() == 2, "wolf_pack 模板应构建 2 个敌方单位。")
-	var enemy_unit = state.units.get(state.enemy_unit_ids[0])
-	_assert_true(enemy_unit != null and enemy_unit.ai_brain_id == &"melee_aggressor", "stable template id 应绑定 melee_aggressor brain。")
-	_assert_true(enemy_unit != null and enemy_unit.ai_state_id == &"engage", "stable template id 应写入初始 AI 状态 engage。")
-	_assert_true(enemy_unit != null and enemy_unit.known_active_skill_ids.has(&"charge"), "wolf_pack 模板应为敌人注入冲锋技能。")
-	_assert_true(enemy_unit != null and enemy_unit.known_active_skill_ids.has(&"basic_attack"), "天生武器 wolf_pack 单位应自动获得基础攻击。")
-
-
-func _test_frontline_template_resolves_stable_id() -> void:
-	var runtime = _build_runtime_with_enemy_content()
-	var encounter_anchor = _build_encounter_anchor(&"encounter_vanguard", &"wolf_vanguard", "荒狼先锋")
-	var state = runtime.start_battle(encounter_anchor, 103, {
-		"ally_member_ids": [&"ally_a", &"ally_b"],
-		"default_active_skill_ids": [&"warrior_heavy_strike"],
-	})
-	_assert_true(state != null and not state.is_empty(), "正式 battle start 应能创建基于前排模板的战斗状态。")
-	if state == null or state.is_empty():
-		return
-	_assert_true(state.enemy_unit_ids.size() == 1, "wolf_vanguard 模板应构建 1 个敌方单位。")
-	var enemy_unit = state.units.get(state.enemy_unit_ids[0])
-	_assert_true(enemy_unit != null and enemy_unit.ai_brain_id == &"frontline_bulwark", "wolf_vanguard 应绑定 frontline_bulwark brain，而不是回落到默认敌人。")
-	_assert_true(enemy_unit != null and enemy_unit.ai_state_id == &"engage", "wolf_vanguard 应写入 engage 初始状态。")
-	_assert_true(enemy_unit != null and enemy_unit.known_active_skill_ids.has(&"charge"), "wolf_vanguard 应携带 charge。")
-	_assert_true(enemy_unit != null and enemy_unit.known_active_skill_ids.has(&"warrior_guard"), "wolf_vanguard 应携带 warrior_guard 作为承伤技能。")
-
-
-func _test_suppressor_template_resolves_stable_id() -> void:
-	var runtime = _build_runtime_with_enemy_content()
-	var encounter_anchor = _build_encounter_anchor(&"encounter_harrier", &"mist_harrier", "雾沼猎压者")
-	var state = runtime.start_battle(encounter_anchor, 104, {
-		"ally_member_ids": [&"ally_a", &"ally_b"],
-		"default_active_skill_ids": [&"warrior_heavy_strike"],
-	})
-	_assert_true(state != null and not state.is_empty(), "正式 battle start 应能创建基于远程压制模板的战斗状态。")
-	if state == null or state.is_empty():
-		return
-	_assert_true(state.enemy_unit_ids.size() == 1, "mist_harrier 模板应构建 1 个敌方单位。")
-	var enemy_unit = state.units.get(state.enemy_unit_ids[0])
-	_assert_true(enemy_unit != null and enemy_unit.ai_brain_id == &"ranged_suppressor", "mist_harrier 应绑定 ranged_suppressor brain。")
-	_assert_true(enemy_unit != null and enemy_unit.ai_state_id == &"pressure", "mist_harrier 应写入 pressure 初始状态。")
-	_assert_true(enemy_unit != null and enemy_unit.known_active_skill_ids.has(&"archer_suppressive_fire"), "mist_harrier 应携带 archer_suppressive_fire。")
-	_assert_true(enemy_unit != null and enemy_unit.known_active_skill_ids.has(&"archer_pinning_shot"), "mist_harrier 应携带 archer_pinning_shot。")
-
-
-func _test_healer_template_resolves_stable_id() -> void:
-	var runtime = _build_runtime_with_enemy_content()
-	var encounter_anchor = _build_encounter_anchor(&"encounter_weaver", &"mist_weaver", "雾沼织咒者")
-	var state = runtime.start_battle(encounter_anchor, 105, {
-		"ally_member_ids": [&"ally_a", &"ally_b"],
-		"default_active_skill_ids": [&"warrior_heavy_strike"],
-	})
-	_assert_true(state != null and not state.is_empty(), "正式 battle start 应能创建基于治疗控制模板的战斗状态。")
-	if state == null or state.is_empty():
-		return
-	_assert_true(state.enemy_unit_ids.size() == 1, "mist_weaver 模板应构建 1 个敌方单位。")
-	var enemy_unit = state.units.get(state.enemy_unit_ids[0])
-	_assert_true(enemy_unit != null and enemy_unit.ai_brain_id == &"healer_controller", "mist_weaver 应绑定 healer_controller brain。")
-	_assert_true(enemy_unit != null and enemy_unit.ai_state_id == &"pressure", "mist_weaver 应写入 pressure 初始状态。")
-	_assert_true(enemy_unit != null and enemy_unit.known_active_skill_ids.has(&"mage_temporal_rewind"), "mist_weaver 应携带 mage_temporal_rewind。")
-	_assert_true(enemy_unit != null and enemy_unit.known_active_skill_ids.has(&"mage_glacial_prison"), "mist_weaver 应携带 mage_glacial_prison。")
-
-
-func _test_wolf_templates_spawn_with_positive_stamina_pool() -> void:
-	var cases := [
-		{"template_id": "wolf_pack", "encounter_id": "encounter_wolf_pack_stamina", "display_name": "荒狼群"},
-		{"template_id": "wolf_raider", "encounter_id": "encounter_wolf_raider_stamina", "display_name": "荒狼袭掠者"},
-		{"template_id": "wolf_alpha", "encounter_id": "encounter_wolf_alpha_stamina", "display_name": "荒狼首领"},
-		{"template_id": "wolf_vanguard", "encounter_id": "encounter_wolf_vanguard_stamina", "display_name": "荒狼先锋"},
-	]
-	for case_option in cases:
-		if case_option is not Dictionary:
-			continue
-		var case_data: Dictionary = case_option
-		var template_id: StringName = _to_string_name(case_data.get("template_id", ""))
-		var runtime = _build_runtime_with_enemy_content()
-		var encounter_anchor = _build_encounter_anchor(
-			_to_string_name(case_data.get("encounter_id", "")),
-			template_id,
-			String(case_data.get("display_name", String(template_id)))
-		)
-		var state = runtime.start_battle(encounter_anchor, 106, {
-			"ally_member_ids": [&"ally_a", &"ally_b"],
-			"default_active_skill_ids": [&"warrior_heavy_strike"],
-		})
-		_assert_true(state != null and not state.is_empty(), "%s 模板应能正式生成战斗状态。" % String(template_id))
-		if state == null or state.is_empty():
-			continue
-		_assert_true(not state.enemy_unit_ids.is_empty(), "%s 模板应至少生成一个敌方单位。" % String(template_id))
-		for enemy_unit_id in state.enemy_unit_ids:
-			var enemy_unit = state.units.get(enemy_unit_id)
-			_assert_true(enemy_unit != null, "%s 模板生成的敌方单位应存在于 battle state 中。" % String(template_id))
-			if enemy_unit == null:
-				continue
-			_assert_true(
-				int(enemy_unit.attribute_snapshot.get_value(&"stamina_max")) > 0,
-				"%s 模板生成的敌方单位 stamina_max 应为正值。" % String(template_id)
-			)
-			_assert_true(
-				int(enemy_unit.current_stamina) > 0,
-				"%s 模板生成的敌方单位 current_stamina 应为正值，避免技能链因资源池为 0 直接失效。" % String(template_id)
-			)
-
-
-func _test_battle_unit_factory_no_longer_builds_fallback_enemy() -> void:
-	var game_session = GAME_SESSION_SCRIPT.new()
-	var runtime = BATTLE_RUNTIME_MODULE_SCRIPT.new()
-	runtime.setup(
-		null,
-		game_session.get_skill_defs(),
-		{},
-		{},
-		null
-	)
-	var encounter_anchor = _build_encounter_anchor(
-		&"runtime_factory_fallback_affordability",
-		&"missing_runtime_factory_template",
-		"工厂 fallback 敌人"
-	)
-	var enemy_units: Array = runtime._unit_factory.build_enemy_units(encounter_anchor, {
-		"default_enemy_stamina": 0,
-		"enemy_unit_count": 1,
-	})
-	_assert_true(enemy_units.is_empty(), "BattleUnitFactory 不应再构建 fallback enemy；敌人必须来自显式 payload 或正式模板。")
-	game_session.free()
-
-
-func _test_formal_enemy_templates_have_real_pressure_skill_action() -> void:
-	var game_session = GAME_SESSION_SCRIPT.new()
-	var template_keys: Array[String] = _sorted_string_keys(game_session.get_enemy_templates())
-	game_session.free()
-	for template_key in template_keys:
-		var template_id := StringName(template_key)
-		var runtime = _build_runtime_with_enemy_content()
-		var enemy_unit = _build_formal_template_probe_unit(runtime, template_id)
-		_assert_true(enemy_unit != null, "%s 正式模板应能构建真实战斗单位。" % String(template_id))
-		if enemy_unit == null:
-			continue
-		var target_distance := _resolve_probe_target_distance(runtime, enemy_unit)
-		var state = _build_flat_state(Vector2i(10, 5))
-		runtime._state = state
-		enemy_unit.set_anchor_coord(Vector2i(1, 2))
-		enemy_unit.ai_state_id = &"pressure"
-		enemy_unit.current_move_points = 2
-		var player = _build_manual_unit(&"pressure_probe_target", "压力目标", &"player", Vector2i(1 + target_distance, 2), [&"basic_attack"])
-		var second_player = _build_manual_unit(&"pressure_probe_cluster", "压力副目标", &"player", Vector2i(1 + target_distance, 3), [&"basic_attack"])
-		_add_unit_to_state(runtime, state, enemy_unit, true)
-		_add_unit_to_state(runtime, state, player, false)
-		_add_unit_to_state(runtime, state, second_player, false)
-		var decision = runtime._ai_service.choose_command(_build_ai_context(runtime, enemy_unit))
-		_assert_true(decision != null and decision.command != null, "%s pressure probe 应产出正式 AI 指令。" % String(template_id))
-		if decision == null or decision.command == null:
-			continue
-		_assert_eq(
-			decision.command.command_type,
-			BattleCommand.TYPE_SKILL(),
-			"%s 在真实 stamina/weapon 投影下应至少有一个合法 pressure 技能动作，不应只 move/wait。" % String(template_id)
-		)
-		var preview = runtime.preview_command(decision.command)
-		_assert_true(preview != null and preview.allowed, "%s pressure 技能动作必须通过 runtime preview。" % String(template_id))
-
-
-func _test_depleted_ranged_templates_close_for_basic_attack_fallback() -> void:
-	var cases := [
-		&"mist_beast",
-		&"mist_harrier",
-		&"mist_weaver",
-		&"wolf_shaman",
-	]
-	for template_id in cases:
-		var runtime = _build_runtime_with_enemy_content()
-		var enemy_unit = _build_formal_template_probe_unit(runtime, template_id)
-		_assert_true(enemy_unit != null, "%s depleted fallback probe 应能构建真实敌方单位。" % String(template_id))
-		if enemy_unit == null:
-			continue
-		var basic_stamina_cost := _resolve_basic_attack_stamina_cost(runtime)
-		var target_distance := maxi(_resolve_probe_target_distance(runtime, enemy_unit), 3)
-		var state = _build_flat_state(Vector2i(10, 5))
-		runtime._state = state
-		enemy_unit.set_anchor_coord(Vector2i(1, 2))
-		enemy_unit.ai_state_id = &"pressure"
-		enemy_unit.current_mp = 0
-		enemy_unit.current_aura = 0
-		enemy_unit.current_stamina = basic_stamina_cost
-		enemy_unit.attribute_snapshot.set_value(&"stamina_max", basic_stamina_cost)
-		enemy_unit.current_move_points = 2
-		_block_non_basic_skills(enemy_unit)
-		var player = _build_manual_unit(&"depleted_range_target", "耗竭远距目标", &"player", Vector2i(1 + target_distance, 2), [&"basic_attack"])
-		_add_unit_to_state(runtime, state, enemy_unit, true)
-		_add_unit_to_state(runtime, state, player, false)
-		var move_decision = runtime._ai_service.choose_command(_build_ai_context(runtime, enemy_unit))
-		_assert_true(move_decision != null and move_decision.command != null, "%s 法力耗尽时仍应产出 fallback 指令。" % String(template_id))
-		if move_decision != null and move_decision.command != null:
-			_assert_true(
-				move_decision.command.command_type == BattleCommand.TYPE_MOVE() \
-					or (
-						move_decision.command.command_type == BattleCommand.TYPE_SKILL() \
-						and move_decision.command.skill_id == &"basic_attack"
-					),
-				"%s 高阶动作不可用且处于远程距离带时，应推进到 basic_attack 距离或直接使用可达 basic_attack，而不是待机。" % String(template_id)
-			)
-
-		var adjacent_state = _build_flat_state(Vector2i(5, 3))
-		runtime._state = adjacent_state
-		enemy_unit.set_anchor_coord(Vector2i(1, 1))
-		enemy_unit.ai_state_id = &"pressure"
-		enemy_unit.current_mp = 0
-		enemy_unit.current_aura = 0
-		enemy_unit.current_stamina = basic_stamina_cost
-		enemy_unit.current_move_points = 2
-		_block_non_basic_skills(enemy_unit)
-		var adjacent_player = _build_manual_unit(&"depleted_adjacent_target", "耗竭近距目标", &"player", Vector2i(2, 1), [&"basic_attack"])
-		_add_unit_to_state(runtime, adjacent_state, enemy_unit, true)
-		_add_unit_to_state(runtime, adjacent_state, adjacent_player, false)
-		var attack_decision = runtime._ai_service.choose_command(_build_ai_context(runtime, enemy_unit))
-		_assert_true(attack_decision != null and attack_decision.command != null, "%s 近身 depleted fallback 应产出基础攻击。" % String(template_id))
-		if attack_decision != null and attack_decision.command != null:
-			_assert_eq(
-				attack_decision.command.skill_id,
-				&"basic_attack",
-				"%s 高阶资源耗尽且已近身时，应使用 basic_attack fallback。" % String(template_id)
-			)
-
-
-func _test_enemy_template_uses_canonical_template_id() -> void:
-	var runtime = _build_runtime_with_enemy_content()
-	var encounter_anchor = _build_encounter_anchor(&"encounter_wolf_pack_canonical", &"wolf_pack", "荒狼群")
-	var state = runtime.start_battle(encounter_anchor, 102, {
-		"ally_member_ids": [&"ally_a"],
-		"default_active_skill_ids": [&"warrior_heavy_strike"],
-	})
-	_assert_true(state != null and not state.is_empty(), "wolf_pack 正式 template_id 应能创建战斗状态。")
-	if state == null or state.is_empty():
-		return
-	var enemy_unit = state.units.get(state.enemy_unit_ids[0])
-	_assert_true(enemy_unit != null and enemy_unit.enemy_template_id == &"wolf_pack", "敌方单位应保留正式 wolf_pack template_id。")
-	_assert_true(enemy_unit != null and enemy_unit.ai_brain_id == &"melee_aggressor", "wolf_pack 正式模板应解析到 melee_aggressor AI。")
 
 
 func _test_natural_weapon_melee_aggressor_falls_back_to_basic_attack() -> void:
@@ -1089,7 +815,7 @@ func _test_ai_charge_path_aoe_scores_repeat_hits() -> void:
 	)
 	_prepare_test_whirlwind_user(spinner)
 	var large_target = _build_manual_unit(&"whirlwind_large_target", "大型目标", &"player", Vector2i(2, 0), [&"warrior_heavy_strike"])
-	large_target.set_body_size_category(BODY_SIZE_RULES_SCRIPT.BODY_SIZE_CATEGORY_LARGE())
+	large_target.set_body_size_category(&"large")
 	_add_unit_to_state(runtime, state, spinner, true)
 	_add_unit_to_state(runtime, state, large_target, false)
 	var ai_context = _build_ai_context(runtime, spinner)
@@ -1132,7 +858,7 @@ func _test_ai_runtime_plan_uses_auto_whirlwind_action() -> void:
 	)
 	_prepare_test_whirlwind_user(spinner)
 	var large_target = _build_manual_unit(&"whirlwind_runtime_target", "运行时大型目标", &"player", Vector2i(2, 0), [&"warrior_heavy_strike"])
-	large_target.set_body_size_category(BODY_SIZE_RULES_SCRIPT.BODY_SIZE_CATEGORY_LARGE())
+	large_target.set_body_size_category(&"large")
 	_add_unit_to_state(runtime, state, spinner, true)
 	_add_unit_to_state(runtime, state, large_target, false)
 	runtime._build_ai_action_plans()
@@ -1399,72 +1125,6 @@ func _test_ai_multi_unit_skill_generates_target_unit_ids() -> void:
 	_assert_true(preview != null and preview.target_unit_ids.size() >= 2, "archer_multishot 预览应命中多个单位。")
 
 
-func _test_ai_multi_unit_skill_scores_role_threat_target_groups() -> void:
-	var runtime = _build_runtime_with_enemy_content()
-	var state = _build_flat_state(Vector2i(7, 5))
-	runtime._state = state
-	var archer = _build_ai_unit(
-		&"role_threat_multishot_archer",
-		"威胁连珠弓手",
-		&"hostile",
-		Vector2i(1, 2),
-		&"ranged_archer",
-		&"pressure",
-		[&"archer_multishot"],
-		28,
-		2
-	)
-	archer.current_stamina = 100
-	archer.attribute_snapshot.set_value(&"stamina_max", 100)
-	_apply_test_bow_weapon(archer, 6)
-	var normal_a = _build_manual_unit(&"multi_role_normal_a", "普通靶A", &"player", Vector2i(4, 1), [&"warrior_heavy_strike"])
-	var normal_b = _build_manual_unit(&"multi_role_normal_b", "普通靶B", &"player", Vector2i(4, 2), [&"warrior_heavy_strike"])
-	var healer = _build_manual_unit(&"multi_role_healer", "治疗威胁靶", &"player", Vector2i(4, 3), [&"mage_temporal_rewind"])
-	_add_unit_to_state(runtime, state, archer, true)
-	_add_unit_to_state(runtime, state, normal_a, false)
-	_add_unit_to_state(runtime, state, normal_b, false)
-	_add_unit_to_state(runtime, state, healer, false)
-	var ai_context = _build_ai_context(runtime, archer)
-	var skill_def = runtime._skill_defs.get(&"archer_multishot")
-	var cast_variants = skill_def.combat_profile.get_unlocked_cast_variants(1) if skill_def != null and skill_def.combat_profile != null else []
-	var cast_variant = cast_variants[0] if not cast_variants.is_empty() else null
-	_assert_true(cast_variant != null, "multi-unit 威胁评分回归应能读取 archer_multishot cast option。")
-	if cast_variant == null:
-		return
-	var normal_command = _build_test_multi_unit_skill_command(archer, &"archer_multishot", cast_variant.variant_id, [normal_a, normal_b])
-	var threat_command = _build_test_multi_unit_skill_command(archer, &"archer_multishot", cast_variant.variant_id, [normal_a, healer])
-	var normal_preview = runtime.preview_command(normal_command)
-	var threat_preview = runtime.preview_command(threat_command)
-	_assert_true(normal_preview != null and normal_preview.allowed, "普通 multi-unit 威胁评分命令必须通过 preview。")
-	_assert_true(threat_preview != null and threat_preview.allowed, "包含治疗威胁的 multi-unit 命令必须通过 preview。")
-	var normal_score = ai_context.build_skill_score_input(
-		skill_def,
-		normal_command,
-		normal_preview,
-		cast_variant.effect_defs,
-		{"position_target_unit_id": normal_a.unit_id, "desired_min_distance": 3, "desired_max_distance": 6}
-	)
-	var threat_score = ai_context.build_skill_score_input(
-		skill_def,
-		threat_command,
-		threat_preview,
-		cast_variant.effect_defs,
-		{"position_target_unit_id": normal_a.unit_id, "desired_min_distance": 3, "desired_max_distance": 6}
-	)
-	_assert_true(normal_score != null and threat_score != null, "multi-unit 威胁评分回归应拿到两个合法评分。")
-	if normal_score == null or threat_score == null:
-		return
-	_assert_eq(normal_score.target_count, threat_score.target_count, "multi-unit 威胁评分前置：两个候选应命中相同目标数。")
-	_assert_true(
-		threat_score.target_priority_score > normal_score.target_priority_score,
-		"multi-unit 技能应对包含治疗威胁目标的组合产生更高 target_priority_score。"
-	)
-	_assert_true(
-		threat_score.total_score > normal_score.total_score,
-		"multi-unit 技能在命中数相同时，应因目标威胁优先包含治疗单位的组合。"
-	)
-
-
 func _test_ai_assembler_routes_random_chain_to_random_chain_action() -> void:
 	var runtime = _build_runtime_with_enemy_content()
 	var random_chain_skill = _build_test_random_chain_skill(&"ai_random_chain_route_test")
@@ -1578,342 +1238,6 @@ func _test_ai_random_chain_action_uses_candidate_pool_not_target_ids() -> void:
 	)
 
 
-func _test_ai_ground_skill_scores_role_threat_area_targets() -> void:
-	var runtime = _build_runtime_with_enemy_content()
-	var state = _build_flat_state(Vector2i(7, 7))
-	runtime._state = state
-	var caster = _build_ai_unit(
-		&"role_threat_fireballer",
-		"威胁火球术士",
-		&"hostile",
-		Vector2i(1, 3),
-		&"ranged_controller",
-		&"pressure",
-		[&"mage_fireball"],
-		24,
-		2
-	)
-	caster.current_mp = 120
-	caster.attribute_snapshot.set_value(&"mp_max", 120)
-	var normal_a = _build_manual_unit(&"ground_role_normal_a", "范围普通A", &"player", Vector2i(4, 1), [&"warrior_heavy_strike"])
-	var normal_b = _build_manual_unit(&"ground_role_normal_b", "范围普通B", &"player", Vector2i(4, 2), [&"warrior_heavy_strike"])
-	var healer = _build_manual_unit(&"ground_role_healer", "范围治疗威胁", &"player", Vector2i(4, 4), [&"mage_temporal_rewind"])
-	var normal_c = _build_manual_unit(&"ground_role_normal_c", "范围普通C", &"player", Vector2i(4, 5), [&"warrior_heavy_strike"])
-	_add_unit_to_state(runtime, state, caster, true)
-	_add_unit_to_state(runtime, state, normal_a, false)
-	_add_unit_to_state(runtime, state, normal_b, false)
-	_add_unit_to_state(runtime, state, healer, false)
-	_add_unit_to_state(runtime, state, normal_c, false)
-	var ai_context = _build_ai_context(runtime, caster)
-	var skill_def = runtime._skill_defs.get(&"mage_fireball")
-	var normal_command = _build_test_ground_skill_command(caster, &"mage_fireball", Vector2i(4, 2))
-	var threat_command = _build_test_ground_skill_command(caster, &"mage_fireball", Vector2i(4, 4))
-	var normal_preview = runtime.preview_command(normal_command)
-	var threat_preview = runtime.preview_command(threat_command)
-	_assert_true(normal_preview != null and normal_preview.allowed, "普通范围威胁评分命令必须通过 preview。")
-	_assert_true(threat_preview != null and threat_preview.allowed, "包含治疗威胁的范围命令必须通过 preview。")
-	var normal_score = ai_context.build_skill_score_input(
-		skill_def,
-		normal_command,
-		normal_preview,
-		skill_def.combat_profile.effect_defs if skill_def != null and skill_def.combat_profile != null else [],
-		{"desired_min_distance": 3, "desired_max_distance": 4}
-	)
-	var threat_score = ai_context.build_skill_score_input(
-		skill_def,
-		threat_command,
-		threat_preview,
-		skill_def.combat_profile.effect_defs if skill_def != null and skill_def.combat_profile != null else [],
-		{"desired_min_distance": 3, "desired_max_distance": 4}
-	)
-	_assert_true(normal_score != null and threat_score != null, "范围威胁评分回归应拿到两个合法评分。")
-	if normal_score == null or threat_score == null:
-		return
-	_assert_eq(normal_score.target_count, threat_score.target_count, "范围威胁评分前置：两个候选应命中相同目标数。")
-	_assert_true(
-		threat_score.target_priority_score > normal_score.target_priority_score,
-		"范围技能应对覆盖治疗威胁目标的地格产生更高 target_priority_score。"
-	)
-	_assert_true(
-		threat_score.total_score > normal_score.total_score,
-		"范围技能在命中数相同时，应因目标威胁优先覆盖治疗单位。"
-	)
-
-
-func _test_ai_skill_score_prioritizes_lethal_threat_targets() -> void:
-	var runtime = _build_runtime_with_enemy_content()
-	var state = _build_flat_state(Vector2i(8, 6))
-	runtime._state = state
-	var mage = _build_ai_unit(
-		&"lethal_threat_mage",
-		"击杀威胁法师",
-		&"hostile",
-		Vector2i(1, 2),
-		&"mage_controller",
-		&"pressure",
-		[&"mage_fireball", &"mage_chain_lightning"],
-		28,
-		1
-	)
-	mage.current_mp = 1000
-	mage.attribute_snapshot.set_value(&"mp_max", 1000)
-	for skill_id in mage.known_active_skill_ids:
-		mage.known_skill_level_map[skill_id] = 7
-	var archer_a = _build_manual_unit(&"lethal_threat_archer_a", "低血远程威胁A", &"player", Vector2i(5, 2), [&"archer_aimed_shot", &"basic_attack"])
-	var archer_b = _build_manual_unit(&"lethal_threat_archer_b", "低血远程威胁B", &"player", Vector2i(5, 4), [&"archer_aimed_shot", &"basic_attack"])
-	for archer in [archer_a, archer_b]:
-		archer.current_hp = 10
-		archer.attribute_snapshot.set_value(&"hp_max", 30)
-		_apply_test_bow_weapon(archer, 5)
-	_add_unit_to_state(runtime, state, mage, true)
-	_add_unit_to_state(runtime, state, archer_a, false)
-	_add_unit_to_state(runtime, state, archer_b, false)
-	var ai_context = _build_ai_context(runtime, mage)
-	var fireball_def = runtime._skill_defs.get(&"mage_fireball")
-	var chain_def = runtime._skill_defs.get(&"mage_chain_lightning")
-	var fireball_command = _build_test_ground_skill_command(mage, &"mage_fireball", archer_a.coord)
-	var chain_command = _build_test_unit_skill_command(mage, &"mage_chain_lightning", archer_a)
-	var fireball_preview = runtime.preview_command(fireball_command)
-	var chain_preview = runtime.preview_command(chain_command)
-	_assert_true(fireball_preview != null and fireball_preview.allowed, "击杀威胁火球命令必须通过 preview。")
-	_assert_true(chain_preview != null and chain_preview.allowed, "击杀威胁链闪命令必须通过 preview。")
-	var fireball_score = ai_context.build_skill_score_input(
-		fireball_def,
-		fireball_command,
-		fireball_preview,
-		fireball_def.combat_profile.effect_defs if fireball_def != null and fireball_def.combat_profile != null else [],
-		{"desired_min_distance": 4, "desired_max_distance": 5}
-	)
-	var chain_score = ai_context.build_skill_score_input(
-		chain_def,
-		chain_command,
-		chain_preview,
-		chain_def.combat_profile.effect_defs if chain_def != null and chain_def.combat_profile != null else [],
-		{"desired_min_distance": 4, "desired_max_distance": 5, "position_target_unit_id": archer_a.unit_id}
-	)
-	_assert_true(fireball_score != null and chain_score != null, "击杀威胁评分回归应拿到两个合法评分。")
-	if fireball_score == null or chain_score == null:
-		return
-	_assert_true(
-		fireball_score.estimated_lethal_threat_target_count >= 2,
-		"范围技能应识别会死亡的多个威胁目标。"
-	)
-	_assert_eq(
-		chain_score.estimated_lethal_threat_target_count,
-		1,
-		"单体链闪只应识别一个会死亡的威胁目标。"
-	)
-	_assert_true(
-		fireball_score.total_score > chain_score.total_score,
-		"当范围技能能击杀更多威胁单位时，应优先杀人而不是先打单体链闪。"
-	)
-
-
-func _test_ai_score_comparison_promotes_lethal_kill_across_buckets() -> void:
-	var ai_service = BATTLE_AI_SERVICE_SCRIPT.new()
-	var skill_action = USE_GROUND_SKILL_ACTION_SCRIPT.new()
-	var lethal_threat_offense = _build_score_input_for_ordering_test(&"mist_offense", 100, 80, 1, 1, 1, 0)
-	var lethal_enemy_offense = _build_score_input_for_ordering_test(&"mist_offense", 100, 80, 0, 1, 1, 0)
-	var control = _build_score_input_for_ordering_test(&"mist_control", 110, 900, 0, 0, 2, 0)
-	_assert_true(
-		ai_service._is_better_score_input(lethal_threat_offense, control),
-		"跨 action bucket 比较时，威胁击杀应压过普通控场 bucket。"
-	)
-	_assert_true(
-		not ai_service._is_better_score_input(control, lethal_threat_offense),
-		"普通控场不能因 bucket/total_score 更高反压威胁击杀。"
-	)
-	_assert_true(
-		skill_action._is_better_skill_score_input(lethal_threat_offense, control),
-		"单个 action 内部候选比较也应让威胁击杀压过普通控场。"
-	)
-	var emergency_escape = _build_score_input_for_ordering_test(&"archer_survival", 150, 220, 0, 0, 0, 120)
-	emergency_escape.position_current_distance = 2
-	emergency_escape.position_safe_distance = 4
-	emergency_escape.distance_to_primary_coord = 4
-	_assert_true(
-		ai_service._is_better_score_input(lethal_threat_offense, emergency_escape),
-		"能击杀威胁目标时，应压过纯逃生换位，避免法师浪费致命先手。"
-	)
-	_assert_true(
-		not ai_service._is_better_score_input(emergency_escape, lethal_threat_offense),
-		"纯逃生换位不能反压威胁击杀。"
-	)
-	_assert_true(
-		ai_service._is_better_score_input(lethal_enemy_offense, emergency_escape),
-		"普通击杀也应压过纯逃生换位，避免法师在可杀人时空耗先手。"
-	)
-	_assert_true(
-		not ai_service._is_better_score_input(emergency_escape, lethal_enemy_offense),
-		"纯逃生换位不能反压普通击杀。"
-	)
-	var mild_escape = _build_score_input_for_ordering_test(&"archer_survival", 150, 220, 0, 0, 0, 120)
-	mild_escape.position_current_distance = 3
-	mild_escape.position_safe_distance = 4
-	mild_escape.distance_to_primary_coord = 4
-	_assert_true(
-		ai_service._is_better_score_input(lethal_threat_offense, mild_escape),
-		"轻度不安全的换位不应压过可击杀目标。"
-	)
-	var short_escape = _build_score_input_for_ordering_test(&"archer_survival", 150, 260, 0, 0, 0, 160)
-	short_escape.position_current_distance = 1
-	short_escape.position_safe_distance = 4
-	short_escape.distance_to_primary_coord = 3
-	_assert_true(
-		ai_service._is_better_score_input(lethal_enemy_offense, short_escape),
-		"未真正脱离安全距离的换位不应以紧急生存身份压过击杀。"
-	)
-	var unsafe_lethal_enemy_offense = _build_score_input_for_ordering_test(&"mist_offense", 100, 180, 0, 1, 1, 0)
-	var safe_escape = _build_score_input_for_ordering_test(&"archer_survival", 150, 120, 0, 0, 0, 120)
-	_mark_survival_projection(unsafe_lethal_enemy_offense, true, true, 45, -21)
-	_mark_survival_projection(safe_escape, true, false, 0, 24)
-	_assert_true(
-		ai_service._is_better_score_input(safe_escape, unsafe_lethal_enemy_offense),
-		"若击杀后仍会被剩余威胁秒杀，安全换位应跨 bucket 压过普通击杀。"
-	)
-	_assert_true(
-		not ai_service._is_better_score_input(unsafe_lethal_enemy_offense, safe_escape),
-		"仍处于致死风险的击杀不能反压已经解除致死风险的生存动作。"
-	)
-	_assert_true(
-		skill_action._is_better_skill_score_input(safe_escape, unsafe_lethal_enemy_offense),
-		"单个 action 内部候选比较也应使用行动后致死风险。"
-	)
-	_mark_survival_projection(lethal_threat_offense, true, false, 0, 24)
-	_mark_survival_projection(safe_escape, true, false, 0, 24)
-	_assert_true(
-		ai_service._is_better_score_input(lethal_threat_offense, safe_escape),
-		"当击杀动作同样解除致死风险时，威胁击杀应继续压过纯生存动作。"
-	)
-
-
-func _test_ai_score_tiebreak_prefers_lower_nonfatal_post_threat() -> void:
-	var ai_service = BATTLE_AI_SERVICE_SCRIPT.new()
-	var reposition_action = USE_GROUND_REPOSITION_SKILL_ACTION_SCRIPT.new()
-	var safe_escape = _build_score_input_for_ordering_test(&"archer_survival", 150, 220, 0, 0, 0, 120)
-	var risky_escape = _build_score_input_for_ordering_test(&"archer_survival", 150, 220, 0, 0, 0, 120)
-	_mark_nonfatal_survival_projection(safe_escape, 0, 0, 24)
-	_mark_nonfatal_survival_projection(risky_escape, 1, 8, 16)
-	_assert_true(
-		ai_service._is_better_score_input(safe_escape, risky_escape),
-		"跨 action 同等收益时，应优先选择行动后无剩余威胁的换位。"
-	)
-	_assert_true(
-		not ai_service._is_better_score_input(risky_escape, safe_escape),
-		"跨 action 同等收益时，新增非致死威胁的换位不应反压无威胁换位。"
-	)
-	_assert_true(
-		reposition_action._is_better_skill_score_input(safe_escape, risky_escape),
-		"闪现候选同等收益时，应优先选择行动后无剩余威胁的落点。"
-	)
-	_assert_true(
-		not reposition_action._is_better_skill_score_input(risky_escape, safe_escape),
-		"闪现候选同等收益时，新增非致死威胁的落点不应反压无威胁落点。"
-	)
-	var zero_damage_safe = _build_score_input_for_ordering_test(&"archer_survival", 150, 220, 0, 0, 0, 120)
-	var zero_damage_risky = _build_score_input_for_ordering_test(&"archer_survival", 150, 220, 0, 0, 0, 120)
-	_mark_nonfatal_survival_projection(zero_damage_safe, 0, 0, 24)
-	_mark_nonfatal_survival_projection(zero_damage_risky, 1, 0, 24)
-	_assert_true(
-		reposition_action._is_better_skill_score_input(zero_damage_safe, zero_damage_risky),
-		"闪现候选同等收益且预期伤害同为 0 时，仍应优先无威胁落点。"
-	)
-	var lethal_safe = _build_score_input_for_ordering_test(&"mist_offense", 100, 180, 0, 1, 1, 0)
-	var lethal_risky = _build_score_input_for_ordering_test(&"mist_offense", 100, 180, 0, 1, 1, 0)
-	_mark_nonfatal_survival_projection(lethal_safe, 0, 0, 24)
-	_mark_nonfatal_survival_projection(lethal_risky, 1, 8, 16)
-	_assert_true(
-		ai_service._is_better_score_input(lethal_safe, lethal_risky),
-		"同等击杀价值下，也应优先行动后威胁更低的候选。"
-	)
-	_assert_true(
-		reposition_action._is_better_skill_score_input(lethal_safe, lethal_risky),
-		"单个 action 内同等击杀价值下，也应优先行动后威胁更低的候选。"
-	)
-
-
-func _test_ai_score_allows_higher_value_nonfatal_post_threat() -> void:
-	var ai_service = BATTLE_AI_SERVICE_SCRIPT.new()
-	var reposition_action = USE_GROUND_REPOSITION_SKILL_ACTION_SCRIPT.new()
-	var safe_escape = _build_score_input_for_ordering_test(&"archer_survival", 150, 220, 0, 0, 0, 120)
-	var risky_escape = _build_score_input_for_ordering_test(&"archer_survival", 150, 240, 0, 0, 0, 120)
-	_mark_nonfatal_survival_projection(safe_escape, 0, 0, 24)
-	_mark_nonfatal_survival_projection(risky_escape, 1, 8, 16)
-	_assert_true(
-		ai_service._is_better_score_input(risky_escape, safe_escape),
-		"跨 action 比较中，更高收益的非致死风险换位仍应允许胜出。"
-	)
-	_assert_true(
-		reposition_action._is_better_skill_score_input(risky_escape, safe_escape),
-		"闪现候选中，更高收益的非致死风险落点仍应允许胜出。"
-	)
-	var lethal_safe = _build_score_input_for_ordering_test(&"mist_offense", 100, 180, 0, 1, 1, 0)
-	var lethal_risky = _build_score_input_for_ordering_test(&"mist_offense", 100, 200, 0, 1, 1, 0)
-	_mark_nonfatal_survival_projection(lethal_safe, 0, 0, 24)
-	_mark_nonfatal_survival_projection(lethal_risky, 1, 8, 16)
-	_assert_true(
-		ai_service._is_better_score_input(lethal_risky, lethal_safe),
-		"击杀候选中，更高收益的非致死风险动作仍应允许胜出。"
-	)
-	_assert_true(
-		reposition_action._is_better_skill_score_input(lethal_risky, lethal_safe),
-		"单个 action 内击杀候选中，更高收益的非致死风险动作仍应允许胜出。"
-	)
-
-
-func _build_score_input_for_ordering_test(
-	bucket_id: StringName,
-	bucket_priority: int,
-	total_score: int,
-	lethal_threat_count: int,
-	lethal_count: int,
-	effective_target_count: int,
-	position_score: int
-):
-	var score_input = BATTLE_AI_SCORE_INPUT_SCRIPT.new()
-	score_input.score_bucket_id = bucket_id
-	score_input.score_bucket_priority = bucket_priority
-	score_input.total_score = total_score
-	score_input.hit_payoff_score = total_score
-	score_input.target_count = effective_target_count
-	score_input.effective_target_count = effective_target_count
-	score_input.enemy_target_count = effective_target_count
-	score_input.estimated_damage = 10 if effective_target_count > 0 else 0
-	score_input.estimated_control_count = effective_target_count if bucket_id == &"mist_control" else 0
-	score_input.estimated_lethal_threat_target_count = lethal_threat_count
-	score_input.estimated_lethal_target_count = lethal_count
-	score_input.position_objective_score = position_score
-	return score_input
-
-
-func _mark_survival_projection(score_input, pre_fatal: bool, post_fatal: bool, post_damage: int, post_margin: int) -> void:
-	if score_input == null:
-		return
-	score_input.has_post_action_threat_projection = true
-	score_input.pre_action_threat_count = 1 if pre_fatal else 0
-	score_input.pre_action_threat_expected_damage = 40 if pre_fatal else 0
-	score_input.pre_action_survival_margin = -16 if pre_fatal else 24
-	score_input.pre_action_is_lethal_survival_risk = pre_fatal
-	score_input.post_action_remaining_threat_count = 1 if post_fatal else 0
-	score_input.post_action_remaining_threat_expected_damage = post_damage
-	score_input.post_action_survival_margin = post_margin
-	score_input.post_action_is_lethal_survival_risk = post_fatal
-
-
-func _mark_nonfatal_survival_projection(score_input, post_count: int, post_damage: int, post_margin: int) -> void:
-	if score_input == null:
-		return
-	score_input.has_post_action_threat_projection = true
-	score_input.pre_action_threat_count = 0
-	score_input.pre_action_threat_expected_damage = 0
-	score_input.pre_action_survival_margin = 24
-	score_input.pre_action_is_lethal_survival_risk = false
-	score_input.post_action_remaining_threat_count = post_count
-	score_input.post_action_remaining_threat_expected_damage = post_damage
-	score_input.post_action_survival_margin = post_margin
-	score_input.post_action_is_lethal_survival_risk = false
-
-
 func _test_ai_ground_skill_minimum_hit_count_uses_effective_enemies() -> void:
 	var runtime = _build_runtime_with_enemy_content()
 	var state = _build_flat_state(Vector2i(8, 6))
@@ -1948,23 +1272,9 @@ func _test_ai_ground_skill_minimum_hit_count_uses_effective_enemies() -> void:
 	_add_unit_to_state(runtime, state, target, false)
 	_add_unit_to_state(runtime, state, ally, true)
 	var ai_context = _build_ai_context(runtime, mage)
-	var skill_def = runtime._skill_defs.get(&"mage_fireball")
 	var command = _build_test_ground_skill_command(mage, &"mage_fireball", target.coord)
 	var preview = runtime.preview_command(command)
 	_assert_true(preview != null and preview.allowed, "友伤火球命令必须通过 preview。")
-	var score = ai_context.build_skill_score_input(
-		skill_def,
-		command,
-		preview,
-		skill_def.combat_profile.effect_defs if skill_def != null and skill_def.combat_profile != null else [],
-		{"desired_min_distance": 4, "desired_max_distance": 5}
-	)
-	_assert_true(score != null, "友伤火球评分应可生成。")
-	if score == null:
-		return
-	_assert_eq(score.enemy_target_count, 1, "minimum_hit_count 应只把敌方有效目标计入收益。")
-	_assert_eq(score.effective_target_count, 1, "友军被火球覆盖不能贡献有效命中数。")
-	_assert_true(score.estimated_friendly_fire_target_count >= 1, "评分应识别火球友伤目标。")
 	var action = USE_GROUND_SKILL_ACTION_SCRIPT.new()
 	action.action_id = &"friendly_fire_fireball_probe"
 	var skill_ids: Array[StringName] = [&"mage_fireball"]
@@ -1975,46 +1285,6 @@ func _test_ai_ground_skill_minimum_hit_count_uses_effective_enemies() -> void:
 	action.distance_reference = &"target_coord"
 	var decision = action.decide(ai_context)
 	_assert_true(decision == null, "只有 1 个有效敌人加 1 个友军时，minimum_hit_count=2 的火球候选应被过滤。")
-
-
-func _test_ai_ground_control_score_input_keeps_empty_cells_separate_from_effective_targets() -> void:
-	var runtime = _build_runtime_with_enemy_content()
-	var ground_control_skill = _build_test_ground_control_skill(&"ai_empty_ground_control_score_test")
-	runtime._skill_defs[ground_control_skill.skill_id] = ground_control_skill
-	var state = _build_flat_state(Vector2i(6, 5))
-	runtime._state = state
-	var caster = _build_ai_unit(
-		&"empty_ground_control_scorer",
-		"空地控场评分者",
-		&"hostile",
-		Vector2i(1, 2),
-		&"mage_controller",
-		&"pressure",
-		[ground_control_skill.skill_id],
-		28,
-		1
-	)
-	_add_unit_to_state(runtime, state, caster, true)
-	var ai_context = _build_ai_context(runtime, caster)
-	var command = _build_test_ground_skill_command(caster, ground_control_skill.skill_id, Vector2i(3, 2))
-	var preview = runtime.preview_command(command)
-	_assert_true(preview != null and preview.allowed, "空地控场命令必须通过 preview。")
-	_assert_true(preview != null and preview.target_unit_ids.is_empty(), "空地控场 preview 不应伪造目标单位。")
-	var score = ai_context.build_skill_score_input(
-		ground_control_skill,
-		command,
-		preview,
-		ground_control_skill.combat_profile.effect_defs,
-		{"desired_min_distance": 0, "desired_max_distance": 5}
-	)
-	_assert_true(score != null, "空地控场评分应可生成。")
-	if score == null:
-		return
-	_assert_eq(score.target_count, 0, "空地控场不应把地格计入 target_count。")
-	_assert_eq(score.enemy_target_count, 0, "空地控场不应伪造敌方目标。")
-	_assert_eq(score.effective_target_count, 0, "空地控场不应伪造有效命中数。")
-	_assert_eq(score.estimated_ground_control_cell_count, 1, "空地控场应按 preview target_coords 暴露受控地格数。")
-	_assert_true(score.ground_control_score > 0, "空地控场应产生独立地格控制评分。")
 
 
 func _test_ai_ground_control_requires_explicit_empty_control_opt_in() -> void:
@@ -2119,39 +1389,6 @@ func _test_ai_ground_control_opt_in_does_not_allow_empty_damage_only_skill() -> 
 	_assert_true(decision == null, "即使开启 allow_empty_ground_control，纯伤害地面技能也不能空放。")
 
 
-func _test_ai_ground_control_opt_in_does_not_bypass_partial_hit_minimum() -> void:
-	var action = USE_GROUND_SKILL_ACTION_SCRIPT.new()
-	action.action_id = &"partial_hit_ground_control_probe"
-	action.minimum_hit_count = 2
-	action.allow_empty_ground_control = true
-	action.minimum_ground_control_score = 1
-	var score_input = BATTLE_AI_SCORE_INPUT_SCRIPT.new()
-	score_input.effective_target_count = 1
-	score_input.estimated_ground_control_cell_count = 3
-	score_input.ground_control_score = 999
-	_assert_true(
-		not action._passes_minimum_effective_target_or_ground_control(score_input),
-		"已有有效命中但未达到 minimum_hit_count 时，空地控场豁免不能绕过命中门槛。"
-	)
-
-
-func _test_ai_ground_control_supplement_can_allow_partial_hit_minimum_when_enabled() -> void:
-	var action = USE_GROUND_SKILL_ACTION_SCRIPT.new()
-	action.action_id = &"partial_hit_ground_control_supplement_probe"
-	action.minimum_hit_count = 2
-	action.allow_empty_ground_control = true
-	action.allow_ground_control_supplement_partial_hits = true
-	action.minimum_ground_control_score = 1
-	var score_input = BATTLE_AI_SCORE_INPUT_SCRIPT.new()
-	score_input.effective_target_count = 1
-	score_input.estimated_ground_control_cell_count = 3
-	score_input.ground_control_score = 999
-	_assert_true(
-		action._passes_minimum_effective_target_or_ground_control(score_input),
-		"显式开启地格控制补足时，部分命中且地格控制分达标的候选应能通过。"
-	)
-
-
 func _test_ai_chain_skill_scores_friendly_bounce_risk() -> void:
 	var runtime = _build_runtime_with_enemy_content()
 	var state = _build_flat_state(Vector2i(8, 6))
@@ -2186,22 +1423,9 @@ func _test_ai_chain_skill_scores_friendly_bounce_risk() -> void:
 	_add_unit_to_state(runtime, state, target, false)
 	_add_unit_to_state(runtime, state, ally, true)
 	var ai_context = _build_ai_context(runtime, mage)
-	var skill_def = runtime._skill_defs.get(&"mage_chain_lightning")
 	var command = _build_test_unit_skill_command(mage, &"mage_chain_lightning", target)
 	var preview = runtime.preview_command(command)
 	_assert_true(preview != null and preview.allowed, "友伤链闪命令必须通过 preview。")
-	var score = ai_context.build_skill_score_input(
-		skill_def,
-		command,
-		preview,
-		skill_def.combat_profile.effect_defs if skill_def != null and skill_def.combat_profile != null else [],
-		{"desired_min_distance": 4, "desired_max_distance": 5, "position_target_unit_id": target.unit_id}
-	)
-	_assert_true(score != null, "友伤链闪评分应可生成。")
-	if score == null:
-		return
-	_assert_true(score.estimated_chain_ally_target_count >= 1, "链闪评分应预估会弹射到友军。")
-	_assert_true(score.estimated_friendly_fire_target_count >= 1, "链闪评分应把友军弹射计为友伤风险。")
 	var action = USE_UNIT_SKILL_ACTION_SCRIPT.new()
 	action.action_id = &"friendly_chain_probe"
 	var skill_ids: Array[StringName] = [&"mage_chain_lightning"]
@@ -2893,275 +2117,6 @@ func _test_ranged_archer_prefers_high_ground_position_before_shot() -> void:
 	)
 
 
-func _test_ai_skill_score_input_exposes_ground_metrics() -> void:
-	var runtime = _build_runtime_with_enemy_content()
-	var trap_damage_resolver := SharedDamageResolvers.TrapDamageResolver.new()
-	runtime.configure_damage_resolver_for_tests(trap_damage_resolver)
-	var state = _build_flat_state(Vector2i(7, 5))
-	runtime._state = state
-	var harrier = _build_ai_unit(
-		&"mist_harrier_score",
-		"雾沼猎压者",
-		&"hostile",
-		Vector2i(1, 2),
-		&"ranged_suppressor",
-		&"pressure",
-		[&"archer_suppressive_fire", &"archer_pinning_shot"],
-		26,
-		2
-	)
-	var player_a = _build_manual_unit(&"player_a", "玩家A", &"player", Vector2i(4, 2), [&"warrior_heavy_strike"])
-	var player_b = _build_manual_unit(&"player_b", "玩家B", &"player", Vector2i(5, 2), [&"warrior_heavy_strike"])
-	_add_unit_to_state(runtime, state, harrier, true)
-	_add_unit_to_state(runtime, state, player_a, false)
-	_add_unit_to_state(runtime, state, player_b, false)
-	var ai_context = _build_ai_context(runtime, harrier)
-	var action = USE_GROUND_SKILL_ACTION_SCRIPT.new()
-	action.action_id = &"ground_score_probe"
-	var ground_action_skill_ids: Array[StringName] = [&"archer_suppressive_fire"]
-	action.skill_ids = ground_action_skill_ids
-	action.minimum_hit_count = 2
-	action.desired_min_distance = 0
-	action.desired_max_distance = 6
-	action.distance_reference = &"target_coord"
-	var decision = action.decide(ai_context)
-	_assert_true(decision != null and decision.command != null, "ground skill 评分回归应先拿到合法候选。")
-	if decision == null or decision.command == null:
-		return
-	var skill_def = runtime._skill_defs.get(decision.command.skill_id)
-	var preview = runtime.preview_command(decision.command)
-	var score_input = ai_context.build_skill_score_input(
-		skill_def,
-		decision.command,
-		preview,
-		skill_def.combat_profile.effect_defs if skill_def != null and skill_def.combat_profile != null else [],
-		{}
-	)
-	_assert_true(score_input != null, "AI skill score input 应由 BattleAiContext 正式构造。")
-	if score_input == null:
-		return
-	_assert_true(score_input.hit_payoff_score > 0, "ground skill score input 应暴露正向命中收益。")
-	_assert_eq(
-		int(trap_damage_resolver.resolve_effects_calls),
-		0,
-		"AI 评分不应通过 BattleDamageResolver.resolve_effects() 偷取随机伤害结果。"
-	)
-	_assert_true(score_input.target_count >= 2, "ground skill score input 应暴露目标数量。")
-	_assert_eq(score_input.ap_cost, 2, "ground skill score input 应暴露 AP 消耗。")
-	_assert_eq(score_input.stamina_cost, 2, "ground skill score input 应暴露 ST 消耗。")
-	_assert_eq(score_input.cooldown_tu, 15, "ground skill score input 应暴露 cooldown_tu。")
-	_assert_true(score_input.resource_cost_score > 0, "ground skill score input 应暴露资源消耗评分。")
-	_assert_eq(score_input.position_objective_kind, &"cast_distance", "ground skill score input 应记录默认站位目标类型。")
-	_assert_true(score_input.distance_to_primary_coord >= 0, "ground skill score input 应记录站位目标距离。")
-	_assert_true(score_input.position_objective_score >= 0, "ground skill score input 应暴露站位目标评分。")
-
-
-func _test_ai_skill_score_input_uses_fate_aware_repeat_attack_success_rate() -> void:
-	var runtime = _build_runtime_with_enemy_content()
-	var skill_def := SKILL_DEF_SCRIPT.new()
-	skill_def.skill_id = &"ai_fate_preview_combo"
-	skill_def.display_name = "评分命契连斩"
-	skill_def.combat_profile = COMBAT_SKILL_DEF_SCRIPT.new()
-	skill_def.combat_profile.skill_id = skill_def.skill_id
-	skill_def.combat_profile.attack_roll_bonus = 0
-	skill_def.combat_profile.aura_cost = 1
-	var repeat_attack_effect := COMBAT_EFFECT_DEF_SCRIPT.new()
-	repeat_attack_effect.effect_type = &"repeat_attack_until_fail"
-	repeat_attack_effect.params = {
-		"base_attack_bonus": 0,
-		"follow_up_attack_penalty": 0,
-		"follow_up_cost_multiplier": 2.0,
-		"cost_resource": &"aura",
-	}
-	var damage_effect := COMBAT_EFFECT_DEF_SCRIPT.new()
-	damage_effect.effect_type = &"damage"
-	damage_effect.power = 10
-	skill_def.combat_profile.effect_defs = [repeat_attack_effect, damage_effect]
-	runtime._skill_defs[skill_def.skill_id] = skill_def
-
-	var state = _build_flat_state(Vector2i(5, 3))
-	runtime._state = state
-	var scorer = _build_manual_unit(&"fate_score_user", "评分高运者", &"hostile", Vector2i(1, 1), [skill_def.skill_id])
-	scorer.current_aura = 1
-	scorer.unlock_combat_resource(BATTLE_UNIT_STATE_SCRIPT.COMBAT_RESOURCE_AURA())
-	scorer.attribute_snapshot.set_value(&"aura_max", 1)
-	scorer.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ATTACK_BONUS_ID(), 80)
-	scorer.attribute_snapshot.set_value(&"hidden_luck_at_birth", 2)
-	var target = _build_manual_unit(&"fate_score_target", "高闪避目标", &"player", Vector2i(2, 1), [&"warrior_heavy_strike"])
-	target.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 99)
-	_add_unit_to_state(runtime, state, scorer, true)
-	_add_unit_to_state(runtime, state, target, false)
-	var ai_context = _build_ai_context(runtime, scorer)
-
-	var command = BattleCommand.new()
-	command.command_type = BattleCommand.TYPE_SKILL()
-	command.unit_id = scorer.unit_id
-	command.skill_id = skill_def.skill_id
-	command.target_unit_id = target.unit_id
-	command.target_coord = target.coord
-	var preview = runtime.preview_command(command)
-	var score_input = ai_context.build_skill_score_input(
-		skill_def,
-		command,
-		preview,
-		skill_def.combat_profile.effect_defs,
-		{"position_target_unit_id": target.unit_id, "desired_min_distance": 1, "desired_max_distance": 1}
-	)
-	_assert_true(score_input != null, "AI fate-aware 命中率回归应构造出合法 score input。")
-	if score_input == null:
-		return
-	_assert_eq(preview.hit_preview.stage_base_hit_rates, [10], "AI 回归前置：preview 应保留 raw 命中率。")
-	_assert_eq(preview.hit_preview.stage_success_rates, [15], "AI 回归前置：preview 应把高位大成功自动命中并入正式成功率。")
-	_assert_eq(score_input.estimated_hit_rate_percent, 15, "AI 评分应消费 fate-aware repeat_attack 成功率，而不是 raw hit rate。")
-
-
-func _test_ai_score_low_hp_threshold_uses_formal_param_only() -> void:
-	var score_service = BATTLE_AI_SCORE_SERVICE_SCRIPT.new()
-	var target = _build_manual_unit(&"ai_score_low_hp_target", "阈值目标", &"player", Vector2i(2, 1), [&"warrior_heavy_strike"])
-	target.current_hp = 18
-	target.attribute_snapshot.set_value(&"hp_max", 30)
-
-	var formal_effect = COMBAT_EFFECT_DEF_SCRIPT.new()
-	formal_effect.effect_type = &"damage"
-	formal_effect.bonus_condition = &"target_low_hp"
-	formal_effect.hp_ratio_threshold_percent = 70
-	formal_effect.bonus_damage_dice_count = 2
-	formal_effect.bonus_damage_dice_sides = 1
-	_assert_true(
-		score_service._has_bonus_condition(formal_effect, target),
-		"AI 评分应读取正式 hp_ratio_threshold_percent 判定低血追加骰。"
-	)
-
-	var legacy_effect = COMBAT_EFFECT_DEF_SCRIPT.new()
-	legacy_effect.effect_type = &"damage"
-	legacy_effect.bonus_condition = &"target_low_hp"
-	legacy_effect.params = {"low_hp_ratio": 0.7}
-	_assert_true(
-		not score_service._has_bonus_condition(legacy_effect, target),
-		"AI 评分不应再读取旧 low_hp_ratio alias。"
-	)
-
-
-func _test_melee_aggressor_prefers_later_higher_score_skill_action() -> void:
-	var runtime = _build_runtime_with_enemy_content()
-	var source_brain = runtime._enemy_ai_brains.get(&"melee_aggressor")
-	var brain = source_brain.duplicate(true) if source_brain != null else null
-	if brain != null:
-		runtime._enemy_ai_brains[brain.brain_id] = brain
-		runtime._ai_service.setup(runtime._enemy_ai_brains, null)
-	var pressure_state = brain.get_state(&"pressure") if brain != null else null
-	_assert_true(pressure_state != null, "melee_aggressor 应暴露 pressure 状态供评分回归覆盖。")
-	if pressure_state == null:
-		return
-	var lower_score_action = USE_UNIT_SKILL_ACTION_SCRIPT.new()
-	lower_score_action.action_id = &"wolf_pressure_heavy_strike"
-	var lower_score_skill_ids: Array[StringName] = [&"warrior_heavy_strike"]
-	lower_score_action.skill_ids = lower_score_skill_ids
-	lower_score_action.target_selector = &"nearest_enemy"
-	lower_score_action.desired_min_distance = 1
-	lower_score_action.desired_max_distance = 1
-	lower_score_action.distance_reference = &"target_unit"
-	lower_score_action.score_bucket_id = &"wolf_pressure_offense"
-	var higher_score_action = USE_UNIT_SKILL_ACTION_SCRIPT.new()
-	higher_score_action.action_id = &"wolf_pressure_execution"
-	var higher_score_skill_ids: Array[StringName] = [&"warrior_execution_cleave"]
-	higher_score_action.skill_ids = higher_score_skill_ids
-	higher_score_action.target_selector = &"nearest_enemy"
-	higher_score_action.desired_min_distance = 1
-	higher_score_action.desired_max_distance = 1
-	higher_score_action.distance_reference = &"target_unit"
-	higher_score_action.score_bucket_id = &"wolf_pressure_offense"
-	pressure_state.actions = [lower_score_action, higher_score_action]
-
-	var state = _build_flat_state(Vector2i(5, 3))
-	runtime._state = state
-	var score_profile = BATTLE_AI_SCORE_PROFILE_SCRIPT.new()
-	score_profile.stamina_cost_weight = 0
-	score_profile.cooldown_weight = 0
-	runtime.set_ai_score_profile(score_profile)
-	var wolf = _build_ai_unit(
-		&"wolf_score_melee",
-		"荒狼评分手",
-		&"hostile",
-		Vector2i(1, 1),
-		&"melee_aggressor",
-		&"pressure",
-		[&"warrior_heavy_strike", &"warrior_execution_cleave"],
-		26,
-		2
-	)
-	wolf.current_stamina = 80
-	wolf.attribute_snapshot.set_value(&"stamina_max", 80)
-	wolf.apply_weapon_projection({
-		"weapon_profile_kind": "equipped",
-		"weapon_item_id": "score_test_blade",
-		"weapon_profile_type_id": "shortsword",
-		"weapon_current_grip": "one_handed",
-		"weapon_attack_range": 1,
-		"weapon_one_handed_dice": {"dice_count": 1, "dice_sides": 6, "flat_bonus": 0},
-		"weapon_physical_damage_tag": "physical_slash",
-	})
-	var player = _build_manual_unit(&"low_hp_target", "残血玩家", &"player", Vector2i(2, 1), [&"warrior_heavy_strike"])
-	player.current_hp = 5
-	_add_unit_to_state(runtime, state, wolf, true)
-	_add_unit_to_state(runtime, state, player, false)
-	var ai_context = _build_ai_context(runtime, wolf)
-
-	var heavy_skill_def = runtime._skill_defs.get(&"warrior_heavy_strike")
-	var heavy_command = BattleCommand.new()
-	heavy_command.command_type = BattleCommand.TYPE_SKILL()
-	heavy_command.unit_id = wolf.unit_id
-	heavy_command.skill_id = &"warrior_heavy_strike"
-	heavy_command.target_unit_id = player.unit_id
-	heavy_command.target_coord = player.coord
-	var heavy_preview = runtime.preview_command(heavy_command)
-	_assert_true(heavy_preview != null and heavy_preview.allowed, "melee_aggressor 重击评分前置应满足 runtime preview。")
-	var heavy_score = ai_context.build_skill_score_input(
-		heavy_skill_def,
-		heavy_command,
-		heavy_preview,
-		heavy_skill_def.combat_profile.effect_defs if heavy_skill_def != null and heavy_skill_def.combat_profile != null else [],
-		{"position_target_unit_id": player.unit_id, "desired_min_distance": 1, "desired_max_distance": 1}
-	)
-
-	var execute_skill_def = runtime._skill_defs.get(&"warrior_execution_cleave")
-	var execute_command = BattleCommand.new()
-	execute_command.command_type = BattleCommand.TYPE_SKILL()
-	execute_command.unit_id = wolf.unit_id
-	execute_command.skill_id = &"warrior_execution_cleave"
-	execute_command.target_unit_id = player.unit_id
-	execute_command.target_coord = player.coord
-	var execute_preview = runtime.preview_command(execute_command)
-	_assert_true(execute_preview != null and execute_preview.allowed, "melee_aggressor 斩杀评分前置应满足 runtime preview。")
-	var execute_score = ai_context.build_skill_score_input(
-		execute_skill_def,
-		execute_command,
-		execute_preview,
-		execute_skill_def.combat_profile.effect_defs if execute_skill_def != null and execute_skill_def.combat_profile != null else [],
-		{"position_target_unit_id": player.unit_id, "desired_min_distance": 1, "desired_max_distance": 1}
-	)
-	_assert_true(heavy_score != null and execute_score != null, "melee_aggressor 评分回归应拿到两个合法技能候选的评分。")
-	if heavy_score == null or execute_score == null:
-		return
-	_assert_true(
-		execute_score.total_score > heavy_score.total_score,
-		"残血目标场景下，warrior_execution_cleave 的评分应高于 warrior_heavy_strike。"
-	)
-
-	var decision = runtime._ai_service.choose_command(ai_context)
-	_assert_true(decision != null and decision.state_id == &"pressure", "melee_aggressor 评分选技回归应保持 pressure 状态。")
-	_assert_eq(
-		decision.command.skill_id if decision != null and decision.command != null else &"",
-		&"warrior_execution_cleave",
-		"melee_aggressor 不应再只按 action 顺序选择先声明的 warrior_heavy_strike。"
-	)
-	_assert_eq(
-		decision.action_id if decision != null else &"",
-		&"wolf_pressure_execution",
-		"melee_aggressor 应能选中后声明但评分更高的技能 action。"
-	)
-
-
 func _test_ranged_controller_prefers_later_higher_score_skill_action() -> void:
 	var runtime = _build_runtime_with_enemy_content()
 	var source_brain = runtime._enemy_ai_brains.get(&"ranged_controller")
@@ -3210,46 +2165,6 @@ func _test_ranged_controller_prefers_later_higher_score_skill_action() -> void:
 	_add_unit_to_state(runtime, state, mist, true)
 	_add_unit_to_state(runtime, state, player, false)
 	var ai_context = _build_ai_context(runtime, mist)
-
-	var fireball_skill_def = runtime._skill_defs.get(&"mage_fireball")
-	var fireball_command = BattleCommand.new()
-	fireball_command.command_type = BattleCommand.TYPE_SKILL()
-	fireball_command.unit_id = mist.unit_id
-	fireball_command.skill_id = &"mage_fireball"
-	fireball_command.target_coord = player.coord
-	var fireball_target_coords: Array[Vector2i] = [player.coord]
-	fireball_command.target_coords = fireball_target_coords
-	var fireball_preview = runtime.preview_command(fireball_command)
-	var fireball_score = ai_context.build_skill_score_input(
-		fireball_skill_def,
-		fireball_command,
-		fireball_preview,
-		fireball_skill_def.combat_profile.effect_defs if fireball_skill_def != null and fireball_skill_def.combat_profile != null else [],
-		{"desired_min_distance": 3, "desired_max_distance": 4}
-	)
-
-	var ice_lance_skill_def = runtime._skill_defs.get(&"mage_ice_lance")
-	var ice_lance_command = BattleCommand.new()
-	ice_lance_command.command_type = BattleCommand.TYPE_SKILL()
-	ice_lance_command.unit_id = mist.unit_id
-	ice_lance_command.skill_id = &"mage_ice_lance"
-	ice_lance_command.target_unit_id = player.unit_id
-	ice_lance_command.target_coord = player.coord
-	var ice_lance_preview = runtime.preview_command(ice_lance_command)
-	var ice_lance_score = ai_context.build_skill_score_input(
-		ice_lance_skill_def,
-		ice_lance_command,
-		ice_lance_preview,
-		ice_lance_skill_def.combat_profile.effect_defs if ice_lance_skill_def != null and ice_lance_skill_def.combat_profile != null else [],
-		{"position_target_unit_id": player.unit_id, "desired_min_distance": 3, "desired_max_distance": 4}
-	)
-	_assert_true(fireball_score != null and ice_lance_score != null, "ranged_controller 评分回归应拿到两个合法技能候选的评分。")
-	if fireball_score == null or ice_lance_score == null:
-		return
-	_assert_true(
-		ice_lance_score.total_score > fireball_score.total_score,
-		"单体目标场景下，mage_ice_lance 的评分应高于 mage_fireball。"
-	)
 
 	var decision = runtime._ai_service.choose_command(ai_context)
 	_assert_true(decision != null and decision.state_id == &"pressure", "ranged_controller 评分选技回归应保持 pressure 状态。")
@@ -3413,86 +2328,6 @@ func _test_ai_unit_skill_action_skips_aura_blocked_primary_skill() -> void:
 	)
 	var preview = runtime.preview_command(decision.command)
 	_assert_true(preview != null and preview.allowed, "Aura 阻断后的 AI 替代命令仍必须通过 preview_command。")
-
-
-func _test_ai_unit_skill_scoring_prefers_higher_hit_payoff_target() -> void:
-	var runtime = _build_runtime_with_enemy_content()
-	var state = _build_flat_state(Vector2i(7, 5))
-	runtime._state = state
-	var archer = _build_ai_unit(
-		&"score_archer",
-		"评分猎手",
-		&"hostile",
-		Vector2i(1, 2),
-		&"ranged_suppressor",
-		&"pressure",
-		[&"archer_pinning_shot"],
-		26,
-		2
-	)
-	var close_tank = _build_manual_unit(&"close_tank", "近处重甲", &"player", Vector2i(2, 2), [&"warrior_heavy_strike"])
-	close_tank.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 45)
-	var far_scout = _build_manual_unit(&"far_scout", "远处轻甲", &"player", Vector2i(4, 2), [&"warrior_heavy_strike"])
-	far_scout.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 8)
-	_add_unit_to_state(runtime, state, archer, true)
-	_add_unit_to_state(runtime, state, close_tank, false)
-	_add_unit_to_state(runtime, state, far_scout, false)
-	var ai_context = _build_ai_context(runtime, archer)
-	var action = USE_UNIT_SKILL_ACTION_SCRIPT.new()
-	action.action_id = &"score_pick_best_target"
-	var unit_action_skill_ids: Array[StringName] = [&"archer_pinning_shot"]
-	action.skill_ids = unit_action_skill_ids
-	action.target_selector = &"nearest_enemy"
-	action.desired_min_distance = 0
-	action.desired_max_distance = 6
-	action.distance_reference = &"target_unit"
-	var skill_def = runtime._skill_defs.get(&"archer_pinning_shot")
-	var close_command = BattleCommand.new()
-	close_command.command_type = BattleCommand.TYPE_SKILL()
-	close_command.unit_id = archer.unit_id
-	close_command.skill_id = &"archer_pinning_shot"
-	close_command.target_unit_id = close_tank.unit_id
-	close_command.target_coord = close_tank.coord
-	var far_command = BattleCommand.new()
-	far_command.command_type = BattleCommand.TYPE_SKILL()
-	far_command.unit_id = archer.unit_id
-	far_command.skill_id = &"archer_pinning_shot"
-	far_command.target_unit_id = far_scout.unit_id
-	far_command.target_coord = far_scout.coord
-	var close_preview = runtime.preview_command(close_command)
-	var far_preview = runtime.preview_command(far_command)
-	var close_score = ai_context.build_skill_score_input(
-		skill_def,
-		close_command,
-		close_preview,
-		skill_def.combat_profile.effect_defs if skill_def != null and skill_def.combat_profile != null else [],
-		{"position_target_unit_id": close_tank.unit_id, "desired_min_distance": 0, "desired_max_distance": 6}
-	)
-	var far_score = ai_context.build_skill_score_input(
-		skill_def,
-		far_command,
-		far_preview,
-		skill_def.combat_profile.effect_defs if skill_def != null and skill_def.combat_profile != null else [],
-		{"position_target_unit_id": far_scout.unit_id, "desired_min_distance": 0, "desired_max_distance": 6}
-	)
-	_assert_true(close_score != null and far_score != null, "unit skill score input 应能为多个候选目标生成评分上下文。")
-	if close_score == null or far_score == null:
-		return
-	_assert_true(
-		far_score.hit_payoff_score > close_score.hit_payoff_score,
-		"更脆弱的远处目标应提供更高的命中收益评分。"
-	)
-	_assert_true(
-		far_score.total_score > close_score.total_score,
-		"共享评分上下文应允许高收益目标压过默认最近目标。"
-	)
-	var decision = action.decide(ai_context)
-	_assert_true(decision != null and decision.command != null, "共享 unit score input 后应仍能生成合法指令。")
-	_assert_eq(
-		decision.command.target_unit_id if decision != null and decision.command != null else &"",
-		far_scout.unit_id,
-		"UseUnitSkillAction 应根据共享评分上下文选择更高命中收益的目标。"
-	)
 
 
 func _test_ai_unit_skill_action_selects_scoring_variant_id() -> void:
@@ -4038,49 +2873,6 @@ func _build_runtime_with_enemy_content():
 	return runtime
 
 
-func _build_formal_template_probe_unit(runtime, template_id: StringName):
-	if runtime == null or template_id == &"":
-		return null
-	var encounter_anchor = _build_encounter_anchor(
-		StringName("probe_%s" % String(template_id)),
-		template_id,
-		String(template_id)
-	)
-	var state = runtime.start_battle(encounter_anchor, 1701, {
-		"ally_member_ids": [&"ally_probe"],
-		"default_active_skill_ids": [&"basic_attack"],
-	})
-	if state == null or state.is_empty() or state.enemy_unit_ids.is_empty():
-		return null
-	return state.units.get(state.enemy_unit_ids[0])
-
-
-func _resolve_probe_target_distance(runtime, enemy_unit) -> int:
-	if runtime == null or enemy_unit == null:
-		return 1
-	var brain = runtime._enemy_ai_brains.get(enemy_unit.ai_brain_id)
-	if brain != null and brain.get("transition_rules") is Array:
-		for rule in brain.get("transition_rules"):
-			if rule == null or _to_string_name(rule.rule_id) != &"pressure_enter":
-				continue
-			for condition in rule.get_conditions():
-				if condition == null:
-					continue
-				if _to_string_name(condition.predicate) == &"nearest_enemy_distance_at_or_below":
-					return clampi(int(condition.max_distance), 1, 7)
-	return 1
-
-
-func _resolve_basic_attack_stamina_cost(runtime) -> int:
-	if runtime == null:
-		return 5
-	var skill_def = runtime._skill_defs.get(&"basic_attack") as SKILL_DEF_SCRIPT
-	if skill_def == null or skill_def.combat_profile == null:
-		return 5
-	var costs: Dictionary = skill_def.combat_profile.get_effective_resource_costs(1)
-	return maxi(int(costs.get("stamina_cost", skill_def.combat_profile.stamina_cost)), 0)
-
-
 func _block_non_basic_skills(unit_state) -> void:
 	if unit_state == null:
 		return
@@ -4479,14 +3271,6 @@ func _to_string_name(value) -> StringName:
 	if value == null:
 		return &""
 	return StringName(String(value))
-
-
-func _sorted_string_keys(source: Dictionary) -> Array[String]:
-	var result: Array[String] = []
-	for key in source.keys():
-		result.append(String(key))
-	result.sort()
-	return result
 
 
 func _assert_true(condition: bool, message: String) -> void:

@@ -94,13 +94,8 @@ public partial class UseChargeAction : EnemyAiAction
         var focusTarget = targets[0];
         var ctxUnitState = context.unit_state;
         int focusTargetDist = _distance_between_units(context, ctxUnitState, focusTarget);
-        if (actionTrace.ContainsKey("metadata"))
-        {
-            var tm = actionTrace["metadata"].AsGodotDictionary();
-            tm["focus_target_distance"] = focusTargetDist;
-            tm["minimum_charge_move_distance"] = minimum_charge_move_distance;
-            actionTrace["metadata"] = tm;
-        }
+        actionTrace.Metadata["focus_target_distance"] = focusTargetDist;
+        actionTrace.Metadata["minimum_charge_move_distance"] = minimum_charge_move_distance;
         BattleAiDecision bestDecision = null;
         BattleAiScoreInput bestScoreInput = null;
         int bestFallbackScore = -999999;

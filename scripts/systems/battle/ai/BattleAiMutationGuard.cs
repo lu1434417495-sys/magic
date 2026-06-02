@@ -606,12 +606,12 @@ public partial class BattleAiMutationGuard : RefCounted
             return result;
         }
         List<StableValue> stacks = new();
-        foreach (WarehouseStackState stack in warehouse.get_non_empty_stacks())
+        foreach (WarehouseStackState stack in warehouse.GetNonEmptyStacksTyped())
         {
             stacks.Add(StableValue.FromMap(StableWarehouseStack(stack)));
         }
         List<StableValue> instances = new();
-        foreach (EquipmentInstanceState instance in warehouse.get_non_empty_instances())
+        foreach (EquipmentInstanceState instance in warehouse.GetNonEmptyEquipmentInstancesTyped())
         {
             instances.Add(StableValue.FromMap(StableEquipmentInstance(instance)));
         }
@@ -640,7 +640,7 @@ public partial class BattleAiMutationGuard : RefCounted
             return result;
         }
         StableMap slots = new();
-        foreach (StringName slotId in equipment.get_entry_slot_ids())
+        foreach (StringName slotId in equipment.GetEntrySlotIdsTyped())
         {
             EquipmentEntryState entry = equipment.get_entry(slotId);
             if (entry != null)
@@ -739,10 +739,14 @@ public partial class BattleAiMutationGuard : RefCounted
         return result;
     }
 
-    private static List<StableValue> StableStringNameArray(Godot.Collections.Array<StringName> values)
+    private static List<StableValue> StableStringNameArray(IEnumerable<StringName> values)
     {
         List<StableValue> result = new();
-        foreach (StringName value in values ?? new Godot.Collections.Array<StringName>())
+        if (values == null)
+        {
+            return result;
+        }
+        foreach (StringName value in values)
         {
             result.Add(StableValue.FromText(value.ToString()));
         }
@@ -1503,7 +1507,7 @@ public partial class BattleAiMutationGuard : RefCounted
                 BattleBarrierInstanceState barrier = null;
                 try
                 {
-                    barrier = BattleBarrierInstanceState.from_runtime_dict(
+                    barrier = BattleBarrierInstanceState.FromRuntimeDict(
                         source[rawKey].AsGodotDictionary()
                     );
                 }
@@ -1563,19 +1567,19 @@ public partial class BattleAiMutationGuard : RefCounted
             {
                 return snapshot;
             }
-            snapshot._barrierInstanceId = barrier.barrier_instance_id;
-            snapshot._profileId = barrier.profile_id;
-            snapshot._displayName = barrier.display_name ?? "";
-            snapshot._sourceUnitId = barrier.source_unit_id;
-            snapshot._sourceSkillId = barrier.source_skill_id;
-            snapshot._anchorMode = barrier.anchor_mode;
-            snapshot._anchorCoord = barrier.anchor_coord;
-            snapshot._radiusCells = barrier.radius_cells;
-            snapshot._areaPattern = barrier.area_pattern;
-            snapshot._remainingTu = barrier.remaining_tu;
-            snapshot._createdTu = barrier.created_tu;
-            snapshot._saveDc = barrier.save_dc;
-            snapshot._catchAllProjectedEffects = barrier.catch_all_projected_effects;
+            snapshot._barrierInstanceId = barrier.BarrierInstanceId;
+            snapshot._profileId = barrier.ProfileId;
+            snapshot._displayName = barrier.DisplayName ?? "";
+            snapshot._sourceUnitId = barrier.SourceUnitId;
+            snapshot._sourceSkillId = barrier.SourceSkillId;
+            snapshot._anchorMode = barrier.AnchorMode;
+            snapshot._anchorCoord = barrier.AnchorCoord;
+            snapshot._radiusCells = barrier.RadiusCells;
+            snapshot._areaPattern = barrier.AreaPattern;
+            snapshot._remainingTu = barrier.RemainingTu;
+            snapshot._createdTu = barrier.CreatedTu;
+            snapshot._saveDc = barrier.SaveDc;
+            snapshot._catchAllProjectedEffects = barrier.CatchAllProjectedEffects;
             foreach (BattleBarrierLayerState layer in barrier.GetLayersTyped())
             {
                 snapshot._layers.Add(BarrierLayerSnapshot.Capture(layer));
@@ -1657,14 +1661,14 @@ public partial class BattleAiMutationGuard : RefCounted
             {
                 return snapshot;
             }
-            snapshot._layerId = layer.layer_id;
-            snapshot._displayName = layer.display_name ?? "";
-            snapshot._order = layer.order;
-            snapshot._broken = layer.broken;
-            snapshot._blockedCategories = StringNameArrayToList(layer.blocked_categories);
-            snapshot._breakerSkillIds = StringNameArrayToList(layer.breaker_skill_ids);
-            snapshot._hasSaveRollOverride = layer.has_save_roll_override;
-            snapshot._saveRollOverride = layer.save_roll_override;
+            snapshot._layerId = layer.LayerId;
+            snapshot._displayName = layer.DisplayName ?? "";
+            snapshot._order = layer.Order;
+            snapshot._broken = layer.Broken;
+            snapshot._blockedCategories = StringNameArrayToList(layer.BlockedCategories);
+            snapshot._breakerSkillIds = StringNameArrayToList(layer.BreakerSkillIds);
+            snapshot._hasSaveRollOverride = layer.HasSaveRollOverride;
+            snapshot._saveRollOverride = layer.SaveRollOverride;
             foreach (BattleBarrierOutcomeState outcome in layer.GetPassageOutcomesTyped())
             {
                 snapshot._passageOutcomes.Add(BarrierOutcomeSnapshot.Capture(outcome));
@@ -1740,17 +1744,17 @@ public partial class BattleAiMutationGuard : RefCounted
             {
                 return snapshot;
             }
-            snapshot._outcomeType = outcome.outcome_type;
-            snapshot._amount = outcome.amount;
-            snapshot._damageTag = outcome.damage_tag;
-            snapshot._halfOnSuccess = outcome.half_on_success;
-            snapshot._successAmount = outcome.success_amount;
-            snapshot._successDamageTag = outcome.success_damage_tag;
-            snapshot._fatalDamage = Mathf.Max(outcome.fatal_damage, 1);
-            snapshot._statusId = outcome.status_id;
-            snapshot._saveAbility = outcome.save_ability;
-            snapshot._saveTag = outcome.save_tag;
-            snapshot._saveDc = outcome.save_dc;
+            snapshot._outcomeType = outcome.OutcomeType;
+            snapshot._amount = outcome.Amount;
+            snapshot._damageTag = outcome.DamageTag;
+            snapshot._halfOnSuccess = outcome.HalfOnSuccess;
+            snapshot._successAmount = outcome.SuccessAmount;
+            snapshot._successDamageTag = outcome.SuccessDamageTag;
+            snapshot._fatalDamage = Mathf.Max(outcome.FatalDamage, 1);
+            snapshot._statusId = outcome.StatusId;
+            snapshot._saveAbility = outcome.SaveAbility;
+            snapshot._saveTag = outcome.SaveTag;
+            snapshot._saveDc = outcome.SaveDc;
             return snapshot;
         }
 
@@ -1917,13 +1921,13 @@ public partial class BattleAiMutationGuard : RefCounted
 
             return new WeaponDiceSnapshot(
                 true,
-                WeaponDice.from_dict(normalized).duplicate_state()
+                WeaponDice.FromDictionary(normalized).DuplicateState()
             );
         }
 
         public GDictionary ToGodotDictionary()
         {
-            return _hasTypedDice ? _typedDice.to_dict() : new GDictionary();
+            return _hasTypedDice ? _typedDice.ToDictionary() : new GDictionary();
         }
 
         public StableMap ToStableMap()
@@ -2004,20 +2008,20 @@ public partial class BattleAiMutationGuard : RefCounted
             return null;
         }
         WarehouseState copy = new();
-        foreach (WarehouseStackState stack in warehouse.get_non_empty_stacks())
+        foreach (WarehouseStackState stack in warehouse.GetNonEmptyStacksTyped())
         {
             WarehouseStackState stackCopy = DuplicateWarehouseStack(stack);
             if (stackCopy != null && !stackCopy.is_empty())
             {
-                copy.stacks.Add(stackCopy);
+                copy.AddStack(stackCopy);
             }
         }
-        foreach (EquipmentInstanceState instance in warehouse.get_non_empty_instances())
+        foreach (EquipmentInstanceState instance in warehouse.GetNonEmptyEquipmentInstancesTyped())
         {
             EquipmentInstanceState instanceCopy = DuplicateEquipmentInstance(instance);
             if (instanceCopy != null && instanceCopy.instance_id != "" && instanceCopy.item_id != "")
             {
-                copy.equipment_instances.Add(instanceCopy);
+                copy.AddEquipmentInstance(instanceCopy);
             }
         }
         return copy;
@@ -2043,17 +2047,17 @@ public partial class BattleAiMutationGuard : RefCounted
             return null;
         }
         EquipmentState copy = new();
-        foreach (StringName slotId in equipment.get_entry_slot_ids())
+        foreach (StringName slotId in equipment.GetEntrySlotIdsTyped())
         {
             EquipmentEntryState entry = equipment.get_entry(slotId);
             if (entry == null || entry.is_empty())
             {
                 continue;
             }
-            copy.set_equipped_entry(
+            copy.SetEquippedEntryTyped(
                 slotId,
                 entry.item_id,
-                DuplicateStringNameArray(entry.occupied_slot_ids),
+                DuplicateStringNameList(entry.occupied_slot_ids),
                 DuplicateEquipmentInstance(entry.equipment_instance)
             );
         }
@@ -2069,7 +2073,7 @@ public partial class BattleAiMutationGuard : RefCounted
         return new EquipmentEntryState
         {
             item_id = entry.item_id,
-            occupied_slot_ids = DuplicateStringNameArray(entry.occupied_slot_ids),
+            occupied_slot_ids = DuplicateStringNameList(entry.occupied_slot_ids),
             instance_id = entry.instance_id,
             equipment_instance = DuplicateEquipmentInstance(entry.equipment_instance),
         };
@@ -2091,23 +2095,39 @@ public partial class BattleAiMutationGuard : RefCounted
     }
 
     private static Godot.Collections.Array<StringName> DuplicateStringNameArray(
-        Godot.Collections.Array<StringName> values
+        IEnumerable<StringName> values
     )
     {
         Godot.Collections.Array<StringName> result = new();
-        foreach (StringName value in values ?? new Godot.Collections.Array<StringName>())
+        if (values == null)
+        {
+            return result;
+        }
+        foreach (StringName value in values)
         {
             result.Add(value);
         }
         return result;
     }
 
-    private static List<StringName> StringNameArrayToList(
-        Godot.Collections.Array<StringName> values
-    )
+    private static List<StringName> DuplicateStringNameList(IEnumerable<StringName> values)
     {
         List<StringName> result = new();
-        foreach (StringName value in values ?? new Godot.Collections.Array<StringName>())
+        if (values == null)
+        {
+            return result;
+        }
+        foreach (StringName value in values)
+        {
+            result.Add(value);
+        }
+        return result;
+    }
+
+    private static List<StringName> StringNameArrayToList(IEnumerable<StringName> values)
+    {
+        List<StringName> result = new();
+        foreach (StringName value in values ?? System.Array.Empty<StringName>())
         {
             result.Add(value);
         }

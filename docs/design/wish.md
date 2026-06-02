@@ -886,7 +886,7 @@ godot --headless --script tests/text_runtime/commands/run_wish_text_command_regr
 按 touched surface 追加现有相关 runner：
 
 - 修改 runtime/orchestrator：运行 `dotnet build magic.csproj`、`tests/battle_runtime/runtime/run_battle_runtime_smoke.gd`、`tests/battle_runtime/runtime/run_battle_skill_protocol_regression.gd` 和相关 `tests/battle_runtime/skills/run_*_regression.cs`。
-- 修改 damage/status：运行 `dotnet build magic.csproj`、`tests/battle_runtime/rules/run_battle_damage_resolver_preview_contract_regression.gd`、`tests/battle_runtime/rules/run_status_effect_semantics_regression.gd`。
+- 修改 damage/status：运行 `dotnet build magic.csproj`、`tests/battle_runtime/rules/run_battle_damage_resolver_preview_contract_regression.cs`、`tests/battle_runtime/rules/run_status_effect_semantics_regression.cs`。
 - 修改 HUD/board：运行 `tests/battle_runtime/rendering/run_battle_ui_regression.gd`；涉及 `BattleBoardController` 的 PR 需要手动截图或短视频。
 - 修改 state schema：运行现有 `tests/battle_runtime/state_schema/` 相关 runner；不要把瞬态 `per_battle_cast_counts` 加入长期 `TO_DICT_FIELDS`，除非先确认破坏性 schema 变更。
 

@@ -847,6 +847,10 @@ public partial class WorldMapContentValidator : RefCounted
         {
             return cachedResource;
         }
+        if (!ResourceLoader.Exists(resourcePath))
+        {
+            return null;
+        }
         var resource = ResourceLoader.Load<Resource>(resourcePath);
         if (resource != null)
         {

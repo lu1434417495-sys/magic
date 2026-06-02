@@ -607,7 +607,7 @@ public partial class PartyManagementWindow : Control
 
         EquipmentState equipmentState = memberState.equipment_state;
         int filledCount = 0;
-        foreach (StringName slotId in EquipmentRules.get_all_slot_ids())
+        foreach (StringName slotId in EquipmentRules.GetAllSlotIdsTyped())
         {
             StringName entrySlotId = _get_entry_slot_for_slot(equipmentState, slotId);
             if (entrySlotId != (StringName)"" && entrySlotId != slotId)
@@ -1109,7 +1109,7 @@ public partial class PartyManagementWindow : Control
 
         EquipmentState equipmentState = memberState.equipment_state;
         int filledCount = 0;
-        foreach (StringName slotId in EquipmentRules.get_all_slot_ids())
+        foreach (StringName slotId in EquipmentRules.GetAllSlotIdsTyped())
         {
             StringName entrySlotId = _get_entry_slot_for_slot(equipmentState, slotId);
             if (entrySlotId != (StringName)"" && entrySlotId != slotId)

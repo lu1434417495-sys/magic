@@ -1,36 +1,37 @@
+using System.Collections.Generic;
 using Godot;
 
-[GlobalClass]
-public partial class BattleSpecialProfileGate : RefCounted
+public sealed class BattleSpecialProfileGate
 {
     private const string PLAYER_BLOCK_MESSAGE = "该禁咒配置未通过校验，暂时无法施放。";
 
-    private Godot.Collections.Dictionary _registry_snapshot = new();
+    private SpecialProfileGateSnapshot _registrySnapshot = SpecialProfileGateSnapshot.Empty();
 
-    public void setup(Godot.Collections.Dictionary registrySnapshot)
+    public void Setup(Godot.Collections.Dictionary registrySnapshot)
     {
-        _registry_snapshot =
-            registrySnapshot?.Duplicate(true) ?? new Godot.Collections.Dictionary();
+        _registrySnapshot = SpecialProfileGateSnapshot.FromDictionary(registrySnapshot);
     }
 
-    public BattleSpecialProfileGateResult preflight_skill(SkillDef skillDef, BattleState battleState) =>
-        _evaluate_skill(skillDef, battleState);
+    public BattleSpecialProfileGateResult PreflightSkill(
+        SkillDef skillDef,
+        BattleState battleState
+    ) => EvaluateSkill(skillDef, battleState);
 
-    public BattleSpecialProfileGateResult preview_skill(
+    public BattleSpecialProfileGateResult PreviewSkill(
         SkillDef skillDef,
         BattleCommand command,
         BattleUnitState activeUnit,
         BattleState battleState
-    ) => _evaluate_skill(skillDef, battleState, command, activeUnit);
+    ) => EvaluateSkill(skillDef, battleState, command, activeUnit);
 
-    public BattleSpecialProfileGateResult can_execute_skill(
+    public BattleSpecialProfileGateResult CanExecuteSkill(
         SkillDef skillDef,
         BattleCommand command,
         BattleUnitState activeUnit,
         BattleState battleState
-    ) => _evaluate_skill(skillDef, battleState, command, activeUnit);
+    ) => EvaluateSkill(skillDef, battleState, command, activeUnit);
 
-    private BattleSpecialProfileGateResult _evaluate_skill(
+    private BattleSpecialProfileGateResult EvaluateSkill(
         SkillDef skillDef,
         BattleState battleState,
         BattleCommand command = null,
@@ -39,153 +40,214 @@ public partial class BattleSpecialProfileGate : RefCounted
     {
         var result = new BattleSpecialProfileGateResult();
         if (skillDef == null || skillDef.combat_profile == null)
-            return _block(
+            return Block(
                 result,
                 "",
                 "",
                 "missing_skill",
                 "Missing skill definition.",
-                new Godot.Collections.Dictionary()
+                null
             );
 
         var combatProfile = skillDef.combat_profile as CombatSkillDef;
         if (combatProfile == null)
-            return _block(
+            return Block(
                 result,
                 "",
                 skillDef.skill_id,
                 "missing_combat_profile",
                 "Missing combat skill profile.",
-                new Godot.Collections.Dictionary()
+                null
             );
-        result.skill_id = skillDef.skill_id;
-        result.profile_id = combatProfile.special_resolution_profile_id;
+        result.SkillId = skillDef.skill_id;
+        result.ProfileId = combatProfile.special_resolution_profile_id;
 
-        if (result.profile_id == "")
+        if (result.ProfileId == "")
         {
-            result.allowed = true;
+            result.Allowed = true;
             return result;
         }
-        if (!_registry_snapshot.ContainsKey("ok") || !_registry_snapshot["ok"].AsBool())
+        if (!_registrySnapshot.Ok)
         {
-            return _block(
+            return Block(
                 result,
-                result.profile_id,
-                result.skill_id,
+                result.ProfileId,
+                result.SkillId,
                 "content_invalid",
                 PLAYER_BLOCK_MESSAGE,
-                new Godot.Collections.Dictionary
-                {
-                    {
-                        "errors",
-                        _registry_snapshot.GetValueOrDefault(
-                            "errors",
-                            new Godot.Collections.Array()
-                        )
-                    },
-                }
+                new Dictionary<string, object>(System.StringComparer.Ordinal)
+                    { ["errors"] = _registrySnapshot.Errors }
             );
         }
 
-        Godot.Collections.Dictionary profileIdBySkillId = ReadDictionary(
-            _registry_snapshot,
-            "profile_id_by_skill_id"
-        );
-        if (profileIdBySkillId.Count == 0)
-            return _block(
+        if (_registrySnapshot.ProfileIdBySkillId.Count == 0)
+            return Block(
                 result,
-                result.profile_id,
-                result.skill_id,
+                result.ProfileId,
+                result.SkillId,
                 "missing_profile_index",
                 PLAYER_BLOCK_MESSAGE,
-                new Godot.Collections.Dictionary()
+                null
             );
 
-        var skillKey = (string)result.skill_id;
+        var skillKey = result.SkillId;
         if (
-            !profileIdBySkillId.ContainsKey(skillKey)
-            || profileIdBySkillId[skillKey].AsString() != (string)result.profile_id
+            !_registrySnapshot.ProfileIdBySkillId.TryGetValue(skillKey, out StringName profileId)
+            || profileId != result.ProfileId
         )
-            return _block(
+            return Block(
                 result,
-                result.profile_id,
-                result.skill_id,
+                result.ProfileId,
+                result.SkillId,
                 "skill_not_owned",
                 PLAYER_BLOCK_MESSAGE,
-                new Godot.Collections.Dictionary()
+                null
             );
 
-        Godot.Collections.Dictionary profiles = ReadDictionary(_registry_snapshot, "profiles");
-        if (!profiles.ContainsKey((string)result.profile_id))
-            return _block(
+        if (!_registrySnapshot.Profiles.TryGetValue(result.ProfileId, out GateProfileSnapshot profile))
+            return Block(
                 result,
-                result.profile_id,
-                result.skill_id,
+                result.ProfileId,
+                result.SkillId,
                 "profile_missing",
                 PLAYER_BLOCK_MESSAGE,
-                new Godot.Collections.Dictionary()
+                null
             );
 
-        Godot.Collections.Dictionary profileSnapshot = profiles[(string)result.profile_id]
-            .AsGodotDictionary();
-        if (profileSnapshot.Count == 0)
-            return _block(
+        if (profile.RuntimeResolverId != result.ProfileId)
+            return Block(
                 result,
-                result.profile_id,
-                result.skill_id,
-                "profile_invalid",
-                PLAYER_BLOCK_MESSAGE,
-                new Godot.Collections.Dictionary()
-            );
-
-        if (
-            !profileSnapshot.ContainsKey("runtime_resolver_id")
-            || profileSnapshot["runtime_resolver_id"].AsString() != (string)result.profile_id
-        )
-            return _block(
-                result,
-                result.profile_id,
-                result.skill_id,
+                result.ProfileId,
+                result.SkillId,
                 "resolver_mismatch",
                 PLAYER_BLOCK_MESSAGE,
-                profileSnapshot
+                new Dictionary<string, object>(System.StringComparer.Ordinal)
+                {
+                    ["runtime_resolver_id"] = profile.RuntimeResolverId.ToString(),
+                    ["expected_profile_id"] = result.ProfileId.ToString(),
+                }
             );
 
         if (battleState == null)
-            return _block(
+            return Block(
                 result,
-                result.profile_id,
-                result.skill_id,
+                result.ProfileId,
+                result.SkillId,
                 "missing_battle_state",
                 PLAYER_BLOCK_MESSAGE,
-                new Godot.Collections.Dictionary()
+                null
             );
 
         if (command == null && activeUnit == null)
         {
-            result.allowed = true;
+            result.Allowed = true;
             return result;
         }
-        result.allowed = true;
+        result.Allowed = true;
         return result;
     }
 
-    private static BattleSpecialProfileGateResult _block(
+    private static BattleSpecialProfileGateResult Block(
         BattleSpecialProfileGateResult result,
         StringName profileId,
         StringName skillId,
         StringName blockCode,
         string playerMessage,
-        Godot.Collections.Dictionary debugDetails
+        IReadOnlyDictionary<string, object> debugDetails
     )
     {
-        result.allowed = false;
-        result.profile_id = profileId;
-        result.skill_id = skillId;
-        result.block_code = blockCode;
-        result.player_message = playerMessage;
-        result.debug_details = debugDetails.Duplicate(true);
+        result.Allowed = false;
+        result.ProfileId = profileId;
+        result.SkillId = skillId;
+        result.BlockCode = blockCode;
+        result.PlayerMessage = playerMessage;
+        result.DebugDetails.Clear();
+        if (debugDetails != null)
+        {
+            foreach (KeyValuePair<string, object> entry in debugDetails)
+            {
+                result.DebugDetails[entry.Key] = entry.Value;
+            }
+        }
         return result;
+    }
+
+    private sealed class SpecialProfileGateSnapshot
+    {
+        public bool Ok { get; private set; }
+        public List<string> Errors { get; } = new();
+        public Dictionary<StringName, StringName> ProfileIdBySkillId { get; } = new();
+        public Dictionary<StringName, GateProfileSnapshot> Profiles { get; } = new();
+
+        public static SpecialProfileGateSnapshot Empty() => new();
+
+        public static SpecialProfileGateSnapshot FromDictionary(
+            Godot.Collections.Dictionary snapshot
+        )
+        {
+            var result = new SpecialProfileGateSnapshot();
+            if (snapshot == null || snapshot.Count == 0 || !snapshot.ContainsKey("ok"))
+            {
+                return result;
+            }
+
+            result.Ok = snapshot["ok"].AsBool();
+            foreach (string error in ReadStringList(snapshot, "errors"))
+            {
+                result.Errors.Add(error);
+            }
+
+            Godot.Collections.Dictionary profileIdBySkillId =
+                ReadDictionary(snapshot, "profile_id_by_skill_id");
+            foreach (Variant rawSkillId in profileIdBySkillId.Keys)
+            {
+                StringName skillId = ProgressionDataUtils.to_string_name(rawSkillId);
+                StringName profileId = ProgressionDataUtils.to_string_name(
+                    profileIdBySkillId[rawSkillId]
+                );
+                if (skillId != "" && profileId != "")
+                {
+                    result.ProfileIdBySkillId[skillId] = profileId;
+                }
+            }
+
+            Godot.Collections.Dictionary profiles = ReadDictionary(snapshot, "profiles");
+            foreach (Variant rawProfileId in profiles.Keys)
+            {
+                StringName profileId = ProgressionDataUtils.to_string_name(rawProfileId);
+                Godot.Collections.Dictionary profilePayload =
+                    profiles[rawProfileId].AsGodotDictionary();
+                GateProfileSnapshot profile = GateProfileSnapshot.FromDictionary(profilePayload);
+                if (profileId != "" && !profile.IsEmpty)
+                {
+                    result.Profiles[profileId] = profile;
+                }
+            }
+
+            return result;
+        }
+    }
+
+    private readonly record struct GateProfileSnapshot(
+        StringName ProfileId,
+        StringName RuntimeResolverId
+    )
+    {
+        public bool IsEmpty => ProfileId == "" && RuntimeResolverId == "";
+
+        public static GateProfileSnapshot FromDictionary(Godot.Collections.Dictionary payload)
+        {
+            if (payload == null || payload.Count == 0)
+            {
+                return new GateProfileSnapshot("", "");
+            }
+            return new GateProfileSnapshot(
+                ProgressionDataUtils.to_string_name(payload.GetValueOrDefault("profile_id", "")),
+                ProgressionDataUtils.to_string_name(
+                    payload.GetValueOrDefault("runtime_resolver_id", "")
+                )
+            );
+        }
     }
 
     private static Godot.Collections.Dictionary ReadDictionary(
@@ -193,13 +255,28 @@ public partial class BattleSpecialProfileGate : RefCounted
         string key
     )
     {
-        if (source == null)
+        if (source == null || !source.ContainsKey(key))
+        {
             return new Godot.Collections.Dictionary();
-        if (source.ContainsKey(key))
-            return source[key].AsGodotDictionary();
-        var stringNameKey = new StringName(key);
-        if (source.ContainsKey(stringNameKey))
-            return source[stringNameKey].AsGodotDictionary();
-        return new Godot.Collections.Dictionary();
+        }
+        return source[key].AsGodotDictionary();
+    }
+
+    private static List<string> ReadStringList(Godot.Collections.Dictionary source, string key)
+    {
+        var result = new List<string>();
+        if (source == null || !source.ContainsKey(key))
+        {
+            return result;
+        }
+        foreach (object value in source[key].AsGodotArray())
+        {
+            string text = value?.ToString() ?? "";
+            if (!string.IsNullOrEmpty(text))
+            {
+                result.Add(text);
+            }
+        }
+        return result;
     }
 }

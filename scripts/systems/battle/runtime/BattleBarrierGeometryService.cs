@@ -1,47 +1,19 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 
 public readonly record struct BattleBarrierFootprintTransition(
     bool CrossesBoundary,
     bool FromInside,
     bool ToInside
-)
-{
-    public GDictionary ToDictionary() =>
-        new()
-        {
-            ["crosses_boundary"] = CrossesBoundary,
-            ["from_inside"] = FromInside,
-            ["to_inside"] = ToInside,
-        };
-}
+);
 
-[GlobalClass]
-public partial class BattleBarrierGeometryService : RefCounted
+public static class BattleBarrierGeometryService
 {
-    public GDictionary classify_footprint_transition(
-        BattleState state,
-        GArray from_footprint,
-        GArray to_footprint,
-        GArray barrier_coords
-    )
-    {
-        return ClassifyFootprintTransition(
-            state,
-            from_footprint,
-            to_footprint,
-            barrier_coords
-        ).ToDictionary();
-    }
-
-    public BattleBarrierFootprintTransition ClassifyFootprintTransition(
-        BattleState state,
-        GArray fromFootprint,
-        GArray toFootprint,
-        GArray barrierCoords
+    public static BattleBarrierFootprintTransition ClassifyFootprintTransition(
+        IEnumerable<Vector2I> fromFootprint,
+        IEnumerable<Vector2I> toFootprint,
+        IEnumerable<Vector2I> barrierCoords
     )
     {
         HashSet<Vector2I> barrierLookup = CoordLookup(barrierCoords);
@@ -50,16 +22,15 @@ public partial class BattleBarrierGeometryService : RefCounted
         return new BattleBarrierFootprintTransition(fromInside != toInside, fromInside, toInside);
     }
 
-    public bool line_crosses_barrier_area(
-        BattleState state,
-        Vector2I source_coord,
-        Vector2I target_coord,
-        GArray barrier_coords
+    public static bool LineCrossesBarrierArea(
+        Vector2I sourceCoord,
+        Vector2I targetCoord,
+        IEnumerable<Vector2I> barrierCoords
     )
     {
-        HashSet<Vector2I> barrierLookup = CoordLookup(barrier_coords);
-        bool sourceInside = barrierLookup.Contains(source_coord);
-        bool targetInside = barrierLookup.Contains(target_coord);
+        HashSet<Vector2I> barrierLookup = CoordLookup(barrierCoords);
+        bool sourceInside = barrierLookup.Contains(sourceCoord);
+        bool targetInside = barrierLookup.Contains(targetCoord);
         if (sourceInside && targetInside)
         {
             return false;
@@ -68,9 +39,9 @@ public partial class BattleBarrierGeometryService : RefCounted
         {
             return true;
         }
-        foreach (Vector2I coord in LineCoords(source_coord, target_coord))
+        foreach (Vector2I coord in LineCoords(sourceCoord, targetCoord))
         {
-            if (coord == source_coord || coord == target_coord)
+            if (coord == sourceCoord || coord == targetCoord)
             {
                 continue;
             }
@@ -82,20 +53,23 @@ public partial class BattleBarrierGeometryService : RefCounted
         return false;
     }
 
-    public bool coord_inside_barrier(Vector2I coord, GArray barrier_coords)
-    {
-        return CoordLookup(barrier_coords).Contains(coord);
-    }
+    public static bool CoordInsideBarrier(
+        Vector2I coord,
+        IEnumerable<Vector2I> barrierCoords
+    ) => CoordLookup(barrierCoords).Contains(coord);
 
-    private static bool FootprintOverlapsLookup(GArray footprint, HashSet<Vector2I> lookup)
+    private static bool FootprintOverlapsLookup(
+        IEnumerable<Vector2I> footprint,
+        HashSet<Vector2I> lookup
+    )
     {
         if (footprint == null || lookup == null)
         {
             return false;
         }
-        foreach (var coordValue in footprint)
+        foreach (Vector2I coord in footprint)
         {
-            if (lookup.Contains(coordValue.AsVector2I()))
+            if (lookup.Contains(coord))
             {
                 return true;
             }
@@ -103,23 +77,22 @@ public partial class BattleBarrierGeometryService : RefCounted
         return false;
     }
 
-    private static HashSet<Vector2I> CoordLookup(GArray coords)
+    private static HashSet<Vector2I> CoordLookup(IEnumerable<Vector2I> coords)
     {
         HashSet<Vector2I> lookup = new();
         if (coords == null)
         {
             return lookup;
         }
-        foreach (var coordValue in coords)
+        foreach (Vector2I coord in coords)
         {
-            lookup.Add(coordValue.AsVector2I());
+            lookup.Add(coord);
         }
         return lookup;
     }
 
-    private static List<Vector2I> LineCoords(Vector2I fromCoord, Vector2I toCoord)
+    private static IEnumerable<Vector2I> LineCoords(Vector2I fromCoord, Vector2I toCoord)
     {
-        List<Vector2I> coords = new();
         int x0 = fromCoord.X;
         int y0 = fromCoord.Y;
         int x1 = toCoord.X;
@@ -131,7 +104,7 @@ public partial class BattleBarrierGeometryService : RefCounted
         int error = dx + dy;
         while (true)
         {
-            coords.Add(new Vector2I(x0, y0));
+            yield return new Vector2I(x0, y0);
             if (x0 == x1 && y0 == y1)
             {
                 break;
@@ -148,6 +121,5 @@ public partial class BattleBarrierGeometryService : RefCounted
                 y0 += sy;
             }
         }
-        return coords;
     }
 }

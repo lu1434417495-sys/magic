@@ -245,7 +245,7 @@ public partial class run_bloodline_ascension_regression : SceneTree
             "升华接管年龄阶段时应记录来源类型。"
         );
         AssertEq(member.body_size_category, new StringName("large"), "升华阶段体型 override 应刷新 body_size_category。");
-        AssertEq(member.body_size, 3, "升华阶段体型 override 应通过 BodySizeRules 刷新 body_size。");
+        AssertEq(member.body_size, 3, "升华阶段体型 override 应通过 BodySizeContentRules 刷新 body_size。");
 
         AssertTrue(manager.revoke_ascension("hero", true), "revoke_ascension 应清空 ascension 并触发技能撤销。");
         AssertEq(member.body_size_category, new StringName("medium"), "撤销升华后体型应回到 race/subrace 解析结果。");

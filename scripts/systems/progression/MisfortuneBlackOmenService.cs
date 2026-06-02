@@ -213,7 +213,7 @@ public sealed class MisfortuneBlackOmenService
         if (memberState?.equipment_state == null || _itemDefs.Count == 0)
             return false;
 
-        foreach (var slotId in memberState.equipment_state.get_entry_slot_ids())
+        foreach (var slotId in memberState.equipment_state.GetEntrySlotIdsTyped())
         {
             var entry = memberState.equipment_state.get_entry(slotId);
             var itemId = entry?.item_id ?? new StringName("");
@@ -237,7 +237,7 @@ public sealed class MisfortuneBlackOmenService
         if (memberState?.equipment_state == null || itemId == "")
             return false;
 
-        foreach (var slotId in memberState.equipment_state.get_entry_slot_ids())
+        foreach (var slotId in memberState.equipment_state.GetEntrySlotIdsTyped())
         {
             var equippedItemId = ProgressionDataUtils.to_string_name(
                 memberState.equipment_state.get_equipped_item_id(slotId)

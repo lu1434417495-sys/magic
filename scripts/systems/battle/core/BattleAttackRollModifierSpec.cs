@@ -1,8 +1,6 @@
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class BattleAttackRollModifierSpec : RefCounted
+public class BattleAttackRollModifierSpec
 {
     private static readonly string[] SchemaKeys =
     {
@@ -37,19 +35,40 @@ public partial class BattleAttackRollModifierSpec : RefCounted
     public StringName footprint_mode { get; set; } = "any_cell";
     public StringName applies_to { get; set; } = "attack_roll";
 
-    public GDictionary to_dict()
+    internal Godot.Collections.Dictionary ToDictionary()
     {
         return BuildDictionary(modifier_delta);
     }
 
-    public GDictionary to_dict_with_effective_modifier_delta(int effective_modifier_delta)
+    internal Godot.Collections.Dictionary ToDictionaryWithEffectiveModifierDelta(int effective_modifier_delta)
     {
         return BuildDictionary(effective_modifier_delta);
     }
 
-    private GDictionary BuildDictionary(int effectiveDelta)
+    public BattleAttackRollModifierSpec Clone()
     {
-        return new GDictionary
+        return new BattleAttackRollModifierSpec
+        {
+            source_domain = source_domain,
+            source_id = source_id,
+            source_instance_id = source_instance_id,
+            label = label,
+            modifier_delta = modifier_delta,
+            stack_key = stack_key,
+            stack_mode = stack_mode,
+            roll_kind_filter = roll_kind_filter,
+            endpoint_mode = endpoint_mode,
+            distance_min_exclusive = distance_min_exclusive,
+            distance_max_inclusive = distance_max_inclusive,
+            target_team_filter = target_team_filter,
+            footprint_mode = footprint_mode,
+            applies_to = applies_to,
+        };
+    }
+
+    private Godot.Collections.Dictionary BuildDictionary(int effectiveDelta)
+    {
+        return new Godot.Collections.Dictionary
         {
             ["source_domain"] = source_domain.ToString(),
             ["source_id"] = source_id.ToString(),
@@ -69,7 +88,7 @@ public partial class BattleAttackRollModifierSpec : RefCounted
         };
     }
 
-    public static BattleAttackRollModifierSpec from_dict(GDictionary payload)
+    internal static BattleAttackRollModifierSpec FromDictionary(Godot.Collections.Dictionary payload)
     {
         if (payload == null)
             return null;
@@ -128,7 +147,7 @@ public partial class BattleAttackRollModifierSpec : RefCounted
         };
     }
 
-    public static BattleAttackRollModifierSpec from_partial_dict(GDictionary payload)
+    internal static BattleAttackRollModifierSpec FromPartialDictionary(Godot.Collections.Dictionary payload)
     {
         if (payload == null)
             return null;
@@ -166,7 +185,7 @@ public partial class BattleAttackRollModifierSpec : RefCounted
         };
     }
 
-    private static bool HasExactSchema(GDictionary payload)
+    private static bool HasExactSchema(Godot.Collections.Dictionary payload)
     {
         if (payload.Count != SchemaKeys.Length)
         {
@@ -182,7 +201,7 @@ public partial class BattleAttackRollModifierSpec : RefCounted
         return true;
     }
 
-    private static bool TryGetStringLike(GDictionary data, string key, out string value)
+    private static bool TryGetStringLike(Godot.Collections.Dictionary data, string key, out string value)
     {
         if (data != null && data.ContainsKey(key))
         {
@@ -193,7 +212,7 @@ public partial class BattleAttackRollModifierSpec : RefCounted
         return false;
     }
 
-    private static bool TryGetStrictString(GDictionary data, string key, out string value)
+    private static bool TryGetStrictString(Godot.Collections.Dictionary data, string key, out string value)
     {
         if (data != null && data.ContainsKey(key))
         {
@@ -204,7 +223,7 @@ public partial class BattleAttackRollModifierSpec : RefCounted
         return false;
     }
 
-    private static bool TryGetStrictInt(GDictionary data, string key, out int value)
+    private static bool TryGetStrictInt(Godot.Collections.Dictionary data, string key, out int value)
     {
         if (data != null && data.ContainsKey(key))
         {

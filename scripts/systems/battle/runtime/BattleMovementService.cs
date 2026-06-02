@@ -213,7 +213,7 @@ public partial class BattleMovementService : RefCounted
         foreach (string statusIdString in sortedStatusIds)
         {
             BattleStatusEffectState statusEntry = unit_state.get_status_effect(new StringName(statusIdString));
-            totalDelta += BattleStatusSemanticTable.get_move_cost_delta(statusEntry);
+            totalDelta += BattleStatusSemanticTable.GetMoveCostDelta(statusEntry);
         }
         return Math.Max(totalDelta, 0);
     }
@@ -228,7 +228,7 @@ public partial class BattleMovementService : RefCounted
             {
                 Allowed = false,
                 Cost = 0,
-                Path = new GVector2IArray(),
+                Path = System.Array.Empty<Vector2I>(),
                 Message = "当前单位数据不可用。",
             };
         }
@@ -240,7 +240,7 @@ public partial class BattleMovementService : RefCounted
             {
                 Allowed = false,
                 Cost = 0,
-                Path = new GVector2IArray(),
+                Path = System.Array.Empty<Vector2I>(),
                 Message = _is_normal_movement_locked(active_unit) ? "已行动，移动力被锁定。" : "移动力不足，无法移动。",
             };
         }
@@ -415,7 +415,7 @@ public partial class BattleMovementService : RefCounted
             return result;
         }
 
-        GVector2IArray executedPath = result.ExecutedPath;
+        List<Vector2I> executedPath = result.ExecutedPath;
         executedPath.Add(active_unit.coord);
         if (path.Count == 1)
         {
@@ -548,7 +548,7 @@ public partial class BattleMovementService : RefCounted
         return buckets;
     }
 
-    private static GArray ToUntypedArray(GVector2IArray source)
+    private static GArray ToUntypedArray(IEnumerable<Vector2I> source)
     {
         var result = new GArray();
         if (source == null)

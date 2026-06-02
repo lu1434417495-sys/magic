@@ -1,32 +1,30 @@
+using System.Collections;
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
 
-[GlobalClass]
-public partial class BattleEffectCategoryResolver : RefCounted
+public static class BattleEffectCategoryResolver
 {
-    public Godot.Collections.Array<StringName> ResolveCategories(
-        SkillDef skill_def,
-        GArray effect_defs
+    public static IReadOnlyList<StringName> ResolveCategories(
+        SkillDef skillDef,
+        IEnumerable<CombatEffectDef> effectDefs
     )
     {
-        var categories = new Godot.Collections.Array<StringName>();
+        var categories = new List<StringName>();
         var seen = new HashSet<StringName>();
 
-        CombatSkillDef combatProfile = skill_def?.combat_profile;
+        CombatSkillDef combatProfile = skillDef?.combat_profile;
         if (combatProfile != null)
         {
             AppendCategories(categories, seen, combatProfile.delivery_categories);
         }
 
-        if (effect_defs == null)
+        if (effectDefs == null)
         {
             return categories;
         }
 
-        foreach (var effectValue in effect_defs)
+        foreach (CombatEffectDef effect in effectDefs)
         {
-            CombatEffectDef effect = effectValue.As<CombatEffectDef>();
             if (effect == null)
             {
                 continue;
@@ -38,9 +36,9 @@ public partial class BattleEffectCategoryResolver : RefCounted
     }
 
     private static void AppendCategories(
-        Godot.Collections.Array<StringName> categories,
+        List<StringName> categories,
         HashSet<StringName> seen,
-        Godot.Collections.Array<StringName> rawValues
+        IEnumerable rawValues
     )
     {
         if (rawValues == null)
@@ -48,42 +46,16 @@ public partial class BattleEffectCategoryResolver : RefCounted
             return;
         }
 
-        foreach (StringName category in rawValues)
+        foreach (object rawValue in rawValues)
         {
-            if (IsEmpty(category) || seen.Contains(category))
+            StringName category = ProgressionDataUtils.to_string_name(rawValue);
+            if (IsEmpty(category) || !seen.Add(category))
             {
                 continue;
             }
-            seen.Add(category);
             categories.Add(category);
         }
     }
-
-    private static void AppendCategories(
-        Godot.Collections.Array<StringName> categories,
-        HashSet<StringName> seen,
-        GArray rawValues
-    )
-    {
-        if (rawValues == null)
-        {
-            return;
-        }
-
-        foreach (var rawValue in rawValues)
-        {
-            StringName category = ToStringName(rawValue);
-            if (IsEmpty(category) || seen.Contains(category))
-            {
-                continue;
-            }
-            seen.Add(category);
-            categories.Add(category);
-        }
-    }
-
-    private static StringName ToStringName<TValue>(TValue value) =>
-        ProgressionDataUtils.to_string_name(value);
 
     private static bool IsEmpty(StringName value)
     {

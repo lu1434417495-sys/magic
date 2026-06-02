@@ -166,7 +166,7 @@ public partial class BattleRuntimeModule : RefCounted
     public BattleDamageResolver _damage_resolver = new();
     public BattleHitResolver _hit_resolver = new();
     public BattleAiService _ai_service = new();
-    public BattleAiActionAssembler _ai_action_assembler = new();
+    private readonly BattleAiActionAssembler _ai_action_assembler = new();
     public BattleTerrainEffectSystem _terrain_effect_system = new();
     public BattleRatingSystem _battle_rating_system = new();
     public BattleUnitFactory _unit_factory = new();
@@ -214,7 +214,7 @@ public partial class BattleRuntimeModule : RefCounted
     private readonly BattleAiScoreContextAdapter _ai_score_context_adapter = new();
     private readonly BattleAiQueryService _ai_query_service = new();
     private readonly BattleAiCandidateEvaluationService _ai_candidate_evaluation_service = new();
-    public GDictionary _battle_metrics = new();
+    internal BattleMetricsState _battle_metrics = new();
     public GDictionary _last_start_failure = new();
     public GDictionary calamity_by_member_id = new();
 
@@ -258,14 +258,14 @@ public partial class BattleRuntimeModule : RefCounted
 
         _ai_action_plans_by_unit_id.Clear();
         _last_start_failure.Clear();
-        _ai_service.setup(_enemy_ai_brains, _damage_resolver);
+        _ai_service.Setup(_enemyAiBrainIndex, _damage_resolver);
         _terrain_effect_system.setup(this);
         _attack_check_policy_service ??= new BattleAttackCheckPolicyService();
-        _attack_check_policy_service.setup(this, _hit_resolver, _terrain_effect_system);
+        _attack_check_policy_service.Setup(this, _hit_resolver, _terrain_effect_system);
         _skill_outcome_committer ??= new BattleSkillOutcomeCommitter();
         _skill_outcome_committer.setup(this);
         _special_profile_commit_adapter ??= new BattleSpecialProfileCommitAdapter();
-        _special_profile_commit_adapter.setup(this, _skill_outcome_committer);
+        _special_profile_commit_adapter.Setup(_skill_outcome_committer);
         _battle_rating_system.setup(this, _skill_mastery_service);
         _unit_factory.setup(this);
         _charge_resolver.setup(this, _skill_mastery_service);
@@ -280,7 +280,7 @@ public partial class BattleRuntimeModule : RefCounted
         _change_equipment_resolver.setup(this);
         _loot_resolver.Setup(this);
         _skill_turn_resolver.setup(this);
-        _metrics_collector.setup(this);
+        _metrics_collector.Setup(this);
         _shield_service.setup(this);
         _ground_effect_service.setup(this);
         _special_skill_resolver.setup(this);
@@ -294,11 +294,11 @@ public partial class BattleRuntimeModule : RefCounted
     public void _setup_special_profile_runtime()
     {
         _special_profile_gate ??= new BattleSpecialProfileGate();
-        _special_profile_gate.setup(_special_profile_registry_snapshot);
+        _special_profile_gate.Setup(_special_profile_registry_snapshot);
         _skill_outcome_committer ??= new BattleSkillOutcomeCommitter();
         _skill_outcome_committer.setup(this);
         _special_profile_commit_adapter ??= new BattleSpecialProfileCommitAdapter();
-        _special_profile_commit_adapter.setup(this, _skill_outcome_committer);
+        _special_profile_commit_adapter.Setup(_skill_outcome_committer);
 
         _meteor_swarm_resolver = null;
         GDictionary profiles = GetDict(_special_profile_registry_snapshot, "profiles");
@@ -458,7 +458,7 @@ public partial class BattleRuntimeModule : RefCounted
                     _spawn_reachability_service.ValidateStateTyped(
                         _state,
                         _grid_service,
-                        _skill_defs,
+                        _skillDefIndex,
                         new BattleSpawnReachabilityOptions(
                             startOptions.ValidateBidirectionalSpawnReachability
                         )
@@ -575,10 +575,10 @@ public partial class BattleRuntimeModule : RefCounted
             EnemyAiBrainDef brain = GetEnemyAiBrainTyped(unitState.ai_brain_id);
             if (brain == null)
                 continue;
-            BattleAiRuntimeActionPlan actionPlan = _ai_action_assembler.build_unit_action_plan(
+            BattleAiRuntimeActionPlan actionPlan = _ai_action_assembler.BuildUnitActionPlan(
                 unitState,
                 brain,
-                _skill_defs
+                GetSkillDefIndexTyped()
             );
             if (actionPlan != null)
                 _ai_action_plans_by_unit_id[unitState.unit_id] = actionPlan;
@@ -596,10 +596,10 @@ public partial class BattleRuntimeModule : RefCounted
         EnemyAiBrainDef brain = GetEnemyAiBrainTyped(unit_state.ai_brain_id);
         if (brain == null)
             return;
-        BattleAiRuntimeActionPlan actionPlan = _ai_action_assembler.build_unit_action_plan(
+        BattleAiRuntimeActionPlan actionPlan = _ai_action_assembler.BuildUnitActionPlan(
             unit_state,
             brain,
-            _skill_defs
+            GetSkillDefIndexTyped()
         );
         if (actionPlan != null)
             _ai_action_plans_by_unit_id[unit_state.unit_id] = actionPlan;
@@ -616,8 +616,8 @@ public partial class BattleRuntimeModule : RefCounted
             _get_move_cost_for_unit_target(unitState, targetCoord);
         ai_context.skill_score_input_callback ??=
             (context, skillDef, command, preview, effectDefs, metadata) =>
-                _ai_service.get_score_service()
-                    .build_skill_score_input(
+                _ai_service.GetScoreService()
+                    .BuildSkillScoreInput(
                         context,
                         skillDef,
                         command,
@@ -627,8 +627,8 @@ public partial class BattleRuntimeModule : RefCounted
                     );
         ai_context.action_score_input_callback ??=
             (context, actionKind, actionLabel, scoreBucketId, command, preview, metadata) =>
-                _ai_service.get_score_service()
-                    .build_action_score_input(
+                _ai_service.GetScoreService()
+                    .BuildActionScoreInput(
                         context,
                         actionKind,
                         actionLabel,
@@ -640,36 +640,27 @@ public partial class BattleRuntimeModule : RefCounted
         var movementQuery = _ai_movement_query_service;
         movementQuery.setup(_state, _grid_service, _get_ai_move_query_cost);
         var scoreAdapter = _ai_score_context_adapter;
-        scoreAdapter.setup(
-            _ai_service.get_score_service(),
+        scoreAdapter.Setup(
+            _ai_service.GetScoreService(),
             _state,
             unit_state,
             _grid_service,
             _skill_defs
         );
         var query = _ai_query_service;
-        query.setup(
+        query.Setup(
             _state,
             _grid_service,
             unit_state.unit_id,
-            _skill_defs,
+            GetSkillDefIndexTyped(),
             (service, actionKind, actionLabel, scoreBucketId, command, preview, metadata) =>
-                scoreAdapter.build_action_score_input(
+                scoreAdapter.BuildActionScoreInput(
                     service,
                     actionKind,
                     actionLabel,
                     scoreBucketId,
                     command,
                     preview,
-                    metadata
-                ),
-            (service, skillId, command, preview, effectDefs, metadata) =>
-                scoreAdapter.build_skill_score_input(
-                    service,
-                    skillId,
-                    command,
-                    preview,
-                    effectDefs,
                     metadata
                 ),
             movementQuery,
@@ -680,7 +671,7 @@ public partial class BattleRuntimeModule : RefCounted
             }
         );
         var candidateEvaluator = _ai_candidate_evaluation_service;
-        candidateEvaluator.setup(_ai_service.get_score_service());
+        candidateEvaluator.Setup(_ai_service.GetScoreService());
         ai_context.ai_query_service = query;
         ai_context.candidate_evaluator = candidateEvaluator;
     }
@@ -758,7 +749,7 @@ public partial class BattleRuntimeModule : RefCounted
                 _bind_ai_helper_services_for_decision(activeUnit, aiContext);
                 AiTraceRecorder.exit("advance:bind_ai_helpers");
                 AiTraceRecorder.enter("advance:choose_command");
-                BattleAiDecision decision = _ai_service.choose_command(aiContext);
+                BattleAiDecision decision = _ai_service.ChooseCommand(aiContext);
                 AiTraceRecorder.exit("advance:choose_command");
                 if (decision != null && decision.command != null)
                 {
@@ -1296,12 +1287,12 @@ public partial class BattleRuntimeModule : RefCounted
         var result = new Dictionary<StringName, int>();
         if (source == null)
             return result;
-        foreach (Variant key in source.Keys)
+        foreach (var entry in ProgressionDataUtils.to_string_name_int_dictionary(source))
         {
-            var memberId = ProgressionDataUtils.to_string_name(key);
+            var memberId = entry.Key;
             if (memberId == "")
                 continue;
-            int value = Mathf.Max(source[key].AsInt32(), 0);
+            int value = Mathf.Max(entry.Value, 0);
             if (value > 0)
                 result[memberId] = value;
         }
@@ -1362,11 +1353,11 @@ public partial class BattleRuntimeModule : RefCounted
     {
         _terrain_effect_system.setup(this);
         _attack_check_policy_service ??= new BattleAttackCheckPolicyService();
-        _attack_check_policy_service.setup(this, _hit_resolver, _terrain_effect_system);
+        _attack_check_policy_service.Setup(this, _hit_resolver, _terrain_effect_system);
         _skill_outcome_committer ??= new BattleSkillOutcomeCommitter();
         _skill_outcome_committer.setup(this);
         _special_profile_commit_adapter ??= new BattleSpecialProfileCommitAdapter();
-        _special_profile_commit_adapter.setup(this, _skill_outcome_committer);
+        _special_profile_commit_adapter.Setup(_skill_outcome_committer);
         _battle_rating_system.setup(this, _skill_mastery_service);
         _unit_factory.setup(this);
         _charge_resolver.setup(this, _skill_mastery_service);
@@ -1374,7 +1365,7 @@ public partial class BattleRuntimeModule : RefCounted
         _change_equipment_resolver.setup(this);
         _loot_resolver.Setup(this);
         _skill_turn_resolver.setup(this);
-        _metrics_collector.setup(this);
+        _metrics_collector.Setup(this);
         _shield_service.setup(this);
         _ground_effect_service.setup(this);
         _special_skill_resolver.setup(this);
@@ -1482,7 +1473,7 @@ public partial class BattleRuntimeModule : RefCounted
         _damage_resolver = damage_resolver ?? new BattleDamageResolver();
         BindDamageResolver();
         if (_ai_service != null)
-            _ai_service.setup(_enemy_ai_brains, _damage_resolver);
+            _ai_service.Setup(_enemyAiBrainIndex, _damage_resolver);
         if (_fate_runtime != null)
             _fate_runtime.setup(
                 _characterGateway,
@@ -1493,7 +1484,7 @@ public partial class BattleRuntimeModule : RefCounted
         _change_equipment_resolver.setup(this);
         _loot_resolver.Setup(this);
         _skill_turn_resolver.setup(this);
-        _metrics_collector.setup(this);
+        _metrics_collector.Setup(this);
         _shield_service.setup(this);
         _ground_effect_service.setup(this);
         _special_skill_resolver.setup(this);
@@ -1511,7 +1502,7 @@ public partial class BattleRuntimeModule : RefCounted
     public BattleAttackCheckPolicyService get_attack_check_policy_service()
     {
         _attack_check_policy_service ??= new BattleAttackCheckPolicyService();
-        _attack_check_policy_service.setup(this, _hit_resolver, _terrain_effect_system);
+        _attack_check_policy_service.Setup(this, _hit_resolver, _terrain_effect_system);
         return _attack_check_policy_service;
     }
 
@@ -1520,10 +1511,10 @@ public partial class BattleRuntimeModule : RefCounted
         _hit_resolver = hit_resolver ?? new BattleHitResolver();
         if (_damage_resolver != null)
             _damage_resolver.set_hit_resolver(_hit_resolver);
-        _attack_check_policy_service?.setup(this, _hit_resolver, _terrain_effect_system);
+        _attack_check_policy_service?.Setup(this, _hit_resolver, _terrain_effect_system);
         _meteor_swarm_resolver?.setup(this, _attack_check_policy_service);
         _skill_outcome_committer?.setup(this);
-        _special_profile_commit_adapter?.setup(this, _skill_outcome_committer);
+        _special_profile_commit_adapter?.Setup(_skill_outcome_committer);
     }
 
     public BattleTerrainGenerator get_terrain_generator() => _terrain_generator;
@@ -1621,14 +1612,42 @@ public partial class BattleRuntimeModule : RefCounted
         if (batch == null)
             return;
         string message = "该禁咒配置未通过校验，暂时无法施放。";
-        if (gate_result != null && !string.IsNullOrEmpty(gate_result.player_message))
-            message = gate_result.player_message;
+        if (gate_result != null && !string.IsNullOrEmpty(gate_result.PlayerMessage))
+            message = gate_result.PlayerMessage;
         if (string.IsNullOrEmpty(message))
             message = "该禁咒配置未通过校验，暂时无法施放。";
         batch.log_lines.Add(message);
     }
 
     public GDictionary get_item_defs() => _item_defs;
+
+    internal Dictionary<StringName, ItemDef> BuildItemDefIndexSnapshotTyped()
+    {
+        var result = new Dictionary<StringName, ItemDef>();
+        if (_item_defs == null || _item_defs.Count == 0)
+        {
+            return result;
+        }
+        foreach (var key in _item_defs.Keys)
+        {
+            ItemDef itemDef = _item_defs[key].As<ItemDef>();
+            if (itemDef == null)
+            {
+                continue;
+            }
+            StringName keyItemId = ProgressionDataUtils.to_string_name(key);
+            if (!IsEmpty(keyItemId) && !result.ContainsKey(keyItemId))
+            {
+                result[keyItemId] = itemDef;
+            }
+            StringName defItemId = ProgressionDataUtils.to_string_name(itemDef.item_id);
+            if (!IsEmpty(defItemId) && !result.ContainsKey(defItemId))
+            {
+                result[defItemId] = itemDef;
+            }
+        }
+        return result;
+    }
 
     public int get_min_battle_surface_height() => MIN_BATTLE_SURFACE_HEIGHT;
 
@@ -1910,12 +1929,12 @@ public partial class BattleRuntimeModule : RefCounted
 
     public string _format_ai_trace_coord(Vector2I coord) => $"({coord.X}, {coord.Y})";
 
-    public GDictionary get_battle_metrics() => _battle_metrics;
+    public GDictionary get_battle_metrics() => _battle_metrics?.ToDictionary() ?? new GDictionary();
 
     public void set_ai_score_profile(BattleAiScoreProfile profile) =>
-        _ai_service.set_score_profile(profile);
+        _ai_service.SetScoreProfile(profile);
 
-    public BattleAiScoreProfile get_ai_score_profile() => _ai_service.get_score_profile();
+    public BattleAiScoreProfile get_ai_score_profile() => _ai_service.GetScoreProfile();
 
     public int get_terrain_effect_nonce() => _terrain_effect_nonce;
 
@@ -2068,59 +2087,29 @@ public partial class BattleRuntimeModule : RefCounted
         _battle_rating_system.record_skill_effect_result(source_unit, damage, healing, kill_count);
         if (source_unit == null)
             return;
-        GDictionary sourceEntry = _ensure_unit_metric_entry(source_unit);
-        GDictionary factionEntry = _ensure_faction_metric_entry(source_unit.faction_id);
-        sourceEntry["total_damage_done"] =
-            GetInt(sourceEntry, "total_damage_done") + Math.Max(damage, 0);
-        sourceEntry["total_healing_done"] =
-            GetInt(sourceEntry, "total_healing_done") + Math.Max(healing, 0);
-        sourceEntry["kill_count"] = GetInt(sourceEntry, "kill_count") + Math.Max(kill_count, 0);
-        factionEntry["total_damage_done"] =
-            GetInt(factionEntry, "total_damage_done") + Math.Max(damage, 0);
-        factionEntry["total_healing_done"] =
-            GetInt(factionEntry, "total_healing_done") + Math.Max(healing, 0);
-        factionEntry["kill_count"] = GetInt(factionEntry, "kill_count") + Math.Max(kill_count, 0);
+        _metrics_collector.RecordSkillEffectResult(source_unit, damage, healing, kill_count);
     }
 
-    public void record_battle_contribution_result(
+    public void RecordBattleContributionResult(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         int damage,
         int healing,
-        bool caused_defeat,
-        StringName origin_kind,
-        StringName skill_id
+        bool causedDefeat,
+        StringName originKind,
+        StringName skillId
     )
     {
-        _battle_rating_system.record_contribution_from_units(
+        _battle_rating_system.RecordContributionFromUnits(
             source_unit,
             target_unit,
             damage,
             healing,
-            caused_defeat,
-            origin_kind,
-            skill_id
+            causedDefeat,
+            originKind,
+            skillId
         );
     }
-
-    public void record_contribution_from_units(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
-        int damage,
-        int healing,
-        bool caused_defeat,
-        StringName origin_kind,
-        StringName skill_id
-    ) =>
-        record_battle_contribution_result(
-            source_unit,
-            target_unit,
-            damage,
-            healing,
-            caused_defeat,
-            origin_kind,
-            skill_id
-        );
 
     public void append_result_source_status_effects(
         BattleEventBatch batch,
@@ -2161,31 +2150,31 @@ public partial class BattleRuntimeModule : RefCounted
     public void _initialize_battle_metrics()
     {
         _ensure_sidecars_ready();
-        _metrics_collector._initialize_battle_metrics();
+        _metrics_collector.InitializeBattleMetrics();
     }
 
     public GDictionary _build_unit_metric_entry(BattleUnitState unit_state)
     {
         _ensure_sidecars_ready();
-        return _metrics_collector._build_unit_metric_entry(unit_state);
+        return _metrics_collector.BuildUnitMetricEntry(unit_state).ToDictionary();
     }
 
     public GDictionary _ensure_unit_metric_entry(BattleUnitState unit_state)
     {
         _ensure_sidecars_ready();
-        return _metrics_collector._ensure_unit_metric_entry(unit_state);
+        return _metrics_collector.EnsureUnitMetricEntry(unit_state).ToDictionary();
     }
 
     public GDictionary _ensure_faction_metric_entry(StringName faction_id)
     {
         _ensure_sidecars_ready();
-        return _metrics_collector._ensure_faction_metric_entry(faction_id);
+        return _metrics_collector.EnsureFactionMetricEntry(faction_id).ToDictionary();
     }
 
     public void _record_turn_started(BattleUnitState unit_state)
     {
         _ensure_sidecars_ready();
-        _metrics_collector._record_turn_started(unit_state);
+        _metrics_collector.RecordTurnStarted(unit_state);
     }
 
     public void _record_action_issued(
@@ -2195,19 +2184,19 @@ public partial class BattleRuntimeModule : RefCounted
     )
     {
         _ensure_sidecars_ready();
-        _metrics_collector._record_action_issued(unit_state, command_type, ap_cost);
+        _metrics_collector.RecordActionIssued(unit_state, command_type, ap_cost);
     }
 
     public void _record_skill_attempt(BattleUnitState unit_state, StringName skill_id)
     {
         _ensure_sidecars_ready();
-        _metrics_collector._record_skill_attempt(unit_state, skill_id);
+        _metrics_collector.RecordSkillAttempt(unit_state, skill_id);
     }
 
     public void _record_skill_success(BattleUnitState unit_state, StringName skill_id)
     {
         _ensure_sidecars_ready();
-        _metrics_collector._record_skill_success(unit_state, skill_id);
+        _metrics_collector.RecordSkillSuccess(unit_state, skill_id);
     }
 
     public void _record_effect_metrics(
@@ -2219,7 +2208,7 @@ public partial class BattleRuntimeModule : RefCounted
     )
     {
         _ensure_sidecars_ready();
-        _metrics_collector._record_effect_metrics(
+        _metrics_collector.RecordEffectMetrics(
             source_unit,
             target_unit,
             damage,
@@ -2231,13 +2220,7 @@ public partial class BattleRuntimeModule : RefCounted
     public void _record_unit_defeated(BattleUnitState unit_state)
     {
         _ensure_sidecars_ready();
-        _metrics_collector._record_unit_defeated(unit_state);
-    }
-
-    public void _increment_metric_count(GDictionary metric_map, string key, int delta)
-    {
-        _ensure_sidecars_ready();
-        _metrics_collector._increment_metric_count(metric_map, key, delta);
+        _metrics_collector.RecordUnitDefeated(unit_state);
     }
 
     public void dispose()
@@ -2250,7 +2233,7 @@ public partial class BattleRuntimeModule : RefCounted
         _change_equipment_resolver?.dispose();
         _loot_resolver?.Dispose();
         _skill_turn_resolver?.dispose();
-        _metrics_collector?.dispose();
+        _metrics_collector?.Dispose();
         _shield_service?.dispose();
         _ground_effect_service?.dispose();
         _special_skill_resolver?.dispose();
@@ -2259,9 +2242,9 @@ public partial class BattleRuntimeModule : RefCounted
         _timeline_driver?.Dispose();
         _skill_orchestrator?.dispose();
         _meteor_swarm_resolver?.dispose();
-        _attack_check_policy_service?.dispose();
+        _attack_check_policy_service?.Dispose();
         _skill_outcome_committer?.dispose();
-        _special_profile_commit_adapter?.dispose();
+        _special_profile_commit_adapter?.Dispose();
         _meteor_swarm_resolver = null;
         _special_profile_gate = null;
         _attack_check_policy_service = null;

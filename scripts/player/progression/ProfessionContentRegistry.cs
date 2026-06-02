@@ -53,9 +53,14 @@ public partial class ProfessionContentRegistry : RefCounted
 
     public void rebuild()
     {
+        load_from_directory(ProfessionConfigDirectory);
+    }
+
+    public void load_from_directory(string directoryPath)
+    {
         _profession_defs.Clear();
         _validation_errors.Clear();
-        _scan_directory(ProfessionConfigDirectory);
+        _scan_directory(directoryPath);
         AppendArray(_validation_errors, _collect_validation_errors());
     }
 

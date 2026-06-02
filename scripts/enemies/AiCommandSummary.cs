@@ -1,19 +1,17 @@
+using System;
+using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
-using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
-[GlobalClass]
-public partial class AiCommandSummary : RefCounted
+public sealed class AiCommandSummary
 {
-    public string command_type = "";
-    public string unit_id = "";
-    public string skill_id = "";
-    public string skill_variant_id = "";
-    public string target_unit_id = "";
-    public GStringNameArray target_unit_ids = new();
-    public Vector2I target_coord = Vector2I.Zero;
-    public GVector2IArray target_coords = new();
+    public string CommandType { get; set; } = "";
+    public string UnitId { get; set; } = "";
+    public string SkillId { get; set; } = "";
+    public string SkillVariantId { get; set; } = "";
+    public string TargetUnitId { get; set; } = "";
+    public List<StringName> TargetUnitIds { get; } = new();
+    public Vector2I TargetCoord { get; set; } = Vector2I.Zero;
+    public List<Vector2I> TargetCoords { get; } = new();
 
     public AiCommandSummary() { }
 
@@ -23,35 +21,33 @@ public partial class AiCommandSummary : RefCounted
         string p_skill_id,
         string p_skill_variant_id,
         string p_target_unit_id,
-        GStringNameArray p_target_unit_ids,
+        IEnumerable<StringName> p_target_unit_ids,
         Vector2I p_target_coord,
-        GVector2IArray p_target_coords
+        IEnumerable<Vector2I> p_target_coords
     )
     {
-        command_type = p_command_type;
-        unit_id = p_unit_id;
-        skill_id = p_skill_id;
-        skill_variant_id = p_skill_variant_id;
-        target_unit_id = p_target_unit_id;
-        target_unit_ids =
-            p_target_unit_ids != null ? p_target_unit_ids.Duplicate() : new GStringNameArray();
-        target_coord = p_target_coord;
-        target_coords =
-            p_target_coords != null ? p_target_coords.Duplicate() : new GVector2IArray();
+        CommandType = p_command_type ?? "";
+        UnitId = p_unit_id ?? "";
+        SkillId = p_skill_id ?? "";
+        SkillVariantId = p_skill_variant_id ?? "";
+        TargetUnitId = p_target_unit_id ?? "";
+        AddStringNames(TargetUnitIds, p_target_unit_ids);
+        TargetCoord = p_target_coord;
+        AddCoords(TargetCoords, p_target_coords);
     }
 
-    public static AiCommandSummary from_command(BattleCommand command)
+    public static AiCommandSummary FromCommand(BattleCommand command)
     {
         if (command == null)
             return new AiCommandSummary();
 
-        var target_unit_ids_copy = new GStringNameArray();
+        var targetUnitIds = new List<StringName>();
         foreach (StringName uid in command.target_unit_ids)
-            target_unit_ids_copy.Add(ProgressionDataUtils.to_string_name(uid));
+            targetUnitIds.Add(ProgressionDataUtils.to_string_name(uid));
 
-        var target_coords_copy = new GVector2IArray();
+        var targetCoords = new List<Vector2I>();
         foreach (Vector2I coord in command.target_coords)
-            target_coords_copy.Add(coord);
+            targetCoords.Add(coord);
 
         return new AiCommandSummary(
             command.command_type.ToString(),
@@ -59,24 +55,82 @@ public partial class AiCommandSummary : RefCounted
             command.skill_id.ToString(),
             command.skill_variant_id.ToString(),
             command.target_unit_id.ToString(),
-            target_unit_ids_copy,
+            targetUnitIds,
             command.target_coord,
-            target_coords_copy
+            targetCoords
         );
     }
 
-    public GDictionary to_dict()
+    public AiCommandSummary Clone()
     {
-        return new GDictionary
+        return new AiCommandSummary(
+            CommandType,
+            UnitId,
+            SkillId,
+            SkillVariantId,
+            TargetUnitId,
+            TargetUnitIds,
+            TargetCoord,
+            TargetCoords
+        );
+    }
+
+    internal Godot.Collections.Dictionary ToDictionary()
+    {
+        return new Godot.Collections.Dictionary
         {
-            ["command_type"] = command_type,
-            ["unit_id"] = unit_id,
-            ["skill_id"] = skill_id,
-            ["skill_variant_id"] = skill_variant_id,
-            ["target_unit_id"] = target_unit_id,
-            ["target_unit_ids"] = target_unit_ids.Duplicate(),
-            ["target_coord"] = target_coord,
-            ["target_coords"] = target_coords.Duplicate(),
+            ["command_type"] = CommandType,
+            ["unit_id"] = UnitId,
+            ["skill_id"] = SkillId,
+            ["skill_variant_id"] = SkillVariantId,
+            ["target_unit_id"] = TargetUnitId,
+            ["target_unit_ids"] = ToStringNameArray(TargetUnitIds),
+            ["target_coord"] = TargetCoord,
+            ["target_coords"] = ToVector2IArray(TargetCoords),
         };
+    }
+
+    private static void AddStringNames(List<StringName> target, IEnumerable<StringName> values)
+    {
+        if (values == null)
+        {
+            return;
+        }
+        foreach (StringName value in values)
+        {
+            target.Add(ProgressionDataUtils.to_string_name(value));
+        }
+    }
+
+    private static void AddCoords(List<Vector2I> target, IEnumerable<Vector2I> values)
+    {
+        if (values == null)
+        {
+            return;
+        }
+        foreach (Vector2I value in values)
+        {
+            target.Add(value);
+        }
+    }
+
+    private static Godot.Collections.Array<StringName> ToStringNameArray(IEnumerable<StringName> values)
+    {
+        var result = new Godot.Collections.Array<StringName>();
+        foreach (StringName value in values ?? Array.Empty<StringName>())
+        {
+            result.Add(value);
+        }
+        return result;
+    }
+
+    private static Godot.Collections.Array<Vector2I> ToVector2IArray(IEnumerable<Vector2I> values)
+    {
+        var result = new Godot.Collections.Array<Vector2I>();
+        foreach (Vector2I value in values ?? Array.Empty<Vector2I>())
+        {
+            result.Add(value);
+        }
+        return result;
     }
 }

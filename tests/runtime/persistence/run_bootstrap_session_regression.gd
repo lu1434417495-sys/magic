@@ -122,7 +122,7 @@ func _test_character_creation_body_size_uses_identity_rules() -> void:
 		_assert_true(member != null, "建卡体型规则回归前置：应能取得主角。")
 		if member != null:
 			_assert_eq(member.body_size_category, &"medium", "建卡落地应从 race/subrace 规则解析最终 body_size_category，不信任 payload int/category。")
-			_assert_eq(member.body_size, 2, "建卡落地应通过 BodySizeRules 从 category 派生 body_size。")
+			_assert_eq(member.body_size, 2, "建卡落地应通过 BodySizeContentRules 从 category 派生 body_size。")
 			_assert_eq(int(member.progression.character_level), 0, "建卡创建的主角应从 0 级开始。")
 			_assert_eq(int(member.progression.unit_base_attributes.get_attribute_value(&"hp_max")), 14, "建卡创建的 0 级主角应按 14 + 体质调整值*2 写入初始生命上限。")
 			_assert_eq(int(member.current_hp), 14, "建卡创建的 0 级主角当前生命应等于初始生命上限。")

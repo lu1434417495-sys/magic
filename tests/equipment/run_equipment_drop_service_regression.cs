@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
 
 public partial class run_equipment_drop_service_regression : SceneTree
 {
@@ -16,6 +15,8 @@ public partial class run_equipment_drop_service_regression : SceneTree
         TestRollDropRarityHitsAllThresholdTiers();
         TestRollDropRarityAcceptsCallerClampedExtremes();
         TestRollDropsKeepsEmptyMainPathStable();
+        TestRollItemInstancesReturnsTypedList();
+        TestEquipmentDropServiceIsPlainService();
 
         if (_failures.Count == 0)
         {
@@ -88,10 +89,46 @@ public partial class run_equipment_drop_service_regression : SceneTree
         FixedRollRng rng = new(new[] { 6, 6, 6 });
         service.SetRollRangeForTesting(rng.RollRange);
 
-        GArray drops = service.roll_drops("starter_equipment", 0);
+        List<object> drops = service.RollDrops("starter_equipment", 0);
 
-        AssertTrue(drops != null, "roll_drops 当前应返回稳定的 Array。");
-        AssertEq(drops?.Count ?? -1, 0, "正式掉落表尚未接入前，roll_drops 应返回空数组。");
+        AssertTrue(drops != null, "RollDrops 当前应返回稳定的 typed list。");
+        AssertEq(drops?.Count ?? -1, 0, "正式掉落表尚未接入前，RollDrops 应返回空列表。");
+    }
+
+    private void TestRollItemInstancesReturnsTypedList()
+    {
+        EquipmentDropService service = new();
+        FixedRollRng rng = new(new[] { 6, 6, 6 });
+        service.SetRollRangeForTesting(rng.RollRange);
+
+        List<EquipmentInstanceState> instances = service.RollItemInstances("iron_sword", 2, 0);
+
+        AssertEq(instances.Count, 2, "RollItemInstances 应返回 typed 装备实例列表。");
+        AssertEq(
+            instances[0].rarity,
+            EquipmentInstanceState.RARITY_TIER_LEGENDARY(),
+            "装备实例稀有度应由 typed 掷骰结果写入。"
+        );
+        AssertEq(
+            instances[0].current_durability,
+            EquipmentDurabilityRules.GetDefaultCurrentDurability(
+                EquipmentInstanceState.RARITY_TIER_LEGENDARY()
+            ),
+            "装备实例耐久应由 typed durability 规则写入。"
+        );
+    }
+
+    private void TestEquipmentDropServiceIsPlainService()
+    {
+        AssertTrue(
+            !typeof(RefCounted).IsAssignableFrom(typeof(EquipmentDropService)),
+            "EquipmentDropService 不应继承 RefCounted。"
+        );
+        AssertTrue(
+            typeof(EquipmentDropService).GetCustomAttributes(typeof(GlobalClassAttribute), false)
+                .Length == 0,
+            "EquipmentDropService 不应注册为 Godot GlobalClass。"
+        );
     }
 
     private void AssertRarityRoll(
@@ -105,7 +142,7 @@ public partial class run_equipment_drop_service_regression : SceneTree
         FixedRollRng rng = new(rolls);
         service.SetRollRangeForTesting(rng.RollRange);
 
-        int actualRarity = service.roll_drop_rarity(dropLuck);
+        int actualRarity = service.RollDropRarity(dropLuck);
         AssertEq(actualRarity, expectedRarity, $"{label}。");
     }
 

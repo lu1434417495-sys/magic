@@ -149,14 +149,14 @@ public partial class run_battle_hit_rate_legacy_cleanup_regression : SceneTree
     {
         var scoreService = new BattleAiScoreService();
         AssertEq(
-            scoreService._resolve_estimated_hit_rate_percent(
+            scoreService.ResolveEstimatedHitRatePercent(
                 BuildPreview(new AttackPreviewData { HitRatePercent = 87 })
             ),
             100,
             "AI score estimated_hit_rate_percent must ignore legacy-only hit_rate_percent."
         );
         AssertEq(
-            scoreService._resolve_estimated_hit_rate_percent(
+            scoreService.ResolveEstimatedHitRatePercent(
                 BuildPreview(
                     new AttackPreviewData
                     {
@@ -169,7 +169,7 @@ public partial class run_battle_hit_rate_legacy_cleanup_regression : SceneTree
             "AI score estimated_hit_rate_percent must use formal success_rate_percent."
         );
         AssertEq(
-            scoreService._resolve_estimated_hit_rate_percent(
+            scoreService.ResolveEstimatedHitRatePercent(
                 BuildPreview(
                     new AttackPreviewData
                     {

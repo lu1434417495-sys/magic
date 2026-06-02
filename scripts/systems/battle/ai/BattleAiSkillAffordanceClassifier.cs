@@ -1,21 +1,15 @@
 using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class BattleAiSkillAffordanceClassifier : RefCounted
+public sealed class BattleAiSkillAffordanceClassifier
 {
     private static readonly StringName PathStepAoeEffectType = "path_step_aoe";
     private static readonly StringName MeteorSwarmProfileId = "meteor_swarm";
 
-    public GDictionary classify_skill(SkillDef skill_def, int skill_level = 1)
-    {
-        return ClassifySkill(skill_def, skill_level).ToDictionary();
-    }
-
     internal BattleAiSkillAffordanceRecord ClassifySkill(SkillDef skill_def, int skill_level = 1)
     {
-        BattleAiSkillAffordanceRecord record = BattleAiSkillAffordanceRecord.Empty(skill_def);
+        BattleAiSkillAffordanceRecord record =
+            BattleAiSkillAffordanceRecord.Empty(skill_def != null ? skill_def.skill_id : "");
         CombatSkillDef combatProfile = skill_def?.combat_profile as CombatSkillDef;
         if (skill_def == null || combatProfile == null || skill_def.skill_type != "active")
         {
@@ -231,11 +225,11 @@ public partial class BattleAiSkillAffordanceClassifier : RefCounted
             return "";
         }
         StringName filter = Normalize(combatProfile.target_team_filter);
-        if (BattleTargetTeamRules.is_beneficial_filter(filter))
+        if (BattleTargetTeamRules.IsBeneficialFilter(filter))
         {
             return "support";
         }
-        if (BattleTargetTeamRules.is_enemy_filter(filter))
+        if (BattleTargetTeamRules.IsEnemyFilter(filter))
         {
             return "hostile";
         }
@@ -246,11 +240,11 @@ public partial class BattleAiSkillAffordanceClassifier : RefCounted
                 continue;
             }
             StringName effectFilter = Normalize(effectDef.effect_target_team_filter);
-            if (BattleTargetTeamRules.is_enemy_filter(effectFilter))
+            if (BattleTargetTeamRules.IsEnemyFilter(effectFilter))
             {
                 return "hostile";
             }
-            if (BattleTargetTeamRules.is_beneficial_filter(effectFilter))
+            if (BattleTargetTeamRules.IsBeneficialFilter(effectFilter))
             {
                 return "support";
             }

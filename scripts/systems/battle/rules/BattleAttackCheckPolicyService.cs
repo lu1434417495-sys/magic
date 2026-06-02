@@ -1,14 +1,8 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GDictArray = Godot.Collections.Array<Godot.Collections.Dictionary>;
-using GDictionary = Godot.Collections.Dictionary;
-using GIntArray = Godot.Collections.Array<int>;
-using GSpecArray = Godot.Collections.Array<BattleAttackRollModifierSpec>;
-using GStringArray = Godot.Collections.Array<string>;
 
-[GlobalClass]
-public partial class BattleAttackCheckPolicyService : RefCounted
+public class BattleAttackCheckPolicyService
 {
     public static readonly StringName ROUTE_SKILL_ATTACK_CHECK = "skill_attack_check";
     public static readonly StringName ROUTE_SKILL_ATTACK_PREVIEW = "skill_attack_preview";
@@ -27,7 +21,7 @@ public partial class BattleAttackCheckPolicyService : RefCounted
     private BattleHitResolver _hitResolver;
     private BattleTerrainEffectSystem _terrainEffectSystem;
 
-    public void setup(
+    public void Setup(
         BattleRuntimeModule runtime,
         BattleHitResolver hit_resolver,
         BattleTerrainEffectSystem terrain_effect_system
@@ -38,14 +32,14 @@ public partial class BattleAttackCheckPolicyService : RefCounted
         _terrainEffectSystem = terrain_effect_system;
     }
 
-    public void dispose()
+    public void Dispose()
     {
         _runtimeRef = null;
         _hitResolver = null;
         _terrainEffectSystem = null;
     }
 
-    public BattleAttackRollModifierBundle build_modifier_bundle(
+    public BattleAttackRollModifierBundle BuildModifierBundle(
         BattleAttackCheckPolicyContext context
     )
     {
@@ -55,7 +49,7 @@ public partial class BattleAttackCheckPolicyService : RefCounted
             return bundle;
         }
 
-        var filteredSpecs = new GSpecArray();
+        var filteredSpecs = new List<BattleAttackRollModifierSpec>();
         foreach (BattleAttackRollModifierSpec candidate in CollectModifierCandidates(context))
         {
             if (ModifierApplies(candidate, context))
@@ -64,14 +58,14 @@ public partial class BattleAttackCheckPolicyService : RefCounted
             }
         }
 
-        foreach (BattleAttackRollModifierSpec spec in _resolve_stacked_specs(filteredSpecs))
+        foreach (BattleAttackRollModifierSpec spec in ResolveStackedSpecs(filteredSpecs))
         {
-            bundle.add_spec(spec);
+            bundle.AddSpec(spec);
         }
         return bundle;
     }
 
-    public BattleAttackCheckPolicyContext build_attack_context(
+    public BattleAttackCheckPolicyContext BuildAttackContext(
         BattleState battle_state,
         BattleUnitState active_unit,
         BattleUnitState target_unit,
@@ -94,7 +88,7 @@ public partial class BattleAttackCheckPolicyService : RefCounted
         return context;
     }
 
-    public AttackCheckInput build_attack_check(
+    public AttackCheckInput BuildAttackCheck(
         BattleAttackCheckPolicyContext context,
         int flat_bonus,
         int flat_penalty
@@ -109,17 +103,17 @@ public partial class BattleAttackCheckPolicyService : RefCounted
             context.roll_kind = ROLL_KIND_SPELL_ATTACK;
         }
 
-        BattleAttackRollModifierBundle modifierBundle = build_modifier_bundle(context);
+        BattleAttackRollModifierBundle modifierBundle = BuildModifierBundle(context);
         return _hitResolver.build_skill_attack_check(
             context.attacker,
             context.target,
             context.skill_def,
-            flat_bonus + modifierBundle.total_bonus,
-            flat_penalty + modifierBundle.total_penalty
+            flat_bonus + modifierBundle.TotalBonus,
+            flat_penalty + modifierBundle.TotalPenalty
         );
     }
 
-    public AttackPreviewData build_attack_preview(BattleAttackCheckPolicyContext context)
+    public AttackPreviewData BuildAttackPreview(BattleAttackCheckPolicyContext context)
     {
         if (_hitResolver == null || context == null)
         {
@@ -134,7 +128,7 @@ public partial class BattleAttackCheckPolicyService : RefCounted
         {
             AttackPreviewData forcePreview = _hitResolver.build_force_hit_no_crit_attack_preview();
             context.check_route = ROUTE_FORCE_HIT_NO_CRIT_PREVIEW;
-            AppendModifierBundlePayload(forcePreview, build_modifier_bundle(context));
+            AppendModifierBundlePayload(forcePreview, BuildModifierBundle(context));
             return forcePreview;
         }
 
@@ -143,8 +137,8 @@ public partial class BattleAttackCheckPolicyService : RefCounted
             context.check_route = ROUTE_SKILL_ATTACK_PREVIEW;
         }
 
-        BattleAttackRollModifierBundle modifierBundle = build_modifier_bundle(context);
-        if (modifierBundle.is_empty())
+        BattleAttackRollModifierBundle modifierBundle = BuildModifierBundle(context);
+        if (modifierBundle.IsEmpty())
         {
             return _hitResolver.build_skill_attack_preview(
                 context.battle_state,
@@ -155,7 +149,7 @@ public partial class BattleAttackCheckPolicyService : RefCounted
             );
         }
 
-        AttackCheckInput attackCheck = build_attack_check(context, 0, 0);
+        AttackCheckInput attackCheck = BuildAttackCheck(context, 0, 0);
         AttackCheckInput resolvedCheck = _hitResolver._build_fate_aware_attack_check_preview(
             context.battle_state,
             context.attacker,
@@ -188,7 +182,7 @@ public partial class BattleAttackCheckPolicyService : RefCounted
         return preview;
     }
 
-    public AttackPreviewData build_repeat_attack_preview(
+    public AttackPreviewData BuildRepeatAttackPreview(
         BattleAttackCheckPolicyContext context,
         List<BattleRepeatAttackStageSpec> stage_specs
     )
@@ -212,7 +206,7 @@ public partial class BattleAttackCheckPolicyService : RefCounted
         );
         var summaryChecks = new List<AttackCheckInput>();
         var stages = new List<AttackPreviewStage>();
-        var combinedBreakdown = new Godot.Collections.Array();
+        var combinedBreakdown = new List<BattleAttackRollModifierSpec>();
 
         for (int stageIndex = 0; stageIndex < normalizedStageCount; stageIndex++)
         {
@@ -223,7 +217,7 @@ public partial class BattleAttackCheckPolicyService : RefCounted
                 stageSpec,
                 ROUTE_REPEAT_ATTACK_PREVIEW
             );
-            AttackCheckInput attackCheck = build_fate_aware_repeat_attack_stage_hit_check(stageContext);
+            AttackCheckInput attackCheck = BuildFateAwareRepeatAttackStageHitCheck(stageContext);
             summaryChecks.Add(attackCheck);
             int stageSuccessRate = attackCheck.SuccessRatePercent;
             stages.Add(
@@ -236,43 +230,30 @@ public partial class BattleAttackCheckPolicyService : RefCounted
                     previewText: attackCheck.PreviewText
                 )
             );
-            foreach (Godot.Collections.Dictionary entry in build_modifier_bundle(stageContext).get_breakdown_payload())
+            foreach (BattleAttackRollModifierSpec spec in BuildModifierBundle(stageContext).Breakdown)
             {
-                combinedBreakdown.Add((Godot.Collections.Dictionary)entry.Duplicate(true));
+                combinedBreakdown.Add(spec);
             }
         }
 
-        var successRates = new GIntArray();
-        var baseHitRates = new GIntArray();
-        foreach (var stage in stages)
-        {
-            successRates.Add(stage.SuccessRatePercent);
-            baseHitRates.Add(stage.BaseHitRatePercent);
-        }
         var preview = new AttackPreviewData
         {
             SummaryText = _hitResolver._format_repeat_attack_preview_summary(summaryChecks),
             Stages = stages,
-            HitRatePercent = Mathf.RoundToInt(
-                (float)_hitResolver._average_ints(successRates)
-            ),
-            SuccessRatePercent = Mathf.RoundToInt(
-                (float)_hitResolver._average_ints(successRates)
-            ),
-            BaseHitRatePercent = Mathf.RoundToInt(
-                (float)_hitResolver._average_ints(baseHitRates)
-            ),
+            HitRatePercent = AverageStageRate(stages, stage => stage.SuccessRatePercent),
+            SuccessRatePercent = AverageStageRate(stages, stage => stage.SuccessRatePercent),
+            BaseHitRatePercent = AverageStageRate(stages, stage => stage.BaseHitRatePercent),
             BaseAttackBonus = stage_specs[0].stage_base_attack_bonus,
             FollowUpAttackPenalty = stage_specs[0].follow_up_attack_penalty,
         };
         if (combinedBreakdown.Count != 0)
         {
-            preview.AttackRollModifierBreakdown = combinedBreakdown;
+            preview.SetAttackRollModifierBreakdown(combinedBreakdown);
         }
         return preview;
     }
 
-    public BattleAttackCheckPolicyContext build_repeat_attack_stage_context(
+    public BattleAttackCheckPolicyContext BuildRepeatAttackStageContext(
         BattleState battle_state,
         BattleUnitState active_unit,
         BattleUnitState target_unit,
@@ -296,7 +277,7 @@ public partial class BattleAttackCheckPolicyService : RefCounted
         return context;
     }
 
-    public AttackCheckInput build_repeat_attack_stage_hit_check(BattleAttackCheckPolicyContext context)
+    public AttackCheckInput BuildRepeatAttackStageHitCheck(BattleAttackCheckPolicyContext context)
     {
         if (_hitResolver == null || context == null || !context.has_repeat_stage_spec)
         {
@@ -305,17 +286,17 @@ public partial class BattleAttackCheckPolicyService : RefCounted
 
         context.roll_kind = ROLL_KIND_REPEAT_WEAPON_STAGE;
         BattleRepeatAttackStageSpec resolvedStageSpec = context.repeat_stage_spec;
-        BattleAttackRollModifierBundle modifierBundle = build_modifier_bundle(context);
+        BattleAttackRollModifierBundle modifierBundle = BuildModifierBundle(context);
         return _hitResolver.build_skill_attack_check(
             context.attacker,
             context.target,
             context.skill_def,
-            resolvedStageSpec.stage_base_attack_bonus + modifierBundle.total_bonus,
-            resolvedStageSpec.resolve_stage_attack_penalty() + modifierBundle.total_penalty
+            resolvedStageSpec.stage_base_attack_bonus + modifierBundle.TotalBonus,
+            resolvedStageSpec.resolve_stage_attack_penalty() + modifierBundle.TotalPenalty
         );
     }
 
-    public AttackCheckInput build_fate_aware_repeat_attack_stage_hit_check(
+    public AttackCheckInput BuildFateAwareRepeatAttackStageHitCheck(
         BattleAttackCheckPolicyContext context
     )
     {
@@ -324,7 +305,7 @@ public partial class BattleAttackCheckPolicyService : RefCounted
             return new AttackCheckInput(invalid: true);
         }
         context.repeat_stage_spec = context.repeat_stage_spec.with_fate_aware(true);
-        AttackCheckInput baseAttackCheck = build_repeat_attack_stage_hit_check(context);
+        AttackCheckInput baseAttackCheck = BuildRepeatAttackStageHitCheck(context);
         return _hitResolver._build_fate_aware_attack_check_preview(
             context.battle_state,
             context.attacker,
@@ -333,20 +314,21 @@ public partial class BattleAttackCheckPolicyService : RefCounted
         );
     }
 
-    public AttackRollResult roll_attack_check(BattleState battle_state, AttackCheckInput attack_check)
+    public AttackRollResult RollAttackCheck(BattleState battle_state, AttackCheckInput attack_check)
     {
         return _hitResolver != null
             ? _hitResolver.roll_attack_check(battle_state, attack_check)
             : new AttackRollResult();
     }
 
-    public GSpecArray _resolve_stacked_specs(GSpecArray candidates)
+    public List<BattleAttackRollModifierSpec> ResolveStackedSpecs(
+        IReadOnlyList<BattleAttackRollModifierSpec> candidates
+    )
     {
         var grouped = new Dictionary<string, List<BattleAttackRollModifierSpec>>();
         var order = new List<string>();
-        candidates ??= new GSpecArray();
 
-        for (int index = 0; index < candidates.Count; index++)
+        for (int index = 0; index < (candidates?.Count ?? 0); index++)
         {
             BattleAttackRollModifierSpec spec = candidates[index];
             if (spec == null)
@@ -380,12 +362,7 @@ public partial class BattleAttackCheckPolicyService : RefCounted
         }
         resolvedSpecs.Sort((a, b) => BuildSortKey(a).CompareTo(BuildSortKey(b)));
 
-        var result = new GSpecArray();
-        foreach (BattleAttackRollModifierSpec spec in resolvedSpecs)
-        {
-            result.Add(spec);
-        }
-        return result;
+        return resolvedSpecs;
     }
 
     private BattleAttackCheckPolicyContext BuildContext(
@@ -413,9 +390,11 @@ public partial class BattleAttackCheckPolicyService : RefCounted
         };
     }
 
-    private GSpecArray CollectModifierCandidates(BattleAttackCheckPolicyContext context)
+    private List<BattleAttackRollModifierSpec> CollectModifierCandidates(
+        BattleAttackCheckPolicyContext context
+    )
     {
-        var candidates = new GSpecArray();
+        var candidates = new List<BattleAttackRollModifierSpec>();
         foreach (BattleAttackRollModifierSpec spec in CollectTerrainModifierCandidates(context))
         {
             candidates.Add(spec);
@@ -423,9 +402,11 @@ public partial class BattleAttackCheckPolicyService : RefCounted
         return candidates;
     }
 
-    private GSpecArray CollectTerrainModifierCandidates(BattleAttackCheckPolicyContext context)
+    private List<BattleAttackRollModifierSpec> CollectTerrainModifierCandidates(
+        BattleAttackCheckPolicyContext context
+    )
     {
-        var candidates = new GSpecArray();
+        var candidates = new List<BattleAttackRollModifierSpec>();
         BattleState state = context?.battle_state;
         if (state == null)
         {
@@ -434,12 +415,7 @@ public partial class BattleAttackCheckPolicyService : RefCounted
 
         foreach (Vector2I coord in CollectEndpointCoords(context))
         {
-            if (!state.cells.ContainsKey(coord))
-            {
-                continue;
-            }
-            BattleCellState cell = state.cells[coord].As<BattleCellState>();
-            if (cell == null)
+            if (!state.TryGetCellTyped(coord, out BattleCellState cell))
             {
                 continue;
             }
@@ -452,7 +428,7 @@ public partial class BattleAttackCheckPolicyService : RefCounted
                 {
                     continue;
                 }
-                GDictionary rawSpec = GetDict(
+                Godot.Collections.Dictionary rawSpec = GetDictionary(
                     effectState.@params,
                     ParamAccuracyModifierSpec
                 );
@@ -460,7 +436,7 @@ public partial class BattleAttackCheckPolicyService : RefCounted
                 {
                     continue;
                 }
-                BattleAttackRollModifierSpec spec = BattleAttackRollModifierSpec.from_partial_dict(
+                BattleAttackRollModifierSpec spec = BattleAttackRollModifierSpec.FromPartialDictionary(
                     rawSpec
                 );
                 if (spec == null)
@@ -660,11 +636,11 @@ public partial class BattleAttackCheckPolicyService : RefCounted
         BattleAttackRollModifierBundle modifierBundle
     )
     {
-        if (target == null || modifierBundle == null || modifierBundle.is_empty())
+        if (target == null || modifierBundle == null || modifierBundle.IsEmpty())
         {
             return;
         }
-        target.AttackRollModifierBreakdown = (Godot.Collections.Array)modifierBundle.get_breakdown_payload();
+        target.SetAttackRollModifierBreakdown(modifierBundle.Breakdown);
     }
 
     private BattleAttackCheckPolicyContext CopyContextForRepeatStage(
@@ -791,7 +767,7 @@ public partial class BattleAttackCheckPolicyService : RefCounted
         BattleUnitState targetUnit
     )
     {
-        return BattleTargetTeamRules.is_unit_valid_for_filter(
+        return BattleTargetTeamRules.IsUnitValidForFilter(
             attacker,
             targetUnit,
             filter,
@@ -829,14 +805,34 @@ public partial class BattleAttackCheckPolicyService : RefCounted
         return $"{spec.source_domain}|{spec.stack_key}|{spec.source_id}|{spec.source_instance_id}|{spec.label}";
     }
 
-    private static GDictionary GetDict(GDictionary source, object key)
+    private static int AverageStageRate(
+        IReadOnlyList<AttackPreviewStage> stages,
+        Func<AttackPreviewStage, int> selector
+    )
+    {
+        if (stages == null || stages.Count == 0 || selector == null)
+        {
+            return 0;
+        }
+        int total = 0;
+        foreach (AttackPreviewStage stage in stages)
+        {
+            total += selector(stage);
+        }
+        return Mathf.RoundToInt((float)total / stages.Count);
+    }
+
+    private static Godot.Collections.Dictionary GetDictionary(
+        Godot.Collections.Dictionary source,
+        object key
+    )
     {
         return TryGetValue(source, key, out dynamic value)
             ? value.AsGodotDictionary()
-            : new GDictionary();
+            : new Godot.Collections.Dictionary();
     }
 
-    private static bool TryGetValue(GDictionary source, object key, out dynamic value)
+    private static bool TryGetValue(Godot.Collections.Dictionary source, object key, out dynamic value)
     {
         if (source == null)
         {

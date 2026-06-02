@@ -317,7 +317,7 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
             );
 
         var instanceOwnerById = new Dictionary();
-        foreach (EquipmentInstanceState instanceObj in warehouseState.get_non_empty_instances())
+        foreach (EquipmentInstanceState instanceObj in warehouseState.GetNonEmptyEquipmentInstancesTyped())
         {
             if (instanceObj == null)
                 continue;
@@ -349,7 +349,7 @@ public partial class GameRuntimeBattleWritebackService : RefCounted
                     )
                 );
 
-            foreach (StringName entrySlotId in equipmentState.get_entry_slot_ids())
+            foreach (StringName entrySlotId in equipmentState.GetEntrySlotIdsTyped())
             {
                 var itemId = ProgressionDataUtils.to_string_name(
                     equipmentState.get_equipped_item_id(entrySlotId)

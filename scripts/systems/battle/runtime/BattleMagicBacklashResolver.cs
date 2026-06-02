@@ -69,7 +69,7 @@ public partial class BattleMagicBacklashResolver : RefCounted
             source_unit == null
             || combatProfile == null
             || control_metadata == null
-            || !control_metadata.HasPayload
+            || !control_metadata.HasResolutionMetadata
         )
             return result;
 
@@ -128,7 +128,7 @@ public partial class BattleMagicBacklashResolver : RefCounted
     {
         return build_ground_backlash_target_coords_result(
             skill_def,
-            target_coords,
+            ToVector2IList(target_coords),
             state,
             grid_service,
             ToSpellControlResult(control_context)
@@ -137,15 +137,15 @@ public partial class BattleMagicBacklashResolver : RefCounted
 
     public BattleGroundBacklashTargetResult build_ground_backlash_target_coords_result(
         SkillDef skill_def,
-        Godot.Collections.Array<Vector2I> target_coords,
+        IReadOnlyList<Vector2I> target_coords,
         BattleState state,
         BattleGridService grid_service,
         BattleSpellControlResult control_context
     )
     {
-        Godot.Collections.Array<Vector2I> safeTargetCoords = DuplicateCoords(target_coords);
+        List<Vector2I> safeTargetCoords = DuplicateCoords(target_coords);
         BattleGroundBacklashTargetResult result = new(
-            ToVector2IList(safeTargetCoords),
+            safeTargetCoords,
             control_context.BacklashTriggered,
             new Vector2I(-1, -1),
             new Vector2I(-1, -1),
@@ -392,11 +392,11 @@ public partial class BattleMagicBacklashResolver : RefCounted
         return skillDef?.combat_profile as CombatSkillDef;
     }
 
-    private static Godot.Collections.Array<Vector2I> DuplicateCoords(
-        Godot.Collections.Array<Vector2I> values
+    private static List<Vector2I> DuplicateCoords(
+        IReadOnlyList<Vector2I> values
     )
     {
-        Godot.Collections.Array<Vector2I> result = new();
+        var result = new List<Vector2I>();
         if (values == null)
             return result;
         foreach (Vector2I value in values)

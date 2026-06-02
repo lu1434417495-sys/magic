@@ -796,7 +796,7 @@ public partial class BattleGroundEffectService : RefCounted
     {
         return _to_combat_effect_defs(
             ToUntypedEffectArray(
-                SkillResolutionRules?.collect_ground_unit_effect_defs(
+                SkillResolutionRules?.CollectGroundUnitEffectDefs(
                     skill_def,
                     cast_variant,
                     active_unit
@@ -813,7 +813,7 @@ public partial class BattleGroundEffectService : RefCounted
     {
         return _to_combat_effect_defs(
             ToUntypedEffectArray(
-                SkillResolutionRules?.collect_ground_terrain_effect_defs(
+                SkillResolutionRules?.CollectGroundTerrainEffectDefs(
                     skill_def,
                     cast_variant,
                     active_unit
@@ -830,7 +830,7 @@ public partial class BattleGroundEffectService : RefCounted
     {
         return _to_combat_effect_defs(
             ToUntypedEffectArray(
-                SkillResolutionRules?.collect_ground_effect_defs(
+                SkillResolutionRules?.CollectGroundEffectDefs(
                     skill_def,
                     cast_variant,
                     active_unit
@@ -1069,7 +1069,7 @@ public partial class BattleGroundEffectService : RefCounted
             return units;
         }
         StringName targetFilter = _resolve_effect_target_filter(skill_def, effect_def);
-        var barrierEffects = new GArray { effect_def };
+        var barrierEffects = new GCombatEffectArray { effect_def };
         BattleLayeredBarrierService layeredBarrierService = LayeredBarrierService;
         foreach (var rawTarget in _collect_units_in_coords(effect_coords))
         {
@@ -1457,7 +1457,7 @@ public partial class BattleGroundEffectService : RefCounted
             {
                 continue;
             }
-            var applicableEffects = new GArray();
+            var applicableEffects = new GCombatEffectArray();
             foreach (var rawEffect in effect_defs ?? new GArray())
             {
                 CombatEffectDef effectDef = rawEffect.As<CombatEffectDef>();
@@ -1502,11 +1502,12 @@ public partial class BattleGroundEffectService : RefCounted
                 continue;
             }
 
+            GArray applicableEffectPayload = ToUntypedEffectArray(applicableEffects);
             GroundUnitEffectResolution effectResolution = _resolve_ground_unit_effect_resolution(
                 source_unit,
                 targetUnit,
                 skill_def,
-                applicableEffects
+                applicableEffectPayload
             );
             GDictionary result = effectResolution.Payload;
             AttackEffectResolutionResult damageResult = effectResolution.Result;
@@ -1515,13 +1516,13 @@ public partial class BattleGroundEffectService : RefCounted
                 targetUnit,
                 skill_def,
                 damageResult,
-                ToCombatEffectDefArray(applicableEffects)
+                applicableEffects
             );
             BattleShieldApplyResult shieldResult = _apply_unit_shield_effects_result(
                 source_unit,
                 targetUnit,
                 skill_def,
-                applicableEffects,
+                applicableEffectPayload,
                 shieldRollContext
             );
             BattleSpecialSkillResult specialResult =
@@ -1530,7 +1531,7 @@ public partial class BattleGroundEffectService : RefCounted
                     targetUnit,
                     skill_def,
                     null,
-                    ToCombatEffectDefArray(applicableEffects),
+                    applicableEffects,
                     batch,
                     forcedMoveContext
                 );
@@ -1633,7 +1634,7 @@ public partial class BattleGroundEffectService : RefCounted
                     healing,
                     targetUnit.is_alive ? 0 : 1
                 );
-                Runtime?._battle_rating_system?.record_contribution_from_units(
+                Runtime?._battle_rating_system?.RecordContributionFromUnits(
                     sourceUnit,
                     targetUnit,
                     damage,
@@ -1715,7 +1716,7 @@ public partial class BattleGroundEffectService : RefCounted
                     new AttackCheckInput(skillId: skillDef != null ? skillDef.skill_id : Empty)
                 );
             }
-            BattleAttackCheckPolicyContext attackContext = attackPolicy.build_attack_context(
+            BattleAttackCheckPolicyContext attackContext = attackPolicy.BuildAttackContext(
                 State,
                 sourceUnit,
                 targetUnit,
@@ -1724,7 +1725,7 @@ public partial class BattleGroundEffectService : RefCounted
                 new StringName("execute"),
                 false
             );
-            AttackCheckInput attackCheck = attackPolicy.build_attack_check(attackContext, 0, 0);
+            AttackCheckInput attackCheck = attackPolicy.BuildAttackCheck(attackContext, 0, 0);
             return GroundUnitEffectResolution.FromPayload(
                 damageResolver.resolve_attack_effects(
                     sourceUnit,
@@ -1811,6 +1812,7 @@ public partial class BattleGroundEffectService : RefCounted
         bool applied = false;
         bool requiresTopologyReconcile = false;
         BattleLayeredBarrierService layeredBarrierService = LayeredBarrierService;
+        GCombatEffectArray barrierEffectDefs = ToCombatEffectDefArray(effect_defs);
         foreach (var rawEffect in effect_defs ?? new GArray())
         {
             CombatEffectDef effectDef = rawEffect.As<CombatEffectDef>();
@@ -1838,7 +1840,7 @@ public partial class BattleGroundEffectService : RefCounted
                                 source_unit,
                                 effectCoord,
                                 skill_def,
-                                effect_defs,
+                                barrierEffectDefs,
                                 batch
                             )
                             : new BattleBarrierInteractionResult(false, false);
@@ -1882,7 +1884,7 @@ public partial class BattleGroundEffectService : RefCounted
                                     source_unit,
                                     effectCoord,
                                     skill_def,
-                                    effect_defs,
+                                    barrierEffectDefs,
                                     batch
                                 )
                                 : new BattleBarrierInteractionResult(false, false);
@@ -1926,7 +1928,7 @@ public partial class BattleGroundEffectService : RefCounted
                                     source_unit,
                                     effectCoord,
                                     skill_def,
-                                    effect_defs,
+                                    barrierEffectDefs,
                                     batch
                                 )
                                 : new BattleBarrierInteractionResult(false, false);
@@ -2003,7 +2005,7 @@ public partial class BattleGroundEffectService : RefCounted
         {
             return false;
         }
-        var barrierEffectDefs = new GArray { effect_def };
+        var barrierEffectDefs = new GCombatEffectArray { effect_def };
         BattleLayeredBarrierService layeredBarrierService = LayeredBarrierService;
         foreach (Vector2I barrierCoord in new[] { first, second })
         {
@@ -2299,18 +2301,15 @@ public partial class BattleGroundEffectService : RefCounted
         {
             return false;
         }
-        GArray changes = ToArray(
-            Runtime._terrain_topology_service.reclassify_water_terrain_near_coords(
-                state.cells,
-                state.map_size,
-                new Godot.Collections.Array<Vector2I>(effect_coords)
-            )
-        );
+        IReadOnlyList<BattleTerrainTopologyChange> changes =
+            Runtime._terrain_topology_service.ReclassifyWaterTerrainNearCoords(
+                state,
+                ToVector2IList(effect_coords)
+            );
         bool applied = false;
-        foreach (var rawChange in changes)
+        foreach (BattleTerrainTopologyChange change in changes)
         {
-            GDictionary change = rawChange.AsGodotDictionary();
-            Vector2I coord = ReadVector2I(change, "coord", Vector2I.Zero);
+            Vector2I coord = change.Coord;
             BattleCellState cell = GridService.get_cell(state, coord);
             if (cell == null)
             {
@@ -2318,16 +2317,8 @@ public partial class BattleGroundEffectService : RefCounted
             }
             StringName beforeTerrain = cell.base_terrain;
             Vector2I beforeFlowDirection = cell.flow_direction;
-            StringName afterTerrain = ReadStringName(
-                change,
-                "after_terrain",
-                beforeTerrain
-            );
-            Vector2I afterFlowDirection = ReadVector2I(
-                change,
-                "after_flow_direction",
-                beforeFlowDirection
-            );
+            StringName afterTerrain = change.AfterTerrain;
+            Vector2I afterFlowDirection = change.AfterFlowDirection;
             if (beforeTerrain != afterTerrain)
             {
                 GridService.set_base_terrain(state, coord, afterTerrain);
@@ -2819,7 +2810,7 @@ public partial class BattleGroundEffectService : RefCounted
         return typedValues;
     }
 
-    private static GArray ToUntypedEffectArray(GCombatEffectArray values)
+    private static GArray ToUntypedEffectArray(IEnumerable<CombatEffectDef> values)
     {
         var result = new GArray();
         if (values == null)

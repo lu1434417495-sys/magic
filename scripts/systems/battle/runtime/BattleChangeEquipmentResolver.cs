@@ -455,8 +455,9 @@ public partial class BattleChangeEquipmentResolver : RefCounted
                     $"战斗背包中找不到装备实例 {instanceId}。"
                 );
             }
-            EquipmentInstanceState backpackInstance =
-                backpackView.equipment_instances[backpackIndex];
+            EquipmentInstanceState backpackInstance = backpackView.GetEquipmentInstanceAt(
+                backpackIndex
+            );
             StringName resolvedItemId = ProgressionDataUtils.to_string_name(
                 backpackInstance.item_id
             );
@@ -524,8 +525,8 @@ public partial class BattleChangeEquipmentResolver : RefCounted
                 equipmentView.get_equipped_item_id(slotId)
             );
             result.InstanceId = equippedInstanceId;
-            result.OccupiedSlotIds = ProgressionDataUtils.to_string_name_array(
-                equipmentView.get_occupied_slot_ids_for_entry(entrySlot)
+            result.OccupiedSlotIds = new GStringNameArray(
+                equipmentView.GetOccupiedSlotIdsForEntryTyped(entrySlot)
             );
         }
 
@@ -569,10 +570,9 @@ public partial class BattleChangeEquipmentResolver : RefCounted
                     $"战斗背包中找不到装备实例 {instanceId}。"
                 );
             }
-            var backpackInstances = backpackView.equipment_instances;
-            EquipmentInstanceState newInstance = backpackInstances[backpackIndex];
+            EquipmentInstanceState newInstance = backpackView.GetEquipmentInstanceAt(backpackIndex);
             itemId = newInstance.item_id;
-            backpackInstances.RemoveAt(backpackIndex);
+            backpackView.RemoveEquipmentInstanceAt(backpackIndex);
 
             GStringNameArray occupiedSlots = validation.OccupiedSlotIds;
             if (occupiedSlots.Count == 0)
@@ -611,10 +611,10 @@ public partial class BattleChangeEquipmentResolver : RefCounted
                             $"战斗背包中已存在装备实例 {displacedInstance.instance_id}。"
                         );
                     }
-                    backpackInstances.Add(displacedInstance);
+                    backpackView.AddEquipmentInstance(displacedInstance);
                 }
             }
-            equipmentView.set_equipped_entry(slotId, itemId, occupiedSlots, newInstance);
+            equipmentView.SetEquippedEntryTyped(slotId, itemId, occupiedSlots, newInstance);
             result.ItemId = itemId;
             result.InstanceId = instanceId;
             result.OccupiedSlotIds = occupiedSlots;
@@ -653,7 +653,7 @@ public partial class BattleChangeEquipmentResolver : RefCounted
                     $"战斗背包中已存在装备实例 {removedInstanceId}。"
                 );
             }
-            backpackView.equipment_instances.Add(removedInstance);
+            backpackView.AddEquipmentInstance(removedInstance);
             result.ItemId = removedInstance.item_id;
             result.InstanceId = removedInstanceId;
         }
@@ -904,7 +904,9 @@ public partial class BattleChangeEquipmentResolver : RefCounted
         var occupiedSlots = new GStringNameArray();
         if (command != null)
         {
-            occupiedSlots = EquipmentRules.normalize_slot_ids(command.equipment_occupied_slot_ids);
+            occupiedSlots = new GStringNameArray(
+                EquipmentRules.NormalizeSlotIdsTyped(command.equipment_occupied_slot_ids)
+            );
         }
         StringName normSlot = ProgressionDataUtils.to_string_name(slotId);
         if (occupiedSlots.Count == 0 && EquipmentRules.is_valid_slot(normSlot))
@@ -1084,7 +1086,7 @@ public partial class BattleChangeEquipmentResolver : RefCounted
                 "战斗内背包状态不可用。"
             );
         }
-        foreach (EquipmentInstanceState instance in backpackView.get_non_empty_instances())
+        foreach (EquipmentInstanceState instance in backpackView.GetNonEmptyEquipmentInstancesTyped())
         {
             StringName instanceId = ProgressionDataUtils.to_string_name(
                 instance != null ? instance.instance_id : new StringName("")
@@ -1111,7 +1113,7 @@ public partial class BattleChangeEquipmentResolver : RefCounted
                 "战斗内装备状态不可用。"
             );
         }
-        foreach (StringName entrySlotId in equipmentView.get_entry_slot_ids())
+        foreach (StringName entrySlotId in equipmentView.GetEntrySlotIdsTyped())
         {
             StringName itemId = ProgressionDataUtils.to_string_name(
                 equipmentView.get_equipped_item_id(entrySlotId)
@@ -1216,8 +1218,8 @@ public partial class BattleChangeEquipmentResolver : RefCounted
         {
             return 0;
         }
-        return backpackView.get_non_empty_stacks().Count
-            + backpackView.get_non_empty_instances().Count;
+        return backpackView.GetNonEmptyStacksTyped().Count
+            + backpackView.GetNonEmptyEquipmentInstancesTyped().Count;
     }
 
     private int FindBackpackEquipmentInstanceIndex(WarehouseState backpackView, StringName instanceId)
@@ -1227,7 +1229,7 @@ public partial class BattleChangeEquipmentResolver : RefCounted
         {
             return -1;
         }
-        var instances = backpackView.equipment_instances;
+        IReadOnlyList<EquipmentInstanceState> instances = backpackView.GetEquipmentInstancesTyped();
         for (int index = 0; index < instances.Count; index++)
         {
             EquipmentInstanceState instance = instances[index];

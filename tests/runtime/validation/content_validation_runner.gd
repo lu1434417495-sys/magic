@@ -1,6 +1,5 @@
 extends RefCounted
 
-const ProgressionDataUtils = preload("res://scripts/player/progression/ProgressionDataUtils.cs")
 const ProgressionContentRegistry = preload("res://scripts/player/progression/ProgressionContentRegistry.cs")
 const QUEST_CONTENT_VALIDATOR_SCRIPT_PATH := "res://scripts/player/progression/QuestContentValidator.cs"
 const SkillContentRegistry = preload("res://scripts/player/progression/SkillContentRegistry.cs")
@@ -69,10 +68,7 @@ func validate_skill_directory(
 	include_progression_skill_checks: bool = false
 ) -> Dictionary:
 	var registry = SkillContentRegistry.new()
-	registry._skill_defs.clear()
-	registry._validation_errors.clear()
-	registry._scan_directory(directory_path)
-	registry._validation_errors.append_array(registry._collect_validation_errors())
+	registry.load_from_directory(directory_path)
 	var errors := registry.validate()
 	if include_progression_skill_checks:
 		var progression_registry = ProgressionContentRegistry.new()
@@ -86,10 +82,7 @@ func validate_skill_directory(
 func validate_profession_directory(directory_path: String, skill_defs: Dictionary) -> Dictionary:
 	var registry = ProfessionContentRegistry.new()
 	registry.setup(skill_defs)
-	registry._profession_defs.clear()
-	registry._validation_errors.clear()
-	registry._scan_directory(directory_path)
-	registry._validation_errors.append_array(registry._collect_validation_errors())
+	registry.load_from_directory(directory_path)
 	return _build_domain_result("profession", directory_path, registry.validate())
 
 
@@ -179,7 +172,7 @@ func validate_item_directories(
 	# with canonical `skill_book_<skill_id>` ids that the factory would
 	# otherwise generate.
 	if not skill_defs.is_empty():
-		var skill_book_errors := SkillBookItemContentValidator.validate(registry._item_defs, skill_defs)
+		var skill_book_errors := _validate_skill_book_items(registry._item_defs, skill_defs)
 		_append_unique_errors(combined_errors, skill_book_errors)
 	return _build_domain_result("item", label, combined_errors)
 
@@ -187,9 +180,7 @@ func validate_item_directories(
 func validate_recipe_directory(directory_path: String, item_defs: Dictionary) -> Dictionary:
 	var registry = RecipeContentRegistry.new()
 	registry.setup(item_defs)
-	registry._recipe_defs.clear()
-	registry._validation_errors.clear()
-	registry._scan_directory(directory_path)
+	registry.load_from_directory(directory_path)
 	return _build_domain_result("recipe", directory_path, registry.validate())
 
 
@@ -257,73 +248,43 @@ func validate_quest_entries(
 
 func _build_race_registry(directory_paths: Array[String]):
 	var registry = RaceContentRegistry.new()
-	registry._race_defs.clear()
-	registry._validation_errors.clear()
-	for directory_path in directory_paths:
-		registry._scan_directory(directory_path)
-	registry._validation_errors.append_array(registry._collect_validation_errors())
+	registry.load_from_directories(directory_paths)
 	return registry
 
 
 func _build_subrace_registry(directory_paths: Array[String]):
 	var registry = SubraceContentRegistry.new()
-	registry._subrace_defs.clear()
-	registry._validation_errors.clear()
-	for directory_path in directory_paths:
-		registry._scan_directory(directory_path)
-	registry._validation_errors.append_array(registry._collect_validation_errors())
+	registry.load_from_directories(directory_paths)
 	return registry
 
 
 func _build_race_trait_registry(directory_paths: Array[String]):
 	var registry = RaceTraitContentRegistry.new()
-	registry._race_trait_defs.clear()
-	registry._validation_errors.clear()
-	for directory_path in directory_paths:
-		registry._scan_directory(directory_path)
-	registry._validation_errors.append_array(registry._collect_validation_errors())
+	registry.load_from_directories(directory_paths)
 	return registry
 
 
 func _build_age_registry(directory_paths: Array[String]):
 	var registry = AgeContentRegistry.new()
-	registry._age_profile_defs.clear()
-	registry._validation_errors.clear()
-	for directory_path in directory_paths:
-		registry._scan_directory(directory_path)
-	registry._validation_errors.append_array(registry._collect_validation_errors())
+	registry.load_from_directories(directory_paths)
 	return registry
 
 
 func _build_bloodline_registry(directory_paths: Array[String]):
 	var registry = BloodlineContentRegistry.new()
-	registry._bloodline_defs.clear()
-	registry._bloodline_stage_defs.clear()
-	registry._validation_errors.clear()
-	for directory_path in directory_paths:
-		registry._scan_directory(directory_path)
-	registry._validation_errors.append_array(registry._collect_validation_errors())
+	registry.load_from_directories(directory_paths)
 	return registry
 
 
 func _build_ascension_registry(directory_paths: Array[String]):
 	var registry = AscensionContentRegistry.new()
-	registry._ascension_defs.clear()
-	registry._ascension_stage_defs.clear()
-	registry._validation_errors.clear()
-	for directory_path in directory_paths:
-		registry._scan_directory(directory_path)
-	registry._validation_errors.append_array(registry._collect_validation_errors())
+	registry.load_from_directories(directory_paths)
 	return registry
 
 
 func _build_stage_advancement_registry(directory_paths: Array[String]):
 	var registry = StageAdvancementContentRegistry.new()
-	registry._stage_advancement_defs.clear()
-	registry._validation_errors.clear()
-	for directory_path in directory_paths:
-		registry._scan_directory(directory_path)
-	registry._validation_errors.append_array(registry._collect_validation_errors())
+	registry.load_from_directories(directory_paths)
 	return registry
 
 
@@ -356,6 +317,57 @@ func _append_unique_errors(errors: Array[String], additional_errors: Array[Strin
 	for error_message in additional_errors:
 		if not errors.has(error_message):
 			errors.append(error_message)
+
+
+func _validate_skill_book_items(item_defs: Dictionary, skill_defs: Dictionary) -> Array[String]:
+	var errors: Array[String] = []
+	for item_key in _sorted_string_keys(item_defs):
+		var item_def = _dict_get_by_string_name_or_string(item_defs, item_key)
+		if item_def == null:
+			continue
+		if String(item_def.get_item_category_normalized()) != "skill_book":
+			continue
+		if item_def.granted_skill_id == &"":
+			continue
+		var skill_def = _dict_get_by_string_name_or_string(skill_defs, String(item_def.granted_skill_id))
+		if skill_def == null:
+			errors.append("Skill book item %s references missing skill %s." % [String(item_def.item_id), String(item_def.granted_skill_id)])
+			continue
+		if skill_def.learn_source != &"book":
+			errors.append("Skill book item %s granted_skill_id %s learn_source must be book, got %s." % [String(item_def.item_id), String(item_def.granted_skill_id), String(skill_def.learn_source)])
+	for skill_key in _sorted_string_keys(skill_defs):
+		var skill_def = _dict_get_by_string_name_or_string(skill_defs, skill_key)
+		if skill_def == null or skill_def.skill_id == &"" or skill_def.learn_source != &"book":
+			continue
+		var canonical_item_id := _build_skill_book_item_id(skill_def.skill_id)
+		var occupying_item = _dict_get_by_string_name_or_string(item_defs, String(canonical_item_id))
+		if occupying_item == null:
+			continue
+		if String(occupying_item.get_item_category_normalized()) != "skill_book":
+			errors.append("Item %s occupies generated skill book id for skill %s but item_category must be skill_book." % [String(canonical_item_id), String(skill_def.skill_id)])
+			continue
+		if occupying_item.granted_skill_id != skill_def.skill_id:
+			errors.append("Skill book item %s occupies generated skill book id for skill %s but grants %s." % [String(canonical_item_id), String(skill_def.skill_id), String(occupying_item.granted_skill_id)])
+	return errors
+
+
+func _dict_get_by_string_name_or_string(source: Dictionary, key: String):
+	var string_name_key := StringName(key)
+	if source.has(string_name_key):
+		return source.get(string_name_key)
+	return source.get(key)
+
+
+func _build_skill_book_item_id(skill_id: StringName) -> StringName:
+	return StringName("skill_book_%s" % String(skill_id))
+
+
+func _sorted_string_keys(source: Dictionary) -> Array[String]:
+	var keys: Array[String] = []
+	for key in source.keys():
+		keys.append(String(key))
+	keys.sort()
+	return keys
 
 
 func _build_domain_result(domain: String, label: String, error_messages: Array[String]) -> Dictionary:

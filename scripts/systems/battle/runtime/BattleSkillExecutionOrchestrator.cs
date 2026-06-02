@@ -784,14 +784,14 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
         {
             BattleSpecialProfileGateResult gateResult =
                 Runtime._special_profile_gate != null
-                    ? Runtime._special_profile_gate.can_execute_skill(
+                    ? Runtime._special_profile_gate.CanExecuteSkill(
                         skillDef,
                         command,
                         active_unit,
                         Runtime._state
                     )
                     : null;
-            if (gateResult == null || !gateResult.allowed)
+            if (gateResult == null || !gateResult.Allowed)
             {
                 Runtime._append_special_profile_gate_block(batch, gateResult);
                 return;
@@ -877,7 +877,7 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
         {
             AiTraceRecorder.enter("preview:skill.meteor_gate");
             BattleSpecialProfileGateResult gateResult = runtime._special_profile_gate != null
-                ? runtime._special_profile_gate.preview_skill(
+                ? runtime._special_profile_gate.PreviewSkill(
                     skillDef,
                     command,
                     active_unit,
@@ -886,14 +886,14 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
                 : null;
             AiTraceRecorder.exit("preview:skill.meteor_gate");
             preview.special_profile_gate_result = gateResult;
-            if (gateResult == null || !gateResult.allowed)
+            if (gateResult == null || !gateResult.Allowed)
             {
                 if (
                     gateResult != null
-                    && !string.IsNullOrEmpty(gateResult.player_message)
+                    && !string.IsNullOrEmpty(gateResult.PlayerMessage)
                 )
                 {
-                    preview.log_lines.Add(gateResult.player_message);
+                    preview.log_lines.Add(gateResult.PlayerMessage);
                 }
                 else
                 {
@@ -1006,7 +1006,7 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
             );
             return false;
         }
-        GVector2IArray targetCoords = validation.TargetCoordsArray();
+        GVector2IArray targetCoords = validation.ToTargetCoordsArray();
         if (targetCoords.Count == 0)
         {
             batch?.log_lines.Add("技能或目标无效。");
@@ -1046,7 +1046,7 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
             Runtime
                 ?._magic_backlash_resolver.build_ground_backlash_target_coords_result(
                     skill_def as SkillDef,
-                    targetCoords,
+                    ToVector2IList(targetCoords),
                     Runtime.get_state(),
                     Runtime.get_grid_service(),
                     spellControlContext
@@ -1078,7 +1078,7 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
         );
         MeteorSwarmTargetPlan plan = meteorResolver.BuildTargetPlanTyped(context);
         MeteorSwarmCommitResult result = meteorResolver.ResolveTyped(plan);
-        return commitAdapter.commit_meteor_swarm_result(result, batch);
+        return commitAdapter.CommitMeteorSwarmResult(result, batch);
     }
 
     public void _preview_unit_skill_command(
@@ -1247,13 +1247,13 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
         GVector2IArray previewCoords;
         if (validation.HasPreviewCoords)
         {
-            previewCoords = validation.PreviewCoordsArray();
+            previewCoords = validation.ToPreviewCoordsArray();
         }
         else
         {
             previewCoords = _build_ground_effect_coords(
                 skill_def,
-                ToUntypedArray(validation.TargetCoordsArray()),
+                ToUntypedArray(validation.ToTargetCoordsArray()),
                 active_unit != null
                     ? active_unit.coord
                     : new Vector2I(-1, -1),
@@ -1397,7 +1397,7 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
         if (repeatAttackEffect == null)
         {
             if (
-                !skillResolutionRules.should_resolve_unit_skill_as_fate_attack(
+                !skillResolutionRules.ShouldResolveUnitSkillAsFateAttack(
                         active_unit,
                         targetUnit,
                         skill_def,
@@ -1407,16 +1407,16 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
             {
                 return null;
             }
-            BattleAttackCheckPolicyContext attackContext = attackPolicy.build_attack_context(
+            BattleAttackCheckPolicyContext attackContext = attackPolicy.BuildAttackContext(
                 Runtime?._state,
                 active_unit,
                 targetUnit,
                 skill_def,
                 new StringName("skill_attack_preview"),
                 new StringName("hud_preview"),
-                skillResolutionRules.is_force_hit_no_crit_skill(skill_def)
+                skillResolutionRules.IsForceHitNoCritSkill(skill_def)
             );
-            return attackPolicy.build_attack_preview(attackContext);
+            return attackPolicy.BuildAttackPreview(attackContext);
         }
         List<BattleRepeatAttackStageSpec> stageSpecs =
             BattleRepeatAttackResolver.build_stage_specs_from_repeat_attack_effect(
@@ -1426,7 +1426,7 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
             -1,
             true
         );
-        BattleAttackCheckPolicyContext repeatContext = attackPolicy.build_repeat_attack_stage_context(
+        BattleAttackCheckPolicyContext repeatContext = attackPolicy.BuildRepeatAttackStageContext(
             Runtime?._state,
             active_unit,
             targetUnit,
@@ -1435,7 +1435,7 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
             new StringName("repeat_attack_preview"),
             new StringName("hud_preview")
         );
-        return attackPolicy.build_repeat_attack_preview(repeatContext, stageSpecs);
+        return attackPolicy.BuildRepeatAttackPreview(repeatContext, stageSpecs);
     }
 
     public GDictionary _build_unit_skill_damage_preview(
@@ -1453,10 +1453,10 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
             cast_variant,
             active_unit
         );
-        return BattleDamagePreviewRangeService.build_skill_damage_preview(
+        return BattleDamagePreviewRangeService.BuildSkillDamagePreview(
             active_unit,
-            ToUntypedArray(effectDefs)
-        );
+            effectDefs
+        ).ToDictionary();
     }
 
     public void _append_damage_preview_line(BattlePreview preview)
@@ -1476,12 +1476,12 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
 
     public GDictionary summarize_damage_result(GDictionary result)
     {
-        return Runtime?._report_formatter.summarize_damage_result(result) ?? new GDictionary();
+        return Runtime?._report_formatter.SummarizeDamageResult(result) ?? new GDictionary();
     }
 
     public string build_damage_absorb_reason_text(GDictionary summary)
     {
-        return Runtime?._report_formatter.build_damage_absorb_reason_text(summary) ?? "";
+        return Runtime?._report_formatter.BuildDamageAbsorbReasonText(summary) ?? "";
     }
 
     public void append_damage_result_log_lines(
@@ -1491,7 +1491,7 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
         GDictionary result
     )
     {
-        Runtime?._report_formatter.append_damage_result_log_lines(
+        Runtime?._report_formatter.AppendDamageResultLogLines(
             batch,
             subject_label,
             target_display_name,
@@ -1506,7 +1506,7 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
         AttackEffectResolutionResult result
     )
     {
-        Runtime?._report_formatter.append_damage_result_log_lines(
+        Runtime?._report_formatter.AppendDamageResultLogLines(
             batch,
             subject_label,
             target_display_name,
@@ -1894,7 +1894,7 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
             return false;
         }
 
-        var targetCoords = validation.TargetCoordsArray();
+        var targetCoords = validation.ToTargetCoordsArray();
         string precastValidationMessage = _get_ground_special_effect_validation_message(
             active_unit,
             skill_def,
@@ -1962,7 +1962,7 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
             Runtime
                 ?._magic_backlash_resolver.build_ground_backlash_target_coords_result(
                     skill_def as SkillDef,
-                    targetCoords,
+                    ToVector2IList(targetCoords),
                     Runtime.get_state(),
                     Runtime.get_grid_service(),
                     spellControlContext
@@ -2024,7 +2024,7 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
         CombatSkillDef combatProfile = skill_def?.combat_profile;
         bool allowRepeat =
             combatProfile != null && combatProfile.allow_repeat_target;
-        return Runtime?._skill_resolution_rules?.should_route_skill_command_to_unit_targeting(
+        return Runtime?._skill_resolution_rules?.ShouldRouteSkillCommandToUnitTargeting(
             skill_def,
             _normalize_target_unit_ids(command, allowRepeat)
         ) == true;
@@ -2170,7 +2170,9 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
                 targetUnits,
                 skillLevel
             ) ?? BattleTargetCollectionResult.UnhandledResult(emptyTargetCoords);
-        GVector2IArray previewCoords = _sort_coords(ToUntypedArray(collectedTargetCoords.ToGodotCoords()));
+        GVector2IArray previewCoords = _sort_coords(
+            ToUntypedArray(collectedTargetCoords.ToTargetCoordsArray())
+        );
         return BattleUnitSkillValidationResult.AllowedResult(
             ToStringNameList(targetUnitIds),
             targetUnits,
@@ -2358,7 +2360,7 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
         )
         {
             BattleAttackCheckPolicyService attackPolicy = Runtime?.get_attack_check_policy_service();
-            BattleAttackCheckPolicyContext policyContext = attackPolicy?.build_attack_context(
+            BattleAttackCheckPolicyContext policyContext = attackPolicy?.BuildAttackContext(
                 RtState(),
                 active_unit,
                 target_unit,
@@ -2369,14 +2371,14 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
             );
             AttackCheckInput attackCheck =
                 attackPolicy != null
-                    ? attackPolicy.build_attack_check(policyContext, 0, 0)
+                    ? attackPolicy.BuildAttackCheck(policyContext, 0, 0)
                     : new AttackCheckInput(invalid: true);
             var attackContext = new AttackContext
             {
                 BattleState = RtState(),
                 SkillId = skill_def?.skill_id ?? new StringName(""),
             };
-            if (skillResolutionRules?.is_force_hit_no_crit_skill(skill_def) == true)
+            if (skillResolutionRules?.IsForceHitNoCritSkill(skill_def) == true)
             {
                 attackContext.ForceHitNoCrit = true;
             }
@@ -2387,7 +2389,7 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
                 attackCheck,
                 attackContext
             );
-            if (skillResolutionRules?.is_force_hit_no_crit_skill(skill_def) == true)
+            if (skillResolutionRules?.IsForceHitNoCritSkill(skill_def) == true)
             {
                 result["custom_log_lines"] = new GArray
                 {
@@ -2422,7 +2424,7 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
         GCombatEffectArray effect_defs
     )
     {
-        return Runtime?._skill_resolution_rules?.should_resolve_unit_skill_as_fate_attack(
+        return Runtime?._skill_resolution_rules?.ShouldResolveUnitSkillAsFateAttack(
             active_unit,
             target_unit,
             skill_def,
@@ -2448,7 +2450,7 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
                     active_unit,
                     target_unit,
                     skill_def,
-                    ToUntypedArray(effect_defs),
+                    effect_defs,
                     batch
                 )
                 : new BattleBarrierInteractionResult(false, false);
@@ -2568,7 +2570,7 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
             };
             _append_report_entry_to_batch(
                 batch,
-                Runtime?._report_formatter.build_skill_event_entry(
+                Runtime?._report_formatter.BuildSkillEventEntry(
                     active_unit,
                     target_unit,
                     skill_def?.skill_id ?? new StringName(""),
@@ -2681,7 +2683,7 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
         {
             bool causedDefeat = !target_unit.is_alive;
             _record_effect_metrics(active_unit, target_unit, damage, healing, causedDefeat ? 1 : 0);
-            Runtime?._battle_rating_system.record_contribution_from_units(
+            Runtime?._battle_rating_system.RecordContributionFromUnits(
                 active_unit,
                 target_unit,
                 damage,
@@ -2982,7 +2984,7 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
                     chainHealing,
                     causedChainDefeat ? 1 : 0
                 );
-                ratingSystem?.record_contribution_from_units(
+                ratingSystem?.RecordContributionFromUnits(
                     source_unit,
                     chainTarget,
                     chainDamage,
@@ -3481,11 +3483,11 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
     )
     {
         return Runtime?._skill_resolution_rules != null
-            ? Runtime._skill_resolution_rules.collect_unit_skill_effect_defs(
+            ? ToCombatEffectArray(Runtime._skill_resolution_rules.CollectUnitSkillEffectDefs(
                 skill_def,
                 cast_variant,
                 active_unit
-            )
+            ))
             : new GCombatEffectArray();
     }
 
@@ -3563,7 +3565,7 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
     )
     {
         bool madnessAnyTeam = source_unit?.ai_blackboard?.madness_target_any_team == true;
-        return BattleTargetTeamRules.is_unit_valid_for_filter(
+        return BattleTargetTeamRules.IsUnitValidForFilter(
             source_unit,
             target_unit,
             target_team_filter,
@@ -3577,7 +3579,7 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
         BattleCommand command
     )
     {
-        return Runtime?._skill_resolution_rules?.resolve_ground_cast_variant(
+        return Runtime?._skill_resolution_rules?.ResolveGroundCastVariant(
             skill_def,
             active_unit,
             command != null ? command.skill_variant_id : new StringName("")
@@ -3590,7 +3592,7 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
         BattleCommand command
     )
     {
-        return Runtime?._skill_resolution_rules?.resolve_unit_cast_variant(
+        return Runtime?._skill_resolution_rules?.ResolveUnitCastVariant(
             skill_def,
             active_unit,
             command != null ? command.skill_variant_id : new StringName("")
@@ -3604,7 +3606,7 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
         bool routes_to_unit_targeting
     )
     {
-        return Runtime?._skill_resolution_rules?.resolve_command_route_cast_variant(
+        return Runtime?._skill_resolution_rules?.ResolveCommandRouteCastVariant(
             skill_def,
             active_unit,
             command != null ? command.skill_variant_id : new StringName(""),
@@ -3614,7 +3616,7 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
 
     public StringName _get_cast_variant_target_mode(SkillDef skill_def, CombatCastVariantDef cast_variant)
     {
-        return Runtime?._skill_resolution_rules?.get_cast_variant_target_mode(
+        return Runtime?._skill_resolution_rules?.GetCastVariantTargetMode(
             skill_def,
             cast_variant
         ) ?? new StringName("");
@@ -3632,7 +3634,7 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
         {
             return "";
         }
-        return skillResolutionRules.get_skill_variant_command_error_message(
+        return skillResolutionRules.GetSkillVariantCommandErrorMessage(
             skill_def,
             active_unit,
             command != null ? command.skill_variant_id : new StringName(""),
@@ -3752,6 +3754,23 @@ public partial class BattleSkillExecutionOrchestrator : RefCounted
         foreach (StringName value in src)
         {
             result.Add(value);
+        }
+        return result;
+    }
+
+    private static GCombatEffectArray ToCombatEffectArray(IEnumerable<CombatEffectDef> src)
+    {
+        var result = new GCombatEffectArray();
+        if (src == null)
+        {
+            return result;
+        }
+        foreach (CombatEffectDef effectDef in src)
+        {
+            if (effectDef != null)
+            {
+                result.Add(effectDef);
+            }
         }
         return result;
     }

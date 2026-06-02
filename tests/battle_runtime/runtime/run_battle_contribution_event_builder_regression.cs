@@ -1,5 +1,4 @@
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_battle_contribution_event_builder_regression : SceneTree
@@ -16,6 +15,7 @@ public partial class run_battle_contribution_event_builder_regression : SceneTre
     {
         TestDictionaryPayloadParsesTypedEvent();
         TestRelationFallsBackFromFactionIds();
+        TestTypedEventProjectsToDictionary();
 
         if (_failures.Count == 0)
         {
@@ -34,7 +34,7 @@ public partial class run_battle_contribution_event_builder_regression : SceneTre
     private void TestDictionaryPayloadParsesTypedEvent()
     {
         BattleContributionEvent contributionEvent = BattleContributionEventBuilder.FromDictionary(
-            new GDictionary
+            new Godot.Collections.Dictionary
             {
                 ["source_unit_id"] = "caster",
                 ["source_member_id"] = "member_caster",
@@ -50,23 +50,23 @@ public partial class run_battle_contribution_event_builder_regression : SceneTre
             }
         );
 
-        AssertEq(contributionEvent.source_unit_id, new StringName("caster"), "应解析 source unit id。");
-        AssertEq(contributionEvent.source_member_id, new StringName("member_caster"), "应解析 member id。");
-        AssertEq(contributionEvent.relation, BattleContributionRelation.Ally, "显式 relation 应优先。");
+        AssertEq(contributionEvent.SourceUnitId, new StringName("caster"), "应解析 source unit id。");
+        AssertEq(contributionEvent.SourceMemberId, new StringName("member_caster"), "应解析 member id。");
+        AssertEq(contributionEvent.Relation, BattleContributionRelation.Ally, "显式 relation 应优先。");
         AssertEq(
-            contributionEvent.origin_kind,
+            contributionEvent.OriginKind,
             BattleContributionOriginKind.Terrain,
             "origin kind 应解析 terrain。"
         );
-        AssertEq(contributionEvent.hp_damage_applied, 0, "负数伤害应 clamp 到 0。");
-        AssertEq(contributionEvent.hp_healing_applied, 12, "治疗值应保留。");
-        AssertTrue(contributionEvent.caused_defeat, "击倒标记应保留。");
+        AssertEq(contributionEvent.HpDamageApplied, 0, "负数伤害应 clamp 到 0。");
+        AssertEq(contributionEvent.HpHealingApplied, 12, "治疗值应保留。");
+        AssertTrue(contributionEvent.CausedDefeat, "击倒标记应保留。");
     }
 
     private void TestRelationFallsBackFromFactionIds()
     {
         BattleContributionEvent contributionEvent = BattleContributionEventBuilder.FromDictionary(
-            new GDictionary
+            new Godot.Collections.Dictionary
             {
                 ["source_unit_id"] = "caster",
                 ["source_faction_id"] = "player",
@@ -76,10 +76,48 @@ public partial class run_battle_contribution_event_builder_regression : SceneTre
         );
 
         AssertEq(
-            contributionEvent.relation,
+            contributionEvent.Relation,
             BattleContributionRelation.Enemy,
             "relation 缺失时应按阵营回退。"
         );
+    }
+
+    private void TestTypedEventProjectsToDictionary()
+    {
+        var contributionEvent = new BattleContributionEvent
+        {
+            SourceUnitId = "caster",
+            SourceMemberId = "member_caster",
+            SourceFactionId = "player",
+            TargetUnitId = "target",
+            TargetFactionId = "enemy",
+            SkillId = "mage_fireball",
+            Relation = BattleContributionRelation.Enemy,
+            OriginKind = BattleContributionOriginKind.Skill,
+            HpDamageApplied = 17,
+            HpHealingApplied = 0,
+            CausedDefeat = true,
+        };
+
+        Godot.Collections.Dictionary payload = contributionEvent.ToDictionary();
+
+        AssertEq(
+            payload["source_unit_id"].AsStringName(),
+            new StringName("caster"),
+            "投影应保留 source unit id。"
+        );
+        AssertEq(
+            payload["relation"].AsStringName(),
+            new StringName("enemy"),
+            "投影应使用 relation 字符串。"
+        );
+        AssertEq(
+            payload["origin_kind"].AsStringName(),
+            new StringName("skill"),
+            "投影应使用 origin kind 字符串。"
+        );
+        AssertEq(payload["hp_damage_applied"].AsInt32(), 17, "投影应保留伤害值。");
+        AssertTrue(payload["caused_defeat"].AsBool(), "投影应保留击倒标记。");
     }
 
     private void AssertEq<T>(T actual, T expected, string message)

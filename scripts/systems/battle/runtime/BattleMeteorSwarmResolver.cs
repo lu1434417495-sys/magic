@@ -99,12 +99,13 @@ public partial class BattleMeteorSwarmResolver : RefCounted
         preview.target_coords = facts.target_coords.Duplicate();
         preview.target_unit_ids = facts.target_unit_ids.Duplicate();
         preview.special_profile_preview_facts = facts;
-        preview.hit_preview = new AttackPreviewData
+        var hitPreview = new AttackPreviewData
         {
             SummaryText = $"陨星雨影响 {facts.impact_count} 格、预计波及 {facts.expected_target_count} 个单位。",
             Source = "special_profile_preview_facts",
-            AttackRollModifierBreakdown = (GArray)facts.attack_roll_modifier_breakdown.Duplicate(true),
         };
+        hitPreview.SetAttackRollModifierBreakdownPayload(facts.attack_roll_modifier_breakdown);
+        preview.hit_preview = hitPreview;
         preview.log_lines.Add(
             $"可施放陨星雨：影响 {facts.impact_count} 格，预计波及 {facts.expected_target_count} 个单位。"
         );
@@ -494,16 +495,9 @@ public partial class BattleMeteorSwarmResolver : RefCounted
             damage_tag = component.damage_tag,
             effect_target_team_filter = "any",
             power = component.base_power,
-        };
-        effect.@params = new GDictionary
-        {
-            ["dice_count"] = component.dice_count,
-            ["dice_sides"] = component.dice_sides,
-            ["runtime_pre_resistance_damage_multiplier"] = component.get_damage_scale(
-                distance_from_anchor
-            ),
-            ["meteor_component_id"] = component.component_id.ToString(),
-            ["meteor_role_label"] = component.role_label.ToString(),
+            dice_count = component.dice_count,
+            dice_sides = component.dice_sides,
+            pre_resistance_damage_multiplier = component.get_damage_scale(distance_from_anchor),
         };
         _apply_save_profile_to_damage_effect(effect, component);
         return effect;
@@ -1146,11 +1140,11 @@ public partial class BattleMeteorSwarmResolver : RefCounted
         }
         if (component.save_profile_id == SAVE_PROFILE_METEOR_DEX_HALF)
         {
-            effect.save_dc_mode = BattleSaveResolver.SAVE_DC_MODE_CASTER_SPELL();
+            effect.save_dc_mode = BattleSaveContentRules.SAVE_DC_MODE_CASTER_SPELL;
             effect.save_dc_source_ability = "intelligence";
             effect.save_ability = "agility";
             effect.save_partial_on_success = true;
-            effect.save_tag = BattleSaveResolver.SAVE_TAG_MAGIC();
+            effect.save_tag = BattleSaveContentRules.SAVE_TAG_MAGIC;
         }
     }
 

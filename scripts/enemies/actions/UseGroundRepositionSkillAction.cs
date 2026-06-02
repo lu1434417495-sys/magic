@@ -71,14 +71,9 @@ public partial class UseGroundRepositionSkillAction : EnemyAiAction
             ctxUnitState.coord,
             focusTarget
         );
-        if (actionTrace.ContainsKey("metadata"))
-        {
-            var tm = actionTrace["metadata"].AsGodotDictionary();
-            tm["focus_target_unit_id"] = (string)focusTarget.unit_id;
-            tm["current_distance"] = currentDist;
-            tm["resolved_safe_distance"] = resolvedSafeDist;
-            actionTrace["metadata"] = tm;
-        }
+        actionTrace.Metadata["focus_target_unit_id"] = focusTarget.unit_id.ToString();
+        actionTrace.Metadata["current_distance"] = currentDist;
+        actionTrace.Metadata["resolved_safe_distance"] = resolvedSafeDist;
         if (currentDist >= resolvedSafeDist)
         {
             _trace_add_block_reason(actionTrace, "already_safe");
@@ -109,7 +104,7 @@ public partial class UseGroundRepositionSkillAction : EnemyAiAction
                 _trace_add_block_reason(actionTrace, blockReason);
                 continue;
             }
-            int effectiveRange = BattleRangeService.get_effective_skill_range(
+            int effectiveRange = BattleRangeService.GetEffectiveSkillRange(
                 ctxUnitState,
                 skillDef
             );

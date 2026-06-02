@@ -1,92 +1,144 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
-using GCastVariantArray = Godot.Collections.Array<CombatCastVariantDef>;
-using GCombatEffectArray = Godot.Collections.Array<CombatEffectDef>;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-[GlobalClass]
-public partial class BattleSkillResolutionRules : RefCounted
+public sealed class BattleSkillResolutionPolicy
+{
+    public IReadOnlyList<StringName> TargetUnitIds { get; }
+    public CombatCastVariantDef UnitCastVariant { get; }
+    public CombatCastVariantDef GroundCastVariant { get; }
+    public CombatCastVariantDef CommandCastVariant { get; }
+    public CombatCastVariantDef UnitExecutionCastVariant { get; }
+    public CombatCastVariantDef ExecutionCastVariant { get; }
+    public bool RoutesToUnitTargeting { get; }
+    public string OptionErrorMessage { get; }
+    public bool OptionAllowed => string.IsNullOrEmpty(OptionErrorMessage);
+    public IReadOnlyList<CombatEffectDef> EffectDefs { get; }
+    public bool UsesFateAttack { get; }
+    public bool ForceHitNoCrit { get; }
+    public StringName FatePreviewMode { get; }
+
+    public BattleSkillResolutionPolicy(
+        IEnumerable<StringName> targetUnitIds,
+        CombatCastVariantDef unitCastVariant,
+        CombatCastVariantDef groundCastVariant,
+        CombatCastVariantDef commandCastVariant,
+        CombatCastVariantDef unitExecutionCastVariant,
+        CombatCastVariantDef executionCastVariant,
+        bool routesToUnitTargeting,
+        string optionErrorMessage,
+        IEnumerable<CombatEffectDef> effectDefs,
+        bool usesFateAttack,
+        bool forceHitNoCrit,
+        StringName fatePreviewMode
+    )
+    {
+        TargetUnitIds = new List<StringName>(targetUnitIds ?? Array.Empty<StringName>());
+        UnitCastVariant = unitCastVariant;
+        GroundCastVariant = groundCastVariant;
+        CommandCastVariant = commandCastVariant;
+        UnitExecutionCastVariant = unitExecutionCastVariant;
+        ExecutionCastVariant = executionCastVariant;
+        RoutesToUnitTargeting = routesToUnitTargeting;
+        OptionErrorMessage = optionErrorMessage ?? "";
+        EffectDefs = new List<CombatEffectDef>(effectDefs ?? Array.Empty<CombatEffectDef>());
+        UsesFateAttack = usesFateAttack;
+        ForceHitNoCrit = forceHitNoCrit;
+        FatePreviewMode = fatePreviewMode;
+    }
+
+    internal Godot.Collections.Dictionary ToDictionary()
+    {
+        return new Godot.Collections.Dictionary
+        {
+            ["target_unit_ids"] = ToStringNameArray(TargetUnitIds),
+            ["unit_cast_variant"] = UnitCastVariant,
+            ["ground_cast_variant"] = GroundCastVariant,
+            ["command_cast_variant"] = CommandCastVariant,
+            ["unit_execution_cast_variant"] = UnitExecutionCastVariant,
+            ["execution_cast_variant"] = ExecutionCastVariant,
+            ["routes_to_unit_targeting"] = RoutesToUnitTargeting,
+            ["option_error_message"] = OptionErrorMessage,
+            ["option_allowed"] = OptionAllowed,
+            ["effect_defs"] = ToEffectArray(EffectDefs),
+            ["uses_fate_attack"] = UsesFateAttack,
+            ["force_hit_no_crit"] = ForceHitNoCrit,
+            ["fate_preview_mode"] = FatePreviewMode,
+        };
+    }
+
+    private static Godot.Collections.Array<StringName> ToStringNameArray(
+        IEnumerable<StringName> values
+    )
+    {
+        var result = new Godot.Collections.Array<StringName>();
+        foreach (StringName value in values ?? Array.Empty<StringName>())
+        {
+            result.Add(value);
+        }
+        return result;
+    }
+
+    private static Godot.Collections.Array<CombatEffectDef> ToEffectArray(
+        IEnumerable<CombatEffectDef> values
+    )
+    {
+        var result = new Godot.Collections.Array<CombatEffectDef>();
+        foreach (CombatEffectDef value in values ?? Array.Empty<CombatEffectDef>())
+        {
+            if (value != null)
+            {
+                result.Add(value);
+            }
+        }
+        return result;
+    }
+}
+
+public sealed class BattleSkillResolutionRules
 {
     private static readonly StringName EmptyStringName = "";
     private static readonly StringName BlackContractPushSkillId = "black_contract_push";
     private static readonly StringName FatePreviewModeNone = "";
     private static readonly StringName FatePreviewModeStandard = "standard";
-    private static readonly StringName FatePreviewModeForceHitNoCrit = "force_hit_no_crit";
+    private static readonly StringName FatePreviewModeForceHitNoCritName = "force_hit_no_crit";
     private static readonly StringName SaveDcModeCasterSpell = "caster_spell";
 
-    private readonly record struct SkillResolutionPolicy(
-        GStringNameArray TargetUnitIds,
-        CombatCastVariantDef UnitCastVariant,
-        CombatCastVariantDef GroundCastVariant,
-        CombatCastVariantDef CommandCastVariant,
-        CombatCastVariantDef UnitExecutionCastVariant,
-        CombatCastVariantDef ExecutionCastVariant,
-        bool RoutesToUnitTargeting,
-        string OptionErrorMessage,
-        GCombatEffectArray EffectDefs,
-        bool UsesFateAttack,
-        bool ForceHitNoCrit,
-        StringName FatePreviewMode
+    public static StringName FatePreviewModeForceHitNoCrit => FatePreviewModeForceHitNoCritName;
+
+    public BattleSkillResolutionPolicy BuildSkillResolutionPolicy(
+        SkillDef skillDef,
+        BattleUnitState activeUnit,
+        StringName skillVariantId = default,
+        IEnumerable<StringName> targetUnitIdsOption = null,
+        BattleUnitState targetUnit = null
     )
     {
-        public GDictionary ToDictionary()
-        {
-            return new GDictionary
-            {
-                ["target_unit_ids"] = DuplicateStringNameArray(TargetUnitIds),
-                ["unit_cast_variant"] = UnitCastVariant,
-                ["ground_cast_variant"] = GroundCastVariant,
-                ["command_cast_variant"] = CommandCastVariant,
-                ["unit_execution_cast_variant"] = UnitExecutionCastVariant,
-                ["execution_cast_variant"] = ExecutionCastVariant,
-                ["routes_to_unit_targeting"] = RoutesToUnitTargeting,
-                ["option_error_message"] = OptionErrorMessage,
-                ["option_allowed"] = string.IsNullOrEmpty(OptionErrorMessage),
-                ["effect_defs"] = DuplicateEffectArray(EffectDefs),
-                ["uses_fate_attack"] = UsesFateAttack,
-                ["force_hit_no_crit"] = ForceHitNoCrit,
-                ["fate_preview_mode"] = FatePreviewMode,
-            };
-        }
-    }
-
-    public static StringName FATE_PREVIEW_MODE_FORCE_HIT_NO_CRIT() => FatePreviewModeForceHitNoCrit;
-
-    public GDictionary build_skill_resolution_policy(
-        SkillDef skill_def,
-        BattleUnitState active_unit,
-        StringName skill_variant_id = default,
-        GStringNameArray target_unit_ids_option = null,
-        BattleUnitState target_unit = null
-    )
-    {
-        GStringNameArray targetUnitIds = normalize_target_unit_ids(target_unit_ids_option);
-        bool routesToUnitTargeting = should_route_skill_command_to_unit_targeting(
-            skill_def,
+        List<StringName> targetUnitIds = NormalizeTargetUnitIds(targetUnitIdsOption);
+        bool routesToUnitTargeting = ShouldRouteSkillCommandToUnitTargeting(
+            skillDef,
             targetUnitIds
         );
-        string optionErrorMessage = get_skill_variant_command_error_message(
-            skill_def,
-            active_unit,
-            skill_variant_id,
+        string optionErrorMessage = GetSkillVariantCommandErrorMessage(
+            skillDef,
+            activeUnit,
+            skillVariantId,
             routesToUnitTargeting
         );
-        CombatCastVariantDef unitCastVariant = resolve_unit_cast_variant(
-            skill_def,
-            active_unit,
-            skill_variant_id
+        CombatCastVariantDef unitCastVariant = ResolveUnitCastVariant(
+            skillDef,
+            activeUnit,
+            skillVariantId
         );
-        CombatCastVariantDef groundCastVariant = resolve_ground_cast_variant(
-            skill_def,
-            active_unit,
-            skill_variant_id
+        CombatCastVariantDef groundCastVariant = ResolveGroundCastVariant(
+            skillDef,
+            activeUnit,
+            skillVariantId
         );
-        CombatCastVariantDef commandCastVariant = resolve_command_route_cast_variant(
-            skill_def,
-            active_unit,
-            skill_variant_id,
+        CombatCastVariantDef commandCastVariant = ResolveCommandRouteCastVariant(
+            skillDef,
+            activeUnit,
+            skillVariantId,
             routesToUnitTargeting
         );
         CombatCastVariantDef unitExecutionCastVariant = routesToUnitTargeting
@@ -96,32 +148,27 @@ public partial class BattleSkillResolutionRules : RefCounted
             ? unitExecutionCastVariant
             : commandCastVariant;
 
-        GCombatEffectArray effectDefs = new();
+        List<CombatEffectDef> effectDefs = new();
         if (string.IsNullOrEmpty(optionErrorMessage))
         {
             effectDefs = routesToUnitTargeting
-                ? collect_unit_skill_effect_defs(skill_def, unitExecutionCastVariant, active_unit)
-                : collect_ground_unit_effect_defs(skill_def, groundCastVariant, active_unit);
+                ? CollectUnitSkillEffectDefs(skillDef, unitExecutionCastVariant, activeUnit)
+                : CollectGroundUnitEffectDefs(skillDef, groundCastVariant, activeUnit);
         }
 
         bool usesFateAttack =
             routesToUnitTargeting
-            && should_resolve_unit_skill_as_fate_attack(
-                active_unit,
-                target_unit,
-                skill_def,
-                effectDefs
-            );
-        bool forceHitNoCrit = usesFateAttack && is_force_hit_no_crit_skill(skill_def);
+            && ShouldResolveUnitSkillAsFateAttack(activeUnit, targetUnit, skillDef, effectDefs);
+        bool forceHitNoCrit = usesFateAttack && IsForceHitNoCritSkill(skillDef);
         StringName fatePreviewMode = FatePreviewModeNone;
         if (usesFateAttack)
         {
             fatePreviewMode = forceHitNoCrit
-                ? FatePreviewModeForceHitNoCrit
+                ? FatePreviewModeForceHitNoCritName
                 : FatePreviewModeStandard;
         }
 
-        return new SkillResolutionPolicy(
+        return new BattleSkillResolutionPolicy(
             targetUnitIds,
             unitCastVariant,
             groundCastVariant,
@@ -134,18 +181,18 @@ public partial class BattleSkillResolutionRules : RefCounted
             usesFateAttack,
             forceHitNoCrit,
             fatePreviewMode
-        ).ToDictionary();
+        );
     }
 
-    public GStringNameArray normalize_target_unit_ids(GStringNameArray target_unit_ids_option)
+    public List<StringName> NormalizeTargetUnitIds(IEnumerable<StringName> targetUnitIdsOption)
     {
-        var targetUnitIds = new GStringNameArray();
-        if (target_unit_ids_option == null)
+        var targetUnitIds = new List<StringName>();
+        if (targetUnitIdsOption == null)
         {
             return targetUnitIds;
         }
         var seenIds = new HashSet<StringName>();
-        foreach (StringName targetUnitId in target_unit_ids_option)
+        foreach (StringName targetUnitId in targetUnitIdsOption)
         {
             if (IsEmpty(targetUnitId) || !seenIds.Add(targetUnitId))
             {
@@ -156,17 +203,17 @@ public partial class BattleSkillResolutionRules : RefCounted
         return targetUnitIds;
     }
 
-    public bool should_route_skill_command_to_unit_targeting(
-        SkillDef skill_def,
-        GStringNameArray target_unit_ids
+    public bool ShouldRouteSkillCommandToUnitTargeting(
+        SkillDef skillDef,
+        IReadOnlyList<StringName> targetUnitIds
     )
     {
-        CombatSkillDef combatProfile = skill_def?.combat_profile;
-        if (skill_def == null || combatProfile == null)
+        CombatSkillDef combatProfile = skillDef?.combat_profile;
+        if (skillDef == null || combatProfile == null)
         {
             return false;
         }
-        if (target_unit_ids != null && target_unit_ids.Count > 0)
+        if (targetUnitIds != null && targetUnitIds.Count > 0)
         {
             return true;
         }
@@ -182,41 +229,44 @@ public partial class BattleSkillResolutionRules : RefCounted
             == BattleTargetMode.Unit;
     }
 
-    public string get_skill_variant_command_error_message(
-        SkillDef skill_def,
-        BattleUnitState active_unit,
-        StringName skill_variant_id = default,
-        bool routes_to_unit_targeting = false
+    public string GetSkillVariantCommandErrorMessage(
+        SkillDef skillDef,
+        BattleUnitState activeUnit,
+        StringName skillVariantId = default,
+        bool routesToUnitTargeting = false
     )
     {
-        CombatSkillDef combatProfile = skill_def?.combat_profile;
-        if (skill_def == null || combatProfile == null)
+        CombatSkillDef combatProfile = skillDef?.combat_profile;
+        if (skillDef == null || combatProfile == null)
         {
             return "技能或目标无效。";
         }
         if (combatProfile.cast_variants.Count == 0)
         {
-            return !IsEmpty(skill_variant_id) ? "技能形态无效或尚未解锁。" : "";
+            return !IsEmpty(skillVariantId) ? "技能形态无效或尚未解锁。" : "";
         }
 
-        int skillLevel = GetUnitSkillLevel(active_unit, skill_def.skill_id);
-        GCastVariantArray unlockedOptions = GetUnlockedCastVariants(combatProfile, skillLevel);
-        var matchingModeOptions = new GCastVariantArray();
-        StringName expectedTargetMode = get_command_route_cast_variant_target_mode(
-            skill_def,
-            routes_to_unit_targeting
+        int skillLevel = GetUnitSkillLevel(activeUnit, skillDef.skill_id);
+        List<CombatCastVariantDef> unlockedOptions = GetUnlockedCastVariants(
+            combatProfile,
+            skillLevel
+        );
+        var matchingModeOptions = new List<CombatCastVariantDef>();
+        StringName expectedTargetMode = GetCommandRouteCastVariantTargetMode(
+            skillDef,
+            routesToUnitTargeting
         );
         foreach (CombatCastVariantDef castVariant in unlockedOptions)
         {
             if (
                 castVariant != null
-                && get_cast_variant_target_mode(skill_def, castVariant) == expectedTargetMode
+                && GetCastVariantTargetMode(skillDef, castVariant) == expectedTargetMode
             )
             {
                 matchingModeOptions.Add(castVariant);
             }
         }
-        if (IsEmpty(skill_variant_id))
+        if (IsEmpty(skillVariantId))
         {
             if (matchingModeOptions.Count > 1)
             {
@@ -226,7 +276,7 @@ public partial class BattleSkillResolutionRules : RefCounted
         }
         foreach (CombatCastVariantDef castVariant in matchingModeOptions)
         {
-            if (castVariant != null && castVariant.variant_id == skill_variant_id)
+            if (castVariant != null && castVariant.variant_id == skillVariantId)
             {
                 return "";
             }
@@ -234,32 +284,32 @@ public partial class BattleSkillResolutionRules : RefCounted
         return "技能形态无效或尚未解锁。";
     }
 
-    public bool should_resolve_unit_skill_as_fate_attack(
-        BattleUnitState active_unit,
-        BattleUnitState target_unit,
-        SkillDef skill_def,
-        GCombatEffectArray effect_defs
+    public bool ShouldResolveUnitSkillAsFateAttack(
+        BattleUnitState activeUnit,
+        BattleUnitState targetUnit,
+        SkillDef skillDef,
+        IEnumerable<CombatEffectDef> effectDefs
     )
     {
-        CombatSkillDef combatProfile = skill_def?.combat_profile;
+        CombatSkillDef combatProfile = skillDef?.combat_profile;
         if (
-            active_unit == null
-            || target_unit == null
-            || skill_def == null
+            activeUnit == null
+            || targetUnit == null
+            || skillDef == null
             || combatProfile == null
         )
         {
             return false;
         }
-        if (active_unit.faction_id == target_unit.faction_id)
+        if (activeUnit.faction_id == targetUnit.faction_id)
         {
             return false;
         }
-        if (effect_defs == null || effect_defs.Count == 0)
+        if (effectDefs == null)
         {
             return false;
         }
-        foreach (CombatEffectDef effectDef in effect_defs)
+        foreach (CombatEffectDef effectDef in effectDefs)
         {
             if (
                 effectDef == null
@@ -273,10 +323,10 @@ public partial class BattleSkillResolutionRules : RefCounted
                 continue;
             }
             if (
-                !is_unit_valid_for_effect(
-                    active_unit,
-                    target_unit,
-                    resolve_effect_target_filter(skill_def, effectDef)
+                !IsUnitValidForEffect(
+                    activeUnit,
+                    targetUnit,
+                    ResolveEffectTargetFilter(skillDef, effectDef)
                 )
             )
             {
@@ -287,19 +337,19 @@ public partial class BattleSkillResolutionRules : RefCounted
         return false;
     }
 
-    public bool is_force_hit_no_crit_skill(SkillDef skill_def)
+    public bool IsForceHitNoCritSkill(SkillDef skillDef)
     {
-        return skill_def != null && skill_def.skill_id == BlackContractPushSkillId;
+        return skillDef != null && skillDef.skill_id == BlackContractPushSkillId;
     }
 
-    public CombatCastVariantDef resolve_ground_cast_variant(
-        SkillDef skill_def,
-        BattleUnitState active_unit,
-        StringName skill_variant_id = default
+    public CombatCastVariantDef ResolveGroundCastVariant(
+        SkillDef skillDef,
+        BattleUnitState activeUnit,
+        StringName skillVariantId = default
     )
     {
-        CombatSkillDef combatProfile = skill_def?.combat_profile;
-        if (skill_def == null || combatProfile == null)
+        CombatSkillDef combatProfile = skillDef?.combat_profile;
+        if (skillDef == null || combatProfile == null)
         {
             return null;
         }
@@ -308,26 +358,29 @@ public partial class BattleSkillResolutionRules : RefCounted
             return
                 BattleTypedNames.ToTargetMode(combatProfile.target_mode)
                     == BattleTargetMode.Ground
-                && IsEmpty(skill_variant_id)
-                ? BuildImplicitGroundCastVariant(skill_def)
+                && IsEmpty(skillVariantId)
+                ? BuildImplicitGroundCastVariant(skillDef)
                 : null;
         }
 
-        int skillLevel = GetUnitSkillLevel(active_unit, skill_def.skill_id);
-        GCastVariantArray unlockedOptions = GetUnlockedCastVariants(combatProfile, skillLevel);
+        int skillLevel = GetUnitSkillLevel(activeUnit, skillDef.skill_id);
+        List<CombatCastVariantDef> unlockedOptions = GetUnlockedCastVariants(
+            combatProfile,
+            skillLevel
+        );
         if (unlockedOptions.Count == 0)
         {
             return null;
         }
-        if (IsEmpty(skill_variant_id))
+        if (IsEmpty(skillVariantId))
         {
-            var groundOptions = new GCastVariantArray();
+            var groundOptions = new List<CombatCastVariantDef>();
             foreach (CombatCastVariantDef castVariant in unlockedOptions)
             {
                 if (
                     castVariant != null
                     && BattleTypedNames.ToTargetMode(
-                        get_cast_variant_target_mode(skill_def, castVariant)
+                        GetCastVariantTargetMode(skillDef, castVariant)
                     ) == BattleTargetMode.Ground
                 )
                 {
@@ -341,9 +394,9 @@ public partial class BattleSkillResolutionRules : RefCounted
         {
             if (
                 castVariant != null
-                && castVariant.variant_id == skill_variant_id
+                && castVariant.variant_id == skillVariantId
                 && BattleTypedNames.ToTargetMode(
-                    get_cast_variant_target_mode(skill_def, castVariant)
+                    GetCastVariantTargetMode(skillDef, castVariant)
                 ) == BattleTargetMode.Ground
             )
             {
@@ -353,14 +406,14 @@ public partial class BattleSkillResolutionRules : RefCounted
         return null;
     }
 
-    public CombatCastVariantDef resolve_unit_cast_variant(
-        SkillDef skill_def,
-        BattleUnitState active_unit,
-        StringName skill_variant_id = default
+    public CombatCastVariantDef ResolveUnitCastVariant(
+        SkillDef skillDef,
+        BattleUnitState activeUnit,
+        StringName skillVariantId = default
     )
     {
-        CombatSkillDef combatProfile = skill_def?.combat_profile;
-        if (skill_def == null || combatProfile == null)
+        CombatSkillDef combatProfile = skillDef?.combat_profile;
+        if (skillDef == null || combatProfile == null)
         {
             return null;
         }
@@ -369,21 +422,24 @@ public partial class BattleSkillResolutionRules : RefCounted
             return null;
         }
 
-        int skillLevel = GetUnitSkillLevel(active_unit, skill_def.skill_id);
-        GCastVariantArray unlockedOptions = GetUnlockedCastVariants(combatProfile, skillLevel);
+        int skillLevel = GetUnitSkillLevel(activeUnit, skillDef.skill_id);
+        List<CombatCastVariantDef> unlockedOptions = GetUnlockedCastVariants(
+            combatProfile,
+            skillLevel
+        );
         if (unlockedOptions.Count == 0)
         {
             return null;
         }
-        if (IsEmpty(skill_variant_id))
+        if (IsEmpty(skillVariantId))
         {
-            var unitOptions = new GCastVariantArray();
+            var unitOptions = new List<CombatCastVariantDef>();
             foreach (CombatCastVariantDef castVariant in unlockedOptions)
             {
                 if (
                     castVariant != null
                     && BattleTypedNames.ToTargetMode(
-                        get_cast_variant_target_mode(skill_def, castVariant)
+                        GetCastVariantTargetMode(skillDef, castVariant)
                     ) == BattleTargetMode.Unit
                 )
                 {
@@ -397,9 +453,9 @@ public partial class BattleSkillResolutionRules : RefCounted
         {
             if (
                 castVariant != null
-                && castVariant.variant_id == skill_variant_id
+                && castVariant.variant_id == skillVariantId
                 && BattleTypedNames.ToTargetMode(
-                    get_cast_variant_target_mode(skill_def, castVariant)
+                    GetCastVariantTargetMode(skillDef, castVariant)
                 ) == BattleTargetMode.Unit
             )
             {
@@ -409,79 +465,81 @@ public partial class BattleSkillResolutionRules : RefCounted
         return null;
     }
 
-    public CombatCastVariantDef resolve_command_route_cast_variant(
-        SkillDef skill_def,
-        BattleUnitState active_unit,
-        StringName skill_variant_id = default,
-        bool routes_to_unit_targeting = false
+    public CombatCastVariantDef ResolveCommandRouteCastVariant(
+        SkillDef skillDef,
+        BattleUnitState activeUnit,
+        StringName skillVariantId = default,
+        bool routesToUnitTargeting = false
     )
     {
-        StringName targetMode = get_command_route_cast_variant_target_mode(
-            skill_def,
-            routes_to_unit_targeting
+        StringName targetMode = GetCommandRouteCastVariantTargetMode(
+            skillDef,
+            routesToUnitTargeting
         );
         if (BattleTypedNames.ToTargetMode(targetMode) == BattleTargetMode.Unit)
         {
-            return resolve_unit_cast_variant(skill_def, active_unit, skill_variant_id);
+            return ResolveUnitCastVariant(skillDef, activeUnit, skillVariantId);
         }
         if (BattleTypedNames.ToTargetMode(targetMode) == BattleTargetMode.Ground)
         {
-            return resolve_ground_cast_variant(skill_def, active_unit, skill_variant_id);
+            return ResolveGroundCastVariant(skillDef, activeUnit, skillVariantId);
         }
         return null;
     }
 
-    public StringName get_command_route_cast_variant_target_mode(
-        SkillDef skill_def,
-        bool routes_to_unit_targeting = false
+    public StringName GetCommandRouteCastVariantTargetMode(
+        SkillDef skillDef,
+        bool routesToUnitTargeting = false
     )
     {
-        CombatSkillDef combatProfile = skill_def?.combat_profile;
-        if (skill_def == null || combatProfile == null)
+        CombatSkillDef combatProfile = skillDef?.combat_profile;
+        if (skillDef == null || combatProfile == null)
         {
             return EmptyStringName;
         }
-        return !routes_to_unit_targeting
+        return !routesToUnitTargeting
             ? BattleTypedNames.TargetModeGround
             : combatProfile.target_mode;
     }
 
-    public StringName get_cast_variant_target_mode(
-        SkillDef skill_def,
-        CombatCastVariantDef cast_variant
+    public StringName GetCastVariantTargetMode(
+        SkillDef skillDef,
+        CombatCastVariantDef castVariant
     )
     {
-        if (cast_variant == null)
+        if (castVariant == null)
         {
             return EmptyStringName;
         }
-        StringName targetMode = cast_variant.target_mode;
+        StringName targetMode = castVariant.target_mode;
         if (!IsEmpty(targetMode))
         {
             return targetMode;
         }
-        return skill_def?.combat_profile != null ? skill_def.combat_profile.target_mode : EmptyStringName;
+        return skillDef?.combat_profile != null
+            ? skillDef.combat_profile.target_mode
+            : EmptyStringName;
     }
 
-    public GCombatEffectArray collect_unit_skill_effect_defs(
-        SkillDef skill_def,
-        CombatCastVariantDef cast_variant,
-        BattleUnitState active_unit = null
+    public List<CombatEffectDef> CollectUnitSkillEffectDefs(
+        SkillDef skillDef,
+        CombatCastVariantDef castVariant,
+        BattleUnitState activeUnit = null
     )
     {
-        return CollectEffectDefs(skill_def, cast_variant, active_unit);
+        return CollectEffectDefs(skillDef, castVariant, activeUnit);
     }
 
-    public GCombatEffectArray collect_ground_unit_effect_defs(
-        SkillDef skill_def,
-        CombatCastVariantDef cast_variant,
-        BattleUnitState active_unit = null
+    public List<CombatEffectDef> CollectGroundUnitEffectDefs(
+        SkillDef skillDef,
+        CombatCastVariantDef castVariant,
+        BattleUnitState activeUnit = null
     )
     {
-        GCombatEffectArray effectDefs = new();
-        foreach (CombatEffectDef effectDef in CollectEffectDefs(skill_def, cast_variant, active_unit))
+        var effectDefs = new List<CombatEffectDef>();
+        foreach (CombatEffectDef effectDef in CollectEffectDefs(skillDef, castVariant, activeUnit))
         {
-            if (is_unit_effect(effectDef))
+            if (IsUnitEffect(effectDef))
             {
                 effectDefs.Add(effectDef);
             }
@@ -489,16 +547,16 @@ public partial class BattleSkillResolutionRules : RefCounted
         return effectDefs;
     }
 
-    public GCombatEffectArray collect_ground_terrain_effect_defs(
-        SkillDef skill_def,
-        CombatCastVariantDef cast_variant,
-        BattleUnitState active_unit = null
+    public List<CombatEffectDef> CollectGroundTerrainEffectDefs(
+        SkillDef skillDef,
+        CombatCastVariantDef castVariant,
+        BattleUnitState activeUnit = null
     )
     {
-        GCombatEffectArray effectDefs = new();
-        foreach (CombatEffectDef effectDef in CollectEffectDefs(skill_def, cast_variant, active_unit))
+        var effectDefs = new List<CombatEffectDef>();
+        foreach (CombatEffectDef effectDef in CollectEffectDefs(skillDef, castVariant, activeUnit))
         {
-            if (is_terrain_effect(effectDef))
+            if (IsTerrainEffect(effectDef))
             {
                 effectDefs.Add(effectDef);
             }
@@ -506,18 +564,18 @@ public partial class BattleSkillResolutionRules : RefCounted
         return effectDefs;
     }
 
-    public GCombatEffectArray collect_ground_effect_defs(
-        SkillDef skill_def,
-        CombatCastVariantDef cast_variant,
-        BattleUnitState active_unit = null
+    public List<CombatEffectDef> CollectGroundEffectDefs(
+        SkillDef skillDef,
+        CombatCastVariantDef castVariant,
+        BattleUnitState activeUnit = null
     )
     {
-        return CollectEffectDefs(skill_def, cast_variant, active_unit);
+        return CollectEffectDefs(skillDef, castVariant, activeUnit);
     }
 
-    public CombatEffectDef find_repeat_attack_effect(GCombatEffectArray effect_defs)
+    public CombatEffectDef FindRepeatAttackEffect(IEnumerable<CombatEffectDef> effectDefs)
     {
-        foreach (CombatEffectDef effectDef in effect_defs ?? new GCombatEffectArray())
+        foreach (CombatEffectDef effectDef in effectDefs ?? Array.Empty<CombatEffectDef>())
         {
             if (
                 effectDef != null
@@ -531,53 +589,53 @@ public partial class BattleSkillResolutionRules : RefCounted
         return null;
     }
 
-    public bool is_unit_effect(CombatEffectDef effect_def)
+    public bool IsUnitEffect(CombatEffectDef effectDef)
     {
-        if (effect_def == null)
+        if (effectDef == null)
         {
             return false;
         }
         return BattleTypedNames.IsUnitPayloadEffect(
-            BattleTypedNames.ToEffectKind(effect_def.effect_type)
+            BattleTypedNames.ToEffectKind(effectDef.effect_type)
         );
     }
 
-    public bool is_terrain_effect(CombatEffectDef effect_def)
+    public bool IsTerrainEffect(CombatEffectDef effectDef)
     {
-        if (effect_def == null)
+        if (effectDef == null)
         {
             return false;
         }
         return BattleTypedNames.IsGroundPayloadEffect(
-            BattleTypedNames.ToEffectKind(effect_def.effect_type)
+            BattleTypedNames.ToEffectKind(effectDef.effect_type)
         );
     }
 
-    public StringName resolve_effect_target_filter(SkillDef skill_def, CombatEffectDef effect_def)
+    public StringName ResolveEffectTargetFilter(SkillDef skillDef, CombatEffectDef effectDef)
     {
-        return BattleTargetTeamRules.resolve_effect_target_filter(skill_def, effect_def);
+        return BattleTargetTeamRules.ResolveEffectTargetFilter(skillDef, effectDef);
     }
 
-    public bool is_unit_valid_for_effect(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
-        StringName target_team_filter
+    public bool IsUnitValidForEffect(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        StringName targetTeamFilter
     )
     {
-        return BattleTargetTeamRules.is_unit_valid_for_filter(
-            source_unit,
-            target_unit,
-            target_team_filter
+        return BattleTargetTeamRules.IsUnitValidForFilter(
+            sourceUnit,
+            targetUnit,
+            targetTeamFilter
         );
     }
 
-    private GCombatEffectArray CollectEffectDefs(
+    private List<CombatEffectDef> CollectEffectDefs(
         SkillDef skillDef,
         CombatCastVariantDef castVariant,
         BattleUnitState activeUnit
     )
     {
-        var effectDefs = new GCombatEffectArray();
+        var effectDefs = new List<CombatEffectDef>();
         int skillLevel = GetUnitSkillLevel(activeUnit, skillDef?.skill_id ?? EmptyStringName);
         CombatSkillDef combatProfile = skillDef?.combat_profile;
         if (skillDef != null && combatProfile != null)
@@ -602,13 +660,13 @@ public partial class BattleSkillResolutionRules : RefCounted
     }
 
     private static void AddUnlockedEffectDefs(
-        GCombatEffectArray target,
-        GCombatEffectArray source,
+        List<CombatEffectDef> target,
+        IEnumerable<CombatEffectDef> source,
         int skillLevel,
         bool shouldFilter
     )
     {
-        foreach (CombatEffectDef effectDef in source ?? new GCombatEffectArray())
+        foreach (CombatEffectDef effectDef in source ?? Array.Empty<CombatEffectDef>())
         {
             if (IsEffectUnlockedForSkillLevel(effectDef, skillLevel, shouldFilter))
             {
@@ -661,12 +719,23 @@ public partial class BattleSkillResolutionRules : RefCounted
         return effectDef.save_dc_mode == SaveDcModeCasterSpell || effectDef.save_dc > 0;
     }
 
-    private static GCastVariantArray GetUnlockedCastVariants(
+    private static List<CombatCastVariantDef> GetUnlockedCastVariants(
         CombatSkillDef combatProfile,
         int skillLevel
     )
     {
-        return combatProfile?.get_unlocked_cast_variants(skillLevel) ?? new GCastVariantArray();
+        var result = new List<CombatCastVariantDef>();
+        foreach (
+            CombatCastVariantDef castVariant in combatProfile?.get_unlocked_cast_variants(skillLevel)
+                ?? new Godot.Collections.Array<CombatCastVariantDef>()
+        )
+        {
+            if (castVariant != null)
+            {
+                result.Add(castVariant);
+            }
+        }
+        return result;
     }
 
     private static CombatCastVariantDef BuildImplicitGroundCastVariant(SkillDef skillDef)
@@ -683,26 +752,21 @@ public partial class BattleSkillResolutionRules : RefCounted
             target_mode = BattleTypedNames.TargetModeGround,
             footprint_pattern = BattleTypedNames.AreaPatternSingle,
             required_coord_count = 1,
-            effect_defs = DuplicateEffectArray(combatProfile.effect_defs),
+            effect_defs = ToEffectArray(combatProfile.effect_defs),
         };
     }
 
-    private static GStringNameArray DuplicateStringNameArray(GStringNameArray values)
+    private static Godot.Collections.Array<CombatEffectDef> ToEffectArray(
+        IEnumerable<CombatEffectDef> values
+    )
     {
-        var result = new GStringNameArray();
-        foreach (StringName value in values ?? new GStringNameArray())
+        var result = new Godot.Collections.Array<CombatEffectDef>();
+        foreach (CombatEffectDef value in values ?? Array.Empty<CombatEffectDef>())
         {
-            result.Add(value);
-        }
-        return result;
-    }
-
-    private static GCombatEffectArray DuplicateEffectArray(GCombatEffectArray values)
-    {
-        var result = new GCombatEffectArray();
-        foreach (CombatEffectDef value in values ?? new GCombatEffectArray())
-        {
-            result.Add(value);
+            if (value != null)
+            {
+                result.Add(value);
+            }
         }
         return result;
     }
@@ -711,5 +775,4 @@ public partial class BattleSkillResolutionRules : RefCounted
     {
         return value == null || string.IsNullOrEmpty(value.ToString());
     }
-
 }

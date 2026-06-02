@@ -1362,7 +1362,7 @@ public partial class GameRuntimeBattleSelection : RefCounted
         StringName targetTeamFilter
     )
     {
-        return BattleTargetTeamRules.is_unit_valid_for_filter(
+        return BattleTargetTeamRules.IsUnitValidForFilter(
             activeUnit,
             targetUnit,
             targetTeamFilter,
@@ -1372,7 +1372,7 @@ public partial class GameRuntimeBattleSelection : RefCounted
 
     private static int GetEffectiveSkillRange(BattleUnitState activeUnit, SkillDef skillDef)
     {
-        return BattleRangeService.get_effective_skill_range(activeUnit, skillDef);
+        return BattleRangeService.GetEffectiveSkillRange(activeUnit, skillDef);
     }
 
     private string GetSkillCastBlockReason(BattleUnitState activeUnit, SkillDef skillDef)

@@ -544,35 +544,16 @@ Rules:
 - PWK applies the weak variant through params: 60 TU, heal multiplier 50%, shield gain multiplier 50%.
 - semantic includes `display_label = "灵魂裂解"` and `description_text = "由律令死亡施加：治疗与护盾获得降低。"` so the source remains visible without changing UI scene structure.
 
-新增 `scripts/systems/battle/rules/battle_status_modifier_rules.gd`：
+当前实现为 plain static C# `scripts/systems/battle/rules/BattleStatusModifierRules.cs`，不作为 Godot `class_name` / `RefCounted` 暴露：
 
-```gdscript
-class_name BattleStatusModifierRules
-extends RefCounted
-
-static func resolve_min_percent_param(
-	target_unit: BattleUnitState,
-	param_name: String,
-	base_percent: int = 100
-) -> int:
-	var result := base_percent
-	if target_unit == null or param_name.is_empty():
-		return result
-	for status_key in target_unit.status_effects.keys():
-		var entry = target_unit.get_status_effect(ProgressionDataUtils.to_string_name(status_key))
-		if entry == null or entry.params == null:
-			continue
-		var raw_value = null
-		if entry.params.has(param_name):
-			raw_value = entry.params[param_name]
-		else:
-			continue
-		if typeof(raw_value) != TYPE_INT:
-			push_error("Status %s has non-int %s param." % [String(entry.status_id), param_name])
-			continue
-		result = mini(result, clampi(int(raw_value), 0, 100))
-	return result
+```csharp
+BattleStatusModifierRules.ResolveHealMultiplierPercent(targetUnit);
+BattleStatusModifierRules.ResolveShieldGainMultiplierPercent(targetUnit);
+BattleStatusModifierRules.ApplyHealMultiplier(targetUnit, amount);
+BattleStatusModifierRules.ApplyShieldGainMultiplier(targetUnit, amount);
 ```
+
+The helper reads status entries through `BattleUnitState.GetStatusEffectsTyped()` and fixed int status parameters through `BattleStatusEffectState.TryGetIntParam()`.
 
 Use sites:
 
@@ -891,16 +872,16 @@ Minimum regressions:
 | `tests/battle_runtime/runtime/run_game_runtime_battle_selection_regression.gd` | Quick | Selected PWK excludes high-HP enemies from `get_selected_battle_skill_valid_target_coords()` / battle overlay coords; low-HP enemies appear; clicking a high-HP enemy does not queue target selection, issue the command, or consume AP/MP/cooldown. |
 | `tests/battle_runtime/runtime/run_battle_execute_lethal_regression.gd` | Quick, new | Low-HP save fail -> fatal execute; standard fatal trait / `death_ward` / `last_stand` chain triggers; shield bypass leaves shield fields unchanged; normal and Boss fixtures use the same lethal rules. |
 | `tests/battle_runtime/runtime/run_battle_execute_save_branch_regression.gd` | Quick, new | Low-HP save success and `execute_immunity` cause no HP damage, apply weak `soul_fracture` only if the target survives, and preserve execute advantage/disadvantage/immunity branch consistency. |
-| `tests/battle_runtime/rules/run_status_effect_semantics_regression.gd` | Quick | `soul_fracture` harmful, cleansable, dispellable harmful, refresh, PWK weak variant 60 TU, reduces normal heal and shield gain to 50%, and does not affect `heal_fatal`. |
+| `tests/battle_runtime/rules/run_status_effect_semantics_regression.cs` | Quick | `soul_fracture` harmful, cleansable, dispellable harmful, refresh, PWK weak variant 60 TU, reduces normal heal and shield gain to 50%, and does not affect `heal_fatal`. |
 | `tests/battle_runtime/rules/run_battle_rule_status_param_schema_regression.gd` | Quick | `heal_multiplier_percent` and `shield_gain_multiplier_percent` strict int/range validation. |
 | `tests/battle_runtime/rules/run_battle_execute_damage_resolver_regression.gd` | Quick, new | Execute-specific resolver contract only: invalid branch safety fallback, `save_results`, `execute_stage`, `execute_outcome`, actually applied `status_effect_ids`, `soul_fracture` ordering, and no old high-HP non-lethal / Boss non-lethal behavior. |
 | `tests/battle_runtime/rules/run_battle_damage_resolver_mutation_regression.gd` | Quick, new | Non-execute mutation stability after `_apply_damage_to_target()` changes: shield absorption, actual HP loss after clamps, fatal hooks / death protection, and ordinary damage contracts. Do not use preview contract runners for this. |
 | `tests/battle_runtime/ai/run_battle_ai_score_save_probability_regression.gd` | Quick | Fatal execute value changes with supplied save probability; normal and Boss targets with the same HP/save state use the same target gate and low-HP plan branch; all high-HP PWK candidates are rejected by preview before scoring; score service invalid branch produces no save estimate and no effective target value even if called directly; execute immunity makes kill probability and HP damage 0 while preserving bounded `soul_fracture_applied` payoff; execute lethal bonus follows `kill_probability_basis_points` instead of `expected_damage >= current_hp`; `death_ward` / `last_stand` reduce kill bps. Poison `preview.log_lines`, `preview.damage_preview.summary_text`, and `preview.save_branch_preview.*_text` to prove AI score / kill bps / save estimates / `soul_fracture_applied` do not parse presentation text. |
-| `tests/battle_runtime/runtime/run_battle_execute_effect_regression.gd` | Full | Rewrite as 1-2 formal PWK resource end-to-end smoke paths. Remove old execute assertions for fixed save, `magic` save tag, `shield_absorption_percent`, high-HP non-lethal, and Boss non-lethal behavior. |
+| `tests/battle_runtime/runtime/run_battle_execute_effect_regression.cs` | Full | Rewrite as 1-2 formal PWK resource end-to-end smoke paths. Remove old execute assertions for fixed save, `magic` save tag, `shield_absorption_percent`, high-HP non-lethal, and Boss non-lethal behavior. |
 | `tests/battle_runtime/runtime/run_battle_execute_ground_protocol_regression.gd` | Full, new | Illegal ground execute preview / validation / issue are rejected before AP / MP / cooldown consumption; no damage/status mutation. Keep this focused instead of adding more assertions to `run_battle_skill_protocol_regression.gd`. |
 | `tests/battle_runtime/rendering/run_battle_pwk_hover_preview_regression.gd` | Full, new | Focused PWK HUD/hover contract: high-HP hover is invalid and shows no branch/damage preview; low-HP hover consumes structured `save_branch_preview`, shows branch text, and does not show fixed damage. Poison `log_lines` and `damage_preview.summary_text` to prove HUD does not consume presentation fallbacks. |
 | `tests/battle_runtime/rendering/run_battle_ui_regression.gd` | Full | Broad UI regression only; do not use it as the focused PWK hover contract. |
-| `tests/battle_runtime/ai/run_battle_ai_skill_affordance_classifier_regression.gd` | Full | Execute effect is classified as a generatable hostile unit skill / finisher affordance. |
+| `tests/battle_runtime/ai/run_battle_ai_skill_affordance_classifier_regression.cs` | Full | Execute effect is classified as a generatable hostile unit skill / finisher affordance. |
 | `tests/battle_runtime/ai/run_battle_ai_action_assembler_plan_regression.gd` | Full | Execute skill passes through generation slots into a `UseUnitSkillAction` plan with stable metadata and without mutating brain/state resources. Do not create a near-duplicate `run_battle_ai_action_assembler_regression.gd`. |
 | `tests/battle_runtime/ai/run_battle_runtime_ai_regression.gd` | Full | Real AI in mixed high/low HP target situations chooses only low-HP PWK targets; high-HP targets may appear only as preview rejection traces, not scored executable candidates. |
 | `tests/battle_runtime/runtime/run_wild_encounter_regression.gd` | Full | Rank projection only: normal/elite/boss project to `boss_target` / `fortune_mark_target`. PWK rank-invariant assertions live in `run_battle_execution_rules_regression.gd`, not here. |
@@ -924,7 +905,7 @@ godot --headless --script tests/battle_runtime/runtime/run_battle_execute_target
 godot --headless --script tests/battle_runtime/runtime/run_game_runtime_battle_selection_regression.gd
 godot --headless --script tests/battle_runtime/runtime/run_battle_execute_lethal_regression.gd
 godot --headless --script tests/battle_runtime/runtime/run_battle_execute_save_branch_regression.gd
-godot --headless --script tests/battle_runtime/rules/run_status_effect_semantics_regression.gd
+godot --headless --script tests/battle_runtime/rules/run_status_effect_semantics_regression.cs
 godot --headless --script tests/battle_runtime/rules/run_battle_rule_status_param_schema_regression.gd
 godot --headless --script tests/battle_runtime/rules/run_battle_execute_damage_resolver_regression.gd
 godot --headless --script tests/battle_runtime/rules/run_battle_damage_resolver_mutation_regression.gd
@@ -934,11 +915,11 @@ godot --headless --script tests/battle_runtime/ai/run_battle_ai_score_save_proba
 Full add-ons:
 
 ```bash
-godot --headless --script tests/battle_runtime/runtime/run_battle_execute_effect_regression.gd
+godot --headless --script tests/battle_runtime/runtime/run_battle_execute_effect_regression.cs
 godot --headless --script tests/battle_runtime/runtime/run_battle_execute_ground_protocol_regression.gd
 godot --headless --script tests/battle_runtime/rendering/run_battle_pwk_hover_preview_regression.gd
 godot --headless --script tests/battle_runtime/rendering/run_battle_ui_regression.gd
-godot --headless --script tests/battle_runtime/ai/run_battle_ai_skill_affordance_classifier_regression.gd
+godot --headless --script tests/battle_runtime/ai/run_battle_ai_skill_affordance_classifier_regression.cs
 godot --headless --script tests/battle_runtime/ai/run_battle_ai_action_assembler_plan_regression.gd
 godot --headless --script tests/battle_runtime/ai/run_battle_runtime_ai_regression.gd
 godot --headless --script tests/battle_runtime/runtime/run_wild_encounter_regression.gd
@@ -949,14 +930,14 @@ godot --headless --script tests/battle_runtime/runtime/run_battle_skill_protocol
 ## 6. Implementation Order
 
 1. In one compiling slice, add `SAVE_TAG_EXECUTE` to save content/resolver, add `BattleExecuteContentRules`, make `EnemyTemplateDef.target_rank` required with Inspector enum hint / `_validate_property()` support, update all formal enemy templates, and remove conflicting partial execute constants / old test expectations touched by those files.
-   - After adding new `class_name` scripts such as `BattleExecuteContentRules` or `BattleStatusModifierRules`, restart/reload the Godot project before editing files that reference those classes.
+   - `BattleStatusModifierRules` is now a plain static C# helper, not a Godot `class_name` script. Do not restore class registration or GDScript preload access for it.
    - After each compiling slice, run `godot --headless --script tests/battle_runtime/runtime/run_battle_runtime_smoke.gd` or an equally narrow parser-loading smoke runner to surface GDScript parse/class registration errors immediately.
 2. Project target rank in `EncounterRosterBuilder` for systems that need rank-derived attributes; PWK execute plan must ignore `target_rank`, `boss_target`, and `fortune_mark_target`.
 3. Add strict execute schema validation and single-target/special-profile gates.
 4. Finalize `BattleExecutionRules` as pure execute formula + explicit plan contract.
 5. Refactor `BattleDamageResolver` execute branch into `_apply_execute_effect()`.
 6. Fix `_apply_damage_to_target()` so reported damage is actual HP loss after clamp, fatal execute follows the standard death-protection chain, and existing damage resolver regressions prove non-execute damage behavior is unchanged.
-7. Add `BattleStatusModifierRules`, register `soul_fracture` semantics, and wire heal/shield multipliers. Keep the helper scan implementation unless profiling proves a derived `BattleUnitState` cache is needed.
+7. Add `BattleStatusModifierRules`, register `soul_fracture` semantics, and wire heal/shield multipliers through typed status reads. Keep the helper scan implementation unless profiling proves a derived `BattleUnitState` cache is needed.
 8. Add dispatch support, low-HP target gate before cost consumption, runtime target-affordance API for selection/highlight, and ground-path preview + pre-cost rejection.
 9. Add `BattlePreview.save_branch_preview` and HUD/hover consumption from structured preview fields. Keep `damage_preview` reserved for ordinary damage ranges and keep preview probability out of v4.8.
 10. Add AI execute estimation using shared plan, `kill_probability_basis_points` lethal bonus consumption, death-protection kill-bps reduction, and `soul_fracture_applied` status value. Decouple AI weighting tests from the exact save DC formula and prove AI ignores presentation text.
@@ -974,7 +955,7 @@ Keep ownership narrow:
 - Existing rank helper APIs used by non-PWK systems must remain available unless their callers are migrated atomically; they are not PWK branch inputs.
 - Execute formula and plan live in `BattleExecutionRules`.
 - Effect mutation lives in `BattleDamageResolver`.
-- Status multiplier reading lives in `BattleStatusModifierRules`.
+- Status multiplier reading lives in plain static C# `BattleStatusModifierRules`.
 - Shield amount modification lives in `BattleShieldService`.
 - AI estimation lives in `BattleAiScoreService`.
 

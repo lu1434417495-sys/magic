@@ -749,7 +749,7 @@ deferred capability 必须绑定外部依赖 owner，不能只写一个“未来
   - repeat stage spec 必填。
   - `roll_kind` 不受 `trace_source` 影响。
 
-- `tests/battle_runtime/rules/run_attack_roll_modifier_bundle_regression.gd`
+- `tests/battle_runtime/rules/run_attack_roll_modifier_bundle_regression.cs`
   - positive / negative stacking。
   - max / min 对 penalty 的 exact 语义。
   - mixed sign same stack_key hard fail。
@@ -986,7 +986,7 @@ func build_modifier_bundle(context: BattleAttackCheckPolicyContext) -> BattleAtt
 回归：
 
 - `tests/battle_runtime/rules/run_attack_check_policy_contract_regression.gd`
-- `tests/battle_runtime/rules/run_attack_roll_modifier_bundle_regression.gd`
+- `tests/battle_runtime/rules/run_attack_roll_modifier_bundle_regression.cs`
 
 #### Phase 1B：Attack Policy Full Migration
 
@@ -1930,7 +1930,7 @@ func preview_ground_skill(active_unit: BattleUnitState, command: BattleCommand, 
 ```
 
 - preview service 必须保持只读；抽出前先移除 charge preview 对 live `active_unit` 的临时坐标突变，改为 clone / pure geometry。
-- `run_attack_policy_callsite_audit.gd` 必须同步把 unit preview policy owner 从 orchestrator 改到 preview service。
+- `run_attack_policy_callsite_audit.cs` 必须同步把 unit preview policy owner 从 orchestrator 改到 preview service。
 
 新增 `scripts/systems/battle/core/battle_common_skill_outcome.gd`
 
@@ -2404,7 +2404,7 @@ if score_input.meteor_use_case != &"":
 - `tests/battle_runtime/runtime/run_meteor_swarm_commit_payload_boundary_regression.gd`
   - 搜索生产代码，adapter 以外出现 `to_common_outcome_payload(` fail。
   - 搜索 special runtime 中读取 `.effect_defs` 并用于 Meteor 伤害 / 状态 / 地形 / AI fail。
-- `tests/battle_runtime/rules/run_attack_policy_callsite_audit.gd`
+- `tests/battle_runtime/rules/run_attack_policy_callsite_audit.cs`
   - 搜索生产代码中 `build_skill_attack_preview(` / `build_repeat_attack_preview(` / `build_skill_attack_check(` / `build_repeat_attack_stage_hit_check(` / `build_fate_aware_repeat_attack_stage_hit_check(` / `build_*attack*check*` 直连 `_hit_resolver`；允许名单只保留 `BattleAttackCheckPolicyService`、`BattleHitResolver` 内部和 tests helper。
   - audit 必须覆盖 unit execute、ground execute、repeat execute、charge path execute、HUD preview、AI score preview 六类路径。
 - `tests/battle_runtime/rules/run_attack_policy_parity_regression.gd`
@@ -2424,7 +2424,7 @@ godot --headless --script tests/battle_runtime/ai/run_meteor_swarm_ai_regression
 godot --headless --script tests/battle_runtime/runtime/run_meteor_swarm_preview_surface_contract_regression.gd
 godot --headless --script tests/battle_runtime/runtime/run_meteor_swarm_commit_payload_boundary_regression.gd
 godot --headless --script tests/battle_runtime/rules/run_attack_policy_parity_regression.gd
-godot --headless --script tests/battle_runtime/rules/run_attack_policy_callsite_audit.gd
+godot --headless --script tests/battle_runtime/rules/run_attack_policy_callsite_audit.cs
 godot --headless --script tests/battle_runtime/rendering/run_battle_board_regression.gd
 ```
 

@@ -151,7 +151,7 @@ resolver 输出结构化 result：
 运行时流程：
 
 1. `BattleAiService.choose_command()` 获取 brain。
-2. 调用 `BattleAiStateResolver.resolve(context, brain)`。
+2. 调用 `BattleAiStateResolver.ResolveTyped(context, brain)`。
 3. `BattleAiService` 写入 `unit_state.ai_state_id = result.state_id`。
 4. 根据 state id 从 runtime action plan 取 actions。
 5. 选择 action 并生成 decision。
@@ -289,14 +289,14 @@ brain_id | old condition | old target state | new rule_id | new conditions | new
 新增建议：
 
 - `tests/battle_runtime/ai/run_enemy_ai_transition_schema_regression.gd`
-- `tests/battle_runtime/ai/run_battle_ai_state_resolver_regression.gd`
+- `tests/battle_runtime/ai/run_battle_ai_state_resolver_regression.cs`
 
 扩展现有：
 
 - `tests/battle_runtime/ai/run_enemy_ai_generation_slots_content_regression.gd`
 - `tests/battle_runtime/ai/run_battle_ai_runtime_action_plan_regression.gd`
 - `tests/battle_runtime/ai/run_battle_runtime_ai_regression.gd`
-- `tests/battle_runtime/ai/run_move_to_range_progress_regression.gd`
+- `tests/battle_runtime/ai/run_move_to_range_progress_regression.cs`
 
 必须覆盖：
 
@@ -366,7 +366,7 @@ brain.support_hp_basis_points = ...
 已知需要重点搜索：
 
 - `tests/battle_runtime/ai/run_battle_runtime_ai_regression.gd`
-- `tests/battle_runtime/ai/run_move_to_range_progress_regression.gd`
+- `tests/battle_runtime/ai/run_move_to_range_progress_regression.cs`
 - `tests/battle_runtime/benchmarks/*.gd`
 - `tests/battle_runtime/ai_baseline.json`
 
@@ -375,7 +375,7 @@ brain.support_hp_basis_points = ...
 已知旧字段使用面：
 
 - `tests/battle_runtime/ai/run_battle_runtime_ai_regression.gd`：6 处 `brain.pressure_distance = ...`，以及 `_resolve_probe_target_distance()` 读取 `brain.pressure_distance`。
-- `tests/battle_runtime/ai/run_move_to_range_progress_regression.gd`：2 处 `brain.pressure_distance = ...`。
+- `tests/battle_runtime/ai/run_move_to_range_progress_regression.cs`：原 GDS 入口已迁为 C#，不再写 `brain.pressure_distance`。
 - `tests/battle_runtime/benchmarks/run_battle_6v40_headless_benchmark.gd`：1 处 `brain.pressure_distance = ...`。
 - `data/configs/battle_sim/profiles/mist_controller_aggressive.tres`：patch `pressure_distance`。
 - `data/configs/battle_sim/profiles/ranged_suppressor_cautious.tres`：patch `retreat_hp_basis_points`。
@@ -456,7 +456,7 @@ data/configs/battle_sim/profiles/ranged_suppressor_cautious.tres -> retreat_hp_b
      - 文档需要新增一节 `Sim Profile Migration`，明确 brain patch 的新路径示例。
 
 3. `has_skill_affordance` 的调用代价与缓存归属未定义。
-   - `BattleAiSkillAffordanceClassifier.classify_skill()` 当前只在 `BattleAiActionAssembler.build_unit_action_plan()` 内调用一次（plan 构建期）。
+   - `BattleAiSkillAffordanceClassifier.ClassifySkill()` 在 `BattleAiActionAssembler.build_unit_action_plan()` 的 plan 构建期和 `BattleAiContext` lazy cache 中产出 typed affordance record。
    - Resolver 若每回合每单位重新扫所有 known active skills，对 6v40 benchmark 这种压力场景会重复计算。
    - 落地要求：在 `BattleAiContext` 或 `BattleAiRuntimeActionPlan` lazily 缓存 `Dictionary[skill_id -> affordance set]`，resolver 走该缓存。文档必须明确这块拥有权（plan 还是 context），否则实现可能私拉 classifier 实例造成隐性副本。
 
@@ -486,7 +486,7 @@ data/configs/battle_sim/profiles/ranged_suppressor_cautious.tres -> retreat_hp_b
 
 9. 测试 fixture 比文档列的范围更广，必须量化清单：
    - `tests/battle_runtime/ai/run_battle_runtime_ai_regression.gd`：6 处 `brain.pressure_distance = ...`，外加 helper `_resolve_probe_target_distance()`（行 4067-4072）直接读 `brain.pressure_distance`。
-   - `tests/battle_runtime/ai/run_move_to_range_progress_regression.gd`：2 处。
+   - `tests/battle_runtime/ai/run_move_to_range_progress_regression.cs`：原 GDS 入口已迁为 C#，不再写旧 `brain.pressure_distance`。
    - `tests/battle_runtime/benchmarks/run_battle_6v40_headless_benchmark.gd`：1 处。
    - 删除 `_resolve_state_id` 会让 ai baseline 测试结果发生微调（pressure sticky 的"+1"等价表达需要明确 `current_state_is + nearest_enemy_distance_at_or_below=N+1`），**必须重录 `tests/battle_runtime/ai_baseline.json`**，文档应显式列出该步骤。
 

@@ -114,14 +114,14 @@ public partial class BattleRatingSystem : RefCounted
         stats.kill_count += Math.Max(kill_count, 0);
     }
 
-    public void record_contribution_from_units(
+    public void RecordContributionFromUnits(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         int damage,
         int healing,
-        bool caused_defeat,
-        StringName origin_kind,
-        StringName skill_id
+        bool causedDefeat,
+        StringName originKind,
+        StringName skillId
     )
     {
         if (!_has_runtime() || source_unit == null || target_unit == null)
@@ -134,20 +134,11 @@ public partial class BattleRatingSystem : RefCounted
                 target_unit,
                 damage,
                 healing,
-                caused_defeat,
-                origin_kind,
-                skill_id
+                causedDefeat,
+                originKind,
+                skillId
             )
         );
-    }
-
-    public void record_contribution_event_from_dictionary(GDictionary payload)
-    {
-        if (!_has_runtime() || payload == null || payload.Count == 0)
-        {
-            return;
-        }
-        RecordContributionEvent(BattleContributionEventBuilder.FromDictionary(payload));
     }
 
     private void RecordContributionEvent(BattleContributionEvent contributionEvent)
@@ -155,13 +146,13 @@ public partial class BattleRatingSystem : RefCounted
         if (
             !_has_runtime()
             || contributionEvent == null
-            || IsEmpty(contributionEvent.source_member_id)
+            || IsEmpty(contributionEvent.SourceMemberId)
         )
         {
             return;
         }
         BattleRatingMemberStats stats = GetBattleRatingStatsForMember(
-            contributionEvent.source_member_id
+            contributionEvent.SourceMemberId
         );
         if (stats == null)
         {
@@ -172,9 +163,9 @@ public partial class BattleRatingSystem : RefCounted
         ApplyContributionToStats(stats, contributionEvent);
     }
 
-    public GArray get_contribution_events()
+    public GArray GetContributionEvents()
     {
-        return _contributionLedger.ToGodotArray();
+        return _contributionLedger.ToDictionaryArray();
     }
 
     public void record_enemy_defeated_achievement(
@@ -470,20 +461,20 @@ public partial class BattleRatingSystem : RefCounted
     private static void ApplyContributionToStats(BattleRatingMemberStats stats, BattleContributionEvent contributionEvent)
     {
         bool isAllyOrSelf =
-            contributionEvent.relation == BattleContributionRelation.Ally
-            || contributionEvent.relation == BattleContributionRelation.Self;
-        if (contributionEvent.relation == BattleContributionRelation.Enemy)
+            contributionEvent.Relation == BattleContributionRelation.Ally
+            || contributionEvent.Relation == BattleContributionRelation.Self;
+        if (contributionEvent.Relation == BattleContributionRelation.Enemy)
         {
-            if (contributionEvent.hp_damage_applied > 0)
+            if (contributionEvent.HpDamageApplied > 0)
             {
-                stats.hostile_damage_done += contributionEvent.hp_damage_applied;
+                stats.hostile_damage_done += contributionEvent.HpDamageApplied;
                 stats.total_damage_done = stats.hostile_damage_done;
             }
-            if (contributionEvent.hp_healing_applied > 0)
+            if (contributionEvent.HpHealingApplied > 0)
             {
-                stats.enemy_healing_done += contributionEvent.hp_healing_applied;
+                stats.enemy_healing_done += contributionEvent.HpHealingApplied;
             }
-            if (contributionEvent.caused_defeat)
+            if (contributionEvent.CausedDefeat)
             {
                 stats.enemy_kill_count += 1;
                 stats.kill_count = stats.enemy_kill_count;
@@ -493,16 +484,16 @@ public partial class BattleRatingSystem : RefCounted
 
         if (isAllyOrSelf)
         {
-            if (contributionEvent.hp_damage_applied > 0)
+            if (contributionEvent.HpDamageApplied > 0)
             {
-                stats.friendly_fire_damage += contributionEvent.hp_damage_applied;
+                stats.friendly_fire_damage += contributionEvent.HpDamageApplied;
             }
-            if (contributionEvent.hp_healing_applied > 0)
+            if (contributionEvent.HpHealingApplied > 0)
             {
-                stats.ally_healing_done += contributionEvent.hp_healing_applied;
+                stats.ally_healing_done += contributionEvent.HpHealingApplied;
                 stats.total_healing_done = stats.ally_healing_done;
             }
-            if (contributionEvent.caused_defeat)
+            if (contributionEvent.CausedDefeat)
             {
                 stats.ally_defeat_count += 1;
             }

@@ -1,4 +1,5 @@
 using Godot;
+using System.Collections.Generic;
 
 [GlobalClass]
 public partial class EnemyAiBrainDef : Resource
@@ -60,7 +61,7 @@ public partial class EnemyAiBrainDef : Resource
         if (states.Count == 0)
             errors.Add($"Enemy brain {brain_id} must declare at least one state.");
 
-        var seenStateIds = new Godot.Collections.Dictionary();
+        var seenStateIds = new HashSet<StringName>();
         bool defaultStateFound = false;
 
         foreach (var state in states)
@@ -73,10 +74,8 @@ public partial class EnemyAiBrainDef : Resource
 
             if (state.state_id == "")
                 errors.Add($"Enemy brain {brain_id} contains a state without state_id.");
-            else if (seenStateIds.ContainsKey(state.state_id))
+            else if (!seenStateIds.Add(state.state_id))
                 errors.Add($"Enemy brain {brain_id} declares duplicate state_id {state.state_id}.");
-            else
-                seenStateIds[state.state_id] = true;
 
             if (state.state_id == default_state_id)
                 defaultStateFound = true;
@@ -97,13 +96,13 @@ public partial class EnemyAiBrainDef : Resource
     }
 
     private Godot.Collections.Array<string> _validate_transition_rules(
-        Godot.Collections.Dictionary declaredStateIds
+        IReadOnlySet<StringName> declaredStateIds
     )
     {
         var errors = new Godot.Collections.Array<string>();
 
-        var seenRuleIds = new Godot.Collections.Dictionary();
-        var seenOrders = new Godot.Collections.Dictionary();
+        var seenRuleIds = new HashSet<StringName>();
+        var seenOrders = new HashSet<int>();
 
         foreach (var rule in transition_rules)
         {
@@ -115,22 +114,18 @@ public partial class EnemyAiBrainDef : Resource
 
             var ruleId = ProgressionDataUtils.to_string_name(rule.rule_id);
 
-            if (ruleId != "" && seenRuleIds.ContainsKey(ruleId))
+            if (ruleId != "" && !seenRuleIds.Add(ruleId))
                 errors.Add(
                     $"Enemy brain {brain_id} declares duplicate transition rule_id {ruleId}."
                 );
-            else if (ruleId != "")
-                seenRuleIds[ruleId] = true;
 
             int order = rule.order;
 
-            if (seenOrders.ContainsKey(order))
+            if (!seenOrders.Add(order))
                 errors.Add($"Enemy brain {brain_id} declares duplicate transition order {order}.");
-            else
-                seenOrders[order] = true;
 
-            foreach (var e in rule.validate_schema(brain_id, declaredStateIds))
-                errors.Add(e.AsString());
+            foreach (string e in rule.ValidateSchema(brain_id, declaredStateIds))
+                errors.Add(e);
         }
 
         return errors;

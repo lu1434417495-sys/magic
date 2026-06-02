@@ -1,91 +1,118 @@
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 
-[GlobalClass]
-public partial class BattleAiFailurePolicy : RefCounted
+public sealed class BattleAiFailureEvent
 {
-    private static readonly StringName _modeRuntimeFault = "runtime_fault";
+    private readonly ReadOnlyDictionary<string, string> _metadata;
 
-    private static readonly StringName _modeStrictAbort = "strict_abort";
+    public BattleAiFailureEvent(
+        StringName severity,
+        string message,
+        IReadOnlyDictionary<string, string> metadata = null
+    )
+    {
+        Severity = severity;
+        Message = message ?? "";
+        var metadataCopy = new Dictionary<string, string>(StringComparer.Ordinal);
 
-    private static readonly StringName _severityActionError = "action_error";
+        if (metadata != null)
+        {
+            foreach (KeyValuePair<string, string> entry in metadata)
+            {
+                if (string.IsNullOrEmpty(entry.Key))
+                    continue;
 
-    private static readonly StringName _severityContractError = "contract_error";
+                metadataCopy[entry.Key] = entry.Value ?? "";
+            }
+        }
 
-    private static readonly StringName _severityMutationViolation = "mutation_violation";
+        _metadata = new ReadOnlyDictionary<string, string>(metadataCopy);
+    }
 
-    public static StringName ModeRuntimeFault() => _modeRuntimeFault;
+    public StringName Severity { get; }
 
-    public static StringName ModeStrictAbort() => _modeStrictAbort;
+    public string Message { get; }
 
-    public static StringName SeverityActionError() => _severityActionError;
+    public IReadOnlyDictionary<string, string> Metadata => _metadata;
+}
 
-    public static StringName SeverityContractError() => _severityContractError;
+public static class BattleAiFailurePolicy
+{
+    public static readonly StringName ModeRuntimeFault = "runtime_fault";
 
-    public static StringName SeverityMutationViolation() => _severityMutationViolation;
+    public static readonly StringName ModeStrictAbort = "strict_abort";
 
-    public static StringName Mode = ModeRuntimeFault();
+    public static readonly StringName SeverityActionError = "action_error";
+
+    public static readonly StringName SeverityContractError = "contract_error";
+
+    public static readonly StringName SeverityMutationViolation = "mutation_violation";
+
+    private static readonly List<BattleAiFailureEvent> _events = new();
+
+    public static StringName Mode { get; private set; } = ModeRuntimeFault;
 
     public static bool StrictProcessAbortEnabled = false;
 
-    public static GDictionary LastEvent = new();
+    public static BattleAiFailureEvent LastEvent { get; private set; }
 
-    public static GArray Events = new();
+    public static IReadOnlyList<BattleAiFailureEvent> Events => _events.AsReadOnly();
 
     public static void Reset()
     {
-        Mode = ModeRuntimeFault();
+        Mode = ModeRuntimeFault;
 
         StrictProcessAbortEnabled = false;
 
-        LastEvent = new GDictionary();
+        LastEvent = null;
 
-        Events.Clear();
+        _events.Clear();
     }
 
     public static void SetMode(StringName newMode)
     {
-        if (newMode == _modeStrictAbort)
-            Mode = _modeStrictAbort;
+        if (newMode == ModeStrictAbort)
+            Mode = ModeStrictAbort;
         else
-            Mode = _modeRuntimeFault;
+            Mode = ModeRuntimeFault;
     }
 
-    public static bool ReportActionError(string message, GDictionary metadata = null)
+    public static bool ReportActionError(
+        string message,
+        IReadOnlyDictionary<string, string> metadata = null
+    )
     {
-        return Report(_severityActionError, message, metadata);
+        return Report(SeverityActionError, message, metadata);
     }
 
-    public static bool ReportContractError(string message, GDictionary metadata = null)
+    public static bool ReportContractError(
+        string message,
+        IReadOnlyDictionary<string, string> metadata = null
+    )
     {
-        return Report(_severityContractError, message, metadata);
+        return Report(SeverityContractError, message, metadata);
     }
 
-    public static bool ReportMutationViolation(string message, GDictionary metadata = null)
+    public static bool ReportMutationViolation(
+        string message,
+        IReadOnlyDictionary<string, string> metadata = null
+    )
     {
-        return Report(_severityMutationViolation, message, metadata);
+        return Report(SeverityMutationViolation, message, metadata);
     }
 
-    public static bool Report(StringName severity, string message, GDictionary metadata = null)
+    public static bool Report(
+        StringName severity,
+        string message,
+        IReadOnlyDictionary<string, string> metadata = null
+    )
     {
-        GDictionary sanitized = metadata != null
-            ? (GDictionary)metadata.Duplicate(true)
-            : new GDictionary();
+        var failureEvent = new BattleAiFailureEvent(severity, message, metadata);
 
-        var eventDict = new GDictionary
-        {
-            ["severity"] = severity,
-
-            ["message"] = message,
-
-            ["metadata"] = sanitized,
-        };
-
-        LastEvent = (GDictionary)eventDict.Duplicate(true);
-
-        Events.Add(eventDict);
+        LastEvent = failureEvent;
+        _events.Add(failureEvent);
 
         GameLog.Error(message, "ai.failure.policy_triggered", "ai");
 
@@ -103,7 +130,7 @@ public partial class BattleAiFailurePolicy : RefCounted
         if ((bool)ProjectSettings.GetSetting("battle_ai/fail_loud_abort_process", false))
             return true;
 
-        return ConfiguredMode() == ModeStrictAbort();
+        return ConfiguredMode() == ModeStrictAbort;
     }
 
     private const int AbortProcessGracePeriodMsec = 5000;
@@ -140,11 +167,11 @@ public partial class BattleAiFailurePolicy : RefCounted
 
         var configuredText = configured.ToString();
 
-        if (configuredText == _modeStrictAbort.ToString())
-            return _modeStrictAbort;
+        if (configuredText == ModeStrictAbort.ToString())
+            return ModeStrictAbort;
 
-        if (configuredText == _modeRuntimeFault.ToString())
-            return _modeRuntimeFault;
+        if (configuredText == ModeRuntimeFault.ToString())
+            return ModeRuntimeFault;
 
         return Mode;
     }

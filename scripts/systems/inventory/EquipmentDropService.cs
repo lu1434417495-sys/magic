@@ -1,8 +1,8 @@
 using System;
+using System.Collections.Generic;
 using Godot;
 
-[GlobalClass]
-public partial class EquipmentDropService : RefCounted
+public class EquipmentDropService
 {
     private RandomNumberGenerator _rng;
     private Func<int, int, int> _rollRange;
@@ -33,7 +33,7 @@ public partial class EquipmentDropService : RefCounted
         _rollRange = _rng.RandiRange;
     }
 
-    public void set_rng_for_testing(RandomNumberGenerator rng)
+    public void SetRngForTesting(RandomNumberGenerator rng)
     {
         ConfigureRng(rng);
     }
@@ -43,40 +43,26 @@ public partial class EquipmentDropService : RefCounted
         _rollRange = rollRange ?? _rng.RandiRange;
     }
 
-    public Godot.Collections.Array roll_drops(StringName dropTableId, int dropLuck)
+    public List<object> RollDrops(StringName dropTableId, int dropLuck)
     {
         _assert_drop_luck_in_range(dropLuck);
 
         var normalized = ProgressionDataUtils.to_string_name(dropTableId);
 
         if (normalized == "")
-            return new Godot.Collections.Array();
+            return new List<object>();
 
-        return new Godot.Collections.Array();
+        return new List<object>();
     }
 
-    public int roll_drop_rarity(int dropLuck)
+    public int RollDropRarity(int dropLuck)
     {
         _assert_drop_luck_in_range(dropLuck);
 
         return _resolve_rarity_from_score(_roll_3d6() + dropLuck);
     }
 
-    public Godot.Collections.Array roll_item_instances(
-        StringName itemId,
-        int quantity,
-        int dropLuck
-    )
-    {
-        var instances = new Godot.Collections.Array();
-        foreach (EquipmentInstanceState instance in roll_item_instances_typed(itemId, quantity, dropLuck))
-        {
-            instances.Add(instance);
-        }
-        return instances;
-    }
-
-    public Godot.Collections.Array<EquipmentInstanceState> roll_item_instances_typed(
+    public virtual List<EquipmentInstanceState> RollItemInstances(
         StringName itemId,
         int quantity,
         int dropLuck
@@ -89,14 +75,14 @@ public partial class EquipmentDropService : RefCounted
         int resolvedQuantity = Mathf.Max(quantity, 0);
 
         if (normalizedItemId == "" || resolvedQuantity <= 0)
-            return new Godot.Collections.Array<EquipmentInstanceState>();
+            return new List<EquipmentInstanceState>();
 
-        var instances = new Godot.Collections.Array<EquipmentInstanceState>();
+        var instances = new List<EquipmentInstanceState>();
 
         for (int i = 0; i < resolvedQuantity; i++)
         {
             var instance = EquipmentInstanceState.create(normalizedItemId, default);
-            int rarity = roll_drop_rarity(dropLuck);
+            int rarity = RollDropRarity(dropLuck);
 
             instance.rarity = rarity;
             instance.current_durability = EquipmentDurabilityRules.GetDefaultCurrentDurability(

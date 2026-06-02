@@ -312,7 +312,7 @@ public partial class BattleAiScoreService
             {
                 continue;
             }
-            int skillRange = BattleRangeService.get_effective_skill_threat_range(
+            int skillRange = BattleRangeService.GetEffectiveSkillThreatRange(
                 threatUnit,
                 skillDef
             );
@@ -330,7 +330,7 @@ public partial class BattleAiScoreService
             profile.SkillEntries.Add(new ThreatSkillEntry { Range = skillRange, Damage = damage });
             profile.Range = Math.Max(profile.Range, skillRange);
         }
-        profile.WeaponRange = BattleRangeService.get_weapon_attack_range(threatUnit);
+        profile.WeaponRange = BattleRangeService.GetWeaponAttackRange(threatUnit);
         profile.WeaponDamage = EstimateWeaponAverageDamage(threatUnit);
         if (profile.WeaponRange > 0)
         {

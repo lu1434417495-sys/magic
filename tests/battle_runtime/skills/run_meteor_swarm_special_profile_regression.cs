@@ -161,6 +161,12 @@ public partial class run_meteor_swarm_special_profile_regression : SceneTree
 
         BattleCommand validCommand = BuildCommand(setup.Caster, new Vector2I(4, 4));
         setup.Runtime._skill_orchestrator._handle_skill_command(setup.Caster, validCommand, new BattleEventBatch());
+        casterMetrics = setup.Runtime.get_battle_metrics()
+            .GetValueOrDefault("units", new GDictionary())
+            .AsGodotDictionary()
+            .GetValueOrDefault(setup.Caster.unit_id.ToString(), new GDictionary())
+            .AsGodotDictionary();
+        attemptCounts = casterMetrics.GetValueOrDefault("skill_attempt_counts", new GDictionary()).AsGodotDictionary();
         AssertEq(DictInt(attemptCounts, "mage_meteor_swarm", 0), 1, "陨星雨通过校验并完成扣费后才记录 skill attempt。");
     }
 

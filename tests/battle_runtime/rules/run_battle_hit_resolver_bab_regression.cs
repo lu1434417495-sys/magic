@@ -1,6 +1,5 @@
 using System;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_battle_hit_resolver_bab_regression : SceneTree
@@ -118,7 +117,7 @@ public partial class run_battle_hit_resolver_bab_regression : SceneTree
         source.known_skill_lock_hit_bonus_map[new StringName("locked_spell")] = 2;
         var resolver = new BattleHitResolver();
 
-        GDictionary metadata = resolver.resolve_spell_control_metadata(
+        BattleSpellControlMetadata metadata = resolver.resolve_spell_control_metadata_typed(
             source,
             new AttackContext
             {
@@ -126,9 +125,9 @@ public partial class run_battle_hit_resolver_bab_regression : SceneTree
                 AttackRollOverride = 4,
             }
         );
-        AssertEq(DictInt(metadata, "locked_skill_hit_bonus", -1), 2, "法术检定元数据应记录锁定技能加值。");
-        AssertEq(DictInt(metadata, "hit_roll", -1), 4, "法术检定应保留原始 d20。");
-        AssertEq(DictInt(metadata, "effective_hit_roll", -1), 6, "法术检定应使用 d20 + 锁定加值作为有效检定值。");
+        AssertEq(metadata.LockedSkillHitBonus, 2, "法术检定元数据应记录锁定技能加值。");
+        AssertEq(metadata.HitRoll, 4, "法术检定应保留原始 d20。");
+        AssertEq(metadata.EffectiveHitRoll, 6, "法术检定应使用 d20 + 锁定加值作为有效检定值。");
     }
 
     private static BattleUnitState MakeUnitWithAttackBonuses(int attackBonus, int baseAttackBonus)
@@ -162,12 +161,4 @@ public partial class run_battle_hit_resolver_bab_regression : SceneTree
         }
     }
 
-    private static int DictInt(GDictionary dictionary, string key, int fallback)
-    {
-        if (dictionary == null || !dictionary.ContainsKey(key))
-        {
-            return fallback;
-        }
-        return dictionary[key].AsInt32();
-    }
 }

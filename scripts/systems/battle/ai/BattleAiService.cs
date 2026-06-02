@@ -1,41 +1,51 @@
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
-using System;
 
-[GlobalClass]
-public partial class BattleAiService : RefCounted
+public sealed class BattleAiService
 {
-    private GDictionary _enemy_ai_brains = new();
-    private BattleAiScoreService _score_service = new();
-    private BattleAiStateResolver _state_resolver = new();
-    private BattleAiDecisionEngine _decision_engine = new();
+    private readonly Dictionary<StringName, EnemyAiBrainDef> _enemyAiBrains = new();
+    private readonly BattleAiScoreService _scoreService = new();
+    private readonly BattleAiStateResolver _stateResolver = new();
+    private readonly BattleAiDecisionEngine _decisionEngine = new();
 
-    public bool enable_mutation_guard { get; set; } = true;
+    public bool EnableMutationGuard { get; set; } = true;
 
-    public void setup(GDictionary enemy_ai_brains = null, BattleDamageResolver damage_resolver = null)
+    public void Setup(
+        IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains = null,
+        BattleDamageResolver damageResolver = null
+    )
     {
-        _enemy_ai_brains = enemy_ai_brains ?? new GDictionary();
-        _score_service.setup(damage_resolver);
+        _enemyAiBrains.Clear();
+        if (enemyAiBrains != null)
+        {
+            foreach (KeyValuePair<StringName, EnemyAiBrainDef> entry in enemyAiBrains)
+            {
+                if (IsEmpty(entry.Key) || entry.Value == null)
+                {
+                    continue;
+                }
+                _enemyAiBrains[entry.Key] = entry.Value;
+            }
+        }
+        _scoreService.Setup(damageResolver);
     }
 
-    public void set_score_profile(BattleAiScoreProfile profile)
+    public void SetScoreProfile(BattleAiScoreProfile profile)
     {
-        _score_service.set_profile(profile ?? new BattleAiScoreProfile());
+        _scoreService.SetProfile(profile ?? new BattleAiScoreProfile());
     }
 
-    public BattleAiScoreProfile get_score_profile()
+    public BattleAiScoreProfile GetScoreProfile()
     {
-        return _score_service.get_profile();
+        return _scoreService.GetProfile();
     }
 
-    public BattleAiScoreService get_score_service()
+    internal BattleAiScoreService GetScoreService()
     {
-        return _score_service;
+        return _scoreService;
     }
 
-    public BattleAiDecision choose_command(BattleAiContext context)
+    public BattleAiDecision ChooseCommand(BattleAiContext context)
     {
         if (
             context == null
@@ -49,10 +59,10 @@ public partial class BattleAiService : RefCounted
 
         context.mutation_guard_violations.Clear();
 
-        if (!enable_mutation_guard)
+        if (!EnableMutationGuard)
         {
             AiTraceRecorder.enter("choose:impl");
-            BattleAiDecision decisionNoGuard = _choose_command_impl(context);
+            BattleAiDecision decisionNoGuard = ChooseCommandImpl(context);
             AiTraceRecorder.exit("choose:impl");
             return decisionNoGuard;
         }
@@ -63,7 +73,7 @@ public partial class BattleAiService : RefCounted
         AiTraceRecorder.exit("choose:mutation_guard_capture");
 
         AiTraceRecorder.enter("choose:impl");
-        BattleAiDecision decision = _choose_command_impl(context);
+        BattleAiDecision decision = ChooseCommandImpl(context);
         AiTraceRecorder.exit("choose:impl");
 
         AiTraceRecorder.enter("choose:mutation_guard_validate");
@@ -91,17 +101,17 @@ public partial class BattleAiService : RefCounted
         return null;
     }
 
-    public BattleAiDecision _choose_command_impl(BattleAiContext context)
+    private BattleAiDecision ChooseCommandImpl(BattleAiContext context)
     {
         context.skill_score_input_callback ??=
             (aiContext, skillDef, command, preview, effectDefs, metadata) =>
-                _score_service.build_skill_score_input(
+                _scoreService.BuildSkillScoreInput(
                     aiContext,
                     skillDef,
                     command,
                     preview,
-                    effectDefs ?? new GArray(),
-                    metadata ?? new GDictionary()
+                    effectDefs ?? new Godot.Collections.Array(),
+                    metadata ?? new Godot.Collections.Dictionary()
                 );
         context.action_score_input_callback ??=
             (
@@ -113,47 +123,32 @@ public partial class BattleAiService : RefCounted
                 preview,
                 metadata
             ) =>
-                _score_service.build_action_score_input(
+                _scoreService.BuildActionScoreInput(
                     aiContext,
                     actionKind,
                     actionLabel,
                     scoreBucketId,
                     command,
                     preview,
-                    metadata ?? new GDictionary()
+                    metadata ?? new Godot.Collections.Dictionary()
                 );
 
-        BattleAiDecision decision = _decision_engine.choose_command_impl(
+        BattleAiDecision decision = _decisionEngine.ChooseCommandImpl(
             context,
-            _enemy_ai_brains,
-            _state_resolver,
-            _build_wait_decision,
-            _score_service
+            _enemyAiBrains,
+            _stateResolver,
+            BuildWaitDecision,
+            _scoreService
         );
         return decision;
     }
 
-    public void _trace_enter(StringName name)
-    {
-        AiTraceRecorder.enter(name);
-    }
-
-    public void _trace_exit(StringName name)
-    {
-        AiTraceRecorder.exit(name);
-    }
-
-    public bool _is_better_score_input(BattleAiScoreInput candidate, BattleAiScoreInput best_candidate)
-    {
-        return _decision_engine.is_better_score_input(candidate, best_candidate);
-    }
-
-    public BattleAiDecision _build_wait_decision(
+    private static BattleAiDecision BuildWaitDecision(
         BattleAiContext context,
-        StringName brain_id,
-        StringName state_id,
-        StringName action_id,
-        string reason_text
+        StringName brainId,
+        StringName stateId,
+        StringName actionId,
+        string reasonText
     )
     {
         var command = new BattleCommand
@@ -164,11 +159,15 @@ public partial class BattleAiService : RefCounted
         return new BattleAiDecision
         {
             command = command,
-            brain_id = brain_id,
-            state_id = state_id,
-            action_id = action_id,
-            reason_text = reason_text,
+            brain_id = brainId,
+            state_id = stateId,
+            action_id = actionId,
+            reason_text = reasonText,
         };
     }
 
+    private static bool IsEmpty(StringName value)
+    {
+        return value == null || string.IsNullOrEmpty(value.ToString());
+    }
 }

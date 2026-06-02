@@ -1,310 +1,288 @@
+using System;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class BattleExecutionRules : RefCounted
+public readonly record struct BattleExecuteSoulFractureParams(
+    bool HasValue,
+    StringName StatusId,
+    int DurationTu,
+    int HealMultiplierPercent,
+    int ShieldGainMultiplierPercent
+)
 {
+    public static BattleExecuteSoulFractureParams Empty =>
+        new(false, BattleExecutionRules.SoulFractureStatusId, 0, 100, 100);
+
+    public static BattleExecuteSoulFractureParams DefaultResisted =>
+        new(false, BattleExecutionRules.SoulFractureStatusId, 60, 100, 100);
+}
+
+public readonly record struct BattleExecutePlan(
+    StringName Branch,
+    int CurrentHp,
+    int MaxHp,
+    int Threshold,
+    int FatalDamage,
+    bool BypassShield,
+    BattleExecuteSoulFractureParams SoulFractureParams
+)
+{
+    public bool CanExecute => Branch == BattleExecutionRules.BranchLowHpExecute;
+}
+
+public readonly record struct BattleExecutionRuleParams(
+    StringName SkillId,
+    int ThresholdBaseValue,
+    int ThresholdLevelAnchor,
+    int ThresholdLevelBonusPerDelta,
+    StringName ThresholdAbilityMod,
+    int ThresholdAbilityModMultiplier,
+    int ThresholdMaxHpRatioPercent,
+    int ThresholdCapMaxHpRatioPercent,
+    int SoulFractureDurationTu,
+    int HealMultiplierPercent,
+    int ShieldGainMultiplierPercent,
+    int BossNonLethalDamageMaxHpRatioPercent,
+    int BossNonLethalDamageFloor,
+    int NonLethalDamageRatioPercent
+)
+{
+    private static readonly StringName DefaultThresholdAbilityMod = "intelligence_modifier";
+
+    public static BattleExecutionRuleParams Defaults(StringName skillId = default) =>
+        new(
+            Normalize(skillId),
+            0,
+            17,
+            5,
+            DefaultThresholdAbilityMod,
+            5,
+            20,
+            50,
+            0,
+            100,
+            100,
+            12,
+            25,
+            30
+        );
+
+    public static BattleExecutionRuleParams FromEffect(CombatEffectDef effectDef)
+    {
+        Godot.Collections.Dictionary parameters = effectDef?.@params;
+        return new BattleExecutionRuleParams(
+            ReadStringName(parameters, "skill_id"),
+            Math.Max(ReadInt(parameters, "threshold_base_value", 0), 0),
+            Math.Max(ReadInt(parameters, "threshold_level_anchor", 17), 0),
+            Math.Max(ReadInt(parameters, "threshold_level_bonus_per_delta", 5), 0),
+            ReadStringName(parameters, "threshold_ability_mod", DefaultThresholdAbilityMod),
+            Math.Max(ReadInt(parameters, "threshold_ability_mod_multiplier", 5), 0),
+            Math.Max(ReadInt(parameters, "threshold_max_hp_ratio_percent", 20), 0),
+            Math.Max(ReadInt(parameters, "threshold_cap_max_hp_ratio_percent", 50), 0),
+            ReadInt(parameters, "soul_fracture_duration_tu"),
+            ReadInt(parameters, "heal_multiplier_percent", 100),
+            ReadInt(parameters, "shield_gain_multiplier_percent", 100),
+            Math.Max(ReadInt(parameters, "boss_non_lethal_damage_max_hp_ratio_percent", 12), 0),
+            Math.Max(ReadInt(parameters, "boss_non_lethal_damage_floor", 25), 1),
+            Math.Max(ReadInt(parameters, "non_lethal_damage_ratio_percent", 30), 0)
+        );
+    }
+
+    private static int ReadInt(
+        Godot.Collections.Dictionary source,
+        string key,
+        int fallback = 0
+    )
+    {
+        if (source == null || string.IsNullOrEmpty(key) || !source.ContainsKey(key))
+        {
+            return fallback;
+        }
+        try
+        {
+            return source[key].AsInt32();
+        }
+        catch
+        {
+            return int.TryParse(source[key].ToString(), out int parsed) ? parsed : fallback;
+        }
+    }
+
+    private static StringName ReadStringName(
+        Godot.Collections.Dictionary source,
+        string key,
+        StringName fallback = default
+    )
+    {
+        if (source == null || string.IsNullOrEmpty(key) || !source.ContainsKey(key))
+        {
+            return Normalize(fallback);
+        }
+        StringName parsed = ProgressionDataUtils.to_string_name(source[key]);
+        return IsEmpty(parsed) ? Normalize(fallback) : parsed;
+    }
+
+    private static StringName Normalize(StringName value) => value ?? new StringName("");
+
+    private static bool IsEmpty(StringName value) =>
+        value == null || string.IsNullOrEmpty(value.ToString());
+}
+
+public static class BattleExecutionRules
+{
+    public static readonly StringName BossTargetStatId = "boss_target";
+    public static readonly StringName FortuneMarkTargetStatId = "fortune_mark_target";
+    public static readonly StringName BranchInvalidTarget = "invalid_target";
+    public static readonly StringName BranchLowHpExecute = "low_hp_execute";
+    public static readonly StringName SoulFractureStatusId = "soul_fracture";
+
     private static readonly StringName HpMax = "hp_max";
-    private static readonly StringName BossTargetStatId = "boss_target";
-    private static readonly StringName FortuneMarkTargetStatId = "fortune_mark_target";
-    private static readonly StringName BranchInvalidTarget = "invalid_target";
-    private static readonly StringName BranchLowHpExecute = "low_hp_execute";
-    private static readonly StringName SoulFractureStatusId = "soul_fracture";
 
-    private readonly record struct SoulFractureParams(
-        bool HasValue,
-        int DurationTu,
-        int HealMultiplierPercent,
-        int ShieldGainMultiplierPercent
+    public static int ResolveThreshold(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        BattleExecutionRuleParams parameters
     )
     {
-        public static SoulFractureParams Empty => new(false, 0, 100, 100);
-
-        public GDictionary ToDictionary()
-        {
-            if (!HasValue)
-            {
-                return new GDictionary();
-            }
-            return new GDictionary
-            {
-                ["status_id"] = SoulFractureStatusId,
-                ["duration_tu"] = DurationTu,
-                ["heal_multiplier_percent"] = HealMultiplierPercent,
-                ["shield_gain_multiplier_percent"] = ShieldGainMultiplierPercent,
-            };
-        }
-    }
-
-    private readonly record struct ExecutePlan(
-        StringName Branch,
-        int CurrentHp,
-        int MaxHp,
-        int Threshold,
-        int FatalDamage,
-        bool BypassShield,
-        SoulFractureParams SoulFractureParams
-    )
-    {
-        public GDictionary ToDictionary()
-        {
-            return new GDictionary
-            {
-                ["branch"] = Branch,
-                ["current_hp"] = CurrentHp,
-                ["max_hp"] = MaxHp,
-                ["threshold"] = Threshold,
-                ["fatal_damage"] = FatalDamage,
-                ["bypass_shield"] = BypassShield,
-                ["soul_fracture_params"] = SoulFractureParams.ToDictionary(),
-            };
-        }
-    }
-
-    public static StringName BOSS_TARGET_STAT_ID() => BossTargetStatId;
-
-    public static StringName FORTUNE_MARK_TARGET_STAT_ID() => FortuneMarkTargetStatId;
-
-    public static StringName BRANCH_INVALID_TARGET() => BranchInvalidTarget;
-
-    public static StringName BRANCH_LOW_HP_EXECUTE() => BranchLowHpExecute;
-
-    public static int resolve_threshold(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
-        GDictionary @params
-    )
-    {
-        GDictionary normalizedParams = @params ?? new GDictionary();
-        int baseValue = Mathf.Max(ReadInt(normalizedParams, "threshold_base_value", 0), 0);
-        int anchor = Mathf.Max(ReadInt(normalizedParams, "threshold_level_anchor", 17), 0);
-        int bonusPer = Mathf.Max(
-            ReadInt(normalizedParams, "threshold_level_bonus_per_delta", 5),
-            0
-        );
-        StringName abilityId = ReadStringName(
-            normalizedParams,
-            "threshold_ability_mod",
-            "intelligence_modifier"
-        );
-        int abilityMultiplier = Mathf.Max(
-            ReadInt(normalizedParams, "threshold_ability_mod_multiplier", 5),
-            0
-        );
-        int maxHpRatio = Mathf.Max(
-            ReadInt(normalizedParams, "threshold_max_hp_ratio_percent", 20),
-            0
-        );
-        int capRatio = Mathf.Max(
-            ReadInt(normalizedParams, "threshold_cap_max_hp_ratio_percent", 50),
-            0
-        );
-
         int skillLevel = 0;
-        StringName skillId = ReadStringName(normalizedParams, "skill_id");
-        if (!IsEmpty(skillId) && source_unit != null)
+        if (!IsEmpty(parameters.SkillId) && sourceUnit != null)
         {
-            skillLevel = ReadInt(source_unit.known_skill_level_map, skillId, 0);
+            skillLevel = ReadInt(sourceUnit.known_skill_level_map, parameters.SkillId);
         }
-        int levelBonus = Mathf.Max(skillLevel - anchor, 0) * bonusPer;
+        int levelBonus =
+            Math.Max(skillLevel - parameters.ThresholdLevelAnchor, 0)
+            * parameters.ThresholdLevelBonusPerDelta;
 
-        int abilityMod = 0;
-        if (!IsEmpty(abilityId) && source_unit != null)
-        {
-            abilityMod = GetAttributeValue(source_unit, abilityId);
-        }
+        int abilityMod = !IsEmpty(parameters.ThresholdAbilityMod) && sourceUnit != null
+            ? GetAttributeValue(sourceUnit, parameters.ThresholdAbilityMod)
+            : 0;
 
-        int targetMaxHp = Mathf.Max(GetAttributeValue(target_unit, HpMax), 0);
-        int hpFloor = Mathf.Max(targetMaxHp * maxHpRatio / 100, 0);
+        int targetMaxHp = Math.Max(GetAttributeValue(targetUnit, HpMax), 0);
+        int hpFloor = Math.Max(targetMaxHp * parameters.ThresholdMaxHpRatioPercent / 100, 0);
         int rawThreshold =
-            Mathf.Max(baseValue, hpFloor) + levelBonus + abilityMod * abilityMultiplier;
-        int cap = Mathf.Max(targetMaxHp * capRatio / 100, 0);
-        return cap > 0 ? Mathf.Min(rawThreshold, cap) : rawThreshold;
+            Math.Max(parameters.ThresholdBaseValue, hpFloor)
+            + levelBonus
+            + abilityMod * parameters.ThresholdAbilityModMultiplier;
+        int cap = Math.Max(targetMaxHp * parameters.ThresholdCapMaxHpRatioPercent / 100, 0);
+        return cap > 0 ? Math.Min(rawThreshold, cap) : rawThreshold;
     }
 
-    public static GDictionary build_execute_plan(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
-        GDictionary @params
+    public static BattleExecutePlan BuildExecutePlan(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        BattleExecutionRuleParams parameters
     )
     {
-        GDictionary normalizedParams = @params ?? new GDictionary();
-        int maxHp = Mathf.Max(GetAttributeValue(target_unit, HpMax), 0);
-        int currentHp = target_unit != null ? Mathf.Max(target_unit.current_hp, 0) : 0;
-        int threshold = resolve_threshold(source_unit, target_unit, normalizedParams);
+        int maxHp = Math.Max(GetAttributeValue(targetUnit, HpMax), 0);
+        int currentHp = targetUnit != null ? Math.Max(targetUnit.current_hp, 0) : 0;
+        int threshold = ResolveThreshold(sourceUnit, targetUnit, parameters);
 
-        if (target_unit != null && currentHp <= threshold)
+        if (targetUnit != null && currentHp <= threshold)
         {
-            return new ExecutePlan(
+            return new BattleExecutePlan(
                 BranchLowHpExecute,
                 currentHp,
                 maxHp,
                 threshold,
                 currentHp,
                 true,
-                BuildSoulFractureParams(normalizedParams)
-            ).ToDictionary();
+                BuildSoulFractureParams(parameters)
+            );
         }
-        return new ExecutePlan(
+
+        return new BattleExecutePlan(
             BranchInvalidTarget,
             currentHp,
             maxHp,
             threshold,
             0,
             false,
-            SoulFractureParams.Empty
-        ).ToDictionary();
+            BattleExecuteSoulFractureParams.Empty
+        );
     }
 
-    public static bool is_boss_target(BattleUnitState target_unit)
+    public static bool IsBossTarget(BattleUnitState targetUnit)
     {
-        if (target_unit == null || target_unit.attribute_snapshot == null)
+        if (targetUnit == null || targetUnit.attribute_snapshot == null)
         {
             return false;
         }
-        return GetAttributeValue(target_unit, BossTargetStatId) > 0
-            || GetAttributeValue(target_unit, FortuneMarkTargetStatId) > 1;
+        return GetAttributeValue(targetUnit, BossTargetStatId) > 0
+            || GetAttributeValue(targetUnit, FortuneMarkTargetStatId) > 1;
     }
 
-    public static bool is_elite_or_boss_target(BattleUnitState target_unit)
+    public static bool IsEliteOrBossTarget(BattleUnitState targetUnit)
     {
-        if (target_unit == null || target_unit.attribute_snapshot == null)
+        if (targetUnit == null || targetUnit.attribute_snapshot == null)
         {
             return false;
         }
-        return GetAttributeValue(target_unit, BossTargetStatId) > 0
-            || GetAttributeValue(target_unit, FortuneMarkTargetStatId) > 0;
+        return GetAttributeValue(targetUnit, BossTargetStatId) > 0
+            || GetAttributeValue(targetUnit, FortuneMarkTargetStatId) > 0;
     }
 
-    public static int resolve_non_lethal_damage(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
-        GDictionary @params,
-        bool is_boss = false
+    public static int ResolveNonLethalDamage(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
+        BattleExecutionRuleParams parameters,
+        bool isBoss = false
     )
     {
-        GDictionary normalizedParams = @params ?? new GDictionary();
-        if (is_boss)
+        if (isBoss)
         {
-            int ratio = Mathf.Max(
-                ReadInt(
-                    normalizedParams,
-                    "boss_non_lethal_damage_max_hp_ratio_percent",
-                    12
-                ),
-                0
+            int targetMaxHp = Math.Max(GetAttributeValue(targetUnit, HpMax), 0);
+            return Math.Max(
+                targetMaxHp * parameters.BossNonLethalDamageMaxHpRatioPercent / 100,
+                parameters.BossNonLethalDamageFloor
             );
-            int floorVal = Mathf.Max(
-                ReadInt(normalizedParams, "boss_non_lethal_damage_floor", 25),
-                1
-            );
-            int targetMaxHp = Mathf.Max(GetAttributeValue(target_unit, HpMax), 0);
-            return Mathf.Max(targetMaxHp * ratio / 100, floorVal);
         }
 
-        int nonLethalRatio = Mathf.Max(
-            ReadInt(normalizedParams, "non_lethal_damage_ratio_percent", 30),
-            0
-        );
-        int threshold = resolve_threshold(source_unit, target_unit, normalizedParams);
-        return Mathf.Max(threshold * nonLethalRatio / 100, 1);
+        int threshold = ResolveThreshold(sourceUnit, targetUnit, parameters);
+        return Math.Max(threshold * parameters.NonLethalDamageRatioPercent / 100, 1);
     }
 
-    private static SoulFractureParams BuildSoulFractureParams(GDictionary @params)
+    private static BattleExecuteSoulFractureParams BuildSoulFractureParams(
+        BattleExecutionRuleParams parameters
+    )
     {
-        int durationTu = ReadInt(@params, "soul_fracture_duration_tu");
-        if (durationTu <= 0)
+        if (parameters.SoulFractureDurationTu <= 0)
         {
-            return SoulFractureParams.Empty;
+            return BattleExecuteSoulFractureParams.Empty;
         }
-        return new SoulFractureParams(
+        return new BattleExecuteSoulFractureParams(
             true,
-            durationTu,
-            ReadInt(@params, "heal_multiplier_percent", 100),
-            ReadInt(@params, "shield_gain_multiplier_percent", 100)
+            SoulFractureStatusId,
+            parameters.SoulFractureDurationTu,
+            parameters.HealMultiplierPercent,
+            parameters.ShieldGainMultiplierPercent
         );
     }
 
     private static int GetAttributeValue(BattleUnitState unit, StringName attributeId)
     {
         AttributeSnapshot attributeSnapshot = unit?.attribute_snapshot;
-        if (attributeSnapshot == null)
+        if (attributeSnapshot == null || IsEmpty(attributeId))
         {
             return 0;
         }
         return attributeSnapshot.get_value(attributeId);
     }
 
-    private static bool IsEmpty(StringName value) => value == default || value == "";
-
-    private static int ReadInt(GDictionary source, object key, int fallback = 0)
+    private static int ReadInt(Godot.Collections.Dictionary source, StringName key)
     {
-        if (!TryReadValue(source, key, out dynamic value))
+        if (source == null || IsEmpty(key) || !source.ContainsKey(key))
         {
-            return fallback;
+            return 0;
         }
         try
         {
-            return value.AsInt32();
+            return source[key].AsInt32();
         }
         catch
         {
-            return int.TryParse(value.ToString(), out int parsed) ? parsed : fallback;
+            return int.TryParse(source[key].ToString(), out int parsed) ? parsed : 0;
         }
     }
 
-    private static StringName ReadStringName(
-        GDictionary source,
-        object key,
-        StringName fallback = default
-    )
-    {
-        if (!TryReadValue(source, key, out dynamic value))
-        {
-            return fallback;
-        }
-        StringName parsed = ProgressionDataUtils.to_string_name(value);
-        return IsEmpty(parsed) ? fallback : parsed;
-    }
-
-    private static bool TryReadValue(GDictionary source, object key, out dynamic value)
-    {
-        if (source == null)
-        {
-            value = default;
-            return false;
-        }
-        try
-        {
-            dynamic dynamicKey = key;
-            if (source.ContainsKey(dynamicKey))
-            {
-                value = source[dynamicKey];
-                return true;
-            }
-        }
-        catch
-        {
-        }
-        if (key is StringName stringNameKey)
-        {
-            string keyText = stringNameKey.ToString();
-            if (source.ContainsKey(keyText))
-            {
-                value = source[keyText];
-                return true;
-            }
-        }
-        else if (key is string stringKey)
-        {
-            var stringName = new StringName(stringKey);
-            if (source.ContainsKey(stringName))
-            {
-                value = source[stringName];
-                return true;
-            }
-        }
-        value = default;
-        return false;
-    }
+    private static bool IsEmpty(StringName value) =>
+        value == null || string.IsNullOrEmpty(value.ToString());
 }

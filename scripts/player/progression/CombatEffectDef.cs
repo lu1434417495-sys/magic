@@ -26,6 +26,9 @@ public partial class CombatEffectDef : Resource
     public int damage_ratio_percent { get; set; } = 100;
 
     [Export]
+    public double pre_resistance_damage_multiplier { get; set; } = 1.0;
+
+    [Export]
     public StringName damage_tag { get; set; } = "";
 
     [Export]

@@ -76,7 +76,7 @@ public partial class BattleRuntimeLootResolver : RefCounted
 
     private bool _IsEliteOrBossTarget(BattleUnitState unitState)
     {
-        return BattleExecutionRules.is_elite_or_boss_target(unitState);
+        return BattleExecutionRules.IsEliteOrBossTarget(unitState);
     }
 
     private void _CollectDefeatedUnitLoot(
@@ -159,7 +159,7 @@ public partial class BattleRuntimeLootResolver : RefCounted
                 if (equipmentDropService != null)
                 {
                     var rolledInstances = equipmentDropService
-                        .roll_item_instances_typed(itemId, quantity, normalizedDropLuck);
+                        .RollItemInstances(itemId, quantity, normalizedDropLuck);
                     for (
                         int instanceIndex = 0;
                         instanceIndex < rolledInstances.Count;
@@ -543,7 +543,7 @@ public partial class BattleRuntimeLootResolver : RefCounted
 
     private bool _IsBossTarget(BattleUnitState unitState)
     {
-        return BattleExecutionRules.is_boss_target(unitState);
+        return BattleExecutionRules.IsBossTarget(unitState);
     }
 
     private bool _BattleHasEliteOrBossEnemy()

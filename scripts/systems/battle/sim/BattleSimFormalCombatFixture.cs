@@ -954,7 +954,7 @@ public partial class BattleSimFormalCombatFixture : RefCounted, IBattleRuntimeCh
             occupied_sn.Add(ProgressionDataUtils.to_string_name(os));
         var instance_id = $"sim_{member_id}_{item_id}";
         var equipment_instance = EquipmentInstanceState.create(item_id, instance_id);
-        return equipment_state.set_equipped_entry(
+        return equipment_state.SetEquippedEntryTyped(
             entry_slot_id,
             item_id,
             occupied_sn,

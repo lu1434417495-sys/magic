@@ -30,9 +30,14 @@ public partial class RecipeContentRegistry : RefCounted, IValidatableRegistry
 
     public void rebuild()
     {
+        load_from_directory(RECIPE_CONFIG_DIRECTORY);
+    }
+
+    public void load_from_directory(string directoryPath)
+    {
         _recipe_defs.Clear();
         _validation_errors.Clear();
-        _scan_directory(RECIPE_CONFIG_DIRECTORY);
+        _scan_directory(directoryPath);
     }
 
     public Godot.Collections.Dictionary get_recipe_defs()

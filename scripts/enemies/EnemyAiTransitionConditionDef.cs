@@ -1,6 +1,5 @@
+using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 [Tool]
@@ -17,6 +16,16 @@ public partial class EnemyAiTransitionConditionDef : Resource
     private static readonly StringName PredicateNearestEnemyDistanceAtOrBelow =
         "nearest_enemy_distance_at_or_below";
     private static readonly StringName PredicateHasSkillAffordance = "has_skill_affordance";
+    private static readonly HashSet<StringName> ValidPredicates =
+        new()
+        {
+            PredicateAlways,
+            PredicateCurrentStateIs,
+            PredicateSelfHpAtOrBelow,
+            PredicateAllyHpAtOrBelow,
+            PredicateNearestEnemyDistanceAtOrBelow,
+            PredicateHasSkillAffordance,
+        };
 
     [Export]
     public StringName predicate = "";
@@ -33,45 +42,36 @@ public partial class EnemyAiTransitionConditionDef : Resource
     [Export]
     public GStringNameArray affordances = new();
 
-    public static int HP_BASIS_POINTS_DENOMINATOR() => HpBasisPointsDenominator;
+    internal static int HpBasisPointsDenominatorValue => HpBasisPointsDenominator;
 
-    public static StringName PREDICATE_ALWAYS() => PredicateAlways;
+    internal static StringName PredicateAlwaysId => PredicateAlways;
 
-    public static StringName PREDICATE_CURRENT_STATE_IS() => PredicateCurrentStateIs;
+    internal static StringName PredicateCurrentStateIsId => PredicateCurrentStateIs;
 
-    public static StringName PREDICATE_SELF_HP_AT_OR_BELOW() => PredicateSelfHpAtOrBelow;
+    internal static StringName PredicateSelfHpAtOrBelowId => PredicateSelfHpAtOrBelow;
 
-    public static StringName PREDICATE_ALLY_HP_AT_OR_BELOW() => PredicateAllyHpAtOrBelow;
+    internal static StringName PredicateAllyHpAtOrBelowId => PredicateAllyHpAtOrBelow;
 
-    public static StringName PREDICATE_NEAREST_ENEMY_DISTANCE_AT_OR_BELOW() =>
+    internal static StringName PredicateNearestEnemyDistanceAtOrBelowId =>
         PredicateNearestEnemyDistanceAtOrBelow;
 
-    public static StringName PREDICATE_HAS_SKILL_AFFORDANCE() => PredicateHasSkillAffordance;
+    internal static StringName PredicateHasSkillAffordanceId => PredicateHasSkillAffordance;
 
-    public static GDictionary VALID_PREDICATES() =>
-        new()
-        {
-            [PredicateAlways] = true,
-            [PredicateCurrentStateIs] = true,
-            [PredicateSelfHpAtOrBelow] = true,
-            [PredicateAllyHpAtOrBelow] = true,
-            [PredicateNearestEnemyDistanceAtOrBelow] = true,
-            [PredicateHasSkillAffordance] = true,
-        };
-
-    public GArray validate_schema(string owner_label, GDictionary declared_state_ids = null)
+    internal List<string> ValidateSchema(
+        string ownerLabel,
+        IReadOnlySet<StringName> declaredStateIds = null
+    )
     {
-        var errors = new GArray();
-        var states = declared_state_ids ?? new GDictionary();
+        var errors = new List<string>();
         if (predicate == (StringName)"")
         {
-            errors.Add($"{owner_label} transition condition is missing predicate.");
+            errors.Add($"{ownerLabel} transition condition is missing predicate.");
             return errors;
         }
-        if (!VALID_PREDICATES().ContainsKey(predicate))
+        if (!ValidPredicates.Contains(predicate))
         {
             errors.Add(
-                $"{owner_label} transition condition uses unsupported predicate {predicate}."
+                $"{ownerLabel} transition condition uses unsupported predicate {predicate}."
             );
             return errors;
         }
@@ -80,16 +80,20 @@ public partial class EnemyAiTransitionConditionDef : Resource
         if (predicate == PredicateCurrentStateIs)
         {
             if (state_ids.Count == 0)
-                errors.Add($"{owner_label} current_state_is condition must declare state_ids.");
+                errors.Add($"{ownerLabel} current_state_is condition must declare state_ids.");
             foreach (var state_id in state_ids)
             {
                 if (state_id == (StringName)"")
                     errors.Add(
-                        $"{owner_label} current_state_is condition contains empty state_id."
+                        $"{ownerLabel} current_state_is condition contains empty state_id."
                     );
-                else if (states.Count > 0 && !states.ContainsKey(state_id))
+                else if (
+                    declaredStateIds != null
+                    && declaredStateIds.Count > 0
+                    && !declaredStateIds.Contains(state_id)
+                )
                     errors.Add(
-                        $"{owner_label} current_state_is condition references undeclared state_id {state_id}."
+                        $"{ownerLabel} current_state_is condition references undeclared state_id {state_id}."
                     );
             }
         }
@@ -97,57 +101,45 @@ public partial class EnemyAiTransitionConditionDef : Resource
         {
             if (basis_points < 0 || basis_points > HpBasisPointsDenominator)
                 errors.Add(
-                    $"{owner_label} {predicate} condition basis_points must be within [0, 10000]."
+                    $"{ownerLabel} {predicate} condition basis_points must be within [0, 10000]."
                 );
         }
         else if (predicate == PredicateNearestEnemyDistanceAtOrBelow)
         {
             if (max_distance < 0)
                 errors.Add(
-                    $"{owner_label} nearest_enemy_distance_at_or_below condition max_distance must be >= 0."
+                    $"{ownerLabel} nearest_enemy_distance_at_or_below condition max_distance must be >= 0."
                 );
         }
         else if (predicate == PredicateHasSkillAffordance)
         {
             if (affordances.Count == 0)
                 errors.Add(
-                    $"{owner_label} has_skill_affordance condition must declare affordances."
+                    $"{ownerLabel} has_skill_affordance condition must declare affordances."
                 );
             foreach (var affordance in affordances)
             {
                 if (affordance == (StringName)"")
                     errors.Add(
-                        $"{owner_label} has_skill_affordance condition contains empty affordance."
+                        $"{ownerLabel} has_skill_affordance condition contains empty affordance."
                     );
             }
         }
         return errors;
     }
 
-    public GDictionary to_trace_dict()
+    internal string ToSignature()
     {
-        return new GDictionary
-        {
-            ["predicate"] = predicate.ToString(),
-            ["basis_points"] = basis_points,
-            ["max_distance"] = max_distance,
-            ["state_ids"] = _string_name_array_to_strings(state_ids),
-            ["affordances"] = _string_name_array_to_strings(affordances),
-        };
+        return $"{predicate}(bp={basis_points},dist={max_distance},states={string.Join(",", StringNameArrayToStrings(state_ids))},affordances={string.Join(",", StringNameArrayToStrings(affordances))})";
     }
 
-    public string to_signature()
+    private static List<string> StringNameArrayToStrings(GStringNameArray values)
     {
-        return $"{predicate}(bp={basis_points},dist={max_distance},states={string.Join(",", _string_name_array_to_strings(state_ids))},affordances={string.Join(",", _string_name_array_to_strings(affordances))})";
-    }
-
-    private static Godot.Collections.Array<string> _string_name_array_to_strings(
-        GStringNameArray values
-    )
-    {
-        var results = new Godot.Collections.Array<string>();
+        var results = new List<string>();
         foreach (var value in values)
+        {
             results.Add(value.ToString());
+        }
         return results;
     }
 }

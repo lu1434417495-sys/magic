@@ -1,7 +1,5 @@
 using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
-using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
 public readonly record struct BattleGroundSkillValidationResult(
     bool Allowed,
@@ -16,7 +14,7 @@ public readonly record struct BattleGroundSkillValidationResult(
 {
     private static readonly Vector2I InvalidCoord = new(-1, -1);
 
-    public static BattleGroundSkillValidationResult FromDictionary(GDictionary source)
+    internal static BattleGroundSkillValidationResult FromDictionary(Godot.Collections.Dictionary source)
     {
         if (source == null)
         {
@@ -26,7 +24,7 @@ public readonly record struct BattleGroundSkillValidationResult(
             ReadAllowedFlag(source),
             ReadString(source, "message", "地面技能目标无效。"),
             ReadVector2IList(source, "target_coords"),
-            source.ContainsKey("preview_coords") || source.ContainsKey(new StringName("preview_coords")),
+            source.ContainsKey("preview_coords"),
             ReadVector2IList(source, "preview_coords"),
             ReadVector2I(source, "direction", Vector2I.Zero),
             ReadInt(source, "distance", 0),
@@ -68,22 +66,22 @@ public readonly record struct BattleGroundSkillValidationResult(
             resolvedAnchorCoord == default ? InvalidCoord : resolvedAnchorCoord
         );
 
-    public GVector2IArray TargetCoordsArray() => ToVector2IArray(TargetCoords);
+    internal Godot.Collections.Array<Vector2I> ToTargetCoordsArray() => ToVector2IArray(TargetCoords);
 
-    public GVector2IArray PreviewCoordsArray() => ToVector2IArray(PreviewCoords);
+    internal Godot.Collections.Array<Vector2I> ToPreviewCoordsArray() => ToVector2IArray(PreviewCoords);
 
-    public GDictionary ToDictionary()
+    internal Godot.Collections.Dictionary ToDictionary()
     {
-        var result = new GDictionary
+        var result = new Godot.Collections.Dictionary
         {
             ["allowed"] = Allowed,
             ["message"] = Message ?? "",
-            ["target_coords"] = TargetCoordsArray(),
+            ["target_coords"] = ToTargetCoordsArray(),
             ["resolved_anchor_coord"] = ResolvedAnchorCoord,
         };
         if (HasPreviewCoords)
         {
-            result["preview_coords"] = PreviewCoordsArray();
+            result["preview_coords"] = ToPreviewCoordsArray();
         }
         if (Direction != Vector2I.Zero)
         {
@@ -96,9 +94,11 @@ public readonly record struct BattleGroundSkillValidationResult(
         return result;
     }
 
-    private static GVector2IArray ToVector2IArray(IReadOnlyList<Vector2I> coords)
+    private static Godot.Collections.Array<Vector2I> ToVector2IArray(
+        IReadOnlyList<Vector2I> coords
+    )
     {
-        var result = new GVector2IArray();
+        var result = new Godot.Collections.Array<Vector2I>();
         if (coords == null)
         {
             return result;
@@ -110,57 +110,54 @@ public readonly record struct BattleGroundSkillValidationResult(
         return result;
     }
 
-    private static bool ReadAllowedFlag(GDictionary source)
+    private static bool ReadAllowedFlag(Godot.Collections.Dictionary source)
     {
         if (!HasKey(source, "allowed"))
             return false;
-        return source.ContainsKey("allowed")
-            ? source["allowed"].AsBool()
-            : source[new StringName("allowed")].AsBool();
+        return source["allowed"].AsBool();
     }
 
-    private static string ReadString(GDictionary source, string key, string fallback)
+    private static string ReadString(Godot.Collections.Dictionary source, string key, string fallback)
     {
         if (!HasKey(source, key))
         {
             return fallback;
         }
-        string result = source.ContainsKey(key)
-            ? source[key].ToString()
-            : source[new StringName(key)].ToString();
+        string result = source[key].ToString();
         return string.IsNullOrEmpty(result) ? fallback : result;
     }
 
-    private static int ReadInt(GDictionary source, string key, int fallback)
+    private static int ReadInt(Godot.Collections.Dictionary source, string key, int fallback)
     {
         if (!HasKey(source, key))
         {
             return fallback;
         }
-        return source.ContainsKey(key)
-            ? source[key].AsInt32()
-            : source[new StringName(key)].AsInt32();
+        return source[key].AsInt32();
     }
 
-    private static Vector2I ReadVector2I(GDictionary source, string key, Vector2I fallback)
+    private static Vector2I ReadVector2I(
+        Godot.Collections.Dictionary source,
+        string key,
+        Vector2I fallback
+    )
     {
         if (!HasKey(source, key))
             return fallback;
-        return source.ContainsKey(key)
-            ? source[key].AsVector2I()
-            : source[new StringName(key)].AsVector2I();
+        return source[key].AsVector2I();
     }
 
-    private static IReadOnlyList<Vector2I> ReadVector2IList(GDictionary source, string key)
+    private static IReadOnlyList<Vector2I> ReadVector2IList(
+        Godot.Collections.Dictionary source,
+        string key
+    )
     {
         if (!HasKey(source, key))
         {
             return System.Array.Empty<Vector2I>();
         }
         var result = new List<Vector2I>();
-        var values = source.ContainsKey(key)
-            ? source[key].AsGodotArray()
-            : source[new StringName(key)].AsGodotArray();
+        var values = source[key].AsGodotArray();
         foreach (var entry in values)
         {
             result.Add(entry.AsVector2I());
@@ -168,12 +165,12 @@ public readonly record struct BattleGroundSkillValidationResult(
         return result;
     }
 
-    private static bool HasKey(GDictionary source, string key)
+    private static bool HasKey(Godot.Collections.Dictionary source, string key)
     {
         if (source == null)
         {
             return false;
         }
-        return source.ContainsKey(key) || source.ContainsKey(new StringName(key));
+        return source.ContainsKey(key);
     }
 }

@@ -1,17 +1,18 @@
+using System.Collections.Generic;
 using Godot;
 
 public readonly struct EquipmentRequirementCheckResult
 {
     public readonly bool Allowed;
-    public readonly Godot.Collections.Array<string> Blockers;
+    public readonly IReadOnlyList<string> Blockers;
 
     public EquipmentRequirementCheckResult(
         bool allowed,
-        Godot.Collections.Array<string> blockers = null
+        IEnumerable<string> blockers = null
     )
     {
         Allowed = allowed;
-        Blockers = blockers ?? new Godot.Collections.Array<string>();
+        Blockers = blockers != null ? new List<string>(blockers) : new List<string>();
     }
 
     public Godot.Collections.Dictionary ToDictionary()
@@ -19,7 +20,7 @@ public readonly struct EquipmentRequirementCheckResult
         return new Godot.Collections.Dictionary
         {
             ["allowed"] = Allowed,
-            ["blockers"] = Blockers.Duplicate(),
+            ["blockers"] = new Godot.Collections.Array<string>(Blockers),
         };
     }
 }
@@ -43,7 +44,7 @@ public partial class EquipmentRequirement : Resource
 
     public EquipmentRequirementCheckResult CheckResult(PartyMemberState member_state)
     {
-        var blockers = new Godot.Collections.Array<string>();
+        var blockers = new List<string>();
         if (required_profession_ids.Count > 0)
         {
             bool has_profession = false;

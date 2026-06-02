@@ -1,11 +1,12 @@
+using System;
 using System.Collections.Generic;
+using System.Globalization;
+using System.Reflection;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
-using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_battle_shield_service_typed_context_regression : SceneTree
 {
-    private readonly GStringArray _failures = new();
+    private readonly List<string> _failures = new();
 
     public override void _Initialize()
     {
@@ -19,6 +20,8 @@ public partial class run_battle_shield_service_typed_context_regression : SceneT
         TestTypedRollContextCachesShieldHp();
         TestGodotBoundaryRollContextRoundTrips();
         TestTypedApplyPathUsesSharedContext();
+        TestApplyResultPublicApiStaysTyped();
+        TestApplyResultProjectsInternalBoundary();
 
         if (_failures.Count == 0)
         {
@@ -62,19 +65,89 @@ public partial class run_battle_shield_service_typed_context_regression : SceneT
         BattleUnitState source = BuildUnit("godot_context_source");
         CombatEffectDef effect = BuildAttributeScaledShieldEffect();
         long cacheKey = service._get_shield_roll_cache_key(effect);
-        var godotContext = new GDictionary();
+        var godotContext = new Godot.Collections.Dictionary();
 
         int shieldHp = service._resolve_shield_hp(source, effect, godotContext);
 
         AssertEq(shieldHp, 7, "Godot 边界首次 roll 应保持现有行为。");
-        AssertTrue(godotContext.ContainsKey(cacheKey), "Godot 边界应写回 roll context。");
+        AssertTrue(HasKey(godotContext, cacheKey), "Godot 边界应写回 roll context。");
         AssertEq(ReadInt(godotContext, cacheKey), 7, "Godot 边界 context 值应写回已解析护盾。");
 
-        godotContext[cacheKey] = 23;
+        godotContext[cacheKey.ToString(CultureInfo.InvariantCulture)] = 23;
         AssertEq(
             service._resolve_shield_hp(source, effect, godotContext),
             23,
             "Godot 边界传入已有 cache 时应桥接到 typed context。"
+        );
+    }
+
+    private void TestApplyResultPublicApiStaysTyped()
+    {
+        Type type = typeof(BattleShieldApplyResult);
+        AssertTrue(
+            type.IsValueType || type.IsSealed,
+            "BattleShieldApplyResult 应保持 plain C# result DTO。"
+        );
+        AssertTrue(
+            !typeof(GodotObject).IsAssignableFrom(type),
+            "BattleShieldApplyResult 不应继承 GodotObject/RefCounted。"
+        );
+        AssertTrue(
+            !HasAttributeNamed(type, "GlobalClassAttribute"),
+            "BattleShieldApplyResult 不应注册 GlobalClass。"
+        );
+        AssertPublicApiDoesNotExposeGodotCollections(type, "BattleShieldApplyResult");
+    }
+
+    private void AssertPublicApiDoesNotExposeGodotCollections(Type type, string typeName)
+    {
+        const BindingFlags flags =
+            BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
+        foreach (PropertyInfo property in type.GetProperties(flags))
+        {
+            AssertTrue(
+                !IsGodotCollectionOrVariant(property.PropertyType),
+                $"{typeName}.{property.Name} 不应公开 Godot Dictionary/Array/Variant 属性。"
+            );
+        }
+        foreach (MethodInfo method in type.GetMethods(flags))
+        {
+            if (method.IsSpecialName)
+                continue;
+            AssertTrue(
+                !IsGodotCollectionOrVariant(method.ReturnType),
+                $"{typeName}.{method.Name} 不应公开返回 Godot Dictionary/Array/Variant。"
+            );
+            foreach (ParameterInfo parameter in method.GetParameters())
+            {
+                AssertTrue(
+                    !IsGodotCollectionOrVariant(parameter.ParameterType),
+                    $"{typeName}.{method.Name} 不应公开接收 Godot Dictionary/Array/Variant 参数 {parameter.Name}。"
+                );
+            }
+        }
+    }
+
+    private void TestApplyResultProjectsInternalBoundary()
+    {
+        var result = new BattleShieldApplyResult(
+            true,
+            9,
+            12,
+            60,
+            new StringName("test_shield_family")
+        );
+
+        Godot.Collections.Dictionary payload = result.ToDictionary();
+
+        AssertTrue(payload["applied"].AsBool(), "shield apply result 应投影 applied。");
+        AssertEq(payload["current_shield_hp"].AsInt32(), 9, "shield apply result 应投影当前护盾。");
+        AssertEq(payload["shield_max_hp"].AsInt32(), 12, "shield apply result 应投影最大护盾。");
+        AssertEq(payload["shield_duration"].AsInt32(), 60, "shield apply result 应投影持续时间。");
+        AssertEq(
+            payload["shield_family"].AsStringName(),
+            new StringName("test_shield_family"),
+            "shield apply result 应投影护盾族。"
         );
     }
 
@@ -132,9 +205,14 @@ public partial class run_battle_shield_service_typed_context_regression : SceneT
         };
     }
 
-    private static int ReadInt(GDictionary source, long key)
+    private static int ReadInt(Godot.Collections.Dictionary source, long key)
     {
-        return source[Variant.From(key)].AsInt32();
+        return source[key.ToString(CultureInfo.InvariantCulture)].AsInt32();
+    }
+
+    private static bool HasKey(Godot.Collections.Dictionary source, long key)
+    {
+        return source.ContainsKey(key.ToString(CultureInfo.InvariantCulture));
     }
 
     private void AssertEq<T>(T actual, T expected, string message)
@@ -151,5 +229,25 @@ public partial class run_battle_shield_service_typed_context_regression : SceneT
         {
             _failures.Add(message);
         }
+    }
+
+    private static bool HasAttributeNamed(Type type, string attributeTypeName)
+    {
+        foreach (object attribute in type.GetCustomAttributes(false))
+        {
+            if (attribute.GetType().Name == attributeTypeName)
+                return true;
+        }
+        return false;
+    }
+
+    private static bool IsGodotCollectionOrVariant(Type type)
+    {
+        if (type == typeof(Variant))
+            return true;
+        Type genericDefinition = type.IsGenericType ? type.GetGenericTypeDefinition() : type;
+        return genericDefinition == typeof(Godot.Collections.Dictionary)
+            || genericDefinition == typeof(Godot.Collections.Array)
+            || type.Namespace == "Godot.Collections";
     }
 }

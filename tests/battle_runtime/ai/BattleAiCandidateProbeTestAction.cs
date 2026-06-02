@@ -24,33 +24,31 @@ public partial class BattleAiCandidateProbeTestAction : EnemyAiAction
             ActionLabel = "candidate probe",
             ActionIntent = action_intent,
             ScoreBucketId = score_bucket_id,
-            ActorUnitId = query?.get_actor_id() ?? "",
+            ActorUnitId = query?.GetActorId() ?? "",
             FocusTargetUnitId = "hero",
             DesiredMinDistance = desired_min_distance,
             DesiredMaxDistance = desired_max_distance,
             MaxCandidateCount = 4,
-            PathSearchBudget = new Godot.Collections.Dictionary
-            {
-                ["max_cost"] = 2,
-                ["max_nodes"] = 0,
-                ["max_destinations"] = 4,
-                ["path_tree_min_destination_count"] = 0,
-                ["include_origin"] = false,
-                ["prefer_progress"] = true,
-            },
-            TacticalParams = new Godot.Collections.Dictionary
-            {
-                ["target_selector"] = new StringName("nearest_enemy"),
-                ["range_skill_ids"] = new Godot.Collections.Array(),
-                ["position_objective_kind"] = new StringName("distance_band_progress"),
-            },
-            RuntimeMetadata = new Godot.Collections.Dictionary
-            {
-                ["configured_desired_min_distance"] = desired_min_distance,
-                ["configured_desired_max_distance"] = desired_max_distance,
-                ["effective_attack_range"] = -1,
-            },
         };
+        request.SetMoveToRangeSections(
+            new MoveToRangePathSearchBudget
+            {
+                MaxCost = 2,
+                MaxDestinations = 4,
+                PreferProgress = true,
+            },
+            new MoveToRangeTacticalParams
+            {
+                TargetSelector = "nearest_enemy",
+                PositionObjectiveKind = "distance_band_progress",
+            },
+            new MoveToRangeRuntimeMetadata
+            {
+                ConfiguredDesiredMinDistance = desired_min_distance,
+                ConfiguredDesiredMaxDistance = desired_max_distance,
+                EffectiveAttackRange = -1,
+            }
+        );
         return request;
     }
 

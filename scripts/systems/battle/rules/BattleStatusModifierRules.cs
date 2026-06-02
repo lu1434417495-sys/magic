@@ -1,13 +1,11 @@
 using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class BattleStatusModifierRules : RefCounted
+public static class BattleStatusModifierRules
 {
-    private const string ParamHealMultiplierPercent = "heal_multiplier_percent";
-    private const string ParamShieldGainMultiplierPercent = "shield_gain_multiplier_percent";
-    private const int DefaultMultiplierPercent = 100;
+    public const string HealMultiplierPercentParam = "heal_multiplier_percent";
+    public const string ShieldGainMultiplierPercentParam = "shield_gain_multiplier_percent";
+    public const int DefaultMultiplierPercent = 100;
 
     private readonly record struct StatusModifierEntry(
         StringName StatusId,
@@ -15,30 +13,24 @@ public partial class BattleStatusModifierRules : RefCounted
         int? ShieldGainMultiplierPercent
     );
 
-    public static string PARAM_HEAL_MULTIPLIER_PERCENT() => ParamHealMultiplierPercent;
-
-    public static string PARAM_SHIELD_GAIN_MULTIPLIER_PERCENT() => ParamShieldGainMultiplierPercent;
-
-    public static int DEFAULT_MULTIPLIER_PERCENT() => DefaultMultiplierPercent;
-
-    public static int apply_heal_multiplier(BattleUnitState unit_state, int amount)
+    public static int ApplyHealMultiplier(BattleUnitState unitState, int amount)
     {
-        return ApplyMultiplier(amount, resolve_heal_multiplier_percent(unit_state));
+        return ApplyMultiplier(amount, ResolveHealMultiplierPercent(unitState));
     }
 
-    public static int apply_shield_gain_multiplier(BattleUnitState unit_state, int amount)
+    public static int ApplyShieldGainMultiplier(BattleUnitState unitState, int amount)
     {
-        return ApplyMultiplier(amount, resolve_shield_gain_multiplier_percent(unit_state));
+        return ApplyMultiplier(amount, ResolveShieldGainMultiplierPercent(unitState));
     }
 
-    public static int resolve_heal_multiplier_percent(BattleUnitState unit_state)
+    public static int ResolveHealMultiplierPercent(BattleUnitState unitState)
     {
-        return ResolveMinMultiplierPercent(unit_state, ParamHealMultiplierPercent);
+        return ResolveMinMultiplierPercent(unitState, HealMultiplierPercentParam);
     }
 
-    public static int resolve_shield_gain_multiplier_percent(BattleUnitState unit_state)
+    public static int ResolveShieldGainMultiplierPercent(BattleUnitState unitState)
     {
-        return ResolveMinMultiplierPercent(unit_state, ParamShieldGainMultiplierPercent);
+        return ResolveMinMultiplierPercent(unitState, ShieldGainMultiplierPercentParam);
     }
 
     private static int ResolveMinMultiplierPercent(BattleUnitState unitState, string paramKey)
@@ -52,7 +44,7 @@ public partial class BattleStatusModifierRules : RefCounted
         foreach (StatusModifierEntry entry in BuildStatusModifierEntries(unitState))
         {
             int? multiplier =
-                paramKey == ParamHealMultiplierPercent
+                paramKey == HealMultiplierPercentParam
                     ? entry.HealMultiplierPercent
                     : entry.ShieldGainMultiplierPercent;
             if (!multiplier.HasValue)
@@ -84,9 +76,8 @@ public partial class BattleStatusModifierRules : RefCounted
             return entries;
         }
 
-        foreach (var statusValue in unitState.status_effects.Values)
+        foreach (BattleStatusEffectState statusEntry in unitState.GetStatusEffectsTyped())
         {
-            BattleStatusEffectState statusEntry = statusValue.As<BattleStatusEffectState>();
             if (statusEntry == null || statusEntry.is_empty())
             {
                 continue;
@@ -94,30 +85,21 @@ public partial class BattleStatusModifierRules : RefCounted
             entries.Add(
                 new StatusModifierEntry(
                     statusEntry.status_id,
-                    GetOptionalInt(statusEntry.@params, ParamHealMultiplierPercent),
-                    GetOptionalInt(statusEntry.@params, ParamShieldGainMultiplierPercent)
+                    GetOptionalInt(statusEntry, HealMultiplierPercentParam),
+                    GetOptionalInt(statusEntry, ShieldGainMultiplierPercentParam)
                 )
             );
         }
         return entries;
     }
 
-    private static int? GetOptionalInt(GDictionary parameters, string key)
+    private static int? GetOptionalInt(BattleStatusEffectState statusEntry, string key)
     {
-        if (parameters == null)
+        if (statusEntry == null)
         {
             return null;
         }
-        if (parameters.ContainsKey(key))
-        {
-            return parameters[key].AsInt32();
-        }
-        var stringNameKey = new StringName(key);
-        if (!parameters.ContainsKey(stringNameKey))
-        {
-            return null;
-        }
-        return parameters[stringNameKey].AsInt32();
+        return statusEntry.TryGetIntParam(key, out int value) ? value : null;
     }
 
     private static int ApplyMultiplier(int amount, int multiplierPercent)
@@ -127,7 +109,12 @@ public partial class BattleStatusModifierRules : RefCounted
             return 0;
         }
         int normalizedPercent = Mathf.Clamp(multiplierPercent, 0, DefaultMultiplierPercent);
-        return Mathf.Max(Mathf.RoundToInt((float)amount * normalizedPercent / 100.0f), 0);
+        int scaled = Mathf.RoundToInt((float)amount * normalizedPercent / 100.0f);
+        if (scaled <= 0 && normalizedPercent > 0)
+        {
+            return 1;
+        }
+        return Mathf.Max(scaled, 0);
     }
 
     private static bool IsEmpty(StringName value)

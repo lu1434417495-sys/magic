@@ -1,6 +1,6 @@
 using Godot;
+using System.Collections.Generic;
 using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 using GEnemyAiActionArray = Godot.Collections.Array<EnemyAiAction>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
@@ -44,89 +44,69 @@ public partial class EnemyAiGenerationSlotDef : Resource
     [Export]
     public StringName suppression_policy = "suppress_matching_family";
 
-    public static GDictionary VALID_AFFORDANCES() =>
-        new()
+    private static readonly HashSet<string> ValidAffordances =
+        new(System.StringComparer.Ordinal)
         {
-            ["unit_hostile.damage"] = true,
-            ["unit_hostile.control"] = true,
-            ["ground_hostile.aoe"] = true,
-            ["ground_control"] = true,
-            ["terrain_control"] = true,
-            ["displacement_control"] = true,
-            ["charge_engage"] = true,
-            ["charge_path_aoe"] = true,
-            ["multi_unit"] = true,
-            ["random_chain"] = true,
-            ["special_ground"] = true,
-            ["ally_heal"] = true,
-            ["self_or_ally_buff"] = true,
-            ["reposition"] = true,
-            ["escape"] = true,
-            ["utility"] = true,
-            ["breaker"] = true,
+            "unit_hostile.damage",
+            "unit_hostile.control",
+            "ground_hostile.aoe",
+            "ground_control",
+            "terrain_control",
+            "displacement_control",
+            "charge_engage",
+            "charge_path_aoe",
+            "multi_unit",
+            "random_chain",
+            "special_ground",
+            "ally_heal",
+            "self_or_ally_buff",
+            "reposition",
+            "escape",
+            "utility",
+            "breaker",
         };
 
-    public static GDictionary VALID_ACTION_FAMILIES() =>
-        new()
+    private static readonly HashSet<string> ValidActionFamilies =
+        new(System.StringComparer.Ordinal)
         {
-            ["use_unit_skill"] = true,
-            ["use_ground_skill"] = true,
-            ["use_multi_unit_skill"] = true,
-            ["use_random_chain_skill"] = true,
-            ["use_charge"] = true,
-            ["use_charge_path_aoe"] = true,
-            ["move_to_range"] = true,
-            ["move_to_multi_unit_skill_position"] = true,
+            "use_unit_skill",
+            "use_ground_skill",
+            "use_multi_unit_skill",
+            "use_random_chain_skill",
+            "use_charge",
+            "use_charge_path_aoe",
+            "move_to_range",
+            "move_to_multi_unit_skill_position",
         };
 
-    public static GDictionary VALID_SLOT_ROLES() =>
-        new()
+    private static readonly HashSet<string> ValidSlotRoles =
+        new(System.StringComparer.Ordinal)
         {
-            ["offense"] = true,
-            ["control"] = true,
-            ["support"] = true,
-            ["positioning"] = true,
-            ["survival"] = true,
-            ["engage"] = true,
+            "offense",
+            "control",
+            "support",
+            "positioning",
+            "survival",
+            "engage",
         };
 
-    public static GDictionary VALID_TARGET_SELECTORS() =>
-        new()
+    private static readonly HashSet<string> ValidDistanceReferences =
+        new(System.StringComparer.Ordinal)
         {
-            [""] = true,
-            ["nearest_enemy"] = true,
-            ["lowest_hp_enemy"] = true,
-            ["nearest_role_threat_enemy"] = true,
-            ["nearest_ally"] = true,
-            ["lowest_hp_ally"] = true,
-            ["self"] = true,
+            "",
+            "target_unit",
+            "target_coord",
+            "candidate_pool",
+            "enemy_frontline",
         };
 
-    public static GDictionary VALID_DISTANCE_REFERENCES() =>
-        new()
+    private static readonly HashSet<string> ValidSuppressionPolicies =
+        new(System.StringComparer.Ordinal)
         {
-            [""] = true,
-            ["target_unit"] = true,
-            ["target_coord"] = true,
-            ["candidate_pool"] = true,
-            ["enemy_frontline"] = true,
+            "suppress_matching_family",
+            "allow_companion",
+            "manual_only",
         };
-
-    public static GDictionary VALID_SUPPRESSION_POLICIES() =>
-        new()
-        {
-            ["suppress_matching_family"] = true,
-            ["allow_companion"] = true,
-            ["manual_only"] = true,
-        };
-
-    public bool matches_affordance(GDictionary record, StringName action_family)
-    {
-        return MatchesAffordance(
-            BattleAiSkillAffordanceRecord.FromDictionary("", record),
-            action_family
-        );
-    }
 
     internal bool MatchesAffordance(
         BattleAiSkillAffordanceRecord record,
@@ -147,24 +127,25 @@ public partial class EnemyAiGenerationSlotDef : Resource
         return false;
     }
 
-    public GDictionary to_signature()
-    {
-        return new GDictionary
-        {
-            ["slot_id"] = slot_id.ToString(),
-            ["slot_role"] = slot_role.ToString(),
-            ["order"] = order,
-            ["allowed_affordances"] = _stringify_array(allowed_affordances),
-            ["action_families"] = _stringify_array(action_families),
-            ["style_template_action_id"] = style_template_action_id.ToString(),
-            ["score_bucket_id"] = score_bucket_id.ToString(),
-            ["target_selector"] = target_selector.ToString(),
-            ["desired_min_distance"] = desired_min_distance,
-            ["desired_max_distance"] = desired_max_distance,
-            ["distance_reference"] = distance_reference.ToString(),
-            ["suppression_policy"] = suppression_policy.ToString(),
-        };
-    }
+    internal string BuildSignature() =>
+        string.Join(
+            "|",
+            new[]
+            {
+                $"slot_id={slot_id}",
+                $"slot_role={slot_role}",
+                $"order={order}",
+                $"allowed_affordances={StringifyArray(allowed_affordances)}",
+                $"action_families={StringifyArray(action_families)}",
+                $"style_template_action_id={style_template_action_id}",
+                $"score_bucket_id={score_bucket_id}",
+                $"target_selector={target_selector}",
+                $"desired_min_distance={desired_min_distance}",
+                $"desired_max_distance={desired_max_distance}",
+                $"distance_reference={distance_reference}",
+                $"suppression_policy={suppression_policy}",
+            }
+        );
 
     public GArray validate_schema(
         string context_label = "Enemy AI generation slot",
@@ -176,7 +157,7 @@ public partial class EnemyAiGenerationSlotDef : Resource
         var label = $"{context_label} generation slot {slot_id}";
         if (slot_id == (StringName)"")
             errors.Add($"{context_label} is missing slot_id.");
-        if (!VALID_SLOT_ROLES().ContainsKey(slot_role.ToString()))
+        if (!ValidSlotRoles.Contains(slot_role.ToString()))
             errors.Add($"{label} declares unsupported slot_role {slot_role}.");
         if (order < 0)
             errors.Add($"{label} order must be >= 0.");
@@ -184,14 +165,14 @@ public partial class EnemyAiGenerationSlotDef : Resource
             errors.Add($"{label} must declare at least one allowed_affordance.");
         foreach (var affordance in allowed_affordances)
         {
-            if (!VALID_AFFORDANCES().ContainsKey(affordance.ToString()))
+            if (!ValidAffordances.Contains(affordance.ToString()))
                 errors.Add($"{label} declares unsupported affordance {affordance}.");
         }
         if (action_families.Count == 0)
             errors.Add($"{label} must declare at least one action_family.");
         foreach (var family in action_families)
         {
-            if (!VALID_ACTION_FAMILIES().ContainsKey(family.ToString()))
+            if (!ValidActionFamilies.Contains(family.ToString()))
                 errors.Add($"{label} declares unsupported action_family {family}.");
         }
         if (
@@ -201,7 +182,7 @@ public partial class EnemyAiGenerationSlotDef : Resource
             errors.Add(
                 $"{label} style_template_action_id {style_template_action_id} does not exist in the same state."
             );
-        if (!VALID_TARGET_SELECTORS().ContainsKey(target_selector.ToString()))
+        if (!EnemyAiTargetSelectorRules.IsSupportedSelector(target_selector, allowEmpty: true))
             errors.Add($"{label} declares unsupported target_selector {target_selector}.");
         if (desired_min_distance < -1)
             errors.Add($"{label} desired_min_distance must be >= -1.");
@@ -213,9 +194,9 @@ public partial class EnemyAiGenerationSlotDef : Resource
             && desired_min_distance > desired_max_distance
         )
             errors.Add($"{label} desired_min_distance cannot exceed desired_max_distance.");
-        if (!VALID_DISTANCE_REFERENCES().ContainsKey(distance_reference.ToString()))
+        if (!ValidDistanceReferences.Contains(distance_reference.ToString()))
             errors.Add($"{label} declares unsupported distance_reference {distance_reference}.");
-        if (!VALID_SUPPRESSION_POLICIES().ContainsKey(suppression_policy.ToString()))
+        if (!ValidSuppressionPolicies.Contains(suppression_policy.ToString()))
             errors.Add($"{label} declares unsupported suppression_policy {suppression_policy}.");
         return errors;
     }
@@ -236,12 +217,12 @@ public partial class EnemyAiGenerationSlotDef : Resource
         return null;
     }
 
-    private static Godot.Collections.Array<string> _stringify_array(GStringNameArray values)
+    private static string StringifyArray(GStringNameArray values)
     {
-        var result = new Godot.Collections.Array<string>();
+        var result = new List<string>();
         foreach (var value in values)
             result.Add(value.ToString());
-        result.Sort();
-        return result;
+        result.Sort(System.StringComparer.Ordinal);
+        return string.Join(",", result);
     }
 }

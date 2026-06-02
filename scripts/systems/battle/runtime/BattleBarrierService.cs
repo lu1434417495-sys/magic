@@ -38,16 +38,13 @@ public readonly record struct BattleLayeredBarrierApplyResult(
     }
 }
 
-[GlobalClass]
-public partial class BattleBarrierService : RefCounted
+public class BattleBarrierService
 {
     private const int DEFAULT_DURATION_TU = 120;
     private const int DEFAULT_SAVE_DC = 16;
 
     private WeakReference<BattleRuntimeModule> _runtimeRef;
     private BarrierContentRegistry _contentRegistry = new();
-    private BattleEffectCategoryResolver _categoryResolver = new();
-    private BattleBarrierGeometryService _geometryService = new();
     private BattleBarrierOutcomeResolver _outcomeResolver = new();
     private bool _disposed;
 
@@ -57,7 +54,7 @@ public partial class BattleBarrierService : RefCounted
         _outcomeResolver.Setup(runtime);
     }
 
-    public new void Dispose()
+    public void Dispose()
     {
         if (_disposed)
         {
@@ -65,15 +62,10 @@ public partial class BattleBarrierService : RefCounted
         }
         _disposed = true;
         _contentRegistry?.Dispose();
-        _categoryResolver?.Dispose();
-        _geometryService?.Dispose();
         _outcomeResolver?.Dispose();
         _contentRegistry = null;
-        _categoryResolver = null;
-        _geometryService = null;
         _outcomeResolver = null;
         _runtimeRef = null;
-        base.Dispose();
     }
 
     public Dictionary ApplyLayeredBarrierEffect(
@@ -130,22 +122,22 @@ public partial class BattleBarrierService : RefCounted
         var saveDc = _ResolveBarrierSaveDc(sourceUnit, effectDef, effectParams);
         var instanceId = _BuildBarrierInstanceId(sourceUnit, skillDef, profile);
         var instance = new BattleBarrierInstanceState();
-        instance.barrier_instance_id = instanceId;
-        instance.profile_id = profile.profile_id;
-        instance.display_name = profile.display_name;
-        instance.source_unit_id = sourceUnit.unit_id;
-        instance.source_skill_id = skillDef != null ? skillDef.skill_id : "";
-        instance.anchor_mode = profile.anchor_mode;
-        instance.anchor_coord = anchorUnit.coord;
-        instance.radius_cells = radiusCells;
-        instance.area_pattern = areaPattern;
-        instance.remaining_tu = durationTu;
-        instance.created_tu = _GetCurrentTu();
-        instance.save_dc = saveDc;
-        instance.catch_all_projected_effects = profile.catch_all_projected_effects;
-        instance.layers = _BuildLayers(profile, saveDc);
+        instance.BarrierInstanceId = instanceId;
+        instance.ProfileId = profile.profile_id;
+        instance.DisplayName = profile.display_name;
+        instance.SourceUnitId = sourceUnit.unit_id;
+        instance.SourceSkillId = skillDef != null ? skillDef.skill_id : "";
+        instance.AnchorMode = profile.anchor_mode;
+        instance.AnchorCoord = anchorUnit.coord;
+        instance.RadiusCells = radiusCells;
+        instance.AreaPattern = areaPattern;
+        instance.RemainingTu = durationTu;
+        instance.CreatedTu = _GetCurrentTu();
+        instance.SaveDc = saveDc;
+        instance.CatchAllProjectedEffects = profile.catch_all_projected_effects;
+        instance.SetLayers(_BuildLayers(profile, saveDc));
 
-        var barrier = instance.to_runtime_dict();
+        var barrier = instance.ToRuntimeDict();
         _GetBarrierStore()[instanceId] = barrier;
         _AppendChangedCoords(batch, _GetBarrierCoords(instance));
         var line =
@@ -165,9 +157,9 @@ public partial class BattleBarrierService : RefCounted
         {
             if (!TryReadBarrier(barrierKey, out BattleBarrierInstanceState barrier))
                 continue;
-            var remaining = barrier.remaining_tu - elapsedTu;
-            barrier.remaining_tu = remaining;
-            store[barrierKey] = barrier.to_runtime_dict();
+            var remaining = barrier.RemainingTu - elapsedTu;
+            barrier.RemainingTu = remaining;
+            store[barrierKey] = barrier.ToRuntimeDict();
             if (remaining <= 0)
                 expiredIds.Add(barrierKey);
         }
@@ -222,10 +214,9 @@ public partial class BattleBarrierService : RefCounted
                 toCoord,
                 unitState.footprint_size
             );
-            var transition = _geometryService.ClassifyFootprintTransition(
-                runtime._state,
-                (Godot.Collections.Array)fromFootprint,
-                (Godot.Collections.Array)toFootprint,
+            var transition = BattleBarrierGeometryService.ClassifyFootprintTransition(
+                fromFootprint,
+                toFootprint,
                 barrierCoords
             );
             if (!transition.CrossesBoundary)
@@ -252,7 +243,7 @@ public partial class BattleBarrierService : RefCounted
                 sourceUnit,
                 targetUnit,
                 skillDef,
-                effectDefs,
+                DecodeEffectDefs(effectDefs),
                 batch
             )
             .ToDictionary();
@@ -262,7 +253,7 @@ public partial class BattleBarrierService : RefCounted
         BattleUnitState sourceUnit,
         BattleUnitState targetUnit,
         SkillDef skillDef,
-        Godot.Collections.Array effectDefs,
+        IEnumerable<CombatEffectDef> effectDefs,
         BattleEventBatch batch
     )
     {
@@ -290,7 +281,7 @@ public partial class BattleBarrierService : RefCounted
                 sourceUnit,
                 targetCoord,
                 skillDef,
-                effectDefs,
+                DecodeEffectDefs(effectDefs),
                 batch
             )
             .ToDictionary();
@@ -300,7 +291,7 @@ public partial class BattleBarrierService : RefCounted
         BattleUnitState sourceUnit,
         Vector2I targetCoord,
         SkillDef skillDef,
-        Godot.Collections.Array effectDefs,
+        IEnumerable<CombatEffectDef> effectDefs,
         BattleEventBatch batch
     )
     {
@@ -319,7 +310,7 @@ public partial class BattleBarrierService : RefCounted
         Vector2I targetCoord,
         string targetLabel,
         SkillDef skillDef,
-        Godot.Collections.Array effectDefs,
+        IEnumerable<CombatEffectDef> effectDefs,
         BattleEventBatch batch
     )
     {
@@ -352,11 +343,14 @@ public partial class BattleBarrierService : RefCounted
                 );
                 return new BattleBarrierInteractionResult(true, true);
             }
-            var categories = _categoryResolver.ResolveCategories(skillDef, effectDefs);
+            var categories = BattleEffectCategoryResolver.ResolveCategories(
+                skillDef,
+                effectDefs
+            );
             var blockingLayer = _FindFirstBlockingLayer(barrier, categories);
             if (
                 blockingLayer == null
-                && barrier.catch_all_projected_effects
+                && barrier.CatchAllProjectedEffects
             )
                 blockingLayer = activeLayer;
             if (blockingLayer == null)
@@ -385,7 +379,7 @@ public partial class BattleBarrierService : RefCounted
         bool applied = false;
         foreach (BattleBarrierLayerState layer in barrier.GetLayersTyped())
         {
-            if (layer == null || layer.broken)
+            if (layer == null || layer.Broken)
                 continue;
             var layerResult = _outcomeResolver.ApplyPassageOutcomesResult(
                 unitState,
@@ -411,17 +405,17 @@ public partial class BattleBarrierService : RefCounted
     {
         if (barrier == null || activeLayer == null)
             return;
-        var layerId = activeLayer.layer_id;
+        var layerId = activeLayer.LayerId;
         List<BattleBarrierLayerState> layers = barrier.GetLayersTyped();
         foreach (BattleBarrierLayerState layer in layers)
         {
-            if (layer == null || layer.layer_id != layerId)
+            if (layer == null || layer.LayerId != layerId)
                 continue;
-            layer.broken = true;
+            layer.Broken = true;
             break;
         }
-        barrier.SetLayersTyped(layers);
-        _GetBarrierStore()[barrierKey] = barrier.to_runtime_dict();
+        barrier.SetLayers(layers);
+        _GetBarrierStore()[barrierKey] = barrier.ToRuntimeDict();
         _AppendChangedCoords(batch, _GetBarrierCoords(barrier));
         _AppendLog(batch, $"{_GetBarrierLabel(barrier)} 的 {_GetLayerLabel(activeLayer)} 被破解。");
     }
@@ -432,7 +426,7 @@ public partial class BattleBarrierService : RefCounted
         Dictionary effectParams
     )
     {
-        var resolvedDc = BattleSaveResolver.resolve_save_dc(sourceUnit, effectDef);
+        var resolvedDc = BattleSaveResolver.ResolveSaveDc(sourceUnit, effectDef);
         if (resolvedDc > 0)
             return resolvedDc;
         var paramDc = DictInt(effectParams, "save_dc", DEFAULT_SAVE_DC);
@@ -453,23 +447,68 @@ public partial class BattleBarrierService : RefCounted
         );
     }
 
-    private Godot.Collections.Array _BuildLayers(BarrierProfileDef profile, int saveDc)
+    private List<BattleBarrierLayerState> _BuildLayers(BarrierProfileDef profile, int saveDc)
     {
-        var layers = new Godot.Collections.Array();
+        var layers = new List<BattleBarrierLayerState>();
         foreach (var layerDef in profile.get_ordered_layers())
         {
             if (layerDef == null)
                 continue;
-            layers.Add(layerDef.to_runtime_dict(saveDc));
+            layers.Add(_BuildLayerState(layerDef, saveDc));
         }
         return layers;
+    }
+
+    private static BattleBarrierLayerState _BuildLayerState(BarrierLayerDef layerDef, int saveDc)
+    {
+        var layer = new BattleBarrierLayerState
+        {
+            LayerId = layerDef.layer_id,
+            DisplayName = layerDef.display_name,
+            Order = layerDef.order,
+            Broken = false,
+        };
+        layer.SetBlockedCategories(layerDef.blocked_categories);
+        layer.SetBreakerSkillIds(layerDef.breaker_skill_ids);
+
+        var outcomes = new List<BattleBarrierOutcomeState>();
+        foreach (BarrierOutcomeDef outcomeDef in layerDef.passage_outcomes)
+        {
+            if (outcomeDef == null)
+            {
+                continue;
+            }
+            int resolvedSaveDc = outcomeDef.save_dc;
+            if (resolvedSaveDc <= 0)
+            {
+                resolvedSaveDc = Mathf.Max(saveDc, 0);
+            }
+            outcomes.Add(
+                new BattleBarrierOutcomeState
+                {
+                    OutcomeType = outcomeDef.outcome_type,
+                    Amount = outcomeDef.amount,
+                    DamageTag = outcomeDef.damage_tag,
+                    HalfOnSuccess = outcomeDef.half_on_success,
+                    SuccessAmount = outcomeDef.success_amount,
+                    SuccessDamageTag = outcomeDef.success_damage_tag,
+                    FatalDamage = Mathf.Max(outcomeDef.fatal_damage, 1),
+                    StatusId = outcomeDef.status_id,
+                    SaveAbility = outcomeDef.save_ability,
+                    SaveTag = outcomeDef.save_tag,
+                    SaveDc = resolvedSaveDc,
+                }
+            );
+        }
+        layer.SetPassageOutcomes(outcomes);
+        return layer;
     }
 
     private bool _SkillBreaksLayer(SkillDef skillDef, BattleBarrierLayerState layer)
     {
         if (skillDef == null || layer == null)
             return false;
-        foreach (StringName breakerSkillId in layer.breaker_skill_ids)
+        foreach (StringName breakerSkillId in layer.BreakerSkillIds)
         {
             if (breakerSkillId == skillDef.skill_id)
                 return true;
@@ -486,7 +525,7 @@ public partial class BattleBarrierService : RefCounted
             return false;
         foreach (BattleBarrierLayerState layer in barrier.GetLayersTyped())
         {
-            if (layer == null || layer.broken)
+            if (layer == null || layer.Broken)
                 continue;
             if (_SkillBreaksLayer(skillDef, layer))
                 return true;
@@ -496,17 +535,20 @@ public partial class BattleBarrierService : RefCounted
 
     private BattleBarrierLayerState _FindFirstBlockingLayer(
         BattleBarrierInstanceState barrier,
-        Godot.Collections.Array<StringName> categories
+        IEnumerable<StringName> categories
     )
     {
         var categoryLookup = new HashSet<StringName>();
-        foreach (StringName category in categories)
-            categoryLookup.Add(category);
+        if (categories != null)
+        {
+            foreach (StringName category in categories)
+                categoryLookup.Add(category);
+        }
         foreach (BattleBarrierLayerState layer in barrier?.GetLayersTyped() ?? new List<BattleBarrierLayerState>())
         {
-            if (layer == null || layer.broken)
+            if (layer == null || layer.Broken)
                 continue;
-            foreach (StringName category in layer.blocked_categories)
+            foreach (StringName category in layer.BlockedCategories)
             {
                 if (categoryLookup.Contains(category))
                     return layer;
@@ -515,11 +557,20 @@ public partial class BattleBarrierService : RefCounted
         return null;
     }
 
+    private static Godot.Collections.Array<CombatEffectDef> DecodeEffectDefs(
+        Godot.Collections.Array effectDefs
+    )
+    {
+        return effectDefs != null
+            ? new Godot.Collections.Array<CombatEffectDef>(effectDefs)
+            : new Godot.Collections.Array<CombatEffectDef>();
+    }
+
     private BattleBarrierLayerState _GetActiveLayer(BattleBarrierInstanceState barrier)
     {
         foreach (BattleBarrierLayerState layer in barrier?.GetLayersTyped() ?? new List<BattleBarrierLayerState>())
         {
-            if (layer != null && !layer.broken)
+            if (layer != null && !layer.Broken)
                 return layer;
         }
         return null;
@@ -531,9 +582,7 @@ public partial class BattleBarrierService : RefCounted
         BattleBarrierInstanceState barrier
     )
     {
-        var runtime = _ResolveRuntime();
-        return _geometryService.line_crosses_barrier_area(
-            runtime?._state,
+        return BattleBarrierGeometryService.LineCrossesBarrierArea(
             sourceCoord,
             targetCoord,
             _GetBarrierCoords(barrier)
@@ -542,12 +591,12 @@ public partial class BattleBarrierService : RefCounted
 
     private bool _IsCoordInsideBarrier(Vector2I coord, BattleBarrierInstanceState barrier)
     {
-        return _geometryService.coord_inside_barrier(coord, _GetBarrierCoords(barrier));
+        return BattleBarrierGeometryService.CoordInsideBarrier(coord, _GetBarrierCoords(barrier));
     }
 
-    private Godot.Collections.Array _GetBarrierCoords(BattleBarrierInstanceState barrier)
+    private List<Vector2I> _GetBarrierCoords(BattleBarrierInstanceState barrier)
     {
-        var coords = new Godot.Collections.Array();
+        var coords = new List<Vector2I>();
         var runtime = _ResolveRuntime();
         if (
             runtime == null
@@ -556,21 +605,27 @@ public partial class BattleBarrierService : RefCounted
             || barrier.IsEmpty
         )
             return coords;
-        var radius = Mathf.Max(barrier.radius_cells, 0);
-        return (Godot.Collections.Array)runtime._grid_service.get_area_coords(
-            runtime._state,
-            barrier.anchor_coord,
-            barrier.area_pattern,
-            radius,
-            Vector2I.Zero
-        );
+        var radius = Mathf.Max(barrier.RadiusCells, 0);
+        foreach (
+            Vector2I coord in runtime._grid_service.get_area_coords(
+                runtime._state,
+                barrier.AnchorCoord,
+                barrier.AreaPattern,
+                radius,
+                Vector2I.Zero
+            )
+        )
+        {
+            coords.Add(coord);
+        }
+        return coords;
     }
 
     private bool _IsBarrierCreator(BattleUnitState unitState, BattleBarrierInstanceState barrier)
     {
         return unitState != null
             && barrier != null
-            && unitState.unit_id == barrier.source_unit_id;
+            && unitState.unit_id == barrier.SourceUnitId;
     }
 
     private bool TryReadBarrier(StringName barrierKey, out BattleBarrierInstanceState barrier)
@@ -584,13 +639,13 @@ public partial class BattleBarrierService : RefCounted
 
         if (store.ContainsKey(barrierKey))
         {
-            barrier = BattleBarrierInstanceState.from_runtime_dict(
+            barrier = BattleBarrierInstanceState.FromRuntimeDict(
                 store[barrierKey].AsGodotDictionary()
             );
         }
         else if (store.ContainsKey(barrierKey.ToString()))
         {
-            barrier = BattleBarrierInstanceState.from_runtime_dict(
+            barrier = BattleBarrierInstanceState.FromRuntimeDict(
                 store[barrierKey.ToString()].AsGodotDictionary()
             );
         }
@@ -636,9 +691,9 @@ public partial class BattleBarrierService : RefCounted
     {
         if (barrier == null)
             return "屏障";
-        if (!string.IsNullOrEmpty(barrier.display_name))
-            return barrier.display_name;
-        string profileId = barrier.profile_id.ToString();
+        if (!string.IsNullOrEmpty(barrier.DisplayName))
+            return barrier.DisplayName;
+        string profileId = barrier.ProfileId.ToString();
         return !string.IsNullOrEmpty(profileId) ? profileId : "屏障";
     }
 
@@ -646,18 +701,23 @@ public partial class BattleBarrierService : RefCounted
     {
         if (layer == null)
             return "屏障层";
-        if (!string.IsNullOrEmpty(layer.display_name))
-            return layer.display_name;
-        string layerId = layer.layer_id.ToString();
+        if (!string.IsNullOrEmpty(layer.DisplayName))
+            return layer.DisplayName;
+        string layerId = layer.LayerId.ToString();
         return !string.IsNullOrEmpty(layerId) ? layerId : "屏障层";
     }
 
-    private void _AppendChangedCoords(BattleEventBatch batch, Godot.Collections.Array coords)
+    private void _AppendChangedCoords(BattleEventBatch batch, IEnumerable<Vector2I> coords)
     {
         var runtime = _ResolveRuntime();
         if (runtime == null || batch == null)
             return;
-        runtime._append_changed_coords(batch, coords);
+        var payload = new Godot.Collections.Array();
+        foreach (Vector2I coord in coords ?? new List<Vector2I>())
+        {
+            payload.Add(coord);
+        }
+        runtime._append_changed_coords(batch, payload);
     }
 
     private void _AppendLog(BattleEventBatch batch, string line)

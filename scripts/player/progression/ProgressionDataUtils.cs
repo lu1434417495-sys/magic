@@ -1,4 +1,5 @@
 using Godot;
+using System.Collections.Generic;
 using GDictionary = Godot.Collections.Dictionary;
 
 internal static class ProgressionDataUtils
@@ -64,14 +65,14 @@ internal static class ProgressionDataUtils
     }
 
     internal static Godot.Collections.Array<string> string_name_array_to_string_array(
-        Godot.Collections.Array<StringName> values
+        IEnumerable<StringName> values
     )
     {
         var result = new Godot.Collections.Array<string>();
+        if (values == null)
+            return result;
         foreach (StringName value in values)
-        {
             result.Add(value.ToString());
-        }
         return result;
     }
 
@@ -86,6 +87,26 @@ internal static class ProgressionDataUtils
         foreach (var key in values.Keys)
         {
             result[to_string_name(key)] = values[key].AsInt32();
+        }
+        return result;
+    }
+
+    internal static Dictionary<StringName, int> to_string_name_int_dictionary(GDictionary values)
+    {
+        var result = new Dictionary<StringName, int>();
+        if (values == null)
+        {
+            return result;
+        }
+
+        foreach (var key in values.Keys)
+        {
+            StringName normalizedKey = to_string_name(key);
+            if (normalizedKey == "")
+            {
+                continue;
+            }
+            result[normalizedKey] = values[key].AsInt32();
         }
         return result;
     }
@@ -123,21 +144,19 @@ internal static class ProgressionDataUtils
         return result;
     }
 
-    internal static Godot.Collections.Array<string> sorted_string_keys(GDictionary values)
+    internal static List<string> sorted_string_keys(GDictionary values)
     {
-        var sorted = new System.Collections.Generic.List<string>();
+        var sorted = new List<string>();
+        if (values == null)
+        {
+            return sorted;
+        }
         foreach (var key in values.Keys)
         {
             sorted.Add(key.ToString());
         }
         sorted.Sort(System.StringComparer.Ordinal);
-
-        var result = new Godot.Collections.Array<string>();
-        foreach (string key in sorted)
-        {
-            result.Add(key);
-        }
-        return result;
+        return sorted;
     }
 
     private static Godot.Collections.Array<string> StringNameArrayToStringArray(

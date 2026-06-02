@@ -91,7 +91,7 @@ public static class LowLuckRelicRules
         if (memberState == null || itemId == "" || memberState.equipment_state == null)
             return false;
 
-        foreach (StringName slotId in memberState.equipment_state.get_entry_slot_ids())
+        foreach (StringName slotId in memberState.equipment_state.GetEntrySlotIdsTyped())
         {
             if (memberState.equipment_state.get_equipped_item_id(slotId) == itemId)
                 return true;

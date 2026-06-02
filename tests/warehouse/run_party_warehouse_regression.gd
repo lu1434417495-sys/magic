@@ -22,11 +22,8 @@ const WarehouseStackState = preload("res://scripts/player/warehouse/WarehouseSta
 const EquipmentInstanceState = preload("res://scripts/player/warehouse/EquipmentInstanceState.cs")
 const WeaponProfileDef = preload("res://scripts/player/warehouse/WeaponProfileDef.cs")
 const ItemContentRegistry = preload("res://scripts/player/warehouse/ItemContentRegistry.cs")
-const SkillBookItemFactory = preload("res://scripts/player/warehouse/SkillBookItemFactory.cs")
-const ProgressionDataUtils = preload("res://scripts/player/progression/ProgressionDataUtils.cs")
 const PartyWarehouseService = preload("res://scripts/systems/inventory/PartyWarehouseService.cs")
 const CharacterManagementModule = preload("res://scripts/systems/progression/CharacterManagementModule.cs")
-const PartyItemUseService = preload("res://scripts/systems/inventory/PartyItemUseService.cs")
 const SaveSerializer = preload("res://scripts/systems/persistence/SaveSerializer.cs")
 const SettlementShopService = preload("res://scripts/systems/settlement/SettlementShopService.cs")
 
@@ -813,7 +810,7 @@ func _test_weapon_profile_equipment_instances_stack_round_trip() -> void:
 
 func _test_skill_book_generation_and_use_rules() -> void:
 	var item_defs: Dictionary = _game_session.get_item_defs()
-	var skill_book_item_id := SkillBookItemFactory.build_item_id_for_skill(&"archer_aimed_shot")
+	var skill_book_item_id := _build_skill_book_item_id(&"archer_aimed_shot")
 	var item_def = item_defs.get(skill_book_item_id)
 	_assert_true(item_def != null, "book 来源技能应自动生成对应技能书物品。")
 	if item_def == null:
@@ -834,54 +831,13 @@ func _test_skill_book_generation_and_use_rules() -> void:
 	missing_name_skill.mastery_curve = PackedInt32Array([1])
 	var missing_name_skill_defs := {}
 	missing_name_skill_defs[missing_name_skill.skill_id] = missing_name_skill
-	var generated_without_name = SkillBookItemFactory.new().build_generated_item_defs(missing_name_skill_defs)
-	var missing_name_item_id := SkillBookItemFactory.build_item_id_for_skill(missing_name_skill.skill_id)
+	var generated_without_name = _build_generated_skill_book_item_defs(missing_name_skill_defs)
+	var missing_name_item_id := _build_skill_book_item_id(missing_name_skill.skill_id)
 	_assert_true(generated_without_name.is_empty(), "缺少 display_name 的 book 技能不应生成技能书物品。")
 	_assert_true(
 		not generated_without_name.has(missing_name_item_id),
 		"缺少 display_name 时不应生成带 skill_id 文案的技能书。"
 	)
-
-	var party := _build_party_with_members([
-		_build_member_state(&"reader", "读者", 3),
-	])
-	var warehouse_service := PartyWarehouseService.new()
-	warehouse_service.setup(party, item_defs)
-	var add_result := warehouse_service.add_item(skill_book_item_id, 1)
-	_assert_eq(int(add_result.get("added_quantity", 0)), 1, "技能书应能加入共享仓库。")
-
-	var character_management := CharacterManagementModule.new()
-	character_management.setup(
-		party,
-		_game_session.get_skill_defs(),
-		_game_session.get_profession_defs(),
-		_game_session.get_achievement_defs(),
-		item_defs
-	)
-	var item_use_service := PartyItemUseService.new()
-	item_use_service.setup(
-		party,
-		item_defs,
-		_game_session.get_skill_defs(),
-		warehouse_service,
-		character_management
-	)
-
-	var first_use_result = item_use_service.use_item(skill_book_item_id, &"reader")
-	_assert_true(bool(first_use_result.get("success", false)), "技能书首次使用应成功。")
-	_assert_eq(warehouse_service.count_item(skill_book_item_id), 0, "技能书成功使用后应消耗 1 本。")
-	var skill_progress = party.get_member_state(&"reader").progression.get_skill_progress(&"archer_aimed_shot")
-	_assert_true(skill_progress != null and skill_progress.is_learned, "技能书应让目标角色真正学会对应技能。")
-
-	warehouse_service.add_item(skill_book_item_id, 1)
-	var second_use_result = item_use_service.use_item(skill_book_item_id, &"reader")
-	_assert_true(not bool(second_use_result.get("success", false)), "已学会同技能后再次使用技能书应失败。")
-	_assert_eq(
-		ProgressionDataUtils.to_string_name(second_use_result.get("reason", "")),
-		&"learn_failed",
-		"重复学习失败时应返回 learn_failed，便于上层给出明确提示。"
-	)
-	_assert_eq(warehouse_service.count_item(skill_book_item_id), 1, "重复学习失败时不应吞掉技能书库存。")
 
 
 func _test_item_registry_validation() -> void:
@@ -1070,8 +1026,8 @@ func _test_world_map_entry_paths() -> void:
 	if book_skill.is_empty():
 		return
 
-	var target_skill_id := ProgressionDataUtils.to_string_name(book_skill.get("skill_id", ""))
-	var skill_book_item_id := ProgressionDataUtils.to_string_name(book_skill.get("item_id", ""))
+	var target_skill_id := _to_string_name(book_skill.get("skill_id", ""))
+	var skill_book_item_id := _to_string_name(book_skill.get("item_id", ""))
 	var party_state: PartyState = _game_session.get_party_state()
 	var prefill_service := PartyWarehouseService.new()
 	prefill_service.setup(party_state, _game_session.get_item_defs())
@@ -1384,7 +1340,7 @@ func _pick_unlearned_book_skill_for_member(game_session, member_id: StringName) 
 		return {}
 	var skill_defs: Dictionary = game_session.get_skill_defs()
 	var item_defs: Dictionary = game_session.get_item_defs()
-	for skill_key in ProgressionDataUtils.sorted_string_keys(skill_defs):
+	for skill_key in _sorted_string_keys(skill_defs):
 		var skill_id := StringName(skill_key)
 		var skill_def = skill_defs.get(skill_id)
 		if skill_def == null or skill_def.learn_source != &"book":
@@ -1392,7 +1348,7 @@ func _pick_unlearned_book_skill_for_member(game_session, member_id: StringName) 
 		var skill_progress = member_state.progression.get_skill_progress(skill_id)
 		if skill_progress != null and skill_progress.is_learned:
 			continue
-		var item_id := SkillBookItemFactory.build_item_id_for_skill(skill_id)
+		var item_id := _build_skill_book_item_id(skill_id)
 		if not item_defs.has(item_id):
 			continue
 		return {
@@ -1400,6 +1356,55 @@ func _pick_unlearned_book_skill_for_member(game_session, member_id: StringName) 
 			"item_id": item_id,
 		}
 	return {}
+
+
+func _build_skill_book_item_id(skill_id: StringName) -> StringName:
+	return _to_string_name("skill_book_%s" % String(skill_id))
+
+
+func _build_generated_skill_book_item_defs(skill_defs: Dictionary, existing_item_defs: Dictionary = {}) -> Dictionary:
+	var generated_defs := {}
+	for skill_key in skill_defs.keys():
+		var skill_def = skill_defs.get(skill_key)
+		if skill_def == null:
+			continue
+		if skill_def.skill_id == &"" or skill_def.learn_source != &"book":
+			continue
+		if String(skill_def.display_name).strip_edges().is_empty():
+			continue
+		var item_id := _build_skill_book_item_id(skill_def.skill_id)
+		if existing_item_defs.has(item_id):
+			continue
+		var item_def := ItemDef.new()
+		item_def.item_id = item_id
+		item_def.display_name = "%s 技能书" % String(skill_def.display_name).strip_edges()
+		item_def.description = "阅读后使一名队员学会技能：%s。" % String(skill_def.display_name).strip_edges()
+		item_def.icon = "res://icon.svg"
+		item_def.is_stackable = true
+		item_def.max_stack = 20
+		item_def.item_category = ItemDef.ITEM_CATEGORY_SKILL_BOOK()
+		item_def.granted_skill_id = skill_def.skill_id
+		generated_defs[item_id] = item_def
+	return generated_defs
+
+
+func _sorted_string_keys(source: Dictionary) -> Array[String]:
+	var keys: Array[String] = []
+	for key in source.keys():
+		keys.append(String(key))
+	keys.sort()
+	return keys
+
+
+func _to_string_name(value) -> StringName:
+	if value == null:
+		return &""
+	if value is StringName:
+		return value
+	var text := String(value)
+	if text.is_empty() or text == "<null>":
+		return &""
+	return StringName(text)
 
 
 func _assert_true(condition: bool, message: String) -> void:

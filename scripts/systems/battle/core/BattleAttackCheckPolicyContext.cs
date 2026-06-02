@@ -1,7 +1,6 @@
 using Godot;
 
-[GlobalClass]
-public partial class BattleAttackCheckPolicyContext : RefCounted
+public class BattleAttackCheckPolicyContext
 {
     public BattleState battle_state { get; set; }
     public BattleUnitState attacker { get; set; }

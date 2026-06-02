@@ -275,7 +275,7 @@ public partial class RunMixed6v12MirrorAnalysis : SceneTree
             );
             PrintProgress($"[Progress] run seed={seed} runtime setup done");
             runtime.set_ai_trace_enabled(traceAi);
-            runtime._ai_service.enable_mutation_guard = aiMutationGuardEnabled;
+            runtime._ai_service.EnableMutationGuard = aiMutationGuardEnabled;
             runtime.set_ai_score_profile(GetObject(overrides, "ai_score_profile") as BattleAiScoreProfile);
 
             encounterAnchor = new EncounterAnchorData

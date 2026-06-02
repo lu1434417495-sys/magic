@@ -63,7 +63,7 @@ public partial class run_meteor_swarm_ai_regression : SceneTree
 
         var assembler = new BattleAiActionAssembler();
         AssertTrue(
-            assembler._is_offensive_or_enemy_skill(skillDef),
+            assembler.IsOffensiveOrEnemySkill(skillDef),
             "AI action assembler 应把 effectless meteor special profile 识别为进攻技能。"
         );
 
@@ -78,12 +78,12 @@ public partial class run_meteor_swarm_ai_regression : SceneTree
             skill_defs = setup.SkillDefs,
         };
         var scoreService = new BattleAiScoreService();
-        BattleAiScoreInput scoreInput = scoreService.build_skill_score_input(
+        BattleAiScoreInput scoreInput = scoreService.BuildSkillScoreInput(
             aiContext,
             skillDef,
             command,
             preview,
-            new GArray(),
+            Array.Empty<CombatEffectDef>(),
             new GDictionary
             {
                 ["action_kind"] = "ground_skill",
@@ -145,7 +145,7 @@ public partial class run_meteor_swarm_ai_regression : SceneTree
                 reasons.Contains("elite_or_boss"),
                 "high priority trace 应记录 elite/boss reason。"
             );
-            GDictionary trace = decapScore.to_dict();
+            GDictionary trace = decapScore.ToDictionary();
             AssertTrue(
                 trace.GetValueOrDefault("high_priority_target_ids", new GArray()).AsGodotArray().Contains(eliteCenter.unit_id),
                 "to_dict trace 应序列化 high_priority_target_ids。"
@@ -287,12 +287,12 @@ public partial class run_meteor_swarm_ai_regression : SceneTree
             skill_defs = setup.SkillDefs,
         };
         var scoreService = new BattleAiScoreService();
-        return scoreService.build_skill_score_input(
+        return scoreService.BuildSkillScoreInput(
             aiContext,
             skillDef,
             command,
             preview,
-            new GArray(),
+            Array.Empty<CombatEffectDef>(),
             new GDictionary
             {
                 ["action_kind"] = "ground_skill",

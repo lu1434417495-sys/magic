@@ -764,7 +764,7 @@ public partial class BattleHudAdapter : RefCounted
         var entries = new GArray();
         GDictionary itemDefs = GetItemDefs();
         EquipmentState equipmentView = activeUnit?.get_equipment_view() as EquipmentState;
-        foreach (StringName slotId in EquipmentRules.get_all_slot_ids())
+        foreach (StringName slotId in EquipmentRules.GetAllSlotIdsTyped())
         {
             var slotEntry = new GDictionary
             {
@@ -798,9 +798,8 @@ public partial class BattleHudAdapter : RefCounted
                 entries.Add(slotEntry);
                 continue;
             }
-            GStringNameArray occupiedSlotIds = equipmentView.get_occupied_slot_ids_for_entry(
-                entrySlotId
-            );
+            IReadOnlyList<StringName> occupiedSlotIds =
+                equipmentView.GetOccupiedSlotIdsForEntryTyped(entrySlotId);
             slotEntry["is_filled"] = true;
             slotEntry["is_entry_slot"] = entrySlotId == slotId;
             slotEntry["entry_slot_id"] = entrySlotId.ToString();
@@ -847,7 +846,7 @@ public partial class BattleHudAdapter : RefCounted
             ClearEquipmentPreviewCache();
         }
 
-        foreach (EquipmentInstanceState instance in backpackView.get_non_empty_instances())
+        foreach (EquipmentInstanceState instance in backpackView.GetNonEmptyEquipmentInstancesTyped())
         {
             if (instance == null)
                 continue;
@@ -1090,14 +1089,14 @@ public partial class BattleHudAdapter : RefCounted
         if (equipmentView == null)
             return "-";
         var parts = new List<string>();
-        foreach (StringName slotId in EquipmentRules.get_all_slot_ids())
+        foreach (StringName slotId in EquipmentRules.GetAllSlotIdsTyped())
         {
-            var occupiedSlotIds = new GStringNameArray();
+            IReadOnlyList<StringName> occupiedSlotIds = Array.Empty<StringName>();
             StringName entrySlotId = ProgressionDataUtils.to_string_name(
                 equipmentView.get_entry_slot_for_slot(slotId)
             );
             if (!IsEmpty(entrySlotId))
-                occupiedSlotIds = equipmentView.get_occupied_slot_ids_for_entry(entrySlotId);
+                occupiedSlotIds = equipmentView.GetOccupiedSlotIdsForEntryTyped(entrySlotId);
             parts.Add(
                 $"{slotId}:{ProgressionDataUtils.to_string_name(equipmentView.get_equipped_item_id(slotId))}:{ProgressionDataUtils.to_string_name(equipmentView.get_equipped_instance_id(slotId))}:{JoinStringNameArray(occupiedSlotIds)}"
             );
@@ -1110,7 +1109,7 @@ public partial class BattleHudAdapter : RefCounted
         if (backpackView == null)
             return "-";
         var parts = new List<string>();
-        foreach (EquipmentInstanceState instance in backpackView.get_non_empty_instances())
+        foreach (EquipmentInstanceState instance in backpackView.GetNonEmptyEquipmentInstancesTyped())
         {
             if (instance == null)
                 continue;
@@ -1121,7 +1120,7 @@ public partial class BattleHudAdapter : RefCounted
         return string.Join(";", parts);
     }
 
-    private static string JoinStringNameArray(GStringNameArray values)
+    private static string JoinStringNameArray(IEnumerable<StringName> values)
     {
         var parts = new List<string>();
         if (values != null)
@@ -1197,7 +1196,7 @@ public partial class BattleHudAdapter : RefCounted
         return itemDef != null ? itemDef.icon : "";
     }
 
-    private static GStringArray BuildSlotLabels(GStringNameArray slotIds)
+    private static GStringArray BuildSlotLabels(IEnumerable<StringName> slotIds)
     {
         var labels = new GStringArray();
         if (slotIds != null)
@@ -1208,7 +1207,7 @@ public partial class BattleHudAdapter : RefCounted
         return labels;
     }
 
-    private static GStringArray StringifyStringNameArray(GStringNameArray values)
+    private static GStringArray StringifyStringNameArray(IEnumerable<StringName> values)
     {
         var result = new GStringArray();
         if (values != null)
@@ -1506,7 +1505,7 @@ public partial class BattleHudAdapter : RefCounted
         if (battleState == null || activeUnit == null || IsEmpty(selectedSkillId))
             return null;
 
-        _attackCheckPolicyService.setup(null, _hitResolver, null);
+        _attackCheckPolicyService.Setup(null, _hitResolver, null);
         if (selectedSkillPreview?.special_profile_preview_facts != null)
         {
             BattleSpecialProfilePreviewFacts facts =
@@ -1518,12 +1517,13 @@ public partial class BattleHudAdapter : RefCounted
                 summaryText =
                     $"陨星雨影响 {DictInt(factsPayload, "impact_count", selectedSkillPreview.target_coords.Count)} 格、预计波及 {DictInt(factsPayload, "expected_target_count", selectedSkillPreview.target_unit_ids.Count)} 个单位。";
             }
-            return new AttackPreviewData
+            var hitPreview = new AttackPreviewData
             {
                 SummaryText = summaryText,
                 Source = "special_profile_preview_facts",
-                AttackRollModifierBreakdown = (GArray)facts.attack_roll_modifier_breakdown.Duplicate(true),
             };
+            hitPreview.SetAttackRollModifierBreakdownPayload(facts.attack_roll_modifier_breakdown);
+            return hitPreview;
         }
         if (selectedSkillPreview != null && selectedSkillPreview.hit_preview != null && !selectedSkillPreview.hit_preview.IsEmpty)
             return selectedSkillPreview.hit_preview;
@@ -1546,36 +1546,34 @@ public partial class BattleHudAdapter : RefCounted
             targetUnit,
             skillDef
         );
-        GDictionary resolutionPolicy = _skillResolutionRules.build_skill_resolution_policy(
+        BattleSkillResolutionPolicy resolutionPolicy = _skillResolutionRules.BuildSkillResolutionPolicy(
             skillDef,
             activeUnit,
             selectedSkillVariantId,
             previewTargetUnitIds,
             targetUnit
         );
-        if (!DictBool(resolutionPolicy, "routes_to_unit_targeting"))
+        if (!resolutionPolicy.RoutesToUnitTargeting)
             return null;
 
-        GCombatEffectArray effectDefs = CollectCombatEffectDefs(
-            DictArray(resolutionPolicy, "effect_defs")
-        );
+        IReadOnlyList<CombatEffectDef> effectDefs = resolutionPolicy.EffectDefs;
         CombatEffectDef repeatAttackEffect =
-            _skillResolutionRules.find_repeat_attack_effect(effectDefs);
+            _skillResolutionRules.FindRepeatAttackEffect(effectDefs);
         if (repeatAttackEffect == null)
         {
-            if (!DictBool(resolutionPolicy, "uses_fate_attack"))
+            if (!resolutionPolicy.UsesFateAttack)
                 return null;
             BattleAttackCheckPolicyContext attackContext =
-                _attackCheckPolicyService.build_attack_context(
+                _attackCheckPolicyService.BuildAttackContext(
                     battleState,
                     activeUnit,
                     targetUnit,
                     skillDef,
                     "skill_attack_preview",
                     "hud_preview",
-                    DictBool(resolutionPolicy, "force_hit_no_crit")
+                    resolutionPolicy.ForceHitNoCrit
                 );
-            return _attackCheckPolicyService.build_attack_preview(attackContext);
+            return _attackCheckPolicyService.BuildAttackPreview(attackContext);
         }
 
         List<BattleRepeatAttackStageSpec> stageSpecs =
@@ -1587,7 +1585,7 @@ public partial class BattleHudAdapter : RefCounted
                 true
             );
         BattleAttackCheckPolicyContext repeatContext =
-            _attackCheckPolicyService.build_repeat_attack_stage_context(
+            _attackCheckPolicyService.BuildRepeatAttackStageContext(
                 battleState,
                 activeUnit,
                 targetUnit,
@@ -1596,7 +1594,7 @@ public partial class BattleHudAdapter : RefCounted
                 "repeat_attack_preview",
                 "hud_preview"
             );
-        return _attackCheckPolicyService.build_repeat_attack_preview(repeatContext, stageSpecs);
+        return _attackCheckPolicyService.BuildRepeatAttackPreview(repeatContext, stageSpecs);
     }
 
     private GDictionary BuildSelectedSkillDamagePreview(
@@ -1629,17 +1627,17 @@ public partial class BattleHudAdapter : RefCounted
             targetUnit,
             skillDef
         );
-        GDictionary resolutionPolicy = _skillResolutionRules.build_skill_resolution_policy(
+        BattleSkillResolutionPolicy resolutionPolicy = _skillResolutionRules.BuildSkillResolutionPolicy(
             skillDef,
             activeUnit,
             selectedSkillVariantId,
             previewTargetUnitIds,
             targetUnit
         );
-        return BattleDamagePreviewRangeService.build_skill_damage_preview(
+        return BattleDamagePreviewRangeService.BuildSkillDamagePreview(
             activeUnit,
-            ToUntypedCombatEffectArray(CollectCombatEffectDefs(DictArray(resolutionPolicy, "effect_defs")))
-        );
+            resolutionPolicy.EffectDefs
+        ).ToDictionary();
     }
 
     private GDictionary BuildSelectedSkillFatePreview(
@@ -1672,17 +1670,16 @@ public partial class BattleHudAdapter : RefCounted
             targetUnit,
             skillDef
         );
-        GDictionary resolutionPolicy = _skillResolutionRules.build_skill_resolution_policy(
+        BattleSkillResolutionPolicy resolutionPolicy = _skillResolutionRules.BuildSkillResolutionPolicy(
             skillDef,
             activeUnit,
             selectedSkillVariantId,
             previewTargetUnitIds,
             targetUnit
         );
-        if (!DictBool(resolutionPolicy, "uses_fate_attack"))
+        if (!resolutionPolicy.UsesFateAttack)
             return new GDictionary();
-        StringName previewMode = DictStringName(resolutionPolicy, "fate_preview_mode");
-        if (previewMode == BattleSkillResolutionRules.FATE_PREVIEW_MODE_FORCE_HIT_NO_CRIT())
+        if (resolutionPolicy.FatePreviewMode == BattleSkillResolutionRules.FatePreviewModeForceHitNoCrit)
             return BuildForceHitNoCritFatePreview();
         return BuildStandardFatePreview(battleState, activeUnit, targetUnit);
     }
@@ -2082,7 +2079,7 @@ public partial class BattleHudAdapter : RefCounted
         StringName targetTeamFilter
     )
     {
-        return BattleTargetTeamRules.is_unit_valid_for_filter(
+        return BattleTargetTeamRules.IsUnitValidForFilter(
             activeUnit,
             targetUnit,
             targetTeamFilter,
@@ -2092,7 +2089,7 @@ public partial class BattleHudAdapter : RefCounted
 
     private static int GetEffectiveSkillRange(BattleUnitState activeUnit, SkillDef skillDef)
     {
-        return BattleRangeService.get_effective_skill_range(activeUnit, skillDef);
+        return BattleRangeService.GetEffectiveSkillRange(activeUnit, skillDef);
     }
 
     private bool SkillHasTag(SkillDef skillDef, StringName expectedTag)
@@ -2217,16 +2214,6 @@ public partial class BattleHudAdapter : RefCounted
             CombatEffectDef effectDef = value.AsGodotObject() as CombatEffectDef;
             if (effectDef != null)
                 result.Add(effectDef);
-        }
-        return result;
-    }
-
-    private static GArray ToUntypedCombatEffectArray(GCombatEffectArray values)
-    {
-        var result = new GArray();
-        foreach (CombatEffectDef value in values ?? new GCombatEffectArray())
-        {
-            result.Add(value);
         }
         return result;
     }

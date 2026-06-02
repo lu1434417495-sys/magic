@@ -7,7 +7,7 @@ public partial class PartyWarehouseService : RefCounted
 {
     private static readonly StringName StorageSpaceAttributeId = "storage_space";
 
-    private sealed class WarehouseBatchItemEntry
+    internal sealed class WarehouseBatchItemEntry
     {
         public StringName ItemId { get; init; } = "";
         public StringName InstanceId { get; init; } = "";
@@ -67,7 +67,7 @@ public partial class PartyWarehouseService : RefCounted
         public bool IsOverCapacity { get; init; }
         public bool ItemFound { get; init; }
         public bool IsEquipment { get; init; }
-        public Godot.Collections.Array<string> AllocatedEquipmentInstanceIds { get; init; } =
+        public List<string> AllocatedEquipmentInstanceIds { get; init; } =
             new();
 
         public Godot.Collections.Dictionary ToDictionary()
@@ -89,17 +89,68 @@ public partial class PartyWarehouseService : RefCounted
             if (IsEquipment)
             {
                 result["is_equipment"] = true;
-                result["allocated_equipment_instance_ids"] =
-                    AllocatedEquipmentInstanceIds.Duplicate();
+                result["allocated_equipment_instance_ids"] = new Godot.Collections.Array<string>(
+                    AllocatedEquipmentInstanceIds
+                );
             }
             return result;
         }
     }
 
+    internal sealed class WarehouseRemoveItemResult
+    {
+        public StringName ItemId { get; init; } = "";
+        public StringName InstanceId { get; init; } = "";
+        public bool IncludeInstanceId { get; init; }
+        public int RequestedQuantity { get; init; }
+        public int RemovedQuantity { get; init; }
+        public int RemainingQuantity { get; init; }
+        public int UsedSlotsBefore { get; init; }
+        public int UsedSlotsAfter { get; init; }
+        public int FreeSlotsAfter { get; init; }
+        public bool IsOverCapacity { get; init; }
+        public string ErrorCode { get; init; } = "";
+
+        public Godot.Collections.Dictionary ToDictionary()
+        {
+            var result = new Godot.Collections.Dictionary
+            {
+                { "item_id", ItemId.ToString() },
+                { "requested_quantity", RequestedQuantity },
+                { "removed_quantity", RemovedQuantity },
+                { "remaining_quantity", RemainingQuantity },
+                { "used_slots_before", UsedSlotsBefore },
+                { "used_slots_after", UsedSlotsAfter },
+                { "free_slots_after", FreeSlotsAfter },
+                { "is_over_capacity", IsOverCapacity },
+                { "error_code", ErrorCode },
+            };
+            if (IncludeInstanceId)
+                result["instance_id"] = InstanceId.ToString();
+            return result;
+        }
+
+        public WarehouseRemoveItemResult WithError(string errorCode) =>
+            new()
+            {
+                ItemId = ItemId,
+                InstanceId = InstanceId,
+                IncludeInstanceId = IncludeInstanceId,
+                RequestedQuantity = RequestedQuantity,
+                RemovedQuantity = RemovedQuantity,
+                RemainingQuantity = RemainingQuantity,
+                UsedSlotsBefore = UsedSlotsBefore,
+                UsedSlotsAfter = UsedSlotsAfter,
+                FreeSlotsAfter = FreeSlotsAfter,
+                IsOverCapacity = IsOverCapacity,
+                ErrorCode = errorCode ?? "",
+            };
+    }
+
     public static StringName STORAGE_SPACE_ATTRIBUTE_ID() => StorageSpaceAttributeId;
 
     private PartyState _party_state = new();
-    private Godot.Collections.Dictionary _item_defs = new();
+    private Dictionary<StringName, ItemDef> _item_defs = new();
     private WarehouseState _party_backpack_view;
     private Func<StringName> _equipment_instance_id_allocator;
     private int _local_equipment_instance_serial = 1;
@@ -110,16 +161,22 @@ public partial class PartyWarehouseService : RefCounted
         Func<StringName> equipmentInstanceIdAllocator = null)
     {
         _party_state = partyState ?? new PartyState();
-        _item_defs = itemDefs ?? new Godot.Collections.Dictionary();
+        _item_defs = BuildItemDefIndex(itemDefs);
         _party_backpack_view = null;
         _equipment_instance_id_allocator = equipmentInstanceIdAllocator;
     }
 
+    public void setup(
+        PartyState partyState,
+        Godot.Collections.Dictionary itemDefs,
+        Callable equipmentInstanceIdAllocator) =>
+        setup(partyState, itemDefs, BuildCallableAllocator(equipmentInstanceIdAllocator));
+
     public void setup(PartyState partyState, Godot.Collections.Dictionary itemDefs) =>
-        setup(partyState, itemDefs, default);
+        setup(partyState, itemDefs, default(Func<StringName>));
 
     public void setup(PartyState partyState) =>
-        setup(partyState, null, default);
+        setup(partyState, null, default(Func<StringName>));
 
     public void setup_party_backpack_view(
         PartyState partyState,
@@ -128,7 +185,7 @@ public partial class PartyWarehouseService : RefCounted
         Func<StringName> equipmentInstanceIdAllocator = null)
     {
         _party_state = partyState ?? new PartyState();
-        _item_defs = itemDefs ?? new Godot.Collections.Dictionary();
+        _item_defs = BuildItemDefIndex(itemDefs);
         _party_backpack_view = partyBackpackView ?? new WarehouseState();
         _equipment_instance_id_allocator = equipmentInstanceIdAllocator;
     }
@@ -139,15 +196,19 @@ public partial class PartyWarehouseService : RefCounted
         Godot.Collections.Dictionary itemDefs) =>
         setup_party_backpack_view(partyState, partyBackpackView, itemDefs, default);
 
+    private static Func<StringName> BuildCallableAllocator(Callable equipmentInstanceIdAllocator)
+    {
+        return () => ProgressionDataUtils.to_string_name(equipmentInstanceIdAllocator.Call());
+    }
+
     public int get_total_capacity()
     {
         if (_party_state == null)
             return 0;
 
         int totalCapacity = 0;
-        foreach (var memberValue in _party_state.member_states.Values)
+        foreach (PartyMemberState memberState in _party_state.get_member_states())
         {
-            var memberState = memberValue.AsGodotObject() as PartyMemberState;
             var unitBaseAttributes = memberState?.progression?.unit_base_attributes;
             if (unitBaseAttributes == null)
                 continue;
@@ -159,7 +220,8 @@ public partial class PartyWarehouseService : RefCounted
     public int get_used_slots()
     {
         var warehouseState = _get_warehouse_state();
-        return warehouseState.get_non_empty_stacks().Count + warehouseState.get_non_empty_instances().Count;
+        return warehouseState.GetNonEmptyStacksTyped().Count
+            + warehouseState.GetNonEmptyEquipmentInstancesTyped().Count;
     }
 
     public int get_free_slots() => Mathf.Max(get_total_capacity() - get_used_slots(), 0);
@@ -174,13 +236,13 @@ public partial class PartyWarehouseService : RefCounted
 
         int totalQuantity = 0;
         var warehouseState = _get_warehouse_state();
-        foreach (var stack in warehouseState.get_non_empty_stacks())
+        foreach (var stack in warehouseState.GetNonEmptyStacksTyped())
         {
             if (stack.item_id != normalizedItemId)
                 continue;
             totalQuantity += Mathf.Max(stack.quantity, 0);
         }
-        foreach (var instance in warehouseState.get_non_empty_instances())
+        foreach (var instance in warehouseState.GetNonEmptyEquipmentInstancesTyped())
         {
             if (instance.item_id == normalizedItemId)
                 totalQuantity += 1;
@@ -189,14 +251,16 @@ public partial class PartyWarehouseService : RefCounted
     }
 
     public Godot.Collections.Array<WarehouseStackState> get_stacks() =>
-        _get_warehouse_state().duplicate_state().stacks;
+        new Godot.Collections.Array<WarehouseStackState>(
+            _get_warehouse_state().duplicate_state().GetStacksTyped()
+        );
 
     public IReadOnlyList<WarehouseInventoryEntry> GetInventoryEntriesTyped()
     {
         var warehouseState = _get_warehouse_state().duplicate_state();
         var entries = new List<WarehouseInventoryEntry>();
 
-        foreach (var stack in warehouseState.get_non_empty_stacks())
+        foreach (var stack in warehouseState.GetNonEmptyStacksTyped())
         {
             if (stack == null || stack.is_empty())
                 continue;
@@ -204,7 +268,7 @@ public partial class PartyWarehouseService : RefCounted
         }
 
         var equipmentEntries = new List<WarehouseInventoryEntry>();
-        foreach (var instance in warehouseState.get_non_empty_instances())
+        foreach (var instance in warehouseState.GetNonEmptyEquipmentInstancesTyped())
         {
             if (instance == null || instance.item_id == "")
                 continue;
@@ -232,11 +296,9 @@ public partial class PartyWarehouseService : RefCounted
     public ItemDef get_item_def(StringName itemId)
     {
         var normalizedItemId = ProgressionDataUtils.to_string_name(itemId);
-        if (_item_defs.ContainsKey(normalizedItemId))
-            return _item_defs[normalizedItemId].AsGodotObject() as ItemDef;
-
-        var stringKey = normalizedItemId.ToString();
-        return _item_defs.ContainsKey(stringKey) ? _item_defs[stringKey].AsGodotObject() as ItemDef : null;
+        return normalizedItemId != "" && _item_defs.TryGetValue(normalizedItemId, out var itemDef)
+            ? itemDef
+            : null;
     }
 
     public Godot.Collections.Dictionary preview_add_item(StringName itemId, int quantity) =>
@@ -251,7 +313,10 @@ public partial class PartyWarehouseService : RefCounted
     internal WarehouseAddItemResult AddItemTyped(StringName itemId, int quantity) =>
         _process_add(itemId, quantity, true, true);
 
-    public Godot.Collections.Dictionary remove_item(StringName itemId, int quantity)
+    public Godot.Collections.Dictionary remove_item(StringName itemId, int quantity) =>
+        RemoveItemTyped(itemId, quantity).ToDictionary();
+
+    internal WarehouseRemoveItemResult RemoveItemTyped(StringName itemId, int quantity)
     {
         var normalizedItemId = ProgressionDataUtils.to_string_name(itemId);
         int requestedQuantity = Mathf.Max(quantity, 0);
@@ -270,7 +335,7 @@ public partial class PartyWarehouseService : RefCounted
             var matchingIndexes = _find_equipment_instance_indexes_by_item(warehouseState, normalizedItemId);
             if (requestedQuantity == 1 && matchingIndexes.Count == 1)
             {
-                warehouseState.equipment_instances.RemoveAt(matchingIndexes[0]);
+                warehouseState.RemoveEquipmentInstanceAt(matchingIndexes[0]);
                 remainingQuantity = 0;
             }
             else
@@ -288,9 +353,9 @@ public partial class PartyWarehouseService : RefCounted
         }
         else
         {
-            for (int index = warehouseState.stacks.Count - 1; index >= 0 && remainingQuantity > 0; index--)
+            for (int index = warehouseState.GetStacksTyped().Count - 1; index >= 0 && remainingQuantity > 0; index--)
             {
-                var stack = warehouseState.stacks[index];
+                var stack = warehouseState.GetStackAt(index);
                 if (stack == null || stack.item_id != normalizedItemId)
                     continue;
 
@@ -298,7 +363,7 @@ public partial class PartyWarehouseService : RefCounted
                 stack.quantity -= removedQuantity;
                 remainingQuantity -= removedQuantity;
                 if (stack.quantity <= 0)
-                    warehouseState.stacks.RemoveAt(index);
+                    warehouseState.RemoveStackAt(index);
             }
         }
 
@@ -332,6 +397,15 @@ public partial class PartyWarehouseService : RefCounted
             false
         );
 
+    internal WarehouseBatchSwapResult PreviewBatchSwapTyped(
+        IReadOnlyList<StringName> itemsToWithdraw,
+        IReadOnlyList<StringName> itemsToDeposit) =>
+        _run_batch_swap_transaction_typed(
+            BuildBatchItemEntries(itemsToWithdraw),
+            BuildBatchItemEntries(itemsToDeposit),
+            false
+        );
+
     public Godot.Collections.Dictionary commit_batch_swap(
         Godot.Collections.Array<StringName> itemsToWithdraw,
         Godot.Collections.Array<StringName> itemsToDeposit) =>
@@ -344,6 +418,15 @@ public partial class PartyWarehouseService : RefCounted
     internal WarehouseBatchSwapResult CommitBatchSwapTyped(
         Godot.Collections.Array<StringName> itemsToWithdraw,
         Godot.Collections.Array<StringName> itemsToDeposit) =>
+        _run_batch_swap_transaction_typed(
+            BuildBatchItemEntries(itemsToWithdraw),
+            BuildBatchItemEntries(itemsToDeposit),
+            true
+        );
+
+    internal WarehouseBatchSwapResult CommitBatchSwapTyped(
+        IReadOnlyList<StringName> itemsToWithdraw,
+        IReadOnlyList<StringName> itemsToDeposit) =>
         _run_batch_swap_transaction_typed(
             BuildBatchItemEntries(itemsToWithdraw),
             BuildBatchItemEntries(itemsToDeposit),
@@ -367,6 +450,11 @@ public partial class PartyWarehouseService : RefCounted
             ParseBatchItemEntries(itemsToDeposit),
             false
         );
+
+    internal WarehouseBatchSwapResult PreviewBatchSwapEntriesTyped(
+        IReadOnlyList<WarehouseBatchItemEntry> itemsToWithdraw,
+        IReadOnlyList<WarehouseBatchItemEntry> itemsToDeposit) =>
+        _run_batch_swap_transaction_typed(itemsToWithdraw, itemsToDeposit, false);
 
     public Godot.Collections.Dictionary commit_batch_swap_entries(
         Godot.Collections.Array itemsToWithdraw,
@@ -395,7 +483,7 @@ public partial class PartyWarehouseService : RefCounted
         if (normalizedInstanceId == "")
             return null;
 
-        foreach (var instance in _get_warehouse_state().get_non_empty_instances())
+        foreach (var instance in _get_warehouse_state().GetNonEmptyEquipmentInstancesTyped())
         {
             if (instance.instance_id != normalizedInstanceId)
                 continue;
@@ -418,9 +506,7 @@ public partial class PartyWarehouseService : RefCounted
             return null;
 
         int index = matchingIndexes[0];
-        var instance = warehouseState.equipment_instances[index];
-        warehouseState.equipment_instances.RemoveAt(index);
-        return instance;
+        return warehouseState.RemoveEquipmentInstanceAt(index);
     }
 
     public EquipmentInstanceState take_equipment_instance_by_instance_id(
@@ -433,21 +519,29 @@ public partial class PartyWarehouseService : RefCounted
             return null;
 
         var warehouseState = _ensure_warehouse_state();
-        for (int index = 0; index < warehouseState.equipment_instances.Count; index++)
+        IReadOnlyList<EquipmentInstanceState> equipmentInstances =
+            warehouseState.GetEquipmentInstancesTyped();
+        for (int index = 0; index < equipmentInstances.Count; index++)
         {
-            var instance = warehouseState.equipment_instances[index];
+            var instance = equipmentInstances[index];
             if (instance == null || instance.instance_id != normalizedInstanceId)
                 continue;
             if (normalizedItemId != "" && instance.item_id != normalizedItemId)
                 return null;
 
-            warehouseState.equipment_instances.RemoveAt(index);
-            return instance;
+            return warehouseState.RemoveEquipmentInstanceAt(index);
         }
         return null;
     }
 
-    public Godot.Collections.Dictionary remove_equipment_instance(StringName itemId, StringName instanceId)
+    public Godot.Collections.Dictionary remove_equipment_instance(
+        StringName itemId,
+        StringName instanceId) =>
+        RemoveEquipmentInstanceTyped(itemId, instanceId).ToDictionary();
+
+    internal WarehouseRemoveItemResult RemoveEquipmentInstanceTyped(
+        StringName itemId,
+        StringName instanceId)
     {
         var normalizedItemId = ProgressionDataUtils.to_string_name(itemId);
         var normalizedInstanceId = ProgressionDataUtils.to_string_name(instanceId);
@@ -457,30 +551,30 @@ public partial class PartyWarehouseService : RefCounted
         var itemDef = get_item_def(normalizedItemId);
 
         if (normalizedItemId == "" || itemDef == null)
-            return _with_error(_build_remove_instance_result(normalizedItemId, normalizedInstanceId, 0, 1, usedSlotsBefore, usedSlotsBefore), "item_not_found");
+            return _build_remove_instance_result(normalizedItemId, normalizedInstanceId, 0, 1, usedSlotsBefore, usedSlotsBefore).WithError("item_not_found");
         if (!itemDef.is_equipment())
-            return _with_error(_build_remove_instance_result(normalizedItemId, normalizedInstanceId, 0, 1, usedSlotsBefore, usedSlotsBefore), "item_not_equipment");
+            return _build_remove_instance_result(normalizedItemId, normalizedInstanceId, 0, 1, usedSlotsBefore, usedSlotsBefore).WithError("item_not_equipment");
         if (normalizedInstanceId == "")
-            return _with_error(_build_remove_instance_result(normalizedItemId, normalizedInstanceId, 0, 1, usedSlotsBefore, usedSlotsBefore), "equipment_instance_id_required");
+            return _build_remove_instance_result(normalizedItemId, normalizedInstanceId, 0, 1, usedSlotsBefore, usedSlotsBefore).WithError("equipment_instance_id_required");
 
         bool matchedAnyInstance = false;
-        foreach (var instance in warehouseState.get_non_empty_instances())
+        foreach (var instance in warehouseState.GetNonEmptyEquipmentInstancesTyped())
         {
             if (instance.instance_id != normalizedInstanceId)
                 continue;
 
             matchedAnyInstance = true;
             if (instance.item_id != normalizedItemId)
-                return _with_error(_build_remove_instance_result(normalizedItemId, normalizedInstanceId, 0, 1, usedSlotsBefore, usedSlotsBefore), "equipment_instance_item_mismatch");
+                return _build_remove_instance_result(normalizedItemId, normalizedInstanceId, 0, 1, usedSlotsBefore, usedSlotsBefore).WithError("equipment_instance_item_mismatch");
             break;
         }
 
         if (!matchedAnyInstance)
-            return _with_error(_build_remove_instance_result(normalizedItemId, normalizedInstanceId, 0, 1, usedSlotsBefore, usedSlotsBefore), "warehouse_missing_instance");
+            return _build_remove_instance_result(normalizedItemId, normalizedInstanceId, 0, 1, usedSlotsBefore, usedSlotsBefore).WithError("warehouse_missing_instance");
 
         var removedInstance = take_equipment_instance_by_instance_id(normalizedInstanceId, normalizedItemId);
         if (removedInstance == null)
-            return _with_error(_build_remove_instance_result(normalizedItemId, normalizedInstanceId, 0, 1, usedSlotsBefore, usedSlotsBefore), "warehouse_missing_instance");
+            return _build_remove_instance_result(normalizedItemId, normalizedInstanceId, 0, 1, usedSlotsBefore, usedSlotsBefore).WithError("warehouse_missing_instance");
 
         _compact_state(warehouseState);
         int usedSlotsAfter = get_used_slots();
@@ -554,12 +648,12 @@ public partial class PartyWarehouseService : RefCounted
                 };
         }
 
-        warehouseState.equipment_instances.Add(instance);
+        warehouseState.AddEquipmentInstance(instance);
         _compact_state(warehouseState);
         int usedSlotsAfter = get_used_slots();
         var allocatedInstanceIds = allocatedInstanceId != ""
-            ? new Godot.Collections.Array<string> { allocatedInstanceId.ToString() }
-            : new Godot.Collections.Array<string>();
+            ? new List<string> { allocatedInstanceId.ToString() }
+            : new List<string>();
         return new WarehouseAddItemResult
         {
             ItemId = itemId,
@@ -591,7 +685,7 @@ public partial class PartyWarehouseService : RefCounted
             if (instance.instance_id == "")
                 return false;
         }
-        warehouseState.equipment_instances.Add(instance);
+        warehouseState.AddEquipmentInstance(instance);
         return true;
     }
 
@@ -605,14 +699,14 @@ public partial class PartyWarehouseService : RefCounted
             var itemId = withdrawEntry.ItemId;
             var instanceId = withdrawEntry.InstanceId;
             var itemDef = get_item_def(itemId);
-            Godot.Collections.Dictionary result =
+            WarehouseRemoveItemResult result =
                 itemDef != null && itemDef.is_equipment() && instanceId != ""
-                    ? remove_equipment_instance(itemId, instanceId)
-                    : remove_item(itemId, 1);
+                    ? RemoveEquipmentInstanceTyped(itemId, instanceId)
+                    : RemoveItemTyped(itemId, 1);
 
-            if (result.ContainsKey("removed_quantity") && result["removed_quantity"].AsInt32() <= 0)
+            if (result.RemovedQuantity <= 0)
             {
-                var errorCode = result.ContainsKey("error_code") ? result["error_code"].AsString() : "";
+                var errorCode = result.ErrorCode;
                 if (errorCode.Length == 0)
                     errorCode = "warehouse_missing_item";
                 return WarehouseBatchSwapResult.Blocked(errorCode, itemId, instanceId);
@@ -690,7 +784,7 @@ public partial class PartyWarehouseService : RefCounted
     }
 
     private static List<WarehouseBatchItemEntry> BuildBatchItemEntries(
-        Godot.Collections.Array<StringName> itemIds
+        IEnumerable<StringName> itemIds
     )
     {
         var result = new List<WarehouseBatchItemEntry>();
@@ -711,15 +805,15 @@ public partial class PartyWarehouseService : RefCounted
         var result = new List<WarehouseBatchItemEntry>();
         if (entries == null)
             return result;
-        foreach (Variant entryValue in entries)
+        foreach (object entryValue in entries)
             result.Add(ParseBatchItemEntry(entryValue));
         return result;
     }
 
-    private static WarehouseBatchItemEntry ParseBatchItemEntry(Variant entryValue)
+    private static WarehouseBatchItemEntry ParseBatchItemEntry(object entryValue)
     {
-        if (entryValue.VariantType == Variant.Type.Dictionary)
-            return ParseBatchItemEntry(entryValue.AsGodotDictionary());
+        if (TryRawDictionary(entryValue, out var entryData))
+            return ParseBatchItemEntry(entryData);
         return new WarehouseBatchItemEntry
         {
             ItemId = ProgressionDataUtils.to_string_name(entryValue),
@@ -741,12 +835,36 @@ public partial class PartyWarehouseService : RefCounted
         Godot.Collections.Dictionary data,
         string key)
     {
-        var value = ReadValue(data, key);
-        if (value.VariantType == Variant.Type.Object)
-            return (value.AsGodotObject() as EquipmentInstanceState)?.duplicate_state();
-        if (value.VariantType == Variant.Type.Dictionary)
-            return EquipmentInstanceState.from_dict(value.AsGodotDictionary());
+        object value = ReadValue(data, key);
+        if (TryAsEquipmentInstance(value, out var equipmentInstance))
+            return equipmentInstance.duplicate_state();
+        if (TryRawDictionary(value, out var equipmentData))
+            return EquipmentInstanceState.from_dict(equipmentData);
         return null;
+    }
+
+    private static ItemDef ReadItemDef(object rawValue)
+    {
+        return TryAsItemDef(rawValue, out var itemDef) ? itemDef : null;
+    }
+
+    private static Dictionary<StringName, ItemDef> BuildItemDefIndex(
+        Godot.Collections.Dictionary itemDefs)
+    {
+        var result = new Dictionary<StringName, ItemDef>();
+        if (itemDefs == null)
+            return result;
+
+        foreach (var key in itemDefs.Keys)
+        {
+            StringName itemId = ProgressionDataUtils.to_string_name(key);
+            if (itemId == "")
+                continue;
+            ItemDef itemDef = ReadItemDef(itemDefs[key]);
+            if (itemDef != null)
+                result[itemId] = itemDef;
+        }
+        return result;
     }
 
     private WarehouseAddItemResult _process_add(
@@ -762,7 +880,9 @@ public partial class PartyWarehouseService : RefCounted
         var targetState = mutate ? _ensure_warehouse_state() : _get_warehouse_state().duplicate_state();
         _compact_state(targetState);
 
-        int currentUsed = targetState.stacks.Count + targetState.get_non_empty_instances().Count;
+        int currentUsed =
+            targetState.GetNonEmptyStacksTyped().Count
+            + targetState.GetNonEmptyEquipmentInstancesTyped().Count;
         bool itemFound = itemDef != null;
         bool isEquipment = itemDef != null && itemDef.is_equipment();
 
@@ -786,10 +906,10 @@ public partial class PartyWarehouseService : RefCounted
         int remainingQuantity = requestedQuantity;
         int createdStackCount = 0;
         int filledExistingQuantity = 0;
-        var allocatedInstanceIds = new Godot.Collections.Array<string>();
+        var allocatedInstanceIds = new List<string>();
         if (itemDef.is_equipment())
         {
-            int availableNewSlots = Mathf.Max(get_total_capacity() - targetState.stacks.Count - targetState.equipment_instances.Count, 0);
+            int availableNewSlots = Mathf.Max(get_total_capacity() - currentUsed, 0);
             while (remainingQuantity > 0 && availableNewSlots > 0)
             {
                 var newInstance = _create_equipment_instance(normalizedItemId, targetState, consumeAllocator);
@@ -797,7 +917,7 @@ public partial class PartyWarehouseService : RefCounted
                     break;
                 if (consumeAllocator)
                     allocatedInstanceIds.Add(newInstance.instance_id.ToString());
-                targetState.equipment_instances.Add(newInstance);
+                targetState.AddEquipmentInstance(newInstance);
                 remainingQuantity -= 1;
                 availableNewSlots -= 1;
                 createdStackCount += 1;
@@ -806,7 +926,7 @@ public partial class PartyWarehouseService : RefCounted
         else
         {
             int maxStack = itemDef.get_effective_max_stack();
-            foreach (var stack in targetState.stacks)
+            foreach (var stack in targetState.GetNonEmptyStacksTyped())
             {
                 if (remainingQuantity <= 0)
                     break;
@@ -824,7 +944,12 @@ public partial class PartyWarehouseService : RefCounted
                 filledExistingQuantity += acceptedQuantity;
             }
 
-            int availableNewStacks = Mathf.Max(get_total_capacity() - targetState.stacks.Count - targetState.equipment_instances.Count, 0);
+            int availableNewStacks = Mathf.Max(
+                get_total_capacity()
+                    - targetState.GetNonEmptyStacksTyped().Count
+                    - targetState.GetNonEmptyEquipmentInstancesTyped().Count,
+                0
+            );
             while (remainingQuantity > 0 && availableNewStacks > 0)
             {
                 var newStack = new WarehouseStackState
@@ -832,7 +957,7 @@ public partial class PartyWarehouseService : RefCounted
                     item_id = normalizedItemId,
                     quantity = Mathf.Min(maxStack, remainingQuantity),
                 };
-                targetState.stacks.Add(newStack);
+                targetState.AddStack(newStack);
                 remainingQuantity -= newStack.quantity;
                 availableNewStacks -= 1;
                 createdStackCount += 1;
@@ -841,7 +966,9 @@ public partial class PartyWarehouseService : RefCounted
             _compact_state(targetState);
         }
 
-        int usedSlotsAfter = targetState.stacks.Count + targetState.get_non_empty_instances().Count;
+        int usedSlotsAfter =
+            targetState.GetNonEmptyStacksTyped().Count
+            + targetState.GetNonEmptyEquipmentInstancesTyped().Count;
         return new WarehouseAddItemResult
         {
             ItemId = normalizedItemId,
@@ -914,7 +1041,7 @@ public partial class PartyWarehouseService : RefCounted
 
         foreach (var state in states)
         {
-            foreach (var instance in state.get_non_empty_instances())
+            foreach (var instance in state.GetNonEmptyEquipmentInstancesTyped())
             {
                 if (instance.instance_id == normalizedId)
                     return true;
@@ -923,18 +1050,20 @@ public partial class PartyWarehouseService : RefCounted
         return false;
     }
 
-    private static Godot.Collections.Array<int> _find_equipment_instance_indexes_by_item(
+    private static List<int> _find_equipment_instance_indexes_by_item(
         WarehouseState warehouseState,
         StringName itemId)
     {
-        var result = new Godot.Collections.Array<int>();
+        var result = new List<int>();
         if (warehouseState == null)
             return result;
 
         var normalizedItemId = ProgressionDataUtils.to_string_name(itemId);
-        for (int index = 0; index < warehouseState.equipment_instances.Count; index++)
+        IReadOnlyList<EquipmentInstanceState> equipmentInstances =
+            warehouseState.GetEquipmentInstancesTyped();
+        for (int index = 0; index < equipmentInstances.Count; index++)
         {
-            var instance = warehouseState.equipment_instances[index];
+            var instance = equipmentInstances[index];
             if (instance != null && instance.item_id == normalizedItemId)
                 result.Add(index);
         }
@@ -977,20 +1106,23 @@ public partial class PartyWarehouseService : RefCounted
         if (sourceState == null || targetState == null)
             return;
 
-        targetState.stacks.Clear();
-        targetState.equipment_instances.Clear();
-        foreach (var stack in sourceState.get_non_empty_stacks())
-            targetState.stacks.Add(stack.duplicate_state());
-        foreach (var instance in sourceState.get_non_empty_instances())
-            targetState.equipment_instances.Add(instance.duplicate_state());
+        var stacks = new List<WarehouseStackState>();
+        foreach (var stack in sourceState.GetNonEmptyStacksTyped())
+            stacks.Add(stack.duplicate_state());
+        targetState.ReplaceStacks(stacks);
+
+        var instances = new List<EquipmentInstanceState>();
+        foreach (var instance in sourceState.GetNonEmptyEquipmentInstancesTyped())
+            instances.Add(instance.duplicate_state());
+        targetState.ReplaceEquipmentInstances(instances);
     }
 
     private static void _compact_state(WarehouseState warehouseState)
     {
         if (warehouseState == null)
             return;
-        warehouseState.stacks = warehouseState.get_non_empty_stacks();
-        warehouseState.equipment_instances = warehouseState.get_non_empty_instances();
+        warehouseState.ReplaceStacks(warehouseState.GetNonEmptyStacksTyped());
+        warehouseState.ReplaceEquipmentInstances(warehouseState.GetNonEmptyEquipmentInstancesTyped());
     }
 
     private WarehouseInventoryEntry _build_inventory_entry_typed(
@@ -1026,7 +1158,7 @@ public partial class PartyWarehouseService : RefCounted
         );
     }
 
-    private Godot.Collections.Dictionary _build_remove_item_result(
+    private WarehouseRemoveItemResult _build_remove_item_result(
         StringName itemId,
         int requestedQuantity,
         int removedQuantity,
@@ -1035,21 +1167,21 @@ public partial class PartyWarehouseService : RefCounted
         int usedSlotsAfter,
         string errorCode)
     {
-        return new Godot.Collections.Dictionary
+        return new WarehouseRemoveItemResult
         {
-            { "item_id", itemId.ToString() },
-            { "requested_quantity", requestedQuantity },
-            { "removed_quantity", removedQuantity },
-            { "remaining_quantity", remainingQuantity },
-            { "used_slots_before", usedSlotsBefore },
-            { "used_slots_after", usedSlotsAfter },
-            { "free_slots_after", Mathf.Max(get_total_capacity() - usedSlotsAfter, 0) },
-            { "is_over_capacity", usedSlotsAfter > get_total_capacity() },
-            { "error_code", errorCode },
+            ItemId = itemId,
+            RequestedQuantity = requestedQuantity,
+            RemovedQuantity = removedQuantity,
+            RemainingQuantity = remainingQuantity,
+            UsedSlotsBefore = usedSlotsBefore,
+            UsedSlotsAfter = usedSlotsAfter,
+            FreeSlotsAfter = Mathf.Max(get_total_capacity() - usedSlotsAfter, 0),
+            IsOverCapacity = usedSlotsAfter > get_total_capacity(),
+            ErrorCode = errorCode ?? "",
         };
     }
 
-    private Godot.Collections.Dictionary _build_remove_instance_result(
+    private WarehouseRemoveItemResult _build_remove_instance_result(
         StringName itemId,
         StringName instanceId,
         int removedQuantity,
@@ -1057,27 +1189,20 @@ public partial class PartyWarehouseService : RefCounted
         int usedSlotsBefore,
         int usedSlotsAfter)
     {
-        return new Godot.Collections.Dictionary
+        return new WarehouseRemoveItemResult
         {
-            { "item_id", itemId.ToString() },
-            { "instance_id", instanceId.ToString() },
-            { "requested_quantity", 1 },
-            { "removed_quantity", removedQuantity },
-            { "remaining_quantity", remainingQuantity },
-            { "used_slots_before", usedSlotsBefore },
-            { "used_slots_after", usedSlotsAfter },
-            { "free_slots_after", Mathf.Max(get_total_capacity() - usedSlotsAfter, 0) },
-            { "is_over_capacity", usedSlotsAfter > get_total_capacity() },
-            { "error_code", "" },
+            ItemId = itemId,
+            InstanceId = instanceId,
+            IncludeInstanceId = true,
+            RequestedQuantity = 1,
+            RemovedQuantity = removedQuantity,
+            RemainingQuantity = remainingQuantity,
+            UsedSlotsBefore = usedSlotsBefore,
+            UsedSlotsAfter = usedSlotsAfter,
+            FreeSlotsAfter = Mathf.Max(get_total_capacity() - usedSlotsAfter, 0),
+            IsOverCapacity = usedSlotsAfter > get_total_capacity(),
+            ErrorCode = "",
         };
-    }
-
-    private static Godot.Collections.Dictionary _with_error(
-        Godot.Collections.Dictionary result,
-        string errorCode)
-    {
-        result["error_code"] = errorCode;
-        return result;
     }
 
     private static StringName ReadStringName(
@@ -1085,12 +1210,8 @@ public partial class PartyWarehouseService : RefCounted
         string key,
         StringName fallback = default)
     {
-        var value = ReadValue(data, key);
-        if (value.VariantType == Variant.Type.StringName)
-            return value.AsStringName();
-        if (value.VariantType == Variant.Type.String)
-            return new StringName(value.AsString());
-        return fallback ?? new StringName("");
+        StringName value = ProgressionDataUtils.to_string_name(ReadValue(data, key));
+        return value == "" ? fallback ?? new StringName("") : value;
     }
 
     private static string ReadString(
@@ -1098,23 +1219,89 @@ public partial class PartyWarehouseService : RefCounted
         string key,
         string fallback = "")
     {
-        var value = ReadValue(data, key);
-        if (value.VariantType == Variant.Type.String)
-            return value.AsString();
-        if (value.VariantType == Variant.Type.StringName)
-            return value.AsStringName().ToString();
-        return fallback;
+        StringName value = ProgressionDataUtils.to_string_name(ReadValue(data, key));
+        return value == "" ? fallback : value.ToString();
     }
 
-    private static Variant ReadValue(Godot.Collections.Dictionary data, string key)
+    private static object ReadValue(Godot.Collections.Dictionary data, string key)
     {
         if (data == null)
-            return default;
+            return null;
         if (data.ContainsKey(key))
             return data[key];
         var stringNameKey = new StringName(key);
         if (data.ContainsKey(stringNameKey))
             return data[stringNameKey];
-        return default;
+        return null;
+    }
+
+    private static bool TryAsItemDef(object rawValue, out ItemDef value)
+    {
+        if (rawValue is ItemDef itemDef)
+        {
+            value = itemDef;
+            return true;
+        }
+
+        try
+        {
+            dynamic dynamicValue = rawValue;
+            value = dynamicValue.As<ItemDef>();
+            return value != null;
+        }
+        catch
+        {
+        }
+
+        value = null;
+        return false;
+    }
+
+    private static bool TryAsEquipmentInstance(
+        object rawValue,
+        out EquipmentInstanceState value)
+    {
+        if (rawValue is EquipmentInstanceState equipmentInstance)
+        {
+            value = equipmentInstance;
+            return true;
+        }
+
+        try
+        {
+            dynamic dynamicValue = rawValue;
+            value = dynamicValue.As<EquipmentInstanceState>();
+            return value != null;
+        }
+        catch
+        {
+        }
+
+        value = null;
+        return false;
+    }
+
+    private static bool TryRawDictionary(
+        object rawValue,
+        out Godot.Collections.Dictionary value)
+    {
+        if (rawValue is Godot.Collections.Dictionary dictionary)
+        {
+            value = dictionary;
+            return true;
+        }
+
+        try
+        {
+            dynamic dynamicValue = rawValue;
+            value = dynamicValue.AsGodotDictionary();
+            return value != null;
+        }
+        catch
+        {
+        }
+
+        value = null;
+        return false;
     }
 }

@@ -344,7 +344,7 @@ public partial class UseChargePathAoeAction : EnemyAiAction
         if (path.Count == 0)
             return result;
         bool arh = pse.allow_repeat_hits_across_steps;
-        var tf = BattleTargetTeamRules.resolve_effect_target_filter(sd, pse);
+        var tf = BattleTargetTeamRules.ResolveEffectTargetFilter(sd, pse);
         var state = context.state;
         foreach (var ac in path)
         {
@@ -356,7 +356,7 @@ public partial class UseChargePathAoeAction : EnemyAiAction
             {
                 if (tu == null || !tu.is_alive)
                     continue;
-                if (!BattleTargetTeamRules.is_unit_valid_for_filter(ctxUnitState, tu, tf))
+                if (!BattleTargetTeamRules.IsUnitValidForFilter(ctxUnitState, tu, tf))
                     continue;
                 if (!_unit_intersects_coords(tu, ecs))
                     continue;

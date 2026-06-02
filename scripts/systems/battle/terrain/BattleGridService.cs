@@ -2180,7 +2180,7 @@ public partial class BattleGridService : RefCounted
     private static BattleMovePathResult MovePathResult(
         bool allowed,
         int cost,
-        GVector2IArray path,
+        IEnumerable<Vector2I> path,
         string message
     )
     {
@@ -2188,7 +2188,7 @@ public partial class BattleGridService : RefCounted
         {
             Allowed = allowed,
             Cost = cost,
-            Path = path ?? new GVector2IArray(),
+            Path = path != null ? new List<Vector2I>(path) : System.Array.Empty<Vector2I>(),
             Message = message,
         };
     }

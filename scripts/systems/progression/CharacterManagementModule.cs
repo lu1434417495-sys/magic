@@ -712,7 +712,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         var withdraw_item_ids = _build_repeated_item_ids(item_id, required_quantity);
         var warehouse_commit = _party_warehouse_service.CommitBatchSwapTyped(
             withdraw_item_ids,
-            new GStringNameArray()
+            new List<StringName>()
         );
         if (!warehouse_commit.Allowed)
         {
@@ -814,7 +814,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         if (reward_item_ids.Count > 0)
         {
             var warehouse_commit = _party_warehouse_service.CommitBatchSwapTyped(
-                new GStringNameArray(),
+                new List<StringName>(),
                 reward_item_ids
             );
             if (!warehouse_commit.Allowed)
@@ -1877,9 +1877,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         var equipment_state = member_state?.equipment_state;
         if (equipment_state == null)
             return;
-        var entry_slot_ids = ProgressionDataUtils.to_string_name_array(
-            equipment_state.get_entry_slot_ids()
-        );
+        var entry_slot_ids = equipment_state.GetEntrySlotIdsTyped();
         foreach (var entry_slot_id in entry_slot_ids)
         {
             if (
@@ -2875,7 +2873,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             return QuestRewardPreviewData.Failed("invalid_quest_display_name");
         var unsupported_reward_types = new GStringNameArray();
         var reward_item_entries = new GArray();
-        var reward_item_ids = new GStringNameArray();
+        var reward_item_ids = new List<StringName>();
         var pending_character_rewards = new GArray();
         var gold_delta = 0;
         foreach (var reward_data in quest_reward_data.RewardEntries)
@@ -2931,7 +2929,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         if (reward_item_ids.Count > 0)
         {
             var warehouse_preview = _party_warehouse_service.PreviewBatchSwapTyped(
-                new GStringNameArray(),
+                new List<StringName>(),
                 reward_item_ids
             );
             if (!warehouse_preview.Allowed)
@@ -3051,12 +3049,22 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         return false;
     }
 
-    private static GStringNameArray _build_repeated_item_ids(StringName item_id, int quantity)
+    private static List<StringName> _build_repeated_item_ids(StringName item_id, int quantity)
     {
-        var item_ids = new GStringNameArray();
+        var item_ids = new List<StringName>();
         for (var i = 0; i < Mathf.Max(quantity, 0); i++)
             item_ids.Add(item_id);
         return item_ids;
+    }
+
+    private static List<StringName> CloneStringNameList(IReadOnlyList<StringName> source)
+    {
+        var result = new List<StringName>();
+        if (source == null)
+            return result;
+        foreach (var value in source)
+            result.Add(value);
+        return result;
     }
 
     private static GStringNameArray CloneStringNameArray(GStringNameArray source)
@@ -3417,7 +3425,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         public readonly string ErrorCode;
         public readonly int GoldDelta;
         private readonly GArray _itemRewards;
-        private readonly GStringNameArray _warehouseDepositItemIds;
+        private readonly List<StringName> _warehouseDepositItemIds;
         private readonly GArray _pendingCharacterRewards;
         private readonly GStringNameArray _unsupportedRewardTypes;
 
@@ -3426,7 +3434,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             string errorCode,
             int goldDelta,
             GArray itemRewards,
-            GStringNameArray warehouseDepositItemIds,
+            IReadOnlyList<StringName> warehouseDepositItemIds,
             GArray pendingCharacterRewards,
             GStringNameArray unsupportedRewardTypes
         )
@@ -3437,8 +3445,8 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             _itemRewards = itemRewards != null ? itemRewards.Duplicate(true) : new GArray();
             _warehouseDepositItemIds =
                 warehouseDepositItemIds != null
-                    ? CloneStringNameArray(warehouseDepositItemIds)
-                    : new GStringNameArray();
+                    ? CloneStringNameList(warehouseDepositItemIds)
+                    : new List<StringName>();
             _pendingCharacterRewards =
                 pendingCharacterRewards != null
                     ? pendingCharacterRewards.Duplicate(true)
@@ -3451,8 +3459,8 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
 
         public GArray CloneItemRewards() => _itemRewards.Duplicate(true);
 
-        public GStringNameArray CloneWarehouseDepositItemIds() =>
-            CloneStringNameArray(_warehouseDepositItemIds);
+        public List<StringName> CloneWarehouseDepositItemIds() =>
+            CloneStringNameList(_warehouseDepositItemIds);
 
         public GArray ClonePendingCharacterRewards() => _pendingCharacterRewards.Duplicate(true);
 
@@ -3462,7 +3470,7 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         public static QuestRewardPreviewData Success(
             int goldDelta,
             GArray itemRewards,
-            GStringNameArray warehouseDepositItemIds,
+            IReadOnlyList<StringName> warehouseDepositItemIds,
             GArray pendingCharacterRewards
         ) =>
             new(
@@ -3495,13 +3503,13 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
         public readonly bool Ok;
         public readonly string ErrorCode;
         private readonly GDictionary _itemReward;
-        private readonly GStringNameArray _warehouseDepositItemIds;
+        private readonly List<StringName> _warehouseDepositItemIds;
 
         private QuestItemRewardPreviewData(
             bool ok,
             string errorCode,
             GDictionary itemReward,
-            GStringNameArray warehouseDepositItemIds
+            IReadOnlyList<StringName> warehouseDepositItemIds
         )
         {
             Ok = ok;
@@ -3513,23 +3521,23 @@ public partial class CharacterManagementModule : RefCounted, IBattleRuntimeChara
             _itemReward = itemReward != null ? itemReward.Duplicate(true) : new GDictionary();
             _warehouseDepositItemIds =
                 warehouseDepositItemIds != null
-                    ? CloneStringNameArray(warehouseDepositItemIds)
-                    : new GStringNameArray();
+                    ? CloneStringNameList(warehouseDepositItemIds)
+                    : new List<StringName>();
         }
 
         public GDictionary CloneItemReward() => _itemReward.Duplicate(true);
 
-        public GStringNameArray CloneWarehouseDepositItemIds() =>
-            CloneStringNameArray(_warehouseDepositItemIds);
+        public List<StringName> CloneWarehouseDepositItemIds() =>
+            CloneStringNameList(_warehouseDepositItemIds);
 
         public static QuestItemRewardPreviewData Success(
             GDictionary itemReward,
-            GStringNameArray warehouseDepositItemIds
+            IReadOnlyList<StringName> warehouseDepositItemIds
         ) =>
             new(true, "", itemReward, warehouseDepositItemIds);
 
         public static QuestItemRewardPreviewData Failed(string errorCode) =>
-            new(false, errorCode, new GDictionary(), new GStringNameArray());
+            new(false, errorCode, new GDictionary(), new List<StringName>());
     }
 
     private sealed class QuestPendingCharacterRewardPreviewData

@@ -156,6 +156,7 @@ public partial class PartyWarehouseWindow : Control
             else
                 label += "  |  按实例占格";
             stack_list.AddItem(label);
+            stack_list.SetItemMetadata(stack_list.ItemCount - 1, entry.Metadata);
         }
     }
 

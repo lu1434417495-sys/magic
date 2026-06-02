@@ -1,15 +1,12 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class BattleAiQueryService : RefCounted
+public sealed class BattleAiQueryService
 {
     private BattleState _state;
-    private BattleGridService _grid_service;
-    private StringName _actor_unit_id = "";
+    private BattleGridService _gridService;
+    private StringName _actorUnitId = "";
     private Func<
         BattleAiQueryService,
         StringName,
@@ -17,29 +14,20 @@ public partial class BattleAiQueryService : RefCounted
         StringName,
         BattleCommand,
         BattlePreview,
-        GDictionary,
+        Godot.Collections.Dictionary,
         BattleAiScoreInput
-    > _action_score_input_callback;
-    private Func<
-        BattleAiQueryService,
-        StringName,
-        BattleCommand,
-        BattlePreview,
-        GArray,
-        GDictionary,
-        BattleAiScoreInput
-    > _skill_score_input_callback;
-    private BattleMovementQueryService _movement_query_service;
-    private Func<StringName, bool> _movement_blocked_callback;
+    > _actionScoreInputCallback;
+    private BattleMovementQueryService _movementQueryService;
+    private Func<StringName, bool> _movementBlockedCallback;
     private readonly Dictionary<StringName, BattleAiUnitSnapshot> _snapshotCache = new();
     private readonly Dictionary<StringName, List<BattleAiUnitSnapshot>> _livingSnapshotCache = new();
     private Dictionary<StringName, SkillRecord> _skillRecords = new();
 
-    public void setup(
+    internal void Setup(
         BattleState state,
-        BattleGridService grid_service,
-        StringName actor_unit_id,
-        GDictionary skill_defs,
+        BattleGridService gridService,
+        StringName actorUnitId,
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
         Func<
             BattleAiQueryService,
             StringName,
@@ -47,64 +35,53 @@ public partial class BattleAiQueryService : RefCounted
             StringName,
             BattleCommand,
             BattlePreview,
-            GDictionary,
+            Godot.Collections.Dictionary,
             BattleAiScoreInput
-        > action_score_input_callback,
-        Func<
-            BattleAiQueryService,
-            StringName,
-            BattleCommand,
-            BattlePreview,
-            GArray,
-            GDictionary,
-            BattleAiScoreInput
-        > skill_score_input_callback,
-        BattleMovementQueryService movement_query_service,
-        Func<StringName, bool> movement_blocked_callback = null
+        > actionScoreInputCallback,
+        BattleMovementQueryService movementQueryService,
+        Func<StringName, bool> movementBlockedCallback = null
     )
     {
         _state = state;
-        _grid_service = grid_service;
-        _actor_unit_id = ProgressionDataUtils.to_string_name(actor_unit_id);
-        _action_score_input_callback = action_score_input_callback;
-        _skill_score_input_callback = skill_score_input_callback;
+        _gridService = gridService;
+        _actorUnitId = ProgressionDataUtils.to_string_name(actorUnitId);
+        _actionScoreInputCallback = actionScoreInputCallback;
 
-        _movement_query_service = movement_query_service;
-        _movement_blocked_callback = movement_blocked_callback;
+        _movementQueryService = movementQueryService;
+        _movementBlockedCallback = movementBlockedCallback;
 
         _snapshotCache.Clear();
         _livingSnapshotCache.Clear();
-        _skillRecords = ExtractSkillRecords(skill_defs ?? new GDictionary());
+        _skillRecords = ExtractSkillRecords(skillDefs);
     }
 
-    public void setup_readonly(
+    internal void SetupReadOnly(
         BattleState state,
-        BattleGridService grid_service,
-        StringName actor_unit_id,
-        GDictionary skill_defs
+        BattleGridService gridService,
+        StringName actorUnitId,
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs
     )
     {
-        setup(
+        Setup(
             state,
-            grid_service,
-            actor_unit_id,
-            skill_defs,
-            null,
+            gridService,
+            actorUnitId,
+            skillDefs,
             null,
             null
         );
     }
 
-    public StringName get_actor_id() => _actor_unit_id;
+    internal StringName GetActorId() => _actorUnitId;
 
-    public BattleAiUnitSnapshot get_actor_snapshot()
+    internal BattleAiUnitSnapshot GetActorSnapshot()
     {
-        return get_unit_snapshot(_actor_unit_id);
+        return GetUnitSnapshot(_actorUnitId);
     }
 
-    public BattleAiUnitSnapshot get_unit_snapshot(StringName unit_id)
+    internal BattleAiUnitSnapshot GetUnitSnapshot(StringName unitId)
     {
-        StringName normalized = ProgressionDataUtils.to_string_name(unit_id);
+        StringName normalized = ProgressionDataUtils.to_string_name(unitId);
         if (IsEmpty(normalized))
         {
             return null;
@@ -117,7 +94,7 @@ public partial class BattleAiQueryService : RefCounted
         {
             return null;
         }
-        BattleAiUnitSnapshot snapshot = BattleAiUnitSnapshot.from_unit(unitState);
+        BattleAiUnitSnapshot snapshot = BattleAiUnitSnapshot.FromUnit(unitState);
         if (snapshot != null)
         {
             _snapshotCache[normalized] = snapshot;
@@ -125,23 +102,11 @@ public partial class BattleAiQueryService : RefCounted
         return snapshot;
     }
 
-    public Godot.Collections.Array<BattleAiUnitSnapshot> get_living_unit_snapshots(
-        StringName target_filter
-    )
-    {
-        var results = new Godot.Collections.Array<BattleAiUnitSnapshot>();
-        foreach (BattleAiUnitSnapshot snapshot in GetLivingUnitSnapshotsTyped(target_filter))
-        {
-            results.Add(snapshot);
-        }
-        return results;
-    }
-
     internal IReadOnlyList<BattleAiUnitSnapshot> GetLivingUnitSnapshotsTyped(
-        StringName target_filter
+        StringName targetFilter
     )
     {
-        StringName normalizedFilter = ProgressionDataUtils.to_string_name(target_filter);
+        StringName normalizedFilter = ProgressionDataUtils.to_string_name(targetFilter);
         if (_livingSnapshotCache.TryGetValue(normalizedFilter, out List<BattleAiUnitSnapshot> cached))
         {
             return cached;
@@ -156,13 +121,13 @@ public partial class BattleAiQueryService : RefCounted
         )
         {
             BattleAiPayloadGuard.FailLoud(
-                $"Unsupported AI target_filter {target_filter}.",
-                new GDictionary { ["source"] = "BattleAiQueryService" }
+                $"Unsupported AI target_filter {targetFilter}.",
+                new Dictionary<string, string> { ["source"] = "BattleAiQueryService" }
             );
             return results;
         }
 
-        BattleAiUnitSnapshot actorSnapshot = get_actor_snapshot();
+        BattleAiUnitSnapshot actorSnapshot = GetActorSnapshot();
         if (actorSnapshot == null || _state == null)
         {
             return results;
@@ -172,7 +137,7 @@ public partial class BattleAiQueryService : RefCounted
 
         foreach (StringName unitId in sortedIds)
         {
-            BattleAiUnitSnapshot snapshot = get_unit_snapshot(unitId);
+            BattleAiUnitSnapshot snapshot = GetUnitSnapshot(unitId);
             if (snapshot == null || !snapshot.is_alive)
             {
                 continue;
@@ -211,139 +176,45 @@ public partial class BattleAiQueryService : RefCounted
         return results;
     }
 
-    public GDictionary get_skill_record(StringName skill_id)
+    internal bool TryGetSkillRecordTyped(StringName skillId, out SkillRecord record)
     {
-        StringName normalized = ProgressionDataUtils.to_string_name(skill_id);
-        if (TryGetSkillRecordTyped(normalized, out SkillRecord record))
-        {
-            return record.ToDictionary();
-        }
-        return new GDictionary();
-    }
-
-    internal bool TryGetSkillRecordTyped(StringName skill_id, out SkillRecord record)
-    {
-        StringName normalized = ProgressionDataUtils.to_string_name(skill_id);
+        StringName normalized = ProgressionDataUtils.to_string_name(skillId);
         return _skillRecords.TryGetValue(normalized, out record);
     }
 
-    internal bool is_unit_movement_blocked(StringName unit_id)
+    internal bool IsUnitMovementBlocked(StringName unitId)
     {
-        return _movement_blocked_callback?.Invoke(ProgressionDataUtils.to_string_name(unit_id))
+        return _movementBlockedCallback?.Invoke(ProgressionDataUtils.to_string_name(unitId))
             == true;
     }
 
-    public Vector2I get_map_size()
+    internal Vector2I GetMapSize()
     {
         return _state != null ? _state.map_size : Vector2I.Zero;
     }
 
-    public Godot.Collections.Array<Vector2I> get_area_coords(
-        Vector2I center_coord,
-        StringName area_pattern,
-        int area_value,
-        Vector2I facing_direction
+    internal int DistanceFromAnchorToTarget(
+        Vector2I anchorCoord,
+        Vector2I anchorFootprintSize,
+        StringName targetUnitId
     )
     {
-        if (_state == null || _grid_service == null)
-        {
-            return new Godot.Collections.Array<Vector2I>();
-        }
-        return _grid_service.get_area_coords(
-            _state,
-            center_coord,
-            area_pattern,
-            area_value,
-            facing_direction
-        );
-    }
-
-    public Godot.Collections.Array<StringName> get_actor_known_skill_ids(
-        Godot.Collections.Array<StringName> preferred_skill_ids = null
-    )
-    {
-        BattleAiUnitSnapshot actorSnapshot = get_actor_snapshot();
-        var results = new Godot.Collections.Array<StringName>();
-        if (actorSnapshot == null)
-        {
-            return results;
-        }
-        if (preferred_skill_ids == null || preferred_skill_ids.Count == 0)
-        {
-            foreach (StringName skillId in actorSnapshot.known_active_skill_ids)
-            {
-                results.Add(skillId);
-            }
-            return results;
-        }
-
-        var knownLookup = new HashSet<StringName>();
-        foreach (StringName skillId in actorSnapshot.known_active_skill_ids)
-        {
-            knownLookup.Add(skillId);
-        }
-        var seen = new HashSet<StringName>();
-        foreach (StringName rawSkillId in preferred_skill_ids)
-        {
-            StringName skillId = ProgressionDataUtils.to_string_name(rawSkillId);
-            if (IsEmpty(skillId))
-            {
-                BattleAiPayloadGuard.FailLoud(
-                    "preferred_skill_ids must not contain empty skill id.",
-                    new GDictionary { ["source"] = "BattleAiQueryService" }
-                );
-                return new Godot.Collections.Array<StringName>();
-            }
-            if (!seen.Add(skillId))
-            {
-                continue;
-            }
-            if (knownLookup.Contains(skillId))
-            {
-                results.Add(skillId);
-            }
-        }
-        return results;
-    }
-
-    public int distance_between_units(StringName first_unit_id, StringName second_unit_id)
-    {
-        if (_grid_service == null)
+        if (_gridService == null)
         {
             return -1;
         }
-        BattleUnitState first = GetLiveUnit(first_unit_id);
-        BattleUnitState second = GetLiveUnit(second_unit_id);
-        if (first == null || second == null)
-        {
-            GameLog.Error("distance_between_units received missing unit.", "ai.query.missing_unit", "ai");
-            return -1;
-        }
-        return _grid_service.get_distance_between_units(first, second);
-    }
-
-    public int distance_from_anchor_to_target(
-        Vector2I anchor_coord,
-        Vector2I anchor_footprint_size,
-        StringName target_unit_id
-    )
-    {
-        if (_grid_service == null)
-        {
-            return -1;
-        }
-        BattleAiUnitSnapshot target = get_unit_snapshot(target_unit_id);
+        BattleAiUnitSnapshot target = GetUnitSnapshot(targetUnitId);
         if (target == null)
         {
-            GameLog.Error("distance_from_anchor_to_target received missing target.", "ai.query.missing_target", "ai");
+            GameLog.Error("DistanceFromAnchorToTarget received missing target.", "ai.query.missing_target", "ai");
             return -1;
         }
 
         int bestDistance = int.MaxValue;
         foreach (
-            Vector2I sourceCoord in _grid_service.get_footprint_coords(
-                anchor_coord,
-                anchor_footprint_size
+            Vector2I sourceCoord in _gridService.get_footprint_coords(
+                anchorCoord,
+                anchorFootprintSize
             )
         )
         {
@@ -351,65 +222,41 @@ public partial class BattleAiQueryService : RefCounted
             {
                 bestDistance = Mathf.Min(
                     bestDistance,
-                    _grid_service.get_distance(sourceCoord, targetCoord)
+                    _gridService.get_distance(sourceCoord, targetCoord)
                 );
             }
         }
         return bestDistance < int.MaxValue ? bestDistance : -1;
     }
 
-    public BattleAiScoreInput build_action_score_input(
-        StringName action_kind,
-        string action_label,
-        StringName score_bucket_id,
+    internal BattleAiScoreInput BuildActionScoreInput(
+        StringName actionKind,
+        string actionLabel,
+        StringName scoreBucketId,
         BattleCommand command,
         BattlePreview preview,
-        GDictionary metadata = null
+        Godot.Collections.Dictionary metadata = null
     )
     {
-        metadata ??= new GDictionary();
-        if (_action_score_input_callback == null)
+        metadata ??= new Godot.Collections.Dictionary();
+        if (_actionScoreInputCallback == null)
         {
             return null;
         }
-        return _action_score_input_callback.Invoke(
+        return _actionScoreInputCallback.Invoke(
             this,
-            action_kind,
-            action_label,
-            score_bucket_id,
+            actionKind,
+            actionLabel,
+            scoreBucketId,
             command,
             preview,
             metadata
         );
     }
 
-    public BattleAiScoreInput build_skill_score_input(
-        StringName skill_id,
-        BattleCommand command,
-        BattlePreview preview,
-        GArray effect_defs = null,
-        GDictionary metadata = null
-    )
+    internal BattleMovementQueryService GetMovementQueryService()
     {
-        effect_defs ??= new GArray();
-        metadata ??= new GDictionary();
-        if (_skill_score_input_callback == null)
-        {
-            return null;
-        }
-        return _skill_score_input_callback.Invoke(
-            this,
-            ProgressionDataUtils.to_string_name(skill_id),
-            command,
-            preview,
-            effect_defs,
-            metadata
-        );
-    }
-
-    public BattleMovementQueryService get_movement_query_service()
-    {
-        return _movement_query_service;
+        return _movementQueryService;
     }
 
     private BattleUnitState GetLiveUnit(StringName unitId)
@@ -422,14 +269,16 @@ public partial class BattleAiQueryService : RefCounted
         return TryGetUnit(_state, normalized, out BattleUnitState unitState) ? unitState : null;
     }
 
-    private Dictionary<StringName, SkillRecord> ExtractSkillRecords(GDictionary skillDefs)
+    private Dictionary<StringName, SkillRecord> ExtractSkillRecords(
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs
+    )
     {
         var records = new Dictionary<StringName, SkillRecord>();
         foreach (KeyValuePair<StringName, SkillDef> entry in ExtractSkillDefs(skillDefs))
         {
             if (IsEmpty(entry.Key) || entry.Value == null)
             {
-                FailLoud($"BattleAiQueryService.setup received invalid SkillDef for {entry.Key}.");
+                FailLoud($"BattleAiQueryService.Setup received invalid SkillDef for {entry.Key}.");
                 return new Dictionary<StringName, SkillRecord>();
             }
             records[entry.Key] = ExtractSkillRecord(entry.Value);
@@ -440,7 +289,7 @@ public partial class BattleAiQueryService : RefCounted
     private SkillRecord ExtractSkillRecord(SkillDef skillDef)
     {
         var combat = skillDef.combat_profile as CombatSkillDef;
-        BattleUnitState actor = GetLiveUnit(_actor_unit_id);
+        BattleUnitState actor = GetLiveUnit(_actorUnitId);
         int skillLevel = actor != null ? GetUnitSkillLevel(actor, skillDef.skill_id) : 0;
         var record = new SkillRecord
         {
@@ -459,10 +308,10 @@ public partial class BattleAiQueryService : RefCounted
             ),
             range_value = combat != null ? combat.get_effective_range_value(skillLevel) : 0,
             actor_effective_cast_range =
-                actor != null ? BattleRangeService.get_effective_skill_range(actor, skillDef) : 0,
+                actor != null ? BattleRangeService.GetEffectiveSkillRange(actor, skillDef) : 0,
             actor_effective_range =
                 actor != null
-                    ? BattleRangeService.get_effective_skill_threat_range(actor, skillDef)
+                    ? BattleRangeService.GetEffectiveSkillThreatRange(actor, skillDef)
                     : 0,
             area_pattern = ProgressionDataUtils.to_string_name(
                 combat != null ? combat.get_effective_area_pattern(skillLevel) : new StringName("")
@@ -479,21 +328,22 @@ public partial class BattleAiQueryService : RefCounted
             excluded_weapon_families = CopyStringNameList(combat?.excluded_weapon_families),
             excluded_weapon_type_ids = CopyStringNameList(combat?.excluded_weapon_type_ids),
         };
-        BattleAiPayloadGuard.ValidateNoForbiddenObject(record.ToDictionary(), "skill_record");
         return record;
     }
 
-    private static List<KeyValuePair<StringName, SkillDef>> ExtractSkillDefs(GDictionary skillDefs)
+    private static List<KeyValuePair<StringName, SkillDef>> ExtractSkillDefs(
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs
+    )
     {
         var results = new List<KeyValuePair<StringName, SkillDef>>();
         if (skillDefs == null)
         {
             return results;
         }
-        foreach (var rawSkillId in skillDefs.Keys)
+        foreach (KeyValuePair<StringName, SkillDef> entry in skillDefs)
         {
-            StringName skillId = ProgressionDataUtils.to_string_name(rawSkillId);
-            SkillDef skillDef = skillDefs[rawSkillId].As<SkillDef>();
+            StringName skillId = ProgressionDataUtils.to_string_name(entry.Key);
+            SkillDef skillDef = entry.Value;
             if (IsEmpty(skillId) || skillDef == null)
             {
                 results.Add(new KeyValuePair<StringName, SkillDef>(skillId, null));
@@ -555,26 +405,6 @@ public partial class BattleAiQueryService : RefCounted
         return result;
     }
 
-    private static Godot.Collections.Array<StringName> ToStringNameArray(
-        IEnumerable<StringName> values
-    )
-    {
-        var result = new Godot.Collections.Array<StringName>();
-        if (values == null)
-        {
-            return result;
-        }
-        foreach (StringName value in values)
-        {
-            StringName normalized = ProgressionDataUtils.to_string_name(value);
-            if (!IsEmpty(normalized))
-            {
-                result.Add(normalized);
-            }
-        }
-        return result;
-    }
-
     internal sealed class SkillRecord
     {
         public StringName skill_id = "";
@@ -597,40 +427,13 @@ public partial class BattleAiQueryService : RefCounted
         public List<StringName> required_weapon_families = new();
         public List<StringName> excluded_weapon_families = new();
         public List<StringName> excluded_weapon_type_ids = new();
-
-        public GDictionary ToDictionary()
-        {
-            return new GDictionary
-            {
-                ["skill_id"] = skill_id,
-                ["display_name"] = display_name,
-                ["skill_type"] = skill_type,
-                ["icon_id"] = icon_id,
-                ["target_mode"] = target_mode,
-                ["target_team_filter"] = target_team_filter,
-                ["range_pattern"] = range_pattern,
-                ["range_value"] = range_value,
-                ["actor_effective_cast_range"] = actor_effective_cast_range,
-                ["actor_effective_range"] = actor_effective_range,
-                ["area_pattern"] = area_pattern,
-                ["area_value"] = area_value,
-                ["target_selection_mode"] = target_selection_mode,
-                ["min_target_count"] = min_target_count,
-                ["max_target_count"] = max_target_count,
-                ["ai_tags"] = ToStringNameArray(ai_tags),
-                ["delivery_categories"] = ToStringNameArray(delivery_categories),
-                ["required_weapon_families"] = ToStringNameArray(required_weapon_families),
-                ["excluded_weapon_families"] = ToStringNameArray(excluded_weapon_families),
-                ["excluded_weapon_type_ids"] = ToStringNameArray(excluded_weapon_type_ids),
-            };
-        }
     }
 
     private static bool FailLoud(string message)
     {
         return BattleAiPayloadGuard.FailLoud(
             message,
-            new GDictionary { ["source"] = "BattleAiQueryService" }
+            new Dictionary<string, string> { ["source"] = "BattleAiQueryService" }
         );
     }
 

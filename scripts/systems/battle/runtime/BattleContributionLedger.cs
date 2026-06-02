@@ -1,6 +1,4 @@
 using System.Collections.Generic;
-using Godot.Collections;
-using GArray = Godot.Collections.Array;
 
 public sealed class BattleContributionLedger
 {
@@ -22,15 +20,15 @@ public sealed class BattleContributionLedger
         _events.Add(contributionEvent);
     }
 
-    public GArray ToGodotArray()
+    public Godot.Collections.Array ToDictionaryArray()
     {
-        var result = new GArray();
+        var result = new Godot.Collections.Array();
         foreach (BattleContributionEvent contributionEvent in _events)
         {
-            result.Add(contributionEvent.to_dictionary());
+            result.Add(contributionEvent.ToDictionary());
         }
         return result;
     }
 
-    public IEnumerable<BattleContributionEvent> Events => _events;
+    public IReadOnlyList<BattleContributionEvent> Events => _events;
 }

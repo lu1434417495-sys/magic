@@ -339,30 +339,36 @@ public partial class UseRandomChainSkillAction : EnemyAiAction
     }
 
     private static void _update_trace_metadata(
-        Godot.Collections.Dictionary at,
+        AiActionTrace at,
         Godot.Collections.Dictionary sm
     )
     {
-        if (at.Count == 0)
+        if (at == null || at.IsEmpty())
             return;
-        var m = at.ContainsKey("metadata")
-            ? at["metadata"].AsGodotDictionary()
-            : new Godot.Collections.Dictionary();
-        m["candidate_pool_count"] = sm.ContainsKey("candidate_pool_count")
+        at.Metadata["candidate_pool_count"] = sm.ContainsKey("candidate_pool_count")
             ? sm["candidate_pool_count"].AsInt32()
             : 0;
-        m["candidate_pool_unit_ids"] = _stringify_unit_ids(
+        at.Metadata["candidate_pool_unit_ids"] = _stringify_unit_id_list(
             sm.ContainsKey("candidate_pool_unit_ids")
                 ? ProgressionDataUtils.to_string_name_array(sm["candidate_pool_unit_ids"])
                 : new Godot.Collections.Array<StringName>()
         );
-        m["max_hits_per_target"] = sm.ContainsKey("random_chain_max_hits_per_target")
+        at.Metadata["max_hits_per_target"] = sm.ContainsKey("random_chain_max_hits_per_target")
             ? sm["random_chain_max_hits_per_target"].AsInt32()
             : 0;
-        m["max_attempt_count"] = sm.ContainsKey("random_chain_max_attempt_count")
+        at.Metadata["max_attempt_count"] = sm.ContainsKey("random_chain_max_attempt_count")
             ? sm["random_chain_max_attempt_count"].AsInt32()
             : 0;
-        at["metadata"] = m;
+    }
+
+    private static List<string> _stringify_unit_id_list(IEnumerable<StringName> ids)
+    {
+        var result = new List<string>();
+        foreach (StringName id in ids ?? System.Array.Empty<StringName>())
+        {
+            result.Add(id.ToString());
+        }
+        return result;
     }
 
     private bool _has_explicit_distance_contract() =>

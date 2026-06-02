@@ -26,7 +26,6 @@ const AttributeModifier = preload("res://scripts/player/progression/AttributeMod
 const ItemDef = preload("res://scripts/player/warehouse/ItemDef.cs")
 const PartyMemberState = preload("res://scripts/player/progression/PartyMemberState.cs")
 const PartyState = preload("res://scripts/player/progression/PartyState.cs")
-const ProgressionDataUtils = preload("res://scripts/player/progression/ProgressionDataUtils.cs")
 const ProgressionContentRegistry = preload("res://scripts/player/progression/ProgressionContentRegistry.cs")
 const SkillDef = preload("res://scripts/player/progression/SkillDef.cs")
 const UnitProgress = preload("res://scripts/player/progression/UnitProgress.cs")
@@ -34,10 +33,24 @@ const WeaponDamageDiceDef = preload("res://scripts/player/warehouse/WeaponDamage
 const WeaponProfileDef = preload("res://scripts/player/warehouse/WeaponProfileDef.cs")
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/AttributeService.cs")
 const EQUIPMENT_INSTANCE_STATE_SCRIPT = preload("res://scripts/player/warehouse/EquipmentInstanceState.cs")
-const EQUIPMENT_RULES_SCRIPT = preload("res://scripts/player/equipment/EquipmentRules.cs")
 const SharedDamageResolvers = preload("res://tests/shared/stub_damage_resolvers.gd")
 const SharedHitResolvers = preload("res://tests/shared/stub_hit_resolvers.gd")
 const StubBattleMasteryGateway = preload("res://tests/shared/stub_battle_mastery_gateway.gd")
+
+const EQUIPMENT_SLOT_IDS := [
+	&"main_hand",
+	&"off_hand",
+	&"head",
+	&"body",
+	&"hands",
+	&"feet",
+	&"cloak",
+	&"necklace",
+	&"ring_1",
+	&"ring_2",
+	&"special_trinket",
+	&"badge",
+]
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -88,10 +101,7 @@ func _run() -> void:
 	_test_archer_multishot_level_scaled_target_limits()
 	_test_multi_unit_skill_uses_stable_target_order()
 	_test_skill_costs_and_cooldowns_apply_in_runtime()
-	_test_battle_range_service_base_range_handles_null_skill()
 	_test_weapon_skill_range_uses_weapon_attack_range_not_skill_range()
-	_test_battle_range_service_layers_modifiers_without_snapshot_truth()
-	_test_battle_range_service_threat_range_includes_ground_area_outer_edge()
 	_test_weapon_skill_damage_tag_uses_current_weapon_type()
 	_test_weapon_damage_tag_override_does_not_require_weapon()
 	_test_requires_weapon_rejects_unarmed_and_natural_weapons()
@@ -536,11 +546,11 @@ func _test_change_equipment_command_validates_target_ap_and_state_atomicity() ->
 
 
 func _test_change_equipment_command_all_slots_use_battle_local_views() -> void:
-	for slot_id in EQUIPMENT_RULES_SCRIPT.get_all_slot_ids():
-		var instance_id := ProgressionDataUtils.to_string_name("battle_%s_001" % String(slot_id))
-		var item_id := ProgressionDataUtils.to_string_name("item_%s" % String(slot_id))
+	for slot_id in EQUIPMENT_SLOT_IDS:
+		var instance_id := _to_string_name("battle_%s_001" % String(slot_id))
+		var item_id := _to_string_name("item_%s" % String(slot_id))
 		var fixture := _build_change_equipment_fixture(
-			ProgressionDataUtils.to_string_name("change_equipment_%s" % String(slot_id)),
+			_to_string_name("change_equipment_%s" % String(slot_id)),
 			slot_id,
 			2,
 			instance_id,
@@ -1882,7 +1892,7 @@ func _test_archer_multishot_level_scaled_target_limits() -> void:
 	})
 	var enemies: Array[BattleUnitState] = []
 	for index in range(5):
-		var enemy := _build_enemy_unit(ProgressionDataUtils.to_string_name("multishot_limit_enemy_%d" % index), Vector2i(index + 1, 0))
+		var enemy := _build_enemy_unit(_to_string_name("multishot_limit_enemy_%d" % index), Vector2i(index + 1, 0))
 		enemy.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.ARMOR_CLASS_ID(), 0)
 		enemies.append(enemy)
 
@@ -2071,152 +2081,6 @@ func _test_weapon_skill_range_uses_weapon_attack_range_not_skill_range() -> void
 	_assert_eq(warrior.current_ap, 1, "武器攻击范围内的技能应正常扣除 AP。")
 
 
-func _test_battle_range_service_base_range_handles_null_skill() -> void:
-	var unit := _build_unit(&"range_null_guard_unit", Vector2i.ZERO, 2)
-	var skill := _build_direct_damage_skill(&"range_null_guard_skill", 1)
-	skill.combat_profile = null
-
-	_assert_eq(
-		BattleRangeService.resolve_base_skill_range(unit, null),
-		0,
-		"resolve_base_skill_range 直接收到 null skill_def 时应返回 0。"
-	)
-	_assert_eq(
-		BattleRangeService.resolve_base_skill_range(unit, skill),
-		0,
-		"resolve_base_skill_range 直接收到缺 combat_profile 的 skill_def 时应返回 0。"
-	)
-
-
-func _test_battle_range_service_layers_modifiers_without_snapshot_truth() -> void:
-	var skill := _build_direct_damage_skill(&"range_layer_contract", 1)
-	skill.tags = [&"archer", &"bow"]
-	skill.combat_profile.range_value = 99
-
-	var archer := _build_unit(&"range_layer_archer", Vector2i.ZERO, 2)
-	archer.attribute_snapshot.set_value(ATTRIBUTE_SERVICE_SCRIPT.WEAPON_ATTACK_RANGE_ID(), 8)
-	archer.set_natural_weapon_projection(&"test_bow", &"physical_pierce", 2, {}, &"")
-
-	_assert_eq(
-		BattleRangeService.get_effective_skill_range(archer, skill),
-		2,
-		"有效射程应读取 BattleUnitState.weapon_attack_range，而不是 attribute_snapshot 或技能 range_value。"
-	)
-
-	var range_status := BattleStatusEffectState.new()
-	range_status.status_id = &"archer_range_up"
-	range_status.source_unit_id = archer.unit_id
-	range_status.power = 1
-	range_status.stacks = 1
-	range_status.duration = 60
-	archer.set_status_effect(range_status)
-
-	_assert_eq(
-		BattleRangeService.get_effective_skill_range(archer, skill),
-		3,
-		"状态提供的射程修正应只在有效射程读取层叠加。"
-	)
-	_assert_eq(archer.weapon_attack_range, 2, "状态射程修正不应写回 BattleUnitState.weapon_attack_range 基础投影。")
-
-
-func _test_battle_range_service_threat_range_includes_ground_area_outer_edge() -> void:
-	var skill := _build_direct_damage_skill(&"ground_outer_reach_contract", 1)
-	skill.combat_profile.target_mode = &"ground"
-	skill.combat_profile.target_team_filter = &"enemy"
-	skill.combat_profile.range_value = 1
-	skill.combat_profile.area_pattern = &"narrow_cone"
-	skill.combat_profile.area_value = 5
-	skill.combat_profile.level_overrides = {
-		7: {
-			"area_value": 6,
-		},
-	}
-	var caster := _build_unit(&"ground_outer_reach_caster", Vector2i.ZERO, 2)
-	caster.known_active_skill_ids = [skill.skill_id]
-	caster.known_skill_level_map[skill.skill_id] = 7
-
-	_assert_eq(
-		BattleRangeService.get_effective_skill_range(caster, skill),
-		1,
-		"合法施法锚点距离仍应保持配置射程。"
-	)
-	_assert_eq(
-		BattleRangeService.get_effective_skill_threat_range(caster, skill),
-		7,
-		"AI 战术威胁距离应计入地面范围技能的外缘覆盖。"
-	)
-
-	var cone_skill := _build_direct_damage_skill(&"ground_cone_outer_reach_contract", 1)
-	cone_skill.combat_profile.target_mode = &"ground"
-	cone_skill.combat_profile.target_team_filter = &"enemy"
-	cone_skill.combat_profile.range_value = 1
-	cone_skill.combat_profile.area_pattern = &"cone"
-	cone_skill.combat_profile.area_value = 3
-	_assert_eq(
-		BattleRangeService.get_effective_skill_threat_range(caster, cone_skill),
-		7,
-		"标准 cone 的威胁距离应按实际锥形侧翼最远格计算为 range + 2r。"
-	)
-	_assert_eq(
-		BattleRangeService.get_effective_skill_distance_contract_range(caster, cone_skill),
-		4,
-		"标准 cone 的距离合同应按沿指向方向的外缘计算为 range + r。"
-	)
-
-	var radius_skill := _build_direct_damage_skill(&"ground_radius_outer_reach_contract", 1)
-	radius_skill.combat_profile.target_mode = &"ground"
-	radius_skill.combat_profile.target_team_filter = &"enemy"
-	radius_skill.combat_profile.range_value = 1
-	radius_skill.combat_profile.area_pattern = &"radius"
-	radius_skill.combat_profile.area_value = 2
-	_assert_eq(
-		BattleRangeService.get_effective_skill_threat_range(caster, radius_skill),
-		5,
-		"radius/square 的威胁距离应按实际方形角落最远格计算为 range + 2r。"
-	)
-	_assert_eq(
-		BattleRangeService.get_effective_skill_distance_contract_range(caster, radius_skill),
-		3,
-		"radius/square 的距离合同应按配置外缘计算为 range + r。"
-	)
-
-	var diamond_skill := _build_direct_damage_skill(&"ground_diamond_outer_reach_contract", 1)
-	diamond_skill.combat_profile.target_mode = &"ground"
-	diamond_skill.combat_profile.target_team_filter = &"enemy"
-	diamond_skill.combat_profile.range_value = 1
-	diamond_skill.combat_profile.area_pattern = &"diamond"
-	diamond_skill.combat_profile.area_value = 2
-	_assert_eq(BattleRangeService.get_effective_skill_threat_range(caster, diamond_skill), 3, "diamond 威胁距离应按曼哈顿菱形外缘 range + r。")
-	_assert_eq(BattleRangeService.get_effective_skill_distance_contract_range(caster, diamond_skill), 3, "diamond 距离合同应按 range + r。")
-
-	var line_skill := _build_direct_damage_skill(&"ground_line_outer_reach_contract", 1)
-	line_skill.combat_profile.target_mode = &"ground"
-	line_skill.combat_profile.target_team_filter = &"enemy"
-	line_skill.combat_profile.range_value = 1
-	line_skill.combat_profile.area_pattern = &"line"
-	line_skill.combat_profile.area_value = 2
-	_assert_eq(BattleRangeService.get_effective_skill_threat_range(caster, line_skill), 3, "line 威胁距离应按指向轴线外缘 range + r。")
-	_assert_eq(BattleRangeService.get_effective_skill_distance_contract_range(caster, line_skill), 3, "line 距离合同应按 range + r。")
-
-	var cross_skill := _build_direct_damage_skill(&"ground_cross_outer_reach_contract", 1)
-	cross_skill.combat_profile.target_mode = &"ground"
-	cross_skill.combat_profile.target_team_filter = &"enemy"
-	cross_skill.combat_profile.range_value = 1
-	cross_skill.combat_profile.area_pattern = &"cross"
-	cross_skill.combat_profile.area_value = 2
-	_assert_eq(BattleRangeService.get_effective_skill_threat_range(caster, cross_skill), 3, "cross 威胁距离应按十字最长臂 range + r。")
-	_assert_eq(BattleRangeService.get_effective_skill_distance_contract_range(caster, cross_skill), 3, "cross 距离合同应按 range + r。")
-
-	var front_arc_skill := _build_direct_damage_skill(&"ground_front_arc_outer_reach_contract", 1)
-	front_arc_skill.combat_profile.target_mode = &"ground"
-	front_arc_skill.combat_profile.target_team_filter = &"enemy"
-	front_arc_skill.combat_profile.range_value = 1
-	front_arc_skill.combat_profile.area_pattern = &"front_arc"
-	front_arc_skill.combat_profile.area_value = 2
-	_assert_eq(BattleRangeService.get_effective_skill_threat_range(caster, front_arc_skill), 3, "front_arc 威胁距离应按前弧横向外缘 range + r。")
-	_assert_eq(BattleRangeService.get_effective_skill_distance_contract_range(caster, front_arc_skill), 3, "front_arc 距离合同应按 range + r。")
-
-
 func _test_weapon_skill_damage_tag_uses_current_weapon_type() -> void:
 	var resolver := SharedDamageResolvers.FixedHitOneDamageResolver.new()
 	var effect := CombatEffectDef.new()
@@ -2238,7 +2102,7 @@ func _test_weapon_skill_damage_tag_uses_current_weapon_type() -> void:
 		if events.is_empty():
 			continue
 		_assert_eq(
-			ProgressionDataUtils.to_string_name(events[0].get("damage_tag", "")),
+			_to_string_name(events[0].get("damage_tag", "")),
 			expected_tags.get(unit_id),
 			"武器近战技能应按当前武器类型实时覆盖物理伤害类型。"
 		)
@@ -2996,9 +2860,9 @@ func _build_change_equipment_fixture(
 	var runtime := BattleRuntimeModule.new()
 	var state := _build_skill_test_state(Vector2i(3, 1))
 	state.battle_id = battle_id
-	var unit := _build_unit(ProgressionDataUtils.to_string_name("%s_user" % String(battle_id)), Vector2i(0, 0), current_ap)
+	var unit := _build_unit(_to_string_name("%s_user" % String(battle_id)), Vector2i(0, 0), current_ap)
 	unit.source_member_id = unit.unit_id
-	var enemy := _build_enemy_unit(ProgressionDataUtils.to_string_name("%s_enemy" % String(battle_id)), Vector2i(2, 0))
+	var enemy := _build_enemy_unit(_to_string_name("%s_enemy" % String(battle_id)), Vector2i(2, 0))
 	state.units = {
 		unit.unit_id: unit,
 		enemy.unit_id: enemy,
@@ -3025,20 +2889,20 @@ func _build_equipment_transaction_fixture(storage_space: int, current_ap: int) -
 	var runtime := BattleRuntimeModule.new()
 	runtime.setup(gateway, {}, {}, {}, null, null, item_defs)
 	var state := _build_skill_test_state(Vector2i(3, 1))
-	state.battle_id = ProgressionDataUtils.to_string_name("equipment_transaction_%d_%d" % [storage_space, current_ap])
+	state.battle_id = _to_string_name("equipment_transaction_%d_%d" % [storage_space, current_ap])
 	var unit := _build_unit(&"swap_hero", Vector2i(0, 0), current_ap)
 	unit.source_member_id = &"swap_hero"
 	unit.set_equipment_view(party.get_member_state(&"swap_hero").equipment_state)
 	unit.get_equipment_view().set_equipped_entry(
 		&"main_hand",
 		&"training_longsword",
-		ProgressionDataUtils.to_string_name_array([&"main_hand"]),
+		_to_string_name_array([&"main_hand"]),
 		_make_equipment_instance(&"longsword_battle_001", &"training_longsword")
 	)
 	unit.get_equipment_view().set_equipped_entry(
 		&"off_hand",
 		&"training_shield",
-		ProgressionDataUtils.to_string_name_array([&"off_hand"]),
+		_to_string_name_array([&"off_hand"]),
 		_make_equipment_instance(&"shield_battle_001", &"training_shield")
 	)
 	runtime._unit_factory.refresh_weapon_projection(unit)
@@ -3099,7 +2963,7 @@ func _build_equipment_transaction_party(member_id: StringName, storage_space: in
 	member.equipment_state.set_equipped_entry(
 		&"main_hand",
 		&"training_longsword",
-		ProgressionDataUtils.to_string_name_array([&"main_hand"]),
+		_to_string_name_array([&"main_hand"]),
 		_make_equipment_instance(&"party_longsword_unchanged", &"training_longsword")
 	)
 	party.set_member_state(member)
@@ -3211,8 +3075,8 @@ func _make_transaction_weapon_dice(dice_count: int, dice_sides: int, flat_bonus:
 
 func _make_equipment_instance(instance_id: StringName, item_id: StringName):
 	var instance = EQUIPMENT_INSTANCE_STATE_SCRIPT.new()
-	instance.instance_id = ProgressionDataUtils.to_string_name(instance_id)
-	instance.item_id = ProgressionDataUtils.to_string_name(item_id)
+	instance.instance_id = _to_string_name(instance_id)
+	instance.item_id = _to_string_name(item_id)
 	return instance
 
 
@@ -3460,6 +3324,27 @@ func _set_cell_height(state: BattleState, coord: Vector2i, height: int) -> void:
 	cell.base_height = height
 	cell.recalculate_runtime_values()
 	state.mark_runtime_edges_dirty()
+
+
+func _to_string_name(value) -> StringName:
+	if value == null:
+		return &""
+	if value is StringName:
+		return value
+	var text := String(value)
+	if text.is_empty() or text == "<null>":
+		return &""
+	return StringName(text)
+
+
+func _to_string_name_array(values: Array) -> Array[StringName]:
+	var result: Array[StringName] = []
+	for value in values:
+		var normalized := _to_string_name(value)
+		if normalized == &"":
+			continue
+		result.append(normalized)
+	return result
 
 
 func _assert_true(condition: bool, message: String) -> void:

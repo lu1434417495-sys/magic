@@ -42,10 +42,32 @@ public partial class BattleUnitFactory : RefCounted
     private IReadOnlyDictionary<StringName, SkillDef> GetSkillDefIndex() =>
         _runtime?.GetSkillDefIndexTyped();
 
-    private Godot.Collections.Dictionary GetItemDefs() =>
-        _runtime?.get_item_defs() ?? new Godot.Collections.Dictionary();
-
     private BattleTerrainGenerator GetTerrainGenerator() => _runtime?.get_terrain_generator();
+
+    private Dictionary<StringName, ItemDef> BuildItemDefIndexSnapshotWithGatewayItem(
+        StringName itemId
+    )
+    {
+        Dictionary<StringName, ItemDef> itemDefs =
+            _runtime?.BuildItemDefIndexSnapshotTyped() ?? new Dictionary<StringName, ItemDef>();
+        StringName normalizedItemId = ProgressionDataUtils.to_string_name(itemId);
+        if (normalizedItemId == "")
+        {
+            return itemDefs;
+        }
+        ItemDef gatewayItemDef = GetCharacterGateway()?.get_item_def(normalizedItemId);
+        if (gatewayItemDef == null)
+        {
+            return itemDefs;
+        }
+        itemDefs[normalizedItemId] = gatewayItemDef;
+        StringName defItemId = ProgressionDataUtils.to_string_name(gatewayItemDef.item_id);
+        if (defItemId != "")
+        {
+            itemDefs[defItemId] = gatewayItemDef;
+        }
+        return itemDefs;
+    }
 
     private PartyMemberState GetMemberState(StringName memberId)
     {
@@ -561,7 +583,7 @@ public partial class BattleUnitFactory : RefCounted
             && sd.can_use_in_combat()
             && cp != null
             && BattleTypedNames.ToTargetMode(cp.target_mode) == BattleTargetMode.Unit
-            && BattleTargetTeamRules.is_enemy_filter(cp.target_team_filter);
+            && BattleTargetTeamRules.IsEnemyFilter(cp.target_team_filter);
     }
 
     private void _filter_skills_by_equipment_requirements(BattleUnitState us)
@@ -578,15 +600,15 @@ public partial class BattleUnitFactory : RefCounted
             if (cp.requires_equipped_shield && !_unit_has_equipped_shield(us))
                 continue;
             if (
-                !BattleRangeService.unit_matches_required_weapon_families(
+                !BattleRangeService.UnitMatchesRequiredWeaponFamilies(
                     us,
                     cp.required_weapon_families ?? new Godot.Collections.Array<StringName>()
                 )
             )
                 continue;
             if (
-                BattleRangeService.requires_current_melee_weapon(sd)
-                && !BattleRangeService.unit_has_melee_weapon(us)
+                BattleRangeService.RequiresCurrentMeleeWeapon(sd)
+                && !BattleRangeService.UnitHasMeleeWeapon(us)
             )
                 continue;
             f.Add(sid);
@@ -596,18 +618,14 @@ public partial class BattleUnitFactory : RefCounted
 
     private bool _unit_has_equipped_shield(BattleUnitState us)
     {
-        var ev = us.get_equipment_view();
+        var ev = us?.get_equipment_view();
         if (ev == null)
             return false;
         var oid = ev.get_equipped_item_id(EquipmentRules.OFF_HAND());
-        if ((string)oid == "")
-            return false;
-        var ids = GetItemDefs();
-        ItemDef id = GetCharacterGateway()?.get_item_def(oid)
-            ?? (ids.ContainsKey(oid) ? ids[oid].As<ItemDef>() : null);
-        if (id == null)
-            return false;
-        return _arr_contains_str(id.get_tags(), "shield");
+        return BattleEquipmentRequirementRules.UnitHasEquippedShield(
+            us,
+            BuildItemDefIndexSnapshotWithGatewayItem(oid)
+        );
     }
 
     private static Godot.Collections.Array _extract_ally_member_ids(
@@ -1121,13 +1139,4 @@ public partial class BattleUnitFactory : RefCounted
         return source[key].AsGodotArray();
     }
 
-    private static bool _arr_contains_str(Godot.Collections.Array<StringName> a, StringName v)
-    {
-        if (a == null)
-            return false;
-        foreach (var i in a)
-            if (ProgressionDataUtils.to_string_name(i) == v)
-                return true;
-        return false;
-    }
 }

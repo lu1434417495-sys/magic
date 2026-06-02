@@ -1,9 +1,7 @@
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
 
-[GlobalClass]
-public partial class BattleTargetTeamRules : RefCounted
+public static class BattleTargetTeamRules
 {
     private static readonly StringName EmptyStringName = "";
 
@@ -15,7 +13,7 @@ public partial class BattleTargetTeamRules : RefCounted
         public static readonly TargetFilterOptions Default = new();
     }
 
-    public static StringName resolve_effect_target_filter(
+    public static StringName ResolveEffectTargetFilter(
         SkillDef skill_def,
         CombatEffectDef effect_def
     )
@@ -26,7 +24,7 @@ public partial class BattleTargetTeamRules : RefCounted
         return skill_def?.combat_profile?.target_team_filter ?? EmptyStringName;
     }
 
-    public static bool is_unit_valid_for_filter(
+    public static bool IsUnitValidForFilter(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         StringName target_team_filter,
@@ -67,13 +65,13 @@ public partial class BattleTargetTeamRules : RefCounted
         }
     }
 
-    public static bool is_beneficial_filter(StringName target_team_filter)
+    public static bool IsBeneficialFilter(StringName target_team_filter)
     {
         BattleTargetFilter filter = BattleTypedNames.ToTargetFilter(target_team_filter);
         return filter is BattleTargetFilter.Ally or BattleTargetFilter.Self;
     }
 
-    public static bool is_enemy_filter(StringName target_team_filter)
+    public static bool IsEnemyFilter(StringName target_team_filter)
     {
         return BattleTypedNames.ToTargetFilter(target_team_filter) == BattleTargetFilter.Enemy;
     }

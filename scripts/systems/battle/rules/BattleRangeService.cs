@@ -1,11 +1,8 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class BattleRangeService : RefCounted
+public static class BattleRangeService
 {
     private static readonly StringName EmptyStringName = "";
     private static readonly StringName StatusArcherRangeUp = "archer_range_up";
@@ -26,24 +23,24 @@ public partial class BattleRangeService : RefCounted
 
     private readonly record struct StatusEffectData(int Power, int RangeBonus);
 
-    public static int get_weapon_attack_range(BattleUnitState unit_state)
+    public static int GetWeaponAttackRange(BattleUnitState unitState)
     {
-        return BuildUnitRangeInfo(unit_state).WeaponAttackRange;
+        return BuildUnitRangeInfo(unitState).WeaponAttackRange;
     }
 
-    public static bool unit_has_melee_weapon(BattleUnitState unit_state)
+    public static bool UnitHasMeleeWeapon(BattleUnitState unitState)
     {
-        return UnitHasMeleeWeapon(BuildUnitRangeInfo(unit_state));
+        return UnitHasMeleeWeapon(BuildUnitRangeInfo(unitState));
     }
 
-    public static bool unit_matches_required_weapon_families(
-        BattleUnitState unit_state,
-        Godot.Collections.Array<StringName> required_weapon_families
+    public static bool UnitMatchesRequiredWeaponFamilies(
+        BattleUnitState unitState,
+        IEnumerable<StringName> requiredWeaponFamilies
     )
     {
         return UnitMatchesRequiredWeaponFamilies(
-            BuildUnitRangeInfo(unit_state),
-            required_weapon_families
+            BuildUnitRangeInfo(unitState),
+            requiredWeaponFamilies
         );
     }
 
@@ -57,76 +54,82 @@ public partial class BattleRangeService : RefCounted
 
     private static bool UnitMatchesRequiredWeaponFamilies(
         UnitRangeInfo unitInfo,
-        Godot.Collections.Array<StringName> required_weapon_families
+        IEnumerable<StringName> requiredWeaponFamilies
     )
     {
-        if (required_weapon_families == null || required_weapon_families.Count == 0)
+        bool hasRequiredFamily = false;
+        if (requiredWeaponFamilies == null)
         {
             return true;
         }
-        if (!UnitHasMeleeWeapon(unitInfo))
+        foreach (StringName familyValue in requiredWeaponFamilies)
         {
-            return false;
-        }
-        StringName currentFamily = unitInfo.WeaponFamily;
-        if (IsEmpty(currentFamily))
-        {
-            return false;
-        }
-        foreach (StringName familyValue in required_weapon_families)
-        {
+            if (IsEmpty(familyValue))
+            {
+                continue;
+            }
+            hasRequiredFamily = true;
+            if (!UnitHasMeleeWeapon(unitInfo))
+            {
+                return false;
+            }
+            StringName currentFamily = unitInfo.WeaponFamily;
+            if (IsEmpty(currentFamily))
+            {
+                return false;
+            }
             if (familyValue == currentFamily)
             {
                 return true;
             }
         }
-        return false;
+        return !hasRequiredFamily;
     }
 
-    public static int get_effective_skill_range(BattleUnitState unit_state, SkillDef skill_def)
+    public static int GetEffectiveSkillRange(BattleUnitState unitState, SkillDef skillDef)
     {
-        UnitRangeInfo unitInfo = BuildUnitRangeInfo(unit_state);
-        return GetEffectiveSkillRange(unitInfo, skill_def);
+        UnitRangeInfo unitInfo = BuildUnitRangeInfo(unitState);
+        return GetEffectiveSkillRange(unitInfo, skillDef);
     }
 
-    private static int GetEffectiveSkillRange(UnitRangeInfo unitInfo, SkillDef skill_def)
+    private static int GetEffectiveSkillRange(UnitRangeInfo unitInfo, SkillDef skillDef)
     {
-        CombatSkillDef combatProfile = skill_def?.combat_profile;
-        if (skill_def == null || combatProfile == null)
+        CombatSkillDef combatProfile = skillDef?.combat_profile;
+        if (skillDef == null || combatProfile == null)
         {
             return 0;
         }
-        int skillRange = ResolveBaseSkillRange(unitInfo, skill_def);
-        skillRange += GetRangeModifierBonus(unitInfo, skill_def);
+        int skillRange = ResolveBaseSkillRange(unitInfo, skillDef);
+        skillRange += GetRangeModifierBonus(unitInfo, skillDef);
         return Math.Max(skillRange, 0);
     }
 
-    public static int get_effective_skill_threat_range(
-        BattleUnitState unit_state,
-        SkillDef skill_def
+    public static int GetEffectiveSkillThreatRange(
+        BattleUnitState unitState,
+        SkillDef skillDef
     )
     {
-        UnitRangeInfo unitInfo = BuildUnitRangeInfo(unit_state);
-        int skillRange = GetEffectiveSkillRange(unitInfo, skill_def);
-        skillRange += GetGroundEffectReachBonus(unitInfo, skill_def);
+        UnitRangeInfo unitInfo = BuildUnitRangeInfo(unitState);
+        int skillRange = GetEffectiveSkillRange(unitInfo, skillDef);
+        skillRange += GetGroundEffectReachBonus(unitInfo, skillDef);
         return Math.Max(skillRange, 0);
     }
 
-    public static int get_effective_skill_distance_contract_range(
-        BattleUnitState unit_state,
-        SkillDef skill_def
+    public static int GetEffectiveSkillDistanceContractRange(
+        BattleUnitState unitState,
+        SkillDef skillDef
     )
     {
-        UnitRangeInfo unitInfo = BuildUnitRangeInfo(unit_state);
-        int skillRange = GetEffectiveSkillRange(unitInfo, skill_def);
-        skillRange += GetGroundEffectDistanceContractBonus(unitInfo, skill_def);
+        UnitRangeInfo unitInfo = BuildUnitRangeInfo(unitState);
+        int skillRange = GetEffectiveSkillRange(unitInfo, skillDef);
+        skillRange += GetGroundEffectDistanceContractBonus(unitInfo, skillDef);
         return Math.Max(skillRange, 0);
     }
 
-    public static bool requires_current_melee_weapon(SkillDef skill_def)
+    public static bool RequiresCurrentMeleeWeapon(SkillDef skillDef)
     {
-        CombatSkillDef typedCombatProfile = skill_def?.combat_profile;
-        if (skill_def == null || typedCombatProfile == null)
+        CombatSkillDef typedCombatProfile = skillDef?.combat_profile;
+        if (skillDef == null || typedCombatProfile == null)
         {
             return false;
         }
@@ -148,43 +151,43 @@ public partial class BattleRangeService : RefCounted
         return false;
     }
 
-    public static bool is_weapon_range_skill(SkillDef skill_def)
+    public static bool IsWeaponRangeSkill(SkillDef skillDef)
     {
-        return SkillHasTag(skill_def, "melee")
-            || SkillHasTag(skill_def, "bow")
-            || SkillHasTag(skill_def, "weapon");
+        return SkillHasTag(skillDef, "melee")
+            || SkillHasTag(skillDef, "bow")
+            || SkillHasTag(skillDef, "weapon");
     }
 
-    public static int resolve_base_skill_range(BattleUnitState unit_state, SkillDef skill_def)
+    public static int ResolveBaseSkillRange(BattleUnitState unitState, SkillDef skillDef)
     {
-        return ResolveBaseSkillRange(BuildUnitRangeInfo(unit_state), skill_def);
+        return ResolveBaseSkillRange(BuildUnitRangeInfo(unitState), skillDef);
     }
 
-    private static int ResolveBaseSkillRange(UnitRangeInfo unitInfo, SkillDef skill_def)
+    private static int ResolveBaseSkillRange(UnitRangeInfo unitInfo, SkillDef skillDef)
     {
-        CombatSkillDef combatProfile = skill_def?.combat_profile;
-        if (skill_def == null || combatProfile == null)
+        CombatSkillDef combatProfile = skillDef?.combat_profile;
+        if (skillDef == null || combatProfile == null)
         {
             return 0;
         }
-        int skillLevel = GetUnitSkillLevel(unitInfo, skill_def.skill_id);
+        int skillLevel = GetUnitSkillLevel(unitInfo, skillDef.skill_id);
         int configuredRange = Math.Max(combatProfile.get_effective_range_value(skillLevel), 0);
-        if (is_ground_relocation_skill(skill_def))
+        if (IsGroundRelocationSkill(skillDef))
         {
             return configuredRange;
         }
-        if (requires_current_melee_weapon(skill_def))
+        if (RequiresCurrentMeleeWeapon(skillDef))
         {
             return unitInfo.WeaponAttackRange;
         }
-        if (is_weapon_range_skill(skill_def))
+        if (IsWeaponRangeSkill(skillDef))
         {
             int weaponRange = unitInfo.WeaponAttackRange;
             if (weaponRange > 0)
             {
                 return weaponRange;
             }
-            if (SkillHasTag(skill_def, "melee"))
+            if (SkillHasTag(skillDef, "melee"))
             {
                 return 1;
             }
@@ -192,16 +195,16 @@ public partial class BattleRangeService : RefCounted
         return configuredRange;
     }
 
-    public static bool is_ground_jump_skill(SkillDef skill_def)
+    public static bool IsGroundJumpSkill(SkillDef skillDef)
     {
-        return is_ground_relocation_skill(skill_def);
+        return IsGroundRelocationSkill(skillDef);
     }
 
-    public static bool is_ground_relocation_skill(SkillDef skill_def)
+    public static bool IsGroundRelocationSkill(SkillDef skillDef)
     {
-        CombatSkillDef combatProfile = skill_def?.combat_profile;
+        CombatSkillDef combatProfile = skillDef?.combat_profile;
         if (
-            skill_def == null
+            skillDef == null
             || combatProfile == null
             || BattleTypedNames.ToTargetMode(combatProfile.target_mode) != BattleTargetMode.Ground
         )
@@ -225,14 +228,14 @@ public partial class BattleRangeService : RefCounted
         return false;
     }
 
-    public static bool effect_uses_weapon_physical_damage_tag(CombatEffectDef effect_def)
+    public static bool EffectUsesWeaponPhysicalDamageTag(CombatEffectDef effectDef)
     {
-        return effect_def?.use_weapon_physical_damage_tag ?? false;
+        return effectDef?.use_weapon_physical_damage_tag ?? false;
     }
 
-    public static bool effect_requires_weapon(CombatEffectDef effect_def)
+    public static bool EffectRequiresWeapon(CombatEffectDef effectDef)
     {
-        return EffectRequiresWeapon(effect_def);
+        return EffectRequiresWeaponInternal(effectDef);
     }
 
     private static int GetRangeModifierBonus(UnitRangeInfo unitInfo, SkillDef skillDef)
@@ -246,9 +249,9 @@ public partial class BattleRangeService : RefCounted
             )
             && UnitMatchesRequiredWeaponFamilies(
                 unitInfo,
-                new Godot.Collections.Array<StringName> { WeaponFamilyBow }
+                new[] { WeaponFamilyBow }
             )
-            && (requires_current_melee_weapon(skillDef) || is_weapon_range_skill(skillDef))
+            && (RequiresCurrentMeleeWeapon(skillDef) || IsWeaponRangeSkill(skillDef))
         )
         {
             bonus += Math.Max(shootingStatus.RangeBonus, 0);
@@ -265,7 +268,7 @@ public partial class BattleRangeService : RefCounted
         }
         if (
             BattleTypedNames.ToTargetMode(combatProfile.target_mode) != BattleTargetMode.Ground
-            || is_ground_relocation_skill(skillDef)
+            || IsGroundRelocationSkill(skillDef)
         )
         {
             return 0;
@@ -290,7 +293,7 @@ public partial class BattleRangeService : RefCounted
         }
         if (
             BattleTypedNames.ToTargetMode(combatProfile.target_mode) != BattleTargetMode.Ground
-            || is_ground_relocation_skill(skillDef)
+            || IsGroundRelocationSkill(skillDef)
         )
         {
             return 0;
@@ -322,18 +325,18 @@ public partial class BattleRangeService : RefCounted
         return unitState.known_active_skill_ids.Contains(skillId) ? 1 : 0;
     }
 
-    private static bool EffectRequiresWeapon(CombatEffectDef effectDef)
+    private static bool EffectRequiresWeaponInternal(CombatEffectDef effectDef)
     {
         return effectDef?.requires_weapon ?? false;
     }
 
     private static bool EffectListRequiresWeapon(
-        Godot.Collections.Array<CombatEffectDef> effectDefs
+        IEnumerable<CombatEffectDef> effectDefs
     )
     {
-        foreach (CombatEffectDef effectDef in effectDefs ?? new Godot.Collections.Array<CombatEffectDef>())
+        foreach (CombatEffectDef effectDef in effectDefs ?? Array.Empty<CombatEffectDef>())
         {
-            if (EffectRequiresWeapon(effectDef))
+            if (EffectRequiresWeaponInternal(effectDef))
             {
                 return true;
             }
@@ -342,10 +345,10 @@ public partial class BattleRangeService : RefCounted
     }
 
     private static bool EffectListHasGroundRelocation(
-        Godot.Collections.Array<CombatEffectDef> effectDefs
+        IEnumerable<CombatEffectDef> effectDefs
     )
     {
-        foreach (CombatEffectDef effectDef in effectDefs ?? new Godot.Collections.Array<CombatEffectDef>())
+        foreach (CombatEffectDef effectDef in effectDefs ?? Array.Empty<CombatEffectDef>())
         {
             if (IsGroundRelocationEffect(effectDef))
             {
@@ -435,50 +438,16 @@ public partial class BattleRangeService : RefCounted
         info.StatusEffects[statusId] = BuildStatusEffectData(effectState.power, effectState.@params);
     }
 
-    private static StatusEffectData BuildStatusEffectData(int power, GDictionary parameters)
+    private static StatusEffectData BuildStatusEffectData(
+        int power,
+        Godot.Collections.Dictionary parameters
+    )
     {
         int rangeBonus = ReadInt(parameters, "range_bonus", power);
         return new StatusEffectData(power, rangeBonus);
     }
 
-    private static Dictionary<StringName, int> BuildStringNameIntMap(GDictionary rawMap)
-    {
-        var result = new Dictionary<StringName, int>();
-        if (rawMap == null || rawMap.Count == 0)
-        {
-            return result;
-        }
-        foreach (var keyValue in rawMap.Keys)
-        {
-            StringName key = ToStringName(keyValue);
-            if (!IsEmpty(key))
-            {
-                result[key] = ReadInt(rawMap, key.ToString());
-            }
-        }
-        return result;
-    }
-
-    private static HashSet<StringName> BuildStringNameSet(GArray rawValues)
-    {
-        var result = new HashSet<StringName>();
-        foreach (var value in rawValues)
-        {
-            StringName item = ToStringName(value);
-            if (!IsEmpty(item))
-            {
-                result.Add(item);
-            }
-        }
-        return result;
-    }
-
-    private static StringName ToStringName<TValue>(TValue rawValue)
-    {
-        return ProgressionDataUtils.to_string_name(rawValue);
-    }
-
-    private static int ReadInt(GDictionary data, string key, int fallback = 0)
+    private static int ReadInt(Godot.Collections.Dictionary data, string key, int fallback = 0)
     {
         if (data == null || string.IsNullOrEmpty(key))
             return fallback;

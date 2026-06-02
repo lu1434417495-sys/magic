@@ -40,6 +40,11 @@ public partial class FixedHitResolver : BattleHitResolver
     public override GDictionary resolve_spell_control_metadata(
         BattleUnitState source_unit,
         AttackContext attack_context
+    ) => resolve_spell_control_metadata_typed(source_unit, attack_context).ToDictionary();
+
+    public override BattleSpellControlMetadata resolve_spell_control_metadata_typed(
+        BattleUnitState source_unit,
+        AttackContext attack_context
     )
     {
         StringName attackResolution = AttackResolutionHit;
@@ -60,15 +65,16 @@ public partial class FixedHitResolver : BattleHitResolver
             spellControlResolution = "critical_success";
             criticalHit = true;
         }
-        return new GDictionary
+        return new BattleSpellControlMetadata
         {
-            ["attack_resolution"] = attackResolution,
-            ["spell_control_resolution"] = spellControlResolution,
-            ["attack_success"] = attackSuccess,
-            ["critical_hit"] = criticalHit,
-            ["critical_fail"] = criticalFail,
-            ["ordinary_miss"] = false,
-            ["hit_roll"] = fixed_roll,
+            AttackResolution = attackResolution,
+            SpellControlResolution = spellControlResolution,
+            AttackSuccess = attackSuccess,
+            CriticalHit = criticalHit,
+            CriticalFail = criticalFail,
+            OrdinaryMiss = false,
+            HitRoll = fixed_roll,
+            EffectiveHitRoll = fixed_roll,
         };
     }
 

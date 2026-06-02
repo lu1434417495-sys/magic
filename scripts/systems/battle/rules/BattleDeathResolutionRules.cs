@@ -1,47 +1,32 @@
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class BattleDeathResolutionRules : RefCounted
+public readonly record struct DeathResolutionContext(StringName DeathSource, int DeathSourcePriority)
 {
-    public static string KEY_DEATH_SOURCE() => "death_source";
+    public bool HasDeathSource =>
+        DeathSource != default && !string.IsNullOrEmpty(DeathSource.ToString());
+}
 
-    public static string KEY_DEATH_SOURCE_PRIORITY() => "death_source_priority";
+public static class BattleDeathResolutionRules
+{
+    public const string DeathSourcePayloadKey = "death_source";
+    public const string DeathSourcePriorityPayloadKey = "death_source_priority";
 
-    public static StringName DEATH_SOURCE_DAMAGE() => "damage";
+    private static readonly StringName DeathSourceDamage = "damage";
+    private static readonly StringName DeathSourcePowerWordKillExecute = "power_word_kill_execute";
 
-    public static StringName DEATH_SOURCE_POWER_WORD_KILL_EXECUTE() => "power_word_kill_execute";
+    public const int DeathPriorityNormalFatal = 100;
+    public const int DeathPriorityExecuteFatal = 900;
 
-    public static int DEATH_PRIORITY_NORMAL_FATAL() => 100;
+    public static StringName DamageDeathSource => DeathSourceDamage;
 
-    public static int DEATH_PRIORITY_EXECUTE_FATAL() => 900;
+    public static StringName PowerWordKillExecuteDeathSource => DeathSourcePowerWordKillExecute;
 
-    public static bool is_power_word_kill_execute(GDictionary context)
-    {
-        if (context == null)
-        {
-            return false;
-        }
-        return ReadStringName(context, KEY_DEATH_SOURCE()) == DEATH_SOURCE_POWER_WORD_KILL_EXECUTE();
-    }
+    public static DeathResolutionContext NormalFatalContext() =>
+        new(DeathSourceDamage, DeathPriorityNormalFatal);
 
-    public static bool is_power_word_kill_execute_without_context() => false;
+    public static DeathResolutionContext PowerWordKillExecuteContext() =>
+        new(DeathSourcePowerWordKillExecute, DeathPriorityExecuteFatal);
 
-    private static StringName ReadStringName(GDictionary source, string key)
-    {
-        if (source == null || string.IsNullOrEmpty(key))
-        {
-            return "";
-        }
-        if (source.ContainsKey(key))
-        {
-            return ProgressionDataUtils.to_string_name(source[key]);
-        }
-        var stringNameKey = new StringName(key);
-        if (source.ContainsKey(stringNameKey))
-        {
-            return ProgressionDataUtils.to_string_name(source[stringNameKey]);
-        }
-        return "";
-    }
+    public static bool IsPowerWordKillExecute(DeathResolutionContext context) =>
+        context.DeathSource == DeathSourcePowerWordKillExecute;
 }

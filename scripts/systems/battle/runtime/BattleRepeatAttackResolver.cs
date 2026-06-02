@@ -245,7 +245,7 @@ public partial class BattleRepeatAttackResolver : RefCounted
 
             if (damage > 0 || healing > 0 || !target_unit.is_alive)
             {
-                _runtime?.record_battle_contribution_result(
+                _runtime?.RecordBattleContributionResult(
                     active_unit,
                     target_unit,
                     damage,
@@ -292,7 +292,7 @@ public partial class BattleRepeatAttackResolver : RefCounted
             if (
                 effectDef != null
                 && resolutionRules != null
-                && resolutionRules.is_unit_effect(effectDef)
+                && resolutionRules.IsUnitEffect(effectDef)
             )
             {
                 stagedEffects.Add(effectDef);
@@ -528,7 +528,7 @@ public partial class BattleRepeatAttackResolver : RefCounted
         }
 
         BattleRepeatAttackStageSpec stageSpec = stage_spec;
-        BattleAttackCheckPolicyContext attackContext = attackPolicy.build_repeat_attack_stage_context(
+        BattleAttackCheckPolicyContext attackContext = attackPolicy.BuildRepeatAttackStageContext(
             battleState,
             active_unit,
             target_unit,
@@ -538,7 +538,7 @@ public partial class BattleRepeatAttackResolver : RefCounted
             new StringName("execute")
         );
         AttackCheckInput attackCheck =
-            attackPolicy.build_fate_aware_repeat_attack_stage_hit_check(attackContext);
+            attackPolicy.BuildFateAwareRepeatAttackStageHitCheck(attackContext);
         BattleDamageResolver damageResolver = runtime?.get_damage_resolver();
         int attackSuccessRatePercent = attackCheck.SuccessRatePercent;
         GDictionary legacyResult;
@@ -773,9 +773,7 @@ public partial class BattleRepeatAttackResolver : RefCounted
                 && damage_multiplier > 1.0
             )
             {
-                GDictionary stageParams = stageEffect.@params ?? new GDictionary();
-                stageParams["runtime_pre_resistance_damage_multiplier"] = damage_multiplier;
-                stageEffect.@params = stageParams;
+                stageEffect.pre_resistance_damage_multiplier = damage_multiplier;
             }
             stagedEffects.Add(stageEffect);
         }

@@ -2,8 +2,7 @@ using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class BattleAiScoreInput : RefCounted
+public sealed class BattleAiScoreInput
 {
     public BattleCommand command { get; set; }
     public SkillDef skill_def { get; set; }
@@ -110,23 +109,23 @@ public partial class BattleAiScoreInput : RefCounted
     private bool _sealed;
     private string _sealed_fingerprint = "";
 
-    public void seal()
+    internal void Seal()
     {
-        _sealed_fingerprint = FingerprintDictionary(to_dict());
+        _sealed_fingerprint = FingerprintDictionary(ToDictionary());
         _sealed = true;
     }
 
-    public bool is_sealed()
+    internal bool IsSealed()
     {
         return _sealed && !string.IsNullOrEmpty(_sealed_fingerprint);
     }
 
-    public bool matches_sealed_fingerprint()
+    internal bool MatchesSealedFingerprint()
     {
-        return is_sealed() && _sealed_fingerprint == FingerprintDictionary(to_dict());
+        return IsSealed() && _sealed_fingerprint == FingerprintDictionary(ToDictionary());
     }
 
-    public int[] to_move_to_range_ordering_facts()
+    internal int[] ToMoveToRangeOrderingFacts()
     {
         return new[]
         {
@@ -202,7 +201,7 @@ public partial class BattleAiScoreInput : RefCounted
         return position_objective_score > 0;
     }
 
-    public GDictionary to_dict()
+    internal GDictionary ToDictionary()
     {
         string resolved_skill_id = "";
         if (command != null && command.skill_id != "")

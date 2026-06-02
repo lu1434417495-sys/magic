@@ -1,4 +1,1 @@
-using Godot;
-
-[GlobalClass]
-public partial class BattleLayeredBarrierService : BattleBarrierService { }
+public sealed class BattleLayeredBarrierService : BattleBarrierService { }

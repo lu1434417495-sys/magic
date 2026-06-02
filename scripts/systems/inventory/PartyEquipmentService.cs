@@ -1,12 +1,13 @@
 using System;
 using System.Collections.Generic;
 using Godot;
+using GDictionary = Godot.Collections.Dictionary;
+using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-[GlobalClass]
-public partial class PartyEquipmentService : RefCounted
+public class PartyEquipmentService
 {
     private PartyState _party_state;
-    private Godot.Collections.Dictionary _item_defs = new();
+    private Dictionary<StringName, ItemDef> _item_defs = new();
     private PartyWarehouseService _warehouse_service;
 
     private sealed class EquipmentDisplacedEntry
@@ -30,8 +31,8 @@ public partial class PartyEquipmentService : RefCounted
         public readonly string ErrorCode;
         public readonly StringName EntrySlotId;
         public readonly StringName InstanceId;
-        public readonly Godot.Collections.Array<string> Blockers;
-        public readonly Godot.Collections.Array<StringName> OccupiedSlotIds;
+        public readonly List<string> Blockers;
+        public readonly List<StringName> OccupiedSlotIds;
         public readonly List<EquipmentDisplacedEntry> DisplacedEntries;
 
         private EquipmentEquipPreviewResult(
@@ -39,8 +40,8 @@ public partial class PartyEquipmentService : RefCounted
             string errorCode,
             StringName entrySlotId,
             StringName instanceId,
-            Godot.Collections.Array<string> blockers,
-            Godot.Collections.Array<StringName> occupiedSlotIds,
+            IEnumerable<string> blockers,
+            IEnumerable<StringName> occupiedSlotIds,
             List<EquipmentDisplacedEntry> displacedEntries
         )
         {
@@ -48,18 +49,16 @@ public partial class PartyEquipmentService : RefCounted
             ErrorCode = errorCode ?? "";
             EntrySlotId = ProgressionDataUtils.to_string_name(entrySlotId);
             InstanceId = ProgressionDataUtils.to_string_name(instanceId);
-            Blockers = blockers != null
-                ? new Godot.Collections.Array<string>(blockers)
-                : new Godot.Collections.Array<string>();
+            Blockers = blockers != null ? new List<string>(blockers) : new List<string>();
             OccupiedSlotIds = occupiedSlotIds != null
-                ? new Godot.Collections.Array<StringName>(occupiedSlotIds)
-                : new Godot.Collections.Array<StringName>();
+                ? new List<StringName>(occupiedSlotIds)
+                : new List<StringName>();
             DisplacedEntries = displacedEntries != null
                 ? new List<EquipmentDisplacedEntry>(displacedEntries)
                 : new List<EquipmentDisplacedEntry>();
         }
 
-        public Godot.Collections.Array<StringName> CloneOccupiedSlotIds() =>
+        public GStringNameArray CloneOccupiedSlotIds() =>
             new(OccupiedSlotIds);
 
         public Godot.Collections.Array ToDisplacedDictionaryArray()
@@ -89,7 +88,7 @@ public partial class PartyEquipmentService : RefCounted
         public static EquipmentEquipPreviewResult SuccessResult(
             StringName entrySlotId,
             StringName instanceId,
-            Godot.Collections.Array<StringName> occupiedSlotIds,
+            IEnumerable<StringName> occupiedSlotIds,
             List<EquipmentDisplacedEntry> displacedEntries
         ) =>
             new(
@@ -97,17 +96,17 @@ public partial class PartyEquipmentService : RefCounted
                 "",
                 entrySlotId,
                 instanceId,
-                new Godot.Collections.Array<string>(),
+                Array.Empty<string>(),
                 occupiedSlotIds,
                 displacedEntries
             );
 
         public static EquipmentEquipPreviewResult Failed(
             StringName entrySlotId,
-            Godot.Collections.Array<StringName> occupiedSlotIds,
+            IEnumerable<StringName> occupiedSlotIds,
             List<EquipmentDisplacedEntry> displacedEntries,
             string errorCode,
-            Godot.Collections.Array<string> blockers = null
+            IEnumerable<string> blockers = null
         ) =>
             new(
                 false,
@@ -134,9 +133,9 @@ public partial class PartyEquipmentService : RefCounted
     )
     {
         _party_state = partyState ?? new PartyState();
-        _item_defs = itemDefs ?? new Godot.Collections.Dictionary();
+        _item_defs = MaterializeItemDefs(itemDefs);
         _warehouse_service = warehouseService ?? new PartyWarehouseService();
-        _warehouse_service.setup(_party_state, _item_defs, equipmentInstanceIdAllocator);
+        _warehouse_service.setup(_party_state, itemDefs, equipmentInstanceIdAllocator);
     }
 
     public void setup(
@@ -151,7 +150,7 @@ public partial class PartyEquipmentService : RefCounted
     public ItemDef get_item_def(StringName itemId)
     {
         var n = ProgressionDataUtils.to_string_name(itemId);
-        return _item_defs.ContainsKey(n) ? _item_defs[n].AsGodotObject() as ItemDef : null;
+        return n != "" && _item_defs.TryGetValue(n, out var itemDef) ? itemDef : null;
     }
 
     public EquipmentState get_equipment_state(StringName memberId)
@@ -166,7 +165,7 @@ public partial class PartyEquipmentService : RefCounted
     {
         var entries = new Godot.Collections.Array<Godot.Collections.Dictionary>();
         var es = get_equipment_state(memberId);
-        foreach (var slotId in EquipmentRules.get_all_slot_ids())
+        foreach (var slotId in EquipmentRules.GetAllSlotIdsTyped())
         {
             var itemId = es.get_equipped_item_id(slotId);
             if (itemId == "")
@@ -204,7 +203,7 @@ public partial class PartyEquipmentService : RefCounted
         var r = new Godot.Collections.Array<AttributeModifier>();
         if (equipmentState == null)
             return r;
-        foreach (var esId in equipmentState.get_entry_slot_ids())
+        foreach (var esId in equipmentState.GetEntrySlotIdsTyped())
         {
             var itemId = equipmentState.get_equipped_item_id(esId);
             var id = get_item_def(itemId);
@@ -218,11 +217,22 @@ public partial class PartyEquipmentService : RefCounted
         return r;
     }
 
+    public Godot.Collections.Dictionary preview_equip(StringName memberId, StringName itemId) =>
+        preview_equip(memberId, itemId, default, default);
+
     public Godot.Collections.Dictionary preview_equip(
         StringName memberId,
         StringName itemId,
-        StringName requestedSlotId = default,
-        StringName instanceId = default) =>
+        StringName requestedSlotId
+    ) =>
+        preview_equip(memberId, itemId, requestedSlotId, default);
+
+    public Godot.Collections.Dictionary preview_equip(
+        StringName memberId,
+        StringName itemId,
+        StringName requestedSlotId,
+        StringName instanceId
+    ) =>
         PreviewEquipTyped(memberId, itemId, requestedSlotId, instanceId).ToDictionary();
 
     private EquipmentEquipPreviewResult PreviewEquipTyped(
@@ -240,7 +250,7 @@ public partial class PartyEquipmentService : RefCounted
         if (ms == null)
             return EquipmentEquipPreviewResult.Failed(
                 "",
-                new Godot.Collections.Array<StringName>(),
+                Array.Empty<StringName>(),
                 new List<EquipmentDisplacedEntry>(),
                 "member_not_found"
             );
@@ -248,21 +258,21 @@ public partial class PartyEquipmentService : RefCounted
         if (id == null)
             return EquipmentEquipPreviewResult.Failed(
                 "",
-                new Godot.Collections.Array<StringName>(),
+                Array.Empty<StringName>(),
                 new List<EquipmentDisplacedEntry>(),
                 "item_not_found"
             );
         if (!id.is_equipment())
             return EquipmentEquipPreviewResult.Failed(
                 "",
-                new Godot.Collections.Array<StringName>(),
+                Array.Empty<StringName>(),
                 new List<EquipmentDisplacedEntry>(),
                 "item_not_equipment"
             );
         if (_warehouse_service == null || _warehouse_service.count_item(ni) <= 0)
             return EquipmentEquipPreviewResult.Failed(
                 "",
-                new Godot.Collections.Array<StringName>(),
+                Array.Empty<StringName>(),
                 new List<EquipmentDisplacedEntry>(),
                 "warehouse_missing_item"
             );
@@ -273,13 +283,13 @@ public partial class PartyEquipmentService : RefCounted
                 if (_warehouse_service.has_equipment_instance(ninst))
                     return EquipmentEquipPreviewResult.Failed(
                         "",
-                        new Godot.Collections.Array<StringName>(),
+                        Array.Empty<StringName>(),
                         new List<EquipmentDisplacedEntry>(),
                         "equipment_instance_item_mismatch"
                     );
                 return EquipmentEquipPreviewResult.Failed(
                     "",
-                    new Godot.Collections.Array<StringName>(),
+                    Array.Empty<StringName>(),
                     new List<EquipmentDisplacedEntry>(),
                     "warehouse_missing_instance"
                 );
@@ -288,7 +298,7 @@ public partial class PartyEquipmentService : RefCounted
         else if (_warehouse_service.count_item(ni) > 1)
             return EquipmentEquipPreviewResult.Failed(
                 "",
-                new Godot.Collections.Array<StringName>(),
+                Array.Empty<StringName>(),
                 new List<EquipmentDisplacedEntry>(),
                 "equipment_instance_id_required"
             );
@@ -302,21 +312,21 @@ public partial class PartyEquipmentService : RefCounted
         if (entrySlot == "" || !allowedSlots.Contains(entrySlot))
             return EquipmentEquipPreviewResult.Failed(
                 entrySlot,
-                new Godot.Collections.Array<StringName>(),
+                Array.Empty<StringName>(),
                 new List<EquipmentDisplacedEntry>(),
                 entrySlot == "" ? "slot_unresolved" : "slot_not_allowed"
             );
         var occupiedSlots = id.get_final_occupied_slot_ids(entrySlot);
         var displaced = new List<EquipmentDisplacedEntry>();
-        foreach (var ees in es.get_entry_slot_ids())
+        foreach (var ees in es.GetEntrySlotIdsTyped())
         {
             var eid = es.get_equipped_item_id(ees);
             if (eid == "")
                 continue;
-            var eocc = es.get_occupied_slot_ids_for_entry(ees);
+            var eocc = new HashSet<StringName>(es.GetOccupiedSlotIdsForEntryTyped(ees));
             bool conflicts = false;
             foreach (var os in occupiedSlots)
-                if (eocc.Contains(os))
+                if (eocc.Contains(ProgressionDataUtils.to_string_name(os)))
                 {
                     conflicts = true;
                     break;
@@ -346,27 +356,39 @@ public partial class PartyEquipmentService : RefCounted
                 );
             }
         }
-        var we = new Godot.Collections.Array();
+        var withdrawalEntries = new List<PartyWarehouseService.WarehouseBatchItemEntry>();
         if (ninst != "")
-            we.Add(
-                new Godot.Collections.Dictionary
+            withdrawalEntries.Add(
+                new PartyWarehouseService.WarehouseBatchItemEntry
                 {
-                    { "item_id", (string)ni },
-                    { "instance_id", (string)ninst },
+                    ItemId = ni,
+                    InstanceId = ninst,
                 }
             );
         else
-            we.Add(ni);
-        var itd = new Godot.Collections.Array<StringName>();
+            withdrawalEntries.Add(
+                new PartyWarehouseService.WarehouseBatchItemEntry
+                {
+                    ItemId = ni,
+                }
+            );
+        var depositEntries = new List<PartyWarehouseService.WarehouseBatchItemEntry>();
         foreach (var d in displaced)
         {
-            var dIid = ProgressionDataUtils.to_string_name(d.ItemId);
-            if (dIid != "")
-                itd.Add(dIid);
+            var displacedItemId = ProgressionDataUtils.to_string_name(d.ItemId);
+            if (displacedItemId == "")
+                continue;
+            depositEntries.Add(
+                new PartyWarehouseService.WarehouseBatchItemEntry
+                {
+                    ItemId = displacedItemId,
+                    InstanceId = ProgressionDataUtils.to_string_name(d.InstanceId),
+                }
+            );
         }
         var bp = _warehouse_service.PreviewBatchSwapEntriesTyped(
-            we,
-            Variant.From(itd).AsGodotArray()
+            withdrawalEntries,
+            depositEntries
         );
         if (!bp.Allowed)
             return EquipmentEquipPreviewResult.Failed(
@@ -436,11 +458,21 @@ public partial class PartyEquipmentService : RefCounted
         };
     }
 
+    public Godot.Collections.Dictionary equip_item(StringName memberId, StringName itemId) =>
+        equip_item(memberId, itemId, default, default);
+
     public Godot.Collections.Dictionary equip_item(
         StringName memberId,
         StringName itemId,
-        StringName requestedSlotId = default,
-        StringName instanceId = default
+        StringName requestedSlotId
+    ) =>
+        equip_item(memberId, itemId, requestedSlotId, default);
+
+    public Godot.Collections.Dictionary equip_item(
+        StringName memberId,
+        StringName itemId,
+        StringName requestedSlotId,
+        StringName instanceId
     )
     {
         var nm = ProgressionDataUtils.to_string_name(memberId);
@@ -464,7 +496,7 @@ public partial class PartyEquipmentService : RefCounted
         if (es == null)
             return _build_result(false, nm, "", ni, "", "equipment_state_invalid", ninst);
         var entrySlot = preview.EntrySlotId;
-        var occSlots = preview.CloneOccupiedSlotIds();
+        var occSlots = new List<StringName>(preview.OccupiedSlotIds);
         var newInst =
             ninst != ""
                 ? _warehouse_service.take_equipment_instance_by_instance_id(ninst, ni)
@@ -474,13 +506,13 @@ public partial class PartyEquipmentService : RefCounted
         foreach (var displacedEntry in preview.DisplacedEntries)
         {
             var des = displacedEntry.EntrySlotId;
-            var docc = es.get_occupied_slot_ids_for_entry(des);
+            var docc = es.GetOccupiedSlotIdsForEntryTyped(des);
             var di = es.pop_equipped_instance(des) as EquipmentInstanceState;
             if (di != null)
             {
                 if (!_warehouse_service.deposit_equipment_instance(di))
                 {
-                    es.set_equipped_entry(
+                    es.SetEquippedEntryTyped(
                         des,
                         displacedEntry.ItemId,
                         docc,
@@ -503,7 +535,7 @@ public partial class PartyEquipmentService : RefCounted
                 es.clear_entry_slot(des);
             }
         }
-        es.set_equipped_entry(entrySlot, ni, occSlots, newInst);
+        es.SetEquippedEntryTyped(entrySlot, ni, occSlots, newInst);
         string prevId = "",
             prevInstId = "";
         if (preview.DisplacedEntries.Count > 0)
@@ -549,13 +581,13 @@ public partial class PartyEquipmentService : RefCounted
         else if (_warehouse_service.get_total_capacity() - _warehouse_service.get_used_slots() <= 0)
             return _build_result(false, nm, ns, ci, "", "warehouse_full");
         var entrySlot = es.get_entry_slot_for_slot(ns);
-        var occBefore = es.get_occupied_slot_ids_for_entry(entrySlot);
+        var occBefore = es.GetOccupiedSlotIdsForEntryTyped(entrySlot);
         var inst = es.pop_equipped_instance(entrySlot) as EquipmentInstanceState;
         if (inst != null)
         {
             if (!_warehouse_service.deposit_equipment_instance(inst))
             {
-                es.set_equipped_entry(entrySlot, ci, occBefore, inst);
+                es.SetEquippedEntryTyped(entrySlot, ci, occBefore, inst);
                 return _build_result(false, nm, ns, ci, "", "warehouse_deposit_failed");
             }
         }
@@ -642,12 +674,33 @@ public partial class PartyEquipmentService : RefCounted
         };
     }
 
+    private static Dictionary<StringName, ItemDef> MaterializeItemDefs(GDictionary itemDefs)
+    {
+        var result = new Dictionary<StringName, ItemDef>();
+        if (itemDefs == null)
+            return result;
+
+        foreach (Variant rawKey in itemDefs.Keys)
+        {
+            var itemId = ProgressionDataUtils.to_string_name(rawKey);
+            if (itemId == "")
+                continue;
+            Variant rawValue = itemDefs[rawKey];
+            if (rawValue.VariantType == Variant.Type.Object
+                && rawValue.AsGodotObject() is ItemDef itemDef)
+                result[itemId] = itemDef;
+        }
+        return result;
+    }
+
     private static Godot.Collections.Array<string> StringNameArrayToStringArray(
-        Godot.Collections.Array<StringName> a
+        IEnumerable<StringName> values
     )
     {
         var r = new Godot.Collections.Array<string>();
-        foreach (var s in a)
+        if (values == null)
+            return r;
+        foreach (var s in values)
             r.Add((string)s);
         return r;
     }

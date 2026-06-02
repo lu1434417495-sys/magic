@@ -1,15 +1,12 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using Godot.Collections;
+using GArray = Godot.Collections.Array;
+using GDictionary = Godot.Collections.Dictionary;
 
-public readonly record struct BattleBarrierOutcomeResult(bool Stopped)
-{
-    public Dictionary ToDictionary() => new() { ["stopped"] = Stopped };
-}
+public readonly record struct BattleBarrierOutcomeResult(bool Stopped);
 
-[GlobalClass]
-public partial class BattleBarrierOutcomeResolver : RefCounted
+public sealed class BattleBarrierOutcomeResolver
 {
     private const int DEFAULT_FATAL_DAMAGE = 99999;
     private WeakReference<BattleRuntimeModule> _runtimeRef;
@@ -20,7 +17,7 @@ public partial class BattleBarrierOutcomeResolver : RefCounted
         _runtimeRef = runtime != null ? new WeakReference<BattleRuntimeModule>(runtime) : null;
     }
 
-    public new void Dispose()
+    public void Dispose()
     {
         if (_disposed)
         {
@@ -28,17 +25,6 @@ public partial class BattleBarrierOutcomeResolver : RefCounted
         }
         _disposed = true;
         _runtimeRef = null;
-        base.Dispose();
-    }
-
-    public Dictionary ApplyPassageOutcomes(
-        BattleUnitState unitState,
-        BattleBarrierInstanceState barrier,
-        BattleBarrierLayerState layer,
-        BattleEventBatch batch
-    )
-    {
-        return ApplyPassageOutcomesResult(unitState, barrier, layer, batch).ToDictionary();
     }
 
     public BattleBarrierPassageResult ApplyPassageOutcomesResult(
@@ -72,21 +58,6 @@ public partial class BattleBarrierOutcomeResolver : RefCounted
         return new BattleBarrierPassageResult(applied, false);
     }
 
-    public Dictionary ApplyPassageOutcomes(
-        BattleUnitState unitState,
-        Dictionary barrier,
-        Dictionary layer,
-        BattleEventBatch batch
-    )
-    {
-        return ApplyPassageOutcomesResult(
-            unitState,
-            BattleBarrierInstanceState.from_runtime_dict(barrier),
-            BattleBarrierLayerState.from_runtime_dict(layer),
-            batch
-        ).ToDictionary();
-    }
-
     private BattleBarrierOutcomeResult _ApplyOutcome(
         BattleUnitState unitState,
         BattleBarrierInstanceState barrier,
@@ -95,7 +66,7 @@ public partial class BattleBarrierOutcomeResolver : RefCounted
         BattleEventBatch batch
     )
     {
-        switch (outcome?.outcome_type ?? new StringName(""))
+        switch (outcome?.OutcomeType ?? new StringName(""))
         {
             case "damage":
                 return _ApplyDamageOutcome(unitState, barrier, layer, outcome, batch);
@@ -118,14 +89,14 @@ public partial class BattleBarrierOutcomeResolver : RefCounted
         BattleEventBatch batch
     )
     {
-        var amount = Mathf.Max(outcome?.amount ?? 0, 0);
+        var amount = Mathf.Max(outcome?.Amount ?? 0, 0);
         if (amount <= 0)
             return new BattleBarrierOutcomeResult(false);
         var saveResult = _ResolveOutcomeSave(unitState, barrier, layer, outcome);
         var finalAmount = amount;
-        if (saveResult.Success && outcome.half_on_success)
+        if (saveResult.Success && outcome.HalfOnSuccess)
             finalAmount = Mathf.Max((int)Mathf.Ceil(amount / 2.0f), 1);
-        var damageTag = ResolveDamageTag(outcome.damage_tag, "force");
+        var damageTag = ResolveDamageTag(outcome.DamageTag, "force");
         var damageResult = _ApplyDirectDamage(unitState, barrier, finalAmount, damageTag);
         _AppendChangedUnit(batch, unitState);
         _AppendLog(
@@ -151,11 +122,11 @@ public partial class BattleBarrierOutcomeResolver : RefCounted
         var saveResult = _ResolveOutcomeSave(unitState, barrier, layer, outcome);
         if (saveResult.Success)
         {
-            var successAmount = Mathf.Max(outcome?.success_amount ?? 0, 0);
+            var successAmount = Mathf.Max(outcome?.SuccessAmount ?? 0, 0);
             if (successAmount <= 0)
                 return new BattleBarrierOutcomeResult(false);
             var damageTag = ResolveDamageTag(
-                outcome.success_damage_tag != "" ? outcome.success_damage_tag : outcome.damage_tag,
+                outcome.SuccessDamageTag != "" ? outcome.SuccessDamageTag : outcome.DamageTag,
                 "poison"
             );
             var damageResult = _ApplyDirectDamage(unitState, barrier, successAmount, damageTag);
@@ -174,8 +145,8 @@ public partial class BattleBarrierOutcomeResolver : RefCounted
         var fatalDamage = Mathf.Max(
             unitState.current_hp
                 + unitState.current_shield_hp
-                + Mathf.Max(outcome?.fatal_damage ?? DEFAULT_FATAL_DAMAGE, 1),
-            Mathf.Max(outcome?.fatal_damage ?? DEFAULT_FATAL_DAMAGE, 1)
+                + Mathf.Max(outcome?.FatalDamage ?? DEFAULT_FATAL_DAMAGE, 1),
+            Mathf.Max(outcome?.FatalDamage ?? DEFAULT_FATAL_DAMAGE, 1)
         );
         var deathResult = _ApplyDirectDamage(unitState, barrier, fatalDamage, "poison");
         _AppendChangedUnit(batch, unitState);
@@ -201,7 +172,7 @@ public partial class BattleBarrierOutcomeResolver : RefCounted
         BattleEventBatch batch
     )
     {
-        StringName statusId = outcome?.status_id ?? new StringName("");
+        StringName statusId = outcome?.StatusId ?? new StringName("");
         if (statusId == "")
             return new BattleBarrierOutcomeResult(false);
         var saveResult = _ResolveOutcomeSave(unitState, barrier, layer, outcome);
@@ -247,7 +218,7 @@ public partial class BattleBarrierOutcomeResolver : RefCounted
             );
             return new BattleBarrierOutcomeResult(true);
         }
-        var previousCoords = new Godot.Collections.Array();
+        var previousCoords = new List<Vector2I>();
         foreach (Vector2I coord in unitState.occupied_coords)
             previousCoords.Add(coord);
         var runtime = _ResolveRuntime();
@@ -256,7 +227,7 @@ public partial class BattleBarrierOutcomeResolver : RefCounted
         unitState.set_anchor_coord(destination);
         runtime._grid_service.set_occupants(
             state,
-            (Godot.Collections.Array)unitState.occupied_coords,
+            ToGodotCoordArray(unitState.occupied_coords),
             unitState.unit_id
         );
         _AppendChangedCoords(batch, previousCoords);
@@ -277,16 +248,16 @@ public partial class BattleBarrierOutcomeResolver : RefCounted
     {
         var effect = new CombatEffectDef();
         effect.effect_type = "status";
-        int outcomeSaveDc = outcome?.save_dc ?? 0;
-        int barrierSaveDc = barrier?.save_dc ?? 0;
+        int outcomeSaveDc = outcome?.SaveDc ?? 0;
+        int barrierSaveDc = barrier?.SaveDc ?? 0;
         effect.save_dc = Mathf.Max(outcomeSaveDc > 0 ? outcomeSaveDc : barrierSaveDc, 1);
-        effect.save_dc_mode = BattleSaveResolver.SAVE_DC_MODE_STATIC();
-        effect.save_ability = ResolveStringName(outcome?.save_ability ?? new StringName(""), "willpower");
-        effect.save_tag = ResolveStringName(outcome?.save_tag ?? new StringName(""), "magic");
-        var context = new Dictionary();
-        if (layer != null && layer.has_save_roll_override)
-            context["save_roll_override"] = layer.save_roll_override;
-        return BattleSaveResolver.resolve_save_result(
+        effect.save_dc_mode = BattleSaveContentRules.SAVE_DC_MODE_STATIC;
+        effect.save_ability = ResolveStringName(outcome?.SaveAbility ?? new StringName(""), "willpower");
+        effect.save_tag = ResolveStringName(outcome?.SaveTag ?? new StringName(""), "magic");
+        BattleSaveContext context = BattleSaveContext.Empty;
+        if (layer != null && layer.HasSaveRollOverride)
+            context = BattleSaveContext.WithSaveRollOverride(layer.SaveRollOverride);
+        return BattleSaveResolver.ResolveSaveResult(
             _GetBarrierSourceUnit(barrier),
             unitState,
             effect,
@@ -304,23 +275,23 @@ public partial class BattleBarrierOutcomeResolver : RefCounted
     {
         var statusEntry = new BattleStatusEffectState();
         statusEntry.status_id = statusId;
-        statusEntry.source_unit_id = barrier?.source_unit_id ?? new StringName("");
+        statusEntry.source_unit_id = barrier?.SourceUnitId ?? new StringName("");
         statusEntry.power = 1;
         statusEntry.stacks = 1;
         statusEntry.duration = -1;
-        int rawStatusSaveDc = outcome != null && outcome.save_dc > 0
-            ? outcome.save_dc
-            : barrier?.save_dc ?? 0;
+        int rawStatusSaveDc = outcome != null && outcome.SaveDc > 0
+            ? outcome.SaveDc
+            : barrier?.SaveDc ?? 0;
         int statusSaveDc = Mathf.Max(rawStatusSaveDc, 1);
         StringName statusSaveAbility = ResolveStringName(
-            outcome?.save_ability ?? new StringName(""),
+            outcome?.SaveAbility ?? new StringName(""),
             "willpower"
         );
-        StringName statusSaveTag = ResolveStringName(outcome?.save_tag ?? new StringName(""), "magic");
-        statusEntry.@params = new Dictionary
+        StringName statusSaveTag = ResolveStringName(outcome?.SaveTag ?? new StringName(""), "magic");
+        statusEntry.@params = new GDictionary
         {
-            ["source"] = barrier?.profile_id.ToString() ?? "",
-            ["layer_id"] = layer?.layer_id.ToString() ?? "",
+            ["source"] = barrier?.ProfileId.ToString() ?? "",
+            ["layer_id"] = layer?.LayerId.ToString() ?? "",
             ["counts_as_debuff"] = true,
             ["self_save_dc"] = statusSaveDc,
             ["self_save_ability"] = statusSaveAbility.ToString(),
@@ -329,19 +300,19 @@ public partial class BattleBarrierOutcomeResolver : RefCounted
         unitState.set_status_effect(statusEntry);
     }
 
-    private Dictionary _ApplyDirectDamage(
+    private GDictionary _ApplyDirectDamage(
         BattleUnitState unitState,
         BattleBarrierInstanceState barrier,
         int damageAmount,
         StringName damageTag
     )
     {
-        var damageOutcome = new Dictionary
+        var damageOutcome = new GDictionary
         {
             ["resolved_damage"] = Mathf.Max(damageAmount, 0),
             ["base_damage"] = Mathf.Max(damageAmount, 0),
             ["damage_tag"] = damageTag.ToString(),
-            ["damage_kind"] = ResolveStringName(barrier?.profile_id ?? new StringName(""), "barrier").ToString(),
+            ["damage_kind"] = ResolveStringName(barrier?.ProfileId ?? new StringName(""), "barrier").ToString(),
         };
         var sourceUnit = _GetBarrierSourceUnit(barrier);
         var damageResult = _ResolveRuntime()
@@ -424,9 +395,9 @@ public partial class BattleBarrierOutcomeResolver : RefCounted
         {
             return false;
         }
-        var anchor = barrier.anchor_coord;
-        var radius = Mathf.Max(barrier.radius_cells, 0);
-        var pattern = BattleTypedNames.ToAreaPattern(barrier.area_pattern);
+        var anchor = barrier.AnchorCoord;
+        var radius = Mathf.Max(barrier.RadiusCells, 0);
+        var pattern = BattleTypedNames.ToAreaPattern(barrier.AreaPattern);
         var dx = Mathf.Abs(coord.X - anchor.X);
         var dy = Mathf.Abs(coord.Y - anchor.Y);
         switch (pattern)
@@ -460,7 +431,7 @@ public partial class BattleBarrierOutcomeResolver : RefCounted
         var state = runtime._state;
         if (state == null)
             return null;
-        var sourceUnitId = barrier?.source_unit_id ?? new StringName("");
+        var sourceUnitId = barrier?.SourceUnitId ?? new StringName("");
         if (sourceUnitId == "")
             return null;
         return state.TryGetUnitTyped(sourceUnitId, out BattleUnitState sourceUnit)
@@ -472,9 +443,9 @@ public partial class BattleBarrierOutcomeResolver : RefCounted
     {
         if (layer == null)
             return "屏障层";
-        if (!string.IsNullOrEmpty(layer.display_name))
-            return layer.display_name;
-        string layerId = layer.layer_id.ToString();
+        if (!string.IsNullOrEmpty(layer.DisplayName))
+            return layer.DisplayName;
+        string layerId = layer.LayerId.ToString();
         return !string.IsNullOrEmpty(layerId) ? layerId : "屏障层";
     }
 
@@ -482,15 +453,15 @@ public partial class BattleBarrierOutcomeResolver : RefCounted
     {
         if (barrier == null)
             return "屏障";
-        if (!string.IsNullOrEmpty(barrier.display_name))
-            return barrier.display_name;
-        string profileId = barrier.profile_id.ToString();
+        if (!string.IsNullOrEmpty(barrier.DisplayName))
+            return barrier.DisplayName;
+        string profileId = barrier.ProfileId.ToString();
         return !string.IsNullOrEmpty(profileId) ? profileId : "屏障";
     }
 
     private static bool IsLayerEmpty(BattleBarrierLayerState layer)
     {
-        return layer == null || (layer.layer_id == "" && layer.passage_outcomes.Count == 0);
+        return layer == null || (layer.LayerId == "" && layer.PassageOutcomes.Count == 0);
     }
 
     private static StringName ResolveDamageTag(StringName value, StringName fallback)
@@ -512,12 +483,12 @@ public partial class BattleBarrierOutcomeResolver : RefCounted
         runtime._append_changed_unit_coords(batch, unitState);
     }
 
-    private void _AppendChangedCoords(BattleEventBatch batch, Godot.Collections.Array coords)
+    private void _AppendChangedCoords(BattleEventBatch batch, IEnumerable<Vector2I> coords)
     {
         var runtime = _ResolveRuntime();
         if (runtime == null || batch == null)
             return;
-        runtime._append_changed_coords(batch, coords);
+        runtime._append_changed_coords(batch, ToGodotCoordArray(coords));
     }
 
     private void _AppendLog(BattleEventBatch batch, string line)
@@ -537,7 +508,17 @@ public partial class BattleBarrierOutcomeResolver : RefCounted
         return target;
     }
 
-    private static int DictInt(Dictionary dictionary, string key, int fallback)
+    private static GArray ToGodotCoordArray(IEnumerable<Vector2I> coords)
+    {
+        var result = new GArray();
+        foreach (Vector2I coord in coords ?? System.Array.Empty<Vector2I>())
+        {
+            result.Add(coord);
+        }
+        return result;
+    }
+
+    private static int DictInt(GDictionary dictionary, string key, int fallback)
     {
         if (dictionary == null || !dictionary.ContainsKey(key))
             return fallback;

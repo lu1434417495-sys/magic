@@ -4,8 +4,7 @@ using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 using System;
 
-[GlobalClass]
-public partial class BattleAiDecisionEngine : RefCounted
+public sealed class BattleAiDecisionEngine
 {
     private static readonly StringName ArcherSurvivalBucketId = "archer_survival";
 
@@ -40,9 +39,9 @@ public partial class BattleAiDecisionEngine : RefCounted
         public int PostActionRemainingThreatCount;
     }
 
-    public BattleAiDecision choose_command_impl(
+    public BattleAiDecision ChooseCommandImpl(
         BattleAiContext context,
-        GDictionary enemyAiBrains,
+        IReadOnlyDictionary<StringName, EnemyAiBrainDef> enemyAiBrains,
         BattleAiStateResolver stateResolver,
         System.Func<BattleAiContext, StringName, StringName, StringName, string, BattleAiDecision> waitDecisionFactory,
         BattleAiScoreService scoreService
@@ -135,8 +134,9 @@ public partial class BattleAiDecisionEngine : RefCounted
                 continue;
             }
 
-            GDictionary actionMetadata = context.get_runtime_action_metadata(action);
-            context.push_action_metadata(actionMetadata);
+            BattleAiRuntimeActionPlan.RuntimeActionMetadata actionMetadata =
+                context.GetRuntimeActionMetadataTyped(action);
+            context.PushActionMetadata(actionMetadata);
             BattleAiDecision decision = EvaluateAction(context, action);
             context.pop_action_metadata();
 
@@ -189,9 +189,9 @@ public partial class BattleAiDecisionEngine : RefCounted
         return waitDecision;
     }
 
-    public bool is_better_score_input(BattleAiScoreInput candidate, BattleAiScoreInput bestCandidate)
+    public bool IsBetterScoreInput(BattleAiScoreInput candidate, BattleAiScoreInput bestCandidate)
     {
-        return IsBetterScoreInput(candidate, bestCandidate);
+        return CompareScoreInput(candidate, bestCandidate);
     }
 
     private static BattleAiDecision EvaluateAction(BattleAiContext context, EnemyAiAction action)
@@ -359,8 +359,7 @@ public partial class BattleAiDecisionEngine : RefCounted
 
         decision.brain_id = brainId;
         decision.state_id = stateId;
-        decision.TypedTransition = transitionResult;
-        decision.transition = transitionResult?.ToDictionary() ?? new GDictionary();
+        decision.Transition = transitionResult;
         if (IsEmpty(decision.action_id))
         {
             decision.action_id = new StringName("anonymous_action");
@@ -375,16 +374,16 @@ public partial class BattleAiDecisionEngine : RefCounted
 
     private static void ApplyActionMetadataToDecision(
         BattleAiDecision decision,
-        GDictionary metadata,
+        BattleAiRuntimeActionPlan.RuntimeActionMetadata metadata,
         BattleAiScoreService scoreService
     )
     {
-        if (decision == null || metadata == null || metadata.Count == 0)
+        if (decision == null || metadata == null)
         {
             return;
         }
 
-        StringName metadataBucketId = DictStringName(metadata, "score_bucket_id");
+        StringName metadataBucketId = metadata.score_bucket_id;
         if (!IsEmpty(metadataBucketId))
         {
             decision.score_bucket_id = metadataBucketId;
@@ -400,16 +399,41 @@ public partial class BattleAiDecisionEngine : RefCounted
         {
             scoreInput.score_bucket_id = metadataBucketId;
             int priority =
-                scoreService != null ? scoreService.get_bucket_priority(metadataBucketId) : 0;
+                scoreService != null ? scoreService.GetBucketPriority(metadataBucketId) : 0;
             scoreInput.score_bucket_priority = priority;
         }
 
         GDictionary currentRuntimeMetadata = scoreInput.runtime_action_metadata ?? new GDictionary();
-        GDictionary runtimeActionMetadata = DictDictionary(metadata, "runtime_action_metadata");
+        GDictionary runtimeActionMetadata =
+            metadata.runtime_action_metadata != null
+                ? BuildRuntimeActionMetadataDictionary(metadata.runtime_action_metadata)
+                : new GDictionary();
         if (currentRuntimeMetadata.Count == 0 && runtimeActionMetadata.Count > 0)
         {
             scoreInput.runtime_action_metadata = runtimeActionMetadata.Duplicate(true);
         }
+    }
+
+    private static GDictionary BuildRuntimeActionMetadataDictionary(
+        BattleAiRuntimeActionPlan.RuntimeActionExportMetadata metadata
+    )
+    {
+        if (metadata == null || metadata.IsEmpty())
+        {
+            return new GDictionary();
+        }
+        return new GDictionary
+        {
+            ["generated"] = metadata.generated,
+            ["state_id"] = metadata.state_id,
+            ["slot_id"] = metadata.slot_id,
+            ["slot_role"] = metadata.slot_role,
+            ["skill_id"] = metadata.skill_id,
+            ["variant_id"] = metadata.variant_id,
+            ["action_family"] = metadata.action_family,
+            ["source_action_id"] = metadata.source_action_id,
+            ["identity_key"] = metadata.identity_key,
+        };
     }
 
     private static bool ShouldReplaceScoredDecision(
@@ -429,18 +453,18 @@ public partial class BattleAiDecisionEngine : RefCounted
         {
             return true;
         }
-        if (IsBetterScoreInput(candidateScore, bestScore))
+        if (CompareScoreInput(candidateScore, bestScore))
         {
             return true;
         }
-        if (IsBetterScoreInput(bestScore, candidateScore))
+        if (CompareScoreInput(bestScore, candidateScore))
         {
             return false;
         }
         return candidateActionIndex < bestActionIndex;
     }
 
-    private static bool IsBetterScoreInput(
+    private static bool CompareScoreInput(
         BattleAiScoreInput candidate,
         BattleAiScoreInput bestCandidate
     )
@@ -455,10 +479,10 @@ public partial class BattleAiDecisionEngine : RefCounted
         }
         ScoreInputFacts candidateFacts = BuildScoreInputFacts(candidate);
         ScoreInputFacts bestFacts = BuildScoreInputFacts(bestCandidate);
-        return IsBetterScoreInput(candidateFacts, bestFacts);
+        return CompareScoreInput(candidateFacts, bestFacts);
     }
 
-    private static bool IsBetterScoreInput(ScoreInputFacts candidate, ScoreInputFacts bestCandidate)
+    private static bool CompareScoreInput(ScoreInputFacts candidate, ScoreInputFacts bestCandidate)
     {
         if (candidate == null)
         {
@@ -756,7 +780,7 @@ public partial class BattleAiDecisionEngine : RefCounted
     {
         AttachStatePatch(decision);
         if (context != null && decision != null)
-            context.mark_action_trace_chosen(decision.action_trace_id, decision);
+            context.MarkActionTraceChosen(decision.action_trace_id, decision);
     }
 
     private static void AttachStatePatch(BattleAiDecision decision)
@@ -778,20 +802,16 @@ public partial class BattleAiDecisionEngine : RefCounted
         return decision.score_input ?? decision.skill_score_input;
     }
 
-    private static EnemyAiBrainDef ResolveBrain(GDictionary brains, StringName brainId)
+    private static EnemyAiBrainDef ResolveBrain(
+        IReadOnlyDictionary<StringName, EnemyAiBrainDef> brains,
+        StringName brainId
+    )
     {
         if (brains == null || IsEmpty(brainId))
         {
             return null;
         }
-        if (brains.ContainsKey(brainId))
-        {
-            return brains[brainId].As<EnemyAiBrainDef>();
-        }
-        string brainText = brainId.ToString();
-        return brains.ContainsKey(brainText)
-            ? brains[brainText].As<EnemyAiBrainDef>()
-            : null;
+        return brains.TryGetValue(brainId, out EnemyAiBrainDef brain) ? brain : null;
     }
 
     private static bool IsEmpty(StringName value)

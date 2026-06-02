@@ -1,61 +1,54 @@
+using System.Collections.Generic;
 using Godot;
 
-[GlobalClass]
-public partial class BattleAttackRollModifierBundle : RefCounted
+public class BattleAttackRollModifierBundle
 {
-    public int total_bonus { get; set; }
-    public int total_penalty { get; set; }
-    public Godot.Collections.Array<BattleAttackRollModifierSpec> breakdown { get; set; } = new();
+    private readonly List<BattleAttackRollModifierSpec> _breakdown = new();
 
-    public bool is_empty()
+    public int TotalBonus { get; private set; }
+    public int TotalPenalty { get; private set; }
+    public IReadOnlyList<BattleAttackRollModifierSpec> Breakdown => _breakdown;
+
+    public bool IsEmpty()
     {
-        return total_bonus == 0 && total_penalty == 0 && breakdown.Count == 0;
+        return TotalBonus == 0 && TotalPenalty == 0 && _breakdown.Count == 0;
     }
 
-    public void add_spec(BattleAttackRollModifierSpec spec)
+    public void AddSpec(BattleAttackRollModifierSpec spec)
     {
         if (spec == null || spec.modifier_delta == 0)
         {
             return;
         }
-        breakdown.Add(spec);
+        _breakdown.Add(spec);
         if (spec.modifier_delta > 0)
         {
-            total_bonus += spec.modifier_delta;
+            TotalBonus += spec.modifier_delta;
         }
         else
         {
-            total_penalty += Mathf.Abs(spec.modifier_delta);
+            TotalPenalty += Mathf.Abs(spec.modifier_delta);
         }
     }
 
-    public int get_effective_modifier_delta()
+    public int GetEffectiveModifierDelta()
     {
-        return total_bonus - total_penalty;
+        return TotalBonus - TotalPenalty;
     }
 
-    public Godot.Collections.Array<Godot.Collections.Dictionary> get_breakdown_payload()
+    internal Godot.Collections.Array<Godot.Collections.Dictionary> BuildBreakdownPayload()
     {
-        var payloads = new Godot.Collections.Array<Godot.Collections.Dictionary>();
-        foreach (BattleAttackRollModifierSpec spec in breakdown)
-        {
-            if (spec == null)
-            {
-                continue;
-            }
-            payloads.Add(spec.to_dict_with_effective_modifier_delta(spec.modifier_delta));
-        }
-        return payloads;
+        return AttackPreviewData.BuildAttackRollModifierBreakdownPayload(_breakdown);
     }
 
-    public Godot.Collections.Dictionary to_dict()
+    internal Godot.Collections.Dictionary ToDictionary()
     {
         return new Godot.Collections.Dictionary
         {
-            ["total_bonus"] = total_bonus,
-            ["total_penalty"] = total_penalty,
-            ["effective_modifier_delta"] = get_effective_modifier_delta(),
-            ["breakdown"] = get_breakdown_payload(),
+            ["total_bonus"] = TotalBonus,
+            ["total_penalty"] = TotalPenalty,
+            ["effective_modifier_delta"] = GetEffectiveModifierDelta(),
+            ["breakdown"] = BuildBreakdownPayload(),
         };
     }
 }

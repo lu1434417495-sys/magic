@@ -98,7 +98,7 @@ public partial class BattleAiScoreService
             }
             if (IsDamageSkill(roleEffectDefs))
             {
-                int effectiveRange = BattleRangeService.get_effective_skill_threat_range(
+                int effectiveRange = BattleRangeService.GetEffectiveSkillThreatRange(
                     targetUnit,
                     skillDef
                 );
@@ -251,14 +251,9 @@ public partial class BattleAiScoreService
 
     private static double GetPreResistanceDamageMultiplier(CombatEffectDef effectDef)
     {
-        if (effectDef == null || effectDef.@params == null)
-        {
-            return 1.0;
-        }
-        return Math.Max(
-            DictDouble(effectDef.@params, "runtime_pre_resistance_damage_multiplier", 1.0),
-            0.0
-        );
+        return effectDef == null
+            ? 1.0
+            : Math.Max(effectDef.pre_resistance_damage_multiplier, 0.0);
     }
 
     private static bool HasBonusCondition(CombatEffectDef effectDef, BattleUnitState targetUnit)
@@ -411,7 +406,7 @@ public partial class BattleAiScoreService
         return result;
     }
 
-    public int _resolve_estimated_hit_rate_percent(BattlePreview preview)
+    internal int ResolveEstimatedHitRatePercent(BattlePreview preview)
     {
         return ResolveEstimatedHitRatePercent(preview?.hit_preview);
     }

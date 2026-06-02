@@ -1,9 +1,7 @@
 using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
-using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
-public sealed class BattleSpellControlMetadata
+public sealed record class BattleSpellControlMetadata
 {
     public StringName AttackResolution { get; init; }
     public StringName SpellControlResolution { get; init; }
@@ -22,77 +20,99 @@ public sealed class BattleSpellControlMetadata
     public int FumbleLowEnd { get; init; }
     public int CritThreshold { get; init; }
     public int LockedSkillHitBonus { get; init; }
+    public int EffectiveHitRoll { get; init; }
     public bool ReverseFateDowngraded { get; init; }
-    public GDictionary Payload { get; init; } = new();
-    public bool HasPayload => Payload != null && Payload.Count > 0;
+    public bool HasResolutionMetadata =>
+        !IsEmpty(AttackResolution) || !IsEmpty(SpellControlResolution);
 
     public static BattleSpellControlMetadata Empty() => new();
 
-    public static BattleSpellControlMetadata FromDictionary(GDictionary payload)
+    public static BattleSpellControlMetadata FromDictionary(Godot.Collections.Dictionary payload)
     {
-        GDictionary snapshot = DuplicateDictionary(payload);
         return new BattleSpellControlMetadata
         {
-            AttackResolution = StringNameField(snapshot, "attack_resolution"),
-            SpellControlResolution = StringNameField(snapshot, "spell_control_resolution"),
-            AttackSuccess = BoolField(snapshot, "attack_success"),
-            CriticalHit = BoolField(snapshot, "critical_hit"),
-            CriticalFail = BoolField(snapshot, "critical_fail"),
-            OrdinaryMiss = BoolField(snapshot, "ordinary_miss"),
-            IsDisadvantage = BoolField(snapshot, "is_disadvantage"),
-            HiddenLuckAtBirth = IntField(snapshot, "hidden_luck_at_birth"),
-            FaithLuckBonus = IntField(snapshot, "faith_luck_bonus"),
-            EffectiveLuck = IntField(snapshot, "effective_luck"),
-            CritLocked = BoolField(snapshot, "crit_locked"),
-            CritGateDie = IntField(snapshot, "crit_gate_die"),
-            CritGateRoll = IntField(snapshot, "crit_gate_roll"),
-            HitRoll = IntField(snapshot, "hit_roll"),
-            FumbleLowEnd = IntField(snapshot, "fumble_low_end"),
-            CritThreshold = IntField(snapshot, "crit_threshold"),
-            LockedSkillHitBonus = IntField(snapshot, "locked_skill_hit_bonus"),
-            ReverseFateDowngraded = BoolField(snapshot, "reverse_fate_downgraded"),
-            Payload = snapshot,
+            AttackResolution = StringNameField(payload, "attack_resolution"),
+            SpellControlResolution = StringNameField(payload, "spell_control_resolution"),
+            AttackSuccess = BoolField(payload, "attack_success"),
+            CriticalHit = BoolField(payload, "critical_hit"),
+            CriticalFail = BoolField(payload, "critical_fail"),
+            OrdinaryMiss = BoolField(payload, "ordinary_miss"),
+            IsDisadvantage = BoolField(payload, "is_disadvantage"),
+            HiddenLuckAtBirth = IntField(payload, "hidden_luck_at_birth"),
+            FaithLuckBonus = IntField(payload, "faith_luck_bonus"),
+            EffectiveLuck = IntField(payload, "effective_luck"),
+            CritLocked = BoolField(payload, "crit_locked"),
+            CritGateDie = IntField(payload, "crit_gate_die"),
+            CritGateRoll = IntField(payload, "crit_gate_roll"),
+            HitRoll = IntField(payload, "hit_roll"),
+            FumbleLowEnd = IntField(payload, "fumble_low_end"),
+            CritThreshold = IntField(payload, "crit_threshold"),
+            LockedSkillHitBonus = IntField(payload, "locked_skill_hit_bonus"),
+            EffectiveHitRoll = IntField(payload, "effective_hit_roll"),
+            ReverseFateDowngraded = BoolField(payload, "reverse_fate_downgraded"),
         };
     }
 
-    public GDictionary ToDictionary() => DuplicateDictionary(Payload);
-
-    private static bool BoolField(GDictionary payload, string key, bool fallback = false)
+    public Godot.Collections.Dictionary ToDictionary()
     {
-        if (!HasKey(payload, key))
-            return fallback;
-        return payload.ContainsKey(key)
-            ? payload[key].AsBool()
-            : payload[new StringName(key)].AsBool();
+        if (!HasResolutionMetadata)
+            return new Godot.Collections.Dictionary();
+        return new Godot.Collections.Dictionary
+        {
+            ["attack_resolution"] = AttackResolution,
+            ["spell_control_resolution"] = SpellControlResolution,
+            ["attack_success"] = AttackSuccess,
+            ["critical_hit"] = CriticalHit,
+            ["critical_fail"] = CriticalFail,
+            ["ordinary_miss"] = OrdinaryMiss,
+            ["is_disadvantage"] = IsDisadvantage,
+            ["hidden_luck_at_birth"] = HiddenLuckAtBirth,
+            ["faith_luck_bonus"] = FaithLuckBonus,
+            ["effective_luck"] = EffectiveLuck,
+            ["crit_locked"] = CritLocked,
+            ["crit_gate_die"] = CritGateDie,
+            ["crit_gate_roll"] = CritGateRoll,
+            ["hit_roll"] = HitRoll,
+            ["fumble_low_end"] = FumbleLowEnd,
+            ["crit_threshold"] = CritThreshold,
+            ["locked_skill_hit_bonus"] = LockedSkillHitBonus,
+            ["effective_hit_roll"] = EffectiveHitRoll,
+            ["reverse_fate_downgraded"] = ReverseFateDowngraded,
+            ["trait_trigger_results"] = new Godot.Collections.Array(),
+        };
     }
 
-    private static int IntField(GDictionary payload, string key, int fallback = 0)
+    private static bool BoolField(
+        Godot.Collections.Dictionary payload,
+        string key,
+        bool fallback = false
+    )
     {
-        if (!HasKey(payload, key))
+        if (payload == null || !payload.ContainsKey(key))
             return fallback;
-        return payload.ContainsKey(key)
-            ? payload[key].AsInt32()
-            : payload[new StringName(key)].AsInt32();
+        return payload[key].AsBool();
     }
 
-    private static StringName StringNameField(GDictionary payload, string key)
+    private static int IntField(
+        Godot.Collections.Dictionary payload,
+        string key,
+        int fallback = 0
+    )
     {
-        if (!HasKey(payload, key))
+        if (payload == null || !payload.ContainsKey(key))
+            return fallback;
+        return payload[key].AsInt32();
+    }
+
+    private static StringName StringNameField(Godot.Collections.Dictionary payload, string key)
+    {
+        if (payload == null || !payload.ContainsKey(key))
             return new StringName("");
-        return payload.ContainsKey(key)
-            ? ProgressionDataUtils.to_string_name(payload[key])
-            : ProgressionDataUtils.to_string_name(payload[new StringName(key)]);
+        return ProgressionDataUtils.to_string_name(payload[key]);
     }
 
-    private static bool HasKey(GDictionary payload, string key)
-    {
-        if (payload == null)
-            return false;
-        return payload.ContainsKey(key) || payload.ContainsKey(new StringName(key));
-    }
-
-    private static GDictionary DuplicateDictionary(GDictionary source) =>
-        source?.Duplicate(true) ?? new GDictionary();
+    private static bool IsEmpty(StringName value) =>
+        value == default || value == (StringName)"";
 }
 
 public readonly record struct BattleSpellControlResult(
@@ -101,16 +121,13 @@ public readonly record struct BattleSpellControlResult(
     bool FumbleProtected,
     int MpRefund,
     int ExtraMpDrained,
-    GDictionary SpellControl
+    BattleSpellControlMetadata SpellControl
 )
 {
-    public static BattleSpellControlResult None(GDictionary spellControl = null) =>
-        new(false, false, false, 0, 0, DuplicateDictionary(spellControl));
+    public static BattleSpellControlResult None(BattleSpellControlMetadata spellControl = null) =>
+        new(false, false, false, 0, 0, spellControl ?? BattleSpellControlMetadata.Empty());
 
-    public static BattleSpellControlResult None(BattleSpellControlMetadata spellControl) =>
-        None(spellControl?.ToDictionary());
-
-    public static BattleSpellControlResult FromDictionary(GDictionary payload) =>
+    public static BattleSpellControlResult FromDictionary(Godot.Collections.Dictionary payload) =>
         None() with
         {
             SkipEffects = BoolField(payload, "skip_effects"),
@@ -118,10 +135,12 @@ public readonly record struct BattleSpellControlResult(
             FumbleProtected = BoolField(payload, "fumble_protected"),
             MpRefund = IntField(payload, "mp_refund"),
             ExtraMpDrained = IntField(payload, "extra_mp_drained"),
-            SpellControl = DictionaryField(payload, "spell_control"),
+            SpellControl = BattleSpellControlMetadata.FromDictionary(
+                DictionaryField(payload, "spell_control")
+            ),
         };
 
-    public GDictionary ToDictionary() =>
+    public Godot.Collections.Dictionary ToDictionary() =>
         new()
         {
             ["skip_effects"] = SkipEffects,
@@ -129,44 +148,39 @@ public readonly record struct BattleSpellControlResult(
             ["fumble_protected"] = FumbleProtected,
             ["mp_refund"] = MpRefund,
             ["extra_mp_drained"] = ExtraMpDrained,
-            ["spell_control"] = DuplicateDictionary(SpellControl),
+            ["spell_control"] = SpellControl?.ToDictionary() ?? new Godot.Collections.Dictionary(),
         };
 
-    private static GDictionary DuplicateDictionary(GDictionary source) =>
-        source?.Duplicate(true) ?? new GDictionary();
-
-    private static bool BoolField(GDictionary payload, string key, bool fallback = false)
+    private static bool BoolField(
+        Godot.Collections.Dictionary payload,
+        string key,
+        bool fallback = false
+    )
     {
-        if (!HasKey(payload, key))
+        if (payload == null || !payload.ContainsKey(key))
             return fallback;
-        return payload.ContainsKey(key)
-            ? payload[key].AsBool()
-            : payload[new StringName(key)].AsBool();
+        return payload[key].AsBool();
     }
 
-    private static int IntField(GDictionary payload, string key, int fallback = 0)
+    private static int IntField(
+        Godot.Collections.Dictionary payload,
+        string key,
+        int fallback = 0
+    )
     {
-        if (!HasKey(payload, key))
+        if (payload == null || !payload.ContainsKey(key))
             return fallback;
-        return payload.ContainsKey(key)
-            ? payload[key].AsInt32()
-            : payload[new StringName(key)].AsInt32();
+        return payload[key].AsInt32();
     }
 
-    private static GDictionary DictionaryField(GDictionary payload, string key)
+    private static Godot.Collections.Dictionary DictionaryField(
+        Godot.Collections.Dictionary payload,
+        string key
+    )
     {
-        if (!HasKey(payload, key))
-            return new GDictionary();
-        return payload.ContainsKey(key)
-            ? payload[key].AsGodotDictionary().Duplicate(true)
-            : payload[new StringName(key)].AsGodotDictionary().Duplicate(true);
-    }
-
-    private static bool HasKey(GDictionary payload, string key)
-    {
-        if (payload == null)
-            return false;
-        return payload.ContainsKey(key) || payload.ContainsKey(new StringName(key));
+        if (payload == null || !payload.ContainsKey(key))
+            return new Godot.Collections.Dictionary();
+        return payload[key].AsGodotDictionary();
     }
 }
 
@@ -191,7 +205,9 @@ public readonly record struct BattleGroundBacklashTargetResult(
             false
         );
 
-    public static BattleGroundBacklashTargetResult FromDictionary(GDictionary payload) =>
+    public static BattleGroundBacklashTargetResult FromDictionary(
+        Godot.Collections.Dictionary payload
+    ) =>
         new(
             Vector2IListField(payload, "target_coords"),
             BoolField(payload, "backlash_triggered"),
@@ -201,9 +217,9 @@ public readonly record struct BattleGroundBacklashTargetResult(
             BoolField(payload, "backlash_offset_fallback")
         );
 
-    public GVector2IArray TargetCoordsArray()
+    public Godot.Collections.Array<Vector2I> TargetCoordsArray()
     {
-        var result = new GVector2IArray();
+        var result = new Godot.Collections.Array<Vector2I>();
         if (TargetCoords == null)
         {
             return result;
@@ -215,7 +231,7 @@ public readonly record struct BattleGroundBacklashTargetResult(
         return result;
     }
 
-    public GDictionary ToDictionary() =>
+    public Godot.Collections.Dictionary ToDictionary() =>
         new()
         {
             ["target_coords"] = TargetCoordsArray(),
@@ -226,14 +242,15 @@ public readonly record struct BattleGroundBacklashTargetResult(
             ["backlash_offset_fallback"] = BacklashOffsetFallback,
         };
 
-    private static List<Vector2I> Vector2IListField(GDictionary payload, string key)
+    private static List<Vector2I> Vector2IListField(
+        Godot.Collections.Dictionary payload,
+        string key
+    )
     {
         var result = new List<Vector2I>();
-        if (!HasKey(payload, key))
+        if (payload == null || !payload.ContainsKey(key))
             return result;
-        var values = payload.ContainsKey(key)
-            ? payload[key].AsGodotArray()
-            : payload[new StringName(key)].AsGodotArray();
+        var values = payload[key].AsGodotArray();
         foreach (var coordValue in values)
         {
             result.Add(coordValue.AsVector2I());
@@ -241,32 +258,25 @@ public readonly record struct BattleGroundBacklashTargetResult(
         return result;
     }
 
-    private static bool BoolField(GDictionary payload, string key, bool fallback = false)
+    private static bool BoolField(
+        Godot.Collections.Dictionary payload,
+        string key,
+        bool fallback = false
+    )
     {
-        if (!HasKey(payload, key))
+        if (payload == null || !payload.ContainsKey(key))
             return fallback;
-        return payload.ContainsKey(key)
-            ? payload[key].AsBool()
-            : payload[new StringName(key)].AsBool();
+        return payload[key].AsBool();
     }
 
     private static Vector2I Vector2IField(
-        GDictionary payload,
+        Godot.Collections.Dictionary payload,
         string key,
         Vector2I fallback = default
     )
     {
-        if (!HasKey(payload, key))
+        if (payload == null || !payload.ContainsKey(key))
             return fallback;
-        return payload.ContainsKey(key)
-            ? payload[key].AsVector2I()
-            : payload[new StringName(key)].AsVector2I();
-    }
-
-    private static bool HasKey(GDictionary payload, string key)
-    {
-        if (payload == null)
-            return false;
-        return payload.ContainsKey(key) || payload.ContainsKey(new StringName(key));
+        return payload[key].AsVector2I();
     }
 }

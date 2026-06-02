@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
 using GConditionArray = Godot.Collections.Array<EnemyAiTransitionConditionDef>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
@@ -26,9 +25,9 @@ public partial class EnemyAiTransitionRuleDef : Resource
     [Export(PropertyHint.MultilineText)]
     public string designer_note = "";
 
-    public GArray get_conditions()
+    public Godot.Collections.Array get_conditions()
     {
-        var result = new GArray();
+        var result = new Godot.Collections.Array();
         foreach (EnemyAiTransitionConditionDef condition in conditions)
         {
             if (condition != null)
@@ -50,66 +49,66 @@ public partial class EnemyAiTransitionRuleDef : Resource
         return result;
     }
 
-    public bool applies_to_state(StringName state_id)
+    internal bool AppliesToState(StringName stateId)
     {
-        return from_state_ids.Count == 0 || from_state_ids.Contains(state_id);
+        return from_state_ids.Count == 0 || from_state_ids.Contains(stateId);
     }
 
-    public GArray validate_schema(
-        StringName brain_id,
-        Godot.Collections.Dictionary declared_state_ids
+    internal List<string> ValidateSchema(
+        StringName brainId,
+        IReadOnlySet<StringName> declaredStateIds
     )
     {
-        var errors = new GArray();
-        var owner_label = $"Enemy brain {brain_id} transition rule {rule_id}";
+        var errors = new List<string>();
+        var ownerLabel = $"Enemy brain {brainId} transition rule {rule_id}";
         if (rule_id == (StringName)"")
-            errors.Add($"Enemy brain {brain_id} contains a transition rule without rule_id.");
+            errors.Add($"Enemy brain {brainId} contains a transition rule without rule_id.");
         if (target_state_id == (StringName)"")
-            errors.Add($"{owner_label} is missing target_state_id.");
-        else if (!declared_state_ids.ContainsKey(target_state_id))
+            errors.Add($"{ownerLabel} is missing target_state_id.");
+        else if (declaredStateIds == null || !declaredStateIds.Contains(target_state_id))
             errors.Add(
-                $"{owner_label} target_state_id {target_state_id} is not declared in states."
+                $"{ownerLabel} target_state_id {target_state_id} is not declared in states."
             );
         foreach (var from_state_id in from_state_ids)
         {
             if (from_state_id == (StringName)"")
-                errors.Add($"{owner_label} contains empty from_state_id.");
-            else if (!declared_state_ids.ContainsKey(from_state_id))
+                errors.Add($"{ownerLabel} contains empty from_state_id.");
+            else if (declaredStateIds == null || !declaredStateIds.Contains(from_state_id))
                 errors.Add(
-                    $"{owner_label} from_state_id {from_state_id} is not declared in states."
+                    $"{ownerLabel} from_state_id {from_state_id} is not declared in states."
                 );
         }
         if (conditions.Count == 0)
-            errors.Add($"{owner_label} must declare at least one condition.");
+            errors.Add($"{ownerLabel} must declare at least one condition.");
         foreach (EnemyAiTransitionConditionDef condition in conditions)
         {
             if (condition == null)
             {
-                errors.Add($"{owner_label} contains a null condition resource.");
+                errors.Add($"{ownerLabel} contains a null condition resource.");
                 continue;
             }
-            errors.AddRange(condition.validate_schema(owner_label, declared_state_ids));
+            errors.AddRange(condition.ValidateSchema(ownerLabel, declaredStateIds));
         }
         return errors;
     }
 
-    public string to_signature()
+    internal string ToSignature()
     {
-        var condition_entries = new Godot.Collections.Array<string>();
+        var conditionEntries = new List<string>();
         foreach (EnemyAiTransitionConditionDef condition in GetTypedConditions())
         {
-            condition_entries.Add(condition.to_signature());
+            conditionEntries.Add(condition.ToSignature());
         }
-        return $"{order}:{rule_id}:{target_state_id}:from=[{string.Join(",", _string_name_array_to_strings(from_state_ids))}]:conditions=[{string.Join(";", condition_entries)}]";
+        return $"{order}:{rule_id}:{target_state_id}:from=[{string.Join(",", StringNameArrayToStrings(from_state_ids))}]:conditions=[{string.Join(";", conditionEntries)}]";
     }
 
-    private static Godot.Collections.Array<string> _string_name_array_to_strings(
-        GStringNameArray values
-    )
+    private static List<string> StringNameArrayToStrings(GStringNameArray values)
     {
-        var results = new Godot.Collections.Array<string>();
+        var results = new List<string>();
         foreach (var value in values)
+        {
             results.Add(value.ToString());
+        }
         return results;
     }
 }

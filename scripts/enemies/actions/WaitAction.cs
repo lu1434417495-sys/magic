@@ -8,6 +8,16 @@ public partial class WaitAction : EnemyAiAction
         STAMINA_RECOVERY_PROGRESS_DENOMINATOR = 10,
         STAMINA_RESTING_RECOVERY_MULTIPLIER = 2;
 
+    private sealed class ActiveRestProfile
+    {
+        public bool Active;
+        public bool WillRest;
+        public int CurrentStamina;
+        public int ProjectedRestStamina;
+        public int DesiredStamina;
+        public int StaminaMax;
+    }
+
     [Export]
     public int active_rest_action_base_score { get; set; } = 10;
 
@@ -30,27 +40,16 @@ public partial class WaitAction : EnemyAiAction
             new Godot.Collections.Dictionary
             {
                 { "action_kind", "wait" },
-                { "active_rest", arp.ContainsKey("active") && (bool)arp["active"] },
-                { "will_rest", arp.ContainsKey("will_rest") && (bool)arp["will_rest"] },
-                {
-                    "current_stamina",
-                    arp.ContainsKey("current_stamina") ? arp["current_stamina"].AsInt32() : 0
-                },
-                {
-                    "projected_rest_stamina",
-                    arp.ContainsKey("projected_rest_stamina")
-                        ? arp["projected_rest_stamina"].AsInt32()
-                        : 0
-                },
-                {
-                    "desired_stamina",
-                    arp.ContainsKey("desired_stamina") ? arp["desired_stamina"].AsInt32() : 0
-                },
+                { "active_rest", arp.Active },
+                { "will_rest", arp.WillRest },
+                { "current_stamina", arp.CurrentStamina },
+                { "projected_rest_stamina", arp.ProjectedRestStamina },
+                { "desired_stamina", arp.DesiredStamina },
             }
         );
         var command = _build_wait_command(context);
         var metadata = new Godot.Collections.Dictionary { { "position_objective_kind", "none" } };
-        if (arp.ContainsKey("active") && (bool)arp["active"])
+        if (arp.Active)
         {
             metadata["action_base_score"] = active_rest_action_base_score;
             metadata["active_rest"] = true;
@@ -65,10 +64,10 @@ public partial class WaitAction : EnemyAiAction
         );
         var ctxUnitState = context.unit_state;
         string reasonText = $"{ctxUnitState.display_name} 没有更优动作，选择待机。";
-        if (arp.ContainsKey("active") && (bool)arp["active"])
+        if (arp.Active)
             reasonText =
-                $"{ctxUnitState.display_name} 体力不足，选择主动休息以恢复到 {arp["projected_rest_stamina"]}/{arp["stamina_max"]}。";
-        else if (arp.ContainsKey("will_rest") && (bool)arp["will_rest"])
+                $"{ctxUnitState.display_name} 体力不足，选择主动休息以恢复到 {arp.ProjectedRestStamina}/{arp.StaminaMax}。";
+        else if (arp.WillRest)
             reasonText = $"{ctxUnitState.display_name} 没有更优动作，选择休息恢复体力。";
         var decision = _create_scored_decision(command, scoreInput, reasonText);
         _trace_offer_candidate(actionTrace, _build_candidate_summary("wait", command, scoreInput));
@@ -86,53 +85,45 @@ public partial class WaitAction : EnemyAiAction
         return e;
     }
 
-    private Godot.Collections.Dictionary _build_active_rest_profile(BattleAiContext context)
+    private ActiveRestProfile _build_active_rest_profile(BattleAiContext context)
     {
-        var p = new Godot.Collections.Dictionary
-        {
-            { "active", false },
-            { "will_rest", false },
-            { "current_stamina", 0 },
-            { "projected_rest_stamina", 0 },
-            { "desired_stamina", 0 },
-            { "stamina_max", 0 },
-        };
+        var p = new ActiveRestProfile();
         if (context?.unit_state == null)
             return p;
         var us = context.unit_state;
         int sm = _get_unit_stamina_max(us),
             cs = Mathf.Max(us.current_stamina, 0);
-        p["current_stamina"] = cs;
-        p["stamina_max"] = sm;
-        p["will_rest"] = _will_wait_trigger_rest(us, cs, sm);
+        p.CurrentStamina = cs;
+        p.StaminaMax = sm;
+        p.WillRest = _will_wait_trigger_rest(us, cs, sm);
         if (sm <= 0 || cs >= sm)
         {
-            p["projected_rest_stamina"] = cs;
+            p.ProjectedRestStamina = cs;
             return p;
         }
         if (us.has_taken_action_this_turn)
         {
-            p["projected_rest_stamina"] = cs;
+            p.ProjectedRestStamina = cs;
             return p;
         }
         if (_has_affordable_legal_hostile_skill(context))
         {
-            p["projected_rest_stamina"] = cs;
+            p.ProjectedRestStamina = cs;
             return p;
         }
         int ds = _resolve_desired_rest_stamina(context);
-        p["desired_stamina"] = ds;
+        p.DesiredStamina = ds;
         if (ds <= 0 || cs >= ds)
         {
-            p["projected_rest_stamina"] = cs;
+            p.ProjectedRestStamina = cs;
             return p;
         }
         int ps = Mathf.Min(
             cs + _estimate_resting_recovery(us, _resolve_action_threshold_tu(us)),
             sm
         );
-        p["projected_rest_stamina"] = ps;
-        p["active"] = ps >= ds;
+        p.ProjectedRestStamina = ps;
+        p.Active = ps >= ds;
         return p;
     }
 

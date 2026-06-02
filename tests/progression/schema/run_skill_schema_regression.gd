@@ -978,6 +978,7 @@ func _test_damage_dice_alias_param_schema_validation() -> void:
 		"base_sides": 4,
 		"con_mod_sides": 1,
 		"will_mod_sides": 1,
+		"runtime_pre_resistance_damage_multiplier": 1.5,
 	}
 	var old_formal_dice_errors: Array[String] = []
 	registry._append_effect_validation_errors(old_formal_dice_errors, &"old_formal_damage_dice_skill", old_formal_dice_effect, "test_effect")
@@ -1004,6 +1005,10 @@ func _test_damage_dice_alias_param_schema_validation() -> void:
 	_assert_true(
 		_has_error_containing(old_formal_dice_errors, "params.will_mod_sides is unsupported; use CombatEffectDef.dice_sides_per_willpower_mod"),
 		"will_mod_sides 旧 params 键应被 SkillContentRegistry 静态拒绝。"
+	)
+	_assert_true(
+		_has_error_containing(old_formal_dice_errors, "params.runtime_pre_resistance_damage_multiplier is unsupported; use CombatEffectDef.pre_resistance_damage_multiplier"),
+		"runtime_pre_resistance_damage_multiplier 旧 params 键应被 SkillContentRegistry 静态拒绝。"
 	)
 
 

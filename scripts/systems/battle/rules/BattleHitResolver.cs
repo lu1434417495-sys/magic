@@ -481,7 +481,7 @@ public partial class BattleHitResolver : RefCounted
             }
             penalty = Math.Max(
                 penalty,
-                BattleStatusSemanticTable.get_attack_roll_penalty(statusEntry)
+                BattleStatusSemanticTable.GetAttackRollPenalty(statusEntry)
             );
         }
         return penalty;
@@ -727,6 +727,11 @@ public partial class BattleHitResolver : RefCounted
     public virtual GDictionary resolve_spell_control_metadata(
         BattleUnitState source_unit,
         AttackContext attack_context
+    ) => resolve_spell_control_metadata_typed(source_unit, attack_context).ToDictionary();
+
+    public virtual BattleSpellControlMetadata resolve_spell_control_metadata_typed(
+        BattleUnitState source_unit,
+        AttackContext attack_context
     )
     {
         int hiddenLuckAtBirth = _get_hidden_luck_at_birth(source_unit);
@@ -739,46 +744,48 @@ public partial class BattleHitResolver : RefCounted
         );
         int critGateDie = FateAttackFormula.CalcCritGateDieSize(effectiveLuck, isDisadvantage);
         bool critLocked = BattleFateAttackRules.IsAttackCritLocked(source_unit);
-        var metadata = new GDictionary
+        var metadata = new BattleSpellControlMetadata
         {
-            ["attack_resolution"] = ATTACK_RESOLUTION_HIT,
-            ["spell_control_resolution"] = new StringName("normal"),
-            ["attack_success"] = true,
-            ["critical_hit"] = false,
-            ["critical_fail"] = false,
-            ["ordinary_miss"] = false,
-            ["is_disadvantage"] = isDisadvantage,
-            ["hidden_luck_at_birth"] = hiddenLuckAtBirth,
-            ["faith_luck_bonus"] = faithLuckBonus,
-            ["effective_luck"] = effectiveLuck,
-            ["crit_locked"] = critLocked,
-            ["crit_gate_die"] = critGateDie,
-            ["crit_gate_roll"] = 0,
-            ["hit_roll"] = 0,
-            ["fumble_low_end"] = FateAttackFormula.CalcFumbleLowEnd(effectiveLuck),
-            ["crit_threshold"] = FateAttackFormula.CalcCritThreshold(
+            AttackResolution = ATTACK_RESOLUTION_HIT,
+            SpellControlResolution = "normal",
+            AttackSuccess = true,
+            CriticalHit = false,
+            CriticalFail = false,
+            OrdinaryMiss = false,
+            IsDisadvantage = isDisadvantage,
+            HiddenLuckAtBirth = hiddenLuckAtBirth,
+            FaithLuckBonus = faithLuckBonus,
+            EffectiveLuck = effectiveLuck,
+            CritLocked = critLocked,
+            CritGateDie = critGateDie,
+            CritGateRoll = 0,
+            HitRoll = 0,
+            FumbleLowEnd = FateAttackFormula.CalcFumbleLowEnd(effectiveLuck),
+            CritThreshold = FateAttackFormula.CalcCritThreshold(
                 hiddenLuckAtBirth,
                 faithLuckBonus
             ),
-            ["locked_skill_hit_bonus"] = lockedSkillHitBonus,
-            ["trait_trigger_results"] = new GArray(),
+            LockedSkillHitBonus = lockedSkillHitBonus,
         };
 
         if (critGateDie > NATURAL_HIT_ROLL)
         {
             int critGateRoll = _roll_attack_die(critGateDie, isDisadvantage, attack_context);
-            metadata["crit_gate_roll"] = critGateRoll;
             if (BattleFateAttackRules.DoesGateDieCrit(critGateRoll, critGateDie, critLocked))
             {
-                metadata["attack_resolution"] = ATTACK_RESOLUTION_CRITICAL_HIT;
-                metadata["spell_control_resolution"] = new StringName("critical_success");
-                metadata["critical_hit"] = true;
-                return metadata;
+                return metadata with
+                {
+                    AttackResolution = ATTACK_RESOLUTION_CRITICAL_HIT,
+                    SpellControlResolution = "critical_success",
+                    CriticalHit = true,
+                    CritGateRoll = critGateRoll,
+                };
             }
+            metadata = metadata with { CritGateRoll = critGateRoll };
         }
 
         int hitRoll = _roll_attack_die(NATURAL_HIT_ROLL, isDisadvantage, attack_context);
-        metadata["hit_roll"] = hitRoll;
+        metadata = metadata with { HitRoll = hitRoll };
         AttackTraitTriggerResult naturalOneTraitResult = _resolve_natural_one_trait_reroll(
             source_unit,
             hitRoll,
@@ -787,25 +794,28 @@ public partial class BattleHitResolver : RefCounted
         if (naturalOneTraitResult.Triggered)
         {
             hitRoll = naturalOneTraitResult.RerolledRoll;
-            metadata["hit_roll"] = hitRoll;
-            _append_trait_trigger_result(metadata, naturalOneTraitResult);
+            metadata = metadata with { HitRoll = hitRoll };
         }
 
         int effectiveHitRoll = hitRoll + lockedSkillHitBonus;
-        metadata["effective_hit_roll"] = effectiveHitRoll;
-        if (effectiveHitRoll <= GetInt(metadata, "fumble_low_end", 1))
+        metadata = metadata with { EffectiveHitRoll = effectiveHitRoll };
+        if (effectiveHitRoll <= metadata.FumbleLowEnd)
         {
             if (_try_apply_reverse_fate_amulet(source_unit))
             {
-                metadata["spell_control_resolution"] = new StringName("reverse_fate_downgraded");
-                metadata["reverse_fate_downgraded"] = true;
-                return metadata;
+                return metadata with
+                {
+                    SpellControlResolution = "reverse_fate_downgraded",
+                    ReverseFateDowngraded = true,
+                };
             }
-            metadata["attack_resolution"] = ATTACK_RESOLUTION_CRITICAL_FAIL;
-            metadata["spell_control_resolution"] = new StringName("critical_fail");
-            metadata["attack_success"] = false;
-            metadata["critical_fail"] = true;
-            return metadata;
+            return metadata with
+            {
+                AttackResolution = ATTACK_RESOLUTION_CRITICAL_FAIL,
+                SpellControlResolution = "critical_fail",
+                AttackSuccess = false,
+                CriticalFail = true,
+            };
         }
 
         if (
@@ -813,14 +823,16 @@ public partial class BattleHitResolver : RefCounted
                 effectiveHitRoll,
                 critLocked,
                 critGateDie,
-                GetInt(metadata, "crit_threshold", NATURAL_HIT_ROLL)
+                metadata.CritThreshold
             )
         )
         {
-            metadata["attack_resolution"] = ATTACK_RESOLUTION_CRITICAL_HIT;
-            metadata["spell_control_resolution"] = new StringName("critical_success");
-            metadata["critical_hit"] = true;
-            return metadata;
+            return metadata with
+            {
+                AttackResolution = ATTACK_RESOLUTION_CRITICAL_HIT,
+                SpellControlResolution = "critical_success",
+                CriticalHit = true,
+            };
         }
 
         return metadata;

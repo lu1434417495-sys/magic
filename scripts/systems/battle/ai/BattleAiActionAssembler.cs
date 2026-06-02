@@ -1,32 +1,32 @@
 using System;
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
-[GlobalClass]
-public partial class BattleAiActionAssembler : RefCounted
+public sealed class BattleAiActionAssembler
 {
     private static readonly StringName PathStepAoeEffectType = "path_step_aoe";
 
     private readonly BattleAiSkillAffordanceClassifier _classifier = new();
 
-    public BattleAiRuntimeActionPlan build_unit_action_plan(
-        BattleUnitState unit_state,
+    public BattleAiRuntimeActionPlan BuildUnitActionPlan(
+        BattleUnitState unitState,
         EnemyAiBrainDef brain,
-        GDictionary skill_defs
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs
     )
     {
         var plan = new BattleAiRuntimeActionPlan();
-        if (unit_state == null || brain == null)
+        if (unitState == null || brain == null)
         {
             return plan;
         }
 
-        skill_defs ??= new GDictionary();
-        plan.set_source(unit_state, brain, skill_defs);
-        List<BattleAiSkillAffordanceRecord> skillRecords = ClassifyKnownActiveSkills(unit_state, skill_defs);
+        skillDefs ??= new Dictionary<StringName, SkillDef>();
+        plan.SetSource(unitState, brain);
+        List<BattleAiSkillAffordanceRecord> skillRecords = ClassifyKnownActiveSkills(
+            unitState,
+            skillDefs
+        );
         foreach (BattleAiSkillAffordanceRecord record in skillRecords)
         {
             plan.SetSkillAffordanceRecordTyped(record);
@@ -42,7 +42,7 @@ public partial class BattleAiActionAssembler : RefCounted
             StringName stateId = stateDef.state_id;
             List<EnemyAiAction> authoredActions = GetActions(stateDef);
             List<EnemyAiAction> runtimeActions = CloneRuntimeActions(authoredActions);
-            plan.AddStateActionsTyped(stateId, runtimeActions);
+            plan.AddStateActions(stateId, runtimeActions);
 
             List<EnemyAiGenerationSlotDef> generationSlots = GetGenerationSlots(stateDef);
             foreach (EnemyAiGenerationSlotDef slot in generationSlots)
@@ -60,7 +60,7 @@ public partial class BattleAiActionAssembler : RefCounted
                     }
 
                     StringName skillId = record.skill_id;
-                    SkillDef skillDef = GetSkillDef(skill_defs, skillId);
+                    SkillDef skillDef = GetSkillDef(skillDefs, skillId);
                     if (skillDef == null)
                     {
                         continue;
@@ -90,7 +90,7 @@ public partial class BattleAiActionAssembler : RefCounted
                         }
 
                         EnemyAiAction generatedAction = BuildSkillActionForFamily(
-                            unit_state,
+                            unitState,
                             stateDef,
                             runtimeActions,
                             skillDef,
@@ -142,7 +142,7 @@ public partial class BattleAiActionAssembler : RefCounted
 
     private List<BattleAiSkillAffordanceRecord> ClassifyKnownActiveSkills(
         BattleUnitState unitState,
-        GDictionary skillDefs
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs
     )
     {
         var records = new List<BattleAiSkillAffordanceRecord>();
@@ -315,7 +315,7 @@ public partial class BattleAiActionAssembler : RefCounted
 
         StringName stateId = stateDef.state_id;
         string identityKey = BuildIdentityKey(stateId, slot.slot_id, skillId, actionFamily);
-        foreach (EnemyAiAction existingAction in plan.GetTypedActions(stateId))
+        foreach (EnemyAiAction existingAction in plan.GetActions(stateId))
         {
             if (existingAction == null)
             {
@@ -608,7 +608,7 @@ public partial class BattleAiActionAssembler : RefCounted
         SkillDef skillDef
     )
     {
-        int effectiveRange = BattleRangeService.get_effective_skill_distance_contract_range(
+        int effectiveRange = BattleRangeService.GetEffectiveSkillDistanceContractRange(
             unitState,
             skillDef
         );
@@ -684,7 +684,7 @@ public partial class BattleAiActionAssembler : RefCounted
             );
             return;
         }
-        int effectiveRange = BattleRangeService.get_effective_skill_distance_contract_range(
+        int effectiveRange = BattleRangeService.GetEffectiveSkillDistanceContractRange(
             unitState,
             skillDef
         );
@@ -723,7 +723,7 @@ public partial class BattleAiActionAssembler : RefCounted
                     : "candidate_pool";
             return;
         }
-        int effectiveRange = BattleRangeService.get_effective_skill_distance_contract_range(
+        int effectiveRange = BattleRangeService.GetEffectiveSkillDistanceContractRange(
             unitState,
             skillDef
         );
@@ -747,7 +747,7 @@ public partial class BattleAiActionAssembler : RefCounted
             action.distance_reference = GetDistanceReference(templateAction);
             return;
         }
-        int effectiveRange = BattleRangeService.get_effective_skill_distance_contract_range(
+        int effectiveRange = BattleRangeService.GetEffectiveSkillDistanceContractRange(
             unitState,
             skillDef
         );
@@ -806,9 +806,9 @@ public partial class BattleAiActionAssembler : RefCounted
         return new StringName($"auto_{stateId}_{skillId}_{suffix}");
     }
 
-    public bool _is_offensive_or_enemy_skill(SkillDef skill_def)
+    public bool IsOffensiveOrEnemySkill(SkillDef skillDef)
     {
-        if (skill_def?.combat_profile is not CombatSkillDef combatProfile)
+        if (skillDef?.combat_profile is not CombatSkillDef combatProfile)
         {
             return false;
         }
@@ -822,13 +822,13 @@ public partial class BattleAiActionAssembler : RefCounted
         StringName targetFilter = ProgressionDataUtils.to_string_name(
             combatProfile.target_team_filter
         );
-        if (BattleTargetTeamRules.is_enemy_filter(targetFilter))
+        if (BattleTargetTeamRules.IsEnemyFilter(targetFilter))
         {
             return true;
         }
         foreach (CombatEffectDef effectDef in combatProfile.effect_defs)
         {
-            if (IsOffensiveEffect(skill_def, effectDef))
+            if (IsOffensiveEffect(skillDef, effectDef))
             {
                 return true;
             }
@@ -841,7 +841,7 @@ public partial class BattleAiActionAssembler : RefCounted
             }
             foreach (Resource effectResource in castVariant.effect_defs)
             {
-                if (IsOffensiveEffect(skill_def, effectResource as CombatEffectDef))
+                if (IsOffensiveEffect(skillDef, effectResource as CombatEffectDef))
                 {
                     return true;
                 }
@@ -862,22 +862,22 @@ public partial class BattleAiActionAssembler : RefCounted
         StringName skillFilter = skillDef?.combat_profile is CombatSkillDef combatProfile
             ? ProgressionDataUtils.to_string_name(combatProfile.target_team_filter)
             : "";
-        if (BattleTargetTeamRules.is_enemy_filter(effectFilter))
+        if (BattleTargetTeamRules.IsEnemyFilter(effectFilter))
         {
             return true;
         }
-        if (BattleTargetTeamRules.is_beneficial_filter(effectFilter))
+        if (BattleTargetTeamRules.IsBeneficialFilter(effectFilter))
         {
             return false;
         }
-        if (effectFilter == "" && BattleTargetTeamRules.is_beneficial_filter(skillFilter))
+        if (effectFilter == "" && BattleTargetTeamRules.IsBeneficialFilter(skillFilter))
         {
             return false;
         }
         var effectKind = BattleTypedNames.ToEffectKind(effectDef.effect_type);
         if (effectKind == BattleEffectKind.Damage || effectKind == BattleEffectKind.PathStepAoe)
         {
-            return !BattleTargetTeamRules.is_beneficial_filter(skillFilter);
+            return !BattleTargetTeamRules.IsBeneficialFilter(skillFilter);
         }
         if (
             effectKind == BattleEffectKind.Status
@@ -959,18 +959,16 @@ public partial class BattleAiActionAssembler : RefCounted
         return null;
     }
 
-    private static SkillDef GetSkillDef(GDictionary skillDefs, StringName skillId)
+    private static SkillDef GetSkillDef(
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        StringName skillId
+    )
     {
         if (skillDefs == null || skillId == "")
         {
             return null;
         }
-        if (skillDefs.ContainsKey(skillId))
-        {
-            return skillDefs[skillId].As<SkillDef>();
-        }
-        string key = skillId.ToString();
-        return skillDefs.ContainsKey(key) ? skillDefs[key].As<SkillDef>() : null;
+        return skillDefs.TryGetValue(skillId, out SkillDef skillDef) ? skillDef : null;
     }
 
     private static int GetSkillLevel(BattleUnitState unitState, StringName skillId)
@@ -1073,13 +1071,35 @@ public partial class BattleAiActionAssembler : RefCounted
 
     private static void SetTargetSelectorIfSupported(EnemyAiAction action, StringName selector)
     {
-        if (action is UseUnitSkillAction unitAction)
+        switch (action)
         {
-            unitAction.target_selector = selector;
-        }
-        else if (action is EnemyAiAction)
-        {
-            action.Set("target_selector", selector);
+            case UseUnitSkillAction unitAction:
+                unitAction.target_selector = selector;
+                break;
+            case UseMultiUnitSkillAction multiUnitAction:
+                multiUnitAction.target_selector = selector;
+                break;
+            case UseRandomChainSkillAction chainAction:
+                chainAction.target_selector = selector;
+                break;
+            case UseGroundRepositionSkillAction repositionAction:
+                repositionAction.target_selector = selector;
+                break;
+            case RetreatAction retreatAction:
+                retreatAction.target_selector = selector;
+                break;
+            case UseChargePathAoeAction chargePathAction:
+                chargePathAction.target_selector = selector;
+                break;
+            case UseChargeAction chargeAction:
+                chargeAction.target_selector = selector;
+                break;
+            case MoveToRangeAction moveAction:
+                moveAction.target_selector = selector;
+                break;
+            case MoveToAdvantagePositionAction advantageAction:
+                advantageAction.target_selector = selector;
+                break;
         }
     }
 
@@ -1088,47 +1108,100 @@ public partial class BattleAiActionAssembler : RefCounted
         StringName distanceReference
     )
     {
-        if (action is UseUnitSkillAction unitAction)
+        switch (action)
         {
-            unitAction.distance_reference = distanceReference;
-        }
-        else if (
-            action
-            is UseGroundSkillAction
-                or UseMultiUnitSkillAction
-                or MoveToMultiUnitSkillPositionAction
-                or UseRandomChainSkillAction
-        )
-        {
-            action.Set("distance_reference", distanceReference);
+            case UseUnitSkillAction unitAction:
+                unitAction.distance_reference = distanceReference;
+                break;
+            case UseGroundSkillAction groundAction:
+                groundAction.distance_reference = distanceReference;
+                break;
+            case UseMultiUnitSkillAction multiUnitAction:
+                multiUnitAction.distance_reference = distanceReference;
+                break;
+            case UseRandomChainSkillAction chainAction:
+                chainAction.distance_reference = distanceReference;
+                break;
         }
     }
 
     private static void SetIntIfSupported(EnemyAiAction action, string propertyName, int value)
     {
-        if (action is UseUnitSkillAction unitAction)
+        switch (action)
         {
-            if (propertyName == "desired_min_distance")
-            {
-                unitAction.desired_min_distance = value;
-            }
-            else if (propertyName == "desired_max_distance")
-            {
-                unitAction.desired_max_distance = value;
-            }
-            return;
+            case UseUnitSkillAction unitAction:
+                SetDistanceInt(
+                    value,
+                    propertyName,
+                    v => unitAction.desired_min_distance = v,
+                    v => unitAction.desired_max_distance = v
+                );
+                break;
+            case UseGroundSkillAction groundAction:
+                SetDistanceInt(
+                    value,
+                    propertyName,
+                    v => groundAction.desired_min_distance = v,
+                    v => groundAction.desired_max_distance = v
+                );
+                break;
+            case UseMultiUnitSkillAction multiUnitAction:
+                SetDistanceInt(
+                    value,
+                    propertyName,
+                    v => multiUnitAction.desired_min_distance = v,
+                    v => multiUnitAction.desired_max_distance = v
+                );
+                break;
+            case UseRandomChainSkillAction chainAction:
+                SetDistanceInt(
+                    value,
+                    propertyName,
+                    v => chainAction.desired_min_distance = v,
+                    v => chainAction.desired_max_distance = v
+                );
+                break;
+            case MoveToRangeAction moveAction:
+                SetDistanceInt(
+                    value,
+                    propertyName,
+                    v => moveAction.desired_min_distance = v,
+                    v => moveAction.desired_max_distance = v
+                );
+                break;
+            case UseChargePathAoeAction chargePathAction:
+                SetDistanceInt(
+                    value,
+                    propertyName,
+                    v => chargePathAction.desired_min_distance = v,
+                    v => chargePathAction.desired_max_distance = v
+                );
+                break;
+            case MoveToAdvantagePositionAction advantageAction:
+                SetDistanceInt(
+                    value,
+                    propertyName,
+                    v => advantageAction.desired_min_distance = v,
+                    v => advantageAction.desired_max_distance = v
+                );
+                break;
         }
-        if (
-            action
-            is UseGroundSkillAction
-                or UseMultiUnitSkillAction
-                or MoveToMultiUnitSkillPositionAction
-                or UseRandomChainSkillAction
-                or MoveToRangeAction
-                or UseChargePathAoeAction
-        )
+    }
+
+    private static void SetDistanceInt(
+        int value,
+        string propertyName,
+        Action<int> setMinDistance,
+        Action<int> setMaxDistance
+    )
+    {
+        if (propertyName == "desired_min_distance")
         {
-            action.Set(propertyName, value);
+            setMinDistance?.Invoke(value);
+        }
+        else if (propertyName == "desired_max_distance")
+        {
+            setMaxDistance?.Invoke(value);
         }
     }
 }

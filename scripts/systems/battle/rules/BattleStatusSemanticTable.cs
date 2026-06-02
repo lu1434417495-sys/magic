@@ -1,18 +1,21 @@
 using Godot;
-using System;
 
-public readonly record struct BattleStatusDurationAdvanceResult(bool Expired, bool Changed)
-{
-    public Godot.Collections.Dictionary ToDictionary() =>
-        new()
-        {
-            ["expired"] = Expired,
-            ["changed"] = Changed,
-        };
-}
+public readonly record struct BattleStatusDurationAdvanceResult(bool Expired, bool Changed);
 
-[GlobalClass]
-public partial class BattleStatusSemanticTable : RefCounted
+public readonly record struct BattleStatusSemantic(
+    bool Defined,
+    StringName StackMode,
+    int MaxStacks,
+    StringName TickMode,
+    int MoveCostDelta,
+    int AttackRollPenalty,
+    StringName ApPenaltyGroup,
+    bool ConsumeAfterApPenalty,
+    string DisplayLabel,
+    string TurnStartLogReasonId
+);
+
+public static class BattleStatusSemanticTable
 {
     public static readonly StringName STACK_REFRESH = "refresh",
         STACK_ADD = "add";
@@ -58,223 +61,227 @@ public partial class BattleStatusSemanticTable : RefCounted
         STATUS_LAST_STAND_ACTIVE = "last_stand_active",
         STATUS_WILLPOWER_SAVE_BONUS_UP = "willpower_save_bonus_up";
 
-    public static bool has_semantic(StringName sid) => get_semantic(sid).Count > 0;
+    public static bool HasSemantic(StringName statusId) => GetSemantic(statusId).Defined;
 
-    public static bool is_harmful_status(StringName sid)
+    public static bool IsHarmfulStatus(StringName statusId)
     {
-        var n = ProgressionDataUtils.to_string_name(sid);
-        return n == STATUS_ARMOR_BREAK
-            || n == STATUS_BLIND
-            || n == STATUS_FROZEN
-            || n == STATUS_MARKED
-            || n == STATUS_METEOR_CONCUSSED
-            || n == STATUS_PINNED
-            || n == STATUS_ROOTED
-            || n == STATUS_SHOCKED
-            || n == STATUS_TAUNTED
-            || n == STATUS_TENDON_CUT
-            || n == STATUS_BURNING
-            || n == STATUS_SLOW
-            || n == STATUS_SOUL_FRACTURE
-            || n == STATUS_STAGGERED
-            || n == STATUS_HEX_OF_FRAILTY
-            || n == STATUS_CROWN_BREAK_BROKEN_FANG
-            || n == STATUS_CROWN_BREAK_BROKEN_HAND
-            || n == STATUS_CROWN_BREAK_BLINDED_EYE
-            || n == STATUS_DOOM_SENTENCE_VERDICT
-            || n == STATUS_PETRIFIED
-            || n == STATUS_MADNESS
-            || n == "black_star_brand_normal"
-            || n == "black_star_brand_elite";
+        var normalizedStatusId = ProgressionDataUtils.to_string_name(statusId);
+        return normalizedStatusId == STATUS_ARMOR_BREAK
+            || normalizedStatusId == STATUS_BLIND
+            || normalizedStatusId == STATUS_FROZEN
+            || normalizedStatusId == STATUS_MARKED
+            || normalizedStatusId == STATUS_METEOR_CONCUSSED
+            || normalizedStatusId == STATUS_PINNED
+            || normalizedStatusId == STATUS_ROOTED
+            || normalizedStatusId == STATUS_SHOCKED
+            || normalizedStatusId == STATUS_TAUNTED
+            || normalizedStatusId == STATUS_TENDON_CUT
+            || normalizedStatusId == STATUS_BURNING
+            || normalizedStatusId == STATUS_SLOW
+            || normalizedStatusId == STATUS_SOUL_FRACTURE
+            || normalizedStatusId == STATUS_STAGGERED
+            || normalizedStatusId == STATUS_HEX_OF_FRAILTY
+            || normalizedStatusId == STATUS_CROWN_BREAK_BROKEN_FANG
+            || normalizedStatusId == STATUS_CROWN_BREAK_BROKEN_HAND
+            || normalizedStatusId == STATUS_CROWN_BREAK_BLINDED_EYE
+            || normalizedStatusId == STATUS_DOOM_SENTENCE_VERDICT
+            || normalizedStatusId == STATUS_PETRIFIED
+            || normalizedStatusId == STATUS_MADNESS
+            || normalizedStatusId == "black_star_brand_normal"
+            || normalizedStatusId == "black_star_brand_elite";
     }
 
-    public static bool is_cleansable_harmful_status(StringName sid) =>
-        ProgressionDataUtils.to_string_name(sid) == STATUS_PETRIFIED
+    public static bool IsCleansableHarmfulStatus(StringName statusId) =>
+        ProgressionDataUtils.to_string_name(statusId) == STATUS_PETRIFIED
             ? false
-            : is_harmful_status(sid);
+            : IsHarmfulStatus(statusId);
 
-    public static bool is_dispellable_harmful_status(StringName sid)
+    public static bool IsDispellableHarmfulStatus(StringName statusId)
     {
-        var n = ProgressionDataUtils.to_string_name(sid);
-        return n == STATUS_BLIND
-            || n == STATUS_BURNING
-            || n == STATUS_DOOM_SENTENCE_VERDICT
-            || n == STATUS_FROZEN
-            || n == STATUS_HEX_OF_FRAILTY
-            || n == STATUS_MADNESS
-            || n == STATUS_MARKED
-            || n == STATUS_METEOR_CONCUSSED
-            || n == STATUS_PINNED
-            || n == STATUS_ROOTED
-            || n == STATUS_SHOCKED
-            || n == STATUS_SLOW
-            || n == STATUS_SOUL_FRACTURE
-            || n == STATUS_STAGGERED
-            || n == STATUS_TAUNTED;
+        var normalizedStatusId = ProgressionDataUtils.to_string_name(statusId);
+        return normalizedStatusId == STATUS_BLIND
+            || normalizedStatusId == STATUS_BURNING
+            || normalizedStatusId == STATUS_DOOM_SENTENCE_VERDICT
+            || normalizedStatusId == STATUS_FROZEN
+            || normalizedStatusId == STATUS_HEX_OF_FRAILTY
+            || normalizedStatusId == STATUS_MADNESS
+            || normalizedStatusId == STATUS_MARKED
+            || normalizedStatusId == STATUS_METEOR_CONCUSSED
+            || normalizedStatusId == STATUS_PINNED
+            || normalizedStatusId == STATUS_ROOTED
+            || normalizedStatusId == STATUS_SHOCKED
+            || normalizedStatusId == STATUS_SLOW
+            || normalizedStatusId == STATUS_SOUL_FRACTURE
+            || normalizedStatusId == STATUS_STAGGERED
+            || normalizedStatusId == STATUS_TAUNTED;
     }
 
-    public static bool is_dispellable_beneficial_status(StringName sid)
+    public static bool IsDispellableBeneficialStatus(StringName statusId)
     {
-        var n = ProgressionDataUtils.to_string_name(sid);
-        return n == STATUS_ATTACK_UP
-            || n == STATUS_ATTACK_ROLL_BONUS_UP
-            || n == STATUS_DAMAGE_REDUCTION_UP
-            || n == STATUS_DEATH_WARD
-            || n == STATUS_DODGE_BONUS_UP
-            || n == STATUS_MAGIC_SHIELD
-            || n == STATUS_PRISMATIC_BARRIER
-            || n == STATUS_SPELLWARD
-            || n == STATUS_WILLPOWER_SAVE_BONUS_UP;
+        var normalizedStatusId = ProgressionDataUtils.to_string_name(statusId);
+        return normalizedStatusId == STATUS_ATTACK_UP
+            || normalizedStatusId == STATUS_ATTACK_ROLL_BONUS_UP
+            || normalizedStatusId == STATUS_DAMAGE_REDUCTION_UP
+            || normalizedStatusId == STATUS_DEATH_WARD
+            || normalizedStatusId == STATUS_DODGE_BONUS_UP
+            || normalizedStatusId == STATUS_MAGIC_SHIELD
+            || normalizedStatusId == STATUS_PRISMATIC_BARRIER
+            || normalizedStatusId == STATUS_SPELLWARD
+            || normalizedStatusId == STATUS_WILLPOWER_SAVE_BONUS_UP;
     }
 
-    public static bool is_dispellable_harmful_status_entry(BattleStatusEffectState se)
+    public static bool IsDispellableHarmfulStatusEntry(BattleStatusEffectState statusEntry)
     {
-        if (se == null)
+        if (statusEntry == null)
             return false;
-        if (_gpb(se.@params, "undispellable", false))
+        if (TryGetStatusParamBool(statusEntry, "undispellable", out bool undispellable) && undispellable)
             return false;
-        if (_gpb(se.@params, "dispellable_harmful_magic", false))
-            return true;
-        if (_gpb(se.@params, "dispellable_magic", false))
-            return is_harmful_status(se.status_id);
-        return is_dispellable_harmful_status(se.status_id);
-    }
-
-    public static bool is_dispellable_beneficial_status_entry(BattleStatusEffectState se)
-    {
-        if (se == null)
-            return false;
-        if (_gpb(se.@params, "undispellable", false))
-            return false;
-        if (_gpb(se.@params, "dispellable_beneficial_magic", false))
-            return true;
-        if (_gpb(se.@params, "dispellable_magic", false))
-            return !is_harmful_status(se.status_id);
-        return is_dispellable_beneficial_status(se.status_id);
-    }
-
-    public static int get_dispel_priority(StringName sid)
-    {
-        var n = ProgressionDataUtils.to_string_name(sid);
         if (
-            n == STATUS_DEATH_WARD
-            || n == STATUS_MAGIC_SHIELD
-            || n == STATUS_PRISMATIC_BARRIER
-            || n == STATUS_SPELLWARD
+            TryGetStatusParamBool(
+                statusEntry,
+                "dispellable_harmful_magic",
+                out bool dispellableHarmfulMagic
+            )
+            && dispellableHarmfulMagic
+        )
+            return true;
+        if (
+            TryGetStatusParamBool(statusEntry, "dispellable_magic", out bool dispellableMagic)
+            && dispellableMagic
+        )
+            return IsHarmfulStatus(statusEntry.status_id);
+        return IsDispellableHarmfulStatus(statusEntry.status_id);
+    }
+
+    public static bool IsDispellableBeneficialStatusEntry(BattleStatusEffectState statusEntry)
+    {
+        if (statusEntry == null)
+            return false;
+        if (TryGetStatusParamBool(statusEntry, "undispellable", out bool undispellable) && undispellable)
+            return false;
+        if (
+            TryGetStatusParamBool(
+                statusEntry,
+                "dispellable_beneficial_magic",
+                out bool dispellableBeneficialMagic
+            )
+            && dispellableBeneficialMagic
+        )
+            return true;
+        if (
+            TryGetStatusParamBool(statusEntry, "dispellable_magic", out bool dispellableMagic)
+            && dispellableMagic
+        )
+            return !IsHarmfulStatus(statusEntry.status_id);
+        return IsDispellableBeneficialStatus(statusEntry.status_id);
+    }
+
+    public static int GetDispelPriority(StringName statusId)
+    {
+        var normalizedStatusId = ProgressionDataUtils.to_string_name(statusId);
+        if (
+            normalizedStatusId == STATUS_DEATH_WARD
+            || normalizedStatusId == STATUS_MAGIC_SHIELD
+            || normalizedStatusId == STATUS_PRISMATIC_BARRIER
+            || normalizedStatusId == STATUS_SPELLWARD
         )
             return 100;
-        if (n == STATUS_BLIND || n == STATUS_FROZEN || n == STATUS_MADNESS || n == STATUS_ROOTED)
+        if (
+            normalizedStatusId == STATUS_BLIND
+            || normalizedStatusId == STATUS_FROZEN
+            || normalizedStatusId == STATUS_MADNESS
+            || normalizedStatusId == STATUS_ROOTED
+        )
             return 90;
         if (
-            n == STATUS_ATTACK_UP
-            || n == STATUS_ATTACK_ROLL_BONUS_UP
-            || n == STATUS_DAMAGE_REDUCTION_UP
-            || n == STATUS_DODGE_BONUS_UP
-            || n == STATUS_WILLPOWER_SAVE_BONUS_UP
+            normalizedStatusId == STATUS_ATTACK_UP
+            || normalizedStatusId == STATUS_ATTACK_ROLL_BONUS_UP
+            || normalizedStatusId == STATUS_DAMAGE_REDUCTION_UP
+            || normalizedStatusId == STATUS_DODGE_BONUS_UP
+            || normalizedStatusId == STATUS_WILLPOWER_SAVE_BONUS_UP
         )
             return 80;
         if (
-            n == STATUS_BURNING
-            || n == STATUS_HEX_OF_FRAILTY
-            || n == STATUS_METEOR_CONCUSSED
-            || n == STATUS_PINNED
-            || n == STATUS_SHOCKED
-            || n == STATUS_SLOW
-            || n == STATUS_STAGGERED
-            || n == STATUS_TAUNTED
+            normalizedStatusId == STATUS_BURNING
+            || normalizedStatusId == STATUS_HEX_OF_FRAILTY
+            || normalizedStatusId == STATUS_METEOR_CONCUSSED
+            || normalizedStatusId == STATUS_PINNED
+            || normalizedStatusId == STATUS_SHOCKED
+            || normalizedStatusId == STATUS_SLOW
+            || normalizedStatusId == STATUS_STAGGERED
+            || normalizedStatusId == STATUS_TAUNTED
         )
             return 70;
         return 50;
     }
 
-    public static Godot.Collections.Dictionary get_semantic(StringName sid)
+    public static BattleStatusSemantic GetSemantic(StringName statusId)
     {
-        var n = ProgressionDataUtils.to_string_name(sid);
+        var normalizedStatusId = ProgressionDataUtils.to_string_name(statusId);
         if (
-            n == STATUS_ARCHER_PRE_AIM
-            || n == STATUS_ARCHER_RANGE_UP
-            || n == STATUS_ARCHER_SHOOTING_SPECIALIZATION
-            || n == STATUS_ATTACK_UP
-            || n == STATUS_ATTACK_ROLL_BONUS_UP
-            || n == STATUS_DAMAGE_REDUCTION_UP
-            || n == STATUS_DEATH_WARD
-            || n == STATUS_DODGE_BONUS_UP
-            || n == STATUS_GUARDING
-            || n == STATUS_HEX_OF_FRAILTY
-            || n == STATUS_MAGIC_SHIELD
-            || n == STATUS_PRISMATIC_BARRIER
-            || n == STATUS_SPELLWARD
-            || n == STATUS_LAST_STAND_ACTIVE
-            || n == STATUS_WILLPOWER_SAVE_BONUS_UP
+            normalizedStatusId == STATUS_ARCHER_PRE_AIM
+            || normalizedStatusId == STATUS_ARCHER_RANGE_UP
+            || normalizedStatusId == STATUS_ARCHER_SHOOTING_SPECIALIZATION
+            || normalizedStatusId == STATUS_ATTACK_UP
+            || normalizedStatusId == STATUS_ATTACK_ROLL_BONUS_UP
+            || normalizedStatusId == STATUS_DAMAGE_REDUCTION_UP
+            || normalizedStatusId == STATUS_DEATH_WARD
+            || normalizedStatusId == STATUS_DODGE_BONUS_UP
+            || normalizedStatusId == STATUS_GUARDING
+            || normalizedStatusId == STATUS_HEX_OF_FRAILTY
+            || normalizedStatusId == STATUS_MAGIC_SHIELD
+            || normalizedStatusId == STATUS_PRISMATIC_BARRIER
+            || normalizedStatusId == STATUS_SPELLWARD
+            || normalizedStatusId == STATUS_LAST_STAND_ACTIVE
+            || normalizedStatusId == STATUS_WILLPOWER_SAVE_BONUS_UP
         )
-            return _brt();
-        if (n == STATUS_BLIND)
-        {
-            var s = _brt();
-            s["attack_roll_penalty"] = DEFAULT_BLIND_ATTACK_ROLL_PENALTY;
-            return s;
-        }
+            return RefreshSemantic();
+        if (normalizedStatusId == STATUS_BLIND)
+            return RefreshSemantic(attackRollPenalty: DEFAULT_BLIND_ATTACK_ROLL_PENALTY);
         if (
-            n == STATUS_ARMOR_BREAK
-            || n == STATUS_FROZEN
-            || n == STATUS_MARKED
-            || n == STATUS_PINNED
-            || n == STATUS_ROOTED
-            || n == STATUS_SHOCKED
-            || n == STATUS_TAUNTED
-            || n == STATUS_TENDON_CUT
-            || n == STATUS_CROWN_BREAK_BROKEN_FANG
-            || n == STATUS_CROWN_BREAK_BROKEN_HAND
-            || n == STATUS_CROWN_BREAK_BLINDED_EYE
-            || n == STATUS_DOOM_SENTENCE_VERDICT
-            || n == STATUS_PETRIFIED
-            || n == STATUS_MADNESS
+            normalizedStatusId == STATUS_ARMOR_BREAK
+            || normalizedStatusId == STATUS_FROZEN
+            || normalizedStatusId == STATUS_MARKED
+            || normalizedStatusId == STATUS_PINNED
+            || normalizedStatusId == STATUS_ROOTED
+            || normalizedStatusId == STATUS_SHOCKED
+            || normalizedStatusId == STATUS_TAUNTED
+            || normalizedStatusId == STATUS_TENDON_CUT
+            || normalizedStatusId == STATUS_CROWN_BREAK_BROKEN_FANG
+            || normalizedStatusId == STATUS_CROWN_BREAK_BROKEN_HAND
+            || normalizedStatusId == STATUS_CROWN_BREAK_BLINDED_EYE
+            || normalizedStatusId == STATUS_DOOM_SENTENCE_VERDICT
+            || normalizedStatusId == STATUS_PETRIFIED
+            || normalizedStatusId == STATUS_MADNESS
         )
-            return _brt();
-        if (n == STATUS_BURNING)
-            return new Godot.Collections.Dictionary
-            {
-                { "stack_mode", STACK_ADD },
-                { "max_stacks", 3 },
-                { "tick_mode", TICK_TIMELINE_DAMAGE },
-            };
-        if (n == STATUS_SLOW)
-            return new Godot.Collections.Dictionary
-            {
-                { "stack_mode", STACK_REFRESH },
-                { "max_stacks", 1 },
-                { "tick_mode", TICK_NONE },
-                { "move_cost_delta", 1 },
-            };
-        if (n == STATUS_METEOR_CONCUSSED)
-            return new Godot.Collections.Dictionary
-            {
-                { "stack_mode", STACK_REFRESH },
-                { "max_stacks", 1 },
-                { "tick_mode", TICK_TURN_START_AP_PENALTY },
-                { "attack_roll_penalty", 2 },
-                { "ap_penalty_group", STATUS_STAGGERED },
-                { "consume_after_ap_penalty", true },
-                { "display_label", "震眩" },
-                { "turn_start_log_reason_id", "meteor_concussed_ap_consumed" },
-            };
-        if (n == STATUS_STAGGERED)
+            return RefreshSemantic();
+        if (normalizedStatusId == STATUS_BURNING)
+            return BuildSemantic(STACK_ADD, 3, TICK_TIMELINE_DAMAGE);
+        if (normalizedStatusId == STATUS_SLOW)
+            return RefreshSemantic(moveCostDelta: 1);
+        if (normalizedStatusId == STATUS_METEOR_CONCUSSED)
         {
-            var ss = _brt(TICK_TURN_START_AP_PENALTY);
-            ss["ap_penalty_group"] = STATUS_STAGGERED;
-            ss["display_label"] = "踉跄";
-            return ss;
+            return RefreshSemantic(
+                tickMode: TICK_TURN_START_AP_PENALTY,
+                attackRollPenalty: 2,
+                apPenaltyGroup: STATUS_STAGGERED,
+                consumeAfterApPenalty: true,
+                displayLabel: "震眩",
+                turnStartLogReasonId: "meteor_concussed_ap_consumed"
+            );
         }
-        return new Godot.Collections.Dictionary();
+        if (normalizedStatusId == STATUS_STAGGERED)
+        {
+            return RefreshSemantic(
+                tickMode: TICK_TURN_START_AP_PENALTY,
+                apPenaltyGroup: STATUS_STAGGERED,
+                displayLabel: "踉跄"
+            );
+        }
+        return default;
     }
 
-    public static BattleStatusEffectState merge_status(
-        CombatEffectDef effectDef,
-        StringName sourceUnitId,
-        BattleStatusEffectState existingEntry = null
-    ) => merge_status_typed(effectDef, sourceUnitId, existingEntry);
-
-    public static BattleStatusEffectState merge_status_typed(
+    public static BattleStatusEffectState MergeStatus(
         CombatEffectDef effectDef,
         StringName sourceUnitId,
         BattleStatusEffectState existingEntry = null
@@ -282,275 +289,262 @@ public partial class BattleStatusSemanticTable : RefCounted
     {
         if (effectDef == null || ProgressionDataUtils.to_string_name(effectDef.status_id) == "")
             return null;
-        var semantic = get_semantic(effectDef.status_id);
-        var se = existingEntry?.duplicate_state() ?? new BattleStatusEffectState();
-        se.status_id = ProgressionDataUtils.to_string_name(effectDef.status_id);
-        se.source_unit_id = sourceUnitId;
-        se.@params = _clone_effect_params(effectDef);
-        se.counts_as_debuff_override = effectDef.counts_as_debuff_override;
-        se.counts_as_debuff = effectDef.counts_as_debuff;
-        se.lock_counterattack = effectDef.lock_counterattack;
-        se.lock_crit = effectDef.lock_crit;
-        se.main_skill_lock_other_debuff_count = Mathf.Max(
+        BattleStatusSemantic semantic = GetSemantic(effectDef.status_id);
+        var statusEntry = existingEntry?.duplicate_state() ?? new BattleStatusEffectState();
+        statusEntry.status_id = ProgressionDataUtils.to_string_name(effectDef.status_id);
+        statusEntry.source_unit_id = sourceUnitId;
+        statusEntry.@params = effectDef.@params?.Duplicate(true) ?? new();
+        statusEntry.counts_as_debuff_override = effectDef.counts_as_debuff_override;
+        statusEntry.counts_as_debuff = effectDef.counts_as_debuff;
+        statusEntry.lock_counterattack = effectDef.lock_counterattack;
+        statusEntry.lock_crit = effectDef.lock_crit;
+        statusEntry.main_skill_lock_other_debuff_count = Mathf.Max(
             effectDef.main_skill_lock_other_debuff_count,
             0
         );
         int incomingPower = Mathf.Max(effectDef.power, 1);
-        int prevPower = Mathf.Max(se.power, 0);
-        int prevStacks = Mathf.Max(se.stacks, 0);
-        if (semantic.Count == 0)
+        int previousPower = Mathf.Max(statusEntry.power, 0);
+        int previousStacks = Mathf.Max(statusEntry.stacks, 0);
+        if (!semantic.Defined)
         {
-            se.power = effectDef.power;
-            se.stacks = Mathf.Max(prevStacks + 1, 1);
-            int sd = _resolve_duration_tu(effectDef);
-            if (sd >= 0)
-                se.duration = sd;
-            return se;
+            statusEntry.power = effectDef.power;
+            statusEntry.stacks = Mathf.Max(previousStacks + 1, 1);
+            int durationTu = ResolveDurationTu(effectDef);
+            if (durationTu >= 0)
+                statusEntry.duration = durationTu;
+            return statusEntry;
         }
-        var stackMode = ProgressionDataUtils.to_string_name(
-            semantic.ContainsKey("stack_mode") ? semantic["stack_mode"] : STACK_REFRESH
-        );
-        int maxStacks = semantic.ContainsKey("max_stacks") ? semantic["max_stacks"].AsInt32() : 0;
-        se.power = Mathf.Max(prevPower, incomingPower);
-        se.stacks =
+
+        StringName stackMode =
+            ProgressionDataUtils.to_string_name(semantic.StackMode) == ""
+                ? STACK_REFRESH
+                : semantic.StackMode;
+        int maxStacks = semantic.MaxStacks;
+        statusEntry.power = Mathf.Max(previousPower, incomingPower);
+        statusEntry.stacks =
             stackMode == STACK_ADD
                 ? (
                     maxStacks > 0
-                        ? Mathf.Min(Mathf.Max(prevStacks + 1, 1), maxStacks)
-                        : Mathf.Max(prevStacks + 1, 1)
+                        ? Mathf.Min(Mathf.Max(previousStacks + 1, 1), maxStacks)
+                        : Mathf.Max(previousStacks + 1, 1)
                 )
                 : 1;
-        int semDur = _resolve_duration_tu(effectDef);
-        if (semDur >= 0)
+        int semanticDurationTu = ResolveDurationTu(effectDef);
+        if (semanticDurationTu >= 0)
         {
-            int prevDur = se.duration;
-            se.duration = Mathf.Max(semDur, prevDur);
+            int previousDuration = statusEntry.duration;
+            statusEntry.duration = Mathf.Max(semanticDurationTu, previousDuration);
         }
-        int tickInt = _resolve_tick_interval_tu(effectDef);
-        if (tickInt > 0)
+        int tickIntervalTu = ResolveTickIntervalTu(effectDef);
+        if (tickIntervalTu > 0)
         {
-            se.tick_interval_tu = tickInt;
-            if (se.next_tick_at_tu <= 0)
-                se.next_tick_at_tu = tickInt;
+            statusEntry.tick_interval_tu = tickIntervalTu;
+            if (statusEntry.next_tick_at_tu <= 0)
+                statusEntry.next_tick_at_tu = tickIntervalTu;
         }
-        return se;
+        return statusEntry;
     }
 
-    public static int get_turn_start_ap_penalty(BattleStatusEffectState se)
+    public static int GetTurnStartApPenalty(BattleStatusEffectState statusEntry)
     {
-        if (se == null)
+        if (statusEntry == null)
             return 0;
-        var s = get_semantic(se.status_id);
-        return
-            ProgressionDataUtils.to_string_name(
-                s.ContainsKey("tick_mode") ? s["tick_mode"] : TICK_NONE
-            ) != TICK_TURN_START_AP_PENALTY
+        BattleStatusSemantic semantic = GetSemantic(statusEntry.status_id);
+        return semantic.TickMode != TICK_TURN_START_AP_PENALTY
             ? 0
-            : _get_effect_intensity(se);
+            : GetEffectIntensity(statusEntry);
     }
 
-    public static StringName get_turn_start_ap_penalty_group(BattleStatusEffectState se)
+    public static StringName GetTurnStartApPenaltyGroup(BattleStatusEffectState statusEntry)
     {
-        if (se == null)
-            return new StringName("");
-        var s = get_semantic(se.status_id);
-        return
-            ProgressionDataUtils.to_string_name(
-                s.ContainsKey("tick_mode") ? s["tick_mode"] : TICK_NONE
-            ) != TICK_TURN_START_AP_PENALTY
-            ? new StringName("")
-            : ProgressionDataUtils.to_string_name(
-                s.ContainsKey("ap_penalty_group") ? s["ap_penalty_group"] : se.status_id
+        if (statusEntry == null)
+            return "";
+        BattleStatusSemantic semantic = GetSemantic(statusEntry.status_id);
+        return semantic.TickMode != TICK_TURN_START_AP_PENALTY
+            ? ""
+            : (
+                ProgressionDataUtils.to_string_name(semantic.ApPenaltyGroup) == ""
+                    ? statusEntry.status_id
+                    : semantic.ApPenaltyGroup
             );
     }
 
-    public static bool should_consume_after_turn_start_ap_penalty(BattleStatusEffectState se)
+    public static bool ShouldConsumeAfterTurnStartApPenalty(BattleStatusEffectState statusEntry)
     {
-        if (se == null)
+        if (statusEntry == null)
             return false;
-        var s = get_semantic(se.status_id);
-        return ProgressionDataUtils.to_string_name(
-                s.ContainsKey("tick_mode") ? s["tick_mode"] : TICK_NONE
-            ) == TICK_TURN_START_AP_PENALTY
-            && _gpb(s, "consume_after_ap_penalty", false);
+        BattleStatusSemantic semantic = GetSemantic(statusEntry.status_id);
+        return semantic.TickMode == TICK_TURN_START_AP_PENALTY
+            && semantic.ConsumeAfterApPenalty;
     }
 
-    public static string get_turn_start_ap_penalty_display_label(BattleStatusEffectState se)
+    public static string GetTurnStartApPenaltyDisplayLabel(BattleStatusEffectState statusEntry)
     {
-        if (se == null)
+        if (statusEntry == null)
             return "";
-        var s = get_semantic(se.status_id);
-        if (
-            ProgressionDataUtils.to_string_name(
-                s.ContainsKey("tick_mode") ? s["tick_mode"] : TICK_NONE
-            ) != TICK_TURN_START_AP_PENALTY
-        )
+        BattleStatusSemantic semantic = GetSemantic(statusEntry.status_id);
+        if (semantic.TickMode != TICK_TURN_START_AP_PENALTY)
             return "";
-        string l = s.ContainsKey("display_label") ? s["display_label"].AsString() : "";
-        return l.StripEdges().Length > 0 ? l : (string)se.status_id;
+        string label = semantic.DisplayLabel ?? "";
+        return label.StripEdges().Length > 0 ? label : statusEntry.status_id.ToString();
     }
 
-    public static int get_turn_start_damage(BattleStatusEffectState se)
+    public static int GetTurnStartDamage(BattleStatusEffectState statusEntry)
     {
-        if (se == null)
+        if (statusEntry == null)
             return 0;
-        var s = get_semantic(se.status_id);
-        return
-            ProgressionDataUtils.to_string_name(
-                s.ContainsKey("tick_mode") ? s["tick_mode"] : TICK_NONE
-            ) != TICK_TURN_START_DAMAGE
-            ? 0
-            : _get_effect_intensity(se);
+        BattleStatusSemantic semantic = GetSemantic(statusEntry.status_id);
+        return semantic.TickMode != TICK_TURN_START_DAMAGE ? 0 : GetEffectIntensity(statusEntry);
     }
 
-    public static int get_timeline_tick_damage(BattleStatusEffectState se)
+    public static int GetTimelineTickDamage(BattleStatusEffectState statusEntry)
     {
-        if (se == null || se.tick_interval_tu <= 0)
+        if (statusEntry == null || statusEntry.tick_interval_tu <= 0)
             return 0;
-        var s = get_semantic(se.status_id);
-        return
-            ProgressionDataUtils.to_string_name(
-                s.ContainsKey("tick_mode") ? s["tick_mode"] : TICK_NONE
-            ) != TICK_TIMELINE_DAMAGE
-            ? 0
-            : _get_effect_intensity(se);
+        BattleStatusSemantic semantic = GetSemantic(statusEntry.status_id);
+        return semantic.TickMode != TICK_TIMELINE_DAMAGE ? 0 : GetEffectIntensity(statusEntry);
     }
 
-    public static int get_move_cost_delta(BattleStatusEffectState se)
+    public static int GetMoveCostDelta(BattleStatusEffectState statusEntry)
     {
-        if (se == null)
+        if (statusEntry == null)
             return 0;
-        var s = get_semantic(se.status_id);
-        int bd = Mathf.Max(
-            s.ContainsKey("move_cost_delta") ? s["move_cost_delta"].AsInt32() : 0,
-            0
-        );
-        return bd <= 0 ? 0 : bd * _get_effect_intensity(se);
+        BattleStatusSemantic semantic = GetSemantic(statusEntry.status_id);
+        int baseDelta = Mathf.Max(semantic.MoveCostDelta, 0);
+        return baseDelta <= 0 ? 0 : baseDelta * GetEffectIntensity(statusEntry);
     }
 
-    public static int get_attack_roll_penalty(BattleStatusEffectState se)
+    public static int GetAttackRollPenalty(BattleStatusEffectState statusEntry)
     {
-        if (se == null)
+        if (statusEntry == null)
             return 0;
-        var s = get_semantic(se.status_id);
-        int dp = Mathf.Max(
-            s.ContainsKey("attack_roll_penalty") ? s["attack_roll_penalty"].AsInt32() : 0,
-            0
-        );
-        return Mathf.Max(_gpi(se.@params, "attack_roll_penalty", dp), 0);
+        BattleStatusSemantic semantic = GetSemantic(statusEntry.status_id);
+        int defaultPenalty = Mathf.Max(semantic.AttackRollPenalty, 0);
+        if (statusEntry.TryGetIntParam("attack_roll_penalty", out int overridePenalty))
+            return Mathf.Max(overridePenalty, 0);
+        return defaultPenalty;
     }
 
-    public static BattleStatusDurationAdvanceResult advance_timeline_duration_result(
-        BattleStatusEffectState se,
+    public static BattleStatusDurationAdvanceResult AdvanceTimelineDurationResult(
+        BattleStatusEffectState statusEntry,
         int elapsedTu
     )
     {
-        if (se == null || elapsedTu <= 0 || se.duration < 0)
+        if (statusEntry == null || elapsedTu <= 0 || statusEntry.duration < 0)
             return new BattleStatusDurationAdvanceResult(false, false);
-        int pd = se.duration;
-        int rd = Mathf.Max(pd - elapsedTu, 0);
-        if (rd <= 0)
+        int previousDuration = statusEntry.duration;
+        int remainingDuration = Mathf.Max(previousDuration - elapsedTu, 0);
+        if (remainingDuration <= 0)
             return new BattleStatusDurationAdvanceResult(true, true);
-        se.duration = rd;
-        return new BattleStatusDurationAdvanceResult(false, rd != pd);
+        statusEntry.duration = remainingDuration;
+        return new BattleStatusDurationAdvanceResult(false, remainingDuration != previousDuration);
     }
 
-    public static Godot.Collections.Dictionary advance_timeline_duration(
-        BattleStatusEffectState se,
-        int elapsedTu
-    ) => advance_timeline_duration_result(se, elapsedTu).ToDictionary();
+    private static BattleStatusSemantic RefreshSemantic(
+        StringName tickMode = default,
+        int moveCostDelta = 0,
+        int attackRollPenalty = 0,
+        StringName apPenaltyGroup = default,
+        bool consumeAfterApPenalty = false,
+        string displayLabel = "",
+        string turnStartLogReasonId = ""
+    ) =>
+        BuildSemantic(
+            STACK_REFRESH,
+            1,
+            tickMode,
+            moveCostDelta,
+            attackRollPenalty,
+            apPenaltyGroup,
+            consumeAfterApPenalty,
+            displayLabel,
+            turnStartLogReasonId
+        );
 
-    private static Godot.Collections.Dictionary _brt(StringName tm = default)
-    {
-        tm = tm == "" ? TICK_NONE : tm;
-        return new Godot.Collections.Dictionary
-        {
-            { "stack_mode", STACK_REFRESH },
-            { "max_stacks", 1 },
-            { "tick_mode", tm },
-        };
-    }
+    private static BattleStatusSemantic BuildSemantic(
+        StringName stackMode,
+        int maxStacks,
+        StringName tickMode = default,
+        int moveCostDelta = 0,
+        int attackRollPenalty = 0,
+        StringName apPenaltyGroup = default,
+        bool consumeAfterApPenalty = false,
+        string displayLabel = "",
+        string turnStartLogReasonId = ""
+    ) =>
+        new(
+            true,
+            ProgressionDataUtils.to_string_name(stackMode) == "" ? STACK_REFRESH : stackMode,
+            Mathf.Max(maxStacks, 0),
+            ProgressionDataUtils.to_string_name(tickMode) == "" ? TICK_NONE : tickMode,
+            Mathf.Max(moveCostDelta, 0),
+            Mathf.Max(attackRollPenalty, 0),
+            ProgressionDataUtils.to_string_name(apPenaltyGroup),
+            consumeAfterApPenalty,
+            displayLabel ?? "",
+            turnStartLogReasonId ?? ""
+        );
 
-    private static int _resolve_duration_tu(CombatEffectDef ed)
+    private static int ResolveDurationTu(CombatEffectDef effectDef)
     {
-        if (ed == null)
+        if (effectDef == null)
             return -1;
-        Godot.Collections.Dictionary parameters = ed.@params;
-        if (parameters != null && parameters.ContainsKey("duration_tu"))
-            return _npt(
-                parameters["duration_tu"].AsInt32(),
+        if (effectDef.@params != null && effectDef.@params.ContainsKey("duration_tu"))
+            return NormalizePositiveTu(
+                effectDef.@params["duration_tu"].AsInt32(),
                 "status params.duration_tu"
             );
-        if (ed.duration_tu > 0)
-            return _npt(ed.duration_tu, "status duration_tu");
+        if (effectDef.duration_tu > 0)
+            return NormalizePositiveTu(effectDef.duration_tu, "status duration_tu");
         return -1;
     }
 
-    private static int _resolve_tick_interval_tu(CombatEffectDef ed)
+    private static int ResolveTickIntervalTu(CombatEffectDef effectDef)
     {
-        if (ed == null)
+        if (effectDef == null)
             return 0;
-        if (ed.tick_interval_tu > 0)
-            return _npt(ed.tick_interval_tu, "status tick_interval_tu");
-        Godot.Collections.Dictionary parameters = ed.@params;
-        if (parameters != null && parameters.ContainsKey("tick_interval_tu"))
-            return _npt(
-                parameters["tick_interval_tu"].AsInt32(),
+        if (effectDef.tick_interval_tu > 0)
+            return NormalizePositiveTu(effectDef.tick_interval_tu, "status tick_interval_tu");
+        if (effectDef.@params != null && effectDef.@params.ContainsKey("tick_interval_tu"))
+            return NormalizePositiveTu(
+                effectDef.@params["tick_interval_tu"].AsInt32(),
                 "status params.tick_interval_tu"
             );
         return 0;
     }
 
-    private static Godot.Collections.Dictionary _clone_effect_params(CombatEffectDef ed)
+    private static bool TryGetStatusParamBool(
+        BattleStatusEffectState statusEntry,
+        string key,
+        out bool value
+    )
     {
-        if (ed?.@params == null)
-            return new Godot.Collections.Dictionary();
-        return ed.@params.Duplicate(true);
+        value = false;
+        if (statusEntry == null || string.IsNullOrEmpty(key) || statusEntry.@params == null)
+            return false;
+        if (!statusEntry.@params.ContainsKey(key))
+            return false;
+        value = statusEntry.@params[key].AsBool();
+        return true;
     }
 
-    private static int _gpi(Godot.Collections.Dictionary @params, StringName pk, int fb)
-    {
-        if (@params == null || pk == "")
-            return fb;
-        if (@params.ContainsKey(pk))
-            return @params[pk].AsInt32();
-        string pn = (string)pk;
-        if (@params.ContainsKey(pn))
-            return @params[pn].AsInt32();
-        foreach (var k in @params.Keys)
-            if (ProgressionDataUtils.to_string_name(k) == pk)
-                return @params[k].AsInt32();
-        return fb;
-    }
+    private static int GetEffectIntensity(BattleStatusEffectState statusEntry) =>
+        statusEntry == null ? 0 : Mathf.Max(Mathf.Max(statusEntry.power, statusEntry.stacks), 1);
 
-    private static bool _gpb(Godot.Collections.Dictionary @params, StringName pk, bool fb)
+    private static int NormalizePositiveTu(int value, string fieldLabel)
     {
-        if (@params == null || pk == "")
-            return fb;
-        if (@params.ContainsKey(pk))
-            return @params[pk].AsBool();
-        string pn = (string)pk;
-        if (@params.ContainsKey(pn))
-            return @params[pn].AsBool();
-        foreach (var k in @params.Keys)
-            if (ProgressionDataUtils.to_string_name(k) == pk)
-                return @params[k].AsBool();
-        return fb;
-    }
-
-    private static int _get_effect_intensity(BattleStatusEffectState se) =>
-        se == null ? 0 : Mathf.Max(Mathf.Max(se.power, se.stacks), 1);
-
-    private static int _npt(int v, string fl)
-    {
-        if (v <= 0)
+        if (value <= 0)
             return -1;
-        if (v % TU_GRANULARITY != 0)
+        if (value % TU_GRANULARITY != 0)
         {
-            int cv = ((v + TU_GRANULARITY - 1) / TU_GRANULARITY) * TU_GRANULARITY;
-            GameLog.Error($"{fl} must use {TU_GRANULARITY} TU steps, got {v}; clamping up to {cv}.", "battle.status.invalid_tu", "battle");
-            return cv;
+            int clampedValue = ((value + TU_GRANULARITY - 1) / TU_GRANULARITY) * TU_GRANULARITY;
+            GameLog.Error(
+                $"{fieldLabel} must use {TU_GRANULARITY} TU steps, got {value}; clamping up to {clampedValue}.",
+                "battle.status.invalid_tu",
+                "battle"
+            );
+            return clampedValue;
         }
-        return v;
+        return value;
     }
 }

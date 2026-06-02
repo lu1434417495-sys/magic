@@ -1,4 +1,5 @@
 using Godot;
+using System.Collections.Generic;
 
 [GlobalClass]
 public partial class WarehouseState : RefCounted
@@ -8,8 +9,20 @@ public partial class WarehouseState : RefCounted
 
     public Godot.Collections.Array<WarehouseStackState> get_non_empty_stacks()
     {
-        var result = new Godot.Collections.Array<WarehouseStackState>();
-        foreach (var stack in stacks)
+        return new Godot.Collections.Array<WarehouseStackState>(GetNonEmptyStacksTyped());
+    }
+
+    public IReadOnlyList<WarehouseStackState> GetStacksTyped()
+    {
+        return stacks != null
+            ? new List<WarehouseStackState>(stacks)
+            : new List<WarehouseStackState>();
+    }
+
+    public IReadOnlyList<WarehouseStackState> GetNonEmptyStacksTyped()
+    {
+        var result = new List<WarehouseStackState>();
+        foreach (var stack in GetStacksTyped())
         {
             if (stack == null || stack.is_empty())
                 continue;
@@ -18,10 +31,52 @@ public partial class WarehouseState : RefCounted
         return result;
     }
 
+    public WarehouseStackState GetStackAt(int index)
+    {
+        if (stacks == null || index < 0 || index >= stacks.Count)
+            return null;
+        return stacks[index];
+    }
+
+    public void AddStack(WarehouseStackState stack)
+    {
+        stacks ??= new Godot.Collections.Array<WarehouseStackState>();
+        stacks.Add(stack);
+    }
+
+    public bool RemoveStackAt(int index)
+    {
+        if (stacks == null || index < 0 || index >= stacks.Count)
+            return false;
+        stacks.RemoveAt(index);
+        return true;
+    }
+
+    public void ReplaceStacks(IEnumerable<WarehouseStackState> values)
+    {
+        stacks = new Godot.Collections.Array<WarehouseStackState>();
+        if (values == null)
+            return;
+        foreach (WarehouseStackState stack in values)
+            stacks.Add(stack);
+    }
+
     public Godot.Collections.Array<EquipmentInstanceState> get_non_empty_instances()
     {
-        var result = new Godot.Collections.Array<EquipmentInstanceState>();
-        foreach (var instance in equipment_instances)
+        return new Godot.Collections.Array<EquipmentInstanceState>(GetNonEmptyEquipmentInstancesTyped());
+    }
+
+    public IReadOnlyList<EquipmentInstanceState> GetEquipmentInstancesTyped()
+    {
+        return equipment_instances != null
+            ? new List<EquipmentInstanceState>(equipment_instances)
+            : new List<EquipmentInstanceState>();
+    }
+
+    public IReadOnlyList<EquipmentInstanceState> GetNonEmptyEquipmentInstancesTyped()
+    {
+        var result = new List<EquipmentInstanceState>();
+        foreach (var instance in GetEquipmentInstancesTyped())
         {
             if (instance == null || instance.instance_id == "" || instance.item_id == "")
                 continue;
@@ -30,24 +85,55 @@ public partial class WarehouseState : RefCounted
         return result;
     }
 
+    public EquipmentInstanceState GetEquipmentInstanceAt(int index)
+    {
+        if (equipment_instances == null || index < 0 || index >= equipment_instances.Count)
+            return null;
+        return equipment_instances[index];
+    }
+
+    public void AddEquipmentInstance(EquipmentInstanceState instance)
+    {
+        equipment_instances ??= new Godot.Collections.Array<EquipmentInstanceState>();
+        equipment_instances.Add(instance);
+    }
+
+    public EquipmentInstanceState RemoveEquipmentInstanceAt(int index)
+    {
+        EquipmentInstanceState instance = GetEquipmentInstanceAt(index);
+        if (instance == null)
+            return null;
+        equipment_instances.RemoveAt(index);
+        return instance;
+    }
+
+    public void ReplaceEquipmentInstances(IEnumerable<EquipmentInstanceState> values)
+    {
+        equipment_instances = new Godot.Collections.Array<EquipmentInstanceState>();
+        if (values == null)
+            return;
+        foreach (EquipmentInstanceState instance in values)
+            equipment_instances.Add(instance);
+    }
+
     public WarehouseState duplicate_state()
     {
         var copy = new WarehouseState();
-        foreach (var stack in get_non_empty_stacks())
-            copy.stacks.Add(stack.duplicate_state());
-        foreach (var instance in get_non_empty_instances())
-            copy.equipment_instances.Add(instance.duplicate_state());
+        foreach (var stack in GetNonEmptyStacksTyped())
+            copy.AddStack(stack.duplicate_state());
+        foreach (var instance in GetNonEmptyEquipmentInstancesTyped())
+            copy.AddEquipmentInstance(instance.duplicate_state());
         return copy;
     }
 
     public Godot.Collections.Dictionary to_dict()
     {
         var stackPayloads = new Godot.Collections.Array<Godot.Collections.Dictionary>();
-        foreach (var stack in get_non_empty_stacks())
+        foreach (var stack in GetNonEmptyStacksTyped())
             stackPayloads.Add(stack.to_dict());
 
         var instancePayloads = new Godot.Collections.Array<Godot.Collections.Dictionary>();
-        foreach (var instance in get_non_empty_instances())
+        foreach (var instance in GetNonEmptyEquipmentInstancesTyped())
             instancePayloads.Add(instance.to_dict());
 
         return new Godot.Collections.Dictionary
@@ -78,7 +164,7 @@ public partial class WarehouseState : RefCounted
             var stack = WarehouseStackState.from_dict(stackPayload.AsGodotDictionary());
             if (stack == null || stack.is_empty())
                 return null;
-            state.stacks.Add(stack);
+            state.AddStack(stack);
         }
 
         var instancesPayload = payload["equipment_instances"];
@@ -99,7 +185,7 @@ public partial class WarehouseState : RefCounted
             var instance = EquipmentInstanceState.from_dict(instanceDictionary);
             if (instance == null || instance.instance_id == "" || instance.item_id == "")
                 return null;
-            state.equipment_instances.Add(instance);
+            state.AddEquipmentInstance(instance);
         }
 
         return state;

@@ -240,7 +240,7 @@ public partial class run_passive_status_orchestrator_regression : SceneTree
             }
         );
         AssertEq(
-            BattleRangeService.get_effective_skill_range(unit, weaponSkill),
+            BattleRangeService.GetEffectiveSkillRange(unit, weaponSkill),
             5,
             "shooting specialization should add +1 range for bow weapons."
         );
@@ -265,7 +265,7 @@ public partial class run_passive_status_orchestrator_regression : SceneTree
             }
         );
         AssertEq(
-            BattleRangeService.get_effective_skill_range(unit, weaponSkill),
+            BattleRangeService.GetEffectiveSkillRange(unit, weaponSkill),
             5,
             "shooting specialization must not add range for crossbows."
         );

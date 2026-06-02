@@ -227,7 +227,7 @@ public partial class BattleAiScoreService
             }
             if (IsDamageSkill(roleEffectDefs))
             {
-                int effectiveRange = BattleRangeService.get_effective_skill_threat_range(
+                int effectiveRange = BattleRangeService.GetEffectiveSkillThreatRange(
                     targetUnit,
                     skillDef
                 );
@@ -928,7 +928,7 @@ public partial class BattleAiScoreService
         CombatEffectDef effectDef
     )
     {
-        StringName resolved = BattleTargetTeamRules.resolve_effect_target_filter(
+        StringName resolved = BattleTargetTeamRules.ResolveEffectTargetFilter(
             skillDef,
             effectDef
         );
@@ -957,7 +957,7 @@ public partial class BattleAiScoreService
         StringName targetFilter
     )
     {
-        return BattleTargetTeamRules.is_unit_valid_for_filter(
+        return BattleTargetTeamRules.IsUnitValidForFilter(
             sourceUnit,
             targetUnit,
             targetFilter,
@@ -967,7 +967,7 @@ public partial class BattleAiScoreService
 
     private static bool IsBeneficialEffectFilter(StringName targetFilter)
     {
-        return BattleTargetTeamRules.is_beneficial_filter(targetFilter);
+        return BattleTargetTeamRules.IsBeneficialFilter(targetFilter);
     }
 
     private void PopulateChainDamageMetrics(

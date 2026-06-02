@@ -186,7 +186,7 @@ public partial class MoveToMultiUnitSkillPositionAction : UseMultiUnitSkillActio
             )
         )
             return false;
-        int er = BattleRangeService.get_effective_skill_range(
+        int er = BattleRangeService.GetEffectiveSkillRange(
             context.unit_state,
             sd
         );

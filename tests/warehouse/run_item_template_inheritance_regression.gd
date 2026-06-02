@@ -254,7 +254,7 @@ func _test_all_bg3_weapon_types_have_seed_items() -> void:
 		"BG3 基础武器类型回归应覆盖 docs/design/weapon_types_damage.md 的 31 类。"
 	)
 	for weapon_type_id in BG3_WEAPON_PROFILE_EXPECTATIONS.keys():
-		var item_id := ProgressionDataUtils.to_string_name(BG3_WEAPON_SEED_ITEMS.get(weapon_type_id, &""))
+		var item_id := _to_string_name(BG3_WEAPON_SEED_ITEMS.get(weapon_type_id, &""))
 		_assert_true(item_id != &"", "BG3 weapon_type %s 应声明正式 seed item。" % String(weapon_type_id))
 		if item_id == &"":
 			continue
@@ -712,6 +712,17 @@ func _modifiers_include_attribute(modifiers: Array, attribute_id: StringName) ->
 		if modifier.attribute_id == attribute_id:
 			return true
 	return false
+
+
+func _to_string_name(value) -> StringName:
+	if value == null:
+		return &""
+	if value is StringName:
+		return value
+	var text := String(value)
+	if text.is_empty() or text == "<null>":
+		return &""
+	return StringName(text)
 
 
 func _to_string_name_array(values: Variant) -> Array[StringName]:

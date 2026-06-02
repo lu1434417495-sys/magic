@@ -55,6 +55,22 @@ public partial class BattleStatusEffectState : RefCounted
         return duration >= 0;
     }
 
+    public bool TryGetIntParam(string key, out int value)
+    {
+        value = 0;
+        if (string.IsNullOrEmpty(key) || @params == null)
+        {
+            return false;
+        }
+
+        if (@params.ContainsKey(key) && IsFieldType(@params, key, "Int"))
+        {
+            value = @params[key].AsInt32();
+            return true;
+        }
+        return false;
+    }
+
     public BattleStatusEffectState duplicate_state()
     {
         return new BattleStatusEffectState

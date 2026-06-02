@@ -1,7 +1,5 @@
 using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
-using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
 public sealed class BattleTargetCollectionResult
 {
@@ -23,16 +21,16 @@ public sealed class BattleTargetCollectionResult
     public static BattleTargetCollectionResult UnhandledResult(IEnumerable<Vector2I> targetCoords) =>
         new(false, targetCoords);
 
-    public GDictionary ToDictionary() =>
+    internal Godot.Collections.Dictionary ToDictionary() =>
         new()
         {
             ["handled"] = Handled,
-            ["target_coords"] = ToGodotCoords(),
+            ["target_coords"] = ToTargetCoordsArray(),
         };
 
-    public GVector2IArray ToGodotCoords()
+    internal Godot.Collections.Array<Vector2I> ToTargetCoordsArray()
     {
-        var result = new GVector2IArray();
+        var result = new Godot.Collections.Array<Vector2I>();
         foreach (Vector2I coord in _targetCoords)
         {
             result.Add(coord);

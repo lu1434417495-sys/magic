@@ -90,7 +90,7 @@ public partial class BattleSkillOutcomeCommitter : RefCounted
                 continue;
             }
 
-            _runtime.record_battle_contribution_result(
+            _runtime.RecordBattleContributionResult(
                 sourceUnit,
                 targetUnit,
                 result.Damage,

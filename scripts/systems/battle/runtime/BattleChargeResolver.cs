@@ -464,7 +464,7 @@ public partial class BattleChargeResolver : RefCounted
                 duration_tu = statusDurationTu,
                 @params = extraStatusParams.Duplicate(true),
             };
-            BattleStatusEffectState statusEntry = BattleStatusSemanticTable.merge_status_typed(
+            BattleStatusEffectState statusEntry = BattleStatusSemanticTable.MergeStatus(
                 statusEffect,
                 activeUnit.unit_id,
                 targetUnit.get_status_effect(statusId)
@@ -751,7 +751,7 @@ public partial class BattleChargeResolver : RefCounted
             {
                 BattleAttackCheckPolicyService attackPolicy =
                     Runtime.get_attack_check_policy_service();
-                BattleAttackCheckPolicyContext attackContext = attackPolicy.build_attack_context(
+                BattleAttackCheckPolicyContext attackContext = attackPolicy.BuildAttackContext(
                     State,
                     activeUnit,
                     targetUnit,
@@ -760,7 +760,7 @@ public partial class BattleChargeResolver : RefCounted
                     ExecuteStage,
                     false
                 );
-                attackCheck = attackPolicy.build_attack_check(
+                attackCheck = attackPolicy.BuildAttackCheck(
                     attackContext,
                     0,
                     0

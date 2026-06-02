@@ -37,41 +37,4 @@ public partial class MeteorSwarmCommitResult : RefCounted
             return;
         defeated_unit_ids.Add(unit_id);
     }
-
-    public GDictionary to_common_outcome_payload()
-    {
-        return new GDictionary
-        {
-            ["commit_schema_id"] = "meteor_swarm_ground_commit",
-            ["schema_version"] = schema_version,
-            ["boundary_kind"] = "common_outcome_payload",
-            ["skill_id"] = plan != null ? plan.skill_id.ToString() : "",
-            ["source_unit_id"] = plan != null ? plan.source_unit_id.ToString() : "",
-            ["anchor_coord"] = plan != null ? plan.final_anchor_coord : new Vector2I(-1, -1),
-            ["nominal_plan_signature"] = plan != null ? plan.nominal_plan_signature : "",
-            ["final_plan_signature"] = plan != null ? plan.final_plan_signature : "",
-            ["target_count"] = target_outcomes.Count,
-            ["terrain_effect_count"] = terrain_effects.Count,
-            ["total_damage"] = total_damage,
-            ["total_healing"] = total_healing,
-            ["defeated_unit_ids"] = defeated_unit_ids.Duplicate(),
-            ["changed_unit_ids"] = changed_unit_ids.Duplicate(),
-            ["changed_coords"] = changed_coords.Duplicate(),
-            ["target_summaries"] = _build_target_summaries(),
-            ["terrain_effects"] = terrain_effects.Duplicate(true),
-            ["report_entries"] = report_entries.Duplicate(true),
-            ["log_lines"] = log_lines.Duplicate(),
-        };
-    }
-
-    private GArray _build_target_summaries()
-    {
-        var summaries = new GArray();
-        foreach (var target_outcome in target_outcomes)
-        {
-            if (target_outcome != null)
-                summaries.Add(target_outcome.to_summary_dict());
-        }
-        return summaries;
-    }
 }

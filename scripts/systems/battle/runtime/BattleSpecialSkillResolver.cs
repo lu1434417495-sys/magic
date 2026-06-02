@@ -626,12 +626,12 @@ public partial class BattleSpecialSkillResolver : RefCounted
 
     public bool _is_elite_or_boss_target(BattleUnitState unit_state)
     {
-        return BattleExecutionRules.is_elite_or_boss_target(unit_state);
+        return BattleExecutionRules.IsEliteOrBossTarget(unit_state);
     }
 
     public bool _is_boss_target(BattleUnitState unit_state)
     {
-        return BattleExecutionRules.is_boss_target(unit_state);
+        return BattleExecutionRules.IsBossTarget(unit_state);
     }
 
     public bool _is_black_star_brand_skill(StringName skill_id)

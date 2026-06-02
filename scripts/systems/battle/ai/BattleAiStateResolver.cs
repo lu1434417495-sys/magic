@@ -1,17 +1,9 @@
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class BattleAiStateResolver : RefCounted
+public sealed class BattleAiStateResolver
 {
     private const int HpBasisPointsDenominator = 10000;
-
-    public GDictionary resolve(BattleAiContext context, EnemyAiBrainDef brain)
-    {
-        return ResolveTyped(context, brain).ToDictionary();
-    }
 
     internal TransitionResult ResolveTyped(BattleAiContext context, EnemyAiBrainDef brain)
     {
@@ -146,7 +138,7 @@ public partial class BattleAiStateResolver : RefCounted
         {
             return false;
         }
-        return rule.applies_to_state(stateId);
+        return rule.AppliesToState(stateId);
     }
 
     private static bool RuleMatches(
@@ -183,33 +175,33 @@ public partial class BattleAiStateResolver : RefCounted
     )
     {
         StringName predicate = condition.predicate;
-        if (predicate == EnemyAiTransitionConditionDef.PREDICATE_ALWAYS())
+        if (predicate == EnemyAiTransitionConditionDef.PredicateAlwaysId)
         {
             return true;
         }
-        if (predicate == EnemyAiTransitionConditionDef.PREDICATE_CURRENT_STATE_IS())
+        if (predicate == EnemyAiTransitionConditionDef.PredicateCurrentStateIsId)
         {
             return condition.state_ids.Contains(currentStateId);
         }
-        if (predicate == EnemyAiTransitionConditionDef.PREDICATE_SELF_HP_AT_OR_BELOW())
+        if (predicate == EnemyAiTransitionConditionDef.PredicateSelfHpAtOrBelowId)
         {
             return IsUnitAtOrBelowHpBasisPoints(
                 GetUnitState(context),
                 condition.basis_points
             );
         }
-        if (predicate == EnemyAiTransitionConditionDef.PREDICATE_ALLY_HP_AT_OR_BELOW())
+        if (predicate == EnemyAiTransitionConditionDef.PredicateAllyHpAtOrBelowId)
         {
             return HasAllyAtOrBelowHpBasisPoints(context, condition.basis_points);
         }
         if (
             predicate
-            == EnemyAiTransitionConditionDef.PREDICATE_NEAREST_ENEMY_DISTANCE_AT_OR_BELOW()
+            == EnemyAiTransitionConditionDef.PredicateNearestEnemyDistanceAtOrBelowId
         )
         {
             return NearestEnemyDistanceAtOrBelow(context, condition.max_distance);
         }
-        if (predicate == EnemyAiTransitionConditionDef.PREDICATE_HAS_SKILL_AFFORDANCE())
+        if (predicate == EnemyAiTransitionConditionDef.PredicateHasSkillAffordanceId)
         {
             return context != null && context.HasSkillAffordanceValues(condition.affordances);
         }
@@ -360,26 +352,6 @@ public partial class BattleAiStateResolver : RefCounted
         public static TransitionResult Empty() =>
             new("", "", "", "", new List<TransitionConditionTrace>());
 
-        public GDictionary ToDictionary()
-        {
-            GArray matchedConditions = new();
-            foreach (TransitionConditionTrace condition in MatchedConditions)
-            {
-                if (condition != null)
-                {
-                    matchedConditions.Add(condition.ToDictionary());
-                }
-            }
-
-            return new GDictionary
-            {
-                ["previous_state_id"] = PreviousStateId,
-                ["state_id"] = StateId,
-                ["rule_id"] = RuleId,
-                ["reason"] = Reason,
-                ["matched_conditions"] = matchedConditions,
-            };
-        }
     }
 
     internal sealed class TransitionConditionTrace
@@ -427,18 +399,6 @@ public partial class BattleAiStateResolver : RefCounted
             );
         }
 
-        public GDictionary ToDictionary()
-        {
-            return new GDictionary
-            {
-                ["predicate"] = Predicate.ToString(),
-                ["basis_points"] = BasisPoints,
-                ["max_distance"] = MaxDistance,
-                ["state_ids"] = StringNameListToStrings(StateIds),
-                ["affordances"] = StringNameListToStrings(Affordances),
-            };
-        }
-
         private static List<StringName> CopyStringNames(
             Godot.Collections.Array<StringName> values
         )
@@ -451,22 +411,6 @@ public partial class BattleAiStateResolver : RefCounted
             foreach (StringName value in values)
             {
                 result.Add(value);
-            }
-            return result;
-        }
-
-        private static Godot.Collections.Array<string> StringNameListToStrings(
-            IReadOnlyList<StringName> values
-        )
-        {
-            var result = new Godot.Collections.Array<string>();
-            if (values == null)
-            {
-                return result;
-            }
-            foreach (StringName value in values)
-            {
-                result.Add(value.ToString());
             }
             return result;
         }

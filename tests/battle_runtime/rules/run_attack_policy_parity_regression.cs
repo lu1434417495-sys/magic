@@ -19,7 +19,7 @@ public partial class run_attack_policy_parity_regression : SceneTree
     {
         var hitResolver = new BattleHitResolver();
         var policy = new BattleAttackCheckPolicyService();
-        policy.setup(null, hitResolver, null);
+        policy.Setup(null, hitResolver, null);
         var battleState = new BattleState();
         var activeUnit = new BattleUnitState
         {
@@ -32,6 +32,7 @@ public partial class run_attack_policy_parity_regression : SceneTree
             unit_id = "target",
             coord = new Vector2I(3, 1),
         };
+        targetUnit.attribute_snapshot.set_value(AttributeService.ARMOR_CLASS_ID(), 12);
         SkillDef skillDef = BuildParitySkill();
         CombatEffectDef repeatEffect = BuildRepeatEffect();
         List<BattleRepeatAttackStageSpec> repeatStageSpecs =
@@ -43,7 +44,7 @@ public partial class run_attack_policy_parity_regression : SceneTree
                 true
             );
         BattleAttackCheckPolicyContext repeatPreviewContext =
-            policy.build_repeat_attack_stage_context(
+            policy.BuildRepeatAttackStageContext(
                 battleState,
                 activeUnit,
                 targetUnit,
@@ -61,7 +62,7 @@ public partial class run_attack_policy_parity_regression : SceneTree
                 0,
                 true
             );
-        BattleAttackCheckPolicyContext stageContext = policy.build_repeat_attack_stage_context(
+        BattleAttackCheckPolicyContext stageContext = policy.BuildRepeatAttackStageContext(
             battleState,
             activeUnit,
             targetUnit,
@@ -70,7 +71,7 @@ public partial class run_attack_policy_parity_regression : SceneTree
             "repeat_attack_stage_check",
             "execute"
         );
-        BattleAttackCheckPolicyContext attackContext = policy.build_attack_context(
+        BattleAttackCheckPolicyContext attackContext = policy.BuildAttackContext(
             battleState,
             activeUnit,
             targetUnit,
@@ -79,7 +80,7 @@ public partial class run_attack_policy_parity_regression : SceneTree
             "execute",
             false
         );
-        BattleAttackCheckPolicyContext previewContext = policy.build_attack_context(
+        BattleAttackCheckPolicyContext previewContext = policy.BuildAttackContext(
             battleState,
             activeUnit,
             targetUnit,
@@ -90,12 +91,12 @@ public partial class run_attack_policy_parity_regression : SceneTree
         );
 
         AssertAttackCheckEq(
-            policy.build_attack_check(attackContext, 0, 0),
+            policy.BuildAttackCheck(attackContext, 0, 0),
             hitResolver.build_skill_attack_check(activeUnit, targetUnit, skillDef, 0, 0),
             "policy build_attack_check 应与 BattleHitResolver 零漂移。"
         );
         AssertPreviewEq(
-            policy.build_attack_preview(previewContext),
+            policy.BuildAttackPreview(previewContext),
             hitResolver.build_skill_attack_preview(
                 battleState,
                 activeUnit,
@@ -106,7 +107,7 @@ public partial class run_attack_policy_parity_regression : SceneTree
             "policy build_attack_preview 应与 BattleHitResolver 零漂移。"
         );
         AssertPreviewEq(
-            policy.build_repeat_attack_preview(repeatPreviewContext, repeatStageSpecs),
+            policy.BuildRepeatAttackPreview(repeatPreviewContext, repeatStageSpecs),
             hitResolver.build_repeat_attack_preview(
                 battleState,
                 activeUnit,
@@ -118,7 +119,7 @@ public partial class run_attack_policy_parity_regression : SceneTree
             "policy build_repeat_attack_preview 应与 BattleHitResolver 零漂移。"
         );
         AssertAttackCheckEq(
-            policy.build_fate_aware_repeat_attack_stage_hit_check(stageContext),
+            policy.BuildFateAwareRepeatAttackStageHitCheck(stageContext),
             hitResolver.build_fate_aware_repeat_attack_stage_hit_check(
                 battleState,
                 activeUnit,

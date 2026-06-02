@@ -1,5 +1,4 @@
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
 public enum BattleContributionRelation
 {
@@ -24,33 +23,33 @@ public enum BattleContributionOriginKind
 
 public sealed class BattleContributionEvent
 {
-    public StringName source_unit_id { get; init; } = "";
-    public StringName source_member_id { get; init; } = "";
-    public StringName source_faction_id { get; init; } = "";
-    public StringName target_unit_id { get; init; } = "";
-    public StringName target_faction_id { get; init; } = "";
-    public StringName skill_id { get; init; } = "";
-    public BattleContributionRelation relation { get; init; }
-    public BattleContributionOriginKind origin_kind { get; init; }
-    public int hp_damage_applied { get; init; }
-    public int hp_healing_applied { get; init; }
-    public bool caused_defeat { get; init; }
+    public StringName SourceUnitId { get; init; } = "";
+    public StringName SourceMemberId { get; init; } = "";
+    public StringName SourceFactionId { get; init; } = "";
+    public StringName TargetUnitId { get; init; } = "";
+    public StringName TargetFactionId { get; init; } = "";
+    public StringName SkillId { get; init; } = "";
+    public BattleContributionRelation Relation { get; init; }
+    public BattleContributionOriginKind OriginKind { get; init; }
+    public int HpDamageApplied { get; init; }
+    public int HpHealingApplied { get; init; }
+    public bool CausedDefeat { get; init; }
 
-    public GDictionary to_dictionary()
+    public Godot.Collections.Dictionary ToDictionary()
     {
-        return new GDictionary
+        return new Godot.Collections.Dictionary
         {
-            ["source_unit_id"] = source_unit_id,
-            ["source_member_id"] = source_member_id,
-            ["source_faction_id"] = source_faction_id,
-            ["target_unit_id"] = target_unit_id,
-            ["target_faction_id"] = target_faction_id,
-            ["skill_id"] = skill_id,
-            ["relation"] = RelationToString(relation),
-            ["origin_kind"] = OriginKindToString(origin_kind),
-            ["hp_damage_applied"] = hp_damage_applied,
-            ["hp_healing_applied"] = hp_healing_applied,
-            ["caused_defeat"] = caused_defeat,
+            ["source_unit_id"] = SourceUnitId,
+            ["source_member_id"] = SourceMemberId,
+            ["source_faction_id"] = SourceFactionId,
+            ["target_unit_id"] = TargetUnitId,
+            ["target_faction_id"] = TargetFactionId,
+            ["skill_id"] = SkillId,
+            ["relation"] = RelationToString(Relation),
+            ["origin_kind"] = OriginKindToString(OriginKind),
+            ["hp_damage_applied"] = HpDamageApplied,
+            ["hp_healing_applied"] = HpHealingApplied,
+            ["caused_defeat"] = CausedDefeat,
         };
     }
 

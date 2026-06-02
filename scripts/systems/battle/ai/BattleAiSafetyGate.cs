@@ -1,21 +1,20 @@
 using Godot;
 
-[GlobalClass]
-public partial class BattleAiSafetyGate : RefCounted
+public static class BattleAiSafetyGate
 {
-    public static bool is_eligible(BattleAiScoreInput score_input)
+    public static bool IsEligible(BattleAiScoreInput scoreInput)
     {
-        return get_rejection_reason(score_input).ToString().Length == 0;
+        return GetRejectionReason(scoreInput).ToString().Length == 0;
     }
 
-    public static StringName get_rejection_reason(BattleAiScoreInput score_input)
+    public static StringName GetRejectionReason(BattleAiScoreInput scoreInput)
     {
-        if (score_input == null)
+        if (scoreInput == null)
         {
             return "missing_score_input";
         }
 
-        StringName intent = score_input.action_intent;
+        StringName intent = scoreInput.action_intent;
         if (intent == null || intent.ToString().Length == 0)
         {
             GameLog.Warning(
@@ -26,13 +25,13 @@ public partial class BattleAiSafetyGate : RefCounted
             return "";
         }
 
-        bool hasProjection = score_input.has_post_action_threat_projection;
-        bool preLethal = score_input.pre_action_is_lethal_survival_risk;
-        bool postLethal = score_input.post_action_is_lethal_survival_risk;
-        int preDamage = score_input.pre_action_threat_expected_damage;
-        int postDamage = score_input.post_action_remaining_threat_expected_damage;
+        bool hasProjection = scoreInput.has_post_action_threat_projection;
+        bool preLethal = scoreInput.pre_action_is_lethal_survival_risk;
+        bool postLethal = scoreInput.post_action_is_lethal_survival_risk;
+        int preDamage = scoreInput.pre_action_threat_expected_damage;
+        int postDamage = scoreInput.post_action_remaining_threat_expected_damage;
 
-        if (intent == BattleAiActionIntent.INTENT_OFFENSE())
+        if (intent == BattleAiActionIntent.Offense)
         {
             if (hasProjection && !preLethal && postLethal)
             {
@@ -40,7 +39,7 @@ public partial class BattleAiSafetyGate : RefCounted
             }
             return "";
         }
-        if (intent == BattleAiActionIntent.INTENT_ESCAPE())
+        if (intent == BattleAiActionIntent.Escape)
         {
             if (!hasProjection)
                 return "escape_missing_projection";
@@ -50,7 +49,7 @@ public partial class BattleAiSafetyGate : RefCounted
                 return "escape_not_safer";
             return "";
         }
-        if (intent == BattleAiActionIntent.INTENT_SURVIVAL())
+        if (intent == BattleAiActionIntent.Survival)
         {
             if (!hasProjection)
                 return "survival_missing_projection";
@@ -58,7 +57,7 @@ public partial class BattleAiSafetyGate : RefCounted
                 return "survival_post_lethal";
             return "";
         }
-        if (intent == BattleAiActionIntent.INTENT_POSITIONING())
+        if (intent == BattleAiActionIntent.Positioning)
         {
             if (!hasProjection)
                 return "positioning_missing_projection";
@@ -69,8 +68,8 @@ public partial class BattleAiSafetyGate : RefCounted
             return "";
         }
         if (
-            intent == BattleAiActionIntent.INTENT_CONTROL()
-            || intent == BattleAiActionIntent.INTENT_WAIT()
+            intent == BattleAiActionIntent.Control
+            || intent == BattleAiActionIntent.Wait
         )
         {
             return "";

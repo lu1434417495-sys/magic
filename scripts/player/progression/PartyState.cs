@@ -832,7 +832,7 @@ public partial class PartyState : RefCounted
         var seenInstanceIds = new Godot.Collections.Dictionary();
         if (partyState.warehouse_state != null)
         {
-            foreach (var instance in partyState.warehouse_state.get_non_empty_instances())
+            foreach (var instance in partyState.warehouse_state.GetNonEmptyEquipmentInstancesTyped())
             {
                 if (instance == null)
                     continue;
@@ -852,7 +852,7 @@ public partial class PartyState : RefCounted
             if (equipmentState == null)
                 continue;
 
-            foreach (var entrySlotId in equipmentState.get_entry_slot_ids())
+            foreach (var entrySlotId in equipmentState.GetEntrySlotIdsTyped())
             {
                 var instanceId = ProgressionDataUtils.to_string_name(
                     equipmentState.get_equipped_instance_id(entrySlotId)

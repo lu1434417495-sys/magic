@@ -1,5 +1,7 @@
 using System.Collections.Generic;
 using Godot;
+using GArray = Godot.Collections.Array;
+using GDictArray = Godot.Collections.Array<Godot.Collections.Dictionary>;
 using GIntArray = Godot.Collections.Array<int>;
 using GStringArray = Godot.Collections.Array<string>;
 
@@ -41,6 +43,8 @@ public readonly record struct AttackPreviewStage
 [GlobalClass]
 public partial class AttackPreviewData : RefCounted
 {
+	private readonly List<BattleAttackRollModifierSpec> _attackRollModifierBreakdown = new();
+
 	public string SummaryText { get; set; } = "";
 
 	public List<AttackPreviewStage> Stages { get; set; } = new();
@@ -56,14 +60,103 @@ public partial class AttackPreviewData : RefCounted
 	public int BaseAttackBonus { get; set; }
 	public int FollowUpAttackPenalty { get; set; }
 
-	// BattleAttackCheckPolicyService 追加的 modifier 分解信息
-	public Godot.Collections.Array AttackRollModifierBreakdown { get; set; } = new();
+	internal IReadOnlyList<BattleAttackRollModifierSpec> AttackRollModifierBreakdownTyped =>
+		_attackRollModifierBreakdown;
+
+	// BattleAttackCheckPolicyService 追加的 modifier 分解信息。公开属性只做 Godot 边界投影。
+	public GDictArray AttackRollModifierBreakdown => BuildAttackRollModifierBreakdownPayload(
+		_attackRollModifierBreakdown
+	);
 
 	// Special profile 来源标记（如陨星雨等自定义预览）
 	public string Source { get; set; } = "";
 
 	public bool IsEmpty => Stages.Count == 0 && SuccessRatePercent == 0 && BaseHitRatePercent == 0 && string.IsNullOrEmpty(SummaryText);
 	public int StageCount => Stages.Count;
+
+	public void SetAttackRollModifierBreakdown(
+		IEnumerable<BattleAttackRollModifierSpec> specs
+	)
+	{
+		_attackRollModifierBreakdown.Clear();
+		if (specs == null)
+		{
+			return;
+		}
+		foreach (BattleAttackRollModifierSpec spec in specs)
+		{
+			if (spec != null)
+			{
+				_attackRollModifierBreakdown.Add(spec.Clone());
+			}
+		}
+	}
+
+	public void SetAttackRollModifierBreakdownPayload(GArray payload)
+	{
+		_attackRollModifierBreakdown.Clear();
+		if (payload == null)
+		{
+			return;
+		}
+		foreach (Variant item in payload)
+		{
+			if (item.VariantType != Variant.Type.Dictionary)
+			{
+				continue;
+			}
+			AddAttackRollModifierBreakdownPayloadDictionary(item.AsGodotDictionary());
+		}
+	}
+
+	public void SetAttackRollModifierBreakdownPayload(GDictArray payload)
+	{
+		_attackRollModifierBreakdown.Clear();
+		if (payload == null)
+		{
+			return;
+		}
+		foreach (Godot.Collections.Dictionary item in payload)
+		{
+			AddAttackRollModifierBreakdownPayloadDictionary(item);
+		}
+	}
+
+	public GDictArray BuildAttackRollModifierBreakdownPayload()
+	{
+		return BuildAttackRollModifierBreakdownPayload(_attackRollModifierBreakdown);
+	}
+
+	public static GDictArray BuildAttackRollModifierBreakdownPayload(
+		IEnumerable<BattleAttackRollModifierSpec> specs
+	)
+	{
+		var payloads = new GDictArray();
+		foreach (
+			BattleAttackRollModifierSpec spec in specs
+				?? System.Array.Empty<BattleAttackRollModifierSpec>()
+		)
+		{
+			if (spec == null)
+			{
+				continue;
+			}
+			payloads.Add(spec.ToDictionaryWithEffectiveModifierDelta(spec.modifier_delta));
+		}
+		return payloads;
+	}
+
+	private void AddAttackRollModifierBreakdownPayloadDictionary(
+		Godot.Collections.Dictionary payload
+	)
+	{
+		BattleAttackRollModifierSpec spec =
+			BattleAttackRollModifierSpec.FromPartialDictionary(payload);
+		if (spec != null)
+		{
+			_attackRollModifierBreakdown.Add(spec);
+		}
+	}
 
 	// ---- 便捷属性：按字段名返回数组，减少现有调用者的改动量 ----
 

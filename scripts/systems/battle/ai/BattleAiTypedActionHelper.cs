@@ -313,7 +313,7 @@ public sealed class BattleAiTypedActionHelper
         BattleUnitState actor = context?.unit_state;
         if (actor == null || targetUnit == null)
             return false;
-        return BattleTargetTeamRules.is_unit_valid_for_filter(
+        return BattleTargetTeamRules.IsUnitValidForFilter(
             actor,
             targetUnit,
             targetFilter,
@@ -405,7 +405,7 @@ public sealed class BattleAiTypedActionHelper
                 continue;
             if (!SkillHasTag(skillDef, "melee") && !SkillHasTag(skillDef, "weapon"))
                 continue;
-            int effectiveRange = BattleRangeService.get_effective_skill_range(threatUnit, skillDef);
+            int effectiveRange = BattleRangeService.GetEffectiveSkillRange(threatUnit, skillDef);
             if (effectiveRange <= 0 && SkillHasTag(skillDef, "melee"))
                 effectiveRange = 1;
             if (effectiveRange > RoleThreatMaxContactRange)
@@ -413,7 +413,7 @@ public sealed class BattleAiTypedActionHelper
             bestRange = Math.Max(bestRange, effectiveRange);
         }
 
-        int weaponRange = BattleRangeService.get_weapon_attack_range(threatUnit);
+        int weaponRange = BattleRangeService.GetWeaponAttackRange(threatUnit);
         if (weaponRange > 0 && weaponRange <= RoleThreatMaxContactRange)
             bestRange = Math.Max(bestRange, weaponRange);
         return bestRange;
@@ -434,11 +434,11 @@ public sealed class BattleAiTypedActionHelper
                 continue;
             bestRange = Math.Max(
                 bestRange,
-                BattleRangeService.get_effective_skill_threat_range(threatUnit, skillDef)
+                BattleRangeService.GetEffectiveSkillThreatRange(threatUnit, skillDef)
             );
         }
         if (bestRange < 0)
-            bestRange = BattleRangeService.get_weapon_attack_range(threatUnit);
+            bestRange = BattleRangeService.GetWeaponAttackRange(threatUnit);
         return bestRange;
     }
 
@@ -472,7 +472,7 @@ public sealed class BattleAiTypedActionHelper
         BattleUnitState actor = context?.unit_state;
         if (actor == null || skillDef == null)
             return -1;
-        return BattleRangeService.get_effective_skill_threat_range(actor, skillDef);
+        return BattleRangeService.GetEffectiveSkillThreatRange(actor, skillDef);
     }
 
     private BattleUnitState ResolveEnemyFrontlineUnit(BattleAiContext context)

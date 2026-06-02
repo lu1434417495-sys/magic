@@ -1,54 +1,61 @@
+using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class BattleAiScoreContextAdapter : RefCounted, IBattleAiScoreContext
+internal sealed class BattleAiScoreContextAdapter : IBattleAiScoreContext
 {
-    public BattleState state { get; set; }
-    public BattleUnitState unit_state { get; set; }
-    public BattleGridService grid_service { get; set; }
-    public GDictionary skill_defs { get; set; } = new();
+    private BattleState _state;
+    private BattleUnitState _unitState;
+    private BattleGridService _gridService;
+    private BattleAiScoreService _scoreService;
+    private Godot.Collections.Dictionary _skillDefsProjection = new();
+    private Dictionary<StringName, SkillDef> _skillDefsById = new();
 
-    private BattleAiScoreService _score_service;
+    BattleState IBattleAiScoreContext.state => _state;
 
-    public void setup(
-        BattleAiScoreService score_service,
-        BattleState battle_state,
-        BattleUnitState actor_unit_state,
-        BattleGridService battle_grid_service,
-        GDictionary raw_skill_defs
+    BattleUnitState IBattleAiScoreContext.unit_state => _unitState;
+
+    BattleGridService IBattleAiScoreContext.grid_service => _gridService;
+
+    Godot.Collections.Dictionary IBattleAiScoreContext.skill_defs => _skillDefsProjection;
+
+    internal void Setup(
+        BattleAiScoreService scoreService,
+        BattleState battleState,
+        BattleUnitState actorUnitState,
+        BattleGridService battleGridService,
+        Godot.Collections.Dictionary rawSkillDefs
     )
     {
-        _score_service = null;
-        state = null;
-        unit_state = null;
-        grid_service = null;
-        skill_defs = new GDictionary();
+        _scoreService = null;
+        _state = null;
+        _unitState = null;
+        _gridService = null;
+        _skillDefsProjection = new Godot.Collections.Dictionary();
+        _skillDefsById = new Dictionary<StringName, SkillDef>();
 
-        if (score_service == null)
+        if (scoreService == null)
         {
             Fail("BattleAiScoreContextAdapter requires BattleAiScoreService.");
             return;
         }
-        if (battle_state == null)
+        if (battleState == null)
         {
             Fail("BattleAiScoreContextAdapter requires non-null battle_state.");
             return;
         }
-        if (actor_unit_state == null)
+        if (actorUnitState == null)
         {
             Fail("BattleAiScoreContextAdapter requires non-null actor_unit_state.");
             return;
         }
-        if (battle_grid_service == null)
+        if (battleGridService == null)
         {
             Fail("BattleAiScoreContextAdapter requires non-null battle_grid_service.");
             return;
         }
 
-        StringName actorId = ProgressionDataUtils.to_string_name(actor_unit_state.unit_id);
-        if (IsEmpty(actorId) || !battle_state.units.ContainsKey(actorId))
+        StringName actorId = ProgressionDataUtils.to_string_name(actorUnitState.unit_id);
+        if (IsEmpty(actorId) || !battleState.units.ContainsKey(actorId))
         {
             Fail(
                 $"BattleAiScoreContextAdapter actor_unit_state.unit_id {actorId} not present in battle_state.units."
@@ -56,24 +63,25 @@ public partial class BattleAiScoreContextAdapter : RefCounted, IBattleAiScoreCon
             return;
         }
 
-        _score_service = score_service;
-        state = battle_state;
-        unit_state = actor_unit_state;
-        grid_service = battle_grid_service;
-        skill_defs = raw_skill_defs ?? new GDictionary();
+        _scoreService = scoreService;
+        _state = battleState;
+        _unitState = actorUnitState;
+        _gridService = battleGridService;
+        _skillDefsProjection = rawSkillDefs ?? new Godot.Collections.Dictionary();
+        _skillDefsById = BuildSkillDefIndex(_skillDefsProjection);
     }
 
-    public BattleAiScoreInput build_action_score_input(
+    internal BattleAiScoreInput BuildActionScoreInput(
         BattleAiQueryService _query,
-        StringName action_kind,
-        string action_label,
-        StringName score_bucket_id,
+        StringName actionKind,
+        string actionLabel,
+        StringName scoreBucketId,
         BattleCommand command,
         BattlePreview preview,
-        GDictionary metadata
+        Godot.Collections.Dictionary metadata
     )
     {
-        if (_score_service == null)
+        if (_scoreService == null)
         {
             Fail("BattleAiScoreContextAdapter missing score service.");
             return null;
@@ -87,11 +95,11 @@ public partial class BattleAiScoreContextAdapter : RefCounted, IBattleAiScoreCon
             return null;
         }
 
-        BattleAiScoreInput scoreInput = _score_service.build_action_score_input(
+        BattleAiScoreInput scoreInput = _scoreService.BuildActionScoreInput(
             this,
-            action_kind,
-            action_label,
-            score_bucket_id,
+            actionKind,
+            actionLabel,
+            scoreBucketId,
             command,
             preview,
             metadata
@@ -99,32 +107,32 @@ public partial class BattleAiScoreContextAdapter : RefCounted, IBattleAiScoreCon
         return ValidateScoreInput(scoreInput);
     }
 
-    public BattleAiScoreInput build_skill_score_input(
+    internal BattleAiScoreInput BuildSkillScoreInput(
         BattleAiQueryService _query,
-        StringName skill_id,
+        StringName skillId,
         BattleCommand command,
         BattlePreview preview,
-        GArray effect_defs,
-        GDictionary metadata
+        Godot.Collections.Array effectDefs,
+        Godot.Collections.Dictionary metadata
     )
     {
-        if (_score_service == null)
+        if (_scoreService == null)
         {
             Fail("BattleAiScoreContextAdapter missing score service.");
             return null;
         }
 
-        SkillDef skillDef = ResolveSkillDef(skill_id);
+        SkillDef skillDef = ResolveSkillDef(skillId);
         if (skillDef == null || skillDef.combat_profile == null)
         {
-            Fail($"BattleAiScoreContextAdapter missing SkillDef for {skill_id}.");
+            Fail($"BattleAiScoreContextAdapter missing SkillDef for {skillId}.");
             return null;
         }
         if (!ValidateCommandActorMatch(command))
         {
             return null;
         }
-        if (!ValidateCommandSkillMatch(command, skill_id))
+        if (!ValidateCommandSkillMatch(command, skillId))
         {
             return null;
         }
@@ -133,12 +141,12 @@ public partial class BattleAiScoreContextAdapter : RefCounted, IBattleAiScoreCon
             return null;
         }
 
-        BattleAiScoreInput scoreInput = _score_service.build_skill_score_input(
+        BattleAiScoreInput scoreInput = _scoreService.BuildSkillScoreInput(
             this,
             skillDef,
             command,
             preview,
-            effect_defs ?? new GArray(),
+            effectDefs ?? new Godot.Collections.Array(),
             metadata
         );
         if (scoreInput != null)
@@ -150,7 +158,7 @@ public partial class BattleAiScoreContextAdapter : RefCounted, IBattleAiScoreCon
 
     private bool ValidateCommandActorMatch(BattleCommand command)
     {
-        if (command == null || unit_state == null)
+        if (command == null || _unitState == null)
         {
             return true;
         }
@@ -159,10 +167,10 @@ public partial class BattleAiScoreContextAdapter : RefCounted, IBattleAiScoreCon
         {
             return true;
         }
-        if (commandUnitId != ProgressionDataUtils.to_string_name(unit_state.unit_id))
+        if (commandUnitId != ProgressionDataUtils.to_string_name(_unitState.unit_id))
         {
             Fail(
-                $"BattleAiScoreContextAdapter command.unit_id {commandUnitId} does not match actor unit_id {unit_state.unit_id}."
+                $"BattleAiScoreContextAdapter command.unit_id {commandUnitId} does not match actor unit_id {_unitState.unit_id}."
             );
             return false;
         }
@@ -193,7 +201,7 @@ public partial class BattleAiScoreContextAdapter : RefCounted, IBattleAiScoreCon
     private static bool ValidateCommandPreviewMetadata(
         BattleCommand command,
         BattlePreview preview,
-        GDictionary metadata
+        Godot.Collections.Dictionary metadata
     )
     {
         if (!BattleAiPayloadGuard.CommandIsValueObject(command))
@@ -205,7 +213,7 @@ public partial class BattleAiScoreContextAdapter : RefCounted, IBattleAiScoreCon
             return false;
         }
         return BattleAiPayloadGuard.ValidateNoForbiddenObject(
-            metadata ?? new GDictionary(),
+            metadata ?? new Godot.Collections.Dictionary(),
             "score_adapter.metadata"
         );
     }
@@ -226,7 +234,7 @@ public partial class BattleAiScoreContextAdapter : RefCounted, IBattleAiScoreCon
         {
             return;
         }
-        GDictionary metadata = scoreInput.runtime_action_metadata.Duplicate(true);
+        Godot.Collections.Dictionary metadata = scoreInput.runtime_action_metadata.Duplicate(true);
         metadata["skill_id"] = ProgressionDataUtils.to_string_name(skillId);
         scoreInput.runtime_action_metadata = metadata;
         scoreInput.skill_def = null;
@@ -235,22 +243,46 @@ public partial class BattleAiScoreContextAdapter : RefCounted, IBattleAiScoreCon
     private SkillDef ResolveSkillDef(StringName skillId)
     {
         StringName normalizedSkillId = ProgressionDataUtils.to_string_name(skillId);
-        if (
-            skill_defs == null
-            || IsEmpty(normalizedSkillId)
-            || !skill_defs.ContainsKey(normalizedSkillId)
-        )
+        if (IsEmpty(normalizedSkillId))
         {
             return null;
         }
-        return skill_defs[normalizedSkillId].As<SkillDef>();
+        return _skillDefsById.TryGetValue(normalizedSkillId, out SkillDef skillDef)
+            ? skillDef
+            : null;
+    }
+
+    private static Dictionary<StringName, SkillDef> BuildSkillDefIndex(
+        Godot.Collections.Dictionary skillDefs
+    )
+    {
+        var result = new Dictionary<StringName, SkillDef>();
+        if (skillDefs == null)
+        {
+            return result;
+        }
+        foreach (var rawKey in skillDefs.Keys)
+        {
+            StringName skillId = ProgressionDataUtils.to_string_name(rawKey);
+            if (IsEmpty(skillId))
+            {
+                continue;
+            }
+            SkillDef skillDef = skillDefs[rawKey].As<SkillDef>();
+            if (skillDef == null)
+            {
+                continue;
+            }
+            result[skillId] = skillDef;
+        }
+        return result;
     }
 
     private static bool Fail(string message)
     {
         return BattleAiPayloadGuard.FailLoud(
             message,
-            new GDictionary { ["source"] = "BattleAiScoreContextAdapter" }
+            new Godot.Collections.Dictionary { ["source"] = "BattleAiScoreContextAdapter" }
         );
     }
 

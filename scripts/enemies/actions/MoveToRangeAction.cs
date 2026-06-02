@@ -452,8 +452,8 @@ public partial class MoveToRangeAction : EnemyAiAction
             return null;
         }
 
-        StringName actorId = query.get_actor_id();
-        BattleAiUnitSnapshot actorSnapshot = query.get_actor_snapshot();
+        StringName actorId = query.GetActorId();
+        BattleAiUnitSnapshot actorSnapshot = query.GetActorSnapshot();
         BattleAiUnitSnapshot focusTarget = ResolveFocusTarget(query, actorSnapshot);
         if (actorId == "" || actorSnapshot == null || focusTarget == null)
         {
@@ -1106,7 +1106,7 @@ public partial class MoveToRangeAction : EnemyAiAction
             {
                 continue;
             }
-            int effectiveRange = BattleRangeService.get_effective_skill_range(threatUnit, skillDef);
+            int effectiveRange = BattleRangeService.GetEffectiveSkillRange(threatUnit, skillDef);
             if (effectiveRange > Mathf.Max(screening_enemy_max_contact_range, 1))
             {
                 continue;
@@ -1114,7 +1114,7 @@ public partial class MoveToRangeAction : EnemyAiAction
             bestRange = Mathf.Max(bestRange, effectiveRange);
         }
 
-        int weaponRange = BattleRangeService.get_weapon_attack_range(threatUnit);
+        int weaponRange = BattleRangeService.GetWeaponAttackRange(threatUnit);
         if (weaponRange > 0 && weaponRange <= Mathf.Max(screening_enemy_max_contact_range, 1))
         {
             bestRange = Mathf.Max(bestRange, weaponRange);
@@ -1603,7 +1603,7 @@ public partial class MoveToRangeAction : EnemyAiAction
     private BattleAiDecision BuildPathProgressDecision(
         BattleAiContext context,
         BattleUnitState focusTarget,
-        GDictionary actionTrace,
+        AiActionTrace actionTrace,
         MoveDistanceContract distanceContract
     )
     {
@@ -1621,7 +1621,7 @@ public partial class MoveToRangeAction : EnemyAiAction
     private BattleAiDecision BuildPathProgressDecisionImpl(
         BattleAiContext context,
         BattleUnitState focusTarget,
-        GDictionary actionTrace,
+        AiActionTrace actionTrace,
         MoveDistanceContract distanceContract
     )
     {
@@ -1875,7 +1875,7 @@ public partial class MoveToRangeAction : EnemyAiAction
 
     private Vector2I ResolveCurrentTurnPathTarget(
         BattleAiContext context,
-        Godot.Collections.Array<Vector2I> path
+        IReadOnlyList<Vector2I> path
     )
     {
         AiTraceRecorder.enter("_resolve_current_turn_path_target");
@@ -1886,7 +1886,7 @@ public partial class MoveToRangeAction : EnemyAiAction
 
     private Vector2I ResolveCurrentTurnPathTargetImpl(
         BattleAiContext context,
-        Godot.Collections.Array<Vector2I> path
+        IReadOnlyList<Vector2I> path
     )
     {
         BattleState state = GetContextState(context);
@@ -1947,7 +1947,7 @@ public partial class MoveToRangeAction : EnemyAiAction
         return _is_better_skill_score_input(candidate, bestCandidate);
     }
 
-    private static GArray ToUntypedCoords(Godot.Collections.Array<Vector2I> coords)
+    private static GArray ToUntypedCoords(IEnumerable<Vector2I> coords)
     {
         var result = new GArray();
         if (coords == null)
@@ -2078,7 +2078,7 @@ public partial class MoveToRangeAction : EnemyAiAction
         {
             return int.MaxValue;
         }
-        return query.distance_from_anchor_to_target(
+        return query.DistanceFromAnchorToTarget(
             actorSnapshot.coord,
             actorSnapshot.footprint_size,
             targetSnapshot.unit_id
@@ -2150,12 +2150,12 @@ public partial class MoveToRangeAction : EnemyAiAction
             {
                 bestGroundAoeCastRange = Mathf.Max(
                     bestGroundAoeCastRange,
-                    BattleRangeService.get_effective_skill_range(context.unit_state, skillDef)
+                    BattleRangeService.GetEffectiveSkillRange(context.unit_state, skillDef)
                 );
             }
             bestFallbackRange = Mathf.Max(
                 bestFallbackRange,
-                BattleRangeService.get_effective_skill_distance_contract_range(
+                BattleRangeService.GetEffectiveSkillDistanceContractRange(
                     context.unit_state,
                     skillDef
                 )
@@ -2414,7 +2414,7 @@ public partial class MoveToRangeAction : EnemyAiAction
         int maxCandidateCount
     )
     {
-        BattleMovementQueryService movementQuery = query.get_movement_query_service();
+        BattleMovementQueryService movementQuery = query.GetMovementQueryService();
         if (movementQuery != null)
         {
             BattleMovementQueryService.MovementQueryOptions options =

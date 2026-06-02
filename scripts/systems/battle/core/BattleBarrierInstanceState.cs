@@ -1,29 +1,30 @@
-using Godot;
 using System.Collections.Generic;
+using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class BattleBarrierInstanceState : RefCounted
+public sealed class BattleBarrierInstanceState
 {
-    public StringName barrier_instance_id { get; set; } = "";
-    public StringName profile_id { get; set; } = "";
-    public string display_name { get; set; } = "";
-    public StringName source_unit_id { get; set; } = "";
-    public StringName source_skill_id { get; set; } = "";
-    public StringName anchor_mode { get; set; } = "fixed";
-    public Vector2I anchor_coord { get; set; } = Vector2I.Zero;
-    public int radius_cells { get; set; }
-    public StringName area_pattern { get; set; } = "diamond";
-    public int remaining_tu { get; set; }
-    public int created_tu { get; set; }
-    public int save_dc { get; set; }
-    public bool catch_all_projected_effects { get; set; }
-    public GArray layers { get; set; } = new();
+    private readonly List<BattleBarrierLayerState> _layers = new();
 
-    public bool IsEmpty => barrier_instance_id == "" && profile_id == "" && layers.Count == 0;
+    public StringName BarrierInstanceId { get; set; } = "";
+    public StringName ProfileId { get; set; } = "";
+    public string DisplayName { get; set; } = "";
+    public StringName SourceUnitId { get; set; } = "";
+    public StringName SourceSkillId { get; set; } = "";
+    public StringName AnchorMode { get; set; } = "fixed";
+    public Vector2I AnchorCoord { get; set; } = Vector2I.Zero;
+    public int RadiusCells { get; set; }
+    public StringName AreaPattern { get; set; } = "diamond";
+    public int RemainingTu { get; set; }
+    public int CreatedTu { get; set; }
+    public int SaveDc { get; set; }
+    public bool CatchAllProjectedEffects { get; set; }
+    public IReadOnlyList<BattleBarrierLayerState> Layers => _layers;
 
-    public static BattleBarrierInstanceState from_runtime_dict(GDictionary source)
+    public bool IsEmpty => BarrierInstanceId == "" && ProfileId == "" && _layers.Count == 0;
+
+    public static BattleBarrierInstanceState FromRuntimeDict(GDictionary source)
     {
         var instance = new BattleBarrierInstanceState();
         if (source == null || source.Count == 0)
@@ -31,80 +32,86 @@ public partial class BattleBarrierInstanceState : RefCounted
             return instance;
         }
 
-        instance.barrier_instance_id = ProgressionDataUtils.to_string_name(
+        instance.BarrierInstanceId = ProgressionDataUtils.to_string_name(
             ReadStringName(source, "barrier_instance_id")
         );
-        instance.profile_id = ReadStringName(source, "profile_id");
-        instance.display_name = ReadString(source, "display_name");
-        instance.source_unit_id = ProgressionDataUtils.to_string_name(
+        instance.ProfileId = ReadStringName(source, "profile_id");
+        instance.DisplayName = ReadString(source, "display_name");
+        instance.SourceUnitId = ProgressionDataUtils.to_string_name(
             ReadStringName(source, "source_unit_id")
         );
-        instance.source_skill_id = ProgressionDataUtils.to_string_name(
+        instance.SourceSkillId = ProgressionDataUtils.to_string_name(
             ReadStringName(source, "source_skill_id")
         );
-        instance.anchor_mode = ReadStringName(source, "anchor_mode", "fixed");
-        instance.anchor_coord = ReadVector2I(source, "anchor_coord");
-        instance.radius_cells = ReadInt(source, "radius_cells");
-        instance.area_pattern = ReadStringName(source, "area_pattern", "diamond");
-        instance.remaining_tu = ReadInt(source, "remaining_tu");
-        instance.created_tu = ReadInt(source, "created_tu");
-        instance.save_dc = ReadInt(source, "save_dc");
-        instance.catch_all_projected_effects = ReadBool(source, "catch_all_projected_effects");
-        instance.layers = GetArray(source, "layers").Duplicate(true);
+        instance.AnchorMode = ReadStringName(source, "anchor_mode", "fixed");
+        instance.AnchorCoord = ReadVector2I(source, "anchor_coord");
+        instance.RadiusCells = ReadInt(source, "radius_cells");
+        instance.AreaPattern = ReadStringName(source, "area_pattern", "diamond");
+        instance.RemainingTu = ReadInt(source, "remaining_tu");
+        instance.CreatedTu = ReadInt(source, "created_tu");
+        instance.SaveDc = ReadInt(source, "save_dc");
+        instance.CatchAllProjectedEffects = ReadBool(source, "catch_all_projected_effects");
+        instance.SetLayers(ReadLayerList(GetArray(source, "layers")));
         return instance;
     }
 
     public List<BattleBarrierLayerState> GetLayersTyped()
     {
-        var result = new List<BattleBarrierLayerState>();
-        foreach (var layerValue in layers ?? new GArray())
-        {
-            BattleBarrierLayerState layer = BattleBarrierLayerState.from_runtime_dict(
-                layerValue.AsGodotDictionary()
-            );
-            if (layer != null && layer.layer_id != "")
-            {
-                result.Add(layer);
-            }
-        }
-        return result;
+        return new List<BattleBarrierLayerState>(_layers);
     }
 
-    public void SetLayersTyped(IReadOnlyList<BattleBarrierLayerState> layerStates)
+    public void SetLayers(IEnumerable<BattleBarrierLayerState> layerStates)
     {
-        layers = new GArray();
+        _layers.Clear();
         if (layerStates == null)
         {
             return;
         }
         foreach (BattleBarrierLayerState layer in layerStates)
         {
-            if (layer != null)
+            if (layer != null && layer.LayerId != "")
             {
-                layers.Add(layer.to_runtime_dict());
+                _layers.Add(layer);
             }
         }
     }
 
-    public GDictionary to_runtime_dict()
+    public GDictionary ToRuntimeDict()
     {
         return new GDictionary
         {
-            ["barrier_instance_id"] = barrier_instance_id.ToString(),
-            ["profile_id"] = profile_id.ToString(),
-            ["display_name"] = display_name,
-            ["source_unit_id"] = source_unit_id.ToString(),
-            ["source_skill_id"] = source_skill_id.ToString(),
-            ["anchor_mode"] = anchor_mode.ToString(),
-            ["anchor_coord"] = anchor_coord,
-            ["radius_cells"] = radius_cells,
-            ["area_pattern"] = area_pattern.ToString(),
-            ["remaining_tu"] = remaining_tu,
-            ["created_tu"] = created_tu,
-            ["save_dc"] = save_dc,
-            ["catch_all_projected_effects"] = catch_all_projected_effects,
-            ["layers"] = layers.Duplicate(true),
+            ["barrier_instance_id"] = BarrierInstanceId.ToString(),
+            ["profile_id"] = ProfileId.ToString(),
+            ["display_name"] = DisplayName,
+            ["source_unit_id"] = SourceUnitId.ToString(),
+            ["source_skill_id"] = SourceSkillId.ToString(),
+            ["anchor_mode"] = AnchorMode.ToString(),
+            ["anchor_coord"] = AnchorCoord,
+            ["radius_cells"] = RadiusCells,
+            ["area_pattern"] = AreaPattern.ToString(),
+            ["remaining_tu"] = RemainingTu,
+            ["created_tu"] = CreatedTu,
+            ["save_dc"] = SaveDc,
+            ["catch_all_projected_effects"] = CatchAllProjectedEffects,
+            ["layers"] = LayerArray(_layers),
         };
+    }
+
+    private static GArray LayerArray(IEnumerable<BattleBarrierLayerState> layers)
+    {
+        var result = new GArray();
+        if (layers == null)
+        {
+            return result;
+        }
+        foreach (BattleBarrierLayerState layer in layers)
+        {
+            if (layer != null && layer.LayerId != "")
+            {
+                result.Add(layer.ToRuntimeDict());
+            }
+        }
+        return result;
     }
 
     private static bool HasKey(GDictionary source, string key)
@@ -136,8 +143,13 @@ public partial class BattleBarrierInstanceState : RefCounted
         StringName fallback = default
     )
     {
-        string text = ReadString(source, key, fallback.ToString());
-        return string.IsNullOrEmpty(text) ? fallback : new StringName(text);
+        string fallbackText = fallback == default ? "" : fallback.ToString();
+        string text = ReadString(source, key, fallbackText);
+        if (string.IsNullOrEmpty(text))
+        {
+            return fallback == default ? new StringName("") : fallback;
+        }
+        return new StringName(text);
     }
 
     private static int ReadInt(GDictionary source, string key, int fallback = 0)
@@ -193,5 +205,25 @@ public partial class BattleBarrierInstanceState : RefCounted
             return source[key].AsGodotArray();
         }
         return source[new StringName(key)].AsGodotArray();
+    }
+
+    private static List<BattleBarrierLayerState> ReadLayerList(GArray values)
+    {
+        var result = new List<BattleBarrierLayerState>();
+        if (values == null)
+        {
+            return result;
+        }
+        foreach (var rawValue in values)
+        {
+            BattleBarrierLayerState layer = BattleBarrierLayerState.FromRuntimeDict(
+                rawValue.AsGodotDictionary()
+            );
+            if (layer != null && layer.LayerId != "")
+            {
+                result.Add(layer);
+            }
+        }
+        return result;
     }
 }

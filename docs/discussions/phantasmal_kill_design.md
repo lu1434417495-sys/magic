@@ -204,7 +204,7 @@ params = {
 - `BattleRuntimeModule.is_unit_counterattack_locked()` 已支持 `lock_counterattack` param，`aftershock` / `reaction_lock` 的 params 必须使用字符串 key：`"lock_counterattack": true`。
 - `BattleRuntimeModule.is_unit_guard_locked()` 增加 `"lock_guard": true` 支持。
 - `BattleRuntimeSkillTurnResolver.get_skill_cast_block_reason()` 对守护类技能应调用 `_runtime.is_unit_guard_locked(active_unit)`，不要只检查单个状态 ID。
-- `BattleDamageResolver` 内附加这些状态时，构造临时 `CombatEffectDef` 并走现有 `_apply_status_effect()` 路径，复用 `BattleStatusSemanticTable.merge_status()` 的刷新、持续时间和 params 合并语义。
+- `BattleDamageResolver` 内附加这些状态时，构造临时 `CombatEffectDef` 并走现有 `_apply_status_effect()` 路径，复用 `BattleStatusSemanticTable.MergeStatus()` 的刷新、持续时间和 params 合并语义。
 
 状态 params 示例：
 
@@ -340,7 +340,7 @@ params = {
 
 - `tests/battle_runtime/skills/run_phantasmal_kill_regression.gd`
 - `tests/battle_runtime/rules/run_battle_graded_save_execution_rules_regression.gd`
-- `tests/battle_runtime/rules/run_status_effect_semantics_regression.gd`
+- `tests/battle_runtime/rules/run_status_effect_semantics_regression.cs`
 - `tests/battle_runtime/runtime/run_battle_state_disadvantage_regression.gd`
 - `tests/battle_runtime/ai/run_phantasmal_kill_ai_regression.gd`
 - `tests/battle_runtime/skills/run_mage_skill_alignment_regression.gd`
@@ -382,7 +382,7 @@ params = {
 ```bash
 godot --headless --script tests/battle_runtime/skills/run_phantasmal_kill_regression.gd
 godot --headless --script tests/battle_runtime/rules/run_battle_graded_save_execution_rules_regression.gd
-godot --headless --script tests/battle_runtime/rules/run_status_effect_semantics_regression.gd
+godot --headless --script tests/battle_runtime/rules/run_status_effect_semantics_regression.cs
 godot --headless --script tests/battle_runtime/runtime/run_battle_state_disadvantage_regression.gd
 godot --headless --script tests/battle_runtime/ai/run_phantasmal_kill_ai_regression.gd
 godot --headless --script tests/battle_runtime/skills/run_mage_skill_alignment_regression.gd

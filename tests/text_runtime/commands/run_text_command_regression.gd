@@ -6,8 +6,6 @@ const TestRunner = preload("res://tests/shared/test_runner.gd")
 
 const EquipmentRequirement = preload("res://scripts/player/equipment/EquipmentRequirement.cs")
 const QuestDef = preload("res://scripts/player/progression/QuestDef.cs")
-const ProgressionDataUtils = preload("res://scripts/player/progression/ProgressionDataUtils.cs")
-const SkillBookItemFactory = preload("res://scripts/player/warehouse/SkillBookItemFactory.cs")
 const ENCOUNTER_ANCHOR_DATA_SCRIPT = preload("res://scripts/systems/world/EncounterAnchorData.cs")
 const GAME_TEXT_COMMAND_RUNNER_SCRIPT = preload("res://scripts/systems/game_runtime/headless/GameTextCommandRunner.cs")
 const BATTLE_LOOT_COMMIT_SCENARIO_PATH := "res://tests/text_runtime/scenarios/battle_loot_commit.txt"
@@ -282,7 +280,7 @@ func _prime_active_manual_skill_blocker(runner, current_stamina: int, cooldown: 
 	_assert_true(active_unit != null, "文本 battle blocker 回归前置：当前行动单位应存在。")
 	if active_unit == null:
 		return
-	active_unit.known_active_skill_ids = ProgressionDataUtils.to_string_name_array(["archer_long_draw"])
+	active_unit.known_active_skill_ids = [&"archer_long_draw"]
 	active_unit.known_skill_level_map.clear()
 	active_unit.known_skill_level_map[&"archer_long_draw"] = 1
 	active_unit.current_ap = 2
@@ -666,7 +664,7 @@ func _pick_unlearned_book_skill_for_member(game_session, member_id: StringName) 
 		return {}
 	var skill_defs: Dictionary = game_session.get_skill_defs()
 	var item_defs: Dictionary = game_session.get_item_defs()
-	for skill_key in ProgressionDataUtils.sorted_string_keys(skill_defs):
+	for skill_key in _sorted_string_keys(skill_defs):
 		var skill_id := StringName(skill_key)
 		var skill_def = skill_defs.get(skill_id)
 		if skill_def == null or skill_def.learn_source != &"book":
@@ -674,7 +672,7 @@ func _pick_unlearned_book_skill_for_member(game_session, member_id: StringName) 
 		var skill_progress = member_state.progression.get_skill_progress(skill_id)
 		if skill_progress != null and skill_progress.is_learned:
 			continue
-		var item_id := SkillBookItemFactory.build_item_id_for_skill(skill_id)
+		var item_id := _build_skill_book_item_id(skill_id)
 		if not item_defs.has(item_id):
 			continue
 		return {
@@ -682,6 +680,18 @@ func _pick_unlearned_book_skill_for_member(game_session, member_id: StringName) 
 			"item_id": item_id,
 		}
 	return {}
+
+
+func _build_skill_book_item_id(skill_id: StringName) -> StringName:
+	return StringName("skill_book_%s" % String(skill_id))
+
+
+func _sorted_string_keys(source: Dictionary) -> Array[String]:
+	var keys: Array[String] = []
+	for key in source.keys():
+		keys.append(String(key))
+	keys.sort()
+	return keys
 
 
 func _assert_log_snapshot_available(runner) -> void:

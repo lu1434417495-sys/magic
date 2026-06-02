@@ -1,8 +1,7 @@
 using Godot;
 using Godot.Collections;
 
-[GlobalClass]
-public partial class BattleReportFormatter : RefCounted
+public sealed class BattleReportFormatter
 {
     public static readonly StringName ENTRY_TYPE_FATE_ATTACK = "fate_attack_resolution";
     public static readonly StringName ENTRY_TYPE_SKILL_EVENT = "battle_skill_event";
@@ -35,15 +34,15 @@ public partial class BattleReportFormatter : RefCounted
         public bool AnyHalf;
         public bool AnyDouble;
         public int FixedMitigationTotal;
-        public Godot.Collections.Array<string> AbsorbLabels = new();
-        public Godot.Collections.Array<string> HalfSourceLabels = new();
-        public Godot.Collections.Array<string> DoubleSourceLabels = new();
-        public Godot.Collections.Array<string> ImmuneSourceLabels = new();
-        public Godot.Collections.Array<string> FixedMitigationSourceLabels = new();
+        public System.Collections.Generic.List<string> AbsorbLabels = new();
+        public System.Collections.Generic.List<string> HalfSourceLabels = new();
+        public System.Collections.Generic.List<string> DoubleSourceLabels = new();
+        public System.Collections.Generic.List<string> ImmuneSourceLabels = new();
+        public System.Collections.Generic.List<string> FixedMitigationSourceLabels = new();
         public string AbsorbReasonText = "";
         public string FixedMitigationSourceText = "";
 
-        public Dictionary ToDictionary()
+        internal Dictionary ToDictionary()
         {
             return new Dictionary
             {
@@ -56,17 +55,17 @@ public partial class BattleReportFormatter : RefCounted
                 ["any_half"] = AnyHalf,
                 ["any_double"] = AnyDouble,
                 ["fixed_mitigation_total"] = FixedMitigationTotal,
-                ["absorb_labels"] = AbsorbLabels,
-                ["half_source_labels"] = HalfSourceLabels,
-                ["double_source_labels"] = DoubleSourceLabels,
-                ["immune_source_labels"] = ImmuneSourceLabels,
-                ["fixed_mitigation_source_labels"] = FixedMitigationSourceLabels,
+                ["absorb_labels"] = ToStringArray(AbsorbLabels),
+                ["half_source_labels"] = ToStringArray(HalfSourceLabels),
+                ["double_source_labels"] = ToStringArray(DoubleSourceLabels),
+                ["immune_source_labels"] = ToStringArray(ImmuneSourceLabels),
+                ["fixed_mitigation_source_labels"] = ToStringArray(FixedMitigationSourceLabels),
                 ["absorb_reason_text"] = AbsorbReasonText,
                 ["fixed_mitigation_source_text"] = FixedMitigationSourceText,
             };
         }
 
-        public static DamageResultSummary FromDictionary(Dictionary summary)
+        internal static DamageResultSummary FromDictionary(Dictionary summary)
         {
             summary ??= new Dictionary();
             return new DamageResultSummary
@@ -98,12 +97,12 @@ public partial class BattleReportFormatter : RefCounted
             };
         }
 
-        private static Godot.Collections.Array<string> ReadStringArray(
+        private static System.Collections.Generic.List<string> ReadStringArray(
             Dictionary source,
             string key
         )
         {
-            var result = new Godot.Collections.Array<string>();
+            var result = new System.Collections.Generic.List<string>();
             if (source == null || !source.ContainsKey(key))
                 return result;
             foreach (var value in source[key].AsGodotArray())
@@ -114,9 +113,24 @@ public partial class BattleReportFormatter : RefCounted
             }
             return result;
         }
+
+        private static Godot.Collections.Array<string> ToStringArray(
+            System.Collections.Generic.IEnumerable<string> values
+        )
+        {
+            var result = new Godot.Collections.Array<string>();
+            if (values == null)
+                return result;
+            foreach (string value in values)
+            {
+                if (!string.IsNullOrEmpty(value))
+                    result.Add(value);
+            }
+            return result;
+        }
     }
 
-    public Dictionary BuildAttackReportEntry(
+    internal Dictionary BuildAttackReportEntry(
         BattleUnitState attacker,
         BattleUnitState defender,
         Dictionary attackResult
@@ -223,16 +237,7 @@ public partial class BattleReportFormatter : RefCounted
         return entry;
     }
 
-    public Dictionary build_attack_report_entry(
-        BattleUnitState attacker,
-        BattleUnitState defender,
-        Dictionary attackResult
-    )
-    {
-        return BuildAttackReportEntry(attacker, defender, attackResult);
-    }
-
-    public Dictionary BuildSkillEventEntry(
+    internal Dictionary BuildSkillEventEntry(
         BattleUnitState attacker,
         BattleUnitState defender,
         StringName skillId,
@@ -264,18 +269,7 @@ public partial class BattleReportFormatter : RefCounted
         return entry;
     }
 
-    public Dictionary build_skill_event_entry(
-        BattleUnitState attacker,
-        BattleUnitState defender,
-        StringName skillId,
-        StringName reasonId,
-        Godot.Collections.Array<StringName> eventTags
-    )
-    {
-        return BuildSkillEventEntry(attacker, defender, skillId, reasonId, eventTags);
-    }
-
-    public Godot.Collections.Array<string> FormatMeteorSwarmSummary(Dictionary entry)
+    internal Godot.Collections.Array<string> FormatMeteorSwarmSummary(Dictionary entry)
     {
         var lines = new Godot.Collections.Array<string>();
         if (
@@ -291,12 +285,7 @@ public partial class BattleReportFormatter : RefCounted
         return lines;
     }
 
-    public Godot.Collections.Array<string> format_meteor_swarm_summary(Dictionary entry)
-    {
-        return FormatMeteorSwarmSummary(entry);
-    }
-
-    public Dictionary SummarizeDamageResult(Dictionary result)
+    internal Dictionary SummarizeDamageResult(Dictionary result)
     {
         return BuildDamageResultSummary(result).ToDictionary();
     }
@@ -367,12 +356,7 @@ public partial class BattleReportFormatter : RefCounted
         return summary;
     }
 
-    public Dictionary summarize_damage_result(Dictionary result)
-    {
-        return SummarizeDamageResult(result);
-    }
-
-    public string BuildDamageAbsorbReasonText(Dictionary summary)
+    internal string BuildDamageAbsorbReasonText(Dictionary summary)
     {
         return BuildDamageAbsorbReasonText(DamageResultSummary.FromDictionary(summary));
     }
@@ -382,7 +366,7 @@ public partial class BattleReportFormatter : RefCounted
         summary ??= new DamageResultSummary();
         if (summary.AnyImmune)
             return _FormatDamageSourceLabels(summary.ImmuneSourceLabels, "免疫");
-        var labels = new Godot.Collections.Array<string>();
+        var labels = new System.Collections.Generic.List<string>();
         if (summary.AnyHalf)
         {
             var halfSourceText = _FormatDamageSourceLabels(summary.HalfSourceLabels);
@@ -405,12 +389,7 @@ public partial class BattleReportFormatter : RefCounted
         return string.Join("、", labels);
     }
 
-    public string build_damage_absorb_reason_text(Dictionary summary)
-    {
-        return BuildDamageAbsorbReasonText(summary);
-    }
-
-    public void AppendDamageResultLogLines(
+    internal void AppendDamageResultLogLines(
         BattleEventBatch batch,
         string subjectLabel,
         string targetDisplayName,
@@ -483,26 +462,6 @@ public partial class BattleReportFormatter : RefCounted
         }
         if (summary.ShieldBroken)
             batch.log_lines.Add($"{targetDisplayName} 的护盾被击碎。");
-    }
-
-    public void append_damage_result_log_lines(
-        BattleEventBatch batch,
-        string subjectLabel,
-        string targetDisplayName,
-        Dictionary result
-    )
-    {
-        AppendDamageResultLogLines(batch, subjectLabel, targetDisplayName, result);
-    }
-
-    internal void append_damage_result_log_lines(
-        BattleEventBatch batch,
-        string subjectLabel,
-        string targetDisplayName,
-        AttackEffectResolutionResult result
-    )
-    {
-        AppendDamageResultLogLines(batch, subjectLabel, targetDisplayName, result);
     }
 
     internal void AppendDamageResultLogLines(
@@ -755,9 +714,9 @@ public partial class BattleReportFormatter : RefCounted
 
     private void _AppendDamageMitigationSourceLabels(
         Godot.Collections.Array sources,
-        Godot.Collections.Array<string> halfSourceLabels,
-        Godot.Collections.Array<string> doubleSourceLabels,
-        Godot.Collections.Array<string> immuneSourceLabels
+        System.Collections.Generic.List<string> halfSourceLabels,
+        System.Collections.Generic.List<string> doubleSourceLabels,
+        System.Collections.Generic.List<string> immuneSourceLabels
     )
     {
         foreach (var sourceValue in sources)
@@ -784,7 +743,7 @@ public partial class BattleReportFormatter : RefCounted
 
     private void _AppendDamageFixedSourceLabels(
         Godot.Collections.Array sources,
-        Godot.Collections.Array<string> fixedSourceLabels
+        System.Collections.Generic.List<string> fixedSourceLabels
     )
     {
         foreach (var sourceValue in sources)
@@ -825,13 +784,13 @@ public partial class BattleReportFormatter : RefCounted
     }
 
     private string _FormatDamageSourceLabels(
-        Godot.Collections.Array<string> labelsValue,
+        System.Collections.Generic.IEnumerable<string> labelsValue,
         string fallback = ""
     )
     {
         if (labelsValue == null)
             return fallback;
-        var labels = new Godot.Collections.Array<string>();
+        var labels = new System.Collections.Generic.List<string>();
         foreach (string label in labelsValue)
         {
             if (string.IsNullOrEmpty(label) || labels.Contains(label))
@@ -863,7 +822,7 @@ public partial class BattleReportFormatter : RefCounted
     }
 
     private void _AppendUniqueDamageAbsorbLabel(
-        Godot.Collections.Array<string> absorbLabels,
+        System.Collections.Generic.List<string> absorbLabels,
         string label
     )
     {
@@ -908,7 +867,7 @@ public partial class BattleReportFormatter : RefCounted
 
     private bool _IsEliteOrBoss(BattleUnitState unitState)
     {
-        return BattleExecutionRules.is_elite_or_boss_target(unitState);
+        return BattleExecutionRules.IsEliteOrBossTarget(unitState);
     }
 
     private static bool DictBool(Dictionary dictionary, string key, bool fallback)

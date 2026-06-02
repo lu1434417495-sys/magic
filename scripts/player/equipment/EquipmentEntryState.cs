@@ -1,15 +1,15 @@
+using System.Collections.Generic;
 using Godot;
 
-[GlobalClass]
-public partial class EquipmentEntryState : RefCounted
+public class EquipmentEntryState
 {
     public StringName item_id = "";
-    public Godot.Collections.Array<StringName> occupied_slot_ids = new();
+    public List<StringName> occupied_slot_ids = new();
     public StringName instance_id = "";
     public EquipmentInstanceState equipment_instance;
 
     public bool is_empty() =>
-        equipment_instance == null || (string)item_id == "" || (string)instance_id == "";
+        equipment_instance == null || item_id == "" || instance_id == "";
 
     public EquipmentInstanceState get_equipment_instance() => equipment_instance;
 
@@ -35,10 +35,7 @@ public partial class EquipmentEntryState : RefCounted
         var entry = new EquipmentEntryState();
         if (!entry.set_equipment_instance(equipment_instance))
             return new EquipmentEntryState();
-        foreach (StringName slotId in occupied_slot_ids)
-        {
-            entry.occupied_slot_ids.Add(slotId);
-        }
+        entry.occupied_slot_ids = new List<StringName>(occupied_slot_ids);
         return entry;
     }
 
@@ -76,18 +73,19 @@ public partial class EquipmentEntryState : RefCounted
         var entry = new EquipmentEntryState();
         if (!entry.set_equipment_instance(inst))
             return null;
+        var occupiedSlotIds = new HashSet<StringName>();
         foreach (var rsv in ov.AsGodotArray())
         {
             if (!_is_string_name_payload_type((long)rsv.VariantType))
                 return null;
             var slot_id = ProgressionDataUtils.to_string_name(rsv);
-            if ((string)slot_id == "" || !EquipmentRules.is_valid_slot(slot_id))
+            if (slot_id == "" || !EquipmentRules.is_valid_slot(slot_id))
                 return null;
-            if (entry.occupied_slot_ids.Contains(slot_id))
+            if (!occupiedSlotIds.Add(slot_id))
                 return null;
             entry.occupied_slot_ids.Add(slot_id);
         }
-        if ((string)entry.item_id == "" || entry.occupied_slot_ids.Count == 0)
+        if (entry.item_id == "" || entry.occupied_slot_ids.Count == 0)
             return null;
         return entry;
     }

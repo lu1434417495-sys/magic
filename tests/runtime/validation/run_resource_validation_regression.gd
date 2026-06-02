@@ -2,7 +2,6 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const ProgressionDataUtils = preload("res://scripts/player/progression/ProgressionDataUtils.cs")
 const ProgressionContentRegistry = preload("res://scripts/player/progression/ProgressionContentRegistry.cs")
 const ItemContentRegistry = preload("res://scripts/player/warehouse/ItemContentRegistry.cs")
 const EnemyContentRegistry = preload("res://scripts/enemies/EnemyContentRegistry.cs")
@@ -218,6 +217,8 @@ func _run() -> void:
 		enemy_duplicate_result,
 		enemy_invalid_reference_result,
 		enemy_incomplete_seed_result,
+		enemy_invalid_initial_stage_result,
+		enemy_invalid_skill_level_map_result,
 		battle_special_missing_manifest_result,
 		battle_special_unknown_profile_result,
 		battle_special_duplicate_profile_result,
@@ -375,13 +376,21 @@ func _run() -> void:
 
 func _build_quest_entries_from_dict(quest_defs: Dictionary, source_prefix: String) -> Array[Dictionary]:
 	var entries: Array[Dictionary] = []
-	for quest_key in ProgressionDataUtils.sorted_string_keys(quest_defs):
+	for quest_key in _sorted_string_keys(quest_defs):
 		var quest_id := StringName(quest_key)
 		entries.append({
 			"source": "%s::%s" % [source_prefix, String(quest_id)],
 			"quest_def": quest_defs.get(quest_id) as QuestDef,
 		})
 	return entries
+
+
+func _sorted_string_keys(source: Dictionary) -> Array[String]:
+	var keys: Array[String] = []
+	for key in source.keys():
+		keys.append(String(key))
+	keys.sort()
+	return keys
 
 
 func _test_item_registry_directory_rebuild_clears_template_cache() -> void:

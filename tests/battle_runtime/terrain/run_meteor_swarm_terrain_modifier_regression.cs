@@ -53,10 +53,10 @@ public partial class run_meteor_swarm_terrain_modifier_regression : SceneTree
             2,
             "尘土命中 -2 应通过 accuracy_modifier_spec 生效，而不是靠 source id。"
         );
-        AssertEq(probe.ModifierBundle.breakdown.Count, 1, "尘土命中修饰应输出一条 post-stack breakdown。");
+        AssertEq(probe.ModifierBundle.Breakdown.Count, 1, "尘土命中修饰应输出一条 post-stack breakdown。");
         AssertEq(
-            probe.ModifierBundle.breakdown.Count > 0
-                ? probe.ModifierBundle.breakdown[0].modifier_delta
+            probe.ModifierBundle.Breakdown.Count > 0
+                ? probe.ModifierBundle.Breakdown[0].modifier_delta
                 : 0,
             -2,
             "breakdown 应保留有效 -2 修饰。"
@@ -86,7 +86,7 @@ public partial class run_meteor_swarm_terrain_modifier_regression : SceneTree
             adjacentSetup.Target
         );
         AssertEq(
-            adjacentProbe.ModifierBundle.breakdown.Count,
+            adjacentProbe.ModifierBundle.Breakdown.Count,
             0,
             "distance_min_exclusive=1 时相邻攻击不应吃尘土命中惩罚。"
         );
@@ -127,7 +127,7 @@ public partial class run_meteor_swarm_terrain_modifier_regression : SceneTree
             "attacker/target 同时处于 dust 时同 stack_key 不应叠成 -4。"
         );
         AssertEq(
-            doubleProbe.ModifierBundle.breakdown.Count,
+            doubleProbe.ModifierBundle.Breakdown.Count,
             1,
             "同 stack_key dust 只应保留一条 post-stack breakdown。"
         );
@@ -161,7 +161,7 @@ public partial class run_meteor_swarm_terrain_modifier_regression : SceneTree
 
         AttackPolicyProbe probe = BuildPolicyAttackProbe(setup.Runtime, setup.Attacker, setup.Target);
         AssertEq(
-            probe.ModifierBundle.breakdown.Count,
+            probe.ModifierBundle.Breakdown.Count,
             0,
             "timed dust 到期后不应继续提供命中惩罚。"
         );
@@ -182,7 +182,7 @@ public partial class run_meteor_swarm_terrain_modifier_regression : SceneTree
     )
     {
         BattleAttackCheckPolicyService attackPolicy = runtime.get_attack_check_policy_service();
-        BattleAttackCheckPolicyContext context = attackPolicy.build_attack_context(
+        BattleAttackCheckPolicyContext context = attackPolicy.BuildAttackContext(
             runtime.get_state(),
             attacker,
             target,
@@ -193,8 +193,8 @@ public partial class run_meteor_swarm_terrain_modifier_regression : SceneTree
         );
         return new AttackPolicyProbe
         {
-            AttackCheck = attackPolicy.build_attack_check(context, 0, 0),
-            ModifierBundle = attackPolicy.build_modifier_bundle(context),
+            AttackCheck = attackPolicy.BuildAttackCheck(context, 0, 0),
+            ModifierBundle = attackPolicy.BuildModifierBundle(context),
         };
     }
 

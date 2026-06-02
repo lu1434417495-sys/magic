@@ -1,9 +1,5 @@
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
-using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
 public readonly record struct BattleUnitSkillValidationResult(
 	bool Allowed,
@@ -40,29 +36,33 @@ public readonly record struct BattleUnitSkillValidationResult(
 			previewCoords ?? System.Array.Empty<Vector2I>()
 		);
 
-	public GStringNameArray TargetUnitIdsArray() => ToStringNameArray(TargetUnitIds);
+	private Godot.Collections.Array<StringName> ToTargetUnitIdsArray() =>
+		ToStringNameArray(TargetUnitIds);
 
-	public GArray TargetUnitsArray() => ToUnitArray(TargetUnits);
+	private Godot.Collections.Array ToTargetUnitsArray() => ToUnitArray(TargetUnits);
 
-	public GStringNameArray RandomChainCandidateUnitIdsArray() =>
+	private Godot.Collections.Array<StringName> ToRandomChainCandidateUnitIdsArray() =>
 		ToStringNameArray(RandomChainCandidateUnitIds);
 
-	public GVector2IArray PreviewCoordsArray() => ToVector2IArray(PreviewCoords);
+	private Godot.Collections.Array<Vector2I> ToPreviewCoordsArray() =>
+		ToVector2IArray(PreviewCoords);
 
-	public GDictionary ToDictionary() =>
+	internal Godot.Collections.Dictionary ToDictionary() =>
 		new()
 		{
 			["allowed"] = Allowed,
 			["message"] = Message ?? "",
-			["target_unit_ids"] = TargetUnitIdsArray(),
-			["target_units"] = TargetUnitsArray(),
-			["random_chain_candidate_unit_ids"] = RandomChainCandidateUnitIdsArray(),
-			["preview_coords"] = PreviewCoordsArray(),
+			["target_unit_ids"] = ToTargetUnitIdsArray(),
+			["target_units"] = ToTargetUnitsArray(),
+			["random_chain_candidate_unit_ids"] = ToRandomChainCandidateUnitIdsArray(),
+			["preview_coords"] = ToPreviewCoordsArray(),
 		};
 
-	private static GStringNameArray ToStringNameArray(IReadOnlyList<StringName> ids)
+	private static Godot.Collections.Array<StringName> ToStringNameArray(
+		IReadOnlyList<StringName> ids
+	)
 	{
-		var result = new GStringNameArray();
+		var result = new Godot.Collections.Array<StringName>();
 		if (ids == null)
 		{
 			return result;
@@ -74,9 +74,9 @@ public readonly record struct BattleUnitSkillValidationResult(
 		return result;
 	}
 
-	private static GArray ToUnitArray(IReadOnlyList<BattleUnitState> units)
+	private static Godot.Collections.Array ToUnitArray(IReadOnlyList<BattleUnitState> units)
 	{
-		var result = new GArray();
+		var result = new Godot.Collections.Array();
 		if (units == null)
 		{
 			return result;
@@ -91,9 +91,11 @@ public readonly record struct BattleUnitSkillValidationResult(
 		return result;
 	}
 
-	private static GVector2IArray ToVector2IArray(IReadOnlyList<Vector2I> coords)
+	private static Godot.Collections.Array<Vector2I> ToVector2IArray(
+		IReadOnlyList<Vector2I> coords
+	)
 	{
-		var result = new GVector2IArray();
+		var result = new Godot.Collections.Array<Vector2I>();
 		if (coords == null)
 		{
 			return result;

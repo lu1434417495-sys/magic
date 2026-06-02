@@ -1,10 +1,8 @@
 using System;
+using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class BattleAiPayloadGuard : RefCounted
+public static class BattleAiPayloadGuard
 {
     private const int MaxPayloadDepth = 12;
 
@@ -21,38 +19,48 @@ public partial class BattleAiPayloadGuard : RefCounted
     public static void SetFailLoudProcessAbortEnabled(bool value) =>
         _failLoudProcessAbortEnabled = value;
 
-    internal static bool IsAllowedValuePayload(GDictionary value)
+    internal static bool IsAllowedValuePayload(Godot.Collections.Dictionary value)
     {
         return string.IsNullOrEmpty(FindForbiddenObject(value, "payload"));
     }
 
-    internal static bool IsAllowedValuePayload(GArray value)
+    internal static bool IsAllowedValuePayload(Godot.Collections.Array value)
     {
         return string.IsNullOrEmpty(FindForbiddenObject(value, "payload"));
     }
 
-    internal static string FindForbiddenObject(GDictionary payload, string path = "payload")
+    internal static string FindForbiddenObject(Godot.Collections.Dictionary payload, string path = "payload")
     {
         return FindForbiddenInDictionary(payload, path, 0);
     }
 
-    internal static string FindForbiddenObject(GArray payload, string path = "payload")
+    internal static string FindForbiddenObject(Godot.Collections.Array payload, string path = "payload")
     {
         return FindForbiddenInArray(payload, path, 0);
     }
 
-    internal static bool ValidateNoForbiddenObject(GDictionary value, string context)
+    internal static bool ValidateNoForbiddenObject(Godot.Collections.Dictionary value, string context)
     {
         string error = FindForbiddenObject(value, context);
         return string.IsNullOrEmpty(error)
-            || FailLoud(error, new GDictionary { ["context"] = context });
+            || FailLoud(error, new Godot.Collections.Dictionary { ["context"] = context });
     }
 
-    internal static bool ValidateNoForbiddenObject(GArray value, string context)
+    internal static bool ValidateNoForbiddenObject(Godot.Collections.Array value, string context)
     {
         string error = FindForbiddenObject(value, context);
         return string.IsNullOrEmpty(error)
-            || FailLoud(error, new GDictionary { ["context"] = context });
+            || FailLoud(error, new Godot.Collections.Dictionary { ["context"] = context });
+    }
+
+    internal static bool ValidateNoForbiddenObject(
+        IReadOnlyDictionary<string, object> value,
+        string context
+    )
+    {
+        string error = FindForbiddenInTypedMap(value, context, 0);
+        return string.IsNullOrEmpty(error)
+            || FailLoud(error, new Godot.Collections.Dictionary { ["context"] = context });
     }
 
     internal static bool ValidateNoForbiddenObject(
@@ -85,28 +93,61 @@ public partial class BattleAiPayloadGuard : RefCounted
             BattleAiFailurePolicy.AbortProcessNow();
     }
 
-    public static bool FailLoud(string message, GDictionary metadata = null)
+    public static bool FailLoud(
+        string message,
+        IReadOnlyDictionary<string, string> metadata = null
+    )
     {
         if (FailLoudProcessAbortEnabled)
             BattleAiFailurePolicy.StrictProcessAbortEnabled = true;
 
-        return BattleAiFailurePolicy.ReportContractError(message, metadata);
+        return BattleAiFailurePolicy.ReportContractError(message, CopyFailureMetadata(metadata));
     }
 
-    public static bool ActionError(string message, GDictionary metadata = null)
+    internal static bool FailLoud(string message, Godot.Collections.Dictionary metadata)
     {
         if (FailLoudProcessAbortEnabled)
             BattleAiFailurePolicy.StrictProcessAbortEnabled = true;
 
-        return BattleAiFailurePolicy.ReportActionError(message, metadata);
+        return BattleAiFailurePolicy.ReportContractError(message, ToFailureMetadata(metadata));
     }
 
-    public static bool MutationViolation(string message, GDictionary metadata = null)
+    public static bool ActionError(
+        string message,
+        IReadOnlyDictionary<string, string> metadata = null
+    )
     {
         if (FailLoudProcessAbortEnabled)
             BattleAiFailurePolicy.StrictProcessAbortEnabled = true;
 
-        return BattleAiFailurePolicy.ReportMutationViolation(message, metadata);
+        return BattleAiFailurePolicy.ReportActionError(message, CopyFailureMetadata(metadata));
+    }
+
+    internal static bool ActionError(string message, Godot.Collections.Dictionary metadata)
+    {
+        if (FailLoudProcessAbortEnabled)
+            BattleAiFailurePolicy.StrictProcessAbortEnabled = true;
+
+        return BattleAiFailurePolicy.ReportActionError(message, ToFailureMetadata(metadata));
+    }
+
+    public static bool MutationViolation(
+        string message,
+        IReadOnlyDictionary<string, string> metadata = null
+    )
+    {
+        if (FailLoudProcessAbortEnabled)
+            BattleAiFailurePolicy.StrictProcessAbortEnabled = true;
+
+        return BattleAiFailurePolicy.ReportMutationViolation(message, CopyFailureMetadata(metadata));
+    }
+
+    internal static bool MutationViolation(string message, Godot.Collections.Dictionary metadata)
+    {
+        if (FailLoudProcessAbortEnabled)
+            BattleAiFailurePolicy.StrictProcessAbortEnabled = true;
+
+        return BattleAiFailurePolicy.ReportMutationViolation(message, ToFailureMetadata(metadata));
     }
 
     public static bool CommandIsValueObject(BattleCommand command)
@@ -132,7 +173,7 @@ public partial class BattleAiPayloadGuard : RefCounted
         {
             if (
                 !ValidateNoForbiddenObject(
-                    gateResult.debug_details,
+                    gateResult.DebugDetails,
                     "preview.special_profile_gate_result.debug_details"
                 )
             )
@@ -159,7 +200,7 @@ public partial class BattleAiPayloadGuard : RefCounted
         {
             return FailLoud(
                 "BattleAiScoreInput.skill_def must be stripped before leaving score assembly.",
-                new GDictionary { ["context"] = "score_input.skill_def" }
+                new Godot.Collections.Dictionary { ["context"] = "score_input.skill_def" }
             );
         }
 
@@ -201,7 +242,11 @@ public partial class BattleAiPayloadGuard : RefCounted
             );
     }
 
-    private static string FindForbiddenInDictionary(GDictionary payload, string path, int depth)
+    private static string FindForbiddenInDictionary(
+        Godot.Collections.Dictionary payload,
+        string path,
+        int depth
+    )
     {
         if (payload == null)
             return "";
@@ -221,7 +266,7 @@ public partial class BattleAiPayloadGuard : RefCounted
 
             try
             {
-                GDictionary child = value.AsGodotDictionary();
+                Godot.Collections.Dictionary child = value.AsGodotDictionary();
                 string childError = FindForbiddenInDictionary(child, $"{path}.{keyText}", depth + 1);
                 if (!string.IsNullOrEmpty(childError))
                     return childError;
@@ -232,7 +277,7 @@ public partial class BattleAiPayloadGuard : RefCounted
 
             try
             {
-                GArray child = value.AsGodotArray();
+                Godot.Collections.Array child = value.AsGodotArray();
                 string childError = FindForbiddenInArray(child, $"{path}.{keyText}", depth + 1);
                 if (!string.IsNullOrEmpty(childError))
                     return childError;
@@ -245,7 +290,54 @@ public partial class BattleAiPayloadGuard : RefCounted
         return "";
     }
 
-    private static string FindForbiddenInArray(GArray payload, string path, int depth)
+    private static string FindForbiddenInTypedMap(
+        IReadOnlyDictionary<string, object> payload,
+        string path,
+        int depth
+    )
+    {
+        if (payload == null)
+            return "";
+        if (depth > MaxPayloadDepth)
+            return $"{path} exceeds typed payload depth.";
+
+        foreach (KeyValuePair<string, object> entry in payload)
+        {
+            string keyText = entry.Key ?? "";
+            if (LooksLikeRuntimePayload(keyText))
+                return $"{path}.key contains unsupported runtime payload.";
+
+            object value = entry.Value;
+            string valueText = value?.ToString() ?? "";
+            if (LooksLikeRuntimePayload(valueText))
+                return $"{path}.{keyText} contains unsupported runtime payload.";
+
+            if (value is IReadOnlyDictionary<string, object> childMap)
+            {
+                string childError = FindForbiddenInTypedMap(
+                    childMap,
+                    $"{path}.{keyText}",
+                    depth + 1
+                );
+                if (!string.IsNullOrEmpty(childError))
+                    return childError;
+            }
+            else if (value is IEnumerable<string> strings)
+            {
+                int index = 0;
+                foreach (string item in strings)
+                {
+                    if (LooksLikeRuntimePayload(item ?? ""))
+                        return $"{path}.{keyText}[{index}] contains unsupported runtime payload.";
+                    index++;
+                }
+            }
+        }
+
+        return "";
+    }
+
+    private static string FindForbiddenInArray(Godot.Collections.Array payload, string path, int depth)
     {
         if (payload == null)
             return "";
@@ -261,7 +353,7 @@ public partial class BattleAiPayloadGuard : RefCounted
 
             try
             {
-                GDictionary child = value.AsGodotDictionary();
+                Godot.Collections.Dictionary child = value.AsGodotDictionary();
                 string childError = FindForbiddenInDictionary(child, $"{path}[{i}]", depth + 1);
                 if (!string.IsNullOrEmpty(childError))
                     return childError;
@@ -272,7 +364,7 @@ public partial class BattleAiPayloadGuard : RefCounted
 
             try
             {
-                GArray child = value.AsGodotArray();
+                Godot.Collections.Array child = value.AsGodotArray();
                 string childError = FindForbiddenInArray(child, $"{path}[{i}]", depth + 1);
                 if (!string.IsNullOrEmpty(childError))
                     return childError;
@@ -293,5 +385,46 @@ public partial class BattleAiPayloadGuard : RefCounted
             || text.StartsWith("<Callable", StringComparison.Ordinal)
             || text.StartsWith("[Object", StringComparison.Ordinal)
             || text.StartsWith("[Callable", StringComparison.Ordinal);
+    }
+
+    private static Dictionary<string, string> ToFailureMetadata(
+        Godot.Collections.Dictionary metadata
+    )
+    {
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        if (metadata == null)
+            return result;
+
+        foreach (var key in metadata.Keys)
+        {
+            string keyText = key.ToString();
+            if (string.IsNullOrEmpty(keyText))
+                continue;
+
+            result[keyText] = metadata[key].ToString();
+        }
+
+        return result;
+    }
+
+    private static Dictionary<string, string> CopyFailureMetadata(
+        IReadOnlyDictionary<string, string> metadata
+    )
+    {
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        if (metadata == null)
+            return result;
+
+        foreach (KeyValuePair<string, string> entry in metadata)
+        {
+            if (string.IsNullOrEmpty(entry.Key))
+                continue;
+
+            result[entry.Key] = entry.Value ?? "";
+        }
+
+        return result;
     }
 }

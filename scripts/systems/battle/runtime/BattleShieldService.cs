@@ -2,8 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 
 public readonly record struct BattleShieldApplyResult(
     bool Applied,
@@ -13,7 +11,7 @@ public readonly record struct BattleShieldApplyResult(
     StringName ShieldFamily
 )
 {
-    public GDictionary ToDictionary() =>
+    internal Godot.Collections.Dictionary ToDictionary() =>
         new()
         {
             ["applied"] = Applied,
@@ -51,12 +49,12 @@ public partial class BattleShieldService : RefCounted
         _runtime = null;
     }
 
-    public GDictionary _apply_unit_shield_effects(
+    public Godot.Collections.Dictionary _apply_unit_shield_effects(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         SkillDef skill_def,
-        GArray effect_defs,
-        GDictionary shield_roll_context = null
+        Godot.Collections.Array effect_defs,
+        Godot.Collections.Dictionary shield_roll_context = null
     )
     {
         Dictionary<long, int> rollContext = ReadRollContext(shield_roll_context);
@@ -109,12 +107,12 @@ public partial class BattleShieldService : RefCounted
         return result;
     }
 
-    public GDictionary _apply_shield_effect_to_target(
+    public Godot.Collections.Dictionary _apply_shield_effect_to_target(
         BattleUnitState source_unit,
         BattleUnitState target_unit,
         SkillDef skill_def,
         CombatEffectDef effect_def,
-        GDictionary shield_roll_context = null
+        Godot.Collections.Dictionary shield_roll_context = null
     )
     {
         Dictionary<long, int> rollContext = ReadRollContext(shield_roll_context);
@@ -145,6 +143,7 @@ public partial class BattleShieldService : RefCounted
 
         Dictionary<long, int> rollContext = shield_roll_context ?? new Dictionary<long, int>();
         int shieldHp = ResolveShieldHp(source_unit, effect_def, rollContext);
+        shieldHp = BattleStatusModifierRules.ApplyShieldGainMultiplier(target_unit, shieldHp);
         if (shieldHp <= 0)
         {
             return result;
@@ -249,7 +248,10 @@ public partial class BattleShieldService : RefCounted
         target_unit.normalize_shield_state();
     }
 
-    public GDictionary _build_unit_shield_result(BattleUnitState target_unit, bool applied)
+    public Godot.Collections.Dictionary _build_unit_shield_result(
+        BattleUnitState target_unit,
+        bool applied
+    )
     {
         return BuildUnitShieldResult(target_unit, applied).ToDictionary();
     }
@@ -262,7 +264,7 @@ public partial class BattleShieldService : RefCounted
     public int _resolve_shield_hp(
         BattleUnitState source_unit,
         CombatEffectDef effect_def,
-        GDictionary shield_roll_context = null
+        Godot.Collections.Dictionary shield_roll_context = null
     )
     {
         Dictionary<long, int> rollContext = ReadRollContext(shield_roll_context);
@@ -353,7 +355,7 @@ public partial class BattleShieldService : RefCounted
     public int _roll_shield_hp_with_attribute_scaled_dice(
         BattleUnitState source_unit,
         CombatEffectDef effect_def,
-        GDictionary shield_roll_context = null
+        Godot.Collections.Dictionary shield_roll_context = null
     )
     {
         Dictionary<long, int> rollContext = ReadRollContext(shield_roll_context);
@@ -440,7 +442,7 @@ public partial class BattleShieldService : RefCounted
         {
             return durationTu;
         }
-        GDictionary parameters = effect_def.@params;
+        Godot.Collections.Dictionary parameters = effect_def.@params;
         if (parameters.Count == 0)
         {
             return 0;
@@ -456,7 +458,7 @@ public partial class BattleShieldService : RefCounted
     {
         if (effect_def != null)
         {
-            GDictionary parameters = effect_def.@params;
+            Godot.Collections.Dictionary parameters = effect_def.@params;
             if (parameters.Count > 0)
             {
                 StringName explicitFamily = GetStringName(parameters, "shield_family");
@@ -492,7 +494,7 @@ public partial class BattleShieldService : RefCounted
         );
     }
 
-    internal static Dictionary<long, int> ReadRollContext(GDictionary source)
+    internal static Dictionary<long, int> ReadRollContext(Godot.Collections.Dictionary source)
     {
         var result = new Dictionary<long, int>();
         if (source == null)
@@ -511,7 +513,10 @@ public partial class BattleShieldService : RefCounted
         return result;
     }
 
-    internal static void WriteRollContext(GDictionary target, Dictionary<long, int> source)
+    internal static void WriteRollContext(
+        Godot.Collections.Dictionary target,
+        Dictionary<long, int> source
+    )
     {
         if (target == null)
         {
@@ -528,7 +533,7 @@ public partial class BattleShieldService : RefCounted
         }
     }
 
-    private static List<CombatEffectDef> ReadCombatEffectDefs(GArray source)
+    private static List<CombatEffectDef> ReadCombatEffectDefs(Godot.Collections.Array source)
     {
         var result = new List<CombatEffectDef>();
         if (source == null)
@@ -546,7 +551,7 @@ public partial class BattleShieldService : RefCounted
         return result;
     }
 
-    private static int GetInt(GDictionary source, string key, int fallback = 0)
+    private static int GetInt(Godot.Collections.Dictionary source, string key, int fallback = 0)
     {
         if (source == null || !source.ContainsKey(key))
         {
@@ -555,7 +560,7 @@ public partial class BattleShieldService : RefCounted
         return source[key].AsInt32();
     }
 
-    private static StringName GetStringName(GDictionary source, string key)
+    private static StringName GetStringName(Godot.Collections.Dictionary source, string key)
     {
         if (source == null || !source.ContainsKey(key))
         {

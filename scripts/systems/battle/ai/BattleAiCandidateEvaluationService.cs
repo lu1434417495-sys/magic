@@ -1,11 +1,10 @@
 using System;
+using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class BattleAiCandidateEvaluationService : RefCounted
+public sealed class BattleAiCandidateEvaluationService
 {
-    private static readonly StringName FamilyMoveToRange = "move_to_range";
+    private static readonly StringName FamilyMoveToRange = BattleAiCandidateRequest.FamilyMoveToRange;
 
     private readonly System.Collections.Generic.Dictionary<
         StringName,
@@ -13,47 +12,66 @@ public partial class BattleAiCandidateEvaluationService : RefCounted
     > _evaluators = new();
     private readonly BattleAiMoveToRangeCandidateEvaluator _moveToRangeEvaluator = new();
 
-    public void setup(BattleAiScoreService score_service)
+    public void Setup(BattleAiScoreService scoreService)
     {
-        if (score_service == null)
+        if (scoreService == null)
         {
-            GameLog.Error("BattleAiCandidateEvaluationService.setup requires BattleAiScoreService.", "ai.eval.missing_score_service", "ai");
+            BattleAiFailurePolicy.ReportContractError(
+                "BattleAiCandidateEvaluationService.Setup requires BattleAiScoreService.",
+                SourceMetadata()
+            );
         }
     }
 
-    public void register_evaluator(
-        StringName family_id,
+    public void RegisterEvaluator(
+        StringName familyId,
         Func<BattleAiCandidateRequest, BattleAiQueryService, BattleAiDecision> evaluator
     )
     {
-        if (family_id == FamilyMoveToRange)
+        if (IsEmpty(familyId))
         {
-            GameLog.Error("Evaluator for built-in family move_to_range must not be overridden.", "ai.eval.builtin_override", "ai");
+            BattleAiFailurePolicy.ReportContractError(
+                "Evaluator family_id must not be empty.",
+                SourceMetadata()
+            );
             return;
         }
-        if (_evaluators.ContainsKey(family_id))
+        if (familyId == FamilyMoveToRange)
         {
-            GameLog.Error($"Evaluator for family {family_id} is already registered.", "ai.eval.duplicate_family", "ai");
+            BattleAiFailurePolicy.ReportContractError(
+                "Evaluator for built-in family move_to_range must not be overridden.",
+                SourceMetadata()
+            );
+            return;
+        }
+        if (_evaluators.ContainsKey(familyId))
+        {
+            BattleAiFailurePolicy.ReportContractError(
+                $"Evaluator for family {familyId} is already registered.",
+                SourceMetadata()
+            );
             return;
         }
         if (evaluator == null)
         {
-            GameLog.Error($"Evaluator for family {family_id} must be a valid delegate.", "ai.eval.invalid_delegate", "ai");
+            BattleAiFailurePolicy.ReportContractError(
+                $"Evaluator for family {familyId} must be a valid delegate.",
+                SourceMetadata()
+            );
             return;
         }
-        _evaluators[family_id] = evaluator;
+        _evaluators[familyId] = evaluator;
     }
 
-    public BattleAiDecision evaluate(BattleAiCandidateRequest request, BattleAiQueryService query)
+    public BattleAiDecision Evaluate(BattleAiCandidateRequest request, BattleAiQueryService query)
     {
         if (request == null)
         {
-            GameLog.Error(
-                "BattleAiCandidateEvaluationService.evaluate requires BattleAiCandidateRequest.",
-                "ai.eval.missing_request",
-                "ai"
-            );
-            return null;
+            return Fail("BattleAiCandidateEvaluationService.Evaluate requires BattleAiCandidateRequest.");
+        }
+        if (!request.TryValidateCommon(out string error))
+        {
+            return Fail(error);
         }
 
         StringName familyId = request.FamilyId;
@@ -63,19 +81,22 @@ public partial class BattleAiCandidateEvaluationService : RefCounted
         }
         if (familyId == FamilyMoveToRange)
         {
-            return evaluate_move_to_range_request(request, query);
+            if (!request.TryValidateMoveToRange(out error))
+            {
+                return Fail(error);
+            }
+            return EvaluateMoveToRangeRequest(request, query);
         }
 
-        GameLog.Error($"Unsupported candidate family_id {familyId}.", "ai.eval.unsupported_family", "ai");
-        return null;
+        return Fail($"Unsupported candidate family_id {familyId}.");
     }
 
-    public BattleAiDecision evaluate_move_to_range_request(
+    public BattleAiDecision EvaluateMoveToRangeRequest(
         BattleAiCandidateRequest request,
         BattleAiQueryService query
     )
     {
-        return _moveToRangeEvaluator.evaluate_move_to_range_request(
+        return _moveToRangeEvaluator.EvaluateMoveToRangeRequest(
             request,
             query,
             BuildMoveToRangeCommand,
@@ -83,46 +104,57 @@ public partial class BattleAiCandidateEvaluationService : RefCounted
         );
     }
 
-    public BattleCommand BuildMoveToRangeCommand(StringName actor_unit_id, Vector2I target_coord)
+    private static BattleCommand BuildMoveToRangeCommand(StringName actorUnitId, Vector2I targetCoord)
     {
         return new BattleCommand
         {
             command_type = BattleCommand.TYPE_MOVE(),
-            unit_id = actor_unit_id,
-            target_coord = target_coord,
+            unit_id = actorUnitId,
+            target_coord = targetCoord,
         };
     }
 
-    public BattleAiDecision BuildMoveToRangeDecision(
+    private static BattleAiDecision BuildMoveToRangeDecision(
         BattleAiCandidateRequest request,
         BattleCommand command,
-        BattleAiScoreInput score_input,
-        string target_display_name,
-        int path_cost
+        BattleAiScoreInput scoreInput,
+        string targetDisplayName,
+        int pathCost
     )
     {
-        if (score_input != null && !score_input.is_sealed())
+        if (scoreInput != null && !scoreInput.IsSealed())
         {
-            score_input.seal();
+            scoreInput.Seal();
         }
-        string targetLabel = string.IsNullOrEmpty(target_display_name)
+        string targetLabel = string.IsNullOrEmpty(targetDisplayName)
             ? "目标"
-            : target_display_name;
+            : targetDisplayName;
         return new BattleAiDecision
         {
             command = command,
             action_id = request.ActionId,
             score_bucket_id = request.ScoreBucketId,
-            score_input = score_input,
-            skill_score_input = score_input,
+            score_input = scoreInput,
+            skill_score_input = scoreInput,
             reason_text =
-                $"{request.ActorUnitId} 调整到距离 {targetLabel} 的战术位置（移动消耗 {path_cost}）。",
+                $"{request.ActorUnitId} 调整到距离 {targetLabel} 的战术位置（移动消耗 {pathCost}）。",
         };
     }
 
-    public string _trim_reason(string value)
+    private static BattleAiDecision Fail(string message)
     {
-        return value?.StripEdges() ?? "";
+        BattleAiFailurePolicy.ReportContractError(message, SourceMetadata());
+        return null;
     }
 
+    private static Dictionary<string, string> SourceMetadata() =>
+        new(StringComparer.Ordinal)
+        {
+            ["source"] = "BattleAiCandidateEvaluationService",
+        };
+
+    private static bool IsEmpty(StringName value)
+    {
+        return value == null || string.IsNullOrEmpty(value.ToString());
+    }
 }

@@ -301,6 +301,18 @@ public partial class BattleState : RefCounted
         return results;
     }
 
+    internal bool TryGetCellTyped(Vector2I coord, out BattleCellState cellState)
+    {
+        cellState = null;
+        if (cells == null || !cells.ContainsKey(coord))
+        {
+            return false;
+        }
+
+        cellState = cells[coord].As<BattleCellState>();
+        return cellState != null;
+    }
+
     internal List<BattleUnitEntry> GetUnitEntriesTyped()
     {
         var results = new List<BattleUnitEntry>();

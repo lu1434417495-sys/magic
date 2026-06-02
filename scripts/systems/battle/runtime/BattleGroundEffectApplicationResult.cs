@@ -1,7 +1,5 @@
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 
 public readonly record struct BattleGroundUnitEffectsResult(
     bool Applied,
@@ -11,7 +9,7 @@ public readonly record struct BattleGroundUnitEffectsResult(
     int KillCount
 )
 {
-    public GDictionary ToDictionary() =>
+    internal Godot.Collections.Dictionary ToDictionary() =>
         new()
         {
             ["applied"] = Applied,
@@ -24,7 +22,7 @@ public readonly record struct BattleGroundUnitEffectsResult(
 
 public readonly record struct BattleGroundTerrainEffectsResult(bool Applied)
 {
-    public GDictionary ToDictionary() => new() { ["applied"] = Applied };
+    internal Godot.Collections.Dictionary ToDictionary() => new() { ["applied"] = Applied };
 }
 
 public readonly record struct BattleGroundWindPushResult(
@@ -32,9 +30,9 @@ public readonly record struct BattleGroundWindPushResult(
     IReadOnlyList<StringName> AffectedUnitIds
 )
 {
-    public GDictionary ToDictionary()
+    internal Godot.Collections.Dictionary ToDictionary()
     {
-        var affectedUnitIds = new GArray();
+        var affectedUnitIds = new Godot.Collections.Array();
         foreach (StringName affectedUnitId in AffectedUnitIds ?? System.Array.Empty<StringName>())
         {
             affectedUnitIds.Add(affectedUnitId);

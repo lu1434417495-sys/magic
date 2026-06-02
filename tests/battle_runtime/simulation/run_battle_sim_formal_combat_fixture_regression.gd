@@ -8,7 +8,6 @@ const PROGRESSION_CONTENT_REGISTRY_SCRIPT = preload("res://scripts/player/progre
 const CHARACTER_CREATION_SERVICE_SCRIPT = preload("res://scripts/systems/progression/CharacterCreationService.cs")
 const PROGRESSION_SERVICE_SCRIPT = preload("res://scripts/systems/progression/ProgressionService.cs")
 const ATTRIBUTE_SERVICE_SCRIPT = preload("res://scripts/systems/attributes/AttributeService.cs")
-const EQUIPMENT_RULES_SCRIPT = preload("res://scripts/player/equipment/EquipmentRules.cs")
 const UNIT_SKILL_PROGRESS_SCRIPT = preload("res://scripts/player/progression/UnitSkillProgress.cs")
 
 const ATTRIBUTE_IDS: Array[StringName] = [

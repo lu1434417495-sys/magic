@@ -53,14 +53,9 @@ public partial class RetreatAction : EnemyAiAction
         }
         int resolvedSafeDistance = _resolve_retreat_safe_distance(context, focusTarget);
         int threatAttackRange = _resolve_unit_effective_threat_range(context, focusTarget);
-        if (actionTrace.ContainsKey("metadata"))
-        {
-            var tm = actionTrace["metadata"].AsGodotDictionary();
-            tm["focus_target_unit_id"] = (string)focusTarget.unit_id;
-            tm["threat_attack_range"] = threatAttackRange;
-            tm["resolved_safe_distance"] = resolvedSafeDistance;
-            actionTrace["metadata"] = tm;
-        }
+        actionTrace.Metadata["focus_target_unit_id"] = focusTarget.unit_id.ToString();
+        actionTrace.Metadata["threat_attack_range"] = threatAttackRange;
+        actionTrace.Metadata["resolved_safe_distance"] = resolvedSafeDistance;
         var ctxUnitState = context.unit_state;
         var currentScoreInput = _build_action_score_input(
             context,

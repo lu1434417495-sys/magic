@@ -5,7 +5,6 @@ const TestRunner = preload("res://tests/shared/test_runner.gd")
 const AttributeService = preload("res://scripts/systems/attributes/AttributeService.cs")
 const AscensionDef = preload("res://scripts/player/progression/AscensionDef.cs")
 const AscensionStageDef = preload("res://scripts/player/progression/AscensionStageDef.cs")
-const BodySizeRules = preload("res://scripts/systems/progression/BodySizeRules.cs")
 const CharacterCreationService = preload("res://scripts/systems/progression/CharacterCreationService.cs")
 const BloodlineDef = preload("res://scripts/player/progression/BloodlineDef.cs")
 const BloodlineStageDef = preload("res://scripts/player/progression/BloodlineStageDef.cs")
@@ -146,7 +145,7 @@ func _test_creation_payload_derives_body_size_from_identity_content_source() -> 
 	)
 	_assert_eq(
 		member_state.body_size,
-		BodySizeRules.get_body_size_for_category(&"huge"),
+		_body_size_for_category(&"huge"),
 		"建卡 body_size 应由 body_size_category 映射得到，不能采用 payload body_size。"
 	)
 
@@ -404,6 +403,24 @@ func _make_string_key_creation_content_source() -> Dictionary:
 	return string_key_source
 
 
+func _body_size_for_category(category: StringName) -> int:
+	match category:
+		&"tiny", &"small":
+			return 1
+		&"medium":
+			return 2
+		&"large":
+			return 3
+		&"huge":
+			return 4
+		&"gargantuan":
+			return 5
+		&"boss":
+			return 6
+		_:
+			return 0
+
+
 func _make_existing_member_state() -> PartyMemberState:
 	var member_state := PartyMemberState.new()
 	member_state.member_id = &"hero"
@@ -411,7 +428,7 @@ func _make_existing_member_state() -> PartyMemberState:
 	member_state.race_id = &"human"
 	member_state.subrace_id = &"common_human"
 	member_state.body_size_category = &"large"
-	member_state.body_size = BodySizeRules.get_body_size_for_category(member_state.body_size_category)
+	member_state.body_size = _body_size_for_category(member_state.body_size_category)
 	member_state.progression = UnitProgress.new()
 	member_state.progression.unit_id = member_state.member_id
 	member_state.progression.display_name = member_state.display_name

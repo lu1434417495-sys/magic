@@ -1,15 +1,15 @@
+using System.Collections.Generic;
 using Godot;
 
-[GlobalClass]
-public partial class WarehouseStateItemValidator : RefCounted
+public static class WarehouseStateItemValidator
 {
-    public static Godot.Collections.Array<string> validate(
+    public static List<string> Validate(
         WarehouseState warehouseState,
-        Godot.Collections.Dictionary itemDefs,
+        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
         string contextPath = "warehouse_state"
     )
     {
-        var errors = new Godot.Collections.Array<string>();
+        var errors = new List<string>();
 
         if (warehouseState == null)
         {
@@ -26,14 +26,15 @@ public partial class WarehouseStateItemValidator : RefCounted
 
     private static void _validate_stacks(
         WarehouseState warehouseState,
-        Godot.Collections.Dictionary itemDefs,
+        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
         string contextPath,
-        Godot.Collections.Array<string> errors
+        List<string> errors
     )
     {
-        for (int i = 0; i < warehouseState.stacks.Count; i++)
+        IReadOnlyList<WarehouseStackState> stacks = warehouseState.GetStacksTyped();
+        for (int i = 0; i < stacks.Count; i++)
         {
-            WarehouseStackState stack = warehouseState.stacks[i];
+            WarehouseStackState stack = stacks[i];
 
             var stackPath = $"{contextPath}.stacks[{i}]";
 
@@ -80,14 +81,16 @@ public partial class WarehouseStateItemValidator : RefCounted
 
     private static void _validate_equipment_instances(
         WarehouseState warehouseState,
-        Godot.Collections.Dictionary itemDefs,
+        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
         string contextPath,
-        Godot.Collections.Array<string> errors
+        List<string> errors
     )
     {
-        for (int i = 0; i < warehouseState.equipment_instances.Count; i++)
+        IReadOnlyList<EquipmentInstanceState> equipmentInstances =
+            warehouseState.GetEquipmentInstancesTyped();
+        for (int i = 0; i < equipmentInstances.Count; i++)
         {
-            EquipmentInstanceState instance = warehouseState.equipment_instances[i];
+            EquipmentInstanceState instance = equipmentInstances[i];
 
             var instancePath = $"{contextPath}.equipment_instances[{i}]";
 
@@ -123,15 +126,12 @@ public partial class WarehouseStateItemValidator : RefCounted
     }
 
     private static ItemDef _get_item_def(
-        Godot.Collections.Dictionary itemDefs,
+        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
         StringName itemId
     )
     {
-        if (itemDefs.ContainsKey(itemId))
-            return itemDefs[itemId].AsGodotObject() as ItemDef;
-
-        string itemKey = (string)itemId;
-
-        return itemDefs.ContainsKey(itemKey) ? itemDefs[itemKey].AsGodotObject() as ItemDef : null;
+        return itemDefs != null && itemDefs.TryGetValue(itemId, out ItemDef itemDef)
+            ? itemDef
+            : null;
     }
 }

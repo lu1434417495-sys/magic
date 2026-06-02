@@ -130,7 +130,7 @@ public partial class UseGroundSkillAction : EnemyAiAction
             return null;
         }
 
-        GDictionary actionTrace = _begin_action_trace(
+        AiActionTrace actionTrace = _begin_action_trace(
             context,
             new GDictionary
             {
@@ -194,11 +194,11 @@ public partial class UseGroundSkillAction : EnemyAiAction
                     castVariant
                 );
 
-                int effectiveSkillRange = BattleRangeService.get_effective_skill_range(
+                int effectiveSkillRange = BattleRangeService.GetEffectiveSkillRange(
                     unitState,
                     skillDef
                 );
-                bool usesRelocationDistance = BattleRangeService.is_ground_relocation_skill(
+                bool usesRelocationDistance = BattleRangeService.IsGroundRelocationSkill(
                     skillDef
                 );
                 foreach (GroundTargetCoordSet targetCoords in EnumerateGroundTargetCoordSets(
@@ -319,7 +319,7 @@ public partial class UseGroundSkillAction : EnemyAiAction
                         continue;
                     }
 
-                    if (!_passes_minimum_effective_target_or_ground_control(scoreInput))
+                    if (!PassesMinimumEffectiveTargetOrGroundControl(scoreInput))
                     {
                         _trace_add_block_reason(
                             actionTrace,
@@ -621,7 +621,7 @@ public partial class UseGroundSkillAction : EnemyAiAction
         return false;
     }
 
-    public bool _passes_minimum_effective_target_or_ground_control(BattleAiScoreInput scoreInput)
+    internal bool PassesMinimumEffectiveTargetOrGroundControl(BattleAiScoreInput scoreInput)
     {
         if (scoreInput == null)
         {

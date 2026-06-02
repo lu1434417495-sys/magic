@@ -48,7 +48,7 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
         BattleAiScoreInput
     > action_score_input_callback { get; set; }
     public Func<BattleUnitState, Vector2I, int> move_cost_callback { get; set; }
-    public BattleAiRuntimeActionPlan runtime_action_plan { get; set; }
+    internal BattleAiRuntimeActionPlan runtime_action_plan { get; set; }
     public BattleAiQueryService ai_query_service;
     public BattleAiCandidateEvaluationService candidate_evaluator { get; set; }
     public bool allow_authored_action_fallback_for_tests { get; set; }
@@ -58,7 +58,7 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
 
     private int _action_trace_nonce;
     private readonly List<RuntimeActionMetadata> _action_metadata_stack = new();
-    private readonly List<ActionTraceEntry> _action_trace_entries = new();
+    private readonly List<AiActionTrace> _action_trace_entries = new();
     private readonly BattleAiSkillAffordanceClassifier _skill_affordance_classifier = new();
     private readonly Dictionary<StringName, BattleAiSkillAffordanceRecord> _skill_affordance_records_by_skill_id =
         new();
@@ -209,6 +209,48 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
             return result;
         }
 
+        public static RuntimeActionMetadata FromPlanMetadata(
+            BattleAiRuntimeActionPlan.RuntimeActionMetadata source
+        )
+        {
+            if (source == null)
+            {
+                return new RuntimeActionMetadata();
+            }
+            var result = new RuntimeActionMetadata
+            {
+                generated = source.generated,
+                state_id = source.state_id,
+                slot_id = source.slot_id,
+                slot_role = source.slot_role,
+                skill_id = source.skill_id,
+                variant_id = source.variant_id,
+                action_family = source.action_family,
+                source_action_id = source.source_action_id,
+                score_bucket_id = source.score_bucket_id,
+                action_id = source.action_id,
+                identity_key = source.identity_key ?? "",
+            };
+            if (source.runtime_action_metadata != null)
+            {
+                result.MergeFrom(
+                    new RuntimeActionMetadata
+                    {
+                        generated = source.runtime_action_metadata.generated,
+                        state_id = source.runtime_action_metadata.state_id,
+                        slot_id = source.runtime_action_metadata.slot_id,
+                        slot_role = source.runtime_action_metadata.slot_role,
+                        skill_id = source.runtime_action_metadata.skill_id,
+                        variant_id = source.runtime_action_metadata.variant_id,
+                        action_family = source.runtime_action_metadata.action_family,
+                        source_action_id = source.runtime_action_metadata.source_action_id,
+                        identity_key = source.runtime_action_metadata.identity_key ?? "",
+                    }
+                );
+            }
+            return result;
+        }
+
         private bool ShouldMerge(string key) =>
             !_is_runtime_fixed_metadata_key(key) || !ContainsKey(key);
 
@@ -255,70 +297,6 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
         }
     }
 
-    private sealed class ActionTraceEntry
-    {
-        public StringName TraceId { get; private set; } = "";
-        public StringName ActionId { get; private set; } = "";
-        public StringName ScoreBucketId { get; private set; } = "";
-        public RuntimeActionMetadata Metadata { get; private set; } = new();
-        public bool Chosen { get; private set; }
-        public string ChosenReasonText { get; private set; } = "";
-        public GDictionary ChosenCommand { get; private set; } = new();
-        public GDictionary ChosenScoreInput { get; private set; } = new();
-
-        public void MarkChosen(BattleAiDecision decision)
-        {
-            Chosen = true;
-            if (decision == null)
-                return;
-            ChosenReasonText = decision.reason_text ?? "";
-            ChosenCommand = BuildCommandDictionary(decision.command);
-            BattleAiScoreInput scoreInput = ResolveDecisionScoreInput(decision);
-            ChosenScoreInput = scoreInput != null ? scoreInput.to_dict() : new GDictionary();
-        }
-
-        public GDictionary ToDictionary()
-        {
-            var result = new GDictionary
-            {
-                ["trace_id"] = TraceId,
-                ["action_id"] = ActionId.ToString(),
-                ["score_bucket_id"] = ScoreBucketId.ToString(),
-                ["metadata"] = Metadata?.ToDictionary() ?? new GDictionary(),
-                ["chosen"] = Chosen,
-            };
-            if (!string.IsNullOrEmpty(ChosenReasonText))
-                result["chosen_reason_text"] = ChosenReasonText;
-            if (ChosenCommand.Count > 0)
-                result["chosen_command"] = ChosenCommand.Duplicate(true);
-            if (ChosenScoreInput.Count > 0)
-                result["chosen_score_input"] = ChosenScoreInput.Duplicate(true);
-            return result;
-        }
-
-        public static ActionTraceEntry FromDictionary(GDictionary source)
-        {
-            var result = new ActionTraceEntry
-            {
-                TraceId = ReadStringNameValue(source, "trace_id"),
-                ActionId = ReadStringNameValue(source, "action_id"),
-                ScoreBucketId = ReadStringNameValue(source, "score_bucket_id"),
-                Metadata = TryReadDictionaryValue(source, "metadata", out GDictionary metadata)
-                    ? RuntimeActionMetadata.FromDictionary(metadata)
-                    : new RuntimeActionMetadata(),
-                Chosen = ReadBoolValue(source, "chosen"),
-                ChosenReasonText = ReadTextValue(source, "chosen_reason_text"),
-                ChosenCommand = TryReadDictionaryValue(source, "chosen_command", out GDictionary chosenCommand)
-                    ? chosenCommand.Duplicate(true)
-                    : new GDictionary(),
-                ChosenScoreInput = TryReadDictionaryValue(source, "chosen_score_input", out GDictionary chosenScoreInput)
-                    ? chosenScoreInput.Duplicate(true)
-                    : new GDictionary(),
-            };
-            return result;
-        }
-    }
-
     public BattleAiQueryService get_ai_query_service()
     {
         return ai_query_service;
@@ -358,7 +336,7 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
             );
             return null;
         }
-        return candidate_evaluator.evaluate(request, ai_query_service);
+        return candidate_evaluator.Evaluate(request, ai_query_service);
     }
 
     public int get_move_cost(BattleUnitState target_unit_state, Vector2I target_coord)
@@ -426,13 +404,11 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
 
     public GArray get_runtime_actions(StringName state_id)
     {
-        if (IsEmpty(state_id))
+        if (IsEmpty(state_id) || runtime_action_plan == null)
         {
             return new GArray();
         }
-        return runtime_action_plan != null
-            ? runtime_action_plan.get_actions(state_id)
-            : new GArray();
+        return ToActionArray(runtime_action_plan.GetActions(state_id));
     }
 
     internal IReadOnlyList<EnemyAiAction> GetRuntimeActionsTyped(StringName state_id)
@@ -441,27 +417,38 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
         {
             return System.Array.Empty<EnemyAiAction>();
         }
-        return runtime_action_plan.GetTypedActions(state_id);
+        return runtime_action_plan.GetActions(state_id);
     }
 
     public bool has_runtime_action_state(StringName state_id)
     {
         return !IsEmpty(state_id)
             && runtime_action_plan != null
-            && runtime_action_plan.has_state(state_id);
+            && runtime_action_plan.HasState(state_id);
     }
 
     public bool is_runtime_action_plan_stale(EnemyAiBrainDef brain)
     {
         return runtime_action_plan != null
-            && runtime_action_plan.is_stale_for(unit_state, brain, skill_defs);
+            && runtime_action_plan.IsStaleFor(unit_state, brain);
     }
 
     public GDictionary get_runtime_action_metadata(EnemyAiAction action)
     {
         return runtime_action_plan != null
-            ? runtime_action_plan.get_action_metadata(action)
+            ? RuntimeActionMetadata.FromPlanMetadata(
+                runtime_action_plan.GetActionMetadata(action)
+            ).ToDictionary()
             : new GDictionary();
+    }
+
+    internal BattleAiRuntimeActionPlan.RuntimeActionMetadata GetRuntimeActionMetadataTyped(
+        EnemyAiAction action
+    )
+    {
+        return runtime_action_plan != null
+            ? runtime_action_plan.GetActionMetadata(action)
+            : new BattleAiRuntimeActionPlan.RuntimeActionMetadata();
     }
 
     public GDictionary get_skill_affordance_record(StringName skill_id)
@@ -481,7 +468,7 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
             )
             {
                 _skill_affordance_records_by_skill_id[normalizedSkillId] = typedPlanRecord;
-                return typedPlanRecord.ToDictionary();
+                return BuildSkillAffordanceRecordDictionary(typedPlanRecord);
             }
         }
         if (
@@ -491,7 +478,7 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
             )
         )
         {
-            return cachedRecord.ToDictionary();
+            return BuildSkillAffordanceRecordDictionary(cachedRecord);
         }
 
         if (!TryGetSkillDef(normalizedSkillId, out SkillDef skillDef))
@@ -513,7 +500,53 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
             record.skill_id = normalizedSkillId;
         }
         _skill_affordance_records_by_skill_id[normalizedSkillId] = record;
-        return record.ToDictionary();
+        return BuildSkillAffordanceRecordDictionary(record);
+    }
+
+    private static GDictionary BuildSkillAffordanceRecordDictionary(
+        BattleAiSkillAffordanceRecord record
+    )
+    {
+        if (record == null)
+        {
+            return new GDictionary();
+        }
+        return new GDictionary
+        {
+            ["skill_id"] = record.skill_id,
+            ["is_generatable"] = record.is_generatable,
+            ["skip_reason"] = record.skip_reason,
+            ["team_intent"] = record.team_intent,
+            ["target_mode"] = record.target_mode,
+            ["target_filter"] = record.target_filter,
+            ["selection_mode"] = record.selection_mode,
+            ["effect_roles"] = BuildStringNameArray(record.effect_roles),
+            ["affordances"] = BuildStringNameArray(record.affordances),
+            ["action_families"] = BuildStringNameArray(record.action_families),
+            ["requires_positioning_action"] = record.requires_positioning_action,
+            ["variant_ids"] = BuildStringNameArray(record.variant_ids),
+            ["blocked_reason"] = record.blocked_reason,
+        };
+    }
+
+    private static Godot.Collections.Array<StringName> BuildStringNameArray(
+        IEnumerable<StringName> values
+    )
+    {
+        var result = new Godot.Collections.Array<StringName>();
+        if (values == null)
+        {
+            return result;
+        }
+        foreach (StringName value in values)
+        {
+            StringName normalizedValue = ProgressionDataUtils.to_string_name(value);
+            if (!IsEmpty(normalizedValue))
+            {
+                result.Add(normalizedValue);
+            }
+        }
+        return result;
     }
 
     public bool has_skill_affordance(GArray affordances)
@@ -640,9 +673,31 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
         return result;
     }
 
+    private static GArray ToActionArray(IEnumerable<EnemyAiAction> actions)
+    {
+        var result = new GArray();
+        if (actions == null)
+        {
+            return result;
+        }
+        foreach (EnemyAiAction action in actions)
+        {
+            if (action != null)
+            {
+                result.Add(action);
+            }
+        }
+        return result;
+    }
+
     public void push_action_metadata(GDictionary metadata)
     {
         _action_metadata_stack.Add(RuntimeActionMetadata.FromDictionary(metadata));
+    }
+
+    internal void PushActionMetadata(BattleAiRuntimeActionPlan.RuntimeActionMetadata metadata)
+    {
+        _action_metadata_stack.Add(RuntimeActionMetadata.FromPlanMetadata(metadata));
     }
 
     public GDictionary pop_action_metadata()
@@ -668,11 +723,17 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
 
     public GDictionary merge_current_action_metadata(GDictionary metadata = null)
     {
+        GDictionary result = metadata?.Duplicate(true) ?? new GDictionary();
         RuntimeActionMetadata merged =
             _action_metadata_stack.Count > 0 ? _action_metadata_stack[^1].Clone() : new RuntimeActionMetadata();
         RuntimeActionMetadata incoming = RuntimeActionMetadata.FromDictionary(metadata);
         merged.MergeFrom(incoming);
-        return merged.ToDictionary(includeRuntimeExport: true);
+        GDictionary runtimeMetadata = merged.ToDictionary(includeRuntimeExport: true);
+        foreach (Variant key in runtimeMetadata.Keys)
+        {
+            result[key] = runtimeMetadata[key];
+        }
+        return result;
     }
 
     public BattleUnitState resolve_forced_target_unit(StringName target_filter)
@@ -715,17 +776,17 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
         return new StringName($"{normalizedActionId}_{_action_trace_nonce}");
     }
 
-    public void record_action_trace(GDictionary action_trace)
+    internal void RecordActionTrace(AiActionTrace actionTrace)
     {
-        if (!trace_enabled || action_trace == null || action_trace.Count == 0)
+        if (!trace_enabled || actionTrace == null || actionTrace.IsEmpty())
         {
             return;
         }
-        _action_trace_entries.Add(ActionTraceEntry.FromDictionary(action_trace));
+        _action_trace_entries.Add(actionTrace);
         SyncActionTracesMirror();
     }
 
-    public void mark_action_trace_chosen(
+    internal void MarkActionTraceChosen(
         StringName action_trace_id,
         BattleAiDecision decision = null
     )
@@ -735,7 +796,7 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
             return;
         }
 
-        foreach (ActionTraceEntry actionTrace in _action_trace_entries)
+        foreach (AiActionTrace actionTrace in _action_trace_entries)
         {
             if (actionTrace.TraceId != action_trace_id)
             {
@@ -778,8 +839,8 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
             ["command"] =
                 decision != null ? BuildCommandDictionary(decision.command) : new GDictionary(),
             ["transition"] =
-                decision != null && decision.transition != null
-                    ? decision.transition.Duplicate(true)
+                decision != null
+                    ? BuildTransitionDictionary(decision.Transition)
                     : new GDictionary(),
             ["score_input"] = new GDictionary(),
             ["action_traces"] = BuildActionTraceArray(),
@@ -790,7 +851,7 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
             BattleAiScoreInput scoreInput = ResolveDecisionScoreInput(decision);
             if (scoreInput != null)
             {
-                turnTrace["score_input"] = scoreInput.to_dict();
+                turnTrace["score_input"] = scoreInput.ToDictionary();
             }
         }
         return turnTrace;
@@ -820,6 +881,68 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
         };
     }
 
+    private static GDictionary BuildTransitionDictionary(
+        BattleAiStateResolver.TransitionResult result
+    )
+    {
+        if (result == null)
+        {
+            return new GDictionary();
+        }
+
+        GArray matchedConditions = new();
+        foreach (BattleAiStateResolver.TransitionConditionTrace condition in result.MatchedConditions)
+        {
+            if (condition != null)
+            {
+                matchedConditions.Add(BuildTransitionConditionDictionary(condition));
+            }
+        }
+
+        return new GDictionary
+        {
+            ["previous_state_id"] = result.PreviousStateId,
+            ["state_id"] = result.StateId,
+            ["rule_id"] = result.RuleId,
+            ["reason"] = result.Reason,
+            ["matched_conditions"] = matchedConditions,
+        };
+    }
+
+    private static GDictionary BuildTransitionConditionDictionary(
+        BattleAiStateResolver.TransitionConditionTrace condition
+    )
+    {
+        if (condition == null)
+        {
+            return new GDictionary();
+        }
+        return new GDictionary
+        {
+            ["predicate"] = condition.Predicate.ToString(),
+            ["basis_points"] = condition.BasisPoints,
+            ["max_distance"] = condition.MaxDistance,
+            ["state_ids"] = StringNameListToStrings(condition.StateIds),
+            ["affordances"] = StringNameListToStrings(condition.Affordances),
+        };
+    }
+
+    private static Godot.Collections.Array<string> StringNameListToStrings(
+        IReadOnlyList<StringName> values
+    )
+    {
+        var result = new Godot.Collections.Array<string>();
+        if (values == null)
+        {
+            return result;
+        }
+        foreach (StringName value in values)
+        {
+            result.Add(value.ToString());
+        }
+        return result;
+    }
+
     private void SyncActionTracesMirror()
     {
         action_traces = BuildActionTraceArray();
@@ -828,7 +951,7 @@ public partial class BattleAiContext : RefCounted, IBattleAiScoreContext
     private GArray BuildActionTraceArray()
     {
         var result = new GArray();
-        foreach (ActionTraceEntry entry in _action_trace_entries)
+        foreach (AiActionTrace entry in _action_trace_entries)
         {
             result.Add(entry.ToDictionary());
         }

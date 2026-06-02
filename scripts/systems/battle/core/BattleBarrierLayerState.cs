@@ -1,22 +1,25 @@
-using Godot;
 using System.Collections.Generic;
+using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class BattleBarrierLayerState : RefCounted
+public sealed class BattleBarrierLayerState
 {
-    public StringName layer_id { get; set; } = "";
-    public string display_name { get; set; } = "";
-    public int order { get; set; }
-    public bool broken { get; set; }
-    public Godot.Collections.Array<StringName> blocked_categories { get; set; } = new();
-    public Godot.Collections.Array<StringName> breaker_skill_ids { get; set; } = new();
-    public GArray passage_outcomes { get; set; } = new();
-    public bool has_save_roll_override { get; set; }
-    public int save_roll_override { get; set; }
+    private readonly List<StringName> _blockedCategories = new();
+    private readonly List<StringName> _breakerSkillIds = new();
+    private readonly List<BattleBarrierOutcomeState> _passageOutcomes = new();
 
-    public static BattleBarrierLayerState from_runtime_dict(GDictionary source)
+    public StringName LayerId { get; set; } = "";
+    public string DisplayName { get; set; } = "";
+    public int Order { get; set; }
+    public bool Broken { get; set; }
+    public IReadOnlyList<StringName> BlockedCategories => _blockedCategories;
+    public IReadOnlyList<StringName> BreakerSkillIds => _breakerSkillIds;
+    public IReadOnlyList<BattleBarrierOutcomeState> PassageOutcomes => _passageOutcomes;
+    public bool HasSaveRollOverride { get; set; }
+    public int SaveRollOverride { get; set; }
+
+    public static BattleBarrierLayerState FromRuntimeDict(GDictionary source)
     {
         var layer = new BattleBarrierLayerState();
         if (source == null || source.Count == 0)
@@ -24,40 +27,39 @@ public partial class BattleBarrierLayerState : RefCounted
             return layer;
         }
 
-        layer.layer_id = ReadStringName(source, "layer_id");
-        layer.display_name = ReadString(source, "display_name");
-        layer.order = ReadInt(source, "order");
-        layer.broken = ReadBool(source, "broken");
-        layer.blocked_categories = ReadStringNameArray(GetArray(source, "blocked_categories"));
-        layer.breaker_skill_ids = ReadStringNameArray(GetArray(source, "breaker_skill_ids"));
-        layer.passage_outcomes = GetArray(source, "passage_outcomes").Duplicate(true);
+        layer.LayerId = ReadStringName(source, "layer_id");
+        layer.DisplayName = ReadString(source, "display_name");
+        layer.Order = ReadInt(source, "order");
+        layer.Broken = ReadBool(source, "broken");
+        layer.SetBlockedCategories(ReadStringNameList(GetArray(source, "blocked_categories")));
+        layer.SetBreakerSkillIds(ReadStringNameList(GetArray(source, "breaker_skill_ids")));
+        layer.SetPassageOutcomes(ReadOutcomeList(GetArray(source, "passage_outcomes")));
         if (source.ContainsKey("save_roll_override"))
         {
-            layer.has_save_roll_override = true;
-            layer.save_roll_override = ReadInt(source, "save_roll_override");
+            layer.HasSaveRollOverride = true;
+            layer.SaveRollOverride = ReadInt(source, "save_roll_override");
         }
         return layer;
     }
 
-    public List<BattleBarrierOutcomeState> GetPassageOutcomesTyped()
+    public void SetBlockedCategories(IEnumerable<StringName> values)
     {
-        var result = new List<BattleBarrierOutcomeState>();
-        foreach (var outcomeValue in passage_outcomes ?? new GArray())
-        {
-            BattleBarrierOutcomeState outcome = BattleBarrierOutcomeState.from_runtime_dict(
-                outcomeValue.AsGodotDictionary()
-            );
-            if (outcome != null && !outcome.IsEmpty)
-            {
-                result.Add(outcome);
-            }
-        }
-        return result;
+        ReplaceStringNameList(_blockedCategories, values);
     }
 
-    public void SetPassageOutcomesTyped(IReadOnlyList<BattleBarrierOutcomeState> outcomes)
+    public void SetBreakerSkillIds(IEnumerable<StringName> values)
     {
-        passage_outcomes = new GArray();
+        ReplaceStringNameList(_breakerSkillIds, values);
+    }
+
+    public List<BattleBarrierOutcomeState> GetPassageOutcomesTyped()
+    {
+        return new List<BattleBarrierOutcomeState>(_passageOutcomes);
+    }
+
+    public void SetPassageOutcomes(IEnumerable<BattleBarrierOutcomeState> outcomes)
+    {
+        _passageOutcomes.Clear();
         if (outcomes == null)
         {
             return;
@@ -66,31 +68,47 @@ public partial class BattleBarrierLayerState : RefCounted
         {
             if (outcome != null && !outcome.IsEmpty)
             {
-                passage_outcomes.Add(outcome.to_runtime_dict());
+                _passageOutcomes.Add(outcome);
             }
         }
     }
 
-    public GDictionary to_runtime_dict()
+    public GDictionary ToRuntimeDict()
     {
         var result = new GDictionary
         {
-            ["layer_id"] = layer_id.ToString(),
-            ["display_name"] = display_name,
-            ["order"] = order,
-            ["broken"] = broken,
-            ["blocked_categories"] = StringArray(blocked_categories),
-            ["breaker_skill_ids"] = StringArray(breaker_skill_ids),
-            ["passage_outcomes"] = passage_outcomes.Duplicate(true),
+            ["layer_id"] = LayerId.ToString(),
+            ["display_name"] = DisplayName,
+            ["order"] = Order,
+            ["broken"] = Broken,
+            ["blocked_categories"] = StringArray(_blockedCategories),
+            ["breaker_skill_ids"] = StringArray(_breakerSkillIds),
+            ["passage_outcomes"] = OutcomeArray(_passageOutcomes),
         };
-        if (has_save_roll_override)
+        if (HasSaveRollOverride)
         {
-            result["save_roll_override"] = save_roll_override;
+            result["save_roll_override"] = SaveRollOverride;
         }
         return result;
     }
 
-    private static GArray StringArray(Godot.Collections.Array<StringName> values)
+    private static void ReplaceStringNameList(List<StringName> target, IEnumerable<StringName> values)
+    {
+        target.Clear();
+        if (values == null)
+        {
+            return;
+        }
+        foreach (StringName value in values)
+        {
+            if (value != "")
+            {
+                target.Add(value);
+            }
+        }
+    }
+
+    private static GArray StringArray(IEnumerable<StringName> values)
     {
         var result = new GArray();
         if (values == null)
@@ -103,6 +121,23 @@ public partial class BattleBarrierLayerState : RefCounted
             if (!string.IsNullOrEmpty(text))
             {
                 result.Add(text);
+            }
+        }
+        return result;
+    }
+
+    private static GArray OutcomeArray(IEnumerable<BattleBarrierOutcomeState> values)
+    {
+        var result = new GArray();
+        if (values == null)
+        {
+            return result;
+        }
+        foreach (BattleBarrierOutcomeState value in values)
+        {
+            if (value != null && !value.IsEmpty)
+            {
+                result.Add(value.ToRuntimeDict());
             }
         }
         return result;
@@ -178,9 +213,9 @@ public partial class BattleBarrierLayerState : RefCounted
         return source[new StringName(key)].AsGodotArray();
     }
 
-    private static Godot.Collections.Array<StringName> ReadStringNameArray(GArray values)
+    private static List<StringName> ReadStringNameList(GArray values)
     {
-        var result = new Godot.Collections.Array<StringName>();
+        var result = new List<StringName>();
         if (values == null)
         {
             return result;
@@ -191,6 +226,26 @@ public partial class BattleBarrierLayerState : RefCounted
             if (value != "")
             {
                 result.Add(value);
+            }
+        }
+        return result;
+    }
+
+    private static List<BattleBarrierOutcomeState> ReadOutcomeList(GArray values)
+    {
+        var result = new List<BattleBarrierOutcomeState>();
+        if (values == null)
+        {
+            return result;
+        }
+        foreach (var rawValue in values)
+        {
+            BattleBarrierOutcomeState outcome = BattleBarrierOutcomeState.FromRuntimeDict(
+                rawValue.AsGodotDictionary()
+            );
+            if (outcome != null && !outcome.IsEmpty)
+            {
+                result.Add(outcome);
             }
         }
         return result;

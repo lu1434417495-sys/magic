@@ -1,123 +1,230 @@
+using System.Collections.Generic;
 using Godot;
+using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class PartyItemUseService : RefCounted
+public class PartyItemUseService
 {
     private PartyState _party_state = new();
-    private Godot.Collections.Dictionary _item_defs = new();
-    private Godot.Collections.Dictionary _skill_defs = new();
+    private Dictionary<StringName, ItemDef> _item_defs = new();
+    private Dictionary<StringName, SkillDef> _skill_defs = new();
     private PartyWarehouseService _warehouse_service;
     private CharacterManagementModule _character_management;
 
+    internal sealed class PartyItemUseOptions
+    {
+        public bool ConfirmPracticeReplacement { get; }
+
+        public PartyItemUseOptions(bool confirmPracticeReplacement = false)
+        {
+            ConfirmPracticeReplacement = confirmPracticeReplacement;
+        }
+
+        public static PartyItemUseOptions FromDictionary(GDictionary options)
+        {
+            if (options == null || !options.ContainsKey("confirm_practice_replacement"))
+                return new PartyItemUseOptions();
+
+            Variant value = options["confirm_practice_replacement"];
+            return new PartyItemUseOptions(
+                value.VariantType == Variant.Type.Bool && value.AsBool()
+            );
+        }
+
+        public GDictionary ToLearnSkillOptionsDictionary()
+        {
+            var result = new GDictionary();
+            if (ConfirmPracticeReplacement)
+                result["confirm_practice_replacement"] = true;
+            return result;
+        }
+    }
+
+    internal sealed class PartyItemUseResult
+    {
+        public bool Success { get; private set; }
+        public StringName Reason { get; private set; }
+        public StringName ItemId { get; }
+        public StringName MemberId { get; }
+        public StringName SkillId { get; private set; }
+        public int ConsumedQuantity { get; private set; }
+        public bool NeedsConfirmation { get; private set; }
+        public PracticeSkillLearnStatus PracticeReplacementStatus { get; private set; }
+
+        private PartyItemUseResult(StringName itemId, StringName memberId)
+        {
+            Success = false;
+            Reason = "invalid_request";
+            ItemId = itemId;
+            MemberId = memberId;
+            SkillId = "";
+            ConsumedQuantity = 0;
+            NeedsConfirmation = false;
+            PracticeReplacementStatus = PracticeSkillLearnStatus.NonPractice();
+        }
+
+        public static PartyItemUseResult Create(StringName itemId, StringName memberId) =>
+            new(itemId, memberId);
+
+        public PartyItemUseResult WithReason(string reason)
+        {
+            Reason = new StringName(reason ?? "");
+            return this;
+        }
+
+        public PartyItemUseResult WithSkill(StringName skillId)
+        {
+            SkillId = ProgressionDataUtils.to_string_name(skillId);
+            return this;
+        }
+
+        public PartyItemUseResult WithConfirmationRequired(PracticeSkillLearnStatus status)
+        {
+            Reason = "practice_replacement_confirmation_required";
+            NeedsConfirmation = true;
+            PracticeReplacementStatus = status ?? PracticeSkillLearnStatus.NonPractice();
+            return this;
+        }
+
+        public PartyItemUseResult WithSuccess(int consumedQuantity)
+        {
+            Success = true;
+            Reason = "ok";
+            ConsumedQuantity = Mathf.Max(consumedQuantity, 0);
+            return this;
+        }
+
+        public GDictionary ToDictionary() =>
+            new()
+            {
+                { "success", Success },
+                { "reason", Reason },
+                { "item_id", ItemId },
+                { "member_id", MemberId },
+                { "skill_id", SkillId },
+                { "consumed_quantity", ConsumedQuantity },
+                { "needs_confirmation", NeedsConfirmation },
+                {
+                    "practice_replacement_preview",
+                    PracticeReplacementStatus.ToLearnedStatusDictionary()
+                },
+            };
+    }
+
     public void setup(
         PartyState partyState,
-        Godot.Collections.Dictionary itemDefs,
-        Godot.Collections.Dictionary skillDefs,
+        GDictionary itemDefs,
+        GDictionary skillDefs,
+        PartyWarehouseService warehouseService,
+        CharacterManagementModule characterManagement
+    )
+    {
+        SetupTyped(
+            partyState,
+            MaterializeContentDefs<ItemDef>(itemDefs, itemDef => itemDef.item_id),
+            MaterializeContentDefs<SkillDef>(skillDefs, skillDef => skillDef.skill_id),
+            warehouseService,
+            characterManagement
+        );
+    }
+
+    internal void SetupTyped(
+        PartyState partyState,
+        IReadOnlyDictionary<StringName, ItemDef> itemDefs,
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
         PartyWarehouseService warehouseService,
         CharacterManagementModule characterManagement
     )
     {
         _party_state = partyState ?? new PartyState();
-        _item_defs = itemDefs ?? new Godot.Collections.Dictionary();
-        _skill_defs = skillDefs ?? new Godot.Collections.Dictionary();
+        _item_defs = itemDefs != null
+            ? new Dictionary<StringName, ItemDef>(itemDefs)
+            : new Dictionary<StringName, ItemDef>();
+        _skill_defs = skillDefs != null
+            ? new Dictionary<StringName, SkillDef>(skillDefs)
+            : new Dictionary<StringName, SkillDef>();
         _warehouse_service = warehouseService;
         _character_management = characterManagement;
     }
 
-    public Godot.Collections.Dictionary use_item(StringName itemId, StringName memberId) =>
-        use_item(itemId, memberId, new Godot.Collections.Dictionary());
+    public GDictionary use_item(StringName itemId, StringName memberId) =>
+        use_item(itemId, memberId, new GDictionary());
 
-    public Godot.Collections.Dictionary use_item(
+    public GDictionary use_item(
         StringName itemId,
         StringName memberId,
-        Godot.Collections.Dictionary options
+        GDictionary options
+    ) => UseItemTyped(itemId, memberId, PartyItemUseOptions.FromDictionary(options)).ToDictionary();
+
+    internal PartyItemUseResult UseItemTyped(
+        StringName itemId,
+        StringName memberId,
+        PartyItemUseOptions options = null
     )
     {
         var normalizedItemId = ProgressionDataUtils.to_string_name(itemId);
         var normalizedMemberId = ProgressionDataUtils.to_string_name(memberId);
-        var result = new Godot.Collections.Dictionary
-        {
-            { "success", false },
-            { "reason", new StringName("invalid_request") },
-            { "item_id", normalizedItemId },
-            { "member_id", normalizedMemberId },
-            { "skill_id", new StringName("") },
-            { "consumed_quantity", 0 },
-            { "needs_confirmation", false },
-            { "practice_replacement_preview", new Godot.Collections.Dictionary() },
-        };
+        var result = PartyItemUseResult.Create(normalizedItemId, normalizedMemberId);
 
         if (normalizedItemId == "" || normalizedMemberId == "")
             return result;
         if (_party_state == null || _warehouse_service == null || _character_management == null)
-            return _with_reason(result, "service_unavailable");
+            return result.WithReason("service_unavailable");
 
-        var itemDef = get_item_def(normalizedItemId);
-        if (itemDef == null)
-            return _with_reason(result, "missing_item_def");
+        if (!TryGetItemDef(normalizedItemId, out var itemDef))
+            return result.WithReason("missing_item_def");
         if (!itemDef.is_skill_book())
-            return _with_reason(result, "item_not_usable");
+            return result.WithReason("item_not_usable");
 
         var memberState = _party_state.get_member_state(normalizedMemberId);
         if (memberState == null || memberState.progression == null)
-            return _with_reason(result, "missing_member");
+            return result.WithReason("missing_member");
         if (_warehouse_service.count_item(normalizedItemId) <= 0)
-            return _with_reason(result, "missing_inventory");
+            return result.WithReason("missing_inventory");
 
         var skillId = itemDef.granted_skill_id;
-        var skillDef = get_skill_def(skillId);
-        result["skill_id"] = skillId;
-        if (skillDef == null)
-            return _with_reason(result, "missing_skill_def");
+        result.WithSkill(skillId);
+        if (!TryGetSkillDef(skillId, out _))
+            return result.WithReason("missing_skill_def");
 
-        options ??= new Godot.Collections.Dictionary();
+        options ??= new PartyItemUseOptions();
         var practiceStatus = GetPracticeSkillLearnStatus(normalizedMemberId, skillId);
         bool needsReplacement = practiceStatus.NeedsReplacement;
-        bool confirmed = HasConfirmedPracticeReplacement(options);
+        bool confirmed = options.ConfirmPracticeReplacement;
         if (needsReplacement && !confirmed)
-        {
-            result["reason"] = new StringName("practice_replacement_confirmation_required");
-            result["needs_confirmation"] = true;
-            result["practice_replacement_preview"] = practiceStatus.ToLearnedStatusDictionary();
-            return result;
-        }
+            return result.WithConfirmationRequired(practiceStatus);
 
-        if (!_character_management.learn_skill(normalizedMemberId, skillId, options))
-            return _with_reason(result, "learn_failed");
+        if (
+            !_character_management.learn_skill(
+                normalizedMemberId,
+                skillId,
+                options.ToLearnSkillOptionsDictionary()
+            )
+        )
+            return result.WithReason("learn_failed");
 
-        var removeResult = _warehouse_service.remove_item(normalizedItemId, 1);
-        int removedQuantity = removeResult.ContainsKey("removed_quantity")
-            ? removeResult["removed_quantity"].AsInt32()
-            : 0;
-        if (removedQuantity <= 0)
-            return _with_reason(result, "consume_failed");
+        var removeResult = _warehouse_service.RemoveItemTyped(normalizedItemId, 1);
+        if (removeResult.RemovedQuantity <= 0)
+            return result.WithReason("consume_failed");
 
-        result["success"] = true;
-        result["reason"] = new StringName("ok");
-        result["consumed_quantity"] = removedQuantity;
-        return result;
+        return result.WithSuccess(removeResult.RemovedQuantity);
     }
 
-    private ItemDef get_item_def(StringName itemId)
+    private bool TryGetItemDef(StringName itemId, out ItemDef itemDef)
     {
         var normalizedItemId = ProgressionDataUtils.to_string_name(itemId);
-        if (_item_defs.ContainsKey(normalizedItemId))
-            return _item_defs[normalizedItemId].AsGodotObject() as ItemDef;
-        var stringKey = normalizedItemId.ToString();
-        return _item_defs.ContainsKey(stringKey)
-            ? _item_defs[stringKey].AsGodotObject() as ItemDef
-            : null;
+        if (normalizedItemId != "")
+            return _item_defs.TryGetValue(normalizedItemId, out itemDef);
+        itemDef = null;
+        return false;
     }
 
-    private SkillDef get_skill_def(StringName skillId)
+    private bool TryGetSkillDef(StringName skillId, out SkillDef skillDef)
     {
         var normalizedSkillId = ProgressionDataUtils.to_string_name(skillId);
-        if (_skill_defs.ContainsKey(normalizedSkillId))
-            return _skill_defs[normalizedSkillId].AsGodotObject() as SkillDef;
-        var stringKey = normalizedSkillId.ToString();
-        return _skill_defs.ContainsKey(stringKey)
-            ? _skill_defs[stringKey].AsGodotObject() as SkillDef
-            : null;
+        if (normalizedSkillId != "")
+            return _skill_defs.TryGetValue(normalizedSkillId, out skillDef);
+        skillDef = null;
+        return false;
     }
 
     private PracticeSkillLearnStatus GetPracticeSkillLearnStatus(
@@ -131,20 +238,28 @@ public partial class PartyItemUseService : RefCounted
             ?? PracticeSkillLearnStatus.NonPractice();
     }
 
-    private static Godot.Collections.Dictionary _with_reason(
-        Godot.Collections.Dictionary result,
-        string reason
+    private static Dictionary<StringName, T> MaterializeContentDefs<T>(
+        GDictionary source,
+        System.Func<T, StringName> idSelector
     )
+        where T : class
     {
-        result["reason"] = new StringName(reason);
-        return result;
-    }
+        var result = new Dictionary<StringName, T>();
+        if (source == null)
+            return result;
 
-    private static bool HasConfirmedPracticeReplacement(Godot.Collections.Dictionary options)
-    {
-        if (options == null || !options.ContainsKey("confirm_practice_replacement"))
-            return false;
-        Variant value = options["confirm_practice_replacement"];
-        return value.VariantType == Variant.Type.Bool && value.AsBool();
+        foreach (Variant rawKey in source.Keys)
+        {
+            Variant rawValue = source[rawKey];
+            if (rawValue.VariantType != Variant.Type.Object || rawValue.AsGodotObject() is not T entry)
+                continue;
+
+            var entryId = idSelector(entry);
+            if (entryId == "")
+                entryId = ProgressionDataUtils.to_string_name(rawKey);
+            if (entryId != "")
+                result[entryId] = entry;
+        }
+        return result;
     }
 }

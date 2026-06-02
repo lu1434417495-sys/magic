@@ -96,7 +96,6 @@ public partial class GameSession : Node
     public RecipeContentRegistry _recipe_content_registry = new();
     public EnemyContentRegistry _enemy_content_registry = new();
     public BattleSpecialProfileRegistry _battle_special_profile_registry = new();
-    public SkillBookItemFactory _skill_book_item_factory = new();
 
     public GDictionary _skill_defs = new();
     public GDictionary _profession_defs = new();
@@ -563,7 +562,7 @@ public partial class GameSession : Node
             EquipmentState equipmentState = memberState?.equipment_state;
             if (equipmentState == null)
                 continue;
-            foreach (StringName entrySlotId in equipmentState.get_entry_slot_ids())
+            foreach (StringName entrySlotId in equipmentState.GetEntrySlotIdsTyped())
             {
                 StringName instanceId = ProgressionDataUtils.to_string_name(
                     equipmentState.get_equipped_instance_id(entrySlotId)
@@ -583,7 +582,7 @@ public partial class GameSession : Node
     {
         if (warehouse_state == null || used_ids == null)
             return;
-        foreach (EquipmentInstanceState instance in warehouse_state.get_non_empty_instances())
+        foreach (EquipmentInstanceState instance in warehouse_state.GetNonEmptyEquipmentInstancesTyped())
         {
             if (instance == null)
                 continue;
@@ -2189,7 +2188,7 @@ public partial class GameSession : Node
         GStringNameArray occupiedSlots = itemDef.get_final_occupied_slot_ids(
             EquipmentRules.MAIN_HAND()
         );
-        member_state.equipment_state.set_equipped_entry(
+        member_state.equipment_state.SetEquippedEntryTyped(
             EquipmentRules.MAIN_HAND(),
             itemId,
             occupiedSlots,
@@ -2524,14 +2523,13 @@ public partial class GameSession : Node
         if (_item_content_registry == null)
             return;
         _item_defs = _item_content_registry.get_item_defs().Duplicate();
-        if (_skill_book_item_factory != null)
+        Dictionary<StringName, SkillDef> skillDefs = BuildSkillDefIndex(_skill_defs);
+        Dictionary<StringName, ItemDef> itemDefs = BuildItemDefIndex(_item_defs);
+        foreach (
+            var entry in SkillBookItemFactory.BuildGeneratedItemDefs(skillDefs, itemDefs)
+        )
         {
-            GDictionary generatedSkillBookDefs = _skill_book_item_factory.build_generated_item_defs(
-                _skill_defs,
-                _item_defs
-            );
-            foreach (var itemId in generatedSkillBookDefs.Keys)
-                _item_defs[itemId] = generatedSkillBookDefs[itemId];
+            _item_defs[entry.Key] = entry.Value;
         }
     }
 
@@ -2633,11 +2631,10 @@ public partial class GameSession : Node
             && _skill_defs.Count > 0
         )
         {
+            Dictionary<StringName, ItemDef> itemDefs = BuildItemDefIndex(_item_defs);
+            Dictionary<StringName, SkillDef> skillDefs = BuildSkillDefIndex(_skill_defs);
             foreach (
-                string skillBookError in SkillBookItemContentValidator.validate(
-                    _item_defs,
-                    _skill_defs
-                )
+                string skillBookError in SkillBookItemContentValidator.Validate(itemDefs, skillDefs)
             )
                 errors.Add(skillBookError);
         }
@@ -2647,6 +2644,36 @@ public partial class GameSession : Node
             ["error_count"] = errors.Count,
             ["errors"] = errors,
         };
+    }
+
+    private static Dictionary<StringName, ItemDef> BuildItemDefIndex(GDictionary itemDefs)
+    {
+        var result = new Dictionary<StringName, ItemDef>();
+        if (itemDefs == null)
+            return result;
+        foreach (var key in itemDefs.Keys)
+        {
+            ItemDef itemDef = itemDefs[key].AsGodotObject() as ItemDef;
+            if (itemDef == null || itemDef.item_id == "")
+                continue;
+            result[itemDef.item_id] = itemDef;
+        }
+        return result;
+    }
+
+    private static Dictionary<StringName, SkillDef> BuildSkillDefIndex(GDictionary skillDefs)
+    {
+        var result = new Dictionary<StringName, SkillDef>();
+        if (skillDefs == null)
+            return result;
+        foreach (var key in skillDefs.Keys)
+        {
+            SkillDef skillDef = skillDefs[key].AsGodotObject() as SkillDef;
+            if (skillDef == null || skillDef.skill_id == "")
+                continue;
+            result[skillDef.skill_id] = skillDef;
+        }
+        return result;
     }
 
     public GDictionary _build_quest_content_validation_domain_snapshot()

@@ -1,22 +1,20 @@
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class BattleSpecialProfileCommitAdapter : RefCounted
+public sealed class BattleSpecialProfileCommitAdapter
 {
     private BattleSkillOutcomeCommitter _committer;
 
-    public void setup(BattleRuntimeModule runtime, BattleSkillOutcomeCommitter committer)
+    public void Setup(BattleSkillOutcomeCommitter committer)
     {
         _committer = committer;
     }
 
-    public void dispose()
+    public void Dispose()
     {
         _committer = null;
     }
 
-    public bool commit_meteor_swarm_result(MeteorSwarmCommitResult result, BattleEventBatch batch)
+    public bool CommitMeteorSwarmResult(MeteorSwarmCommitResult result, BattleEventBatch batch)
     {
         if (result == null || batch == null)
         {
@@ -27,22 +25,12 @@ public partial class BattleSpecialProfileCommitAdapter : RefCounted
             return false;
         }
 
-        GDictionary commitPayload = result.to_common_outcome_payload().Duplicate(true);
-        if (ReadString(commitPayload, "commit_schema_id") != "meteor_swarm_ground_commit")
-        {
-            return false;
-        }
-
-        BattleCommonSkillOutcome outcome = BuildCommonOutcomeFromMeteorResult(
-            result,
-            commitPayload
-        );
+        BattleCommonSkillOutcome outcome = BuildCommonOutcomeFromMeteorResult(result);
         return _committer.commit_common_outcome(outcome, batch);
     }
 
     private static BattleCommonSkillOutcome BuildCommonOutcomeFromMeteorResult(
-        MeteorSwarmCommitResult result,
-        GDictionary commitPayload
+        MeteorSwarmCommitResult result
     )
     {
         BattleCommonSkillOutcome outcome = new();
@@ -52,8 +40,8 @@ public partial class BattleSpecialProfileCommitAdapter : RefCounted
             outcome.skill_id = result.plan.skill_id;
         }
 
-        outcome.total_damage = ReadInt(commitPayload, "total_damage", result.total_damage);
-        outcome.total_healing = ReadInt(commitPayload, "total_healing", result.total_healing);
+        outcome.total_damage = result.total_damage;
+        outcome.total_healing = result.total_healing;
         foreach (StringName unitId in result.changed_unit_ids)
         {
             outcome.add_changed_unit_id(unitId);
@@ -98,32 +86,5 @@ public partial class BattleSpecialProfileCommitAdapter : RefCounted
             outcome.report_entries.Add(reportEntryValue.AsGodotDictionary().Duplicate(true));
         }
         return outcome;
-    }
-
-    private static int ReadInt(GDictionary data, string key, int fallback = 0)
-    {
-        if (!HasKey(data, key))
-            return fallback;
-        return data.ContainsKey(key) ? data[key].AsInt32() : data[new StringName(key)].AsInt32();
-    }
-
-    private static string ReadString(GDictionary data, string key, string fallback = "")
-    {
-        if (!HasKey(data, key))
-            return fallback;
-        string text = data.ContainsKey(key)
-            ? data[key].ToString()
-            : data[new StringName(key)].ToString();
-        return string.IsNullOrEmpty(text) || text == "<null>" ? fallback : text;
-    }
-
-    private static bool HasKey(GDictionary data, string key)
-    {
-        if (data == null)
-            return false;
-        if (data.ContainsKey(key))
-            return true;
-        var stringNameKey = new StringName(key);
-        return data.ContainsKey(stringNameKey);
     }
 }

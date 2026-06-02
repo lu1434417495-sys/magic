@@ -1,112 +1,65 @@
 using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class BattleEquipmentRequirementRules : RefCounted
+public static class BattleEquipmentRequirementRules
 {
-    private static readonly StringName MainHand = "main_hand";
-    private static readonly StringName OffHand = "off_hand";
-    private static readonly StringName Head = "head";
-    private static readonly StringName Body = "body";
-    private static readonly StringName Hands = "hands";
-    private static readonly StringName Feet = "feet";
-    private static readonly StringName Cloak = "cloak";
-    private static readonly StringName Necklace = "necklace";
-    private static readonly StringName Ring1 = "ring_1";
-    private static readonly StringName Ring2 = "ring_2";
-    private static readonly StringName SpecialTrinket = "special_trinket";
-    private static readonly StringName Badge = "badge";
     private static readonly StringName TagShield = "shield";
 
-    private static readonly HashSet<StringName> ValidSlots = new()
-    {
-        MainHand,
-        OffHand,
-        Head,
-        Body,
-        Hands,
-        Feet,
-        Cloak,
-        Necklace,
-        Ring1,
-        Ring2,
-        SpecialTrinket,
-        Badge,
-    };
-
-    public static bool unit_has_equipped_shield(BattleUnitState unit_state, GDictionary item_defs)
-    {
-        return unit_has_equipped_item_tag(unit_state, OffHand, TagShield, item_defs);
-    }
-
-    public static bool unit_has_equipped_item_tag(
-        BattleUnitState unit_state,
-        StringName slot_id,
-        StringName tag_id,
-        GDictionary item_defs
+    public static bool UnitHasEquippedShield(
+        BattleUnitState unitState,
+        IReadOnlyDictionary<StringName, ItemDef> itemDefs
     )
     {
-        if (unit_state == null || IsEmpty(tag_id))
+        return UnitHasEquippedItemTag(unitState, EquipmentRules.OFF_HAND(), TagShield, itemDefs);
+    }
+
+    public static bool UnitHasEquippedItemTag(
+        BattleUnitState unitState,
+        StringName slotId,
+        StringName tagId,
+        IReadOnlyDictionary<StringName, ItemDef> itemDefs
+    )
+    {
+        if (unitState == null || IsEmpty(tagId) || itemDefs == null || itemDefs.Count == 0)
         {
             return false;
         }
 
-        EquipmentState equipmentView = unit_state.get_equipment_view();
+        EquipmentState equipmentView = unitState.get_equipment_view();
         if (equipmentView == null)
         {
             return false;
         }
 
-        StringName normalizedSlotId = slot_id ?? new StringName("");
-        if (!IsValidSlot(normalizedSlotId))
+        StringName normalizedSlotId = ProgressionDataUtils.to_string_name(slotId);
+        if (!EquipmentRules.is_valid_slot(normalizedSlotId))
         {
             return false;
         }
 
-        StringName itemId = equipmentView.get_equipped_item_id(normalizedSlotId);
-        if (
-            IsEmpty(itemId)
-            || item_defs == null
-        )
+        StringName itemId = ProgressionDataUtils.to_string_name(
+            equipmentView.get_equipped_item_id(normalizedSlotId)
+        );
+        if (IsEmpty(itemId))
         {
             return false;
         }
 
-        ItemDef itemDef = ReadItemDef(item_defs, itemId);
-        if (itemDef == null)
-        {
-            return false;
-        }
-
-        return itemDef.get_tags().Contains(tag_id);
+        return itemDefs.TryGetValue(itemId, out ItemDef itemDef)
+            && ItemHasTag(itemDef, tagId);
     }
 
-    private static bool IsValidSlot(StringName slotId)
+    public static bool ItemHasTag(ItemDef itemDef, StringName tagId)
     {
-        return !IsEmpty(slotId) && ValidSlots.Contains(slotId);
+        if (itemDef == null || IsEmpty(tagId))
+        {
+            return false;
+        }
+        return itemDef.get_tags().Contains(tagId);
     }
 
     private static bool IsEmpty(StringName value)
     {
         return value == null || string.IsNullOrEmpty(value.ToString());
-    }
-
-    private static ItemDef ReadItemDef(GDictionary dictionary, StringName itemId)
-    {
-        if (dictionary == null || IsEmpty(itemId))
-        {
-            return null;
-        }
-        if (dictionary.ContainsKey(itemId))
-        {
-            return dictionary[itemId].As<ItemDef>();
-        }
-        string stringKey = itemId.ToString();
-        if (dictionary.ContainsKey(stringKey))
-        {
-            return dictionary[stringKey].As<ItemDef>();
-        }
-        return null;
     }
 }

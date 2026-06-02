@@ -124,14 +124,14 @@ public partial class IdentityContentRegistryBase : RefCounted
         );
     }
 
-    protected Godot.Collections.Array<string> _sorted_registry_keys(
+    protected System.Collections.Generic.List<string> _sorted_registry_keys(
         Godot.Collections.Dictionary registry
     )
     {
         return ProgressionDataUtils.sorted_string_keys(registry);
     }
 
-    protected Godot.Collections.Array<string> _sorted_registry_keys(
+    protected System.Collections.Generic.List<string> _sorted_registry_keys(
         System.Collections.Generic.IEnumerable<StringName> keys
     )
     {
@@ -139,10 +139,7 @@ public partial class IdentityContentRegistryBase : RefCounted
         foreach (var key in keys)
             sorted.Add(key.ToString());
         sorted.Sort(System.StringComparer.Ordinal);
-        var result = new Godot.Collections.Array<string>();
-        foreach (string key in sorted)
-            result.Add(key);
-        return result;
+        return sorted;
     }
 
     protected void _append_string_name_field_error(

@@ -399,14 +399,14 @@ public partial class BattleRuntimeSkillTurnResolver : RefCounted
     }
 
     public bool unit_has_melee_weapon(BattleUnitState active_unit) =>
-        BattleRangeService.unit_has_melee_weapon(active_unit);
+        BattleRangeService.UnitHasMeleeWeapon(active_unit);
 
     public bool unit_matches_required_weapon_families(
         BattleUnitState active_unit,
         Godot.Collections.Array<StringName> required_weapon_families
     )
     {
-        return BattleRangeService.unit_matches_required_weapon_families(
+        return BattleRangeService.UnitMatchesRequiredWeaponFamilies(
             active_unit,
             required_weapon_families
         );
@@ -414,8 +414,11 @@ public partial class BattleRuntimeSkillTurnResolver : RefCounted
 
     public bool unit_has_equipped_shield(BattleUnitState active_unit)
     {
-        GDictionary itemDefs = _runtime != null ? _runtime.get_item_defs() : new GDictionary();
-        return BattleEquipmentRequirementRules.unit_has_equipped_shield(active_unit, itemDefs);
+        IReadOnlyDictionary<StringName, ItemDef> itemDefs =
+            _runtime != null
+                ? _runtime.BuildItemDefIndexSnapshotTyped()
+                : new Dictionary<StringName, ItemDef>();
+        return BattleEquipmentRequirementRules.UnitHasEquippedShield(active_unit, itemDefs);
     }
 
     public bool _skill_requires_option(SkillDef skill_def)
@@ -456,11 +459,11 @@ public partial class BattleRuntimeSkillTurnResolver : RefCounted
     }
 
     public bool requires_melee_weapon(SkillDef skill_def) =>
-        BattleRangeService.requires_current_melee_weapon(skill_def);
+        BattleRangeService.RequiresCurrentMeleeWeapon(skill_def);
 
     public bool effect_uses_weapon_physical_damage_tag(CombatEffectDef effect_def)
     {
-        return BattleRangeService.effect_uses_weapon_physical_damage_tag(effect_def);
+        return BattleRangeService.EffectUsesWeaponPhysicalDamageTag(effect_def);
     }
 
     public string get_skill_command_block_reason(
@@ -961,13 +964,13 @@ public partial class BattleRuntimeSkillTurnResolver : RefCounted
             {
                 continue;
             }
-            int apPenalty = BattleStatusSemanticTable.get_turn_start_ap_penalty(statusEntry);
+            int apPenalty = BattleStatusSemanticTable.GetTurnStartApPenalty(statusEntry);
             if (apPenalty <= 0)
             {
                 continue;
             }
             StringName penaltyGroup =
-                BattleStatusSemanticTable.get_turn_start_ap_penalty_group(statusEntry);
+                BattleStatusSemanticTable.GetTurnStartApPenaltyGroup(statusEntry);
             if (penaltyGroup == Empty)
             {
                 penaltyGroup = statusEntry.status_id;
@@ -979,12 +982,12 @@ public partial class BattleRuntimeSkillTurnResolver : RefCounted
             {
                 penaltyByGroup[penaltyGroup] = apPenalty;
                 labelByGroup[penaltyGroup] =
-                    BattleStatusSemanticTable.get_turn_start_ap_penalty_display_label(
+                    BattleStatusSemanticTable.GetTurnStartApPenaltyDisplayLabel(
                         statusEntry
                     );
             }
             if (
-                BattleStatusSemanticTable.should_consume_after_turn_start_ap_penalty(
+                BattleStatusSemanticTable.ShouldConsumeAfterTurnStartApPenalty(
                     statusEntry
                 )
             )
@@ -1075,7 +1078,7 @@ public partial class BattleRuntimeSkillTurnResolver : RefCounted
             {
                 continue;
             }
-            int tickDamage = BattleStatusSemanticTable.get_timeline_tick_damage(statusEntry);
+            int tickDamage = BattleStatusSemanticTable.GetTimelineTickDamage(statusEntry);
             if (tickDamage <= 0)
             {
                 continue;
@@ -1155,7 +1158,7 @@ public partial class BattleRuntimeSkillTurnResolver : RefCounted
                 continue;
             }
             BattleStatusDurationAdvanceResult durationResult =
-                BattleStatusSemanticTable.advance_timeline_duration_result(
+                BattleStatusSemanticTable.AdvanceTimelineDurationResult(
                 statusEntry,
                 elapsed_tu
             );
@@ -1307,22 +1310,22 @@ public partial class BattleRuntimeSkillTurnResolver : RefCounted
     }
 
     public int get_effective_skill_range(BattleUnitState active_unit, SkillDef skill_def) =>
-        BattleRangeService.get_effective_skill_range(
+        BattleRangeService.GetEffectiveSkillRange(
             active_unit,
             skill_def
         );
 
     public int resolve_base_skill_range(BattleUnitState active_unit, SkillDef skill_def) =>
-        BattleRangeService.resolve_base_skill_range(
+        BattleRangeService.ResolveBaseSkillRange(
             active_unit,
             skill_def
         );
 
     public bool is_weapon_range_skill(SkillDef skill_def) =>
-        BattleRangeService.is_weapon_range_skill(skill_def);
+        BattleRangeService.IsWeaponRangeSkill(skill_def);
 
     public int get_weapon_attack_range(BattleUnitState active_unit) =>
-        BattleRangeService.get_weapon_attack_range(active_unit);
+        BattleRangeService.GetWeaponAttackRange(active_unit);
 
     public bool skill_has_tag(SkillDef skill_def, StringName expected_tag)
     {
@@ -1397,10 +1400,12 @@ public partial class BattleRuntimeSkillTurnResolver : RefCounted
         effect.save_tag = parameters.ContainsKey("self_save_tag")
             ? ProgressionDataUtils.to_string_name(parameters["self_save_tag"])
             : fallback_tag;
-        var context = new GDictionary();
+        BattleSaveContext context = BattleSaveContext.Empty;
         if (parameters.ContainsKey("self_save_roll_override"))
         {
-            context["save_roll_override"] = parameters["self_save_roll_override"].AsInt32();
+            context = BattleSaveContext.WithSaveRollOverride(
+                parameters["self_save_roll_override"].AsInt32()
+            );
         }
         BattleUnitState sourceUnit = null;
         if (
@@ -1412,7 +1417,7 @@ public partial class BattleRuntimeSkillTurnResolver : RefCounted
         {
             _runtime._state.TryGetUnitTyped(status_entry.source_unit_id, out sourceUnit);
         }
-        return BattleSaveResolver.resolve_save_result(
+        return BattleSaveResolver.ResolveSaveResult(
             sourceUnit,
             unit_state,
             effect,

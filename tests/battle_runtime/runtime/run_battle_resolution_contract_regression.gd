@@ -301,13 +301,23 @@ class _FakeBattleGateway extends RefCounted:
 			var entry_data: Dictionary = entry_option
 			var entry := PendingCharacterRewardEntry.new()
 			entry.entry_type = &"skill_mastery"
-			entry.target_id = ProgressionDataUtils.to_string_name(entry_data.get("target_id", ""))
+			entry.target_id = _to_string_name(entry_data.get("target_id", ""))
 			entry.target_label = String(entry_data.get("target_label", String(entry.target_id)))
 			entry.amount = int(entry_data.get("amount", 0))
 			entry.reason_text = String(entry_data.get("reason_text", ""))
 			if not entry.is_empty():
 				reward.entries.append(entry)
 		return reward
+
+	func _to_string_name(value) -> StringName:
+		if value == null:
+			return &""
+		if value is StringName:
+			return value
+		var text := String(value)
+		if text.is_empty() or text == "<null>":
+			return &""
+		return StringName(text)
 
 	func record_achievement_event(
 		member_id: StringName,
@@ -1313,6 +1323,17 @@ func _has_achievement_event_call(calls: Array[Dictionary], member_id: String, ev
 			continue
 		return true
 	return false
+
+
+func _to_string_name(value) -> StringName:
+	if value == null:
+		return &""
+	if value is StringName:
+		return value
+	var text := String(value)
+	if text.is_empty() or text == "<null>":
+		return &""
+	return StringName(text)
 
 
 func _assert_true(condition: bool, message: String) -> void:

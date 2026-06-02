@@ -1,8 +1,5 @@
 using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public readonly struct BattleSpawnReachabilityOptions
 {
@@ -22,46 +19,6 @@ public readonly struct BattleSpawnReachabilityOptions
         ValidatePlayerToEnemy = validatePlayerToEnemy;
         MaxSearchNodes = Mathf.Max(maxSearchNodes, 1);
     }
-
-    public static BattleSpawnReachabilityOptions FromDictionary(GDictionary options)
-    {
-        options ??= new GDictionary();
-        return new BattleSpawnReachabilityOptions(
-            ReadBool(options, "validate_player_to_enemy"),
-            ReadInt(options, "max_search_nodes", DefaultMaxSearchNodes)
-        );
-    }
-
-    private static bool ReadBool(GDictionary options, string key, bool fallback = false)
-    {
-        if (!HasKey(options, key))
-        {
-            return fallback;
-        }
-        return options.ContainsKey(key)
-            ? options[key].AsBool()
-            : options[new StringName(key)].AsBool();
-    }
-
-    private static int ReadInt(GDictionary options, string key, int fallback = 0)
-    {
-        if (!HasKey(options, key))
-        {
-            return fallback;
-        }
-        return options.ContainsKey(key)
-            ? options[key].AsInt32()
-            : options[new StringName(key)].AsInt32();
-    }
-
-    private static bool HasKey(GDictionary options, string key)
-    {
-        if (options == null || string.IsNullOrEmpty(key))
-        {
-            return false;
-        }
-        return options.ContainsKey(key) || options.ContainsKey(new StringName(key));
-    }
 }
 
 public sealed class BattleSpawnReachabilityResult
@@ -71,6 +28,9 @@ public sealed class BattleSpawnReachabilityResult
     private readonly List<StringName> _invalidPlayerUnitIds = new();
 
     public bool Valid { get; private set; } = true;
+    public IReadOnlyList<BattleSpawnReachabilityUnitResult> Details => _details;
+    public IReadOnlyList<StringName> InvalidEnemyUnitIds => _invalidEnemyUnitIds;
+    public IReadOnlyList<StringName> InvalidPlayerUnitIds => _invalidPlayerUnitIds;
 
     public static BattleSpawnReachabilityResult Invalid(string reason)
     {
@@ -100,49 +60,51 @@ public sealed class BattleSpawnReachabilityResult
         _details.Add(detail);
     }
 
-    public GDictionary ToDictionary()
+    internal Godot.Collections.Dictionary ToDictionary()
     {
-        var invalidEnemyUnitIds = new GStringNameArray();
-        foreach (StringName unitId in _invalidEnemyUnitIds)
-            invalidEnemyUnitIds.Add(unitId);
-
-        var invalidPlayerUnitIds = new GStringNameArray();
-        foreach (StringName unitId in _invalidPlayerUnitIds)
-            invalidPlayerUnitIds.Add(unitId);
-
-        var details = new GArray();
+        var details = new Godot.Collections.Array();
         foreach (BattleSpawnReachabilityUnitResult detail in _details)
             details.Add(detail.ToDictionary());
 
-        return new GDictionary
+        return new Godot.Collections.Dictionary
         {
             ["valid"] = Valid,
-            ["invalid_enemy_unit_ids"] = invalidEnemyUnitIds,
-            ["invalid_player_unit_ids"] = invalidPlayerUnitIds,
+            ["invalid_enemy_unit_ids"] = ToStringNameArray(_invalidEnemyUnitIds),
+            ["invalid_player_unit_ids"] = ToStringNameArray(_invalidPlayerUnitIds),
             ["details"] = details,
         };
     }
+
+    private static Godot.Collections.Array<StringName> ToStringNameArray(
+        IEnumerable<StringName> values
+    )
+    {
+        var result = new Godot.Collections.Array<StringName>();
+        foreach (StringName value in values)
+            result.Add(value);
+        return result;
+    }
 }
 
-internal sealed class BattleSpawnReachabilityUnitResult
+public sealed class BattleSpawnReachabilityUnitResult
 {
-    internal bool Valid { get; init; }
-    internal StringName UnitId { get; init; } = "";
-    internal StringName FactionId { get; init; } = "";
-    internal string Reason { get; init; } = "";
-    internal Vector2I AttackAnchor { get; init; } = new(-1, -1);
-    internal StringName TargetUnitId { get; init; } = "";
-    internal StringName SkillId { get; init; } = "";
-    internal int ReachableAnchorCount { get; init; } = -1;
-    internal IReadOnlyList<StringName> AttackSkillIds { get; init; } =
+    public bool Valid { get; init; }
+    public StringName UnitId { get; init; } = "";
+    public StringName FactionId { get; init; } = "";
+    public string Reason { get; init; } = "";
+    public Vector2I AttackAnchor { get; init; } = new(-1, -1);
+    public StringName TargetUnitId { get; init; } = "";
+    public StringName SkillId { get; init; } = "";
+    public int ReachableAnchorCount { get; init; } = -1;
+    public IReadOnlyList<StringName> AttackSkillIds { get; init; } =
         System.Array.Empty<StringName>();
 
     internal static BattleSpawnReachabilityUnitResult Invalid(string reason) =>
         new() { Valid = false, Reason = reason };
 
-    internal GDictionary ToDictionary()
+    internal Godot.Collections.Dictionary ToDictionary()
     {
-        var result = new GDictionary { ["valid"] = Valid };
+        var result = new Godot.Collections.Dictionary { ["valid"] = Valid };
         if (!IsEmpty(UnitId))
             result["unit_id"] = UnitId;
         if (!IsEmpty(FactionId))
@@ -158,15 +120,17 @@ internal sealed class BattleSpawnReachabilityUnitResult
         if (ReachableAnchorCount >= 0)
             result["reachable_anchor_count"] = ReachableAnchorCount;
         if (AttackSkillIds.Count > 0)
-            result["attack_skill_ids"] = ToStringArray(AttackSkillIds);
+            result["attack_skill_ids"] = ToStringNameArray(AttackSkillIds);
         return result;
     }
 
-    private static GArray ToStringArray(IReadOnlyList<StringName> values)
+    private static Godot.Collections.Array<StringName> ToStringNameArray(
+        IReadOnlyList<StringName> values
+    )
     {
-        var result = new GArray();
+        var result = new Godot.Collections.Array<StringName>();
         foreach (StringName value in values)
-            result.Add(value.ToString());
+            result.Add(value);
         return result;
     }
 
@@ -174,48 +138,31 @@ internal sealed class BattleSpawnReachabilityUnitResult
         value == default || value == (StringName)"";
 }
 
-[GlobalClass]
-public partial class BattleSpawnReachabilityService : RefCounted
+public sealed class BattleSpawnReachabilityService
 {
     private BattleTargetCollectionService _targetCollectionService = new();
-
-    public GDictionary ValidateState(
-        BattleState state,
-        BattleGridService gridService,
-        GDictionary skillDefs,
-        GDictionary options = null
-    )
-    {
-        return ValidateStateTyped(
-                state,
-                gridService,
-                skillDefs,
-                BattleSpawnReachabilityOptions.FromDictionary(options)
-            )
-            .ToDictionary();
-    }
 
     public BattleSpawnReachabilityResult ValidateStateTyped(
         BattleState state,
         BattleGridService gridService,
-        GDictionary skillDefs,
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
         BattleSpawnReachabilityOptions options = default
     )
     {
         if (state == null || gridService == null)
             return BattleSpawnReachabilityResult.Invalid("missing_state_or_grid");
 
+        skillDefs ??= EmptySkillDefs;
         var result = new BattleSpawnReachabilityResult();
-        var playerTargets = _CollectLivingUnits(state, (GArray)state.ally_unit_ids);
+        List<StringName> enemyUnitIds = ReadStringNameList(state.enemy_unit_ids);
+        List<StringName> allyUnitIds = ReadStringNameList(state.ally_unit_ids);
+        var playerTargets = _CollectLivingUnits(state, allyUnitIds);
         if (playerTargets.Count == 0)
             return BattleSpawnReachabilityResult.Invalid("no_living_player_targets");
 
-        foreach (var enemyUnitIdValue in state.enemy_unit_ids)
+        foreach (StringName enemyUnitId in enemyUnitIds)
         {
-            var enemyUnitId = new StringName(enemyUnitIdValue.ToString());
-            var enemyUnit = state.units.ContainsKey(enemyUnitId)
-                ? state.units[enemyUnitId].As<BattleUnitState>()
-                : null;
+            BattleUnitState enemyUnit = TryGetUnit(state, enemyUnitId);
             if (enemyUnit == null || !enemyUnit.is_alive)
                 continue;
             var enemyResult = _ValidateAttackerUnit(
@@ -223,7 +170,7 @@ public partial class BattleSpawnReachabilityService : RefCounted
                 gridService,
                 skillDefs,
                 enemyUnit,
-                (GArray)state.enemy_unit_ids,
+                enemyUnitIds,
                 playerTargets,
                 options
             );
@@ -235,16 +182,13 @@ public partial class BattleSpawnReachabilityService : RefCounted
         if (!options.ValidatePlayerToEnemy)
             return result;
 
-        var enemyTargets = _CollectLivingUnits(state, (GArray)state.enemy_unit_ids);
+        var enemyTargets = _CollectLivingUnits(state, enemyUnitIds);
         if (enemyTargets.Count == 0)
             return BattleSpawnReachabilityResult.Invalid("no_living_enemy_targets");
 
-        foreach (var playerUnitIdValue in state.ally_unit_ids)
+        foreach (StringName playerUnitId in allyUnitIds)
         {
-            var playerUnitId = new StringName(playerUnitIdValue.ToString());
-            var playerUnit = state.units.ContainsKey(playerUnitId)
-                ? state.units[playerUnitId].As<BattleUnitState>()
-                : null;
+            BattleUnitState playerUnit = TryGetUnit(state, playerUnitId);
             if (playerUnit == null || !playerUnit.is_alive)
                 continue;
             var playerResult = _ValidateAttackerUnit(
@@ -252,7 +196,7 @@ public partial class BattleSpawnReachabilityService : RefCounted
                 gridService,
                 skillDefs,
                 playerUnit,
-                (GArray)state.ally_unit_ids,
+                allyUnitIds,
                 enemyTargets,
                 options
             );
@@ -263,23 +207,13 @@ public partial class BattleSpawnReachabilityService : RefCounted
         return result;
     }
 
-    public GDictionary validate_state(
-        BattleState state,
-        BattleGridService grid_service,
-        GDictionary skill_defs,
-        GDictionary options = null
-    )
-    {
-        return ValidateState(state, grid_service, skill_defs, options);
-    }
-
     private BattleSpawnReachabilityUnitResult _ValidateAttackerUnit(
         BattleState state,
         BattleGridService gridService,
-        GDictionary skillDefs,
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
         BattleUnitState attackerUnit,
-        GArray attackerUnitIds,
-        GArray targetUnits,
+        IReadOnlyList<StringName> attackerUnitIds,
+        IReadOnlyList<BattleUnitState> targetUnits,
         BattleSpawnReachabilityOptions options
     )
     {
@@ -350,17 +284,17 @@ public partial class BattleSpawnReachabilityService : RefCounted
         };
     }
 
-    private GArray _CollectLivingUnits(BattleState state, GArray unitIds)
+    private List<BattleUnitState> _CollectLivingUnits(
+        BattleState state,
+        IReadOnlyList<StringName> unitIds
+    )
     {
-        var targets = new GArray();
+        var targets = new List<BattleUnitState>();
         if (state == null)
             return targets;
-        foreach (var unitIdValue in unitIds)
+        foreach (StringName unitId in unitIds)
         {
-            var unitId = new StringName(unitIdValue.ToString());
-            var unitState = state.units.ContainsKey(unitId)
-                ? state.units[unitId].As<BattleUnitState>()
-                : null;
+            BattleUnitState unitState = TryGetUnit(state, unitId);
             if (unitState == null || !unitState.is_alive)
                 continue;
             targets.Add(unitState);
@@ -370,8 +304,8 @@ public partial class BattleSpawnReachabilityService : RefCounted
 
     private List<StringName> _CollectAttackSkillIds(
         BattleUnitState enemyUnit,
-        GDictionary skillDefs,
-        GArray playerTargets
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyList<BattleUnitState> playerTargets
     )
     {
         var skillIds = new List<StringName>();
@@ -379,10 +313,9 @@ public partial class BattleSpawnReachabilityService : RefCounted
             return skillIds;
         foreach (var skillIdValue in enemyUnit.known_active_skill_ids)
         {
-            var skillId = new StringName(skillIdValue.ToString());
-            if (!skillDefs.ContainsKey(skillId))
+            var skillId = ProgressionDataUtils.to_string_name(skillIdValue);
+            if (!skillDefs.TryGetValue(skillId, out SkillDef skillDef))
                 continue;
-            var skillDef = skillDefs[skillId].As<SkillDef>();
             if (skillDef == null || skillDef.combat_profile == null)
                 continue;
             if (!_AttackerCanUseSkill(enemyUnit, skillDef))
@@ -397,7 +330,7 @@ public partial class BattleSpawnReachabilityService : RefCounted
     private bool _SkillHasAttackableTarget(
         BattleUnitState enemyUnit,
         SkillDef skillDef,
-        GArray playerTargets
+        IReadOnlyList<BattleUnitState> playerTargets
     )
     {
         if (enemyUnit == null || skillDef == null || skillDef.combat_profile == null)
@@ -407,9 +340,8 @@ public partial class BattleSpawnReachabilityService : RefCounted
         var targetMode = BattleTypedNames.ToTargetMode(skillDef.combat_profile.target_mode);
         if (targetMode != BattleTargetMode.Unit && targetMode != BattleTargetMode.Ground)
             return false;
-        foreach (var targetUnitValue in playerTargets)
+        foreach (BattleUnitState targetUnit in playerTargets)
         {
-            var targetUnit = targetUnitValue.As<BattleUnitState>();
             if (targetUnit == null)
                 continue;
             var targetTeamFilter = skillDef.combat_profile.target_team_filter;
@@ -434,19 +366,16 @@ public partial class BattleSpawnReachabilityService : RefCounted
     private void _ClearNonblockingAttackerOccupants(
         BattleState state,
         BattleUnitState subjectUnit,
-        GArray attackerUnitIds
+        IReadOnlyList<StringName> attackerUnitIds
     )
     {
         if (state == null || subjectUnit == null)
             return;
-        foreach (var unitIdValue in attackerUnitIds)
+        foreach (StringName unitId in attackerUnitIds)
         {
-            var unitId = new StringName(unitIdValue.ToString());
             if (unitId == subjectUnit.unit_id)
                 continue;
-            var sameSideUnit = state.units.ContainsKey(unitId)
-                ? state.units[unitId].As<BattleUnitState>()
-                : null;
+            BattleUnitState sameSideUnit = TryGetUnit(state, unitId);
             if (sameSideUnit == null)
                 continue;
             sameSideUnit.refresh_footprint();
@@ -515,23 +444,21 @@ public partial class BattleSpawnReachabilityService : RefCounted
     private BattleSpawnReachabilityAttackMatch _FindAttackMatchFromAnchor(
         BattleState state,
         BattleGridService gridService,
-        GDictionary skillDefs,
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
         BattleUnitState enemyUnit,
         Vector2I anchorCoord,
-        GArray playerTargets,
+        IReadOnlyList<BattleUnitState> playerTargets,
         IReadOnlyList<StringName> attackSkillIds
     )
     {
         foreach (StringName skillId in attackSkillIds)
         {
-            if (!skillDefs.ContainsKey(skillId))
+            if (!skillDefs.TryGetValue(skillId, out SkillDef skillDef))
                 continue;
-            var skillDef = skillDefs[skillId].As<SkillDef>();
             if (skillDef == null || skillDef.combat_profile == null)
                 continue;
-            foreach (var targetUnitValue in playerTargets)
+            foreach (BattleUnitState targetUnit in playerTargets)
             {
-                var targetUnit = targetUnitValue.As<BattleUnitState>();
                 if (targetUnit == null)
                     continue;
                 var targetTeamFilter = skillDef.combat_profile.target_team_filter;
@@ -691,7 +618,7 @@ public partial class BattleSpawnReachabilityService : RefCounted
         StringName targetTeamFilter
     )
     {
-        return BattleTargetTeamRules.is_unit_valid_for_filter(
+        return BattleTargetTeamRules.IsUnitValidForFilter(
             sourceUnit,
             targetUnit,
             targetTeamFilter,
@@ -701,7 +628,7 @@ public partial class BattleSpawnReachabilityService : RefCounted
 
     private int _GetEffectiveSkillRange(BattleUnitState unitState, SkillDef skillDef)
     {
-        return BattleRangeService.get_effective_skill_range(unitState, skillDef);
+        return BattleRangeService.GetEffectiveSkillRange(unitState, skillDef);
     }
 
     private bool _AttackerCanUseSkill(BattleUnitState unitState, SkillDef skillDef)
@@ -709,15 +636,15 @@ public partial class BattleSpawnReachabilityService : RefCounted
         if (unitState == null || skillDef == null || skillDef.combat_profile == null)
             return false;
         if (
-            !BattleRangeService.unit_matches_required_weapon_families(
+            !BattleRangeService.UnitMatchesRequiredWeaponFamilies(
                 unitState,
                 skillDef.combat_profile.required_weapon_families
             )
         )
             return false;
         if (
-            BattleRangeService.requires_current_melee_weapon(skillDef)
-            && !BattleRangeService.unit_has_melee_weapon(unitState)
+            BattleRangeService.RequiresCurrentMeleeWeapon(skillDef)
+            && !BattleRangeService.UnitHasMeleeWeapon(unitState)
         )
             return false;
         return true;
@@ -736,6 +663,33 @@ public partial class BattleSpawnReachabilityService : RefCounted
         }
         return 0;
     }
+
+    private static readonly IReadOnlyDictionary<StringName, SkillDef> EmptySkillDefs =
+        new Dictionary<StringName, SkillDef>();
+
+    private static List<StringName> ReadStringNameList(IEnumerable<StringName> values)
+    {
+        var result = new List<StringName>();
+        if (values == null)
+            return result;
+        foreach (StringName value in values)
+        {
+            StringName id = ProgressionDataUtils.to_string_name(value);
+            if (!IsEmpty(id))
+                result.Add(id);
+        }
+        return result;
+    }
+
+    private static BattleUnitState TryGetUnit(BattleState state, StringName unitId)
+    {
+        return state != null && state.TryGetUnitTyped(unitId, out BattleUnitState unitState)
+            ? unitState
+            : null;
+    }
+
+    private static bool IsEmpty(StringName value) =>
+        value == default || value == (StringName)"";
 
     private readonly struct BattleSpawnReachabilityAttackMatch
     {

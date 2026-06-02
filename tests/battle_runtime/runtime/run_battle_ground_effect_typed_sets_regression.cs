@@ -1,13 +1,12 @@
+using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GCombatEffectArray = Godot.Collections.Array<CombatEffectDef>;
-using GDictionary = Godot.Collections.Dictionary;
-using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_battle_ground_effect_typed_sets_regression : SceneTree
 {
-    private readonly GStringArray _failures = new();
+    private readonly List<string> _failures = new();
 
     public override void _Initialize()
     {
@@ -22,6 +21,8 @@ public partial class run_battle_ground_effect_typed_sets_regression : SceneTree
         TestGroundUnitEffectsMergesTypedWindPushAffectedIds();
         TestSpecialForcedMoveUsesTypedContextDirection();
         TestSpecialForcedMoveWrapperUsesTypedContext();
+        TestGroundApplicationResultPublicApiStaysTyped();
+        TestGroundApplicationResultsProjectInternalBoundary();
 
         if (_failures.Count == 0)
         {
@@ -45,9 +46,9 @@ public partial class run_battle_ground_effect_typed_sets_regression : SceneTree
             fixture.Runtime._ground_effect_service._apply_ground_wind_push_effects_result(
                 fixture.Source,
                 fixture.Skill,
-                new GArray { fixture.WindPushEffect },
-                new GArray { new Vector2I(1, 0) },
-                new GArray { new Vector2I(1, 0) },
+                new Godot.Collections.Array { fixture.WindPushEffect },
+                new Godot.Collections.Array { new Vector2I(1, 0) },
+                new Godot.Collections.Array { new Vector2I(1, 0) },
                 batch
             );
 
@@ -74,10 +75,10 @@ public partial class run_battle_ground_effect_typed_sets_regression : SceneTree
             fixture.Runtime._ground_effect_service._apply_ground_unit_effects_result(
                 fixture.Source,
                 fixture.Skill,
-                new GArray { fixture.WindPushEffect },
-                new GArray { new Vector2I(1, 0) },
+                new Godot.Collections.Array { fixture.WindPushEffect },
+                new Godot.Collections.Array { new Vector2I(1, 0) },
                 batch,
-                new GArray { new Vector2I(1, 0) }
+                new Godot.Collections.Array { new Vector2I(1, 0) }
             );
 
         AssertTrue(result.Applied, "ground unit effects 应应用 wind push。");
@@ -96,7 +97,7 @@ public partial class run_battle_ground_effect_typed_sets_regression : SceneTree
             fixture.Front,
             fixture.Skill,
             null,
-            new GCombatEffectArray { fixture.WindPushEffect },
+            new Godot.Collections.Array<CombatEffectDef> { fixture.WindPushEffect },
             batch,
             BattleForcedMoveContext.FromDirection(Vector2I.Right)
         );
@@ -115,12 +116,12 @@ public partial class run_battle_ground_effect_typed_sets_regression : SceneTree
     {
         Fixture fixture = BuildForcedMoveContextFixture();
         var batch = new BattleEventBatch();
-        GDictionary result = fixture.Runtime._apply_unit_skill_special_effects(
+        Godot.Collections.Dictionary result = fixture.Runtime._apply_unit_skill_special_effects(
             fixture.Source,
             fixture.Front,
             fixture.Skill,
             null,
-            new GCombatEffectArray { fixture.WindPushEffect },
+            new Godot.Collections.Array<CombatEffectDef> { fixture.WindPushEffect },
             batch,
             BattleForcedMoveContext.FromDirection(Vector2I.Right)
         );
@@ -134,17 +135,120 @@ public partial class run_battle_ground_effect_typed_sets_regression : SceneTree
         CleanupFixture(fixture, batch);
     }
 
+    private void TestGroundApplicationResultPublicApiStaysTyped()
+    {
+        AssertResultTypePublicApiStaysTyped(
+            typeof(BattleGroundUnitEffectsResult),
+            "BattleGroundUnitEffectsResult"
+        );
+        AssertResultTypePublicApiStaysTyped(
+            typeof(BattleGroundTerrainEffectsResult),
+            "BattleGroundTerrainEffectsResult"
+        );
+        AssertResultTypePublicApiStaysTyped(
+            typeof(BattleGroundWindPushResult),
+            "BattleGroundWindPushResult"
+        );
+    }
+
+    private void AssertResultTypePublicApiStaysTyped(Type type, string typeName)
+    {
+        AssertTrue(
+            type.IsValueType || type.IsSealed,
+            $"{typeName} 应保持 plain C# result DTO。"
+        );
+        AssertTrue(
+            !typeof(GodotObject).IsAssignableFrom(type),
+            $"{typeName} 不应继承 GodotObject/RefCounted。"
+        );
+        AssertTrue(
+            !HasAttributeNamed(type, "GlobalClassAttribute"),
+            $"{typeName} 不应注册 GlobalClass。"
+        );
+        AssertPublicApiDoesNotExposeGodotCollections(type, typeName);
+    }
+
+    private void AssertPublicApiDoesNotExposeGodotCollections(Type type, string typeName)
+    {
+        const BindingFlags flags =
+            BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
+        foreach (PropertyInfo property in type.GetProperties(flags))
+        {
+            AssertTrue(
+                !IsGodotCollectionOrVariant(property.PropertyType),
+                $"{typeName}.{property.Name} 不应公开 Godot Dictionary/Array/Variant 属性。"
+            );
+        }
+        foreach (MethodInfo method in type.GetMethods(flags))
+        {
+            if (method.IsSpecialName)
+                continue;
+            AssertTrue(
+                !IsGodotCollectionOrVariant(method.ReturnType),
+                $"{typeName}.{method.Name} 不应公开返回 Godot Dictionary/Array/Variant。"
+            );
+            foreach (ParameterInfo parameter in method.GetParameters())
+            {
+                AssertTrue(
+                    !IsGodotCollectionOrVariant(parameter.ParameterType),
+                    $"{typeName}.{method.Name} 不应公开接收 Godot Dictionary/Array/Variant 参数 {parameter.Name}。"
+                );
+            }
+        }
+    }
+
+    private void TestGroundApplicationResultsProjectInternalBoundary()
+    {
+        Godot.Collections.Dictionary unitPayload = new BattleGroundUnitEffectsResult(
+            true,
+            3,
+            14,
+            2,
+            1
+        ).ToDictionary();
+        AssertTrue(ReadBool(unitPayload, "applied"), "ground unit result 应投影 applied。");
+        AssertEq(
+            ReadInt(unitPayload, "affected_unit_count"),
+            3,
+            "ground unit result 应投影 affected count。"
+        );
+        AssertEq(ReadInt(unitPayload, "damage"), 14, "ground unit result 应投影 damage。");
+        AssertEq(ReadInt(unitPayload, "healing"), 2, "ground unit result 应投影 healing。");
+        AssertEq(ReadInt(unitPayload, "kill_count"), 1, "ground unit result 应投影 kill count。");
+
+        Godot.Collections.Dictionary terrainPayload = new BattleGroundTerrainEffectsResult(true)
+            .ToDictionary();
+        AssertTrue(ReadBool(terrainPayload, "applied"), "ground terrain result 应投影 applied。");
+
+        Godot.Collections.Dictionary windPayload = new BattleGroundWindPushResult(
+            true,
+            new[] { new StringName("front"), new StringName("back") }
+        ).ToDictionary();
+        AssertTrue(ReadBool(windPayload, "applied"), "wind push result 应投影 applied。");
+        Godot.Collections.Array affectedIds = windPayload["affected_unit_ids"].AsGodotArray();
+        AssertEq(
+            ProgressionDataUtils.to_string_name(affectedIds[0]),
+            new StringName("front"),
+            "wind push result 应投影第一个 affected id。"
+        );
+        AssertEq(
+            ProgressionDataUtils.to_string_name(affectedIds[1]),
+            new StringName("back"),
+            "wind push result 应投影第二个 affected id。"
+        );
+    }
+
     private Fixture BuildWindPushFixture()
     {
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             null,
-            new GDictionary(),
-            new GDictionary(),
-            new GDictionary(),
+            new Godot.Collections.Dictionary(),
+            new Godot.Collections.Dictionary(),
+            new Godot.Collections.Dictionary(),
             null,
             null,
-            new GDictionary(),
+            new Godot.Collections.Dictionary(),
             null
         );
 
@@ -184,12 +288,12 @@ public partial class run_battle_ground_effect_typed_sets_regression : SceneTree
         var runtime = new BattleRuntimeModule();
         runtime.setup(
             null,
-            new GDictionary(),
-            new GDictionary(),
-            new GDictionary(),
+            new Godot.Collections.Dictionary(),
+            new Godot.Collections.Dictionary(),
+            new Godot.Collections.Dictionary(),
             null,
             null,
-            new GDictionary(),
+            new Godot.Collections.Dictionary(),
             null
         );
 
@@ -323,10 +427,33 @@ public partial class run_battle_ground_effect_typed_sets_regression : SceneTree
         }
     }
 
-    private static bool ReadBool(GDictionary source, string key) =>
+    private static bool HasAttributeNamed(Type type, string attributeTypeName)
+    {
+        foreach (object attribute in type.GetCustomAttributes(false))
+        {
+            if (attribute.GetType().Name == attributeTypeName)
+                return true;
+        }
+        return false;
+    }
+
+    private static bool IsGodotCollectionOrVariant(Type type)
+    {
+        if (type == typeof(Variant))
+            return true;
+        Type genericDefinition = type.IsGenericType ? type.GetGenericTypeDefinition() : type;
+        return genericDefinition == typeof(Godot.Collections.Dictionary)
+            || genericDefinition == typeof(Godot.Collections.Array)
+            || type.Namespace == "Godot.Collections";
+    }
+
+    private static bool ReadBool(Godot.Collections.Dictionary source, string key) =>
         source != null
         && source.ContainsKey(key)
         && source[key].AsBool();
+
+    private static int ReadInt(Godot.Collections.Dictionary source, string key) =>
+        source != null && source.ContainsKey(key) ? source[key].AsInt32() : 0;
 
     private sealed class Fixture
     {

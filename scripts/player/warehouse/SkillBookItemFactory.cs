@@ -1,29 +1,25 @@
+using System.Collections.Generic;
 using Godot;
 
-[GlobalClass]
-public partial class SkillBookItemFactory : RefCounted
+public static class SkillBookItemFactory
 {
     private const string DEFAULT_ICON_PATH = "res://icon.svg";
     private const int DEFAULT_MAX_STACK = 20;
 
-    public static StringName build_item_id_for_skill(StringName skillId) =>
+    public static StringName BuildItemIdForSkill(StringName skillId) =>
         ProgressionDataUtils.to_string_name($"skill_book_{skillId}");
 
-    public Godot.Collections.Dictionary build_generated_item_defs(
-        Godot.Collections.Dictionary skillDefs
-    ) => build_generated_item_defs(skillDefs, new Godot.Collections.Dictionary());
-
-    public Godot.Collections.Dictionary build_generated_item_defs(
-        Godot.Collections.Dictionary skillDefs,
-        Godot.Collections.Dictionary existingItemDefs
+    public static Dictionary<StringName, ItemDef> BuildGeneratedItemDefs(
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, ItemDef> existingItemDefs = null
     )
     {
-        var generatedDefs = new Godot.Collections.Dictionary();
-        existingItemDefs ??= new Godot.Collections.Dictionary();
+        var generatedDefs = new Dictionary<StringName, ItemDef>();
+        if (skillDefs == null)
+            return generatedDefs;
 
-        foreach (var skillKey in skillDefs.Keys)
+        foreach (SkillDef skillDef in skillDefs.Values)
         {
-            var skillDef = skillDefs[skillKey].AsGodotObject() as SkillDef;
             if (skillDef == null)
                 continue;
             if (skillDef.skill_id == "" || skillDef.learn_source != "book")
@@ -31,8 +27,8 @@ public partial class SkillBookItemFactory : RefCounted
             if (skillDef.display_name.StripEdges().Length == 0)
                 continue;
 
-            var itemId = build_item_id_for_skill(skillDef.skill_id);
-            if (existingItemDefs.ContainsKey(itemId))
+            var itemId = BuildItemIdForSkill(skillDef.skill_id);
+            if (existingItemDefs != null && existingItemDefs.ContainsKey(itemId))
                 continue;
 
             generatedDefs[itemId] = new ItemDef

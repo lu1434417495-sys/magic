@@ -1,25 +1,7 @@
-using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class BattleAiDecisionCommitter : RefCounted
+public static class BattleAiDecisionCommitter
 {
-    public void attach_state_patch(BattleAiDecision decision)
-    {
-        AttachStatePatch(decision);
-    }
-
-    public GDictionary build_state_patch(BattleAiDecision decision)
-    {
-        return BuildStatePatchDictionary(decision);
-    }
-
-    public static GDictionary BuildStatePatchDictionary(BattleAiDecision decision)
-    {
-        return BuildTypedStatePatch(decision).ToDictionary();
-    }
-
     internal static DecisionStatePatch BuildTypedStatePatch(BattleAiDecision decision)
     {
         return DecisionStatePatch.FromDecision(decision);
@@ -32,36 +14,20 @@ public partial class BattleAiDecisionCommitter : RefCounted
             return;
         }
         DecisionStatePatch patch = BuildTypedStatePatch(decision);
-        decision.TypedStatePatch = patch;
-        decision.state_patch = patch.ToDictionary();
+        decision.StatePatch = patch;
     }
 
-    public void commit(BattleUnitState unit_state, BattleAiDecision decision)
+    public static void Commit(BattleUnitState unitState, BattleAiDecision decision)
     {
-        if (unit_state == null || decision == null)
+        if (unitState == null || decision == null)
             return;
-        DecisionStatePatch patch = decision.TypedStatePatch;
-        if (patch == null && decision.state_patch != null && decision.state_patch.Count > 0)
-        {
-            if (!DecisionStatePatch.TryFromDictionary(decision.state_patch, out patch, true))
-            {
-                return;
-            }
-        }
-        else if (patch == null)
-        {
-            patch = DecisionStatePatch.FromDecision(decision);
-        }
+        DecisionStatePatch patch = decision.StatePatch;
         if (patch == null)
         {
-            return;
+            patch = DecisionStatePatch.FromDecision(decision);
+            decision.StatePatch = patch;
         }
-        patch.ApplyTo(unit_state);
-    }
-
-    public bool validate_state_patch(GDictionary patch)
-    {
-        return DecisionStatePatch.TryFromDictionary(patch, out _, true);
+        patch.ApplyTo(unitState);
     }
 
     internal sealed class DecisionStatePatch
@@ -101,7 +67,7 @@ public partial class BattleAiDecisionCommitter : RefCounted
             patch.SetBlackboardText("last_action_id", decision.action_id.ToString());
             patch.SetBlackboardText("last_reason_text", decision.reason_text);
 
-            BattleAiStateResolver.TransitionResult transition = decision.TypedTransition;
+            BattleAiStateResolver.TransitionResult transition = decision.Transition;
             if (transition != null)
             {
                 patch.SetBlackboardText(
@@ -121,29 +87,6 @@ public partial class BattleAiDecisionCommitter : RefCounted
                     transition.Reason.ToString()
                 );
             }
-            else
-            {
-                GDictionary transitionDictionary = decision.transition;
-                if (transitionDictionary != null && transitionDictionary.Count > 0)
-                {
-                    patch.SetBlackboardText(
-                        "last_transition_previous_state_id",
-                        GetStringLikeOrEmpty(transitionDictionary, "previous_state_id")
-                    );
-                    patch.SetBlackboardText(
-                        "last_transition_state_id",
-                        GetStringLikeOrEmpty(transitionDictionary, "state_id")
-                    );
-                    patch.SetBlackboardText(
-                        "last_transition_rule_id",
-                        GetStringLikeOrEmpty(transitionDictionary, "rule_id")
-                    );
-                    patch.SetBlackboardText(
-                        "last_transition_reason",
-                        GetStringLikeOrEmpty(transitionDictionary, "reason")
-                    );
-                }
-            }
 
             patch._hasTurnDecisionCountIncrement = true;
             patch._turnDecisionCountIncrement = 1;
@@ -158,132 +101,6 @@ public partial class BattleAiDecisionCommitter : RefCounted
                 patch._stateId = decision.state_id;
             }
             return patch;
-        }
-
-        public static bool TryFromDictionary(
-            GDictionary source,
-            out DecisionStatePatch patch,
-            bool failLoud
-        )
-        {
-            patch = null;
-            if (source == null)
-            {
-                return Fail(failLoud, "BattleAiDecision.state_patch must be Dictionary.");
-            }
-            if (!BattleAiPayloadGuard.ValidateNoForbiddenObject(source, "BattleAiDecision.state_patch"))
-            {
-                return false;
-            }
-
-            DecisionStatePatch parsed = new();
-            foreach (string key in ReadDictionaryKeys(source))
-            {
-                if (!IsAllowedStatePatchKey(key))
-                {
-                    return Fail(
-                        failLoud,
-                        "BattleAiDecision.state_patch contains unsupported key " + key
-                    );
-                }
-            }
-
-            if (TryReadStringName(source, "ai_brain_id", out parsed._brainId))
-            {
-                parsed._hasBrainId = true;
-            }
-            if (TryReadStringName(source, "ai_state_id", out parsed._stateId))
-            {
-                parsed._hasStateId = true;
-            }
-            if (TryReadDictionary(source, "blackboard_set", out GDictionary setDictionary))
-            {
-                if (!parsed.ParseBlackboardSet(setDictionary, failLoud))
-                {
-                    return false;
-                }
-            }
-            if (TryReadDictionary(source, "blackboard_increment", out GDictionary incrementDictionary))
-            {
-                if (!parsed.ParseBlackboardIncrement(incrementDictionary, failLoud))
-                {
-                    return false;
-                }
-            }
-
-            patch = parsed;
-            return true;
-        }
-
-        public GDictionary ToDictionary()
-        {
-            GDictionary patch = new();
-            GDictionary blackboardSet = new();
-            AddBlackboardText(blackboardSet, "last_brain_id", _hasLastBrainId, _lastBrainId);
-            AddBlackboardText(blackboardSet, "last_state_id", _hasLastStateId, _lastStateId);
-            AddBlackboardText(blackboardSet, "last_action_id", _hasLastActionId, _lastActionId);
-            AddBlackboardText(
-                blackboardSet,
-                "last_reason_text",
-                _hasLastReasonText,
-                _lastReasonText
-            );
-            AddBlackboardText(
-                blackboardSet,
-                "last_transition_previous_state_id",
-                _hasLastTransitionPreviousStateId,
-                _lastTransitionPreviousStateId
-            );
-            AddBlackboardText(
-                blackboardSet,
-                "last_transition_state_id",
-                _hasLastTransitionStateId,
-                _lastTransitionStateId
-            );
-            AddBlackboardText(
-                blackboardSet,
-                "last_transition_rule_id",
-                _hasLastTransitionRuleId,
-                _lastTransitionRuleId
-            );
-            AddBlackboardText(
-                blackboardSet,
-                "last_transition_reason",
-                _hasLastTransitionReason,
-                _lastTransitionReason
-            );
-            if (blackboardSet.Count > 0)
-            {
-                patch["blackboard_set"] = blackboardSet;
-            }
-            if (_hasTurnDecisionCountIncrement)
-            {
-                patch["blackboard_increment"] = new GDictionary
-                {
-                    ["turn_decision_count"] = _turnDecisionCountIncrement,
-                };
-            }
-            if (_hasBrainId)
-            {
-                patch["ai_brain_id"] = _brainId;
-            }
-            if (_hasStateId)
-            {
-                patch["ai_state_id"] = _stateId;
-            }
-            return patch;
-        }
-
-        private static void AddBlackboardText(
-            GDictionary blackboardSet,
-            string key,
-            bool hasValue,
-            string value
-        )
-        {
-            if (!hasValue || blackboardSet == null)
-                return;
-            blackboardSet[key] = value ?? "";
         }
 
         public void ApplyTo(BattleUnitState unitState)
@@ -318,51 +135,11 @@ public partial class BattleAiDecisionCommitter : RefCounted
                 unitState.ai_blackboard.last_transition_reason = new StringName(_lastTransitionReason);
             if (_hasTurnDecisionCountIncrement)
             {
-                unitState.ai_blackboard.turn_decision_count += _turnDecisionCountIncrement;
+                unitState.ai_blackboard.set_int(
+                    "turn_decision_count",
+                    unitState.ai_blackboard.turn_decision_count + _turnDecisionCountIncrement
+                );
             }
-        }
-
-        private bool ParseBlackboardSet(GDictionary setDictionary, bool failLoud)
-        {
-            if (
-                !TryReadTextPatchEntries(
-                    setDictionary,
-                    "state_patch.blackboard_set",
-                    IsAllowedBlackboardSetKey,
-                    out List<TextPatchEntry> entries,
-                    out string error
-                )
-            )
-            {
-                return Fail(failLoud, error);
-            }
-            foreach (TextPatchEntry entry in entries)
-            {
-                SetBlackboardText(entry.Key, entry.Value);
-            }
-            return true;
-        }
-
-        private bool ParseBlackboardIncrement(GDictionary incrementDictionary, bool failLoud)
-        {
-            if (
-                !TryReadIntPatchEntries(
-                    incrementDictionary,
-                    "state_patch.blackboard_increment",
-                    IsAllowedBlackboardIncrementKey,
-                    out List<IntPatchEntry> entries,
-                    out string error
-                )
-            )
-            {
-                return Fail(failLoud, error);
-            }
-            foreach (IntPatchEntry entry in entries)
-            {
-                _hasTurnDecisionCountIncrement = true;
-                _turnDecisionCountIncrement = entry.Value;
-            }
-            return true;
         }
 
         private void SetBlackboardText(string key, string value)
@@ -406,228 +183,4 @@ public partial class BattleAiDecisionCommitter : RefCounted
 
     }
 
-    private static bool _fail(string message)
-    {
-        return BattleAiPayloadGuard.FailLoud(
-            message,
-            new GDictionary { ["source"] = "BattleAiDecisionCommitter" }
-        );
-    }
-
-    private readonly struct TextPatchEntry
-    {
-        public TextPatchEntry(string key, string value)
-        {
-            Key = key ?? "";
-            Value = value ?? "";
-        }
-
-        public string Key { get; }
-
-        public string Value { get; }
-    }
-
-    private readonly struct IntPatchEntry
-    {
-        public IntPatchEntry(string key, int value)
-        {
-            Key = key ?? "";
-            Value = value;
-        }
-
-        public string Key { get; }
-
-        public int Value { get; }
-    }
-
-    private static List<string> ReadDictionaryKeys(GDictionary source)
-    {
-        var result = new List<string>();
-        if (source == null)
-        {
-            return result;
-        }
-        foreach (var rawKey in source.Keys)
-        {
-            result.Add(rawKey.ToString());
-        }
-        return result;
-    }
-
-    private static bool TryReadTextPatchEntries(
-        GDictionary source,
-        string path,
-        System.Func<string, bool> isAllowedKey,
-        out List<TextPatchEntry> entries,
-        out string error
-    )
-    {
-        entries = new List<TextPatchEntry>();
-        error = "";
-        if (source == null)
-        {
-            return true;
-        }
-        foreach (var rawKey in source.Keys)
-        {
-            string key = rawKey.ToString();
-            if (isAllowedKey == null || !isAllowedKey(key))
-            {
-                error = $"{path} contains unsupported key {key}";
-                return false;
-            }
-            if (!TryReadString(source, key, out string parsedValue))
-            {
-                error = $"{path}.{key} must be StringName/String.";
-                return false;
-            }
-            entries.Add(new TextPatchEntry(key, parsedValue));
-        }
-        return true;
-    }
-
-    private static bool TryReadIntPatchEntries(
-        GDictionary source,
-        string path,
-        System.Func<string, bool> isAllowedKey,
-        out List<IntPatchEntry> entries,
-        out string error
-    )
-    {
-        entries = new List<IntPatchEntry>();
-        error = "";
-        if (source == null)
-        {
-            return true;
-        }
-        foreach (var rawKey in source.Keys)
-        {
-            string key = rawKey.ToString();
-            if (isAllowedKey == null || !isAllowedKey(key))
-            {
-                error = $"{path} contains unsupported key {key}";
-                return false;
-            }
-            if (!TryReadInt(source, key, out int parsedValue))
-            {
-                error = $"{path}.{key} must be int.";
-                return false;
-            }
-            entries.Add(new IntPatchEntry(key, parsedValue));
-        }
-        return true;
-    }
-
-    private static bool IsAllowedStatePatchKey(string key)
-    {
-        return key == "ai_brain_id"
-            || key == "ai_state_id"
-            || key == "blackboard_set"
-            || key == "blackboard_increment";
-    }
-
-    private static bool IsAllowedBlackboardSetKey(string key)
-    {
-        return key == "last_brain_id"
-            || key == "last_state_id"
-            || key == "last_action_id"
-            || key == "last_reason_text"
-            || key == "last_transition_previous_state_id"
-            || key == "last_transition_state_id"
-            || key == "last_transition_rule_id"
-            || key == "last_transition_reason";
-    }
-
-    private static bool IsAllowedBlackboardIncrementKey(string key)
-    {
-        return key == "turn_decision_count";
-    }
-
-    private static bool Fail(bool failLoud, string message)
-    {
-        return failLoud ? _fail(message) : false;
-    }
-
-    private static string GetStringLikeOrEmpty(GDictionary dictionary, string key)
-    {
-        if (TryReadString(dictionary, key, out string parsedValue))
-        {
-            return parsedValue;
-        }
-        return "";
-    }
-
-    private static bool TryReadStringName(GDictionary dictionary, string key, out StringName value)
-    {
-        if (TryReadString(dictionary, key, out string text))
-        {
-            value = new StringName(text);
-            return true;
-        }
-        value = "";
-        return false;
-    }
-
-    private static bool TryReadDictionary(GDictionary dictionary, string key, out GDictionary value)
-    {
-        value = null;
-        if (dictionary == null || string.IsNullOrEmpty(key))
-        {
-            return false;
-        }
-        if (dictionary.ContainsKey(key))
-        {
-            value = dictionary[key].AsGodotDictionary();
-            return true;
-        }
-        StringName stringNameKey = new(key);
-        if (dictionary.ContainsKey(stringNameKey))
-        {
-            value = dictionary[stringNameKey].AsGodotDictionary();
-            return true;
-        }
-        return false;
-    }
-
-    private static bool TryReadString(GDictionary dictionary, string key, out string value)
-    {
-        value = "";
-        if (dictionary == null || string.IsNullOrEmpty(key))
-        {
-            return false;
-        }
-        if (dictionary.ContainsKey(key))
-        {
-            value = dictionary[key].ToString();
-            return !string.IsNullOrEmpty(value);
-        }
-        StringName stringNameKey = new(key);
-        if (dictionary.ContainsKey(stringNameKey))
-        {
-            value = dictionary[stringNameKey].ToString();
-            return !string.IsNullOrEmpty(value);
-        }
-        return false;
-    }
-
-    private static bool TryReadInt(GDictionary dictionary, string key, out int value)
-    {
-        value = 0;
-        if (dictionary == null || string.IsNullOrEmpty(key))
-        {
-            return false;
-        }
-        if (dictionary.ContainsKey(key))
-        {
-            value = dictionary[key].AsInt32();
-            return true;
-        }
-        StringName stringNameKey = new(key);
-        if (dictionary.ContainsKey(stringNameKey))
-        {
-            value = dictionary[stringNameKey].AsInt32();
-            return true;
-        }
-        return false;
-    }
 }

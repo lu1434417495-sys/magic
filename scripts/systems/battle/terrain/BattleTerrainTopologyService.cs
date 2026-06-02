@@ -1,80 +1,113 @@
+using System;
+using System.Collections.Generic;
 using Godot;
 
-[GlobalClass]
-public partial class BattleTerrainTopologyService : RefCounted
+public readonly struct BattleTerrainTopologyChange
 {
-    public Godot.Collections.Array<Godot.Collections.Dictionary> reclassify_all_water_terrain(
-        Godot.Collections.Dictionary cells,
-        Vector2I mapSize
+    public BattleTerrainTopologyChange(
+        Vector2I coord,
+        StringName beforeTerrain,
+        StringName afterTerrain,
+        Vector2I beforeFlowDirection,
+        Vector2I afterFlowDirection
     )
     {
-        return _reclassify_components(cells, mapSize, _collect_all_water_coords(cells));
+        Coord = coord;
+        BeforeTerrain = beforeTerrain;
+        AfterTerrain = afterTerrain;
+        BeforeFlowDirection = beforeFlowDirection;
+        AfterFlowDirection = afterFlowDirection;
     }
 
-    public Godot.Collections.Array<Godot.Collections.Dictionary> reclassify_water_terrain_near_coords(
-        Godot.Collections.Dictionary cells,
-        Vector2I mapSize,
-        Godot.Collections.Array<Vector2I> seedCoords
+    public Vector2I Coord { get; }
+    public StringName BeforeTerrain { get; }
+    public StringName AfterTerrain { get; }
+    public Vector2I BeforeFlowDirection { get; }
+    public Vector2I AfterFlowDirection { get; }
+}
+
+public sealed class BattleTerrainTopologyService
+{
+    private static readonly Vector2I[] CardinalDirections =
+    {
+        Vector2I.Left,
+        Vector2I.Right,
+        Vector2I.Up,
+        Vector2I.Down,
+    };
+
+    public IReadOnlyList<BattleTerrainTopologyChange> ReclassifyAllWaterTerrain(
+        BattleState state
     )
     {
-        return _reclassify_components(
-            cells,
-            mapSize,
-            _collect_seed_water_coords(cells, mapSize, seedCoords)
-        );
+        return ReclassifyComponents(state, CollectAllWaterCoords(state));
     }
 
-    private Godot.Collections.Array<Godot.Collections.Dictionary> _reclassify_components(
-        Godot.Collections.Dictionary cells,
-        Vector2I mapSize,
-        Godot.Collections.Array<Vector2I> startCoords
+    public IReadOnlyList<BattleTerrainTopologyChange> ReclassifyWaterTerrainNearCoords(
+        BattleState state,
+        IEnumerable<Vector2I> seedCoords
     )
     {
-        var changes = new Godot.Collections.Array<Godot.Collections.Dictionary>();
-        if (cells.Count == 0 || mapSize == Vector2I.Zero || startCoords.Count == 0)
-            return changes;
+        return ReclassifyComponents(state, CollectSeedWaterCoords(state, seedCoords));
+    }
 
-        var visited = new Godot.Collections.Dictionary();
-        foreach (var start in startCoords)
+    private static List<BattleTerrainTopologyChange> ReclassifyComponents(
+        BattleState state,
+        IReadOnlyList<Vector2I> startCoords
+    )
+    {
+        var changes = new List<BattleTerrainTopologyChange>();
+        if (state == null || state.map_size == Vector2I.Zero || startCoords.Count == 0)
         {
-            if (visited.ContainsKey(start))
-                continue;
-            var component = _collect_component(cells, mapSize, start, visited);
-            if (component.Count == 0)
-                continue;
-            var componentLookup = new Godot.Collections.Dictionary();
-            foreach (var coord in component)
-                componentLookup[coord] = true;
-            bool componentHasOutlet = _component_has_outlet(cells, mapSize, component);
-            foreach (var coord in component)
+            return changes;
+        }
+
+        var visited = new HashSet<Vector2I>();
+        foreach (Vector2I start in startCoords)
+        {
+            if (visited.Contains(start))
             {
-                var cell = _get_cell(cells, coord) as BattleCellState;
+                continue;
+            }
+            List<Vector2I> component = CollectComponent(state, start, visited);
+            if (component.Count == 0)
+            {
+                continue;
+            }
+            var componentLookup = new HashSet<Vector2I>(component);
+            bool componentHasOutlet = ComponentHasOutlet(state, component);
+            foreach (Vector2I coord in component)
+            {
+                BattleCellState cell = GetCell(state, coord);
                 if (cell == null)
+                {
                     continue;
-                var nextFlowDirection = Vector2I.Zero;
-                var nextTerrain = BattleTerrainRules.TERRAIN_DEEP_WATER();
+                }
+
+                Vector2I nextFlowDirection = Vector2I.Zero;
+                StringName nextTerrain = BattleTerrainRules.TERRAIN_DEEP_WATER();
                 if (componentHasOutlet)
-                    nextFlowDirection = _resolve_flow_direction(
-                        cells,
-                        mapSize,
-                        coord,
-                        componentLookup
-                    );
+                {
+                    nextFlowDirection = ResolveFlowDirection(state, coord, componentLookup);
+                }
                 if (nextFlowDirection != Vector2I.Zero)
+                {
                     nextTerrain = BattleTerrainRules.TERRAIN_FLOWING_WATER();
-                else if (_is_shallow_cell(cells, mapSize, coord))
+                }
+                else if (IsShallowCell(state, coord))
+                {
                     nextTerrain = BattleTerrainRules.TERRAIN_SHALLOW_WATER();
+                }
                 if (cell.base_terrain != nextTerrain || cell.flow_direction != nextFlowDirection)
                 {
                     changes.Add(
-                        new Godot.Collections.Dictionary
-                        {
-                            { "coord", coord },
-                            { "before_terrain", cell.base_terrain },
-                            { "after_terrain", nextTerrain },
-                            { "before_flow_direction", cell.flow_direction },
-                            { "after_flow_direction", nextFlowDirection },
-                        }
+                        new BattleTerrainTopologyChange(
+                            coord,
+                            cell.base_terrain,
+                            nextTerrain,
+                            cell.flow_direction,
+                            nextFlowDirection
+                        )
                     );
                 }
             }
@@ -82,131 +115,152 @@ public partial class BattleTerrainTopologyService : RefCounted
         return changes;
     }
 
-    private Godot.Collections.Array<Vector2I> _collect_all_water_coords(
-        Godot.Collections.Dictionary cells
-    )
+    private static List<Vector2I> CollectAllWaterCoords(BattleState state)
     {
-        var results = new Godot.Collections.Array<Vector2I>();
-        foreach (var coordValue in cells.Keys)
+        var results = new List<Vector2I>();
+        if (state == null)
         {
-            if (coordValue.VariantType != Variant.Type.Vector2I)
-                continue;
-            var coord = coordValue.AsVector2I();
-            var cell = _get_cell(cells, coord);
-            if (_is_water_like(cell))
-                results.Add(coord);
+            return results;
         }
-        return results;
-    }
-
-    private Godot.Collections.Array<Vector2I> _collect_seed_water_coords(
-        Godot.Collections.Dictionary cells,
-        Vector2I mapSize,
-        Godot.Collections.Array<Vector2I> seedCoords
-    )
-    {
-        var results = new Godot.Collections.Array<Vector2I>();
-        var seen = new Godot.Collections.Dictionary();
-        foreach (var seed in seedCoords)
+        foreach (BattleState.BattleCellEntry entry in state.GetCellEntriesTyped())
         {
-            foreach (var coord in _get_coord_and_neighbors(mapSize, seed))
+            if (IsWaterLike(entry.Cell))
             {
-                if (seen.ContainsKey(coord))
-                    continue;
-                seen[coord] = true;
-                var cell = _get_cell(cells, coord);
-                if (_is_water_like(cell))
-                    results.Add(coord);
+                results.Add(entry.Coord);
             }
         }
         return results;
     }
 
-    private Godot.Collections.Array<Vector2I> _collect_component(
-        Godot.Collections.Dictionary cells,
-        Vector2I mapSize,
-        Vector2I start,
-        Godot.Collections.Dictionary visited
+    private static List<Vector2I> CollectSeedWaterCoords(
+        BattleState state,
+        IEnumerable<Vector2I> seedCoords
     )
     {
-        var startCell = _get_cell(cells, start);
-        if (!_is_water_like(startCell))
-            return new Godot.Collections.Array<Vector2I>();
+        var results = new List<Vector2I>();
+        if (state == null)
+        {
+            return results;
+        }
 
-        var component = new Godot.Collections.Array<Vector2I>();
-        var frontier = new Godot.Collections.Array<Vector2I> { start };
+        var seen = new HashSet<Vector2I>();
+        foreach (Vector2I seed in seedCoords ?? Array.Empty<Vector2I>())
+        {
+            foreach (Vector2I coord in GetCoordAndNeighbors(state.map_size, seed))
+            {
+                if (!seen.Add(coord))
+                {
+                    continue;
+                }
+                if (IsWaterLike(GetCell(state, coord)))
+                {
+                    results.Add(coord);
+                }
+            }
+        }
+        return results;
+    }
+
+    private static List<Vector2I> CollectComponent(
+        BattleState state,
+        Vector2I start,
+        HashSet<Vector2I> visited
+    )
+    {
+        if (!IsWaterLike(GetCell(state, start)))
+        {
+            return new List<Vector2I>();
+        }
+
+        var component = new List<Vector2I>();
+        var frontier = new Queue<Vector2I>();
+        frontier.Enqueue(start);
         while (frontier.Count > 0)
         {
-            var current = frontier[0];
-            frontier.RemoveAt(0);
-            if (visited.ContainsKey(current))
-                continue;
-            var currentCell = _get_cell(cells, current);
-            if (!_is_water_like(currentCell))
-                continue;
-            visited[current] = true;
-            component.Add(current);
-            foreach (var neighbor in _get_neighbors_4(mapSize, current))
+            Vector2I current = frontier.Dequeue();
+            if (!visited.Add(current))
             {
-                if (!visited.ContainsKey(neighbor))
-                    frontier.Add(neighbor);
+                continue;
+            }
+            if (!IsWaterLike(GetCell(state, current)))
+            {
+                continue;
+            }
+            component.Add(current);
+            foreach (Vector2I neighbor in GetNeighbors4(state.map_size, current))
+            {
+                if (!visited.Contains(neighbor))
+                {
+                    frontier.Enqueue(neighbor);
+                }
             }
         }
         return component;
     }
 
-    private bool _component_has_outlet(
-        Godot.Collections.Dictionary cells,
-        Vector2I mapSize,
-        Godot.Collections.Array<Vector2I> component
+    private static bool ComponentHasOutlet(
+        BattleState state,
+        IReadOnlyList<Vector2I> component
     )
     {
-        foreach (var coord in component)
+        foreach (Vector2I coord in component)
         {
-            if (_is_edge_coord(mapSize, coord))
-                return true;
-            var cell = _get_cell(cells, coord);
-            if (cell == null)
-                continue;
-            foreach (var neighbor in _get_neighbors_4(mapSize, coord))
+            if (IsEdgeCoord(state.map_size, coord))
             {
-                var neighborCell = _get_cell(cells, neighbor);
-                if (_is_water_like(neighborCell))
+                return true;
+            }
+            BattleCellState cell = GetCell(state, coord);
+            if (cell == null)
+            {
+                continue;
+            }
+            foreach (Vector2I neighbor in GetNeighbors4(state.map_size, coord))
+            {
+                BattleCellState neighborCell = GetCell(state, neighbor);
+                if (IsWaterLike(neighborCell))
+                {
                     continue;
+                }
                 if (neighborCell != null && neighborCell.current_height <= cell.current_height)
+                {
                     return true;
+                }
             }
         }
         return false;
     }
 
-    private Vector2I _resolve_flow_direction(
-        Godot.Collections.Dictionary cells,
-        Vector2I mapSize,
+    private static Vector2I ResolveFlowDirection(
+        BattleState state,
         Vector2I coord,
-        Godot.Collections.Dictionary componentLookup
+        HashSet<Vector2I> componentLookup
     )
     {
-        var cell = _get_cell(cells, coord);
+        BattleCellState cell = GetCell(state, coord);
         if (cell == null)
-            return Vector2I.Zero;
-
-        var directions = new[] { Vector2I.Left, Vector2I.Right, Vector2I.Up, Vector2I.Down };
-        var bestDirection = Vector2I.Zero;
-        int bestNeighborHeight = int.MaxValue;
-        foreach (var direction in directions)
         {
-            var neighborCoord = coord + direction;
-            if (!_is_inside(mapSize, neighborCoord))
+            return Vector2I.Zero;
+        }
+
+        Vector2I bestDirection = Vector2I.Zero;
+        int bestNeighborHeight = int.MaxValue;
+        foreach (Vector2I direction in CardinalDirections)
+        {
+            Vector2I neighborCoord = coord + direction;
+            if (!IsInside(state.map_size, neighborCoord))
+            {
                 return direction;
-            var neighborCell = _get_cell(cells, neighborCoord);
-            if (_is_water_like(neighborCell))
+            }
+            BattleCellState neighborCell = GetCell(state, neighborCoord);
+            if (IsWaterLike(neighborCell) || neighborCell == null)
+            {
                 continue;
-            if (neighborCell == null)
-                continue;
+            }
             int neighborHeight = neighborCell.current_height;
             if (neighborHeight > cell.current_height)
+            {
                 continue;
+            }
             if (neighborHeight < bestNeighborHeight)
             {
                 bestNeighborHeight = neighborHeight;
@@ -214,98 +268,98 @@ public partial class BattleTerrainTopologyService : RefCounted
             }
         }
         if (bestDirection != Vector2I.Zero)
-            return bestDirection;
-
-        foreach (var direction in directions)
         {
-            var neighborCoord = coord + direction;
-            if (componentLookup.ContainsKey(neighborCoord))
+            return bestDirection;
+        }
+
+        foreach (Vector2I direction in CardinalDirections)
+        {
+            Vector2I neighborCoord = coord + direction;
+            if (!componentLookup.Contains(neighborCoord))
             {
-                var neighborCell = _get_cell(cells, neighborCoord);
-                if (
-                    neighborCell != null
-                    && neighborCell.base_terrain == BattleTerrainRules.TERRAIN_FLOWING_WATER()
-                )
-                    return direction;
+                continue;
+            }
+            BattleCellState neighborCell = GetCell(state, neighborCoord);
+            if (
+                neighborCell != null
+                && neighborCell.base_terrain == BattleTerrainRules.TERRAIN_FLOWING_WATER()
+            )
+            {
+                return direction;
             }
         }
         return Vector2I.Zero;
     }
 
-    private bool _is_shallow_cell(
-        Godot.Collections.Dictionary cells,
-        Vector2I mapSize,
-        Vector2I coord
-    )
+    private static bool IsShallowCell(BattleState state, Vector2I coord)
     {
-        var cell = _get_cell(cells, coord);
+        BattleCellState cell = GetCell(state, coord);
         if (cell == null)
-            return false;
-        int minBankDelta = int.MaxValue;
-        foreach (var neighbor in _get_neighbors_4(mapSize, coord))
         {
-            var neighborCell = _get_cell(cells, neighbor);
-            if (_is_water_like(neighborCell))
+            return false;
+        }
+
+        int minBankDelta = int.MaxValue;
+        foreach (Vector2I neighbor in GetNeighbors4(state.map_size, coord))
+        {
+            BattleCellState neighborCell = GetCell(state, neighbor);
+            if (IsWaterLike(neighborCell))
+            {
                 continue;
+            }
             if (neighborCell == null)
             {
                 minBankDelta = 0;
                 continue;
             }
-            minBankDelta = Mathf.Min(
-                minBankDelta,
-                neighborCell.current_height - cell.current_height
-            );
+            minBankDelta = Math.Min(minBankDelta, neighborCell.current_height - cell.current_height);
         }
-        if (minBankDelta == int.MaxValue)
-            return false;
-        return minBankDelta <= 1;
+        return minBankDelta != int.MaxValue && minBankDelta <= 1;
     }
 
-    private static bool _is_water_like(BattleCellState cell)
+    private static bool IsWaterLike(BattleCellState cell)
     {
         return cell != null && BattleTerrainRules.is_water_terrain(cell.base_terrain);
     }
 
-    private Godot.Collections.Array<Vector2I> _get_coord_and_neighbors(
-        Vector2I mapSize,
-        Vector2I coord
-    )
+    private static List<Vector2I> GetCoordAndNeighbors(Vector2I mapSize, Vector2I coord)
     {
-        var coords = new Godot.Collections.Array<Vector2I>();
-        if (_is_inside(mapSize, coord))
+        var coords = new List<Vector2I>();
+        if (IsInside(mapSize, coord))
+        {
             coords.Add(coord);
-        foreach (var neighbor in _get_neighbors_4(mapSize, coord))
-            coords.Add(neighbor);
+        }
+        coords.AddRange(GetNeighbors4(mapSize, coord));
         return coords;
     }
 
-    private Godot.Collections.Array<Vector2I> _get_neighbors_4(Vector2I mapSize, Vector2I coord)
+    private static List<Vector2I> GetNeighbors4(Vector2I mapSize, Vector2I coord)
     {
-        var neighbors = new Godot.Collections.Array<Vector2I>();
-        var directions = new[] { Vector2I.Left, Vector2I.Right, Vector2I.Up, Vector2I.Down };
-        foreach (var direction in directions)
+        var neighbors = new List<Vector2I>();
+        foreach (Vector2I direction in CardinalDirections)
         {
-            var candidate = coord + direction;
-            if (_is_inside(mapSize, candidate))
+            Vector2I candidate = coord + direction;
+            if (IsInside(mapSize, candidate))
+            {
                 neighbors.Add(candidate);
+            }
         }
         return neighbors;
     }
 
-    private static bool _is_inside(Vector2I mapSize, Vector2I coord)
+    private static bool IsInside(Vector2I mapSize, Vector2I coord)
     {
         return coord.X >= 0 && coord.Y >= 0 && coord.X < mapSize.X && coord.Y < mapSize.Y;
     }
 
-    private static BattleCellState _get_cell(Godot.Collections.Dictionary cells, Vector2I coord)
+    private static BattleCellState GetCell(BattleState state, Vector2I coord)
     {
-        if (!cells.ContainsKey(coord))
-            return null;
-        return cells[coord].AsGodotObject() as BattleCellState;
+        return state != null && state.TryGetCellTyped(coord, out BattleCellState cell)
+            ? cell
+            : null;
     }
 
-    private static bool _is_edge_coord(Vector2I mapSize, Vector2I coord)
+    private static bool IsEdgeCoord(Vector2I mapSize, Vector2I coord)
     {
         return coord.X <= 0 || coord.Y <= 0 || coord.X >= mapSize.X - 1 || coord.Y >= mapSize.Y - 1;
     }

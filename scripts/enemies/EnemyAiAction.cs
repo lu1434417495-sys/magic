@@ -5,8 +5,8 @@ using Godot;
 [GlobalClass]
 public partial class EnemyAiAction : Resource
 {
-    public static readonly StringName TARGET_SELECTOR_NEAREST_ROLE_THREAT_ENEMY =
-        "nearest_role_threat_enemy";
+    private static readonly StringName TargetSelectorNearestRoleThreatEnemy =
+        EnemyAiTargetSelectorRules.NearestRoleThreatEnemy;
     protected const int HP_BASIS_POINTS_DENOMINATOR = 10000,
         ROLE_THREAT_MIN_EFFECTIVE_RANGE = 4,
         ROLE_THREAT_DISTANCE_WINDOW = 4,
@@ -81,12 +81,7 @@ public partial class EnemyAiAction : Resource
     }
 
     protected static bool _is_supported_target_selector(StringName s) =>
-        s == "nearest_enemy"
-        || s == "lowest_hp_enemy"
-        || s == TARGET_SELECTOR_NEAREST_ROLE_THREAT_ENEMY
-        || s == "nearest_ally"
-        || s == "lowest_hp_ally"
-        || s == "self";
+        EnemyAiTargetSelectorRules.IsSupportedSelector(s);
 
     protected void _append_enemy_focus_target_selector_errors(
         Godot.Collections.Array<string> errors,
@@ -94,7 +89,7 @@ public partial class EnemyAiAction : Resource
         StringName selector
     )
     {
-        if (selector == "nearest_ally" || selector == "lowest_hp_ally" || selector == "self")
+        if (!EnemyAiTargetSelectorRules.IsEnemyFocusSelector(selector))
             errors.Add($"{actionLabel} {action_id} has unsupported target_selector {selector}.");
     }
 
@@ -118,14 +113,14 @@ public partial class EnemyAiAction : Resource
     }
 
     protected BattleAiDecision _create_decision(BattleCommand command, string reasonText = "") =>
-        EnemyAiActionHelper.create_decision(action_id, score_bucket_id, command, reasonText);
+        EnemyAiActionHelper.CreateDecision(action_id, score_bucket_id, command, reasonText);
 
     protected BattleAiDecision _create_scored_decision(
         BattleCommand command,
         BattleAiScoreInput scoreInput,
         string reasonText = ""
     ) =>
-        EnemyAiActionHelper.create_scored_decision(
+        EnemyAiActionHelper.CreateScoredDecision(
             action_id,
             score_bucket_id,
             command,
@@ -434,7 +429,7 @@ public partial class EnemyAiAction : Resource
         {
             return false;
         }
-        int effectiveRange = BattleRangeService.get_effective_skill_range(actor, skillDef);
+        int effectiveRange = BattleRangeService.GetEffectiveSkillRange(actor, skillDef);
         return context.grid_service.get_distance_between_units(actor, targetUnit) <= effectiveRange;
     }
 
@@ -667,10 +662,10 @@ public partial class EnemyAiAction : Resource
     }
 
     protected static BattleCommand _build_wait_command(BattleAiContext context) =>
-        EnemyAiActionHelper.build_wait_command(context);
+        EnemyAiActionHelper.BuildWaitCommand(context);
 
     protected static BattleCommand _build_move_command(BattleAiContext context, Vector2I targetCoord) =>
-        EnemyAiActionHelper.build_move_command(context, targetCoord);
+        EnemyAiActionHelper.BuildMoveCommand(context, targetCoord);
 
     protected static BattleCommand _build_unit_skill_command(
         BattleAiContext context,
@@ -678,7 +673,7 @@ public partial class EnemyAiAction : Resource
         BattleUnitState targetUnit,
         StringName skillVariantId = default
     ) =>
-        EnemyAiActionHelper.build_unit_skill_command(
+        EnemyAiActionHelper.BuildUnitSkillCommand(
             context,
             skillId,
             targetUnit,
@@ -701,7 +696,7 @@ public partial class EnemyAiAction : Resource
     protected StringName _get_cast_variant_target_mode(
         SkillDef skillDef,
         CombatCastVariantDef castVariant
-    ) => _skill_resolution_rules.get_cast_variant_target_mode(skillDef, castVariant);
+    ) => _skill_resolution_rules.GetCastVariantTargetMode(skillDef, castVariant);
 
     protected static BattleCommand _build_typed_ground_skill_command(
         BattleAiContext context,
@@ -757,7 +752,7 @@ public partial class EnemyAiAction : Resource
             return false;
         BattleUnitState cu = context.unit_state;
         bool madness = cu.ai_blackboard?.madness_target_any_team == true;
-        return BattleTargetTeamRules.is_unit_valid_for_filter(
+        return BattleTargetTeamRules.IsUnitValidForFilter(
             cu,
             us,
             targetFilter,
@@ -794,21 +789,24 @@ public partial class EnemyAiAction : Resource
             )
                 ef = "any";
             else if (
-                selector == "nearest_enemy"
-                || selector == "lowest_hp_enemy"
-                || selector == TARGET_SELECTOR_NEAREST_ROLE_THREAT_ENEMY
+                selector == EnemyAiTargetSelectorRules.NearestEnemy
+                || selector == EnemyAiTargetSelectorRules.LowestHpEnemy
+                || selector == TargetSelectorNearestRoleThreatEnemy
             )
                 ef = "enemy";
-            else if (selector == "nearest_ally" || selector == "lowest_hp_ally")
+            else if (
+                selector == EnemyAiTargetSelectorRules.NearestAlly
+                || selector == EnemyAiTargetSelectorRules.LowestHpAlly
+            )
                 ef = "ally";
-            else if (selector == "self")
+            else if (selector == EnemyAiTargetSelectorRules.Self)
                 ef = "self";
         }
         List<BattleUnitState> units = _collect_units_by_filter_typed(context, ef);
         var ft = _resolve_forced_target_unit(context, ef);
         if (ft != null)
             return new List<BattleUnitState> { ft };
-        if (selector == "self")
+        if (selector == EnemyAiTargetSelectorRules.Self)
             return units;
         int nd = _resolve_nearest_distance(context, units);
         var list = new List<BattleUnitState>(units);
@@ -829,14 +827,17 @@ public partial class EnemyAiAction : Resource
                         context.unit_state,
                         ru
                     );
-                if (selector == TARGET_SELECTOR_NEAREST_ROLE_THREAT_ENEMY)
+                if (selector == TargetSelectorNearestRoleThreatEnemy)
                 {
                     int ls = _get_role_threat_selector_score(context, lu, nd, ld),
                         rs = _get_role_threat_selector_score(context, ru, nd, rd);
                     if (ls != rs)
                         return rs.CompareTo(ls);
                 }
-                if (selector == "lowest_hp_enemy" || selector == "lowest_hp_ally")
+                if (
+                    selector == EnemyAiTargetSelectorRules.LowestHpEnemy
+                    || selector == EnemyAiTargetSelectorRules.LowestHpAlly
+                )
                 {
                     if (lhp != rhp)
                         return lhp.CompareTo(rhp);
@@ -918,14 +919,14 @@ public partial class EnemyAiAction : Resource
                 continue;
             if (!_skill_has_tag(sd, "melee") && !_skill_has_tag(sd, "weapon"))
                 continue;
-            int er = BattleRangeService.get_effective_skill_range(tu, sd);
+            int er = BattleRangeService.GetEffectiveSkillRange(tu, sd);
             if (er <= 0 && _skill_has_tag(sd, "melee"))
                 er = 1;
             if (er > ROLE_THREAT_MAX_CONTACT_RANGE)
                 continue;
             br = Mathf.Max(br, er);
         }
-        int wr = BattleRangeService.get_weapon_attack_range(tu);
+        int wr = BattleRangeService.GetWeaponAttackRange(tu);
         if (wr > 0 && wr <= ROLE_THREAT_MAX_CONTACT_RANGE)
             br = Mathf.Max(br, wr);
         return br;
@@ -1023,7 +1024,7 @@ public partial class EnemyAiAction : Resource
             return -1;
         BattleUnitState us = context.unit_state;
         if (skillDef != null)
-            return BattleRangeService.get_effective_skill_distance_contract_range(us, skillDef);
+            return BattleRangeService.GetEffectiveSkillDistanceContractRange(us, skillDef);
         int br = -1;
         foreach (var sid in _resolve_known_skill_ids(context, rangeSkillIds))
         {
@@ -1034,7 +1035,7 @@ public partial class EnemyAiAction : Resource
                 continue;
             br = Mathf.Max(
                 br,
-                BattleRangeService.get_effective_skill_distance_contract_range(us, csd)
+                BattleRangeService.GetEffectiveSkillDistanceContractRange(us, csd)
             );
         }
         return br;
@@ -1065,10 +1066,10 @@ public partial class EnemyAiAction : Resource
             SkillDef sd = _get_skill_def(context, sid);
             if (!_is_hostile_threat_skill(sd))
                 continue;
-            br = Mathf.Max(br, BattleRangeService.get_effective_skill_threat_range(tu, sd));
+            br = Mathf.Max(br, BattleRangeService.GetEffectiveSkillThreatRange(tu, sd));
         }
         if (br < 0)
-            br = BattleRangeService.get_weapon_attack_range(tu);
+            br = BattleRangeService.GetWeaponAttackRange(tu);
         return br;
     }
 
@@ -1326,7 +1327,7 @@ public partial class EnemyAiAction : Resource
         return string.Join("|", parts);
     }
 
-    protected Godot.Collections.Dictionary _begin_action_trace(
+    protected AiActionTrace _begin_action_trace(
         BattleAiContext context,
         Godot.Collections.Dictionary metadata = null
     )
@@ -1338,7 +1339,7 @@ public partial class EnemyAiAction : Resource
         var rsb = ProgressionDataUtils.to_string_name(
             tm.ContainsKey("score_bucket_id") ? tm["score_bucket_id"] : score_bucket_id
         );
-        return EnemyAiActionHelper.begin_action_trace(action_id, rsb, context, tm);
+        return EnemyAiActionHelper.BeginActionTrace(action_id, rsb, context, tm);
     }
 
     protected Godot.Collections.Dictionary _merge_runtime_action_metadata(
@@ -1352,35 +1353,35 @@ public partial class EnemyAiAction : Resource
     }
 
     protected static void _trace_count_increment(
-        Godot.Collections.Dictionary actionTrace,
+        AiActionTrace actionTrace,
         string key,
         int amount = 1
-    ) => EnemyAiActionHelper.trace_count_increment(actionTrace, key, amount);
+    ) => EnemyAiActionHelper.TraceCountIncrement(actionTrace, key, amount);
 
     protected static void _trace_add_block_reason(
-        Godot.Collections.Dictionary actionTrace,
+        AiActionTrace actionTrace,
         string reasonKey
-    ) => EnemyAiActionHelper.trace_add_block_reason(actionTrace, reasonKey);
+    ) => EnemyAiActionHelper.TraceAddBlockReason(actionTrace, reasonKey);
 
     protected static void _trace_offer_candidate(
-        Godot.Collections.Dictionary actionTrace,
-        Godot.Collections.Dictionary candidateSummary,
+        AiActionTrace actionTrace,
+        AiCandidateSummary candidateSummary,
         int keepCount = 5
-    ) => EnemyAiActionHelper.trace_offer_candidate(actionTrace, candidateSummary, keepCount);
+    ) => EnemyAiActionHelper.TraceOfferCandidate(actionTrace, candidateSummary, keepCount);
 
     protected static StringName _finalize_action_trace(
         BattleAiContext context,
-        Godot.Collections.Dictionary actionTrace,
+        AiActionTrace actionTrace,
         BattleAiDecision bestDecision = null
-    ) => EnemyAiActionHelper.finalize_action_trace(context, actionTrace, bestDecision);
+    ) => EnemyAiActionHelper.FinalizeActionTrace(context, actionTrace, bestDecision);
 
-    protected static Godot.Collections.Dictionary _build_candidate_summary(
+    protected static AiCandidateSummary _build_candidate_summary(
         string label,
         BattleCommand command,
         BattleAiScoreInput scoreInput = null,
         Godot.Collections.Dictionary extra = null
     ) =>
-        EnemyAiActionHelper.build_candidate_summary(
+        EnemyAiActionHelper.BuildCandidateSummary(
             label,
             command,
             scoreInput,
@@ -1388,9 +1389,9 @@ public partial class EnemyAiAction : Resource
         );
 
     protected static string _format_skill_variant_label(SkillDef sd, CombatCastVariantDef cv) =>
-        EnemyAiActionHelper.format_skill_variant_label(sd, cv);
+        EnemyAiActionHelper.FormatSkillVariantLabel(sd, cv);
 
-    protected static Godot.Collections.Dictionary _build_command_summary(BattleCommand command) =>
-        EnemyAiActionHelper.build_command_summary(command);
+    protected static AiCommandSummary _build_command_summary(BattleCommand command) =>
+        EnemyAiActionHelper.BuildCommandSummary(command);
 
 }

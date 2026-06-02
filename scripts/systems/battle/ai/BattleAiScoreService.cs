@@ -6,8 +6,7 @@ using GDictionary = Godot.Collections.Dictionary;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 using GVector2IArray = Godot.Collections.Array<Godot.Vector2I>;
 
-[GlobalClass]
-public partial class BattleAiScoreService : RefCounted
+public sealed partial class BattleAiScoreService
 {
     private static readonly StringName BonusConditionTargetLowHp = "target_low_hp";
     private static readonly StringName PathStepAoeEffectType = "path_step_aoe";
@@ -165,41 +164,60 @@ public partial class BattleAiScoreService : RefCounted
         }
     }
 
-    public void setup(BattleDamageResolver damage_resolver = null)
+    internal void Setup(BattleDamageResolver damageResolver = null)
     {
-        _damageResolver = damage_resolver;
+        _damageResolver = damageResolver;
     }
 
-    public void set_profile(BattleAiScoreProfile profile)
+    internal void SetProfile(BattleAiScoreProfile profile)
     {
         _scoreProfile = profile ?? new BattleAiScoreProfile();
     }
 
-    public BattleAiScoreProfile get_profile()
+    internal BattleAiScoreProfile GetProfile()
     {
         return _scoreProfile;
     }
 
-    public int get_bucket_priority(StringName bucket_id)
+    internal int GetBucketPriority(StringName bucketId)
     {
-        return _scoreProfile != null ? _scoreProfile.get_bucket_priority(bucket_id) : 0;
+        return _scoreProfile != null ? _scoreProfile.get_bucket_priority(bucketId) : 0;
     }
 
-    public BattleAiScoreInput build_skill_score_input(
+    internal BattleAiScoreInput BuildSkillScoreInput(
         IBattleAiScoreContext context,
-        SkillDef skill_def,
+        SkillDef skillDef,
         BattleCommand command,
         BattlePreview preview,
-        GArray effect_defs = null,
+        GArray effectDefs = null,
         GDictionary metadata = null
     )
     {
-        effect_defs ??= new GArray();
+        return BuildSkillScoreInput(
+            context,
+            skillDef,
+            command,
+            preview,
+            DecodeEffectDefs(effectDefs),
+            metadata
+        );
+    }
+
+    internal BattleAiScoreInput BuildSkillScoreInput(
+        IBattleAiScoreContext context,
+        SkillDef skillDef,
+        BattleCommand command,
+        BattlePreview preview,
+        IReadOnlyList<CombatEffectDef> effectDefs,
+        GDictionary metadata = null
+    )
+    {
+        effectDefs ??= System.Array.Empty<CombatEffectDef>();
         metadata ??= new GDictionary();
         ScoreBuildMetadata scoreMetadata = ScoreBuildMetadata.FromDictionary(
             metadata,
             "skill",
-            skill_def != null ? skill_def.display_name : "",
+            skillDef != null ? skillDef.display_name : "",
             "",
             0
         );
@@ -207,13 +225,13 @@ public partial class BattleAiScoreService : RefCounted
         var scoreInput = new BattleAiScoreInput
         {
             command = command,
-            skill_def = skill_def,
+            skill_def = skillDef,
             preview = preview,
             action_kind = scoreMetadata.ActionKind,
             action_label = scoreMetadata.ActionLabel,
             score_bucket_id = scoreMetadata.ScoreBucketId,
         };
-        scoreInput.score_bucket_priority = get_bucket_priority(scoreInput.score_bucket_id);
+        scoreInput.score_bucket_priority = GetBucketPriority(scoreInput.score_bucket_id);
         scoreInput.runtime_action_metadata = CloneRuntimeActionMetadata(
             scoreMetadata.RuntimeActionMetadata
         );
@@ -223,16 +241,16 @@ public partial class BattleAiScoreService : RefCounted
         scoreInput.target_count = scoreInput.target_unit_ids.Count;
 
         List<CombatEffectDef> effectiveEffectDefs = FilterEffectDefsForContext(
-            DecodeEffectDefs(effect_defs),
+            effectDefs,
             context,
-            skill_def
+            skillDef
         );
         PopulateHitMetrics(scoreInput, context, effectiveEffectDefs);
         PopulateGroundControlMetrics(scoreInput, effectiveEffectDefs);
         PopulateRandomChainMetrics(scoreInput, context, effectiveEffectDefs, scoreMetadata.RandomChain);
         PopulateSpecialProfileMetrics(scoreInput, context);
         PopulatePathStepAoeMetrics(scoreInput, context, effectiveEffectDefs, scoreMetadata.PathStepAoe);
-        PopulateResourceCostMetrics(scoreInput, skill_def, context);
+        PopulateResourceCostMetrics(scoreInput, skillDef, context);
         PopulatePositionMetrics(scoreInput, context, scoreMetadata.Position);
         PopulatePostActionThreatProjection(scoreInput, context, scoreMetadata.Position);
         scoreInput.total_score =
@@ -244,30 +262,30 @@ public partial class BattleAiScoreService : RefCounted
         return scoreInput;
     }
 
-    public BattleAiScoreInput build_skill_score_input(
+    internal BattleAiScoreInput BuildSkillScoreInput(
         BattleAiContext context,
-        SkillDef skill_def,
+        SkillDef skillDef,
         BattleCommand command,
         BattlePreview preview,
-        GArray effect_defs = null,
+        GArray effectDefs = null,
         GDictionary metadata = null
     )
     {
-        return build_skill_score_input(
+        return BuildSkillScoreInput(
             (IBattleAiScoreContext)context,
-            skill_def,
+            skillDef,
             command,
             preview,
-            effect_defs,
+            effectDefs,
             metadata
         );
     }
 
-    public BattleAiScoreInput build_action_score_input(
+    internal BattleAiScoreInput BuildActionScoreInput(
         IBattleAiScoreContext context,
-        StringName action_kind,
-        string action_label,
-        StringName score_bucket_id,
+        StringName actionKind,
+        string actionLabel,
+        StringName scoreBucketId,
         BattleCommand command,
         BattlePreview preview,
         GDictionary metadata = null
@@ -276,9 +294,9 @@ public partial class BattleAiScoreService : RefCounted
         metadata ??= new GDictionary();
         ScoreBuildMetadata scoreMetadata = ScoreBuildMetadata.FromDictionary(
             metadata,
-            action_kind,
-            action_label,
-            score_bucket_id,
+            actionKind,
+            actionLabel,
+            scoreBucketId,
             preview != null ? preview.move_cost : 0
         );
 
@@ -290,7 +308,7 @@ public partial class BattleAiScoreService : RefCounted
             action_label = scoreMetadata.ActionLabel,
             score_bucket_id = scoreMetadata.ScoreBucketId,
         };
-        scoreInput.score_bucket_priority = get_bucket_priority(scoreInput.score_bucket_id);
+        scoreInput.score_bucket_priority = GetBucketPriority(scoreInput.score_bucket_id);
         scoreInput.runtime_action_metadata = CloneRuntimeActionMetadata(
             scoreMetadata.RuntimeActionMetadata
         );
@@ -311,21 +329,21 @@ public partial class BattleAiScoreService : RefCounted
         return scoreInput;
     }
 
-    public BattleAiScoreInput build_action_score_input(
+    internal BattleAiScoreInput BuildActionScoreInput(
         BattleAiContext context,
-        StringName action_kind,
-        string action_label,
-        StringName score_bucket_id,
+        StringName actionKind,
+        string actionLabel,
+        StringName scoreBucketId,
         BattleCommand command,
         BattlePreview preview,
         GDictionary metadata = null
     )
     {
-        return build_action_score_input(
+        return BuildActionScoreInput(
             (IBattleAiScoreContext)context,
-            action_kind,
-            action_label,
-            score_bucket_id,
+            actionKind,
+            actionLabel,
+            scoreBucketId,
             command,
             preview,
             metadata

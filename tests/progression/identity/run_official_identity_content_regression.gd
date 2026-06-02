@@ -2,7 +2,6 @@ extends SceneTree
 
 const TestRunner = preload("res://tests/shared/test_runner.gd")
 
-const BODY_SIZE_RULES_SCRIPT = preload("res://scripts/systems/progression/BodySizeRules.cs")
 const ProgressionContentRegistry = preload("res://scripts/player/progression/ProgressionContentRegistry.cs")
 const AttributeModifier = preload("res://scripts/player/progression/AttributeModifier.cs")
 const RaceDef = preload("res://scripts/player/progression/RaceDef.cs")
@@ -15,7 +14,6 @@ const AscensionStageDef = preload("res://scripts/player/progression/AscensionSta
 const RacialGrantedSkill = preload("res://scripts/player/progression/RacialGrantedSkill.cs")
 const SkillDef = preload("res://scripts/player/progression/SkillDef.cs")
 const CombatEffectDef = preload("res://scripts/player/progression/CombatEffectDef.cs")
-const BodySizeRules = BODY_SIZE_RULES_SCRIPT
 
 const EXPECTED_RACE_IDS := [
 	&"dragonborn",
@@ -180,8 +178,8 @@ func _test_official_identity_graph_edges(registry: ProgressionContentRegistry) -
 		if race_def == null:
 			continue
 		_assert_true(
-			BodySizeRules.is_valid_body_size_category(race_def.body_size_category),
-			"Race %s should use a valid BodySizeRules category." % String(race_id)
+			_is_valid_body_size_category(race_def.body_size_category),
+			"Race %s should use a valid typed body-size category." % String(race_id)
 		)
 		_assert_true(
 			race_def.default_subrace_id != &"" and race_def.subrace_ids.has(race_def.default_subrace_id),
@@ -335,9 +333,9 @@ func _test_official_titan_ascension_content(registry: ProgressionContentRegistry
 	_assert_eq(stage.ascension_id, &"titan_blood_ascension", "Titan avatar stage should point back to titan ascension.")
 	_assert_eq(stage.body_size_category_override, &"large", "Titan avatar should override body size category to large.")
 	_assert_eq(
-		BodySizeRules.get_body_size_for_category(stage.body_size_category_override),
-		BodySizeRules.BODY_SIZE_LARGE(),
-		"Titan avatar body_size int should derive from BodySizeRules large."
+		_body_size_for_category(stage.body_size_category_override),
+		_body_size_large(),
+		"Titan avatar body_size int should derive from typed body-size rules large."
 	)
 	_assert_modifier(stage.attribute_modifiers, &"strength", 3, &"titan_avatar", &"ascension")
 	_assert_modifier(stage.attribute_modifiers, &"constitution", 2, &"titan_avatar", &"ascension")
@@ -433,9 +431,9 @@ func _assert_titan_colossus_form_skill(skill_defs: Dictionary) -> void:
 		_assert_eq(body_size_effect.status_id, &"titan_giant_form", "Titan Colossus Form should track duration with titan_giant_form.")
 		_assert_eq(body_size_effect.body_size_category, &"huge", "Titan Colossus Form should temporarily become huge.")
 		_assert_eq(
-			BodySizeRules.get_body_size_for_category(body_size_effect.body_size_category),
-			BodySizeRules.BODY_SIZE_HUGE(),
-			"Titan Colossus Form body size int should derive from BodySizeRules huge."
+			_body_size_for_category(body_size_effect.body_size_category),
+			_body_size_huge(),
+			"Titan Colossus Form body size int should derive from typed body-size rules huge."
 		)
 		_assert_eq(body_size_effect.duration_tu, 80, "Titan Colossus Form should use expected duration.")
 
@@ -458,6 +456,36 @@ func _assert_id_set(registry: Dictionary, expected_ids: Array, label: String) ->
 	_assert_eq(registry.size(), expected_ids.size(), "Official %s count should match expected seed pool." % label)
 	for expected_id in expected_ids:
 		_assert_true(registry.has(expected_id), "Official %s registry should include %s." % [label, String(expected_id)])
+
+
+func _is_valid_body_size_category(category: StringName) -> bool:
+	return category in [&"tiny", &"small", &"medium", &"large", &"huge", &"gargantuan", &"boss"]
+
+
+func _body_size_large() -> int:
+	return 3
+
+
+func _body_size_huge() -> int:
+	return 4
+
+
+func _body_size_for_category(category: StringName) -> int:
+	match category:
+		&"tiny", &"small":
+			return 1
+		&"medium":
+			return 2
+		&"large":
+			return _body_size_large()
+		&"huge":
+			return _body_size_huge()
+		&"gargantuan":
+			return 5
+		&"boss":
+			return 6
+		_:
+			return 0
 
 
 func _assert_modifier(

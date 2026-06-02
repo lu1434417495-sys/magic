@@ -1,9 +1,114 @@
 using System;
+using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class BattleMetricsCollector : RefCounted
+public sealed class BattleMetricEntry
+{
+    public string UnitId { get; set; } = "";
+    public string DisplayName { get; set; } = "";
+    public string FactionId { get; set; } = "";
+    public string ControlMode { get; set; } = "";
+    public string SourceMemberId { get; set; } = "";
+    public int UnitCount { get; set; }
+    public int TurnCount { get; set; }
+    public Dictionary<string, int> ActionCounts { get; } = new(StringComparer.Ordinal)
+    {
+        ["move"] = 0,
+        ["skill"] = 0,
+        ["wait"] = 0,
+    };
+    public Dictionary<string, int> SkillAttemptCounts { get; } = new(StringComparer.Ordinal);
+    public Dictionary<string, int> SkillSuccessCounts { get; } = new(StringComparer.Ordinal);
+    public int SuccessfulSkillCount { get; set; }
+    public int TotalDamageDone { get; set; }
+    public int TotalHealingDone { get; set; }
+    public int TotalDamageTaken { get; set; }
+    public int TotalHealingReceived { get; set; }
+    public int KillCount { get; set; }
+    public int DeathCount { get; set; }
+
+    internal Godot.Collections.Dictionary ToDictionary()
+    {
+        var payload = new Godot.Collections.Dictionary
+        {
+            ["faction_id"] = FactionId,
+            ["turn_count"] = TurnCount,
+            ["action_counts"] = IntMapToDictionary(ActionCounts),
+            ["skill_attempt_counts"] = IntMapToDictionary(SkillAttemptCounts),
+            ["skill_success_counts"] = IntMapToDictionary(SkillSuccessCounts),
+            ["successful_skill_count"] = SuccessfulSkillCount,
+            ["total_damage_done"] = TotalDamageDone,
+            ["total_healing_done"] = TotalHealingDone,
+            ["total_damage_taken"] = TotalDamageTaken,
+            ["total_healing_received"] = TotalHealingReceived,
+            ["kill_count"] = KillCount,
+            ["death_count"] = DeathCount,
+        };
+        if (!string.IsNullOrEmpty(UnitId))
+        {
+            payload["unit_id"] = UnitId;
+            payload["display_name"] = DisplayName;
+            payload["control_mode"] = ControlMode;
+            payload["source_member_id"] = SourceMemberId;
+        }
+        else
+        {
+            payload["unit_count"] = UnitCount;
+        }
+        return payload;
+    }
+
+    private static Godot.Collections.Dictionary IntMapToDictionary(Dictionary<string, int> source)
+    {
+        var payload = new Godot.Collections.Dictionary();
+        foreach (KeyValuePair<string, int> entry in source)
+        {
+            payload[entry.Key] = entry.Value;
+        }
+        return payload;
+    }
+}
+
+public sealed class BattleMetricsState
+{
+    public string BattleId { get; set; } = "";
+    public int Seed { get; set; }
+    public Dictionary<string, BattleMetricEntry> Units { get; } = new(StringComparer.Ordinal);
+    public Dictionary<string, BattleMetricEntry> Factions { get; } = new(StringComparer.Ordinal);
+
+    public void Clear()
+    {
+        BattleId = "";
+        Seed = 0;
+        Units.Clear();
+        Factions.Clear();
+    }
+
+    internal Godot.Collections.Dictionary ToDictionary()
+    {
+        var units = new Godot.Collections.Dictionary();
+        foreach (KeyValuePair<string, BattleMetricEntry> entry in Units)
+        {
+            units[entry.Key] = entry.Value.ToDictionary();
+        }
+
+        var factions = new Godot.Collections.Dictionary();
+        foreach (KeyValuePair<string, BattleMetricEntry> entry in Factions)
+        {
+            factions[entry.Key] = entry.Value.ToDictionary();
+        }
+
+        return new Godot.Collections.Dictionary
+        {
+            ["battle_id"] = BattleId,
+            ["seed"] = Seed,
+            ["units"] = units,
+            ["factions"] = factions,
+        };
+    }
+}
+
+public sealed class BattleMetricsCollector
 {
     private static readonly StringName Empty = "";
     private static readonly StringName TypeMove = "move";
@@ -11,33 +116,26 @@ public partial class BattleMetricsCollector : RefCounted
 
     private WeakReference<BattleRuntimeModule> _runtimeRef;
 
-    private BattleRuntimeModule _runtime
+    private BattleRuntimeModule Runtime => ResolveWeakRef(_runtimeRef);
+
+    public void Setup(BattleRuntimeModule runtime)
     {
-        get => ResolveWeakRef(_runtimeRef);
-        set => _runtimeRef = value != null ? new WeakReference<BattleRuntimeModule>(value) : null;
+        _runtimeRef = runtime != null ? new WeakReference<BattleRuntimeModule>(runtime) : null;
     }
 
-    public void setup(BattleRuntimeModule runtime)
+    public void Dispose()
     {
-        _runtime = runtime;
+        _runtimeRef = null;
     }
 
-    public void dispose()
+    public void InitializeBattleMetrics()
     {
-        _runtime = null;
-    }
-
-    public void _initialize_battle_metrics()
-    {
-        BattleRuntimeModule runtime = _runtime;
+        BattleRuntimeModule runtime = Runtime;
         BattleState state = runtime?._state;
-        var metrics = new GDictionary
+        var metrics = new BattleMetricsState
         {
-            ["battle_id"] =
-                state != null ? (state.battle_id ?? Empty).ToString() : "",
-            ["seed"] = state?.seed ?? 0,
-            ["units"] = new GDictionary(),
-            ["factions"] = new GDictionary(),
+            BattleId = state != null ? (state.battle_id ?? Empty).ToString() : "",
+            Seed = state?.seed ?? 0,
         };
         if (runtime != null)
         {
@@ -48,315 +146,233 @@ public partial class BattleMetricsCollector : RefCounted
             return;
         }
 
-        GDictionary units = EnsureDict(metrics, "units");
         foreach (BattleUnitState unitState in state.GetUnitsTyped())
         {
             if (unitState == null)
             {
                 continue;
             }
-            GDictionary unitEntry = _build_unit_metric_entry(unitState);
-            units[unitState.unit_id.ToString()] = unitEntry;
-            GDictionary factionEntry = _ensure_faction_metric_entry(unitState.faction_id);
-            factionEntry["unit_count"] = GetInt(factionEntry, "unit_count") + 1;
+            metrics.Units[unitState.unit_id.ToString()] = BuildUnitMetricEntry(unitState);
+            BattleMetricEntry factionEntry = EnsureFactionMetricEntry(unitState.faction_id);
+            factionEntry.UnitCount += 1;
         }
     }
 
-    public GDictionary _build_unit_metric_entry(BattleUnitState unit_state)
+    public BattleMetricEntry BuildUnitMetricEntry(BattleUnitState unitState)
     {
-        return new GDictionary
+        if (unitState == null)
         {
-            ["unit_id"] = unit_state.unit_id.ToString(),
-            ["display_name"] = unit_state.display_name,
-            ["faction_id"] = unit_state.faction_id.ToString(),
-            ["control_mode"] = unit_state.control_mode.ToString(),
-            ["source_member_id"] = unit_state.source_member_id.ToString(),
-            ["turn_count"] = 0,
-            ["action_counts"] = new GDictionary
-            {
-                ["move"] = 0,
-                ["skill"] = 0,
-                ["wait"] = 0,
-            },
-            ["skill_attempt_counts"] = new GDictionary(),
-            ["skill_success_counts"] = new GDictionary(),
-            ["successful_skill_count"] = 0,
-            ["total_damage_done"] = 0,
-            ["total_healing_done"] = 0,
-            ["total_damage_taken"] = 0,
-            ["total_healing_received"] = 0,
-            ["kill_count"] = 0,
-            ["death_count"] = 0,
+            return new BattleMetricEntry();
+        }
+        return new BattleMetricEntry
+        {
+            UnitId = unitState.unit_id.ToString(),
+            DisplayName = unitState.display_name,
+            FactionId = unitState.faction_id.ToString(),
+            ControlMode = unitState.control_mode.ToString(),
+            SourceMemberId = unitState.source_member_id.ToString(),
         };
     }
 
-    public GDictionary _ensure_unit_metric_entry(BattleUnitState unit_state)
+    public BattleMetricEntry EnsureUnitMetricEntry(BattleUnitState unitState)
     {
-        GDictionary battleMetrics = BattleMetrics();
-        if (battleMetrics.Count == 0 || unit_state == null)
+        BattleMetricsState battleMetrics = Metrics();
+        if (battleMetrics == null || unitState == null)
         {
-            return new GDictionary();
+            return new BattleMetricEntry();
         }
 
-        GDictionary units = EnsureDict(battleMetrics, "units");
-        string unitKey = unit_state.unit_id.ToString();
-        if (!units.ContainsKey(unitKey))
+        string unitKey = unitState.unit_id.ToString();
+        if (!battleMetrics.Units.TryGetValue(unitKey, out BattleMetricEntry entry))
         {
-            units[unitKey] = _build_unit_metric_entry(unit_state);
+            entry = BuildUnitMetricEntry(unitState);
+            battleMetrics.Units[unitKey] = entry;
         }
-        return GetDict(units, unitKey);
+        return entry;
     }
 
-    public GDictionary _ensure_faction_metric_entry(StringName faction_id)
+    public BattleMetricEntry EnsureFactionMetricEntry(StringName factionId)
     {
-        GDictionary battleMetrics = BattleMetrics();
-        if (battleMetrics.Count == 0)
+        BattleMetricsState battleMetrics = Metrics();
+        if (battleMetrics == null)
         {
-            return new GDictionary();
+            return new BattleMetricEntry();
         }
 
-        GDictionary factions = EnsureDict(battleMetrics, "factions");
-        string factionKey = (faction_id ?? Empty).ToString();
-        if (!factions.ContainsKey(factionKey))
+        string factionKey = (factionId ?? Empty).ToString();
+        if (!battleMetrics.Factions.TryGetValue(factionKey, out BattleMetricEntry entry))
         {
-            factions[factionKey] = new GDictionary
-            {
-                ["faction_id"] = factionKey,
-                ["unit_count"] = 0,
-                ["turn_count"] = 0,
-                ["action_counts"] = new GDictionary
-                {
-                    ["move"] = 0,
-                    ["skill"] = 0,
-                    ["wait"] = 0,
-                },
-                ["skill_attempt_counts"] = new GDictionary(),
-                ["skill_success_counts"] = new GDictionary(),
-                ["successful_skill_count"] = 0,
-                ["total_damage_done"] = 0,
-                ["total_healing_done"] = 0,
-                ["total_damage_taken"] = 0,
-                ["total_healing_received"] = 0,
-                ["kill_count"] = 0,
-                ["death_count"] = 0,
-            };
+            entry = new BattleMetricEntry { FactionId = factionKey };
+            battleMetrics.Factions[factionKey] = entry;
         }
-        return GetDict(factions, factionKey);
+        return entry;
     }
 
-    public void _record_turn_started(BattleUnitState unit_state)
+    public void RecordTurnStarted(BattleUnitState unitState)
     {
-        GDictionary unitEntry = _ensure_unit_metric_entry(unit_state);
-        if (unitEntry.Count == 0)
+        BattleMetricEntry unitEntry = EnsureUnitMetricEntry(unitState);
+        if (unitState == null || string.IsNullOrEmpty(unitEntry.UnitId))
         {
             return;
         }
-        unitEntry["turn_count"] = GetInt(unitEntry, "turn_count") + 1;
-        GDictionary factionEntry = _ensure_faction_metric_entry(unit_state.faction_id);
-        factionEntry["turn_count"] = GetInt(factionEntry, "turn_count") + 1;
+        unitEntry.TurnCount += 1;
+        BattleMetricEntry factionEntry = EnsureFactionMetricEntry(unitState.faction_id);
+        factionEntry.TurnCount += 1;
     }
 
-    public void _record_action_issued(
-        BattleUnitState unit_state,
-        StringName command_type,
-        int ap_cost = 0
-    )
+    public void RecordActionIssued(BattleUnitState unitState, StringName commandType, int apCost = 0)
     {
-        if (unit_state != null)
+        if (unitState != null)
         {
-            if (command_type == TypeMove)
+            if (commandType == TypeMove)
             {
-                unit_state.has_moved_this_turn = true;
+                unitState.has_moved_this_turn = true;
             }
-            else if (command_type != TypeWait && ap_cost > 0)
+            else if (commandType != TypeWait && apCost > 0)
             {
-                unit_state.has_taken_action_this_turn = true;
-                unit_state.is_resting = false;
+                unitState.has_taken_action_this_turn = true;
+                unitState.is_resting = false;
             }
         }
 
-        string commandKey = (command_type ?? Empty).ToString();
-        if (string.IsNullOrEmpty(commandKey))
+        string commandKey = (commandType ?? Empty).ToString();
+        if (string.IsNullOrEmpty(commandKey) || unitState == null)
         {
             return;
         }
-        GDictionary unitEntry = _ensure_unit_metric_entry(unit_state);
-        if (unitEntry.Count == 0)
+        BattleMetricEntry unitEntry = EnsureUnitMetricEntry(unitState);
+        if (string.IsNullOrEmpty(unitEntry.UnitId))
         {
             return;
         }
-        _increment_metric_count(EnsureDict(unitEntry, "action_counts"), commandKey, 1);
-        GDictionary factionEntry = _ensure_faction_metric_entry(unit_state.faction_id);
-        _increment_metric_count(
-            EnsureDict(factionEntry, "action_counts"),
-            commandKey,
-            1
-        );
+        IncrementMetricCount(unitEntry.ActionCounts, commandKey, 1);
+        BattleMetricEntry factionEntry = EnsureFactionMetricEntry(unitState.faction_id);
+        IncrementMetricCount(factionEntry.ActionCounts, commandKey, 1);
     }
 
-    public void _record_skill_attempt(BattleUnitState unit_state, StringName skill_id)
+    public void RecordSkillAttempt(BattleUnitState unitState, StringName skillId)
     {
-        string skillKey = (skill_id ?? Empty).ToString();
-        if (string.IsNullOrEmpty(skillKey))
+        string skillKey = (skillId ?? Empty).ToString();
+        if (string.IsNullOrEmpty(skillKey) || unitState == null)
         {
             return;
         }
-        GDictionary unitEntry = _ensure_unit_metric_entry(unit_state);
-        if (unitEntry.Count == 0)
+        BattleMetricEntry unitEntry = EnsureUnitMetricEntry(unitState);
+        if (string.IsNullOrEmpty(unitEntry.UnitId))
         {
             return;
         }
-        _increment_metric_count(
-            EnsureDict(unitEntry, "skill_attempt_counts"),
-            skillKey,
-            1
-        );
-        GDictionary factionEntry = _ensure_faction_metric_entry(unit_state.faction_id);
-        _increment_metric_count(
-            EnsureDict(factionEntry, "skill_attempt_counts"),
-            skillKey,
-            1
-        );
+        IncrementMetricCount(unitEntry.SkillAttemptCounts, skillKey, 1);
+        BattleMetricEntry factionEntry = EnsureFactionMetricEntry(unitState.faction_id);
+        IncrementMetricCount(factionEntry.SkillAttemptCounts, skillKey, 1);
     }
 
-    public void _record_skill_success(BattleUnitState unit_state, StringName skill_id)
+    public void RecordSkillSuccess(BattleUnitState unitState, StringName skillId)
     {
-        string skillKey = (skill_id ?? Empty).ToString();
-        if (string.IsNullOrEmpty(skillKey))
+        string skillKey = (skillId ?? Empty).ToString();
+        if (string.IsNullOrEmpty(skillKey) || unitState == null)
         {
             return;
         }
-        GDictionary unitEntry = _ensure_unit_metric_entry(unit_state);
-        if (unitEntry.Count == 0)
+        BattleMetricEntry unitEntry = EnsureUnitMetricEntry(unitState);
+        if (string.IsNullOrEmpty(unitEntry.UnitId))
         {
             return;
         }
-        _increment_metric_count(
-            EnsureDict(unitEntry, "skill_success_counts"),
-            skillKey,
-            1
-        );
-        unitEntry["successful_skill_count"] =
-            GetInt(unitEntry, "successful_skill_count") + 1;
-        GDictionary factionEntry = _ensure_faction_metric_entry(unit_state.faction_id);
-        _increment_metric_count(
-            EnsureDict(factionEntry, "skill_success_counts"),
-            skillKey,
-            1
-        );
-        factionEntry["successful_skill_count"] =
-            GetInt(factionEntry, "successful_skill_count") + 1;
+        IncrementMetricCount(unitEntry.SkillSuccessCounts, skillKey, 1);
+        unitEntry.SuccessfulSkillCount += 1;
+        BattleMetricEntry factionEntry = EnsureFactionMetricEntry(unitState.faction_id);
+        IncrementMetricCount(factionEntry.SkillSuccessCounts, skillKey, 1);
+        factionEntry.SuccessfulSkillCount += 1;
     }
 
-    public void _record_effect_metrics(
-        BattleUnitState source_unit,
-        BattleUnitState target_unit,
+    public void RecordEffectMetrics(
+        BattleUnitState sourceUnit,
+        BattleUnitState targetUnit,
         int damage,
         int healing,
-        int kill_count
+        int killCount
     )
     {
-        if (source_unit == null || target_unit == null)
+        if (sourceUnit == null || targetUnit == null)
         {
             return;
         }
-        GDictionary sourceEntry = _ensure_unit_metric_entry(source_unit);
-        GDictionary targetEntry = _ensure_unit_metric_entry(target_unit);
-        GDictionary sourceFactionEntry = _ensure_faction_metric_entry(source_unit.faction_id);
-        GDictionary targetFactionEntry = _ensure_faction_metric_entry(target_unit.faction_id);
-        if (damage > 0)
+        BattleMetricEntry sourceEntry = EnsureUnitMetricEntry(sourceUnit);
+        BattleMetricEntry targetEntry = EnsureUnitMetricEntry(targetUnit);
+        BattleMetricEntry sourceFactionEntry = EnsureFactionMetricEntry(sourceUnit.faction_id);
+        BattleMetricEntry targetFactionEntry = EnsureFactionMetricEntry(targetUnit.faction_id);
+        int positiveDamage = Math.Max(damage, 0);
+        int positiveHealing = Math.Max(healing, 0);
+        if (positiveDamage > 0)
         {
-            sourceEntry["total_damage_done"] =
-                GetInt(sourceEntry, "total_damage_done") + damage;
-            targetEntry["total_damage_taken"] =
-                GetInt(targetEntry, "total_damage_taken") + damage;
-            sourceFactionEntry["total_damage_done"] =
-                GetInt(sourceFactionEntry, "total_damage_done") + damage;
-            targetFactionEntry["total_damage_taken"] =
-                GetInt(targetFactionEntry, "total_damage_taken") + damage;
+            sourceEntry.TotalDamageDone += positiveDamage;
+            targetEntry.TotalDamageTaken += positiveDamage;
+            sourceFactionEntry.TotalDamageDone += positiveDamage;
+            targetFactionEntry.TotalDamageTaken += positiveDamage;
         }
-        if (healing > 0)
+        if (positiveHealing > 0)
         {
-            sourceEntry["total_healing_done"] =
-                GetInt(sourceEntry, "total_healing_done") + healing;
-            targetEntry["total_healing_received"] =
-                GetInt(targetEntry, "total_healing_received") + healing;
-            sourceFactionEntry["total_healing_done"] =
-                GetInt(sourceFactionEntry, "total_healing_done") + healing;
-            targetFactionEntry["total_healing_received"] =
-                GetInt(targetFactionEntry, "total_healing_received") + healing;
+            sourceEntry.TotalHealingDone += positiveHealing;
+            targetEntry.TotalHealingReceived += positiveHealing;
+            sourceFactionEntry.TotalHealingDone += positiveHealing;
+            targetFactionEntry.TotalHealingReceived += positiveHealing;
         }
-        if (kill_count > 0)
+        if (killCount > 0)
         {
-            sourceEntry["kill_count"] = GetInt(sourceEntry, "kill_count") + kill_count;
-            sourceFactionEntry["kill_count"] =
-                GetInt(sourceFactionEntry, "kill_count") + kill_count;
+            sourceEntry.KillCount += killCount;
+            sourceFactionEntry.KillCount += killCount;
         }
     }
 
-    public void _record_unit_defeated(BattleUnitState unit_state)
-    {
-        GDictionary unitEntry = _ensure_unit_metric_entry(unit_state);
-        if (unitEntry.Count == 0)
-        {
-            return;
-        }
-        unitEntry["death_count"] = GetInt(unitEntry, "death_count") + 1;
-        GDictionary factionEntry = _ensure_faction_metric_entry(unit_state.faction_id);
-        factionEntry["death_count"] = GetInt(factionEntry, "death_count") + 1;
-    }
-
-    public void _increment_metric_count(GDictionary metric_map, string key, int delta)
-    {
-        if (metric_map == null || string.IsNullOrEmpty(key))
-        {
-            return;
-        }
-        metric_map[key] = GetInt(metric_map, key) + delta;
-    }
-
-    private GDictionary BattleMetrics()
-    {
-        return _runtime?._battle_metrics ?? new GDictionary();
-    }
-
-    private static GDictionary GetDict(GDictionary source, object key)
-    {
-        string keyText = key?.ToString() ?? "";
-        return source != null && source.ContainsKey(keyText)
-            ? source[keyText].AsGodotDictionary()
-            : new GDictionary();
-    }
-
-    private static GDictionary EnsureDict(GDictionary source, object key)
-    {
-        if (source == null)
-        {
-            return new GDictionary();
-        }
-        string keyText = key?.ToString() ?? "";
-        if (source.ContainsKey(keyText))
-        {
-            return source[keyText].AsGodotDictionary();
-        }
-        var created = new GDictionary();
-        source[keyText] = created;
-        return created;
-    }
-
-    private static int GetInt(GDictionary source, object key, int fallback = 0)
-    {
-        string keyText = key?.ToString() ?? "";
-        if (source == null || !source.ContainsKey(keyText))
-        {
-            return fallback;
-        }
-        return source[keyText].AsInt32();
-    }
-
-    private static BattleRuntimeModule ResolveWeakRef(
-        WeakReference<BattleRuntimeModule> weakRef
+    public void RecordSkillEffectResult(
+        BattleUnitState sourceUnit,
+        int damage,
+        int healing,
+        int killCount
     )
+    {
+        if (sourceUnit == null)
+        {
+            return;
+        }
+        BattleMetricEntry sourceEntry = EnsureUnitMetricEntry(sourceUnit);
+        BattleMetricEntry factionEntry = EnsureFactionMetricEntry(sourceUnit.faction_id);
+        int positiveDamage = Math.Max(damage, 0);
+        int positiveHealing = Math.Max(healing, 0);
+        int positiveKills = Math.Max(killCount, 0);
+        sourceEntry.TotalDamageDone += positiveDamage;
+        sourceEntry.TotalHealingDone += positiveHealing;
+        sourceEntry.KillCount += positiveKills;
+        factionEntry.TotalDamageDone += positiveDamage;
+        factionEntry.TotalHealingDone += positiveHealing;
+        factionEntry.KillCount += positiveKills;
+    }
+
+    public void RecordUnitDefeated(BattleUnitState unitState)
+    {
+        BattleMetricEntry unitEntry = EnsureUnitMetricEntry(unitState);
+        if (unitState == null || string.IsNullOrEmpty(unitEntry.UnitId))
+        {
+            return;
+        }
+        unitEntry.DeathCount += 1;
+        BattleMetricEntry factionEntry = EnsureFactionMetricEntry(unitState.faction_id);
+        factionEntry.DeathCount += 1;
+    }
+
+    public static void IncrementMetricCount(Dictionary<string, int> metricMap, string key, int delta)
+    {
+        if (metricMap == null || string.IsNullOrEmpty(key))
+        {
+            return;
+        }
+        metricMap[key] = metricMap.GetValueOrDefault(key) + delta;
+    }
+
+    private BattleMetricsState Metrics() => Runtime?._battle_metrics;
+
+    private static BattleRuntimeModule ResolveWeakRef(WeakReference<BattleRuntimeModule> weakRef)
     {
         if (weakRef == null || !weakRef.TryGetTarget(out BattleRuntimeModule target))
         {

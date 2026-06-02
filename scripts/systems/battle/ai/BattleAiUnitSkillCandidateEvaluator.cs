@@ -17,53 +17,10 @@ public sealed class BattleAiUnitSkillCandidateEvaluator
         EnemyFrontline,
     }
 
-    private sealed class CandidateTraceSummary
-    {
-        public GDictionary Payload = new();
-        public int TotalScore;
-
-        public GDictionary ToDictionary() => Payload.Duplicate(true);
-
-        public static CandidateTraceSummary Create(
-            string label,
-            BattleCommand command,
-            BattleAiScoreInput scoreInput,
-            GDictionary extra
-        )
-        {
-            var payload = new GDictionary
-            {
-                ["label"] = label,
-                ["command"] = BuildCommandSummary(command),
-                ["total_score"] = scoreInput?.total_score ?? DictInt(extra, "total_score"),
-                ["score_input"] = scoreInput != null ? scoreInput.to_dict() : new GDictionary(),
-                ["skill_id"] = DictString(extra, "skill_id"),
-                ["skill_variant_id"] = DictString(extra, "skill_variant_id"),
-                ["skill_variant_target_mode"] = DictString(extra, "skill_variant_target_mode"),
-                ["target_unit_id"] = DictString(extra, "target_unit_id"),
-            };
-            return new CandidateTraceSummary
-            {
-                Payload = payload,
-                TotalScore = DictInt(payload, "total_score", -999999),
-            };
-        }
-
-        public static CandidateTraceSummary FromDictionary(GDictionary source)
-        {
-            source ??= new GDictionary();
-            return new CandidateTraceSummary
-            {
-                Payload = source.Duplicate(true),
-                TotalScore = DictInt(source, "total_score", -999999),
-            };
-        }
-    }
-
     private readonly BattleAiTypedActionHelper _helper = new();
     private readonly BattleAiDecisionEngine _scoreOrdering = new();
 
-    public BattleAiDecision evaluate(UseUnitSkillAction action, BattleAiContext context)
+    public BattleAiDecision Evaluate(UseUnitSkillAction action, BattleAiContext context)
     {
         if (action == null || context == null)
             return null;
@@ -80,7 +37,7 @@ public sealed class BattleAiUnitSkillCandidateEvaluator
 
         string actorDisplayName = actor.display_name;
         bool traceEnabled = context.trace_enabled;
-        GDictionary actionTrace = BeginActionTrace(
+        AiActionTrace actionTrace = BeginActionTrace(
             action,
             context,
             traceEnabled,
@@ -244,7 +201,7 @@ public sealed class BattleAiUnitSkillCandidateEvaluator
                         scoreInput,
                         candidateExtra
                     );
-                    if (!_scoreOrdering.is_better_score_input(scoreInput, bestScoreInput))
+                    if (!_scoreOrdering.IsBetterScoreInput(scoreInput, bestScoreInput))
                         continue;
 
                     bestScoreInput = scoreInput;
@@ -411,7 +368,7 @@ public sealed class BattleAiUnitSkillCandidateEvaluator
             return preview;
         }
         if (
-            !BattleTargetTeamRules.is_unit_valid_for_filter(
+            !BattleTargetTeamRules.IsUnitValidForFilter(
                 actor,
                 target,
                 combatProfile.target_team_filter,
@@ -423,7 +380,7 @@ public sealed class BattleAiUnitSkillCandidateEvaluator
         {
             return preview;
         }
-        int effectiveRange = BattleRangeService.get_effective_skill_range(actor, skillDef);
+        int effectiveRange = BattleRangeService.GetEffectiveSkillRange(actor, skillDef);
         if (grid.get_distance_between_units(actor, target) > effectiveRange)
         {
             return preview;
@@ -444,7 +401,7 @@ public sealed class BattleAiUnitSkillCandidateEvaluator
         return preview;
     }
 
-    private static GDictionary BeginActionTrace(
+    private static AiActionTrace BeginActionTrace(
         UseUnitSkillAction action,
         BattleAiContext context,
         bool traceEnabled,
@@ -461,41 +418,26 @@ public sealed class BattleAiUnitSkillCandidateEvaluator
         );
         StringName actionId = action?.action_id ?? EmptyStringName;
         StringName traceId = context != null ? context.next_action_trace_id(actionId) : actionId;
-        return new GDictionary
-        {
-            ["trace_id"] = traceId,
-            ["action_id"] = actionId.ToString(),
-            ["score_bucket_id"] = scoreBucketId.ToString(),
-            ["metadata"] = traceMetadata,
-            ["evaluation_count"] = 0,
-            ["blocked_count"] = 0,
-            ["preview_reject_count"] = 0,
-            ["candidate_count"] = 0,
-            ["block_reasons"] = new GDictionary(),
-            ["top_candidates"] = traceEnabled ? new GArray() : new GArray(),
-            ["chosen"] = false,
-        };
+        return new AiActionTrace(
+            traceId,
+            actionId.ToString(),
+            scoreBucketId.ToString(),
+            TraceDictionaryProjection.FromDictionary(traceMetadata)
+        );
     }
 
-    private static void TraceCountIncrement(GDictionary actionTrace, string key, int amount = 1)
+    private static void TraceCountIncrement(AiActionTrace actionTrace, string key, int amount = 1)
     {
-        if (actionTrace == null || actionTrace.Count == 0 || string.IsNullOrEmpty(key))
-            return;
-        actionTrace[key] = DictInt(actionTrace, key) + amount;
+        actionTrace?.Increment(key, amount);
     }
 
-    private static void TraceAddBlockReason(GDictionary actionTrace, string reasonKey)
+    private static void TraceAddBlockReason(AiActionTrace actionTrace, string reasonKey)
     {
-        if (actionTrace == null || actionTrace.Count == 0 || string.IsNullOrEmpty(reasonKey))
-            return;
-        TraceCountIncrement(actionTrace, "blocked_count", 1);
-        GDictionary blockReasons = DictDictionary(actionTrace, "block_reasons");
-        blockReasons[reasonKey] = DictInt(blockReasons, reasonKey) + 1;
-        actionTrace["block_reasons"] = blockReasons;
+        actionTrace?.AddBlockReason(reasonKey);
     }
 
     private static void OfferCandidate(
-        GDictionary actionTrace,
+        AiActionTrace actionTrace,
         bool traceEnabled,
         string optionLabel,
         BattleUnitState target,
@@ -504,87 +446,39 @@ public sealed class BattleAiUnitSkillCandidateEvaluator
         GDictionary candidateExtra
     )
     {
-        if (actionTrace == null || actionTrace.Count == 0)
+        if (actionTrace == null)
             return;
-        TraceCountIncrement(actionTrace, "candidate_count", 1);
         if (!traceEnabled)
+        {
+            actionTrace.Increment("candidate_count", 1);
             return;
+        }
 
-        CandidateTraceSummary candidateSummary = CandidateTraceSummary.Create(
+        AiCandidateSummary candidateSummary = AiCandidateSummary.Create(
             $"{optionLabel}->{target?.display_name ?? ""}",
             command,
             scoreInput,
-            candidateExtra
+            TraceDictionaryProjection.FromDictionary(candidateExtra)
         );
-        GArray topCandidates = DictArray(actionTrace, "top_candidates");
-        topCandidates.Add(candidateSummary.ToDictionary());
-        List<CandidateTraceSummary> sorted = ReadCandidateSummaries(topCandidates);
-        sorted.Sort((left, right) => right.TotalScore.CompareTo(left.TotalScore));
-        var trimmed = new GArray();
-        for (int i = 0; i < Math.Min(sorted.Count, 5); i++)
-            trimmed.Add(sorted[i].ToDictionary());
-        actionTrace["top_candidates"] = trimmed;
-    }
-
-    private static List<CandidateTraceSummary> ReadCandidateSummaries(GArray topCandidates)
-    {
-        var result = new List<CandidateTraceSummary>();
-        foreach (var candidateValue in topCandidates ?? new GArray())
-        {
-            try
-            {
-                GDictionary candidate = candidateValue.AsGodotDictionary();
-                result.Add(CandidateTraceSummary.FromDictionary(candidate));
-            }
-            catch
-            {
-            }
-        }
-        return result;
-    }
-
-    private static GDictionary BuildCommandSummary(BattleCommand command)
-    {
-        if (command == null)
-            return new GDictionary();
-        return new GDictionary
-        {
-            ["command_type"] = command.command_type.ToString(),
-            ["unit_id"] = command.unit_id.ToString(),
-            ["skill_id"] = command.skill_id.ToString(),
-            ["skill_variant_id"] = command.skill_variant_id.ToString(),
-            ["target_unit_id"] = command.target_unit_id.ToString(),
-            ["target_unit_ids"] = command.target_unit_ids.Duplicate(),
-            ["target_coord"] = command.target_coord,
-            ["target_coords"] = command.target_coords.Duplicate(),
-        };
+        actionTrace.OfferCandidate(candidateSummary, 5);
     }
 
     private static void FinalizeActionTrace(
         BattleAiContext context,
-        GDictionary actionTrace,
+        AiActionTrace actionTrace,
         BattleAiDecision bestDecision,
         bool traceEnabled
     )
     {
-        if (actionTrace == null || actionTrace.Count == 0)
+        if (actionTrace == null || actionTrace.IsEmpty())
             return;
-        StringName traceId = DictStringName(actionTrace, "trace_id");
         if (bestDecision != null)
-            bestDecision.action_trace_id = traceId;
+            bestDecision.action_trace_id = actionTrace.TraceId;
         if (!traceEnabled)
             return;
 
-        if (bestDecision != null)
-        {
-            actionTrace["best_reason_text"] = bestDecision.reason_text;
-            actionTrace["best_command"] = BuildCommandSummary(bestDecision.command);
-            BattleAiScoreInput scoreInput =
-                bestDecision.score_input ?? bestDecision.skill_score_input;
-            actionTrace["best_score_input"] =
-                scoreInput != null ? scoreInput.to_dict() : new GDictionary();
-        }
-        context?.record_action_trace(actionTrace);
+        actionTrace.ApplyBestDecision(bestDecision);
+        context?.RecordActionTrace(actionTrace);
     }
 
     private static GArray DictArray(GDictionary dictionary, string key)

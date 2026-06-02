@@ -875,7 +875,7 @@ public partial class HeadlessGameTestSession : RefCounted
         }
 
         var matchingInstances = new List<GDictionary>();
-        foreach (EquipmentInstanceState instance in backpackView.get_non_empty_instances())
+        foreach (EquipmentInstanceState instance in backpackView.GetNonEmptyEquipmentInstancesTyped())
         {
             if (instance == null)
             {
@@ -993,7 +993,7 @@ public partial class HeadlessGameTestSession : RefCounted
         var equipmentEntries = new GDictArray();
         if (backpackView != null)
         {
-            foreach (WarehouseStackState stack in backpackView.get_non_empty_stacks())
+            foreach (WarehouseStackState stack in backpackView.GetNonEmptyStacksTyped())
             {
                 if (stack == null)
                 {
@@ -1008,7 +1008,7 @@ public partial class HeadlessGameTestSession : RefCounted
                 );
             }
 
-            foreach (EquipmentInstanceState instance in backpackView.get_non_empty_instances())
+            foreach (EquipmentInstanceState instance in backpackView.GetNonEmptyEquipmentInstancesTyped())
             {
                 if (instance == null)
                 {
@@ -1043,7 +1043,7 @@ public partial class HeadlessGameTestSession : RefCounted
             return entries;
         }
 
-        foreach (StringName entrySlotId in equipmentView.get_entry_slot_ids())
+        foreach (StringName entrySlotId in equipmentView.GetEntrySlotIdsTyped())
         {
             EquipmentEntryState entry = equipmentView.get_entry(entrySlotId);
             if (entry == null)
@@ -1077,10 +1077,14 @@ public partial class HeadlessGameTestSession : RefCounted
     }
 
     private static Godot.Collections.Array<string> StringNameArrayToStringArray(
-        Godot.Collections.Array<StringName> values
+        IEnumerable<StringName> values
     )
     {
         var result = new Godot.Collections.Array<string>();
+        if (values == null)
+        {
+            return result;
+        }
         foreach (var value in values)
         {
             result.Add(value.ToString());

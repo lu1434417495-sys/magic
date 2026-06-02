@@ -94,7 +94,7 @@ public partial class run_meteor_swarm_preview_surface_contract_regression : Scen
         aiContext.grid_service = setup.Runtime.get_grid_service();
         aiContext.skill_defs = setup.SkillDefs;
         var scoreService = new BattleAiScoreService();
-        var scoreInput = scoreService.build_skill_score_input(
+        var scoreInput = scoreService.BuildSkillScoreInput(
             aiContext, skillDef, command, preview, new GArray(), new GDictionary
             {
                 ["action_kind"] = "ground_skill",

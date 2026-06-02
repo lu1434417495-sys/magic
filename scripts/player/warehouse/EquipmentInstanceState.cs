@@ -96,12 +96,9 @@ public partial class EquipmentInstanceState : RefCounted
     public static EquipmentInstanceState from_transient_loot_dict(Godot.Collections.Dictionary data) =>
         _from_dict(data, true, TRANSIENT_LOOT_PAYLOAD_LABEL);
 
-    public static string get_payload_validation_error(Godot.Collections.Dictionary data) =>
-        get_payload_validation_error(data, false);
-
     public static string get_payload_validation_error(
         Godot.Collections.Dictionary data,
-        bool allowEmptyInstanceId
+        bool allowEmptyInstanceId = false
     ) =>
         _get_payload_validation_error(data, allowEmptyInstanceId, SAVE_PAYLOAD_LABEL);
 

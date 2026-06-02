@@ -3,8 +3,7 @@ using Godot;
 using GDictionary = Godot.Collections.Dictionary;
 using System;
 
-[GlobalClass]
-public partial class BattleAiMoveToRangeCandidateEvaluator : RefCounted
+internal sealed class BattleAiMoveToRangeCandidateEvaluator
 {
     private const int InfiniteTieBreaker = int.MaxValue;
     private const int RequiredFactCount = 21;
@@ -52,7 +51,7 @@ public partial class BattleAiMoveToRangeCandidateEvaluator : RefCounted
         }
     }
 
-    public BattleAiDecision evaluate_move_to_range_request(
+    public BattleAiDecision EvaluateMoveToRangeRequest(
         BattleAiCandidateRequest request,
         BattleAiQueryService query,
         System.Func<StringName, Vector2I, BattleCommand> command_factory,
@@ -68,9 +67,9 @@ public partial class BattleAiMoveToRangeCandidateEvaluator : RefCounted
     {
         if (request == null || query == null)
         {
-            return Fail("evaluate_move_to_range_request requires request and query.");
+            return Fail("EvaluateMoveToRangeRequest requires request and query.");
         }
-        BattleMovementQueryService movementService = query.get_movement_query_service();
+        BattleMovementQueryService movementService = query.GetMovementQueryService();
         if (movementService == null)
         {
             return Fail("MoveToRange candidate evaluation requires movement query service.");
@@ -90,8 +89,8 @@ public partial class BattleAiMoveToRangeCandidateEvaluator : RefCounted
             actionLabel = actionId.ToString();
         }
 
-        BattleAiUnitSnapshot actorSnapshot = query.get_unit_snapshot(actorId);
-        BattleAiUnitSnapshot targetSnapshot = query.get_unit_snapshot(focusTargetId);
+        BattleAiUnitSnapshot actorSnapshot = query.GetUnitSnapshot(actorId);
+        BattleAiUnitSnapshot targetSnapshot = query.GetUnitSnapshot(focusTargetId);
         if (actorSnapshot == null || targetSnapshot == null)
         {
             return Fail("MoveToRange candidate request references a missing actor or target.");
@@ -113,7 +112,7 @@ public partial class BattleAiMoveToRangeCandidateEvaluator : RefCounted
             return Fail(requestError);
         }
 
-        int currentDistance = query.distance_from_anchor_to_target(
+        int currentDistance = query.DistanceFromAnchorToTarget(
             actorCoord,
             actorFootprint,
             targetUnitId
@@ -134,7 +133,7 @@ public partial class BattleAiMoveToRangeCandidateEvaluator : RefCounted
             actorCoord
         );
 
-        if (query.is_unit_movement_blocked(actorId))
+        if (query.IsUnitMovementBlocked(actorId))
         {
             return null;
         }
@@ -167,9 +166,7 @@ public partial class BattleAiMoveToRangeCandidateEvaluator : RefCounted
         }
 
         var pathCandidates = pathCandidateResult.Candidates;
-        int pathRejectCount = pathCandidateResult.PathRejectCount;
         int evaluatedCount = 0;
-        int previewRejectCount = 0;
         int bestPathCost = InfiniteTieBreaker;
         int bestPathLength = InfiniteTieBreaker;
         int[] bestFacts = null;
@@ -211,7 +208,7 @@ public partial class BattleAiMoveToRangeCandidateEvaluator : RefCounted
                 preview.move_cost,
                 runtimeMetadata
             );
-            BattleAiScoreInput scoreInput = query.build_action_score_input(
+            BattleAiScoreInput scoreInput = query.BuildActionScoreInput(
                 BattleTypedNames.ToStringName(BattleAiActionKind.Move),
                 actionLabel,
                 scoreBucketId,
@@ -235,7 +232,7 @@ public partial class BattleAiMoveToRangeCandidateEvaluator : RefCounted
                 currentAoeSetup
             );
 
-            int[] candidateFacts = scoreInput.to_move_to_range_ordering_facts();
+            int[] candidateFacts = scoreInput.ToMoveToRangeOrderingFacts();
             if (candidateFacts == null || candidateFacts.Length < RequiredFactCount)
             {
                 return Fail("MoveToRange score input returned invalid ordering facts.");
@@ -274,14 +271,6 @@ public partial class BattleAiMoveToRangeCandidateEvaluator : RefCounted
         {
             return null;
         }
-        bestDecision.trace_counters =
-            new GDictionary
-            {
-                ["evaluation_count"] = evaluatedCount,
-                ["preview_reject_count"] = previewRejectCount,
-                ["path_reject_count"] = pathRejectCount,
-                ["chosen_reason"] = new StringName("best_score"),
-            };
         return bestDecision;
     }
 
@@ -401,7 +390,7 @@ public partial class BattleAiMoveToRangeCandidateEvaluator : RefCounted
             return best;
         }
 
-        Vector2I mapSize = query.get_map_size();
+        Vector2I mapSize = query.GetMapSize();
         if (mapSize.X <= 0 || mapSize.Y <= 0)
         {
             return best;
@@ -927,7 +916,23 @@ public partial class BattleAiMoveToRangeCandidateEvaluator : RefCounted
             ["desired_max_distance"] = desiredMaxDistance,
             ["position_objective_kind"] = positionObjectiveKind,
             ["move_cost"] = moveCost,
-            ["runtime_action_metadata"] = runtimeMetadata?.ToDictionary() ?? new GDictionary(),
+            ["runtime_action_metadata"] = BuildRuntimeMetadataDictionary(runtimeMetadata),
+        };
+    }
+
+    private static GDictionary BuildRuntimeMetadataDictionary(
+        MoveToRangeRuntimeMetadata runtimeMetadata
+    )
+    {
+        if (runtimeMetadata == null)
+        {
+            return new GDictionary();
+        }
+        return new GDictionary
+        {
+            ["configured_desired_min_distance"] = runtimeMetadata.ConfiguredDesiredMinDistance,
+            ["configured_desired_max_distance"] = runtimeMetadata.ConfiguredDesiredMaxDistance,
+            ["effective_attack_range"] = runtimeMetadata.EffectiveAttackRange,
         };
     }
 

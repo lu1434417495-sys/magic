@@ -1,6 +1,5 @@
 using System;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
 public static class BattleContributionEventBuilder
 {
@@ -20,26 +19,26 @@ public static class BattleContributionEventBuilder
         StringName targetFactionId = targetUnit?.faction_id ?? "";
         return new BattleContributionEvent
         {
-            source_unit_id = sourceUnitId,
-            source_member_id = sourceUnit?.source_member_id ?? "",
-            source_faction_id = sourceFactionId,
-            target_unit_id = targetUnitId,
-            target_faction_id = targetFactionId,
-            skill_id = skillId,
-            relation = ResolveRelation(
+            SourceUnitId = sourceUnitId,
+            SourceMemberId = sourceUnit?.source_member_id ?? "",
+            SourceFactionId = sourceFactionId,
+            TargetUnitId = targetUnitId,
+            TargetFactionId = targetFactionId,
+            SkillId = skillId,
+            Relation = ResolveRelation(
                 sourceUnitId,
                 sourceFactionId,
                 targetUnitId,
                 targetFactionId
             ),
-            origin_kind = ParseOriginKind(originKind),
-            hp_damage_applied = Math.Max(damage, 0),
-            hp_healing_applied = Math.Max(healing, 0),
-            caused_defeat = causedDefeat,
+            OriginKind = ParseOriginKind(originKind),
+            HpDamageApplied = Math.Max(damage, 0),
+            HpHealingApplied = Math.Max(healing, 0),
+            CausedDefeat = causedDefeat,
         };
     }
 
-    public static BattleContributionEvent FromDictionary(GDictionary payload)
+    public static BattleContributionEvent FromDictionary(Godot.Collections.Dictionary payload)
     {
         StringName sourceUnitId = ReadStringName(payload, "source_unit_id");
         StringName targetUnitId = ReadStringName(payload, "target_unit_id");
@@ -48,23 +47,23 @@ public static class BattleContributionEventBuilder
         StringName relationName = ReadStringName(payload, "relation");
         return new BattleContributionEvent
         {
-            source_unit_id = sourceUnitId,
-            source_member_id = ReadStringName(payload, "source_member_id"),
-            source_faction_id = sourceFactionId,
-            target_unit_id = targetUnitId,
-            target_faction_id = targetFactionId,
-            skill_id = ReadStringName(payload, "skill_id"),
-            relation = ParseRelation(
+            SourceUnitId = sourceUnitId,
+            SourceMemberId = ReadStringName(payload, "source_member_id"),
+            SourceFactionId = sourceFactionId,
+            TargetUnitId = targetUnitId,
+            TargetFactionId = targetFactionId,
+            SkillId = ReadStringName(payload, "skill_id"),
+            Relation = ParseRelation(
                 relationName,
                 sourceUnitId,
                 sourceFactionId,
                 targetUnitId,
                 targetFactionId
             ),
-            origin_kind = ParseOriginKind(ReadStringName(payload, "origin_kind")),
-            hp_damage_applied = Math.Max(ReadInt(payload, "hp_damage_applied"), 0),
-            hp_healing_applied = Math.Max(ReadInt(payload, "hp_healing_applied"), 0),
-            caused_defeat = ReadBool(payload, "caused_defeat"),
+            OriginKind = ParseOriginKind(ReadStringName(payload, "origin_kind")),
+            HpDamageApplied = Math.Max(ReadInt(payload, "hp_damage_applied"), 0),
+            HpHealingApplied = Math.Max(ReadInt(payload, "hp_healing_applied"), 0),
+            CausedDefeat = ReadBool(payload, "caused_defeat"),
         };
     }
 
@@ -129,39 +128,34 @@ public static class BattleContributionEventBuilder
     }
 
     private static StringName ReadStringName(
-        GDictionary data,
+        Godot.Collections.Dictionary data,
         string key,
         StringName fallback = default
     )
     {
         if (!HasKey(data, key))
             return fallback ?? new StringName("");
-        if (data.ContainsKey(key))
-            return ProgressionDataUtils.to_string_name(data[key]);
-        return ProgressionDataUtils.to_string_name(data[new StringName(key)]);
+        return ProgressionDataUtils.to_string_name(data[key]);
     }
 
-    private static int ReadInt(GDictionary data, string key, int fallback = 0)
+    private static int ReadInt(Godot.Collections.Dictionary data, string key, int fallback = 0)
     {
         if (!HasKey(data, key))
             return fallback;
-        return data.ContainsKey(key) ? data[key].AsInt32() : data[new StringName(key)].AsInt32();
+        return data[key].AsInt32();
     }
 
-    private static bool ReadBool(GDictionary data, string key, bool fallback = false)
+    private static bool ReadBool(Godot.Collections.Dictionary data, string key, bool fallback = false)
     {
         if (!HasKey(data, key))
             return fallback;
-        return data.ContainsKey(key) ? data[key].AsBool() : data[new StringName(key)].AsBool();
+        return data[key].AsBool();
     }
 
-    private static bool HasKey(GDictionary data, string key)
+    private static bool HasKey(Godot.Collections.Dictionary data, string key)
     {
         if (data == null)
             return false;
-        if (data.ContainsKey(key))
-            return true;
-        var stringNameKey = new StringName(key);
-        return data.ContainsKey(stringNameKey);
+        return data.ContainsKey(key);
     }
 }

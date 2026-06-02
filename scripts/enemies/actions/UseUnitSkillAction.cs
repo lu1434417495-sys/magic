@@ -38,7 +38,7 @@ public partial class UseUnitSkillAction : EnemyAiAction
         AiTraceRecorder.enter("decide:unit_skill");
         try
         {
-            return _unitSkillCandidateEvaluator.evaluate(this, context as BattleAiContext);
+            return _unitSkillCandidateEvaluator.Evaluate(this, context as BattleAiContext);
         }
         finally
         {

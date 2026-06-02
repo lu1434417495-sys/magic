@@ -117,7 +117,7 @@ public partial class BattleTerrainEffectSystem : RefCounted
                         ? GetUnit(state, effectState.source_unit_id)
                         : null;
                 if (
-                    !BattleTargetTeamRules.is_unit_valid_for_filter(
+                    !BattleTargetTeamRules.IsUnitValidForFilter(
                         sourceUnit,
                         unitState,
                         effectState.target_team_filter
@@ -332,7 +332,7 @@ public partial class BattleTerrainEffectSystem : RefCounted
                 ? GetUnit(state, effectState.source_unit_id)
                 : null;
         if (
-            !BattleTargetTeamRules.is_unit_valid_for_filter(
+            !BattleTargetTeamRules.IsUnitValidForFilter(
                 sourceUnit,
                 targetUnit,
                 effectState.target_team_filter
@@ -451,7 +451,7 @@ public partial class BattleTerrainEffectSystem : RefCounted
 
         if (sourceUnit != null)
         {
-            runtime.record_battle_contribution_result(
+            runtime.RecordBattleContributionResult(
                 sourceUnit,
                 targetUnit,
                 damage,
@@ -558,7 +558,7 @@ public partial class BattleTerrainEffectSystem : RefCounted
             sourceUnit != null ? sourceUnit.unit_id : "";
         effectState.source_skill_id =
             skillDef?.skill_id ?? new StringName("");
-        effectState.target_team_filter = BattleTargetTeamRules.resolve_effect_target_filter(
+        effectState.target_team_filter = BattleTargetTeamRules.ResolveEffectTargetFilter(
             skillDef,
             effectDef
         );

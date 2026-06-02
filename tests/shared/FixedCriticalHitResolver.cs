@@ -26,17 +26,23 @@ public partial class FixedCriticalHitResolver : FixedHitResolver
     public override GDictionary resolve_spell_control_metadata(
         BattleUnitState source_unit,
         AttackContext attack_context
+    ) => resolve_spell_control_metadata_typed(source_unit, attack_context).ToDictionary();
+
+    public override BattleSpellControlMetadata resolve_spell_control_metadata_typed(
+        BattleUnitState source_unit,
+        AttackContext attack_context
     )
     {
-        return new GDictionary
+        return new BattleSpellControlMetadata
         {
-            ["attack_resolution"] = AttackResolutionCriticalHit,
-            ["spell_control_resolution"] = new StringName("critical_success"),
-            ["attack_success"] = true,
-            ["critical_hit"] = true,
-            ["critical_fail"] = false,
-            ["ordinary_miss"] = false,
-            ["hit_roll"] = NaturalHitRoll,
+            AttackResolution = AttackResolutionCriticalHit,
+            SpellControlResolution = "critical_success",
+            AttackSuccess = true,
+            CriticalHit = true,
+            CriticalFail = false,
+            OrdinaryMiss = false,
+            HitRoll = NaturalHitRoll,
+            EffectiveHitRoll = NaturalHitRoll,
         };
     }
 

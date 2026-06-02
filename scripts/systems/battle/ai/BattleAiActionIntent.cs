@@ -1,8 +1,7 @@
 using System.Collections.Generic;
 using Godot;
 
-[GlobalClass]
-public partial class BattleAiActionIntent : RefCounted
+public static class BattleAiActionIntent
 {
     private static readonly StringName IntentOffense = "offense";
     private static readonly StringName IntentControl = "control";
@@ -11,7 +10,7 @@ public partial class BattleAiActionIntent : RefCounted
     private static readonly StringName IntentEscape = "escape";
     private static readonly StringName IntentWait = "wait";
 
-    private static readonly HashSet<string> ValidIntents = new()
+    private static readonly HashSet<string> ValidIntents = new(System.StringComparer.Ordinal)
     {
         "offense",
         "control",
@@ -21,7 +20,8 @@ public partial class BattleAiActionIntent : RefCounted
         "wait",
     };
 
-    private static readonly Dictionary<string, StringName> SlotRoleDefaultIntent = new()
+    private static readonly Dictionary<string, StringName> SlotRoleDefaultIntent =
+        new(System.StringComparer.Ordinal)
     {
         ["offense"] = IntentOffense,
         ["control"] = IntentControl,
@@ -29,30 +29,30 @@ public partial class BattleAiActionIntent : RefCounted
         ["positioning"] = IntentPositioning,
     };
 
-    public static StringName INTENT_OFFENSE() => IntentOffense;
+    public static StringName Offense => IntentOffense;
 
-    public static StringName INTENT_CONTROL() => IntentControl;
+    public static StringName Control => IntentControl;
 
-    public static StringName INTENT_SURVIVAL() => IntentSurvival;
+    public static StringName Survival => IntentSurvival;
 
-    public static StringName INTENT_POSITIONING() => IntentPositioning;
+    public static StringName Positioning => IntentPositioning;
 
-    public static StringName INTENT_ESCAPE() => IntentEscape;
+    public static StringName Escape => IntentEscape;
 
-    public static StringName INTENT_WAIT() => IntentWait;
+    public static StringName Wait => IntentWait;
 
-    public static bool is_valid(StringName intent)
+    public static bool IsValid(StringName intent)
     {
         return intent != null && ValidIntents.Contains(intent.ToString());
     }
 
-    public static StringName default_from_slot_role(StringName slot_role)
+    public static StringName DefaultFromSlotRole(StringName slotRole)
     {
-        if (slot_role == null)
+        if (slotRole == null)
         {
             return "";
         }
-        return SlotRoleDefaultIntent.TryGetValue(slot_role.ToString(), out StringName intent)
+        return SlotRoleDefaultIntent.TryGetValue(slotRole.ToString(), out StringName intent)
             ? intent
             : "";
     }

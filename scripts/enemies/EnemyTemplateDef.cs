@@ -133,7 +133,7 @@ public partial class EnemyTemplateDef : Resource
             weapon_attack_range = Mathf.Max(natural_weapon_attack_range, 1),
             weapon_one_handed_dice = _build_natural_weapon_dice(),
             weapon_physical_damage_tag = get_natural_weapon_damage_tag_resolved(),
-        }.to_dict();
+        }.ToDictionary();
     }
 
     public Godot.Collections.Dictionary get_unarmed_weapon_projection()
@@ -151,7 +151,7 @@ public partial class EnemyTemplateDef : Resource
                 flat_bonus = 0,
             },
             weapon_physical_damage_tag = "physical_blunt",
-        }.to_dict();
+        }.ToDictionary();
     }
 
     public StringName get_natural_weapon_damage_tag_resolved()
@@ -455,8 +455,8 @@ public partial class EnemyTemplateDef : Resource
         var profile = itemDef.weapon_profile as WeaponProfileDef;
         if (profile == null)
             return new Godot.Collections.Dictionary();
-        var ohd = WeaponDice.from_resource(profile.one_handed_dice);
-        var thd = WeaponDice.from_resource(profile.two_handed_dice);
+        var ohd = WeaponDice.FromResource(profile.one_handed_dice);
+        var thd = WeaponDice.FromResource(profile.two_handed_dice);
         var props = _weapon_profile_properties(profile);
         bool isV = props.Contains("versatile");
         bool ut = _resolve_weapon_uses_two_hands(itemDef, ohd, thd, isV);
@@ -472,7 +472,7 @@ public partial class EnemyTemplateDef : Resource
             weapon_is_versatile = isV,
             weapon_uses_two_hands = ut,
             weapon_physical_damage_tag = itemDef.get_weapon_physical_damage_tag(),
-        }.to_dict();
+        }.ToDictionary();
     }
 
     private static bool _resolve_weapon_uses_two_hands(
@@ -486,18 +486,18 @@ public partial class EnemyTemplateDef : Resource
             return false;
         if (itemDef.get_final_occupied_slot_ids("main_hand").Contains("off_hand"))
             return true;
-        if (ohd.is_empty() && !thd.is_empty())
+        if (ohd.IsEmpty() && !thd.IsEmpty())
             return true;
-        return isV && !thd.is_empty();
+        return isV && !thd.IsEmpty();
     }
 
     private static StringName _resolve_weapon_current_grip(WeaponDice ohd, WeaponDice thd, bool ut)
     {
         if (ut)
             return BattleUnitState.WEAPON_GRIP_TWO_HANDED();
-        if (!ohd.is_empty())
+        if (!ohd.IsEmpty())
             return BattleUnitState.WEAPON_GRIP_ONE_HANDED();
-        if (!thd.is_empty())
+        if (!thd.IsEmpty())
             return BattleUnitState.WEAPON_GRIP_TWO_HANDED();
         return BattleUnitState.WEAPON_GRIP_NONE();
     }

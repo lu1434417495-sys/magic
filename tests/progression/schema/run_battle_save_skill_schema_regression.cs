@@ -42,7 +42,7 @@ public partial class run_battle_save_skill_schema_regression : SceneTree
             damage_tag = "fire",
             save_dc = 12,
             save_ability = "constitution",
-            save_tag = BattleSaveResolver.SAVE_TAG_DRAGON_BREATH(),
+            save_tag = BattleSaveContentRules.SAVE_TAG_DRAGON_BREATH,
             save_partial_on_success = true,
         };
         GStringArray damageErrors = new();
@@ -64,7 +64,7 @@ public partial class run_battle_save_skill_schema_regression : SceneTree
             save_failure_status_id = "poisoned",
             save_dc = 11,
             save_ability = "constitution",
-            save_tag = BattleSaveResolver.SAVE_TAG_POISON(),
+            save_tag = BattleSaveContentRules.SAVE_TAG_POISON,
         };
         GStringArray statusErrors = new();
         registry._append_effect_validation_errors(
@@ -87,10 +87,10 @@ public partial class run_battle_save_skill_schema_regression : SceneTree
             effect_type = "damage",
             power = 8,
             damage_tag = "fire",
-            save_dc_mode = BattleSaveResolver.SAVE_DC_MODE_CASTER_SPELL(),
+            save_dc_mode = BattleSaveContentRules.SAVE_DC_MODE_CASTER_SPELL,
             save_dc_source_ability = "intelligence",
             save_ability = "agility",
-            save_tag = BattleSaveResolver.SAVE_TAG_FIREBALL(),
+            save_tag = BattleSaveContentRules.SAVE_TAG_FIREBALL,
             save_partial_on_success = true,
         };
         GStringArray errors = new();
@@ -110,10 +110,10 @@ public partial class run_battle_save_skill_schema_regression : SceneTree
             effect_type = "damage",
             power = 8,
             damage_tag = "fire",
-            save_dc_mode = BattleSaveResolver.SAVE_DC_MODE_CASTER_SPELL(),
+            save_dc_mode = BattleSaveContentRules.SAVE_DC_MODE_CASTER_SPELL,
             save_dc_source_ability = "intelligence",
             save_ability = "agility",
-            save_tag = BattleSaveResolver.SAVE_TAG_MAGIC(),
+            save_tag = BattleSaveContentRules.SAVE_TAG_MAGIC,
             save_partial_on_success = true,
         };
         GStringArray genericErrors = new();
@@ -169,7 +169,7 @@ public partial class run_battle_save_skill_schema_regression : SceneTree
             effect_type = "damage",
             power = 4,
             damage_tag = "fire",
-            save_tag = BattleSaveResolver.SAVE_TAG_POISON(),
+            save_tag = BattleSaveContentRules.SAVE_TAG_POISON,
         };
         GStringArray noopErrors = new();
         registry._append_effect_validation_errors(noopErrors, "noop_save", noopEffect, "test_effect");
@@ -184,10 +184,10 @@ public partial class run_battle_save_skill_schema_regression : SceneTree
             power = 4,
             damage_tag = "fire",
             save_dc = 12,
-            save_dc_mode = BattleSaveResolver.SAVE_DC_MODE_CASTER_SPELL(),
+            save_dc_mode = BattleSaveContentRules.SAVE_DC_MODE_CASTER_SPELL,
             save_dc_source_ability = "fortune",
             save_ability = "agility",
-            save_tag = BattleSaveResolver.SAVE_TAG_FIREBALL(),
+            save_tag = BattleSaveContentRules.SAVE_TAG_FIREBALL,
         };
         GStringArray badDynamicErrors = new();
         registry._append_effect_validation_errors(

@@ -5,10 +5,8 @@ const TestRunner = preload("res://tests/shared/test_runner.gd")
 const CHARACTER_CREATION_WINDOW_SCENE = preload("res://scenes/ui/character_creation_window.tscn")
 const AgeProfileDef = preload("res://scripts/player/progression/AgeProfileDef.cs")
 const AgeStageRule = preload("res://scripts/player/progression/AgeStageRule.cs")
-const BODY_SIZE_RULES_SCRIPT = preload("res://scripts/systems/progression/BodySizeRules.cs")
 const RaceDef = preload("res://scripts/player/progression/RaceDef.cs")
 const SubraceDef = preload("res://scripts/player/progression/SubraceDef.cs")
-const BodySizeRules = BODY_SIZE_RULES_SCRIPT
 
 var _test := TestRunner.new()
 var _failures: Array[String] = _test.failures
@@ -90,8 +88,8 @@ func _test_official_identity_pool_is_selectable() -> void:
 		_assert_eq(halfling_payload.get("body_size_category"), &"small", "Halfling 建卡体型应从 race category 派生为 small。")
 		_assert_eq(
 			halfling_payload.get("body_size"),
-			BodySizeRules.get_body_size_for_category(&"small"),
-			"Halfling body_size int 应由 BodySizeRules 从 small 派生。"
+			_body_size_for_category(&"small"),
+			"Halfling body_size int 应由 typed body-size 规则从 small 派生。"
 		)
 
 	window.queue_free()
@@ -210,8 +208,8 @@ func _test_identity_payload_uses_registry_defaults_and_body_size_rules() -> void
 	_assert_eq(identity_payload.get("body_size_category"), &"medium", "体型 category 应从 race/subrace 身份内容派生。")
 	_assert_eq(
 		identity_payload.get("body_size"),
-		BodySizeRules.get_body_size_for_category(&"medium"),
-		"body_size int 应由 BodySizeRules 从 category 派生。"
+		_body_size_for_category(&"medium"),
+		"body_size int 应由 typed body-size 规则从 category 派生。"
 	)
 
 	var young_adult_index: int = window._find_variant_index_by_metadata(window.age_stage_variant_button, &"young_adult")
@@ -259,7 +257,7 @@ func _test_human_versatility_preview_and_confirm_payload() -> void:
 		var payload := emitted_payloads[0]
 		_assert_eq(payload.get("display_name"), "适应者", "确认 payload 应保留姓名。")
 		_assert_eq(payload.get("race_id"), &"human", "确认 payload 应包含 registry race_id。")
-		_assert_eq(payload.get("body_size"), BodySizeRules.get_body_size_for_category(&"medium"), "确认 payload 应包含 BodySizeRules 派生体型。")
+		_assert_eq(payload.get("body_size"), _body_size_for_category(&"medium"), "确认 payload 应包含 typed body-size 规则派生体型。")
 		_assert_eq(payload.get("versatility_pick"), &"perception", "确认 payload 应保留 Human Versatility 选择。")
 
 	window.queue_free()
@@ -334,6 +332,24 @@ func _typed_string_names(values: Array) -> Array[StringName]:
 	for value in values:
 		result.append(StringName(String(value)))
 	return result
+
+
+func _body_size_for_category(category: StringName) -> int:
+	match category:
+		&"tiny", &"small":
+			return 1
+		&"medium":
+			return 2
+		&"large":
+			return 3
+		&"huge":
+			return 4
+		&"gargantuan":
+			return 5
+		&"boss":
+			return 6
+		_:
+			return 0
 
 
 func _assert_true(value: bool, message: String) -> void:

@@ -20,10 +20,16 @@ public partial class AscensionContentRegistry : IdentityContentRegistryBase
 
     public void load_from_directory(string directoryPath)
     {
+        load_from_directories(new Godot.Collections.Array<string> { directoryPath });
+    }
+
+    public void load_from_directories(Godot.Collections.Array<string> directoryPaths)
+    {
         _ascension_defs.Clear();
         _ascension_stage_defs.Clear();
         _validation_errors.Clear();
-        _scan_directory(directoryPath);
+        foreach (var directoryPath in directoryPaths)
+            _scan_directory(directoryPath);
         foreach (var e in _collect_validation_errors())
             _validation_errors.Add(e);
     }

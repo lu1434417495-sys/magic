@@ -91,6 +91,7 @@ public partial class SkillContentRegistry : RefCounted
             { "dice_sides_base", "dice_sides_base" },
             { "dice_sides_per_constitution_mod", "dice_sides_per_constitution_mod" },
             { "dice_sides_per_willpower_mod", "dice_sides_per_willpower_mod" },
+            { "runtime_pre_resistance_damage_multiplier", "pre_resistance_damage_multiplier" },
             { "dr_bypass_tag", "dr_bypass_tag" },
             { "hp_ratio_threshold_percent", "hp_ratio_threshold_percent" },
             { "bonus_damage_dice_count", "bonus_damage_dice_count" },
@@ -176,9 +177,14 @@ public partial class SkillContentRegistry : RefCounted
 
     public void rebuild()
     {
+        load_from_directory(SkillConfigDirectory);
+    }
+
+    public void load_from_directory(string directoryPath)
+    {
         _skill_defs.Clear();
         _validation_errors.Clear();
-        _scan_directory(SkillConfigDirectory);
+        _scan_directory(directoryPath);
         AppendArray(_validation_errors, _collect_validation_errors());
     }
 

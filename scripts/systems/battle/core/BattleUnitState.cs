@@ -564,6 +564,20 @@ public partial class BattleUnitState : RefCounted
         return effectState;
     }
 
+    public List<BattleStatusEffectState> GetStatusEffectsTyped()
+    {
+        var results = new List<BattleStatusEffectState>();
+        foreach (string statusIdString in SortedStringKeys(status_effects))
+        {
+            BattleStatusEffectState effectState = get_status_effect(new StringName(statusIdString));
+            if (effectState != null && !effectState.is_empty())
+            {
+                results.Add(effectState);
+            }
+        }
+        return results;
+    }
+
     public void set_status_effect(BattleStatusEffectState effect_state)
     {
         if (effect_state == null || effect_state.is_empty())

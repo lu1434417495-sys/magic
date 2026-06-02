@@ -1,77 +1,51 @@
+using System.Collections.Generic;
 using Godot;
-using GArray = Godot.Collections.Array;
-using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
-public partial class EnemyAiTargetSelectorRules : RefCounted
+public static class EnemyAiTargetSelectorRules
 {
-    private const string NearestEnemy = "nearest_enemy";
-    private const string LowestHpEnemy = "lowest_hp_enemy";
-    private const string NearestRoleThreatEnemy = "nearest_role_threat_enemy";
-    private const string NearestAlly = "nearest_ally";
-    private const string LowestHpAlly = "lowest_hp_ally";
-    private const string Self = "self";
+    public const string NearestEnemyId = "nearest_enemy";
+    public const string LowestHpEnemyId = "lowest_hp_enemy";
+    public const string NearestRoleThreatEnemyId = "nearest_role_threat_enemy";
+    public const string NearestAllyId = "nearest_ally";
+    public const string LowestHpAllyId = "lowest_hp_ally";
+    public const string SelfId = "self";
 
-    public static string NEAREST_ENEMY() => NearestEnemy;
+    public static readonly StringName NearestEnemy = NearestEnemyId;
+    public static readonly StringName LowestHpEnemy = LowestHpEnemyId;
+    public static readonly StringName NearestRoleThreatEnemy = NearestRoleThreatEnemyId;
+    public static readonly StringName NearestAlly = NearestAllyId;
+    public static readonly StringName LowestHpAlly = LowestHpAllyId;
+    public static readonly StringName Self = SelfId;
 
-    public static string LOWEST_HP_ENEMY() => LowestHpEnemy;
-
-    public static string NEAREST_ROLE_THREAT_ENEMY() => NearestRoleThreatEnemy;
-
-    public static string NEAREST_ALLY() => NearestAlly;
-
-    public static string LOWEST_HP_ALLY() => LowestHpAlly;
-
-    public static string SELF() => Self;
-
-    public static GDictionary ANY_TARGET_SELECTORS() =>
-        new()
+    private static readonly HashSet<string> SupportedSelectors =
+        new(System.StringComparer.Ordinal)
         {
-            [NearestEnemy] = true,
-            [LowestHpEnemy] = true,
-            [NearestRoleThreatEnemy] = true,
-            [NearestAlly] = true,
-            [LowestHpAlly] = true,
-            [Self] = true,
+            NearestEnemyId,
+            LowestHpEnemyId,
+            NearestRoleThreatEnemyId,
+            NearestAllyId,
+            LowestHpAllyId,
+            SelfId,
         };
 
-    public static GDictionary ENEMY_TARGET_SELECTORS() =>
-        new()
+    private static readonly HashSet<string> EnemyFocusSelectors =
+        new(System.StringComparer.Ordinal)
         {
-            [NearestEnemy] = true,
-            [LowestHpEnemy] = true,
-            [NearestRoleThreatEnemy] = true,
+            NearestEnemyId,
+            LowestHpEnemyId,
+            NearestRoleThreatEnemyId,
         };
 
-    public static bool is_supported_selector(StringName selector, bool allow_empty = false)
+    public static bool IsSupportedSelector(StringName selector, bool allowEmpty = false)
     {
-        if (selector == (StringName)"")
-            return allow_empty;
-        return ANY_TARGET_SELECTORS().ContainsKey(selector.ToString());
-    }
-
-    public static GArray validate_target_selector(
-        string label,
-        StringName selector,
-        bool allow_empty = false,
-        GDictionary allowed_selectors = null
-    )
-    {
-        var errors = new GArray();
-        var supportedSelectors = ANY_TARGET_SELECTORS();
-        var allowed = allowed_selectors ?? supportedSelectors;
-        if (selector == (StringName)"")
+        string selectorId = selector.ToString();
+        if (string.IsNullOrEmpty(selectorId))
         {
-            if (!allow_empty)
-                errors.Add($"{label} is missing target_selector.");
-            return errors;
+            return allowEmpty;
         }
-        var selectorKey = selector.ToString();
-        if (
-            !supportedSelectors.ContainsKey(selectorKey)
-            || (allowed.Count > 0 && !allowed.ContainsKey(selectorKey))
-        )
-            errors.Add($"{label} declares unsupported target_selector {selectorKey}.");
-        return errors;
+        return SupportedSelectors.Contains(selectorId);
     }
+
+    public static bool IsEnemyFocusSelector(StringName selector) =>
+        EnemyFocusSelectors.Contains(selector.ToString());
 }
