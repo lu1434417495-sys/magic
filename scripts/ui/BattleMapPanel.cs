@@ -407,6 +407,9 @@ public partial class BattleMapPanel : Control
         var targetUnitIds = CloneStringNameArray(selected_skill_target_unit_ids);
         selected_skill_id = NormalizeStringName(selected_skill_id);
         selected_skill_variant_id = NormalizeStringName(selected_skill_variant_id);
+        BattlePreview selectedSkillPreview = !StringNameIsEmpty(selected_skill_id)
+            ? _runtime_proxy?.PreviewSelectedBattleSkillAtCoord(selected_coord)
+            : null;
 
         GDictionary snapshot = _hud_adapter.BuildSnapshot(
             battle_state,
@@ -419,7 +422,7 @@ public partial class BattleMapPanel : Control
             targetUnitIds,
             selected_skill_variant_id,
             _resolve_encounter_display_name(),
-            null
+            selectedSkillPreview
         );
         _apply_snapshot(snapshot);
         if (_battle_board != null)
@@ -652,13 +655,17 @@ public partial class BattleMapPanel : Control
         _hover_preview_valid_coords = CloneVector2IArray(validTargetCoords);
         _hover_preview_selected_skill_id = NormalizeStringName(selected_skill_id);
         _hover_preview_selected_skill_variant_id = NormalizeStringName(selected_skill_variant_id);
+        BattlePreview hoverPreview = !StringNameIsEmpty(_hover_preview_selected_skill_id)
+            ? _runtime_proxy?.PreviewSelectedBattleSkillAtCoord(hover_coord)
+            : null;
 
         GDictionary preview = _hud_adapter.BuildHoverPreview(
             battle_state,
             hover_coord,
             _hover_preview_selected_skill_id,
             _hover_preview_selected_skill_variant_id,
-            validTargetCoords
+            validTargetCoords,
+            hoverPreview
         );
         hover_overlay.ApplyPreview(preview);
         if (!hover_overlay.Visible)

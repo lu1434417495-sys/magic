@@ -96,6 +96,20 @@ public partial class GameRuntimeBattleSelection : RefCounted
         return castVariant == null ? 0 : castVariant.required_coord_count;
     }
 
+    internal BattlePreview GetSelectedBattleSkillPreview()
+    {
+        return PreviewSelectedBattleSkillAtCoord(
+            Runtime?.GetBattleSelectedCoord() ?? new Vector2I(-1, -1)
+        );
+    }
+
+    internal BattlePreview PreviewSelectedBattleSkillAtCoord(Vector2I coord)
+    {
+        BattleUnitState activeUnit = GetManualActiveUnit();
+        BattleCommand command = BuildSelectedSkillPreviewCommand(activeUnit, coord);
+        return command != null ? PreviewBattleCommand(command) : null;
+    }
+
     internal GameRuntimeFacade.RuntimeCommandResult SelectBattleSkillSlotTyped(int index)
     {
         BattleUnitState activeUnit = GetManualActiveUnit();
@@ -464,6 +478,124 @@ public partial class GameRuntimeBattleSelection : RefCounted
             target_unit_id = targetUnit.unit_id,
             target_coord = targetUnit.coord,
         };
+    }
+
+    private BattleCommand BuildSelectedSkillPreviewCommand(
+        BattleUnitState activeUnit,
+        Vector2I coord
+    )
+    {
+        if (activeUnit == null || GetSelectedSkillId() == "")
+            return null;
+
+        SkillDef skillDef = GetSelectedBattleSkillDef(activeUnit);
+        if (skillDef?.combat_profile == null)
+            return null;
+
+        CombatCastVariantDef castVariant = GetSelectedBattleSkillVariant(activeUnit);
+        var command = new BattleCommand
+        {
+            CommandKind = BattleCommandKind.Skill,
+            unit_id = activeUnit.unit_id,
+            skill_id = GetSelectedSkillId(),
+            skill_variant_id = castVariant?.variant_id ?? GetSelectedSkillVariantId(),
+            target_coord = coord,
+        };
+
+        BattleTargetSelectionMode selectionMode =
+            GetSelectedBattleSkillTargetSelectionModeKind(activeUnit);
+        if (selectionMode == BattleTargetSelectionMode.MultiUnit)
+        {
+            return BuildSelectedMultiUnitPreviewCommand(command, activeUnit, skillDef, coord);
+        }
+
+        BattleTargetMode targetMode = castVariant?.TargetModeKind
+            ?? skillDef.combat_profile.TargetModeKind;
+        if (targetMode == BattleTargetMode.Ground)
+        {
+            return BuildSelectedGroundPreviewCommand(command, castVariant, coord);
+        }
+
+        BattleUnitState targetUnit = GetRuntimeUnitAtCoord(coord);
+        if (
+            targetUnit == null
+            && (
+                selectionMode == BattleTargetSelectionMode.Self
+                || skillDef.combat_profile.target_team_filter == SelfSelectionMode
+            )
+        )
+        {
+            targetUnit = activeUnit;
+        }
+        if (targetUnit == null)
+            return null;
+
+        command.target_unit_id = targetUnit.unit_id;
+        command.target_coord = targetUnit.coord;
+        return command;
+    }
+
+    private BattleCommand BuildSelectedMultiUnitPreviewCommand(
+        BattleCommand command,
+        BattleUnitState activeUnit,
+        SkillDef skillDef,
+        Vector2I coord
+    )
+    {
+        if (command == null)
+            return null;
+
+        var targetUnitIds = new List<StringName>(GetTargetUnitIdsStateTyped());
+        BattleUnitState hoveredUnit = GetRuntimeUnitAtCoord(coord);
+        if (
+            hoveredUnit != null
+            && !targetUnitIds.Contains(hoveredUnit.unit_id)
+            && CanSkillTargetUnit(activeUnit, hoveredUnit, skillDef)
+        )
+        {
+            targetUnitIds.Add(hoveredUnit.unit_id);
+        }
+        if (targetUnitIds.Count == 0)
+            return null;
+
+        command.target_unit_ids = DuplicateStringNameArray(targetUnitIds);
+        BattleUnitState firstTarget = GetBattleUnitById(targetUnitIds[0]);
+        if (firstTarget != null)
+        {
+            command.target_coord = firstTarget.coord;
+        }
+        return command;
+    }
+
+    private BattleCommand BuildSelectedGroundPreviewCommand(
+        BattleCommand command,
+        CombatCastVariantDef castVariant,
+        Vector2I coord
+    )
+    {
+        if (command == null || castVariant == null)
+            return null;
+
+        var targetCoords = new List<Vector2I>(GetTargetCoordsStateTyped());
+        if (coord.X >= 0 && coord.Y >= 0 && !targetCoords.Contains(coord))
+        {
+            targetCoords.Add(coord);
+        }
+
+        int requiredCoordCount = Math.Max(castVariant.required_coord_count, 1);
+        if (targetCoords.Count > requiredCoordCount)
+        {
+            targetCoords = targetCoords.GetRange(
+                targetCoords.Count - requiredCoordCount,
+                requiredCoordCount
+            );
+        }
+        if (targetCoords.Count == 0)
+            return null;
+
+        command.target_coords = DuplicateVector2IArray(targetCoords);
+        command.target_coord = targetCoords[targetCoords.Count - 1];
+        return command;
     }
 
     private StringName GetDefaultUnitSkillVariantId(BattleUnitState activeUnit, SkillDef skillDef)

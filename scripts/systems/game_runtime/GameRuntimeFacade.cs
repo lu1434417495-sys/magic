@@ -856,6 +856,12 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
     public int GetSelectedBattleSkillRequiredCoordCount() =>
         _battle_session_facade.GetSelectedBattleSkillRequiredCoordCount();
 
+    public BattlePreview GetSelectedBattleSkillPreview() =>
+        _battle_session_facade.GetSelectedBattleSkillPreview();
+
+    public BattlePreview PreviewSelectedBattleSkillAtCoord(Vector2I coord) =>
+        _battle_session_facade.PreviewSelectedBattleSkillAtCoord(coord);
+
     public string GetBattleActiveUnitName() =>
         _battle_session_facade.GetBattleActiveUnitName();
 

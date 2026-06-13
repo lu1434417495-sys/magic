@@ -182,6 +182,16 @@ internal sealed class WorldMapRuntimeProxy
         return _runtime?.GetSelectedBattleSkillRequiredCoordCount() ?? 0;
     }
 
+    public BattlePreview GetSelectedBattleSkillPreview()
+    {
+        return _runtime?.GetSelectedBattleSkillPreview();
+    }
+
+    public BattlePreview PreviewSelectedBattleSkillAtCoord(Vector2I coord)
+    {
+        return _runtime?.PreviewSelectedBattleSkillAtCoord(coord);
+    }
+
     public string GetActiveBattleEncounterName()
     {
         return _runtime?.GetActiveBattleEncounterName() ?? "";

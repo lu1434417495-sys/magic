@@ -126,6 +126,8 @@ public sealed class SnapshotTestRuntime : IGameRuntimeSnapshotSource
 
     public int GetSelectedBattleSkillRequiredCoordCount() => 0;
 
+    public BattlePreview GetSelectedBattleSkillPreview() => null;
+
     public StringName GetActiveBattleEncounterId() => ActiveBattleEncounterId;
 
     public string GetActiveBattleEncounterName() => ActiveBattleEncounterName;

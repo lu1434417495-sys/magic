@@ -84,6 +84,22 @@ public partial class BattleSessionFacade : RefCounted
         return battleSelection.GetSelectedBattleSkillRequiredCoordCount();
     }
 
+    public BattlePreview GetSelectedBattleSkillPreview()
+    {
+        if (IsBattleInteractionBlocked())
+            return null;
+        var battleSelection = GetBattleSelection();
+        return battleSelection?.GetSelectedBattleSkillPreview();
+    }
+
+    public BattlePreview PreviewSelectedBattleSkillAtCoord(Vector2I coord)
+    {
+        if (IsBattleInteractionBlocked())
+            return null;
+        var battleSelection = GetBattleSelection();
+        return battleSelection?.PreviewSelectedBattleSkillAtCoord(coord);
+    }
+
     public GVector2IArray GetBattleMovementReachableCoords()
     {
         var battleRuntime = GetBattleRuntime();

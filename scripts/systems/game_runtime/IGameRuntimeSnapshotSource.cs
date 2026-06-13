@@ -56,6 +56,7 @@ public interface IGameRuntimeSnapshotSource
     GVector2IArray GetSelectedBattleSkillTargetCoords();
     GStringNameArray GetSelectedBattleSkillTargetUnitIds();
     int GetSelectedBattleSkillRequiredCoordCount();
+    BattlePreview GetSelectedBattleSkillPreview();
     StringName GetActiveBattleEncounterId();
     string GetActiveBattleEncounterName();
     string GetBattleActiveUnitName();

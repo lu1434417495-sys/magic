@@ -21,10 +21,6 @@ public partial class BattleHudAdapter : RefCounted
     private readonly HashSet<StringName> _queueReadyLookup = new();
     private string _equipmentPreviewCacheSignature = "";
     private readonly Dictionary<string, EquipmentPreviewRule> _equipmentPreviewCache = new();
-    private readonly BattleGridService _gridService = new();
-    private readonly BattleHitResolver _hitResolver = new();
-    private readonly BattleAttackCheckPolicyService _attackCheckPolicyService = new();
-    private readonly BattleSkillResolutionRules _skillResolutionRules = new();
     private GameRuntimeFacade _runtime;
     private GameSession _gameSession;
 
@@ -47,15 +43,15 @@ public partial class BattleHudAdapter : RefCounted
     internal GDictionary BuildSnapshot(
         BattleState battle_state,
         Vector2I selected_coord,
-        StringName selected_skill_id = default,
-        string selected_skill_name = "",
-        string selected_skill_variant_name = "",
-        GVector2IArray selected_skill_target_coords = null,
-        int selected_skill_required_coord_count = 0,
-        GStringNameArray selected_skill_target_unit_ids = null,
-        StringName selected_skill_variant_id = default,
-        string encounter_display_name = "",
-        BattlePreview selected_skill_runtime_preview = null
+        StringName selected_skill_id,
+        string selected_skill_name,
+        string selected_skill_variant_name,
+        GVector2IArray selected_skill_target_coords,
+        int selected_skill_required_coord_count,
+        GStringNameArray selected_skill_target_unit_ids,
+        StringName selected_skill_variant_id,
+        string encounter_display_name,
+        BattlePreview selected_skill_runtime_preview
     )
     {
         selected_skill_id = NormalizeStringName(selected_skill_id);
@@ -70,17 +66,7 @@ public partial class BattleHudAdapter : RefCounted
         BattleUnitState selectedUnit = GetUnitAtCoord(battle_state, selected_coord);
         BattleUnitState focusUnit = selectedUnit ?? activeUnit;
         int selectedTargetCount = targetCoords.Count;
-        BattlePreview runtimePreview =
-            selected_skill_runtime_preview
-            ?? BuildSelectedSkillRuntimePreview(
-                battle_state,
-                activeUnit,
-                selected_coord,
-                selected_skill_id,
-                targetCoords,
-                targetUnitIds,
-                selected_skill_variant_id
-            );
+        BattlePreview runtimePreview = selected_skill_runtime_preview;
         GDictionary selectionInfo = BuildSkillTargetSelectionInfo(
             battle_state,
             activeUnit,
@@ -88,32 +74,13 @@ public partial class BattleHudAdapter : RefCounted
             selectedTargetCount
         );
         AttackPreviewData hitPreview = BuildSelectedSkillHitPreview(
-            battle_state,
-            activeUnit,
-            selected_coord,
-            selected_skill_id,
-            targetCoords,
-            targetUnitIds,
-            selected_skill_variant_id,
             runtimePreview
         );
         GDictionary damagePreview = BuildSelectedSkillDamagePreview(
-            battle_state,
-            activeUnit,
-            selected_coord,
-            selected_skill_id,
-            targetCoords,
-            targetUnitIds,
-            selected_skill_variant_id
+            runtimePreview
         );
         GDictionary fatePreview = BuildSelectedSkillFatePreview(
-            battle_state,
-            activeUnit,
-            selected_coord,
-            selected_skill_id,
-            targetCoords,
-            targetUnitIds,
-            selected_skill_variant_id
+            runtimePreview
         );
         string tooltipText = BuildSelectedSkillPreviewTooltip(
             hitPreview,
@@ -179,9 +146,10 @@ public partial class BattleHudAdapter : RefCounted
     internal GDictionary BuildHoverPreview(
         BattleState battle_state,
         Vector2I hover_coord,
-        StringName selected_skill_id = default,
-        StringName selected_skill_variant_id = default,
-        GVector2IArray valid_target_coords = null
+        StringName selected_skill_id,
+        StringName selected_skill_variant_id,
+        GVector2IArray valid_target_coords,
+        BattlePreview hover_runtime_preview
     )
     {
         selected_skill_id = NormalizeStringName(selected_skill_id);
@@ -216,50 +184,14 @@ public partial class BattleHudAdapter : RefCounted
         if (!isValidTarget)
             return result;
 
-        BattleUnitState activeUnit = GetUnit(battle_state, battle_state.active_unit_id);
-        if (activeUnit == null)
-            return result;
-
-        var targetCoords = new GVector2IArray { hover_coord };
-        var targetUnitIds = new GStringNameArray();
-        if (hoveredUnit != null)
-            targetUnitIds.Add(hoveredUnit.unit_id);
-        BattlePreview runtimePreview = BuildSelectedSkillRuntimePreview(
-            battle_state,
-            activeUnit,
-            hover_coord,
-            selected_skill_id,
-            targetCoords,
-            targetUnitIds,
-            selected_skill_variant_id
-        );
         AttackPreviewData hitPreview = BuildSelectedSkillHitPreview(
-            battle_state,
-            activeUnit,
-            hover_coord,
-            selected_skill_id,
-            targetCoords,
-            targetUnitIds,
-            selected_skill_variant_id,
-            runtimePreview
+            hover_runtime_preview
         );
         GDictionary damagePreview = BuildSelectedSkillDamagePreview(
-            battle_state,
-            activeUnit,
-            hover_coord,
-            selected_skill_id,
-            targetCoords,
-            targetUnitIds,
-            selected_skill_variant_id
+            hover_runtime_preview
         );
         GDictionary fatePreview = BuildSelectedSkillFatePreview(
-            battle_state,
-            activeUnit,
-            hover_coord,
-            selected_skill_id,
-            targetCoords,
-            targetUnitIds,
-            selected_skill_variant_id
+            hover_runtime_preview
         );
 
         result["hit_preview"] = hitPreview ?? new Variant();
@@ -1470,54 +1402,10 @@ public partial class BattleHudAdapter : RefCounted
             : new Dictionary<StringName, SkillDef>();
     }
 
-    private BattlePreview BuildSelectedSkillRuntimePreview(
-        BattleState battleState,
-        BattleUnitState activeUnit,
-        Vector2I selectedCoord,
-        StringName selectedSkillId,
-        GVector2IArray selectedSkillTargetCoords,
-        GStringNameArray selectedSkillTargetUnitIds,
-        StringName selectedSkillVariantId
-    )
+    private AttackPreviewData BuildSelectedSkillHitPreview(BattlePreview selectedSkillPreview)
     {
-        if (
-            battleState == null
-            || activeUnit == null
-            || IsEmpty(selectedSkillId)
-            || _runtime == null
-        )
+        if (selectedSkillPreview == null)
             return null;
-
-        var command = new BattleCommand
-        {
-            CommandKind = BattleCommandKind.Skill,
-            unit_id = activeUnit.unit_id,
-            skill_id = selectedSkillId,
-            skill_variant_id = selectedSkillVariantId,
-            target_coord = selectedCoord,
-            target_coords = selectedSkillTargetCoords.Duplicate(),
-            target_unit_ids = selectedSkillTargetUnitIds.Duplicate(),
-        };
-        if (command.TargetUnitIdsTyped.Count == 1)
-            command.target_unit_id = command.TargetUnitIdsTyped[0];
-        return _runtime.PreviewBattleCommand(command);
-    }
-
-    private AttackPreviewData BuildSelectedSkillHitPreview(
-        BattleState battleState,
-        BattleUnitState activeUnit,
-        Vector2I selectedCoord,
-        StringName selectedSkillId,
-        GVector2IArray selectedSkillTargetCoords,
-        GStringNameArray selectedSkillTargetUnitIds,
-        StringName selectedSkillVariantId,
-        BattlePreview selectedSkillPreview = null
-    )
-    {
-        if (battleState == null || activeUnit == null || IsEmpty(selectedSkillId))
-            return null;
-
-        _attackCheckPolicyService.Setup(null, _hitResolver, null);
         if (selectedSkillPreview?.special_profile_preview_facts != null)
         {
             BattleSpecialProfilePreviewFacts facts =
@@ -1541,248 +1429,22 @@ public partial class BattleHudAdapter : RefCounted
         }
         if (selectedSkillPreview != null && selectedSkillPreview.hit_preview != null && !selectedSkillPreview.hit_preview.IsEmpty)
             return selectedSkillPreview.hit_preview;
-
-        SkillDef skillDef = GetSkillDef(GetSkillDefs(), selectedSkillId);
-        if (skillDef?.combat_profile == null)
-            return null;
-        BattleUnitState targetUnit = ResolveSelectedSkillPreviewTargetUnit(
-            battleState,
-            activeUnit,
-            selectedCoord,
-            selectedSkillTargetCoords,
-            selectedSkillTargetUnitIds,
-            skillDef
-        );
-        if (targetUnit == null)
-            return null;
-        GStringNameArray previewTargetUnitIds = BuildSelectedSkillPreviewTargetUnitIds(
-            selectedSkillTargetUnitIds,
-            targetUnit,
-            skillDef
-        );
-        BattleSkillResolutionPolicy resolutionPolicy = _skillResolutionRules.BuildSkillResolutionPolicy(
-            skillDef,
-            activeUnit,
-            selectedSkillVariantId,
-            previewTargetUnitIds,
-            targetUnit
-        );
-        if (!resolutionPolicy.RoutesToUnitTargeting)
-            return null;
-
-        IReadOnlyList<CombatEffectDef> effectDefs = resolutionPolicy.EffectDefs;
-        CombatEffectDef repeatAttackEffect =
-            _skillResolutionRules.FindRepeatAttackEffect(effectDefs);
-        if (repeatAttackEffect == null)
-        {
-            if (!resolutionPolicy.UsesFateAttack)
-                return null;
-            BattleAttackCheckPolicyContext attackContext =
-                _attackCheckPolicyService.BuildAttackContext(
-                    battleState,
-                    activeUnit,
-                    targetUnit,
-                    skillDef,
-                    "skill_attack_preview",
-                    "hud_preview",
-                    resolutionPolicy.ForceHitNoCrit
-                );
-            return _attackCheckPolicyService.BuildAttackPreview(attackContext);
-        }
-
-        List<BattleRepeatAttackStageSpec> stageSpecs =
-            BattleRepeatAttackResolver.BuildStageSpecsFromRepeatAttackEffect(
-                activeUnit,
-                skillDef,
-                repeatAttackEffect,
-                -1,
-                true
-            );
-        BattleAttackCheckPolicyContext repeatContext =
-            _attackCheckPolicyService.BuildRepeatAttackStageContext(
-                battleState,
-                activeUnit,
-                targetUnit,
-                skillDef,
-                default,
-                "repeat_attack_preview",
-                "hud_preview"
-            );
-        return _attackCheckPolicyService.BuildRepeatAttackPreview(repeatContext, stageSpecs);
+        return null;
     }
 
-    private GDictionary BuildSelectedSkillDamagePreview(
-        BattleState battleState,
-        BattleUnitState activeUnit,
-        Vector2I selectedCoord,
-        StringName selectedSkillId,
-        GVector2IArray selectedSkillTargetCoords,
-        GStringNameArray selectedSkillTargetUnitIds,
-        StringName selectedSkillVariantId
-    )
+    private static GDictionary BuildSelectedSkillDamagePreview(BattlePreview selectedSkillPreview)
     {
-        if (battleState == null || activeUnit == null || IsEmpty(selectedSkillId))
-            return new GDictionary();
-        SkillDef skillDef = GetSkillDef(GetSkillDefs(), selectedSkillId);
-        if (skillDef?.combat_profile == null)
-            return new GDictionary();
-        BattleUnitState targetUnit = ResolveSelectedSkillPreviewTargetUnit(
-            battleState,
-            activeUnit,
-            selectedCoord,
-            selectedSkillTargetCoords,
-            selectedSkillTargetUnitIds,
-            skillDef
-        );
-        if (targetUnit == null)
-            return new GDictionary();
-        GStringNameArray previewTargetUnitIds = BuildSelectedSkillPreviewTargetUnitIds(
-            selectedSkillTargetUnitIds,
-            targetUnit,
-            skillDef
-        );
-        BattleSkillResolutionPolicy resolutionPolicy = _skillResolutionRules.BuildSkillResolutionPolicy(
-            skillDef,
-            activeUnit,
-            selectedSkillVariantId,
-            previewTargetUnitIds,
-            targetUnit
-        );
-        return BattleDamagePreviewRangeService.BuildSkillDamagePreview(
-            activeUnit,
-            resolutionPolicy.EffectDefs
-        ).ToDictionary();
+        GDictionary runtimeDamagePreview = selectedSkillPreview?.damage_preview;
+        if (runtimeDamagePreview != null && runtimeDamagePreview.Count > 0)
+            return runtimeDamagePreview.Duplicate(true);
+        return new GDictionary();
     }
 
-    private GDictionary BuildSelectedSkillFatePreview(
-        BattleState battleState,
-        BattleUnitState activeUnit,
-        Vector2I selectedCoord,
-        StringName selectedSkillId,
-        GVector2IArray selectedSkillTargetCoords,
-        GStringNameArray selectedSkillTargetUnitIds,
-        StringName selectedSkillVariantId
-    )
+    private GDictionary BuildSelectedSkillFatePreview(BattlePreview selectedSkillPreview)
     {
-        if (battleState == null || activeUnit == null || IsEmpty(selectedSkillId))
-            return new GDictionary();
-        SkillDef skillDef = GetSkillDef(GetSkillDefs(), selectedSkillId);
-        if (skillDef?.combat_profile == null)
-            return new GDictionary();
-        BattleUnitState targetUnit = ResolveSelectedSkillPreviewTargetUnit(
-            battleState,
-            activeUnit,
-            selectedCoord,
-            selectedSkillTargetCoords,
-            selectedSkillTargetUnitIds,
-            skillDef
-        );
-        if (targetUnit == null)
-            return new GDictionary();
-        GStringNameArray previewTargetUnitIds = BuildSelectedSkillPreviewTargetUnitIds(
-            selectedSkillTargetUnitIds,
-            targetUnit,
-            skillDef
-        );
-        BattleSkillResolutionPolicy resolutionPolicy = _skillResolutionRules.BuildSkillResolutionPolicy(
-            skillDef,
-            activeUnit,
-            selectedSkillVariantId,
-            previewTargetUnitIds,
-            targetUnit
-        );
-        if (!resolutionPolicy.UsesFateAttack)
-            return new GDictionary();
-        if (resolutionPolicy.FatePreviewMode == BattleSkillResolutionRules.FatePreviewModeForceHitNoCrit)
+        if (selectedSkillPreview?.hit_preview?.ForceHitNoCrit == true)
             return BuildForceHitNoCritFatePreview();
-        return BuildStandardFatePreview(battleState, activeUnit, targetUnit);
-    }
-
-    private GDictionary BuildStandardFatePreview(
-        BattleState battleState,
-        BattleUnitState activeUnit,
-        BattleUnitState targetUnit
-    )
-    {
-        if (battleState == null || activeUnit == null || targetUnit == null)
-            return new GDictionary();
-
-        int effectiveLuck = GetEffectiveLuck(activeUnit);
-        bool isDisadvantage = battleState.IsAttackDisadvantage(activeUnit, targetUnit);
-        int critGateDie = FateAttackFormula.CalcCritGateDieSize(effectiveLuck, isDisadvantage);
-        int fumbleLowEnd = FateAttackFormula.CalcFumbleLowEnd(effectiveLuck);
-        int critThreshold = FateAttackFormula.CalcCritThreshold(
-            GetHiddenLuckAtBirth(activeUnit),
-            GetFaithLuckBonus(activeUnit)
-        );
-        bool mercyActive = effectiveLuck <= -5 && isDisadvantage;
-        var badges = new GArray
-        {
-            new GDictionary
-            {
-                ["text"] = isDisadvantage ? "劣势" : "未陷劣势",
-                ["tone"] = isDisadvantage ? new StringName("warning") : new StringName("calm"),
-                ["tooltip_text"] =
-                    $"当前命中与命运骰按{(isDisadvantage ? "劣势取低" : "正常单骰")}口径结算。",
-            },
-            new GDictionary
-            {
-                ["text"] = $"暴击门 d{critGateDie}",
-                ["tone"] = new StringName("gate"),
-                ["tooltip_text"] = $"命运暴击门尺寸：d{critGateDie}。",
-            },
-            new GDictionary
-            {
-                ["text"] = fumbleLowEnd <= 1 ? "大失败 1" : $"大失败 1-{fumbleLowEnd}",
-                ["tone"] = new StringName("danger"),
-                ["tooltip_text"] = $"当前大失败区间：1-{fumbleLowEnd}。",
-            },
-        };
-        var detailLines = new List<string>
-        {
-            "命运判定概览",
-            $"状态：{(isDisadvantage ? "劣势中" : "未陷劣势")}",
-            $"暴击门：d{critGateDie}",
-            $"大失败：1-{fumbleLowEnd}",
-        };
-        if (critGateDie == 20)
-        {
-            string highThreatText = $"高位大成功 {critThreshold}-20";
-            badges.Add(
-                new GDictionary
-                {
-                    ["text"] = highThreatText,
-                    ["tone"] = new StringName("high_threat"),
-                    ["tooltip_text"] = $"当前高位大成功区间：{critThreshold}-20。",
-                }
-            );
-            detailLines.Add($"高位大成功：{critThreshold}-20");
-        }
-        if (mercyActive)
-        {
-            badges.Add(
-                new GDictionary
-                {
-                    ["text"] = "命运的怜悯",
-                    ["tone"] = new StringName("mercy"),
-                    ["tooltip_text"] = "effective_luck<=-5 且处于劣势时，暴击门只额外放大一档。",
-                }
-            );
-            detailLines.Add("命运的怜悯：已生效");
-        }
-
-        return new GDictionary
-        {
-            ["summary_text"] = BuildFatePreviewSummaryText(badges),
-            ["tooltip_text"] = string.Join("\n", detailLines),
-            ["badges"] = badges,
-            ["is_disadvantage"] = isDisadvantage,
-            ["effective_luck"] = effectiveLuck,
-            ["crit_gate_die"] = critGateDie,
-            ["fumble_low_end"] = fumbleLowEnd,
-            ["crit_threshold"] = critThreshold,
-            ["mercy_active"] = mercyActive,
-        };
+        return new GDictionary();
     }
 
     private GDictionary BuildForceHitNoCritFatePreview()
@@ -1816,82 +1478,6 @@ public partial class BattleHudAdapter : RefCounted
             ["badges"] = badges,
             ["force_hit_no_crit"] = true,
         };
-    }
-
-    private BattleUnitState ResolveSelectedSkillPreviewTargetUnit(
-        BattleState battleState,
-        BattleUnitState activeUnit,
-        Vector2I selectedCoord,
-        GVector2IArray selectedSkillTargetCoords,
-        GStringNameArray selectedSkillTargetUnitIds,
-        SkillDef skillDef
-    )
-    {
-        BattleUnitState focusedTarget = GetUnitAtCoord(battleState, selectedCoord);
-        if (CanPreviewSkillTargetUnit(activeUnit, focusedTarget, skillDef))
-            return focusedTarget;
-        foreach (StringName targetUnitId in selectedSkillTargetUnitIds)
-        {
-            BattleUnitState queuedTarget = GetUnit(battleState, targetUnitId);
-            if (CanPreviewSkillTargetUnit(activeUnit, queuedTarget, skillDef))
-                return queuedTarget;
-        }
-        foreach (Vector2I targetCoord in selectedSkillTargetCoords)
-        {
-            BattleUnitState queuedCoordTarget = GetUnitAtCoord(battleState, targetCoord);
-            if (CanPreviewSkillTargetUnit(activeUnit, queuedCoordTarget, skillDef))
-                return queuedCoordTarget;
-        }
-        return null;
-    }
-
-    private GStringNameArray BuildSelectedSkillPreviewTargetUnitIds(
-        GStringNameArray selectedSkillTargetUnitIds,
-        BattleUnitState targetUnit,
-        SkillDef skillDef
-    )
-    {
-        var targetUnitIds = selectedSkillTargetUnitIds?.Duplicate() ?? new GStringNameArray();
-        if (targetUnit == null || skillDef?.combat_profile == null)
-            return targetUnitIds;
-        if (
-            skillDef.combat_profile.TargetSelectionModeKind
-            != BattleTargetSelectionMode.MultiUnit
-        )
-            return targetUnitIds;
-        if (targetUnitIds.Contains(targetUnit.unit_id))
-            return targetUnitIds;
-        targetUnitIds.Insert(0, targetUnit.unit_id);
-        return targetUnitIds;
-    }
-
-    private bool CanPreviewSkillTargetUnit(
-        BattleUnitState activeUnit,
-        BattleUnitState targetUnit,
-        SkillDef skillDef
-    )
-    {
-        if (activeUnit == null || targetUnit == null || skillDef?.combat_profile == null)
-            return false;
-        if (!targetUnit.is_alive || targetUnit.unit_id == activeUnit.unit_id)
-            return false;
-        if (
-            _runtime == null
-            || BattleSkillCastBlockReasonKinds.IsBlocked(
-                _runtime.GetBattleSkillCastBlockReasonKind(activeUnit, skillDef)
-            )
-        )
-            return false;
-        if (
-            !SkillTargetFilterMatchesUnit(
-                activeUnit,
-                targetUnit,
-                skillDef.combat_profile.target_team_filter
-            )
-        )
-            return false;
-        return _gridService.GetDistanceBetweenUnits(activeUnit, targetUnit)
-            <= GetEffectiveSkillRange(activeUnit, skillDef);
     }
 
     private static string BuildFatePreviewSummaryText(GArray badges)
@@ -1933,29 +1519,6 @@ public partial class BattleHudAdapter : RefCounted
         if (successRate <= 0)
             return "";
         return $"命中 {Mathf.Clamp(successRate, 0, 100)}%";
-    }
-
-    private static int GetHiddenLuckAtBirth(BattleUnitState unitState)
-    {
-        if (unitState?.attribute_snapshot == null)
-            return 0;
-        return unitState.attribute_snapshot.GetValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.HiddenLuckAtBirth));
-    }
-
-    private static int GetFaithLuckBonus(BattleUnitState unitState)
-    {
-        if (unitState?.attribute_snapshot == null)
-            return 0;
-        return unitState.attribute_snapshot.GetValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.FaithLuckBonus));
-    }
-
-    private static int GetEffectiveLuck(BattleUnitState unitState)
-    {
-        return Mathf.Clamp(
-            GetHiddenLuckAtBirth(unitState) + GetFaithLuckBonus(unitState),
-            UnitBaseAttributes.EffectiveLuckMin,
-            UnitBaseAttributes.EffectiveLuckMax
-        );
     }
 
     private GDictionary BuildSkillTargetSelectionInfo(
@@ -2035,25 +1598,6 @@ public partial class BattleHudAdapter : RefCounted
         if (activeUnit.HasKnownSkillLevelTyped(skillId))
             return activeUnit.GetKnownSkillLevelTyped(skillId);
         return activeUnit.known_active_skill_ids.Contains(skillId) ? 1 : 0;
-    }
-
-    private static bool SkillTargetFilterMatchesUnit(
-        BattleUnitState activeUnit,
-        BattleUnitState targetUnit,
-        StringName targetTeamFilter
-    )
-    {
-        return BattleTargetTeamRules.IsUnitValidForFilter(
-            activeUnit,
-            targetUnit,
-            targetTeamFilter,
-            default
-        );
-    }
-
-    private static int GetEffectiveSkillRange(BattleUnitState activeUnit, SkillDef skillDef)
-    {
-        return BattleRangeService.GetEffectiveSkillRange(activeUnit, skillDef);
     }
 
     private bool SkillHasTag(SkillDef skillDef, StringName expectedTag)

@@ -162,7 +162,7 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
             new Godot.Collections.Array<StringName>(),
             new StringName(""),
             "",
-            null
+            preview
         );
         var snapshotStageRates = snapshot.GetValueOrDefault("selected_skill_hit_stage_rates", new GIntArray()).AsGodotArray();
         var previewStageRates = preview?.hit_preview?.StageHitRates ?? new GIntArray();
@@ -173,6 +173,35 @@ public partial class run_battle_hit_preview_contract_regression : SceneTree
         }
         _test.Eq(snapshot.GetValueOrDefault("selected_skill_damage_min", 0).AsInt32(), 2, "HUD snapshot 应暴露非暴击基础伤害下限。");
         _test.Eq(snapshot.GetValueOrDefault("selected_skill_damage_max", 0).AsInt32(), 10, "HUD snapshot 应暴露非暴击基础伤害上限。");
+
+        GDictionary snapshotWithoutRuntimePreview = adapter.BuildSnapshot(
+            state,
+            target.coord,
+            WARRIOR_HEAVY_STRIKE_SKILL_ID,
+            skillDef.display_name,
+            "",
+            new Godot.Collections.Array<Vector2I>(),
+            1,
+            new Godot.Collections.Array<StringName>(),
+            new StringName(""),
+            "",
+            null
+        );
+        _test.Eq(
+            snapshotWithoutRuntimePreview.GetValueOrDefault("selected_skill_hit_stage_rates", new GIntArray()).AsGodotArray().Count,
+            0,
+            "HUD snapshot 未传 runtime preview 时不应自算阶段命中率。"
+        );
+        _test.Eq(
+            snapshotWithoutRuntimePreview.GetValueOrDefault("selected_skill_damage_min", 0).AsInt32(),
+            0,
+            "HUD snapshot 未传 runtime preview 时不应自算伤害下限。"
+        );
+        _test.Eq(
+            snapshotWithoutRuntimePreview.GetValueOrDefault("selected_skill_damage_max", 0).AsInt32(),
+            0,
+            "HUD snapshot 未传 runtime preview 时不应自算伤害上限。"
+        );
 
         runtime.dispose();
         gameSession.QueueFree();
