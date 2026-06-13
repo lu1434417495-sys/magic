@@ -13,14 +13,14 @@ Run the game from the project root:
 godot --path . scenes/main/login_screen.tscn
 ```
 
-Run focused headless regressions with Godot scripts:
+Run focused headless regressions with Godot:
 
 ```bash
 python tests/run_regression_suite.py
-godot --headless --script tests/battle_runtime/runtime/run_battle_runtime_smoke.gd
-godot --headless --script tests/battle_runtime/rendering/run_battle_board_regression.gd
-godot --headless --script tests/progression/core/run_progression_tests.gd
-godot --headless --script tests/warehouse/run_party_warehouse_regression.gd
+dotnet build magic.csproj
+godot --headless -s res://tests/text_runtime/headless/run_headless_game_test_session_regression.cs
+godot --headless -s res://tests/world_map/runtime/run_world_map_runtime_proxy_regression.cs
+godot --headless -s res://tests/world_map/schema/run_world_map_low_level_defensive_regression.cs
 ```
 
 There is no separate build or lint step; runtime parsing in Godot is the validation baseline.
@@ -29,7 +29,7 @@ There is no separate build or lint step; runtime parsing in Godot is the validat
 Follow existing GDScript style: tabs for indentation, `snake_case` for files, functions, and variables, and `PascalCase` for scene-facing node/class names such as `GameSession`. Keep gameplay state in plain data containers and put behavior in services or runtime modules. Prefer typed fields (`var value: Type`) when practical. Avoid manual edits inside `.godot/`; Godot regenerates that directory.
 
 ## Testing Guidelines
-Tests are standalone `.gd` runners named `run_*_regression.gd`, `run_*_smoke.gd`, or similar. Add tests beside the system you changed, and run the narrowest relevant scripts before opening a PR. UI or battle-layout work should include a regression script when feasible and a screenshot when behavior is visual.
+Tests are standalone headless runners, now primarily `.cs` with some remaining `.gd` legacy entry points. Add tests beside the system you changed, and run the narrowest relevant runners before opening a PR. UI or battle-layout work should include a regression script when feasible and a screenshot when behavior is visual.
 
 Battle simulation and balance runners are not part of the routine full regression suite. Do not include numeric simulation entry points such as `tests/battle_runtime/simulation/run_battle_simulation_regression.gd`, `tests/battle_runtime/simulation/run_battle_ai_vs_ai_simulation_regression.gd`, or `tests/battle_runtime/simulation/run_battle_balance_simulation.gd` in a normal "run all tests" pass unless the user explicitly asks for battle simulation or balance analysis.
 

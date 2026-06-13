@@ -10,7 +10,9 @@ Use this skill when the task is to analyze battle simulation outputs or prepare 
 ## Workflow
 
 1. Rebuild the repo context first.
-- Read [../../../docs/design/project_context_units.md](../../../docs/design/project_context_units.md).
+- Read [../../../docs/design/project_context_units.md](../../../docs/design/project_context_units.md) as the battle-side architecture loading index.
+- Use it to pick the owning context units before loading code. Usually this means CU-15 and CU-16, with CU-17, CU-19, CU-20, or CU-21 only when the packet points there.
+- Do not treat it as the source of balance values, AI parameters, or trace-level behavior.
 - Read [../../../docs/design/battle_balance_simulation.md](../../../docs/design/battle_balance_simulation.md).
 
 2. Locate the simulation outputs.
@@ -48,15 +50,17 @@ python tools/build_battle_sim_analysis_packet.py --report <report.json> --includ
 - Treat `manual_policy=wait` and scripted mixed mirrors as controlled balance probes, not evidence of player-facing AI intelligence.
 
 7. Only after the compact packet points to a concrete axis, load owning resources.
+- Use `project_context_units.md` to keep the read set narrow instead of opening unrelated battle, world, or progression modules.
 - Skill-side issues: load the relevant `data/configs/skills/*.tres`.
-- Brain or action issues: load the relevant `data/configs/enemies/brains/*.tres` and `scripts/enemies/actions/*.gd`.
-- Score issues: load `scripts/systems/battle_ai_score_profile.gd`, `battle_ai_score_service.gd`, and `battle_ai_service.gd`.
+- Brain or action issues: load the relevant `data/configs/enemies/brains/*.tres` and `scripts/enemies/actions/*.cs`.
+- Score issues: load `scripts/systems/battle/ai/BattleAiScoreProfile.cs`, `scripts/systems/battle/ai/BattleAiScoreService.*.cs`, and `scripts/systems/battle/ai/BattleAiService.cs`.
 
 8. Keep the output structured.
 - Lead with the main deltas from `comparisons`.
 - Name whether the issue is mostly `skill numbers`, `AI action parameters`, or `AI scoring`.
 - Recommend a small next patch and name the exact fields to adjust.
 - Name which output fields should be checked in the next run.
+- If the recommended fix changes battle ownership boundaries or recommended read-sets, note that `docs/design/project_context_units.md` should be updated. Do not use that file to record balance-number tweaks or simulation-only findings.
 
 ## Balance Heuristics
 

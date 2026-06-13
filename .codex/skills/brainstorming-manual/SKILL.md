@@ -54,6 +54,7 @@ If the task is obvious and low-risk, do not create process overhead.
 ### 1) Ground yourself first
 
 Before asking broad questions, inspect the available context:
+- `docs/design/project_context_units.md` first when the task is inside this repository; use it as an architecture loading index for owner files and adjacent modules
 - relevant files
 - existing architecture
 - nearby code
@@ -62,6 +63,7 @@ Before asking broad questions, inspect the available context:
 - AGENTS.md or repository instructions
 
 Do not ask questions that the repository already answers.
+Do not treat `project_context_units.md` as the implementation truth source; load the actual owner code and design docs after it narrows the scope.
 
 ### 2) Keep interaction efficient
 

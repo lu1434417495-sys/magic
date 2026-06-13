@@ -1,6 +1,6 @@
 ---
 name: godot-code-review
-description: Review Godot 4 changes in this repository for runtime regressions, scene-script mismatches, state and serialization bugs, performance hazards, and missing headless tests. Use when the user asks for a review, PR review, regression check, safety audit, or asks whether changes touching `.gd`, `.tscn`, `project.godot`, data configs, or tests are safe.
+description: Review Godot 4.6 C# changes in this repository for runtime regressions, scene-script mismatches, GodotSharp interop bugs, state and serialization bugs, performance hazards, and missing headless tests. Use when the user asks for a review, PR review, regression check, safety audit, or asks whether changes touching `.cs`, `.tscn`, `project.godot`, `.tres` data configs, legacy `.gd`, or tests are safe.
 ---
 
 # Godot Code Review
@@ -24,18 +24,23 @@ Ignore ordinary source changes under `tools/` by default. Remove normal `tools/*
 ## Review Procedure
 
 1. Rebuild context around the filtered diff.
+- Read `docs/design/project_context_units.md` first as the repo's architecture loading index.
+- Use it to map the diff to the owning context units and decide which adjacent owner files are actually in scope.
 - Read the changed files that remain after excluding ordinary `tools/**` paths and `.ralph/prd.json`.
 - If the remaining path is only a generated cache artifact under `tools/`, report it directly without loading surrounding tool implementation files.
-- For `.tscn` changes, also read the attached script and verify node paths, exported fields, and signals.
-- For `scripts/systems/*`, read the nearby owner state, service, and regression tests.
+- For `.tscn` changes, also read the attached C# script, or legacy `.gd` script if still present, and verify node paths, exported fields/properties, callable names, and signals.
+- For C# runtime changes under `scripts/systems/*`, `scripts/player/*`, `scripts/enemies/*`, or `scripts/ui/*`, read the nearby owner state, service, scene, and regression tests.
 - Read [references/review-checklist.md](references/review-checklist.md) when the affected area spans multiple subsystems.
 
 2. Hunt for high-signal failures.
-- Broken preload paths, missing classes, stale scene paths, and signal mismatches.
+- Broken resource paths, missing C# partial classes, stale scene script paths, and signal/callable mismatches.
 - State-transition bugs between world, battle, modal, and autoloaded session state.
 - Preview-vs-execution divergence in battle commands.
-- Save/load or dictionary-shape compatibility issues.
+- Save/load, content catalog, or serialization-shape issues. Follow the repository compatibility policy before recommending legacy payload support.
+- Typed C# state leaking back into `Godot.Collections.Dictionary` / `Array` business logic instead of staying in CLR typed owners with projection only at Godot boundaries.
+- New constraints represented by ad hoc strings, copied `HashSet<StringName>` whitelists, or public dictionary schemas when an enum, typed converter, typed rule utility, or DTO could own the contract.
 - Per-frame scans, allocations, or redraw patterns that will get expensive.
+- Runtime ownership or read-set changes that should have been reflected in `docs/design/project_context_units.md`.
 - Missing or outdated regression tests.
 
 3. Report only findings that matter.
