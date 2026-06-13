@@ -1,11 +1,47 @@
 ---
 name: battle-sim-analysis
-description: Analyze battle simulation outputs for this Godot repository with a low-token workflow. Use when the task involves simulation reports, AI trace diagnosis, comparing profiles, handing results to GPT Pro or Claude, or deciding whether a balance issue comes from skill numbers, AI action parameters, or AI scoring.
+description: Run and analyze battle simulations for this Godot repository with a low-token workflow. Use when the task is to run a battle simulation (e.g. the 6v12 mixed mirror smoke test), or to analyze simulation reports, diagnose AI traces, compare profiles, hand results to GPT Pro or Claude, or decide whether a balance issue comes from skill numbers, AI action parameters, or AI scoring.
 ---
 
-# Battle Sim Analysis
+# Battle Simulation: Run & Analysis
 
-Use this skill when the task is to analyze battle simulation outputs or prepare them for another model. Do not start by reading the full report and full trace dump together.
+Use this skill to run a battle simulation and/or analyze its outputs. When analyzing, do not start by reading the full report and full trace dump together.
+
+## Running a Simulation
+
+The 6-vs-12 mixed mirror is the **canonical baseline**: a small high-level elite player squad vs a larger low-level hostile force, formal-character fixtures, 30x18 canyon terrain, `manual_policy=wait`, `max_iterations=3000`. It is the standard smoke test for any battle / skill / AI change, and the reference point every other scenario is compared against. (Despite "Mirror" in the name, the two sides are intentionally asymmetric.)
+
+Current composition (`BattleSimFormalCombatFixture._build_mixed_6v12_roster()`):
+- Player (6, elite, high skill levels): 4× Elite Sword (warrior r2, `steel_longsword`; `charge` L7, `warrior_heavy_strike` L5), 1× Elite Archer (archer r2, `ash_longbow`; `archer_aimed_shot` L3, `archer_multishot` L7), 1× Elite Mage (mage r5, no weapon, MP max 1000; `mage_fireball` / `mage_cone_of_cold` / `mage_blink` / `mage_gust_of_wind` / `mage_chain_lightning` all L7).
+- Hostile (12, normal, low skill levels): 6× Hostile Sword (warrior r2, `steel_longsword`; `charge` L1, `warrior_heavy_strike` L1), 6× Hostile Archer (no profession r0, `ash_longbow`; `archer_aimed_shot` L1, `archer_multishot` L1).
+
+**Baseline is immutable — do not modify it.** Treat these as read-only fixtures and never edit them to make a run pass or to change the matchup:
+- Scenario: `data/configs/battle_sim/scenarios/mixed_6v12_mirror_simulation.tres`
+- Runner: `tests/battle_runtime/benchmarks/RunMixed6v12MirrorAnalysis.cs`
+- Roster: `BattleSimFormalCombatFixture._build_mixed_6v12_roster()` in `scripts/systems/battle/sim/BattleSimFormalCombatFixture.cs`
+
+You may pass runtime env knobs (e.g. `COUNT`, `START_SEED`, `SEEDS`) for a given invocation, but the roster composition, map, and runner logic stay fixed. New or variant simulations must be added as **separate** scenarios/rosters that reference this baseline for comparison — never by changing the 6v12 baseline.
+
+1. Build first (the runners are C#; Godot loads the compiled assembly):
+```bash
+dotnet build magic.csproj -nologo -clp:ErrorsOnly
+```
+If the build fails, stop and report the errors — do not run the sim.
+
+2. Run the 6v12 mirror (default `COUNT` is 10; use `COUNT=1` for a single run):
+```bash
+COUNT=1 godot --headless -s res://tests/battle_runtime/benchmarks/RunMixed6v12MirrorAnalysis.cs
+```
+A clean run exits `0` and prints a JSON report (or writes it to `OUTPUT_FILE`) ending with a `trace_summary_file` line. Report these top-level fields: `timed_out` (must be `false`), `win_rate` (`player`/`hostile`/`draw`), `completed_run_count` vs `requested_run_count`, `ended_count` (battle actually finished), `avg_iterations`, and the `trace_summary_file` path. Per-run details (incl. each `winner_faction_id`) are under `runs[]`.
+
+Run notes:
+- **The battle is fully random and NOT reproducible.** Combat resolution (hit rolls, damage dice, saves, etc.) comes from `TrueRandomSeedService` (crypto randomness in `scripts/utils/TrueRandomSeedService.cs`), independent of any seed. The same seed will **not** reproduce a battle outcome, so win/loss varies on every run — that is by design, not a regression. `START_SEED` / `SEEDS` only affect setup-side generation (roster attribute rolls, spawn placement), never the fight. Do **not** try to "lock" a result or do seed-matched A/B comparisons — compare only via aggregate statistics over a large run count (`COUNT` ≥ 20+).
+- When grepping the log for `error`/`fail`, ignore trace field names like `damage_on_save_failure` or `save_failure_probability_basis_points` — those are data, not exceptions. Real failures show as `SCRIPT ERROR` / stack traces or a non-zero exit code.
+- Optional env knobs: `COUNT`, `START_SEED`, `SEEDS`, `PROGRESS`, `TRACE_AI`, `SIM_TIMEOUT_SECONDS`, `OUTPUT_FILE`, `AI_MUTATION_GUARD`, `VALIDATE_SPAWN_REACHABILITY`, `VALIDATE_BIDIRECTIONAL_SPAWN_REACHABILITY`, `AI_PROFILE` (+ `AI_PROFILE_TOP_N` / `AI_PROFILE_SORT` / `AI_PROFILE_FILTER`), and roster overrides `MAIN_CHARACTER_MEMBER_ID` / `LEADER_MEMBER_ID` / `MAIN_CHARACTER_REROLL_COUNT` / `ATTRIBUTE_ROLL_SEED`.
+- Other scenarios live in `data/configs/battle_sim/scenarios/*.tres` and run via `BattleSimRunner` / the benchmark runners under `tests/battle_runtime/`.
+- These numeric simulation / balance runners are NOT part of the routine regression suite (see `AGENTS.md`); only run them on explicit request.
+
+Once you have a report, continue with the analysis workflow below.
 
 ## Workflow
 
@@ -46,7 +82,7 @@ python tools/build_battle_sim_analysis_packet.py --report <report.json> --includ
 - Compare win/loss, average iterations, deaths/kills, dealt/taken damage, and completed-run count before skill details.
 - Break down skill use as `attempts/successes/success_rate` per faction; separate high usage from high impact.
 - Break down unit or role contribution when present: damage share, death share, kills, and damage taken. Check whether a faction is really winning through all units or only through a small subset such as archers.
-- Identify extreme seeds or outlier runs and name what changed: wipeout, zero-death win, early focus-fire collapse, or timeout. Use these to discuss variance, not as the main conclusion.
+- Identify outlier runs and name what changed: wipeout, zero-death win, early focus-fire collapse, or timeout. Use these to discuss variance, not as the main conclusion (and not as a reproducible case — runs cannot be replayed).
 - Treat `manual_policy=wait` and scripted mixed mirrors as controlled balance probes, not evidence of player-facing AI intelligence.
 
 7. Only after the compact packet points to a concrete axis, load owning resources.
@@ -70,15 +106,17 @@ python tools/build_battle_sim_analysis_packet.py --report <report.json> --includ
 - If a skill is meant to fix a failing role, prefer a conservative single-axis buff first: hit bonus, stamina, cooldown, trigger chance, or damage dice, not several at once.
 - Preserve the existing growth rhythm unless the user explicitly asks for a new curve. For example, if an old skill curve is `0-3: -1`, `4: 0`, `5: +1`, changing level 0 to `+1` should usually become `0-3: +1`, `4: +2`, `5: +3`, not `0:+1 ... 5:+6`.
 - When variance is high across seeds, recommend reducing all-or-nothing outcomes before making large faction buffs: lower complete miss frequency, smooth dodge/block formulas, or improve target access consistency.
-- When sample size is small but action is needed, phrase the patch as an experiment and define the next-run checks: win rate, damage share by role, skill attempts/successes, deaths by role, and extreme seed count.
+- When sample size is small but action is needed, phrase the patch as an experiment and define the next-run checks: win rate, damage share by role, skill attempts/successes, deaths by role, and outlier-run count.
 
 ## Rules
 
+- The 6v12 mixed mirror is the fixed baseline. Never edit `mixed_6v12_mirror_simulation.tres`, `RunMixed6v12MirrorAnalysis.cs`, or `BattleSimFormalCombatFixture._build_mixed_6v12_roster()` — not to fix a failing run, not to tweak the matchup. Add new scenarios/rosters as separate fixtures that reference this baseline instead.
+- Battle resolution is fully random and non-reproducible (combat rolls use `TrueRandomSeedService`, not the run seed). There is no "same seed" run. Never reason from a single run or compare two runs as if seeds made them comparable — only aggregate stats over many runs (`COUNT` ≥ 20+) are meaningful.
 - Remember that `manual_policy=wait` means manual-side units are dummies. Do not use these runs to claim AI quality against an intelligent player.
 - Verify which profile is baseline before reasoning from `comparisons`. Baseline is always `profile_entries[0]`; prefer a `00_baseline_*` profile_id in scripted runs.
 - Filter or explicitly flag `battle_ended=false` runs before interpreting win-rate conclusions.
 - Treat `score_input.estimated_*` as AI-side estimates, not realized combat results. Cross-check with `faction_metric_totals`, `skill_success_counts`, and completed-run outcomes.
-- Prefer at least 20 seeds per profile before treating small deltas as stable.
+- Prefer at least 20 runs per profile before treating small deltas as stable (runs are independent random samples, not reproducible seeds).
 - Remember that `top_candidates` are truncated to 5 entries per action, so dense target spaces may hide lower-ranked options.
 - Do not feed the original full `report.json` and full `turn_traces.jsonl` to another model together unless the compact packet was not enough.
 - Do not infer a balance conclusion from one weird trace; confirm it with summary-level deltas first.
