@@ -405,7 +405,7 @@ V1 不保存充能时间字段。充能、清除、战后提交等世界层行�
 }
 ```
 
-运行时实例来自 `PartyMemberState` 中已充能的 `ContingencySetup`。它只存在于战斗本地系统中，用于监听事件、去重、防递归和排队释放；不要把 `armed / triggering / releasing / completed` 这类战斗临时状态写回人物预设。
+运行时实例来自 `PartyMemberState` 中已充能的 `ContingencySetup`。它只存在于战斗本地系统中，用于监听事件、去重、防递归和排队释放；不要把 `armed / triggering / releasing / depleted` 这类战斗临时状态写回人物预设。
 
 严格自用约束在运行时也必须保持：
 
@@ -426,20 +426,25 @@ caster_unit_id 必须等于 owner_unit_id。
 
 ```text
 armed       已武装，等待触发
-triggering  正在触发
+triggering  已创建 release_context，正在进入自动释放
 releasing   连续释放中
-completed   已触发完成
-suppressed  被反魔法压制
-cancelled   战斗外手动清除
-destroyed   未来高阶裂解/专门破阵效果摧毁
+depleted    已消耗，等待战后提交或本场移除
 ```
 
-V1 中普通解除魔法对连锁应急术无效。`suppressed` 只由反魔法领域、专门压制效果，或未来高阶破阵/裂解的压制模式造成。压制不释放 `reserved_mp_max`，不返还特殊宝石，不改变持久 `charged=true`。
+V1 中普通解除魔法对连锁应急术无效。压制不是主状态，而是战斗本地覆盖层：
+
+```text
+suppressed: bool
+suppressed_reason: StringName
+resume_state: armed / releasing
+```
+
+压制只由反魔法领域、专门压制效果，或未来高阶破阵/裂解的压制模式造成。压制不释放 `reserved_mp_max`，不返还特殊宝石，不改变持久 `charged=true`。战斗外手动清除和未来摧毁效果也不进入 battle-local 主状态；它们直接改变持久 setup 的 charged / reserved / material 字段，或作为未来专门规则处理。
 
 压制状态机：
 
 ```text
-armed -> suppressed：
+armed + suppressed=true：
     暂时不能响应新事件；压制结束后恢复 armed。
 
 queued / 未进入释放流程：
@@ -448,7 +453,7 @@ queued / 未进入释放流程：
 burst_release 已进入释放流程：
     不被后来的压制回溯中断；已经开始的 burst 继续按快速顺序结算。
 
-sequential_release 的 releasing：
+sequential_release 的 releasing + suppressed=true：
     每个后续法术释放前检查压制；压制中暂停队列，不跳过、不额外消耗。
     压制结束后恢复 releasing，在下一次 owner_turn_started 前继续检查并释放。
 ```
@@ -812,8 +817,9 @@ int
 float
 String / StringName
 Array[StringName]
-小型 flat Dictionary，但必须由该技能显式声明 schema
 ```
+
+V1 不允许 value 是 Dictionary，即使是 flat Dictionary 也不进入首版。需要多字段模式参数时，应拆成多个显式 binding key，或等未来为该技能新增 typed 子结构和专门校验器后再开放。
 
 禁止在 `parameter_bindings` 中保存：
 
@@ -906,7 +912,7 @@ skip_if_invalid
 
 ```text
 单位成为 active unit
--> BattleContingencySystem.on_owner_turn_started(owner)
+-> BattleContingencySystem.OwnerTurnStarted(owner)
     -> 若该 owner 有 releasing 矩阵，检查 owner 存活/在场/未被压制
     -> 释放 remaining_queue 的下一个 stored spell
     -> 队列清空则 state = depleted
@@ -923,18 +929,18 @@ skip_if_invalid
 
 ## 11. 战斗同步 Hook 系统
 
-当前项目战斗逻辑以同步调用链为主。V1 不新增通用事件总线，也不新增 `battle_event_dispatcher.gd`；连锁应急术通过 `BattleContingencySystem` 暴露固定同步 hook，由现有战斗流程在关键结算点显式调用。
+当前项目战斗逻辑以同步调用链为主。V1 不新增通用事件总线，也不新增 `BattleEventDispatcher`；连锁应急术通过 `BattleContingencySystem` 暴露固定同步 hook，由现有战斗流程在关键结算点显式调用。
 
 ### 固定 Hook 点
 
 ```text
-on_battle_confirmed
-before_spell_effect_resolved
-before_damage_resolved
-after_hp_changed
-after_status_applied
-after_position_changed
-owner_turn_started
+OnBattleConfirmed
+BeforeSpellEffectResolved
+BeforeDamageResolved
+AfterHpChanged
+AfterStatusApplied
+AfterPositionChanged
+OwnerTurnStarted
 ```
 
 这些 hook 是战斗运行时内部契约，不是玩家可配置事件。`before_damage_resolved` 不是只读观察点，必须能向当前伤害链写入 per-owner 修正，例如取消 owner 的本次伤害、修改伤害或标记本次伤害已被矩阵处理；闪现取消伤害就通过这个 hook 完成。
@@ -946,7 +952,8 @@ owner_turn_started
 hook 输入至少包含：
 
 ```text
-source_event_id / damage_event_id / action_instance_id
+source_event_id / action_instance_id
+damage_event_id                    # 仅当当前 hook 是某个 target 上的单次 damage effect 时存在
 source_unit_id / target_unit_id
 skill_id / effect_id
 resolved_damage
@@ -966,6 +973,8 @@ report_entries: Array[Dictionary]
 ```
 
 若 `cancel_damage=true`，resolver 在扣盾扣血前直接返回零伤害结果：本次伤害对该 owner 不扣护盾、不扣 HP，也不再产生该 `damage_event_id` 对应的 `hp_below_percent` crossing；已经进入 `release_context` 的矩阵仍消耗充能。取消当前 damage effect 不影响 `resolve_effects` 继续处理同一技能的后续 effect。若只是修改伤害，则使用修改后的伤害继续进入护盾吸收和 HP 写入，后续 crossing 按实际 HP 变化判断。
+
+取消边界只覆盖当前 damage effect 的盾 / HP / HP crossing 写入，不回滚 hook 调用前已经完成的前置步骤，例如命中、豁免、减伤骰、状态消耗、黑星护卫忽略次数、AI blackboard 记录或其它 pre-damage 资源消耗。若未来要取消这些前置消耗，必须把 hook 提前到对应步骤之前，不能让 `cancel_damage` 反向撤销已经提交的事实。
 
 ### 触发流程
 
@@ -987,6 +996,23 @@ report_entries: Array[Dictionary]
 ```
 
 不引入额外的 `matrix_fallback_policy`。整体矩阵不按“全部储存法术是否成功”判断是否返还；唯一边界是是否已经创建 `release_context` 并进入释放流程。若所有储存法术都因目标解析失败、免疫、非法目标或 `skip_if_invalid` 没有产生实际效果，仍视为已触发并已消耗，日志必须明确记录“矩阵已触发，但储存法术全部未产生有效效果”。
+
+`release_context` 是明确的 battle-local 运行时对象，不是临时字典，也不进入存档。它至少冻结以下内容：
+
+```text
+release_context_id
+owner_member_id / owner_unit_id / setup_id
+source_event_id
+trigger_type / timing
+frozen_trigger_facts
+target_resolver_inputs
+release_mode
+release_queue
+current_release_index
+entered_release_flow_at_tick
+```
+
+爆发释放可以在同一调用栈内消费完整 `release_queue`；连续释放必须把 `release_context` 留在 `BattleContingencySystem` sidecar 中，由 `owner_turn_started` 推进。进入 `release_context` 后才算正式消耗充能；未能创建 `release_context` 的匹配失败、live gate 失败、压制阻挡或 source event 取消都不消耗。
 
 ### 同一伤害事件的触发仲裁
 
@@ -1021,16 +1047,17 @@ fatal_damage_incoming
 
 AoE / 多目标瞬发事件打开反应窗口时，必须先生成不可变的 `source_event_facts`，再基于这份事实收集触发队列。不要在每个 owner 的矩阵释放后，重新计算 AoE 几何、遮挡或目标列表。
 
-`source_event_facts` 至少应冻结：
+`source_event_id` 表示一次逻辑来源事件，例如一次主动施法、一次 AoE 展开、一次位移或一次状态施加；`damage_event_id` 只表示该来源事件下“某个 damage effect 对某个 target 的一次伤害应用”。AoE / 多目标事件不能把单个 top-level `damage_event_id` 当成整个来源事件 ID。`source_event_facts` 至少应冻结：
 
 ```text
-source_event_id / damage_event_id
+source_event_id
 source_unit_id / source_member_id / source_faction_id
 skill_id / cast_variant_id / action_instance_id
 anchor_coord / area_shape / affected_coords
 affected_unit_ids
 每个 owner 的 affected_reason：direct_target / area_included
 每个 owner 的原始坐标、预计 HP 伤害、护盾吸收、是否满足 fatal / damage_percent
+每个 owner / effect 的 damage_event_id 映射；非伤害触发没有 damage_event_id
 排序键：timeline_order / unit_id / owner_member_id
 ```
 
@@ -1155,7 +1182,11 @@ executeContingency(matrix, hook_facts, mutable_context):
 
 自动施法不提供必中，也不提供免豁免。技能定义要求命中就正常命中，要求豁免就正常豁免；技能自身不需要命中或豁免时，也不因为 auto-cast 额外增加。`force_hit_no_crit` / `no_attack_roll` 只有在储存技能自身定义了才生效，不能由 `AutoCastRequest` 赋予。
 
-实现上不要把 `AutoCastRequest` 包装成普通 `issue_command()`。应在技能执行编排层提供内部入口，例如 `execute_auto_cast(request, batch)`，复用底层效果解析，但跳过玩家行动阶段、成本扣除、冷却写入、熟练度和成就统计。
+实现上不要把 `AutoCastRequest` 包装成普通 `IssueCommand()`。应在技能执行编排层提供内部入口，例如 `ExecuteAutoCast(request, batch)`，复用底层效果解析，但跳过玩家行动阶段、成本扣除、冷却写入、熟练度和成就统计。
+
+`ExecuteAutoCast()` 不能调用普通玩家施法的 `IssueCommand()` / `GetSkillCastBlockReason()` / `ConsumeSkillCosts()` 主路径后再用 flag 事后抵消。它应在请求构建时完成内容、目标和储存法术合法性校验，然后只复用底层效果解析和 commit helper。必须明确绕过的普通施法门槛包括：当前行动阶段、active unit / turn owner、AP、MP、stamina、aura、cooldown、racial / identity charge、petrified / weapon lock / main skill lock / misfortune / spell-control 等成本、次数、行动或失控门槛。必须保留的规则包括：技能内容存在、储存白名单、目标解析结果合法、射程 / LOS / 目标类型、命中、豁免、抗性、免疫、护盾、减伤、special profile 和实际效果结算。
+
+统计语义固定为：自动释放不增加 caster 的主动技能熟练度、不计普通 skill-used 成就、不计资源消耗、不增加主动行动评分或施法刷量贡献。由实际效果自然造成的战斗事实仍保留，例如目标侧防御/受击触发、HP 变化、死亡、掉落、任务目标或击杀归因；这些事实的 report entry 必须带 `source_kind=contingency`，以后若需要限制“自动击杀成就”，应由成就规则按 origin 单独判断，不能在自动施法入口静默吞掉死亡事实。
 
 ---
 
@@ -1182,6 +1213,18 @@ executeContingency(matrix, hook_facts, mutable_context):
 ```
 
 这类跨矩阵循环必须从数据层和运行时层同时禁止。`AutoCastRequest.can_trigger_other_contingencies` 固定为 `false`，V1 不允许配置成 `true`。自动施法产生的状态、伤害、位移、法术影响或 AoE 命中事件仍可进入普通结算、动画、战斗日志和结构化报告，但 `BattleContingencySystem` 必须把它们视为不可触发应急术式的派生事件。
+
+实现上不能只在 `AutoCastRequest` 上存这个 bool。所有由自动施法派生出的 hook facts / source_event_facts / damage_event_facts 都必须携带 origin，例如：
+
+```text
+BattleEffectOrigin:
+    source_kind = contingency
+    source_matrix_id
+    source_setup_id
+    can_trigger_contingencies = false
+```
+
+任何 contingency hook 在扫描候选矩阵前先检查 origin；`can_trigger_contingencies=false` 时直接记录 `recursive_contingency_blocked` 或静默跳过，不得进入触发匹配。这样自动法术造成的新伤害、状态、位移、死亡或 AoE 命中都不会绕过请求级 flag 重新触发另一套应急术。
 
 ---
 
@@ -1238,6 +1281,20 @@ validateContingencySetup(setup):
 `damage`、`control` 不作为默认禁止 tag；它们由连锁应急术等级、矩阵负载和法术自身 `min_contingency_skill_level` 控制。`summon`、`extra_action`、`retrigger_contingency`、`complex_manual_target` 等禁止 tag 命中时必须在 UI 中显示拒绝原因。
 
 负载默认按 `cast_level + tags/effect_category` 自动计算，特殊技能可使用 `contingency_load_override` 覆盖。技能若缺少应急储存配置，默认不能储存。
+
+内容配置必须是 typed 契约，而不是自由字典。推荐在 `SkillDef` 或 `CombatSkillDef` 上挂一个明确的 `ContingencyAutomationDef` / typed field，声明：
+
+```text
+can_be_stored_in_contingency
+min_contingency_skill_level
+contingency_load_override
+allowed_target_resolvers
+allowed_parameter_bindings
+forbidden_stored_skill_tags
+automation_profile_id
+```
+
+`SkillContentRegistry` / content validator 负责把这些字段投成 typed catalog 并校验 allowlist、binding key、binding value 类型和枚举集合。`PartyMemberState.FromDictionary()` 只做 exact schema / 类型 / 必填字段校验；技能 ID 是否存在、stored spell 是否仍可储存、resolver 与技能目标是否匹配，必须在 content catalog 已加载后由 contingency validator 处理，不能把内容注册表依赖塞进 state parser。
 
 ---
 
@@ -1581,7 +1638,7 @@ snapshot.mp_max = max(snapshot.mp_max_unreserved - battle_reserved_mp_max, 0)
 
 这个 overlay 不是兼容层、不是存档迁移，也不是持久回滚机制；它只是战斗 runtime 在正式结算前持有的临时事实。战斗未提交时 overlay 随 runtime 丢弃；战斗提交时只把 `consumed_setup_ids` 写回存活成员的持久 setup。
 
-所有会写入或刷新 MP 的存活成员路径都要 clamp 到 `effective_mp_max`：修炼成长、休息/恢复、装备变化、充能、清除、战斗中释放封存和战后资源回写。死亡提交不走 MP 上限释放/恢复逻辑，直接按死亡规则把 `current_mp` 归零。UI 和日志展示 MP 上限时应同时显示未封存上限、封存值和可用上限，避免玩家误以为 raw 属性被永久扣减。
+所有会写入或刷新 MP 的存活成员路径都要 clamp 到 `effective_mp_max`：修炼成长、休息/恢复、装备变化、充能、清除、战斗中释放封存和战后资源回写。需要逐一检查的现有入口包括 `BattleUnitFactory` 的单位构建和属性刷新、战斗内装备投影刷新、settlement / item / rest 类资源恢复、`PracticeGrowthService.ApplyDailyGrowthToMember()`、战后 `CommitBattleResources()` 以及所有直接根据属性快照恢复 MP 的命令路径。死亡提交不走 MP 上限释放/恢复逻辑，直接按死亡规则把 `current_mp` 归零。UI 和日志展示 MP 上限时应同时显示未封存上限、封存值和可用上限，避免玩家误以为 raw 属性被永久扣减。
 
 这样后续修改法术数值时，存档仍能读取最新的技能定义，同时不会重复扣材料或偷偷兼容旧结构。
 
@@ -1594,16 +1651,18 @@ snapshot.mp_max = max(snapshot.mp_max_unreserved - battle_reserved_mp_max, 0)
 ### 建议持久状态类
 
 ```text
-scripts/player/progression/contingency_matrix_setup_state.gd
-scripts/player/progression/contingency_trigger_state.gd
-scripts/player/progression/contingency_target_resolver_state.gd
-scripts/player/progression/contingency_stored_spell_entry_state.gd
-scripts/player/progression/contingency_material_cost_state.gd
+scripts/player/progression/ContingencyMatrixSetupState.cs
+scripts/player/progression/ContingencyTriggerState.cs
+scripts/player/progression/ContingencyTargetResolverState.cs
+scripts/player/progression/ContingencyStoredSpellEntryState.cs
+scripts/player/progression/ContingencyMaterialCostState.cs
 ```
 
-`PartyMemberState` 新增 `contingency_matrix_setups: Array[ContingencyMatrixSetupState]` 字段，并把这些状态类纳入 `to_dict()` / `from_dict()` 的 exact fields。`PartyState` 只负责成员集合和整体版本，不额外维护一份按成员 id 分组的应急矩阵字典。
+`PartyMemberState` 新增 `contingency_matrix_setups: Godot.Collections.Array<ContingencyMatrixSetupState>` 字段，并把这些状态类纳入 `ToDictionary()` / `FromDictionary()` 的 exact fields。`PartyState` 只负责成员集合和整体版本，不额外维护一份按成员 id 分组的应急矩阵字典。
 
 持久状态使用 per-type exact schema：顶层 setup、stored spell、material cost 使用固定字段；trigger 与 target resolver 按 `type` 选择对应字段集合。不得使用通用 `params` 保存未声明字段，也不得让某种 trigger / resolver 携带其他 type 的字段。多字段、少字段、未知字段、未知 type、错误类型都按坏 payload 拒绝，不做兼容或自动修正。
+
+状态 parser 只负责结构和类型，不负责内容存在性。`FromDictionary()` 不查询 skill catalog、item catalog 或 trigger/resolver allowlist；这些依赖当前内容表的检查必须在 `GameContentCatalog` / typed registry 已加载后，由 `PartyContingencySetupService` 或专门 validator 执行。这样 state 类不会反向依赖 session/content，也不会在读档时因为内容加载顺序产生假失败。
 
 `ContingencyMatrixSetupState` 字段固定为：
 
@@ -1694,13 +1753,15 @@ item_id
 quantity
 ```
 
-`parameter_bindings` 必须是 flat Dictionary，由储存技能定义声明允许的 key、类型和枚举值；无参数时显式 `{}`。不得保存目标、坐标、unit id、owner、节点/脚本/函数/对象引用或任意嵌套结构。
+`quantity` 是正式成本数量，但不能假设当前仓库 batch entry 天然支持这个字段。落地时二选一：要么在调用 `PartyWarehouseService.Preview/CommitBatchSwapEntriesTyped` 前把 `quantity=N` 展开成 N 条 `{ item_id = StringName }` batch entry，要么先为仓库服务新增 quantity-aware typed API。禁止把带 `quantity` 的字典直接塞进现有 batch path 后假定会扣 N 个；那会导致材料 under-deduct。
+
+`parameter_bindings` 必须是 flat Dictionary，由储存技能定义声明允许的 key、类型和枚举值；无参数时显式 `{}`。V1 的 value 只允许 bool、int、float、String/StringName、Array[StringName]；不得保存目标、坐标、unit id、owner、节点/脚本/函数/对象引用、Dictionary value 或任意嵌套结构。
 
 建议在 `PartyMemberState` 提供纯计算 helper：
 
-```gdscript
-func get_total_reserved_mp_max() -> int
-func get_effective_mp_max(raw_mp_max: int) -> int
+```csharp
+public int GetTotalReservedMpMax();
+public int CalculateEffectiveMpMaxFromRaw(int rawMpMax);
 ```
 
 这两个 helper 只读取已充能 setup 并返回数值，不负责扣宝石、校验储存法术、校验容量或修改 charged 状态；这些行为必须留在配置服务或战斗提交服务中。
@@ -1708,12 +1769,12 @@ func get_effective_mp_max(raw_mp_max: int) -> int
 ### 建议运行时类
 
 ```text
-scripts/systems/progression/party_contingency_setup_service.gd
-scripts/systems/battle/runtime/battle_contingency_system.gd
-scripts/systems/battle/runtime/auto_cast_request.gd
+scripts/systems/progression/PartyContingencySetupService.cs
+scripts/systems/battle/runtime/BattleContingencySystem.cs
+scripts/systems/battle/core/AutoCastRequest.cs
 ```
 
-V1 不新增 `battle_event_dispatcher.gd` 或通用事件总线。`auto_cast_request.gd` 可以是轻量类，也可以先用严格字段字典，但必须有单一构造/校验入口。自动施法执行入口放在现有技能执行编排层内部，例如 `execute_auto_cast(request, batch)`，不要复用玩家 `issue_command()`。
+V1 不新增 `BattleEventDispatcher` 或通用事件总线。`AutoCastRequest` 使用 C# typed value object，必须有单一构造/校验入口。自动施法执行入口放在现有技能执行编排层内部，例如 `ExecuteAutoCast(request, batch)`，不要复用玩家 `IssueCommand()`。
 
 配置路径：
 
@@ -1729,45 +1790,45 @@ V1 不新增 `battle_event_dispatcher.gd` 或通用事件总线。`auto_cast_req
 
 ```text
 1. 若当前处于战斗或 battle lock，拒绝。
-2. 通过 `GameRuntimeFacade.capture_party_transaction_state()` 捕获外层 party transaction。
+2. 捕获仓库状态、成员 contingency 状态和 `current_mp` 快照；当前 C# 主线没有通用 party transaction 入口。
 3. 校验 owner 已学会连锁应急术、储存法术、等级解锁、负载、trigger / resolver 白名单和内容注册表。
-4. 校验特殊宝石和 reserved_mp_max 可支付，可先用 `party_warehouse_service.preview_batch_swap*()` 预检材料。
-5. 扣除特殊宝石：`party_warehouse_service.commit_batch_swap*()`。
+4. 校验特殊宝石和 reserved_mp_max 可支付，可先用 `PartyWarehouseService` 的 batch swap 预检/提交路径模拟材料消耗。
+5. 扣除特殊宝石：通过 `PartyWarehouseService` batch swap 提交。
 6. 写 setup charged=true、material_costs=已消耗收据、reserved_mp_max=计算值。
 7. 重新计算 effective_mp_max，并 clamp current_mp。
-8. 通过 `commit_party_transaction_or_rollback()` 提交状态；提交成功后由 runtime command layer 记录成功状态 / 世界层日志。
+8. 全部步骤成功后保留状态；提交成功后由 runtime command layer 记录成功状态 / 世界层日志。
 ```
 
-任一步失败都不得修改仓库、人物状态或 current_mp。实现上使用现有 `GameRuntimeFacade.capture_party_transaction_state()` / `commit_party_transaction_or_rollback()` 包住整个充能流程，不新增通用事务框架，也不在 `PartyWarehouseService` 内新增信号暂缓、dirty 标记或日志暂缓机制。`PartyWarehouseService.commit_batch_swap*()` 当前只做仓库状态副本提交，没有信号、dirty、日志或持久化副作用；失败回滚由外层 runtime transaction 恢复 party / warehouse / GameSession 运行时状态并重新 setup 相关服务引用，返回稳定 `error_code`。失败回滚不写“充能成功”日志；命令失败日志按现有 `_execute_logged_command()` 结果日志路径处理，不能污染持久状态。读档、进战和战斗开始确认都不能重新扣材料。战斗外清除不属于充能事务：只释放 MP 上限、清空 charged / material_costs / reserved_mp_max，不返还宝石。
+任一步失败都不得修改仓库、人物状态或 current_mp。实现上由 `PartyContingencySetupService` 自己持有仓库、成员 setup 和 `current_mp` 快照；失败时恢复快照，成功时保留结果，不新增通用事务框架，也不在 `PartyWarehouseService` 内新增信号暂缓、dirty 标记或日志暂缓机制。`PartyWarehouseService` 的 batch swap 当前只做仓库状态副本提交，没有信号、dirty、日志或持久化副作用；失败回滚返回稳定 `error_code`。失败回滚不写“充能成功”日志；命令失败日志按现有 command result 日志路径处理，不能污染持久状态。读档、进战和战斗开始确认都不能重新扣材料。战斗外清除不属于充能事务：只释放 MP 上限、清空 charged / material_costs / reserved_mp_max，不返还宝石。
 
 战斗路径：
 
 ```text
-BattleRuntimeModule.start_battle 建好单位
+BattleRuntimeModule.StartBattle 建好单位
     -> BattleContingencySystem 从 active member 的 charged setup 建 battle-local instance
-        -> 玩家确认开战后调用 on_battle_confirmed
+        -> 玩家确认开战后调用 OnBattleConfirmed
             -> 伤害、HP、状态、位移、法术影响等现有流程显式调用对应 hook
                 -> BattleContingencySystem 创建 AutoCastRequest
-                    -> execute_auto_cast 跳过 AP / 资源 / 冷却 / 熟练度 / 成就统计
+                    -> ExecuteAutoCast 跳过 AP / 资源 / 冷却 / 熟练度 / 成就统计
 ```
 
 战斗运行时边界：
 
 ```text
 1. 只有 active member 的 charged setup 会生成 battle-local ContingencyInstance；reserve member 不生成实例，但仍承受 MP 封存。
-2. 桥接发生在战斗单位生成和落位之后、`on_battle_confirmed` 之前；实例用 `source_member_id` 绑定 live unit，战斗开始时找不到 owner live unit 视为数据异常。
-3. ContingencyInstance 只存在于 BattleRuntimeModule / BattleContingencySystem 的 sidecar 中，不保存完整 setup 到 BattleUnitState，不进入 BattleUnitState.to_dict()，也不写入存档。
+2. 桥接发生在战斗单位生成和落位之后、`OnBattleConfirmed` 之前；实例用 `source_member_id` 绑定 live unit，战斗开始时找不到 owner live unit 视为数据异常。
+3. ContingencyInstance 只存在于 BattleRuntimeModule / BattleContingencySystem 的 sidecar 中，不保存完整 setup 到 BattleUnitState，不进入 `BattleUnitState.ToDictionary()`，也不写入存档。
 4. 进入释放流程时，battle runtime 记录 consumed_setup_id，不在战斗中途直接改持久 `PartyMemberState`。
 5. 进入释放流程时，战斗本地必须立刻释放该 setup 的 MP 上限封存，并刷新 owner 的 BattleUnitState / 属性快照；`current_mp` 不自动恢复。
 6. 战斗胜利、逃跑提交或其他明确提交型结算时，才把 consumed setup 回写为 charged=false 并释放持久 reserved_mp_max。
 7. 失败重试、结算失败、战斗中保存锁期间不得持久化 consumed 状态。
 8. 死亡提交不做 contingency 特殊回写、封存释放或 MP clamp 处理；直接沿用现有死亡规则，`current_mp=0` 并按死亡流程移出可用队伍。
-9. 存活成员的回写 charged=false 必须发生在 commit_battle_resources clamp current_mp 之前；释放封存只提高 MP 上限，不自动恢复 current_mp。
+9. 存活成员的回写 charged=false 必须发生在 `CommitBattleResources()` clamp current_mp 之前；释放封存只提高 MP 上限，不自动恢复 current_mp。
 ```
 
 #### 战斗临时事实层（battle-local overlay）
 
-battle-local overlay 的职责是把“本场战斗已经释放了哪个持久 setup”这件事覆盖到战斗属性刷新里，同时不提前修改存档层。它只存在于 `BattleContingencySystem`，不写入 `PartyMemberState`、`BattleUnitState.to_dict()`、战斗存档或世界日志。
+battle-local overlay 的职责是把“本场战斗已经释放了哪个持久 setup”这件事覆盖到战斗属性刷新里，同时不提前修改存档层。它只存在于 `BattleContingencySystem`，不写入 `PartyMemberState`、`BattleUnitState.ToDictionary()`、战斗存档或世界日志。
 
 `BattleContingencySystem` 维护以下 battle-local 状态：
 
@@ -1819,21 +1880,21 @@ release_queue
 
 MP overlay 的计算必须通过单一 helper 完成，避免各个战斗系统自己减封存：
 
-```gdscript
-func get_consumed_setup_ids(member_id: StringName) -> Array[StringName]
-func get_battle_reserved_mp_max(member_id: StringName, persistent_reserved_mp_max: int) -> int
-func apply_mp_reservation_overlay(member_id: StringName, snapshot: AttributeSnapshot) -> void
+```csharp
+public IReadOnlyList<StringName> GetConsumedSetupIds(StringName memberId);
+public int GetBattleReservedMpMax(StringName memberId, int persistentReservedMpMax);
+public void ApplyMpReservationOverlay(StringName memberId, AttributeSnapshot snapshot);
 ```
 
-`apply_mp_reservation_overlay()` 读取 `snapshot.mp_max_unreserved` 和 `snapshot.reserved_mp_max`。其中 `snapshot.reserved_mp_max` 是 `CharacterManagementModule` 按持久 charged setup 算出的封存总量；overlay 再扣除本场已 consumed instance 的 `reserved_mp_max`，最后覆盖 `snapshot.reserved_mp_max` 与 `snapshot.mp_max`。如果正式属性快照缺少 `mp_max_unreserved` / `reserved_mp_max`，这是实现错误或测试 fixture 不完整，不能用旧字段猜测兼容。
+`ApplyMpReservationOverlay()` 读取 `snapshot.mp_max_unreserved` 和 `snapshot.reserved_mp_max`。其中 `snapshot.reserved_mp_max` 是 `CharacterManagementModule` 按持久 charged setup 算出的封存总量；overlay 再扣除本场已 consumed instance 的 `reserved_mp_max`，最后覆盖 `snapshot.reserved_mp_max` 与 `snapshot.mp_max`。如果正式属性快照缺少 `mp_max_unreserved` / `reserved_mp_max`，这是实现错误或测试 fixture 不完整，不能用旧字段猜测兼容。
 
-`BattleUnitFactory` 是战斗内应用 overlay 的统一入口。所有玩家战斗单位属性构建和刷新都必须在拿到 `CharacterManagementModule.get_member_attribute_snapshot*()` 返回值后，先调用 contingency overlay，再写入 `BattleUnitState.attribute_snapshot`：
+`BattleUnitFactory` 是战斗内应用 overlay 的统一入口。所有玩家战斗单位属性构建和刷新都必须在拿到 `CharacterManagementModule.GetMemberAttributeSnapshot*()` 返回值后，先调用 contingency overlay，再写入 `BattleUnitState.attribute_snapshot`：
 
 ```text
-BattleUnitFactory._build_member_attribute_snapshot(...)
-    -> character_gateway.get_member_attribute_snapshot_for_equipment_view(...)
+BattleUnitFactory.BuildMemberAttributeSnapshot(...)
+    -> characterGateway.GetMemberAttributeSnapshotForEquipmentView(...)
         -> snapshot 内含持久层 reserved_mp_max
-    -> BattleContingencySystem.apply_mp_reservation_overlay(member_id, snapshot)
+    -> BattleContingencySystem.ApplyMpReservationOverlay(member_id, snapshot)
         -> snapshot 内含本场战斗 effective reserved_mp_max
     -> BattleUnitState.attribute_snapshot = snapshot
 ```
@@ -1853,17 +1914,19 @@ BattleUnitFactory._build_member_attribute_snapshot(...)
 
 ```text
 存活成员：
-  commit_contingency_consumed_setups(member_id, consumed_setup_ids)
-  get_member_attribute_snapshot(member_id)  # 此时持久 charged=false 已生效
-  commit_battle_resources(member_id, current_hp, current_mp, current_aura)
+  CommitContingencyConsumedSetups(member_id, consumed_setup_ids)
+  GetMemberAttributeSnapshot(member_id)  # 此时持久 charged=false 已生效
+  CommitBattleResources(member_id, current_hp, current_mp, current_aura)
 
 死亡成员：
   不读取 consumed_setup_ids
   不释放持久封存
-  commit_battle_death(member_id)
+  CommitBattleDeath(member_id)
 ```
 
-若战斗 runtime 异常结束、失败重试、未提交结算或 battle save lock 未释放，overlay 直接丢弃；持久 setup 仍保持战前状态。若提交型结算中 `commit_contingency_consumed_setups()` 返回异常，`end_battle()` 必须中止该成员后续 `commit_battle_resources()`，并把结算视为提交失败，不能出现“MP 资源已提交但 consumed setup 未回写”的半提交状态。
+若战斗 runtime 异常结束、失败重试、未提交结算或 battle save lock 未释放，overlay 直接丢弃；持久 setup 仍保持战前状态。若提交型结算中 `CommitContingencyConsumedSetups()` 返回异常，`EndBattle()` 必须中止该成员后续 `CommitBattleResources()`，并把结算视为提交失败，不能出现“MP 资源已提交但 consumed setup 未回写”的半提交状态。
+
+`battle_save_lock` 只能保证磁盘不在战斗中途保存，不能保证内存 mutation 自动回滚。`GameRuntimeFacade.FinalizeBattleResolution()` 这类结算入口在调用 `EndBattle()` 前必须捕获可恢复的 runtime / party 快照；只要 consumed 写回、资源提交、party state set、world persist 或 `FlushGameState()` 任一步失败，就要恢复到结算前内存状态，并保留同一份 battle result 供重试或报错。否则会出现磁盘仍是战前状态、内存却已经释放封存或提交资源的半提交。
 
 战斗结算生命周期：
 
@@ -1879,11 +1942,11 @@ BattleUnitFactory._build_member_attribute_snapshot(...)
 
 战后提交需要新增一个明确入口，由 `CharacterManagementModule` 负责写回存活成员的已消耗 setup：
 
-```gdscript
-func commit_contingency_consumed_setups(
-	member_id: StringName,
-	consumed_setup_ids: Array[StringName]
-) -> Dictionary
+```csharp
+public ContingencyCommitResult CommitContingencyConsumedSetups(
+    StringName memberId,
+    IReadOnlyList<StringName> consumedSetupIds
+);
 ```
 
 该入口只处理存活成员；死亡成员不调用。它只做三件事：
@@ -1891,15 +1954,15 @@ func commit_contingency_consumed_setups(
 ```text
 1. 找到 member_state.contingency_matrix_setups 中对应 setup_id。
 2. 对 consumed setup 写 charged=false、reserved_mp_max=0、material_costs=[]。
-3. 返回提交结果，供 BattleRuntimeModule.end_battle() 决定是否继续资源提交。
+3. 返回提交结果，供 `BattleRuntimeModule.EndBattle()` 决定是否继续资源提交。
 ```
 
-`BattleRuntimeModule.end_battle()` 中的存活成员提交顺序固定为：
+`BattleRuntimeModule.EndBattle()` 中的存活成员提交顺序固定为：
 
 ```text
-consumed_ids = BattleContingencySystem.get_consumed_setup_ids(member_id)
-commit_contingency_consumed_setups(member_id, consumed_ids)
-commit_battle_resources(member_id, current_hp, current_mp, current_aura)
+consumedIds = BattleContingencySystem.GetConsumedSetupIds(memberId)
+CommitContingencyConsumedSetups(memberId, consumedIds)
+CommitBattleResources(memberId, currentHp, currentMp, currentAura)
 ```
 
 如果 `consumed_setup_ids` 为空，直接返回 ok。若 member 不存在、setup_id 找不到、setup 未 charged 或字段异常，视为战斗提交异常 / 数据异常；不得静默跳过、返还材料或做兼容修复。
@@ -1911,26 +1974,30 @@ BattleRuntimeModule / damage resolver / status resolver / movement resolver 到�
     -> BattleContingencySystem 接收 hook facts
         -> 判断触发条件与 live gate
             -> 生成 AutoCastRequest
-                -> execute_auto_cast 复用效果结算底层处理自动法术
+-> ExecuteAutoCast 复用效果结算底层处理自动法术
 ```
 
 示意：
 
-```gdscript
-func on_before_damage_resolved(hook_facts, damage_context):
-    for matrix in active_by_trigger_type.get(hook_facts.trigger_type, []):
-        if matrix.state != ContingencyState.ARMED:
-            continue
-        if not trigger_matches(matrix.trigger, hook_facts):
-            continue
-        trigger_matrix(matrix, hook_facts, damage_context)
+```csharp
+void BeforeDamageResolved(HookFacts hookFacts, DamageContext damageContext)
+{
+    foreach (var matrix in activeByTriggerType[hookFacts.TriggerType])
+    {
+        if (matrix.State != ContingencyState.Armed)
+            continue;
+        if (!TriggerMatches(matrix.Trigger, hookFacts))
+            continue;
+        TriggerMatrix(matrix, hookFacts, damageContext);
+    }
+}
 ```
 
 特殊注意：
 
 ```text
-1. 自动施法不能直接复用普通 issue_command()。
-2. combat_started 不能在 start_battle() 中直接触发，应等玩家确认开战后触发。
+1. 自动施法不能直接复用普通 `IssueCommand()`。
+2. combat_started 不能在 `StartBattle()` 中直接触发，应接在 `GameRuntimeFacade.CommandConfirmBattleStartTyped()` 成功分支之后、timeline 解冻和首个单位 turn_start 之前触发，并把 batch/report 纳入本次确认开战的 UI/headless 快照。
 3. fatal_damage_incoming 需要 pre-damage interception，不能等死亡落地后补救。
 4. status_applied 与 movement 类触发需要由对应同步 hook 提供统一事实，否则容易漏路径。
 5. UI 不能直接改 PartyMemberState，必须走配置服务并在 mutate 前检查 battle lock。
@@ -2211,25 +2278,25 @@ skip_reason / suppressed_reason 日志
 | D3 | `matrix_capacity = 3 + skill_level`，1-9 级容量为 4 到 12。 |
 | D4 | 不使用层级命名，只按技能等级范围解锁：1-2 基础防护/位移，3-4 反控/反近身/连续释放，5-6 法术影响/伤害/控制，7-8 致死触发/强控制/safe_cell，9 最高负载组合与未来 summon。 |
 | D5 | V1 玩家可选触发器固定为 `combat_started`、`hp_below_percent`、`incoming_damage_percent`、`fatal_damage_incoming`、`status_applied`、`enemy_enter_radius`、`affected_by_spell`；`owner_turn_started` 仅用于连续释放内部调度；`targeted_by_spell` 合并进 `affected_by_spell`，`round_started`、`manual_keyword`、`entered_dangerous_tile` 不进入 V1。 |
-| D6 | `contingency_matrix_setups` 正式落在 `PartyMemberState`，类型为 `Array[ContingencyMatrixSetupState]`，纳入 strict exact `to_dict()` / `from_dict()`；新增 trigger、resolver、stored spell、material cost 等显式状态类；setup 不存 owner，owner 来自外层 `PartyMemberState`；raw `mp_max` 不被改写，MP 封存通过 `effective_mp_max = max(raw_mp_max - total_reserved_mp_max, 0)` 投影到恢复、进战、刷新和战后回写；战斗中进入 release_context 后 battle-local 立即释放 MP 上限封存并记录 consumed setup，持久 `PartyMemberState` 到提交结算时才回写 `charged=false`。 |
+| D6 | `contingency_matrix_setups` 正式落在 `PartyMemberState`，类型为 `Godot.Collections.Array<ContingencyMatrixSetupState>`，纳入 strict exact `ToDictionary()` / `FromDictionary()`；新增 trigger、resolver、stored spell、material cost 等显式状态类；setup 不存 owner，owner 来自外层 `PartyMemberState`；raw `mp_max` 不被改写，MP 封存通过 `effective_mp_max = max(raw_mp_max - total_reserved_mp_max, 0)` 投影到恢复、进战、刷新和战后回写；战斗中进入 release_context 后 battle-local 立即释放 MP 上限封存并记录 consumed setup，持久 `PartyMemberState` 到提交结算时才回写 `charged=false`。 |
 | D7 | 连锁应急术是战前预施法矩阵，自动释放储存法术时绕过言语/姿势/材料成分和沉默、眩晕、麻痹、睡眠、恐惧等普通行动限制；反魔法/专门压制、owner 死亡/离场/不存在、目标非法或法术结算规则仍可阻止或使释放无效。 |
 | D8 | 同一伤害事件必须携带稳定 `damage_event_id`；同一 owner 同一 `damage_event_id` 最多一个矩阵进入释放流程；伤害触发优先级为 `fatal_damage_incoming > incoming_damage_percent > hp_below_percent`；HP 写入后的 `hp_below_percent` 仍发生在死亡/倒地最终结算前，但若前置伤害触发已进入释放流程，则不再补触发。 |
 | D9 | 多 owner 响应同一 AoE / 多目标瞬发事件时，先冻结 `source_event_facts` 并按 timeline / `unit_id` / `owner_member_id` 构建稳定触发队列；触发资格只看 frozen facts，不因前一个矩阵位移、造墙、护盾、杀死施法者或改变地形而重算；owner 轮到自己时再做 live gate；最终伤害/效果通过当前状态和 per-owner source event modifier 结算。持续区域、延迟爆炸、多段传播按 tick / 阶段重新生成 facts。 |
 | D10 | 不新增 `matrix_fallback_policy`；矩阵是否消耗只看是否创建 `release_context` 并进入释放流程，进入后即使所有储存法术因目标解析失败、免疫、非法目标或 `skip_if_invalid` 没有实际效果，也消耗充能且不回滚；未进入释放流程的 live gate / 触发评估失败才不消耗。 |
-| D11 | `suppressed` 只由反魔法、专门压制或未来高阶破阵/裂解压制模式造成；普通解除无效；压制不释放 MP 封存、不返还宝石、不改变 `charged=true`；`armed` 压制结束恢复 `armed`，队列中未进入释放流程则 live gate 失败不消耗，`burst_release` 开始后不回溯中断，`sequential_release` 压制中暂停队列并在解除后继续。 |
+| D11 | 压制是 battle-local overlay，不是主状态；主状态保持 `armed` / `triggering` / `releasing` / `depleted`，另存 `suppressed`、`suppressed_reason`、`resume_state`。压制只由反魔法、专门压制或未来高阶破阵/裂解压制模式造成；普通解除无效；压制不释放 MP 封存、不返还宝石、不改变 `charged=true`；`armed` 压制结束恢复可触发，队列中未进入释放流程则 live gate 失败不消耗，`burst_release` 开始后不回溯中断，`sequential_release` 压制中暂停队列并在解除后继续。 |
 | D12 | 手动清除充能只允许战斗外通过 UI / headless 命令执行，是自由操作；清除后 `charged=false`、`reserved_mp_max=0`、`material_costs=[]`，释放 MP 上限但不自动恢复 current MP，特殊宝石不返还；编辑已充能配置前必须先清除并二次确认；战斗中不允许手动清除或手动触发。 |
 | D13 | 储存法术采用默认禁止 + 显式白名单：`can_be_stored_in_contingency=true` 才可进入候选；随后检查 `forbidden_stored_skill_tags`，任一 tag 命中即拒绝，且禁止 tag 优先于白名单；`summon`、额外行动、再次触发、复活、永久制造、复杂手动选点等默认禁止，伤害/控制通过技能等级、负载和 `min_contingency_skill_level` 开放。 |
 | D14 | 当前项目没有专注机制，V1 不实现、不校验、不保存任何专注相关字段；连锁应急术和储存法术暂不处理专注冲突，未来若引入专注机制再单独设计。 |
 | D15 | 战斗生命周期按提交型结算处理：胜利/正常提交/逃跑提交时，存活成员未触发 charged setup 保持充能，已进入释放流程的 setup 回写 `charged=false` 并释放封存；失败读档/重试与异常结算失败不写回 contingency 状态；死亡提交不做 contingency 特殊回写、封存释放或 MP clamp，直接走死亡规则；battle-local `triggering` / `releasing` / queue 永不存档。 |
 | D16 | `skill_id` 是持久契约，发布后不得随意重命名、复用或改变语义；存档只保存 `source_skill_id` / `stored_skill_id`，读档找不到 ID 时拒绝 payload 或 setup；不做 alias table、semantic hash、名称/标签猜测替代，也不在连锁应急术系统内置自动迁移。 |
 | D17 | 已存矩阵必须满足当前内容定义；若内容变更导致 setup 不再合法，例如法术不再允许储存、关键 tags / `min_contingency_skill_level` 冲突、目标解析器不再允许，读档或进入战斗时按存档异常处理；不自动清除、降级、返还、迁移或静默跳过。 |
-| D18 | 保留 `parameter_bindings`，无参数时显式 `{}`；每个技能定义声明允许的 binding key、类型和枚举值，未声明 key 或错误 value 直接拒绝；该字段只用于法术模式选择，不允许保存目标、坐标队列、runtime unit id、owner、节点/脚本/函数/对象引用或任意嵌套结构。 |
+| D18 | 保留 `parameter_bindings`，无参数时显式 `{}`；每个技能定义声明允许的 binding key、类型和枚举值，未声明 key 或错误 value 直接拒绝；V1 value 只允许 bool、int、float、String/StringName、Array[StringName]；该字段只用于法术模式选择，不允许保存目标、坐标队列、runtime unit id、owner、节点/脚本/函数/对象引用、Dictionary value 或任意嵌套结构。 |
 | D19 | V1 `timing` 固定为实现契约，不由玩家自由选择；仅允许 `after_battle_confirmed`、`before_spell_effect_resolved`、`before_damage_resolved`、`after_hp_changed`、`after_status_applied`、`after_position_changed`、`owner_turn_started`，并由 trigger type 固定映射；旧式 `after_event`、`after_movement` 不进入 V1。 |
 | D20 | 新增连锁应急术存档字段属于 save schema break：root save version 升到 8，`PartyState.version` 升到 4；明确不做兼容、不写迁移、不补默认字段、不支持旧 payload、不做 soft fallback；旧版本或缺字段 payload 加载失败并作为存档版本/结构不兼容处理。 |
 | D21 | 删除 `charged_at_world_step`；V1 不保存充能时间、过期时间或 `-1` 哨兵值。若以后需要显示“最近充能/清除”，从 `GameSession.log_event` / `GameLogService` 查询世界层日志，不把时间快照放入 setup payload。 |
 | D22 | 连锁应急术绑定 `owner_member_id` 人物身份，不绑定当前形态、种族、职业外观、身体模板或 battle-local `unit_id`；`self` 解析为 owner 当前 live `BattleUnitState`，使用当前形态的坐标、体型、属性和状态；若找不到 owner live unit，则未进入释放流程时 live gate 失败且不消耗，已进入释放流程后不回滚，后续 `self` 法术按目标解析失败跳过或中止。 |
-| D23 | 原审查意见中的“自身矩阵递归触发”在当前状态机下无效：矩阵必须先从 `armed` 进入 `triggering` / `releasing` 才释放预存法术，已触发矩阵不能再次触发；不新增专门的自身递归处理。保留全局防跨矩阵规则：连锁应急术自动施法产生的派生事件不能触发任何连锁应急术，`AutoCastRequest.can_trigger_other_contingencies` 固定为 `false`。 |
-| D24 | `max_active_per_caster = 1` 不按阵营区分；V1 玩家、敌人、召唤物或未来 boss 只要作为 caster 使用连锁应急术，都统一最多 1 个 active / charged 矩阵。敌人默认不使用持久充能矩阵；若未来需要敌方或 boss 使用，必须通过显式 enemy template / special profile 预装 battle-local 矩阵，不让 AI 临场感知该机制并做资源分配；仍默认每个 enemy unit 最多 1 个。多矩阵 boss 作为未来单独机制设计。 |
+| D23 | 原审查意见中的“自身矩阵递归触发”在当前状态机下无效：矩阵必须先从 `armed` 进入 `triggering` / `releasing` 才释放预存法术，已触发矩阵不能再次触发；不新增专门的自身递归处理。保留全局防跨矩阵规则：连锁应急术自动施法产生的派生事件不能触发任何连锁应急术，`AutoCastRequest.can_trigger_other_contingencies` 固定为 `false`，且所有派生 hook facts / source_event_facts / damage_event_facts 都必须携带 `BattleEffectOrigin.can_trigger_contingencies=false`。 |
+| D24 | V1 只支持玩家 active party member 的持久 charged setup；敌人、召唤物和 boss 不读取 `PartyMemberState.contingency_matrix_setups`，不走宝石 / MP 封存持久成本。若未来需要敌方或 boss 使用，必须通过显式 enemy template / special profile 预装 battle-local profile/template，不让 AI 临场感知该机制并做资源分配；默认每个 enemy unit 最多 1 个，多矩阵 boss 作为未来单独机制设计。 |
 | D25 | 已由 D15 生命周期覆盖：死亡提交不做 contingency 特殊回写、封存释放或 MP clamp，直接走死亡规则，`current_mp=0` 并按现有死亡流程移出可用队伍；失败重试或结算失败不写回。 |
 | D26 | 原审查意见中的“多个单位同时进入范围”在 V1 事件模型下无效：位置变化按真实时间顺序逐个派发，不存在同时进入批量事件；`enemy_enter_radius` 按先来后到处理，首个从范围外进入范围内且成功创建 `release_context` 的敌人成为 `trigger_source` 并消耗矩阵，后续进入事件不会补触发；若先进入事件未进入释放流程则不消耗，后续进入仍可触发；不新增每轮冷却、批量聚合或同回合去重窗口。 |
 | D27 | 召唤物、宠物、盟友、临时单位都不是 owner 的代理主体；它们受伤、被控、被法术影响或进入危险区域，不触发 owner 的矩阵。召唤物可以作为普通 `source_unit_id`：敌方召唤物伤害 owner、进入 owner 半径或施法影响 owner 时，可按对应触发器触发；未来 `summoner_unit_id` / `summoner_member_id` 只用于归因、AI、日志或召唤控制，不把召唤物事件改写成 summoner 本人事件。 |
@@ -2239,31 +2306,31 @@ skip_reason / suppressed_reason 日志
 | 编号 | 裁决 |
 |---|---|
 | F1 | MP 封存不修改 raw `mp_max`，也不写 `UnitBaseAttributes.custom_stats["mp_max"]`；属性快照显式区分 `mp_max_unreserved`、`reserved_mp_max`、`effective_mp_max`。持久层只保存 setup 级 `reserved_mp_max`，member 级总和运行时汇总；`AttributeSourceContext` 增加 transient `reserved_mp_max`，`AttributeService._build_snapshot()` 在所有属性修正后计算 effective max。充能立刻 clamp current MP；战斗中释放封存立刻刷新 BattleUnitState 上限但不恢复 current MP；战后提交先释放封存再提交资源 clamp。 |
-| F2 | 自动施法不走 `issue_command()`；新增 battle-local `AutoCastRequest` 和内部 `execute_auto_cast()` 路径。固定 flags：`is_auto_cast`、`source_kind=contingency`、`ignore_action_phase`、`ignore_ap_cost`、`ignore_resource_cost`、`ignore_cooldown`、`ignore_identity_charge`、`ignore_mastery_gain`、`ignore_skill_used_achievement`、`skip_spell_control`、`spent_mp=0`、`can_trigger_other_contingencies=false`。保留内容查找、目标、抗性、护盾、豁免和效果结算。 |
-| F3 | 不做通用事件总线，不新增 `battle_event_dispatcher.gd`。改为 `BattleContingencySystem` 暴露固定同步 hook：`on_battle_confirmed`、`before_damage_resolved`、`after_hp_changed`、`after_status_applied`、`after_position_changed`、`before_spell_effect_resolved`、`owner_turn_started`。`before_damage_resolved` 必须能写入取消或修改伤害的 per-owner 修正；source event id / damage event id 使用 battle-local serial，不进存档。 |
+| F2 | 自动施法不走 `IssueCommand()` / `GetSkillCastBlockReason()` / `ConsumeSkillCosts()` 主路径；新增 battle-local `AutoCastRequest` 和内部 `ExecuteAutoCast()` 路径。固定 flags：`is_auto_cast`、`source_kind=contingency`、`ignore_action_phase`、`ignore_ap_cost`、`ignore_resource_cost`、`ignore_cooldown`、`ignore_identity_charge`、`ignore_mastery_gain`、`ignore_skill_used_achievement`、`skip_spell_control`、`spent_mp=0`、`can_trigger_other_contingencies=false`。保留内容查找、目标、抗性、护盾、豁免和效果结算；派生事件必须携带 origin 抑制。 |
+| F3 | 不做通用事件总线，不新增 `BattleEventDispatcher`。改为 `BattleContingencySystem` 暴露固定同步 hook：`OnBattleConfirmed`、`BeforeDamageResolved`、`AfterHpChanged`、`AfterStatusApplied`、`AfterPositionChanged`、`BeforeSpellEffectResolved`、`OwnerTurnStarted`。`BeforeDamageResolved` 必须能写入取消或修改伤害的 per-owner 修正；`source_event_id` 是逻辑来源事件，`damage_event_id` 是单个 target 上的单次 damage effect，二者使用 battle-local serial，不进存档。 |
 | F4 | 战斗中进入 release_context 后，battle-local 立刻消耗 setup 并释放 MP 上限封存；持久 `PartyMemberState` 不在战斗中途修改。正式战后提交时，存活成员先把 consumed setup 写成 `charged=false` 并释放封存，再提交资源；失败重试、结算失败和战斗保存锁不写回。死亡提交不做 contingency 特殊回写，直接按死亡规则处理。 |
 | F5 | `PartyMemberState.contingency_matrix_setups` 使用 strict exact fields；新增 root save version 8 和 `PartyState.version=4`。旧 payload、缺字段、坏字段直接拒绝，不补默认、不迁移、不做兼容。 |
-| F6 | 战斗桥接从 `PartyMemberState` 到 `BattleContingencySystem`，发生在单位生成落位之后、战斗确认 hook 之前。实例使用 `source_member_id` 绑定 live unit；不把完整 setup 存进 `BattleUnitState` 或 `BattleUnitState.to_dict()`。战斗开始找不到 owner live unit 是数据异常，不静默跳过。 |
-| F7 | 持久状态类落在 `scripts/player/progression/`：setup、trigger、target resolver、stored spell entry、material cost 五类。运行时新增 `party_contingency_setup_service.gd`、`battle_contingency_system.gd`，可选 `auto_cast_request.gd`；不新增 `battle_event_dispatcher.gd`。 |
+| F6 | 战斗桥接从 `PartyMemberState` 到 `BattleContingencySystem`，发生在单位生成落位之后、战斗确认 hook 之前。实例使用 `source_member_id` 绑定 live unit；不把完整 setup 存进 `BattleUnitState` 或 `BattleUnitState.ToDictionary()`。战斗开始找不到 owner live unit 是数据异常，不静默跳过。 |
+| F7 | 持久状态类落在 `scripts/player/progression/`：`ContingencyMatrixSetupState.cs`、`ContingencyTriggerState.cs`、`ContingencyTargetResolverState.cs`、`ContingencyStoredSpellEntryState.cs`、`ContingencyMaterialCostState.cs`。运行时新增 `PartyContingencySetupService.cs`、`BattleContingencySystem.cs`，可选 `AutoCastRequest.cs`；不新增 `BattleEventDispatcher`。 |
 | F8 | 保存格式破坏性升级：root save version 升到 8，`SaveSerializer` 默认版本同步到 8，`PartyState.version` 升到 4；save index 版本不因正文存档字段变化而升级，除非索引 schema 另有变化。 |
-| F9 | 命名统一 snake_case。`skill_id` 是技能定义持久契约；`source_skill_id` 表示创建矩阵的连锁应急术技能，`stored_skill_id` 表示自动释放的预存技能。玩家 UI 使用“爆发释放”；战斗内部状态为 `armed`、`suppressed`、`releasing`、`depleted`，不把 `triggering` 暴露给玩家。 |
+| F9 | 命名统一 snake_case。`skill_id` 是技能定义持久契约；`source_skill_id` 表示创建矩阵的连锁应急术技能，`stored_skill_id` 表示自动释放的预存技能。玩家 UI 使用“爆发释放”；战斗内部主状态为 `armed`、`triggering`、`releasing`、`depleted`，压制使用 overlay 字段，不把 `triggering` 暴露给玩家。 |
 | F10 | 复用现有 `BattleEventBatch.report_entries` 通道，必要时加公开 helper，不直接调用私有 `_append_report_entry_to_batch`。新增结构化条目使用 `entry_type`，不使用旧式 `type`。 |
-| F11 | 现有 battle save lock 可以作为战斗不存档基础；新增要求是 contingency 回写顺序必须在 `commit_battle_resources()` clamp 之前。若崩溃、结算失败或 lock 未释放，存档保持战前状态；不新增 dirty flag。 |
+| F11 | 现有 battle save lock 可以作为战斗不存档基础；新增要求是 contingency 回写顺序必须在 `CommitBattleResources()` clamp 之前。若崩溃、结算失败或 lock 未释放，存档保持战前状态；不新增 dirty flag。 |
 | F12 | 世界层新增 `PartyContingencySetupService` 作为充能/清除唯一入口。充能事务先拒绝战斗态，再校验技能、内容、材料和封存，候选状态写 charged/material/reserved，扣宝石，重算 effective max 并 clamp current MP，最后提交；任一步失败都不产生部分 mutation。所有世界层 MP 恢复与 clamp 路径使用 effective max。 |
 | F13 | `charged_at_world_step` 直接删除；不使用 `-1` 哨兵，不保存充能时间或过期时间。需要显示或审计最近充能/清除时走世界层日志，不把该字段放回 setup payload。 |
 | F14 | 当前不做专注机制，不讨论连锁应急术与专注的交互。V1 不新增专注字段、校验、状态、日志或测试。 |
-| F15 | V1 不做敌人连锁应急术；未来敌人 / boss 的应急连锁术由 enemy template 或 special profile 预装为 battle-local instance，不读取 `PartyMemberState.contingency_matrix_setups`，不走宝石 / MP 封存持久成本，也不要求 `enemy_ai_service` 感知该机制并做分配。默认仍每个 caster 最多 1 个矩阵；多矩阵 boss 以后单独设计。 |
+| F15 | V1 不做敌人连锁应急术；未来敌人 / boss 的应急连锁术由 enemy template、`EnemyAiBrainDef` 或 special profile 预装为 battle-local profile/template，不读取 `PartyMemberState.contingency_matrix_setups`，不走宝石 / MP 封存持久成本，也不要求现有敌方 AI 决策层感知该机制并做分配。默认仍每个 enemy unit 最多 1 个矩阵；多矩阵 boss 以后单独设计。 |
 
 ### G. 第二轮代码验证审查
 
 | 编号 | 裁决 |
 |---|---|
 | G1 | `before_damage_resolved` 是可修改 hook，不是观察 hook。它对所有即将结算的伤害调用，包括预计完全被护盾吸收的伤害；但 `incoming_damage_percent` / `fatal_damage_incoming` 只按 `projected_hp_damage_after_shield` 判定，预计 HP 伤害为 0 时不触发。hook 必须支持 per-owner `cancel_damage` / `modified_resolved_damage`；`cancel_damage=true` 时不扣护盾、不扣 HP、不产生对应 HP crossing，已进入 release_context 的矩阵仍消耗。 |
-| G2 | 战后提交时，只有存活成员需要先应用 contingency writeback，再重建 `AttributeSnapshot`，最后调用 `commit_battle_resources()` clamp HP / MP / aura。顺序固定为：`consumed setup -> charged=false / reserved_mp_max=0 / material_costs=[]`，然后 `get_member_attribute_snapshot(member_id)`，再提交资源。死亡提交不做这些 contingency 特殊处理，直接走死亡规则。 |
-| G3 | 新增 `CharacterManagementModule.commit_contingency_consumed_setups(member_id, consumed_setup_ids) -> Dictionary`，专门把 battle-local consumed setup 写回 `PartyMemberState`。该入口只处理存活成员；死亡成员不调用。空列表直接 ok；member 不存在、setup_id 找不到、setup 未 charged 或字段异常都视为战斗提交异常 / 数据异常，不静默跳过、不返还材料、不做兼容修复。`end_battle()` 必须先调用该入口，再调用 `commit_battle_resources()`。 |
+| G2 | 战后提交时，只有存活成员需要先应用 contingency writeback，再重建 `AttributeSnapshot`，最后调用 `CommitBattleResources()` clamp HP / MP / aura。顺序固定为：`consumed setup -> charged=false / reserved_mp_max=0 / material_costs=[]`，然后 `GetMemberAttributeSnapshot(member_id)`，再提交资源。死亡提交不做这些 contingency 特殊处理，直接走死亡规则。 |
+| G3 | 新增 `CharacterManagementModule.CommitContingencyConsumedSetups(member_id, consumed_setup_ids)`，专门把 battle-local consumed setup 写回 `PartyMemberState`。该入口只处理存活成员；死亡成员不调用。空列表直接 ok；member 不存在、setup_id 找不到、setup 未 charged 或字段异常都视为战斗提交异常 / 数据异常，不静默跳过、不返还材料、不做兼容修复。`EndBattle()` 必须先调用该入口，再调用 `CommitBattleResources()`。 |
 | G4 | 自动施法只跳过行动阶段、AP/MP/资源、冷却、熟练度、成就和魔力失控等成本/统计机制，不改变储存技能自身的命中、豁免、抗性、免疫、护盾、减伤、special profile 和效果结算规则。技能要求豁免就正常豁免，要求命中就正常命中；技能本身不要求命中/豁免时不额外增加。`force_hit_no_crit` / `no_attack_roll` 只能来自储存技能自身定义，不能由 `AutoCastRequest` 赋予。 |
 | G5 | `owner_turn_started` 在 V1 中只用于连续释放队列推进，不作为玩家可选触发器。同一个 `owner_turn_started` tick 内，先推进已有 `releasing` 队列，再进入普通回合开始流程；本 tick 不重新评估该矩阵的新触发。推荐插入点是单位成为 active unit 后、trait turn_start / AP 分配 / 玩家或 AI 输入前。owner 被压制则队列暂停，死亡或离场则队列中止，已进入 release_context 的矩阵不返还。 |
-| G6 | 战斗外充能必须由 `PartyContingencySetupService` 作为唯一入口执行跨域事务，覆盖仓库扣特殊宝石、`PartyMemberState.contingency_matrix_setups` 写 charged/material/reserved、`current_mp` clamp 和世界层日志。实现使用现有 `GameRuntimeFacade.capture_party_transaction_state()` / `commit_party_transaction_or_rollback()`，不新增通用事务框架：完成全部校验后扣材料、写 setup、重算 effective max 并 clamp；任一步失败都由 runtime transaction 恢复 party / warehouse / GameSession 运行时状态并重新 setup 相关服务引用，返回稳定 `error_code`。读档、进战和战斗开始确认永不扣材料；战斗外清除不返还宝石。 |
+| G6 | 战斗外充能必须由 `PartyContingencySetupService` 作为唯一入口执行跨域事务，覆盖仓库扣特殊宝石、`PartyMemberState.contingency_matrix_setups` 写 charged/material/reserved、`current_mp` clamp 和世界层日志。当前 C# 主线没有通用 party transaction helper；V1 应在服务内显式捕获仓库状态、成员 contingency 状态和 `current_mp`，失败时恢复这些快照并返回稳定 `error_code`。读档、进战和战斗开始确认永不扣材料；战斗外清除不返还宝石。 |
 | G7 | V1 不新增 `damage_event_group` / `separate_damage_events` 等技能字段，也不让 `damage_event_id` 承载复杂技能语义。`damage_event_id` 按现有伤害结算粒度生成：一次 damage effect 对一个 target 一个 ID；多 effect / 多段法术会逐段打开触发检查窗口。同一 owner、同一 `damage_event_id` 最多一个矩阵进入 `release_context`。若前一段已触发并消耗矩阵，后续段不会再次触发；若前一段未触发，后一段可以触发。AoE 的触发资格仍由 frozen `source_event_facts` 保证，不靠 `damage_event_id` 回头重算。 |
 
 ### H. 第三轮代码验证审查
@@ -2272,1034 +2339,480 @@ skip_reason / suppressed_reason 日志
 |---|---|
 | H1 | `before_damage_resolved` 调用前，damage resolver 必须先进行无副作用伤害投影，把 `resolved_damage`、`projected_shield_absorbed`、`projected_hp_damage_after_shield`、`would_be_fatal`、`shield_would_break` 注入 hook context。投影阶段不得修改护盾、HP 或状态。若 hook 返回 `modified_resolved_damage`，必须按修改后的伤害重新投影，再进入实际扣盾扣血。 |
 | H2 | `cancel_damage=true` 的实现边界是局部提前返回零伤害结果：不扣护盾、不扣 HP、不产生对应 `hp_below_percent` crossing，并记录取消原因 / 结构化报告。取消当前 damage effect 不影响上层 `resolve_effects` 循环继续处理同一技能的后续 effect。 |
-| H3 | 原附录提出的“仓库快照回滚需暂缓信号 / side effects”不采纳为实现项。代码复核确认 `PartyWarehouseService.commit_batch_swap*()` 当前没有 signal、dirty、日志或持久化副作用，只做仓库状态副本提交；runtime 日志由 `_execute_logged_command()` 在命令返回后统一记录，持久化由 `commit_party_transaction_or_rollback()` 统一处理。因此 V1 不新增仓库信号暂缓、defer side effects 或专门 dirty 机制；充能只需走现有 runtime party transaction，成功后再由命令层给出状态 / 日志。 |
+| H3 | 原附录提出的“仓库快照回滚需暂缓信号 / side effects”不采纳为实现项。代码复核确认 `PartyWarehouseService` 的 batch swap 事务当前主要做仓库状态副本提交；世界层日志由 command handler 在命令返回后统一记录。由于当前 C# 主线没有通用 party transaction helper，V1 不应假设已有外层事务，而应在 `PartyContingencySetupService` 内显式完成快照、提交、失败恢复和稳定错误码。 |
 | H4 | 持久状态采用 per-type exact schema：setup / stored spell / material cost 为固定字段，trigger / target resolver 按 `type` 精确字段校验；未知字段、缺字段、未知 type 和错误类型均拒绝。V1 移除 `fixed_cell`，不保存 battle-local 坐标、格子列表或复杂选点结果。 |
 | H5 | 运行时规则中 `mp_max` 永远表示 effective 可用上限。属性快照额外写 `mp_max_unreserved` 和 `reserved_mp_max` 供 UI / 日志 / 调试展示；raw 上限不参与恢复、扣费、技能前置或资源上限判定。`reserved_mp_max` 由 `AttributeSourceContext` 传入，`AttributeService._build_snapshot()` 最后一步覆盖 `mp_max=max(mp_max_unreserved-reserved_mp_max,0)`。 |
 | H6 | 战斗中释放封存使用 battle-local overlay：`BattleContingencySystem` 记录本场 consumed setup ids 和对应 instance 的 `reserved_mp_max`，持久 `PartyMemberState` 战斗中不改；`BattleUnitFactory` 每次从 `CharacterManagementModule` 重建玩家属性快照后调用 overlay helper，按 `persistent_reserved_mp_max - consumed_reserved_mp_max` 覆盖 `snapshot.reserved_mp_max` 与 `snapshot.mp_max`。触发进入 release_context 后立刻 mark consumed 并刷新 owner 属性，上限提高不恢复 current MP；战后只对存活成员先写回 consumed setup，再提交资源。 |
 
 ---
 
-# 附录：对抗性检视报告
+### I. 当前 C# 主线校准（2026-06-12）
 
-以下从四个维度对本文档进行对抗性检视，按严重程度标出所有发现。
+本节是对当前 C# 代码的最新落地校准。后续实现以本节引用为准，早期审查中的历史行号不再作为实现依据。
 
----
+| 编号 | 当前代码事实 | 落地影响 |
+|---|---|---|
+| I1 | 保存层当前是 `scripts/systems/persistence/GameSession.cs` 的 `SaveVersion = 7`、`scripts/systems/persistence/SaveSerializer.cs` 的 `_save_version = 7`、`scripts/player/progression/PartyState.cs` 的 `version = 3`。 | 实现 contingency 持久字段必须破坏性升级 root save 到 8、party 到 4；不做旧 payload 兼容。 |
+| I2 | `scripts/player/progression/PartyMemberState.cs` 仍是 exact fields，当前没有 `contingency_matrix_setups`，字段数组也不是旧审查里的 44 项。 | 新字段必须进入 `TO_DICT_FIELDS`、`ToDictionary()`、`FromDictionary()`、`DuplicateState()`；相关测试 fixture 需要同步重建。 |
+| I3 | `scripts/systems/attributes/AttributeSourceContext.cs` 没有 `reserved_mp_max`；`scripts/systems/attributes/AttributeService.cs` 的 `BuildSnapshot()` 直接写 `mp_max`，没有 raw/effective 分层。 | MP 封存仍是实现阻塞点。必须先加 `mp_max_unreserved`、`reserved_mp_max`、effective `mp_max` 的统一计算点，再改世界恢复、战斗生成和战后 clamp。 |
+| I4 | `scripts/systems/battle/runtime/BattleUnitFactory.cs` 从 character gateway 取得 `AttributeSnapshot` 后直接用于单位构建，没有 contingency overlay。 | 战斗中释放封存需要新增 overlay helper，并保证所有玩家快照刷新入口都走同一 helper。 |
+| I5 | `scripts/systems/battle/runtime/BattleRuntimeModule.cs` 的战斗结束只提交资源/死亡；`scripts/systems/progression/CharacterManagementModule.cs` 的 `CommitBattleResources()` 会重新构建 snapshot 后 clamp 资源。 | 已 consumed setup 的写回必须在 `CommitBattleResources()` 前完成，否则 MP 上限释放不会参与最终 clamp。 |
+| I6 | `scripts/systems/battle/rules/BattleDamageResolver.cs` 的伤害、护盾吸收和 HP 扣减仍在同一结算段内；护盾吸收比例来自 `DamageApplicationInput.ShieldAbsorptionPercent`，不再是旧审查假设的固定 1.0。 | `BeforeDamageResolved` 不能复制护盾公式；必须抽无副作用投影 helper，hook 和实际扣盾扣血共用同一计算。 |
+| I7 | 玩家施法入口仍由 `BattleRuntimeModule.IssueCommand()` 校验 active unit / turn state 后进入 `BattleSkillExecutionOrchestrator._handle_skill_command()`；成本在 `BattleRuntimeSkillTurnResolver.cs` 消耗，熟练度和成就统计散落在 orchestrator / runtime。 | 自动施法不能复用 `IssueCommand()`。需要内部 `ExecuteAutoCast(AutoCastRequest, BattleEventBatch)`，显式绕过 AP/MP/cooldown/mastery/achievement，同时保留命中、豁免、抗性、护盾和 effect 结算。 |
+| I8 | 当前没有通用 party transaction helper；可见的是 `GameRuntimeWarehouseHandler.cs` 的私有仓库快照/回滚和 `PartyWarehouseService.cs` 的仓库 batch swap。 | 充能服务不能引用不存在的通用事务。`PartyContingencySetupService` 必须自己捕获仓库、成员 setup、`current_mp` 快照，失败时恢复，成功后再由命令层记录日志。 |
+| I9 | `scripts/systems/battle/core/BattleEventBatch.cs`、`scripts/systems/battle/runtime/BattleSkillOutcomeCommitter.cs`、`scripts/systems/battle/runtime/BattleMeteorSwarmResolver.cs`、`BattleRuntimeModule` 已经使用 `report_entries`。 | 结构化战报不是阻塞点；contingency 只需要复用现有 `report_entries` 通道，避免直接写私有 batch helper。 |
+| I10 | 当前 skill content 没有 contingency 专用的 stored spell allowlist、parameter binding schema、automation profile。 | 配置层仍缺内容契约。没有这层，UI/headless 不能安全保存 `parameter_bindings`，自动施法也无法判断哪些技能允许被预存。 |
 
-## A. 系统设计与平衡视角
-
-### A1. [CRITICAL] MP封存不扣当前MP → 休息后零成本
-成本模型仅封存 `reservedMpMax`（最大魔力上限），但充能时当前MP不受影响。法师充能后在营地休息至满，等于白嫖3个法术。
-**建议：** 充能时必须同时扣除当前MP，或休息恢复不能超过 `MaxMP − reservedMpMax`。
-
-### A2. [CRITICAL] 同步释放等于免费获得3个回合的行动
-3个法术瞬间释放，无视AP/MP/冷却。战士需要3轮自buff，法师用一个被动的反应动作完成——行动经济严重失衡。
-**建议：** 触发后给施法者施加N轮debuff（过载），或限制为每触发最多释放1个法术（高等级再解锁多法术）。
-
-### A3. [CRITICAL] 致死伤害触发 + 闪现 + 治疗 = 不死之身
-`fatal_damage_incoming` + `before_damage_resolved` + 闪现传送 + 治疗 → 角色无法被单次攻击击杀。
-**建议：** 该类触发每长休限一次，或治疗在伤害结算后触发（作为稳定手段而非免死金牌）。
-
-### A4. [HIGH] 开战触发 = 永久战前buff
-`combat_started` 触发让法师每战零动作自动buff 3个法术，战士/盗贼还没行动。
-**建议：** 开战触发应消耗第一回合动作，或禁止储存Haste类法术。
-
-### A5. [HIGH] 无过期 → 一次性投资永久保险
-所有示例的 `expiresAtWorldStep = -1`，一份材料+一次封存覆盖整个战役。
-**建议：** 增加充能有效期（世界步数/天数限制），或要求周期性小额维护费用。
-
-### A6. [HIGH] 矩阵穿透沉默/眩晕/CC释放
-自动施法绕过所有花费检查，暗示即使沉默/眩晕也会释放。矩阵成为所有控制效果的硬反制。
-**建议：** 明确定义哪些角色状态会阻止矩阵触发。至少沉默应压制矩阵。
-
-### A7. [HIGH] 解除魔法一击抹消全部投入
-敌方一个3环解除魔法可摧毁8环连锁应急术的投入（材料丢失、封存释放但当前MP不回）。
-**建议：** 基于技能等级提供解除抵抗，或将"解除"改为"压制"（战后恢复）。
-
-### A8. [HIGH] hp_below_percent 被爆发伤害跳过
-一次攻击将HP从35%直接打到0% → 条件从未在"低于30%且存活"窗口触发。
-**建议：** 增加 `hp_crossed_percent_threshold` 触发器类型，检查伤害前后HP跨越。
-
-### A9. [MEDIUM] 连续释放没有机制优势
-同时释放严格优于连续释放——需要保护的是"现在"而非分3轮。
-**建议：** 给连续释放实质好处：更低负载、更低MP封存、或后续法术+1有效施法等级。
-
-### A10. [MEDIUM] 零熟练度增长产生逆向激励
-触发施法不涨熟练度 → 玩家故意不把未熟练法术放进矩阵 → 只在法术刷满后才用系统。
-**建议：** 给予50%熟练度（防止挂机刷，但不惩罚正常使用）。
-
-### A11. [MEDIUM] 技能升级有很多"死等级"
-仅有4个模糊层级（初级/中级/高级/顶级），中间等级无实质性收益。
-**建议：** 提供每级具体奖励表——每级解锁新触发类型/法术类别/+1位置/容量提升/封存比例降低。
-
-### A12. [MEDIUM] 矩阵负载公式有5个隐藏税变量
-`触发器税 + 目标解析税 + 效果类别税 + 释放模式税` —— 全无数值。
-**建议：** 在UI中展示完整负载明细，让玩家理解每项贡献。
-
-### A13. [MEDIUM] `safe_cell` 解析器未定义
-"安全"格没有精确定义——可能传送到陷阱、岩浆或孤立位置。
-**建议：** 明确定义：无人、距盟友N格内、不邻接敌人、在视线内、非危险地形。无满足条件则落回自身。
-
-### A14. [LOW] `targeted_by_spell` 与AoE模糊
-火球中心3格外、施法者在溅射范围内是否算"被锁定"？
-**建议：** 区分"被直接指定为目标"和"落入法术区域"两种触发器。
-
-### A15. [LOW] 1矩阵限制不与投入成正比
-20级大法师和1级学徒只能维持1个矩阵。高投入无回报。
-**建议：** 高级技能等级允许第二矩阵位，或通过天赋解锁。
+当前硬阻塞不止 I6 / I8。真正会决定能否安全落地的前置项是：I3 effective MP / MP 封存统一计算点，I6 伤害投影和可修改 hook，I7 自动施法内部入口与 origin 抑制，I8 跨域充能事务，I10 内容 automation schema。缺任一项都只能写出局部 demo，无法保证存档、战斗结算、自动释放和防递归行为一致。
 
 ---
 
-## B. 工程实现与数据结构视角
+### J. 阻塞点详细实现设计
 
-### B1. [CRITICAL] 标识符命名三重不一致
-`spellId`(263行)、`skill_id`(1088行存档)、`source_skill_id`(1067行存档) 三种键名对应同一逻辑字段。`mage_chain_contingency` 与 `spell.chain_contingency` 是不同的ID字符串，查找必然失败。
-**建议：** 全局统一 `snake_case` 命名，后缀 `_id` 而非 `Id`。
+本节细化会阻塞首版落地的基础设施。目标是先补出可验证的 typed 契约、MP 封存、事务、hook 和自动施法边界，再让后续 contingency 主功能接入；不要在这里顺手实现完整连锁应急术。
 
-### B2. [CRITICAL] 存档格式与运行时配置的字段命名分裂
-第5节用 `camelCase`(`chargedAtWorldStep`、`reservedMpMax`)，第18节用 `snake_case`(`charged_at_world_step`、`reserved_mp_max`)。无映射表→加载时数据必然丢失。
-**建议：** 全文统一为 `snake_case`，与GDScript `to_dict()`/`from_dict()` 对齐。
+#### J1. 跨域充能事务
 
-### B3. [CRITICAL] 成本公式无具体值 → 不可实现
-`reservedMpMax = 基础封存 + ceil(matrixLoad * 技能等级系数)` 中，7个变量全无数值。三个示例的数据也无一致算术关系。
-**建议：** 贴出带注释的具体数值表，或将 `reservedMpMax` 直接写入配置（由策划手工调整）。
+**问题边界**
 
-### B4. [CRITICAL] "不做兼容"无用户体验和回滚策略
-旧存档被拒绝时用户表现未定义：静默崩溃？错误弹窗？存档被孤立？若玩家在 `charged=true` 时存档，拒绝意味着材料和封存同时丢失。
-**建议：** 定义具体行为（错误消息 + 禁止加载），提供版本跳转逻辑，至少给一个软着陆期。
+充能一次 contingency setup 会同时修改：
 
-### B5. [CRITICAL] 仅存ID但法术定义可能语义变更
-镜影术若被重做为完全不同效果，已充能矩阵将产生意外行为。存档依赖加载时解析定义但无版本控制/哈希校验。
-**建议：** 对加载法术结构做哈希校验，或对影响已存矩阵的定义变更做版本控制。
-
-### B6. [CRITICAL] `triggering`/`releasing`状态中对驱散无防御
-伪代码假设进入 `triggering` 后无阻碍运行至完成。敌人在此过程中驱散矩阵→行为未定义。
-**建议：** 添加 `if matrix.state in [DISPELED, SUPPRESSED]: abort_cast_queue()`。
-
-### B7. [CRITICAL] 没有"手动清除"状态
-摘要和成本规则多次提到"手动清除"，但状态枚举中无对应值。
-**建议：** 添加 `cancelled` 状态（玩家主动清除，不写完成痕迹），成本语义同驱散。
-
-### B8. [CRITICAL] 规则13.2与伪代码冲突
-规则写"同一事件最多触发一个应急矩阵"，伪代码遍历所有实例并触发每个匹配。两个施法者都有 `combat_started` → 都触发。
-**解决：** 规则应为"对同一施法者最多触发一个"，伪代码不需改，规则文本需修正。
-
-### B9. [CRITICAL] 触发中保存/读档导致双重触发
-`triggering`状态不写入存档 → 重新加载后 `charged=true` → 矩阵重建为 `armed` → 同事件可重新触发。
-**建议：** 在触发开始时原子写入 `charged=false`，或将 `consumed_charge` 标志同步持久化。
-
-### B10. [HIGH] 多法术顺序释放中战斗崩溃 → 部分消耗无法追踪
-顺序释放完成2/3后崩溃，存档显示 `charged=true`（队列未写入存档），等于无代价重置。
-**建议：** 将 `released_spell_count` 写入存档结构，仅战斗完全结束后做 `charged=true→false`。
-
-### B11. [HIGH] 法术重命名破坏全部存档
-`spell.mirror_image` → `spell.illusion.mirror_image` → 所有已充能矩阵悬空引用。
-**建议：** 实现法术ID别名表，或冻结初始发布后的法术ID。
-
-### B12. [HIGH] 验证器不检查触发器与目标解析器的配对
-`combat_started` 无触发源，但 `targetResolver.type = "trigger_source"` 会通过验证。
-**建议：** 为每个触发器添加 `allowed_target_resolvers` 白名单，验证器逐项执行交叉合规检查。
-
-### B13. [MEDIUM] 实例的 `storedSpells` 缺少 `parameterBindings`
-第9节定义了 `parameterBindings` 字段，第6节实例JSON中缺失。
-**建议：** 将 `parameterBindings` 加入实例JSON或明确声明实例构造时拒收/允许该字段。
-
-### B14. [MEDIUM] `remainingQueue` 存字符串而非完整对象
-顺序释放队列存纯字符串列表，其他地方存储的是带 `castLevel`/`targetResolver` 等的完整对象。
-**建议：** 将 `remainingQueue` 定义为 `StoredSpellEntry` 对象的完整列表。
-
-### B15. [MEDIUM] `canBeStoredInContingency` 与 `forbiddenInContingency` 冗余
-两者共存允许自相矛盾的状态。
-**建议：** 移除 `forbiddenInContingency`，仅保留 `canBeStoredInContingency`。
-
-### B16. [MEDIUM] `canTrigger` 字段未被解释
-实例有 `canTrigger: true`，全文无说明其含义和与 `state == armed` 的区别。
-**建议：** 补充定义或移除冗余字段。
-
-### B17. [MEDIUM] 全局步进重置会破坏过期时间
-`world_step` 若因补丁/故障而重置，过期和充能时间全面失效。
-**建议：** 使用单调世界时钟（带纪元标识符），或存校验和/代际哈希。
-
-### B18. [MEDIUM] `expired` 转换无事件驱动
-状态枚举含 `expired`，但战斗事件列表中无"按世界步进检查过期"事件。`armed → expired` 永远不会触发。
-**建议：** 在 `RoundStarted` 添加 `check_expiry` 步骤。
-
-### B19. [MEDIUM] `suppressed → armed` 恢复路径未定义
-反魔法场移除后，已压制的矩阵恢复还是永久禁用？
-**建议：** 要么定义 `suppressed` 为不可逆（同驱散），要么定义检查反魔法退出的恢复转换。
-
-### B20. [MEDIUM] 无"读档"标记阻止重复扣材料
-规则说"读档、进战不再次扣材料"，但存档中无标志位告诉系统"这是恢复，不重新计费"。
-**建议：** 增加一个 `is_restored_from_save` 上下文标识。
-
-### B21. [LOW] 同步释放排序——原子性未明确
-按顺序结算——如果2号法术对象依赖1号法术结果，作为原子事务还是独立多事件处理？
-**建议：** 明确："每个法术在前一个完全结算后作为独立自动施法提交"，不尝试原子回滚。
-
-### B22. [LOW] 顺序释放回合边界——效果何时生效
-第N轮开始时释放法术，同轮的回合内效果在半轮结算前还是后生效？
-**建议：** 明确自动施法在 `round_started` 事件监听器主列表中的触发点。
-
-### B23. [LOW] 事件循环O(NxM)性能
-每个战斗事件遍历所有武装矩阵。8个队员 x 每回合几百事件 → 显著CPU开销。
-**建议：** 建立事件类型到受影响矩阵的哈希映射表。
-
----
-
-## C. 玩家体验与UX视角
-
-### C1. [CRITICAL] `expiresAtWorldStep: -1` 从未解释
-每个示例都使用 `-1`（永不过期），但"世界步进"是什么？矩阵能否过期？玩家完全不知道。
-**建议：** 新增章节解释世界步进、过期策略、`-1`的含义。
-
-### C2. [CRITICAL] 材料消耗后永不返还（即使从未触发）
-充能消耗材料，触发/清除/解除/过期均不返还。战斗中从未低于30%HP→永久损失材料→零收益。
-**建议：** 至少允许手动清除/解除时部分退款，或将材料保留到矩阵实际触发时再消耗。
-
-### C3. [CRITICAL] 编辑已充能预设 → 全部材料损失，零警告
-从30%改成25%需要重付全部材料。惩罚实验和误操作太过严厉。无撤销、无宽限期、无部分退款。
-**建议：**
-- 最优：允许编辑所有内容，仅重新计算负载差异
-- 良好：小改动（阈值、退路策略）免费；大改动（换法术）重新计费
-- 可接受：任何编辑先展示成本预览："此变更消耗：奥术水晶x1, +3封存MP，继续？"
-
-### C4. [CRITICAL] 触发器反馈零规范
-文档描述内部状态机但未定义玩家看到/听到/读到什么。同时释放3个法术若无视觉/音效/日志反馈，玩家完全不知道矩阵已触发。
-**建议：** 必须要求以下反馈：
-- 独特视觉特效（符文圈、魔法符文爆炸）
-- 独特音效
-- 战斗日志："[应急矩阵] HP<30% -> 镜影术, 石肤术"
-- 角色上方浮动文字："应急矩阵触发!"
-- 触发法术施放的buff图标上角标，表明来自矩阵
-
-### C5. [CRITICAL] 零入门引导——系统是全有或全无的复杂壁垒
-新玩家需同时理解：充能/预设两步操作、5个隐藏税项、目标解析器、退路策略、零熟练度增长、永久MP削减。无渐进式引导。
-**建议：** 添加NPC导师引导首矩阵；提供"推荐"预构建矩阵；考虑"简单模式"（隐藏目标解析器和退路策略，默认自我目标+跳过无效）。
-
-### C6. [HIGH] `reservedMpMax` 对当前MP的影响未定义
-说"角色可用 max MP 应扣掉"，但当前MP呢？当前MP=5、封存=12 → 角色昏迷？
-**建议：** 明确定义充能/触发/解除/过期时对最大MP和当前MP的行为。最好做一张场景表。
-
-### C7. [HIGH] "预设 vs 充能"两步操作不直观
-先存预设（免费）再充能（付费）。玩家可能存了预设就以为已保护→死了才发现从未充能。
-**建议：** 合并为单按钮"施放应急术"（自动存储预设作为充能的一部分）。高级切换可分离，但默认合并。
-
-### C8. [HIGH] "目标解析器"是程序员术语
-`trigger_source`、`owner_centered_area`、`empty_cell_near_owner` —— 玩家读不懂。
-**建议：** 映射到中文描述："目标：[我] [触发此阵的敌人] [附近安全格]"。尽量提供可视化预览。
-
-### C9. [HIGH] 编辑清充能规则——所有编辑一视同仁
-改阈值%和换法术受完全相同惩罚。
-**建议：** 见C3。
-
-### C10. [HIGH] 无预设库/配置系统
-只能维持1个充能矩阵 → 想换用其他方案需手动重建整个配置。
-**建议：** 增加命名预设系统，可存无限预设，充能时选哪个预设激活。
-
-### C11. [HIGH] 无声失败（`skip_if_invalid` 无通知）
-储存法术找不到有效目标静默跳过。玩家设计的3法术矩阵只释放2个，不知原因→死亡。
-**建议：** 战斗日志记录每次跳过："[应急矩阵] 雷鸣波跳过——未找到有效目标。"
-
-### C12. [HIGH] 战斗中途存档/读档行为未定义
-战斗中保存（矩阵已触发但效果未完全结算）——读档后重武装还是正确标记为已完成？
-**建议：** 存档一个 `matrix_triggered_this_battle` 标志。若已设置，读档后 `charged=false` 不重武装。
-
-### C13. [HIGH] 触发器配置UI高度异质
-每个触发器需完全不同输入（滑块、范围选择器、标签云），统一UI设计难度大。
-**建议：** 向导式UI：(1)"何时触发？"→视觉分类选择，(2)"配置细节"→选中触发器上下文面板，(3)"触发后做什么？"→法术配置。
-
-### C14. [HIGH] 严格自用限制破坏了支援法师幻想
-DND文化中法师用应急术保护队友是经典玩法。文本禁止了 `bound_ally` 解析器和盟友绑定。
-**建议：** 考虑"高级连锁应急术"作为单独高阶法术允许一个盟友绑定矩阵（更高成本）。V1即使不自用，也在工具提示写明："仅能保护自己。高级版本请学习高级连锁应急术"——将限制变预告。
-
-### C15. [MEDIUM] "同时释放"实际是顺序释放
-说"同时"但实现是按顺序 `for` 循环。法术1结束后才开始法术2。
-**建议：** 改名为"爆发释放"或"快速顺序释放"，说明敌人不能在矩阵内法术间行动。
-
-### C16. [MEDIUM] 覆盖旧矩阵无保护
-"新覆盖旧"——一键误操作无声删除已充能矩阵（材料+封存全损失）？
-**建议：** 弹出确认对话框："你已有充能矩阵。创建新矩阵将销毁它，材料不返还。继续？"
-
-### C17. [MEDIUM] "强攻击/强控制"无客观定义
-什么决定"强"？法术等级？标签？效果数值？玩家不知为何A法术3级可用、B法术需7级。
-**建议：** 在法术工具提示中展示 `effectCategory` 和 `minContingencySkillLevel`。
-
-### C18. [MEDIUM] 无"试射"或模拟模式
-玩家无法验证矩阵是否正常工作→战斗触发时才知错误→致命伤害触发尤甚。
-**建议：** 矩阵编辑器中添加"模拟触发"按钮，展示施放法术/目标/顺序/效果。
-
-### C19. [MEDIUM] 无法手动触发或战斗内解除
-想提早手动触发或想等更好时机——无法控制。
-**建议：** 添加"解除矩阵"动作（自由动作）和"强制触发"动作（完整动作）。
-
-### C20. [MEDIUM] "应急矩阵"（矩阵）的科幻味与奇幻游戏相悖
-**建议：** 考虑"应急法阵"、"应急结界"、"应急术式"。
-
-### C21. [MEDIUM] "连锁应急术"暗示级联但系统禁止级联
-"连锁"强烈暗示级联（A触发B触发C），但第13节明确禁止。
-**建议：** 考虑"预设应急术"或"触发应急术"，或重新定义"连锁"为"条件到法术的链接"。
-
-### C22. [LOW] `fallbackPolicy` 需在编辑器中有可见性
-玩家在配置矩阵时看不出"万一目标无效怎么办"。
-**建议：** 在编辑器中设为"高级"可见项，对任何可能失败的目标解析器旁显示警告图标。
-
-### C23. [LOW] 无战斗内武装状态视觉指示
-玩家不知矩阵处于待命还是已释放。
-**建议：** 角色头像上添加持久状态图标和buff栏条目："应急矩阵：武装（HP<30% -> 镜影术 + 石肤术）"。
-
----
-
-## D. 系统整合与完整性视角
-
-### D1. [CRITICAL] `matrixLoad` 成本公式几乎完全未定义
-7个税项目中0个有具体值，不可实现（同B3）。三个示例值（load=6->MP=12, load=8->MP=16, load=10->MP=22）无推导关系。
-**建议：** 提供每个税类别的完整数值表、`baseMatrixLoad`+`castLevel`->储存负载的映射公式、各技能层级对应 `基础封存` 和 `技能等级系数`。
-
-### D2. [CRITICAL] 充能有效期完全缺失
-全部示例用 `-1`，未定义：基础持续时长、持续时间单位（世界步/秒/轮次/休整）、是否受技能等级/材料品质影响。
-**建议：** 说明V1不支持过期（始终用 `-1`），或定义 `baseDurationWorldSteps` 常量。
-
-### D3. [CRITICAL] `matrixCapacity` 等级进度表未定义
-"由连锁应急术等级决定，默认8起" —— 无等级->容量映射表。
-**建议：** 提供具体表（1->4, 3->6, 5->8, 7->10, 9->12），或公式。
-
-### D4. [CRITICAL] 无具体技能等级->层级映射
-初级/中级/高级/顶级的标签无法映射到具体等级数（技能等级4算初级还是中级？）。`minContingencySkillLevel` 无法实现。
-**建议：** 提供具体表：
-
-| 技能等级 | 层级 | 容量 | 允许类别 | 允许触发器 | 释放模式 |
-|---|---|---|---|---|---|
-| 1-2 | 初级 | 4 | 防护、位移 | hp_below_percent, combat_started | 同时 |
-| 3-4 | 中级 | 6 | +反控、反近身 | +enemy_enter_radius, status_applied | 同时 |
-| 5-6 | 高级 | 8 | +攻击、强控 | +fatal_damage_incoming | 同时+连续 |
-| 7+ | 顶级 | 10+ | +召唤（高负载） | +targeted_by_spell | 同时+连续 |
-
-### D5. [CRITICAL] 触发器类型一半无结构定义
-10个类型中仅5个有JSON定义。`manual_keyword` 未解释。`entered_dangerous_tile` 无对应地格标签系统。
-**建议：** 为全部10类型提供完整JSON schema和参数说明，或将未定义项移出V1范围。
-
-### D6. [CRITICAL] `PartyMemberState` 字段定义太模糊
-`contingency_matrix_setups` 无类型声明、无 `to_dict()`/`from_dict()` 交互说明、存档用 `snake_case` 而内存用 `camelCase`、无 `reserved_mp_max` 如何影响 `max_mp` 的说明。
-**建议：** 声明具体GDScript类型、声明序列化格式、添加 `get_effective_max_mp()` 方法。
-
-### D7. [CRITICAL] 沉默/眩晕/麻痹的施法者在触发时行为未定义
-应急矩阵是"预施法"——监听器应工作。但：沉默的施法者储存的雷鸣波能否生效（言语成分）？麻痹者的闪现步（姿势成分）？眩晕者的镜影术？
-**建议：** 明确声明："应急术自动施法绕过所有成分要求（言语/姿势/材料）和所有动作限制。即使施法者沉默/麻痹/眩晕/以其他方式无法行动，矩阵仍可触发并结算全部储存法术。"
-
-### D8. [CRITICAL] 同一伤害事件的触发器冲突
-AoE对施法者命中60%最大HP：
-- `hp_below_percent` 成立 -> 按 `after_event` 触发
-- `fatal_damage_incoming` 成立 -> 按 `before_damage_resolved` 触发
-- 哪个先？哪个触发？治疗是否抑制另一个？
-
-**建议：** 定义触发器优先和解决顺序：每施法者每个源事件最多只触发一个矩阵，最高优先级者胜。
-
-### D9. [CRITICAL] 多施法者同类触发器无排序
-A、B两位施法者均有 `combat_started` 触发——什么顺序解决？A的buff是否影响B的后续解决？
-**建议：** 定义确定性排序（先攻顺序），所有自动施法请求在战斗轮次开始前排队并按序解决。
-
-### D10. [HIGH] 全部储存法术目标解析失败——行为未定义
-3个储存法术 `fallbackPolicy` 均为 `skip_if_invalid`，且全部目标均无效->矩阵变为已完成？消耗充能？释放MP？当"已触发并消耗"还是"已触发但失败"？
-**建议：** 为整体矩阵定义 `matrixFallbackPolicy`（`consume_on_trigger_anyway` / `retain_charge_on_total_failure`），并指定状态转换。
-
-### D11. [HIGH] `suppressed` 状态零行为定义
-无进入条件、无MP释放规则、无计时行为、无反魔法结束后恢复规则。
-**建议：** 定义完整状态机：进入条件=反魔法场/裂解术；MP行为=保留封存；计时=过期计时暂停；恢复=反魔法结束后于施法者下回合开始时重新武装。
-
-### D12. [HIGH] "手动清除"从未定义为动作
-如何清除（战斗动作/非战UI按钮）？消耗动作/轮次/时间？可否在战斗中？是否可逆？
-**建议：** 定义为非战UI中的自由动作，设置 `charged=false`、释放MP、材料不返还。
-
-### D13. [HIGH] 标签排除逻辑对多标签法术未定义
-法术标签=`["summon", "extra_action"]`，`"summon"`在文本禁止列表但在JSON禁止列表中不存在->矛盾。用"ANY匹配即禁止"还是"ALL匹配才禁止"？
-**建议：** 定义排除逻辑：
-1. 优先检查 `SpellDefinition.forbiddenInContingency`
-2. 若该法术任一标签在 `forbiddenStoredSpellTags` 中->阻止
-3. 将 `"summon"` 加入 `forbiddenStoredSpellTags`
-4. 定义阻止方式为"任一标签相交"
-
-### D14. [HIGH] 储存法术需要专注
-应急矩阵自身不需专注，但储存的加速术/飞行术需专注->自动施法后自动展开专注？已有专注怎么办？强制放弃旧专注？
-**建议：** (A) 自动施法专注法术仍需专注并遵循正常专注规则；(B) 储存法术无视自身专注要求。推荐(A)并明确文档。
-
-### D15. [HIGH] 无战斗胜利/失败/逃跑状态转换规范
-- 胜利 -> 矩阵武装/触发中？销毁。`charged` 保留。MP保留。
-- 团灭 -> 保留重试还是清除？
-- 逃跑 -> 武装矩阵保留。触发中的矩阵->`charged` 写回了吗？
-
-**建议：** 添加生命周期表：
-
-| 事件 | 战斗本地实例 | 持久 `charged` | MP封存 |
-|---|---|---|---|
-| 胜利 | 销毁 | 不变 | 不变 |
-| 失败(重试) | 销毁 | 不变 | 不变 |
-| 失败(永久死亡) | 销毁 | 清除 | 释放 |
-| 逃跑 | 销毁 | 原样写回 | 不变 |
-
-### D16. [HIGH] 法术重命名破坏全部存档（同B11）
-**建议：** 法术ID别名表，或冻结初始发布后的法术ID。
-
-### D17. [HIGH] 已存矩阵的法术定义在语义上可能变为非法
-`minContingencySkillLevel` 从4升到7 -> 已充能矩阵（技能等级4）重新加载后仍有效？
-**建议：** 添加 `validate_saved_setup()` 函数，将过期矩阵标记为 `charged=false` 并向用户说明原因。
-
-### D18. [MEDIUM] `parameterBindings` schema 未定义
-`{ "element": "thunder" }` 的合法键值未指定。
-**建议：** 定义每个法术类别的 `parameterBindings` schema，或委托给单独的法术参数绑定文档。
-
-### D19. [MEDIUM] `timing` 枚举无详尽定义
-文档中使用了 `after_event`、`before_damage_resolved`、`after_movement`、`after_status_applied`，但无完整集合。
-**建议：** 定义完整 `ContingencyTiming` 枚举并指定各触发器类型可用的时序值。
-
-### D20. [MEDIUM] 非战斗触发场景未涉及
-关卡探索模式中，陷阱伤害->`hp_below_percent` 会触发吗？环境异常呢？
-**建议：** 明确声明触发仅在战斗中工作，关卡层不触发应急事件。
-
-### D21. [MEDIUM] "世界步进"单位从未定义
-`chargedAtWorldStep`/`expiresAtWorldStep` 无上下文。
-**建议：** 明确定义世界步进或引用其定义文档。若为关卡层时钟，注明其不前进于战斗。
-
-### D22. [MEDIUM] 施法者变形/转化后充能
-法师变形成巨魔后矩阵是否仍属于他？目标解析器 `self` 解析为当前形态？本体被放逐？
-**建议：** 声明矩阵跟随 `ownerMemberId` 不论形态，`self` 解析为当前单位状态。若被放逐=当地不存在->矩阵不触发且保留充能。
-
-### D23. [MEDIUM] `status_applied` 可能被自身自动施法重新触发
-规则13.1禁止触发"另一个"矩阵，但未禁止触发自身矩阵的*其他*触发条件。
-**建议：** 明确："应急矩阵的自动施法绝不能重新触发自身矩阵；即使自动施法产生了匹配该矩阵触发条件的事件也不行。"
-
-### D24. [MEDIUM] 敌对使用矩阵时 `maxActivePerCaster: 1` 未区分
-对玩家1个矩阵没问题，敌方AI应放宽限制？
-**建议：** 提示是否需要为敌方单独配置限制。
-
-### D25. [LOW] 永久死亡时清理已充能矩阵
-施法者永久死亡->MP释放目标不存在。矩阵清理规则未定义。
-**建议：** 成员永久死亡时释放 `reservedMpMax` 并清除设置。
-
-### D26. [LOW] 多个单位同时进入范围 -> `enemy_enter_radius` 触发多次
-3个敌人传送进入范围->触发3次。
-**建议：** 添加每轮冷却或每触发类型去重窗口。
-
-### D27. [LOW] 召唤生物与应急术交互
-召唤生物伤害能否触发施法者矩阵？触发器用 `subject: "owner"` 所以大概不会。仍需澄清。
-**建议：** 声明全部触发器仅作用于 `owner`/`caster`，召唤物/盟友非触发器主体。
-
----
-
-## 汇总统计
-
-| 视角 | CRITICAL | HIGH | MEDIUM | LOW |
-|---|---|---|---|---|
-| A. 系统设计与平衡 | 3 | 5 | 5 | 2 |
-| B. 工程实现与数据结构 | 9 | 3 | 9 | 3 |
-| C. 玩家体验与UX | 5 | 8 | 8 | 2 |
-| D. 系统整合与完整性 | 9 | 8 | 8 | 3 |
-
-**总计: 26 CRITICAL, 24 HIGH, 30 MEDIUM, 10 LOW**
-
----
-
-## 优先修复建议（Top 10）
-
-1. **D1/A12 — 成本公式缺失数值**（CRITICAL x4次命中）
-   必须提供所有税项的完整数值、`基础封存`、`技能等级系数`。
-
-2. **B1/B2 — 命名约定三重冲突**（CRITICAL x2次命中）
-   统一为 `snake_case`，修复 `spellId`/`skill_id`/`source_skill_id` 混淆。
-
-3. **B8/D8/D9 — 触发器冲突与排序**（CRITICAL x3次命中）
-   定义触发器优先级、同事件多矩阵行为、多施法者排序。
-
-4. **B6/D11 — 状态机漏洞**（CRITICAL x2次命中）
-   补充 `triggering`/`releasing`中的中断处理、`suppressed` 完整定义、过期转换、手动清除状态。
-
-5. **B9/B10/D9 — 存档/读档触发器完整性**（CRITICAL x2次命中）
-   原子写入 `charged=false` 或持久化 `consumed_charge`，处理顺序释放队列。
-
-6. **C2/C3 — 材料非返还 + 编辑清充能**（CRITICAL x4次命中）
-   重做退款规则：至少部分退款、编辑清充能前有确认/预览。
-
-7. **A1/A2/A3 — 核心平衡漏洞**（CRITICAL x3次命中）
-   休息绕过MP封存（充能时扣当前MP）、同步释放=免费3回合动作（加debuff）、致命触发=无敌（加每休息限制）。
-
-8. **C1/C4 — 零用户反馈**（CRITICAL x2次命中）
-   强制视觉/音效/日志反馈；解释世界步进和过期。
-
-9. **D5 — 缺失的触发类型定义**
-   完成 `incoming_damage_percent`、`targeted_by_spell` 等未定义触发器的schema。
-
-10. **C5 — 零引导**
-    教程任务、预构建矩阵、"简单模式"、渐进式功能开放。
-
----
-
-# 附录：代码架构可行性审查
-
-本节基于实际代码库（`E:\game\magic`）对第21节已确认裁决进行工程可行性交叉验证。每条给出裁决要点、代码现状、以及裁决与实现之间的缺口严重程度。
-
-审查时间基准：GameSession.SAVE_VERSION=7, PartyState.version=3, PartyMemberState.TO_DICT_FIELDS=44项，无任何 contingency 相关代码。
-
----
-
-## 致命缺口（裁决不可落地的结构性障碍）
-
-### F1. MP封存机制在属性系统中无挂载点
-
-**涉及裁决：** A1, C6, D6  
-**裁决要求：** `effective_mp_max = max(raw_mp_max - total_reserved_mp_max, 0)`；充能时 clamp 当前 MP；休息上限受封存约束。
-
-**代码现状：**
-- `AttributeService._build_snapshot()`（`attribute_service.gd:181`）仅从 `UnitBaseAttributes.custom_stats["mp_max"]` + 各类修正器计算，无封存减法。
-- `AttributeSnapshot`（`attribute_snapshot.gd`）是纯值容器，`get_value(MP_MAX)` 直接返回字典值，无派生计算。
-- `BattleUnitState`（`battle_unit_state.gd`）无 `reserved_mp` / `effective_mp_max` 字段。
-- `battle_unit_factory.gd:253-258` 用 `snapshot.get_value(MP_MAX)` 作为上限 clamp 当前 MP。
-- `character_management_module.gd:1196` 战后回写 MP 同样用原始 `snapshot.get_value(MP_MAX)` 做上限。
-- 全仓库搜索 `reserved_mp` / `effective_mp` / `total_reserved_mp` — **零匹配**。
-
-**缺口：** 需要至少在三层注入封存逻辑（AttributeService计算层、BattleUnitState存储层、commit_battle_resources回写层），且必须与现有修正器体系一致，避免与种族/职业/装备/被动修正产生双重减扣。裁决声称"raw mp_max 不被改写"，但 attribute_snapshot 内部无此区分能力。
-
-**严重程度：CRITICAL**
-
----
-
-### F2. 技能管线无任何 cost-bypass 路径
-
-**涉及裁决：** D7, B21, B22, D23  
-**裁决要求：** 自动施法绕过言语/姿势/材料成分、不扣 AP/MP/冷却/熟练度；爆发释放快速顺序结算；`AutoCastRequest.can_trigger_other_contingencies = false`。
-
-**代码现状：**
-- `battle_skill_turn_resolver.gd:170-210`（施法阻塞检查）：无条件检查 AP 是否足够、资源是否满足、冷却是否就绪、沉默/眩晕等状态是否阻止。无任何 `ignore_*` 参数。
-- `battle_skill_turn_resolver.gd:250-279`（消耗扣除）：无条件扣 AP/MP/stamina/aura/cooldown。无法跳过。
-- `battle_skill_execution_orchestrator.gd:371` (`_handle_skill_command`)：入口参数只有 `(active_unit, command, batch)`，不接受 ignore flags。
-- 全仓库搜索 `AutoCastRequest` / `ignore_action_cost` / `ignore_resource_cost` / `ignore_cooldown` / `ignore_mastery_gain` — **零匹配**。
-
-**缺口：** 要实现裁决，必须在技能管线中开辟第二条执行路径或注入 bypass 参数。这不是"加一个字段"级别的工作——影响 orchestrator → turn_resolver → cost 扣除整条调用链。`AutoCastRequest` 概念完全不存在。
-
-**严重程度：CRITICAL**
-
----
-
-### F3. 战斗事件系统不存在
-
-**涉及裁决：** B8, B23, D8, D9, D19, D26  
-**裁决要求：** 按 trigger_type 建 active matrix 索引；事件只扫描相关矩阵；冻结 source_event_facts；稳定 damage_event_id；多 owner 按 frozen facts 排队；timing 枚举（`after_battle_confirmed` / `before_damage_resolved` 等）。
-
-**代码现状：**
-- 全仓库搜索 `BattleEventDispatcher` / `battle_event_dispatcher` — **零匹配**。该文件不存在。
-- 全仓库搜索 `CombatStartedEvent` / `DamageIncomingEvent` / `HpChangedEvent` / `StatusAppliedEvent` — **零匹配**。无任何战斗事件类型定义。
-- `BattleRuntimeModule.advance()` 和 `issue_command()` 是直接同步函数调用，不经过事件总线。
-- `damage_event_id` 概念不存在——伤害结算无稳定事件标识。
-- `source_event_facts` 概念不存在。
-- `timing` 枚举中列出的值（`after_battle_confirmed` / `before_spell_effect_resolved` / `before_damage_resolved` / `after_hp_changed` / `after_status_applied` / `after_position_changed` / `owner_turn_started`）— **全部不存在**。
-
-**缺口：** 整个触发匹配架构依赖事件驱动，但代码库中战斗逻辑是同步调用链。要实现裁决，要么在现有调用链每个关键点插入触发检查，要么新建事件分发层。无论哪种方式，工作量都等同于引入一个新子系统。
-
-**严重程度：CRITICAL**
-
----
-
-### F4. 战后回写管线无 contingency 入口
-
-**涉及裁决：** B9, D15  
-**裁决要求：** 已进入释放流程的 setup 在战斗胜利/正常提交/逃跑提交时回写 `charged=false` 并释放封存；失败读档/重试不写回；永久死亡提交清除全部 charged setup。
-
-**代码现状：**
-- `end_battle()`（`battle_runtime_module.gd:940-960`）仅调用 `commit_battle_resources()` 和 `commit_battle_death()`。
-- `commit_battle_resources()`（`character_management_module.gd:1190-1198`）仅写入 `current_hp, current_mp, current_aura, is_dead = false`。
-- `character_management_module` 无任何 contingency 相关方法。
-- `PartyMemberState` 无 `contingency_matrix_setups` 字段，回写无目标。
-- 全仓库搜索 `commit_contingency` / `charged` / `reserved_mp_max` — **零匹配**。
-
-**缺口：** 需要在 `end_battle` → `character_management_module` 之间新增一条完整的 contingency 数据通道——携带 consumed setup 列表、charged 状态、MP 释放指令。还要处理"提交型结算"的各种分支（胜利/逃跑/永久死亡/失败重试）。
-
-**严重程度：CRITICAL**
-
----
-
-### F5. PartyMemberState 字段添加与 exact-fields 验证冲突
-
-**涉及裁决：** D6, D20  
-**裁决要求：** `contingency_matrix_setups: Array[ContingencyMatrixSetupState]` 纳入 `PartyMemberState.TO_DICT_FIELDS` 并参与 strict exact `to_dict()`/`from_dict()`。
-
-**代码现状：**
-- `PartyMemberState.TO_DICT_FIELDS`（`party_member_state.gd:12-45`）当前精确 44 个字段。
-- `from_dict()` 第188行：`if not _has_exact_fields(data, TO_DICT_FIELDS)` → 返回 `null`。多一个或少一个字段都拒绝。
-- `PartyState.from_dict()` 第412行：`if int(version_variant) != 3` → 返回 `null`。
-- 添加 `contingency_matrix_setups` 会使 PartyMemberState 字段数从 44 变为 45+（取决于新增子状态类有多少字段进入 to_dict）。
-- PartyState 版本从 3 升 4 后，所有旧存档 100% 加载失败（这是设计意图，但需要明确承认影响）。
-
-**缺口：** 这不是"缺口"而是设计选择。但需注意连锁影响：
-1. 任何用到 `PartyMemberState.from_dict()` 的测试固件（大量 regression 测试）需要全部重新生成。
-2. `PartyState.from_dict()` 在加载 member_states 时为每个成员调用 `PartyMemberState.from_dict()`，版本检查在外层和内层各执行一次。
-3. 不存在"灰度升级"或"存量兼容"的中间态——一旦代码合入，所有旧 save 和测试数据即全部失效。
-
-**严重程度：CRITICAL**（非工程障碍，但属于操作风险）
-
----
-
-## 高危缺口（需要大量新造基础设施）
-
-### F6. 战斗单位工厂无 contingency 数据通路
-
-**涉及裁决：** D6, D22  
-**裁决要求：** 战斗开始时从 charged setup 构建 battle-local ContingencyInstance。
-
-**代码现状：**
-- `build_ally_units()`（`battle_unit_factory.gd:40-61`）从 `PartyMemberState` 读取身份/属性/资源/技能/装备。不读取任何 contingency 数据。
-- `_build_runtime_ally_unit()`（`battle_unit_factory.gd:237-283`）构建 `BattleUnitState` 时仅设置资源、技能、属性快照。
-- 无任何 battle-local contingency instance 创建逻辑。
-
-**缺口：** 需要新增从 `PartyMemberState.contingency_matrix_setups` 到 `BattleUnitState` / battle-local system 的数据桥接。至少涉及 factory、BattleUnitState、BattleContingencySystem 三个未创建文件。
-
-**严重程度：HIGH**
-
----
-
-### F7. 六个新服务/状态类文件全部为空
-
-**涉及裁决：** D6（全部显式状态类）  
-**裁决涉及的新文件：**
-
-| 文件 | 状态 |
-|---|---|
-| `scripts/player/progression/contingency_matrix_setup_state.gd` | 不存在 |
-| `scripts/player/progression/contingency_trigger_state.gd` | 不存在 |
-| `scripts/player/progression/contingency_target_resolver_state.gd` | 不存在 |
-| `scripts/player/progression/contingency_stored_spell_entry_state.gd` | 不存在 |
-| `scripts/systems/progression/party_contingency_setup_service.gd` | 不存在 |
-| `scripts/systems/battle/runtime/battle_contingency_system.gd` | 不存在 |
-| `scripts/systems/battle/runtime/battle_event_dispatcher.gd` | 不存在 |
-| `scripts/systems/battle/runtime/auto_cast_request.gd` | 不存在 |
-
-每个都需要 `class_name`、`TO_DICT_FIELDS`、`to_dict()`/`from_dict()` exact-fields 校验，与其他状态类一致。
-
-**严重程度：HIGH**
-
----
-
-### F8. SaveSerializer 版本升 8 的连锁影响
-
-**涉及裁决：** D20  
-**裁决要求：** root save version 升到 8，PartyState.version 升到 4。
-
-**代码现状：**
-- `GameSession.SAVE_VERSION = 7`（`game_session.gd:41`）
-- `SaveSerializer._save_version = 7`（`save_serializer.gd:179/189`，构造器默认值）
-- `SaveSerializer` 第262行：`if save_version != _save_version: return {"error": ERR_INVALID_DATA}`
-- 全仓库约有 15+ 个 regression 测试包含硬编码的 save version 检查和 payload 构造。
-
-**缺口：** 修改 SAVE_VERSION 会连锁影响：
-1. `SaveSerializer` 中的所有版本检查分支
-2. `GameSession` 中引用 `SAVE_VERSION` 的代码
-3. 所有 regression 测试中的 save payload 固件
-4. 任何外部工具/脚本依赖 save version 7 的假设
-
-**严重程度：HIGH**
-
----
-
-## 中等缺口（裁决与现有机制有摩擦但可解决）
-
-### F9. 多个现有枚举/命名与裁决冲突
-
-**涉及裁决：** B1, C15, C23, C24  
-**裁决要求：** 统一 `snake_case`；"同时释放"改"爆发释放"；战斗内状态用"待命/被压制/释放中/已耗尽"；代码内部保持 `contingency/matrix` 命名。
-
-**代码现状：**
-- 代码库已统一 `snake_case`——这个无冲突。文档中残留的 `camelCase` 示例（第5节JSON）与新裁决指示一致，需要更新正文示例。
-- "爆发释放"是新术语，未在任何现有代码中冲突。
-- 战斗内状态显示名不需要进代码，只需要 UI 映射层。
-
-**缺口：** 主要是文档本身残留的旧术语（`charged_at_world_step` 的旧示例仍用 camelCase）。文档正文中的旧 JSON 示例需要与裁决对齐。
-
-**严重程度：MEDIUM**
-
----
-
-### F10. report_entries 通道存在但从未使用
-
-**涉及裁决：** C4, B24, 第19节整节  
-**裁决要求：** 结构化 `report_entries` 写入 `BattleEventBatch.report_entries`。
-
-**代码现状：**
-- `BattleEventBatch` 已有 `report_entries: Array[Dictionary] = []`（`battle_event_batch.gd:21`）
-- 当前无任何代码向 `report_entries` 写入数据。
-- `BattleEventBatch.clear()` 第34行会清空它。
-- `GameSession.log_event()` / `GameLogService` 存在，可用于世界层日志。
-
-**缺口：** 基础设施存在但从未使用。只需在 contingency 系统正确写入 `report_entries`（entry_type + decision + reason_id + 条件字段），不需要新建字段或类。
-
-**严重程度：MEDIUM**（基础设施就绪，只需写入端）
-
----
-
-### F11. battle_save_lock 与 deferred save 的 charged 一致性
-
-**涉及裁决：** B9, C12  
-**裁决要求：** 不允许战斗中存档，因此不做战斗中触发进度持久化。
-
-**代码现状：**
-- `GameSession._battle_save_lock_enabled` 存在且工作。
-- `save_game_state()` 在锁定时标记 `_battle_save_dirty = true` 而不是实际写入。
-- 战斗结束后锁释放，deferred save 执行。
-- 如果 contingency 在战后回写 `charged=false`，deferred save 会正确反映最终状态。
-
-**缺口：** 需要验证的边界条件：
-1. 如果战斗崩溃/异常退出，`_battle_save_lock_enabled` 仍为 `true`，deferred save 永不执行 → `charged` 保留为战前值（正确行为）。
-2. 如果 `end_battle()` 被调用但提交失败（异常），charged 写回可能未执行但锁已释放 → 需要确认异常处理路径。
-3. `_runtime_save_dirty` 和 `_battle_save_dirty` 是两个独立标志——需要确认战后 flush 时哪个标志触发 contingency 状态持久化。
-
-**严重程度：MEDIUM**
-
----
-
-### F12. 战前充能的 MP clamp 无服务入口
-
-**涉及裁决：** A1, C6  
-**裁决要求：** 充能时 clamp 当前 MP 到封存后的上限。
-
-**代码现状：**
-- 充能是战斗外操作（世界层）。
-- `PartyMemberState.current_mp` 的写入路径只有：
-  - 战后 `commit_battle_resources()`（唯一规范的写入点）
-  - 直接字段赋值（无服务层保护）
-- 战斗外 MP 恢复机制（旅店/物品/休息）通过 `character_management_module` 的 `restore_resources()` 等方法——这些方法以 attribute snapshot 的满值作为恢复目标，无 `effective_mp_max` 概念。
-
-**缺口：** 充能操作需要一个世界层的服务入口来安全修改 `PartyMemberState.current_mp`。但当前 `PartyContingencySetupService` 文件不存在，且现有的资源恢复路径不知道封存上限。
-
-**严重程度：MEDIUM**
-
----
-
-## 低危缺口（工程细节或V1可推迟）
-
-### F13. `charged_at_world_step` 存 -1 但 world_step 是 non-negative int
-
-**涉及裁决：** D21, D12  
-**裁决要求：** `charged_at_world_step` 直接引用 `world_data["world_step"]`，非负 int，`charged=false` 时为 `-1`。
-
-**代码现状：**
-- `world_data["world_step"]` 的验证在 `get_world_data_step_validation_error()` 中要求 `int >= 0`。
-- 使用 `-1` 作为"未充能"标记是哨兵值模式，与 world_step 自身约束不一致（world_step 本身不可能为 -1）。
-- 但如果 `charged_at_world_step` 存储在 `PartyMemberState` 中而不是 `world_data` 中，这个冲突不成立——它只是在 save payload 中的另一个字段。
-
-**缺口：** 需要确保 type validation 允许 -1 作为合法值。当前 PartyMemberState 的 `from_dict()` 对所有 int 字段做范围校验（如 `body_size >= 1 and body_size <= 6`），如果 `charged_at_world_step` 加了 `>= 0` 的校验就会冲突。
-
-**严重程度：LOW**
-
----
-
-### F14. D14（无专注机制）是对现有代码的正确判断
-
-**涉及裁决：** D14  
-**裁决要求：** 当前项目没有专注机制，V1 不实现。
-
-**代码验证：** 全仓库搜索 `concentration` / `专注` — 仅在 `dispel_magic_logic.gd` 和 `status_effect_scripts/` 中有驱散相关引用，无专注系统。
-
-**确认：** 裁决正确。
-
----
-
-### F15. D24（敌人矩阵限制）需要敌方AI框架感知
-
-**涉及裁决：** D24  
-**裁决要求：** `max_active_per_caster = 1` 不按阵营区分；敌人默认不使用持久充能矩阵。
-
-**代码现状：**
-- 敌方 AI 通过 `enemy_ai_service` 决策，使用 `EnemyAIProfile` 中的行为配置。
-- 如果未来敌人使用矩阵，需要在 `enemy template` 或 `special profile` 中新增配置字段。
-- 当前 `EnemyAIProfile` 无 contingency 相关内容。
-
-**缺口：** V1 无影响。未来扩展时需要新增 AI 决策模块。
-
-**严重程度：LOW**
-
----
-
-## 汇总：裁决与实现就绪度矩阵
-
-| 裁决编号 | 裁决描述 | 实现就绪度 | 新造量 |
-|---|---|---|---|
-| D6 (PartyMemberState字段) | 新增 contingency_matrix_setups | 需新造字段+子状态类+to_dict/from_dict | 8个新文件 |
-| D7 (自动施法绕过限制) | 技能管线 bypass | 需贯穿 orchestrator→turn_resolver 的新路径 | 修改4个现有文件 |
-| F3关联 (事件系统) | 触发匹配 | 全新子系统 | 1-2个新文件 + 分散埋点 |
-| F4关联 (战后回写) | charged写回 | 新数据通道 | 修改2个现有文件 |
-| D8/D9 (伤害事件ID/frozen facts) | 触发器冲突解决 | 新概念植入伤害/移动结算 | 修改多个现有函数 |
-| D19 (timing枚举) | 固定触发点 | 新增枚举 + 各触发点的钩子调用 | 1个枚举文件 + 多处钩子 |
-| A1/C6 (MP封存) | effective_mp_max | 贯穿属性→单位→战后三层的链 | 修改3-4个现有文件 |
-| D15 (生命周期表) | 提交型结算 | end_battle 扩展 | 修改1个文件 |
-| D3 (容量公式) | matrix_capacity = 3 + skill_level | 纯数据公式 | 新常量/函数 |
-| D11 (suppressed状态机) | 压制/恢复 | BattleContingencySystem 内部逻辑 | 新文件内实现 |
-| B23 (按trigger_type索引) | 性能优化 | 在 BattleContingencySystem 内部 | 新文件内实现 |
-| C4 (日志反馈) | report_entries 写入 | 使用现有 BattleEventBatch.report_entries | 新文件内实现 |
-
-**结论：** 裁决的合理性（作为设计决策）与代码库的可实现性之间存在显著断层。最关键的三个缺口——MP封存层（F1）、技能 bypass（F2）、事件系统（F3）——都需要在现有架构中开"竖井"而非简单扩展。建议在开工前先完成这三项的 spike 实现以验证可行性。
-
----
-
-# 附录：第二轮对抗性审查（E节裁决 × 代码验证）
-
-本节基于对 `battle_damage_resolver.gd`、`battle_skill_execution_orchestrator.gd`、`attribute_snapshot.gd`、`battle_unit_factory.gd`、`character_management_module.gd` 等核心文件的逐行审查，对第21节E组裁决进行工程可行性二次对抗。
-
-审查结论：F组15项裁决均 **可落地**，但存在7个新发现的细节缺口需要补充裁决。
-
----
-
-## 新缺口 G1：`before_damage_resolved` hook 需支持伤害取消/修正
-
-**涉及裁决：** F3, A3, D8  
-**裁决要求：** `fatal_damage_incoming` 触发后位移可以取消当前伤害；`before_damage_resolved` hook 必须能写入取消或修改伤害的 per-owner 修正。
-
-**代码现状：**
-- `_apply_damage_to_target()`（`battle_damage_resolver.gd:2174`）计算 `normalized_damage` 后直接进入护盾吸收（2184行），无 hook 点，无取消机制。
-- 函数签名不接收外部 cancellation callback。
-- `normalized_damage` 一旦算出就必然至少推进到护盾吸收阶段。
-
-**缺口：** hook 若只是"观察者"（读取伤害但不修改），则 A3 的"位移取消伤害"无法实现。需要 hook 能返回 `{cancel: true}` 或修改 `normalized_damage`，且 `_apply_damage_to_target` 的调用链（`_resolve_damage_outcome` → `resolve_effects`）需要能消费这个返回值并中断后续处理。
-
-**严重程度：HIGH**（不可推迟——致命伤害触发是最核心的卖点之一）
-
----
-
-## 新缺口 G2：`commit_battle_resources` 重建 snapshot 会丢失封存释放信息
-
-**涉及裁决：** F4, D6, D15  
-**裁决要求：** 战后提交时先释放封存再提交资源 clamp，`effective_mp_max` 影响 clamp 上限。
-
-**代码现状：**
-- `commit_battle_resources()`（`character_management_module.gd:1194-1201`）在 clamp 前调用 `get_member_attribute_snapshot(member_id)` 重新构建 snapshot。
-- 新 snapshot 基于当前 `PartyMemberState` 的持久字段（progression/race/equipment）计算 `MP_MAX`。
-- 如果在 `commit_battle_resources` 之前将 `reserved_mp_max` 归零（释放封存），新 snapshot 仍然从 `AttributeSourceContext` 获取 `reserved_mp_max`——如果 `reserved_mp_max` 的来源是 `PartyMemberState.contingency_matrix_setups`，则需要在调用 snapshot 构建前先写入持久层。
-
-**缺口：** 不存在"先释放封存到持久层，再让 snapshot 感知到释放"的原子操作。必须明确定义释放的顺序：
-1. 修改 `PartyMemberState.contingency_matrix_setups[i].charged = false` + `reserved_mp_max = 0`
-2. **然后**调用 `get_member_attribute_snapshot()`（此时 snapshot 会通过 `AttributeSourceContext` 读取到新的 `reserved_mp_max=0`）
-3. **然后**用 `effective_mp_max`（此时等于 `raw_mp_max`）做 clamp
-
-当前 `end_battle` 没有这个分步逻辑。
-
-**严重程度：HIGH**
-
----
-
-## 新缺口 G3：`end_battle` 无 contingency 状态的持久化写入路径
-
-**涉及裁决：** F4, D15  
-**裁决要求：** 战后提交时把 consumed setup 写成 `charged=false`。
-
-**代码现状：**
-- `end_battle()` 仅调用 `commit_battle_resources()` 和 `commit_battle_death()`。
-- `character_management_module` 无 `commit_contingency_state()` 或类似方法。
-- `PartyMemberState.contingency_matrix_setups` 字段尚不存在，写入目标不存在。
-
-**缺口：** 需要新增一个方法（如 `commit_contingency_charges()`），在 `end_battle` 的资源提交循环中（第956-970行之间）调用，直接修改 `PartyMemberState` 的 contingency 字段。这与现有的 `commit_battle_resources` 模式一致（直接字段写入），工程上无阻碍，但需要明确定义方法签名和错误处理。
-
-**严重程度：MEDIUM**（工作量明确，无架构障碍）
-
----
-
-## 新缺口 G4：自动施法路径未定义命中结算策略
-
-**涉及裁决：** F2, D7  
-**裁决要求：** `execute_auto_cast()` 保留"内容查找、目标、抗性、护盾、豁免和效果结算"。
-
-**代码现状：**
-- 技能管线有两条命中路径：
-  - **普通路径**：通过 `battle_hit_resolver` 掷命中骰，可能 miss/graze/hit/crit
-  - **必中路径**：`battle_skill_resolution_rules.is_force_hit_no_crit_skill()` 用于特殊技能（如 `black_contract_push`）
-- 自动施法走哪条路径？裁决未说明。
-
-**缺口：** 如果走普通路径，自动施法的 buff（镜影术、石肤术）可能因命中失败而浪费，违背"战前保险"的定位。自目标法术（`target_resolver.self`）自然不需要命中检查，但 `owner_centered_area` 的雷鸣波、`trigger_source` 的反击法术需要。建议为自动施法明确枚举命中策略：self-target 跳过命中检查，hostile-target 走普通命中。
-
-**严重程度：MEDIUM**
-
----
-
-## 新缺口 G5：顺序释放与 `owner_turn_started` hook 的执行顺序冲突
-
-**涉及裁决：** B22, F3  
-**裁决要求：** B22 说"后续法术在 owner 每次行动开始前结算"；F3 说 `owner_turn_started` hook 在行动开始前触发。
-
-**代码现状：**
-- `_activate_next_ready_unit()`（`battle_timeline_driver.gd:334-388`）中，turn_start 是一个线性序列：phase 切换 → 重置 per-turn 标志 → trait hook → turn timer → action point 分配。
-- 当前序列无 contingency 插入点。
-
-**缺口：** 如果顺序释放的队列推进和新的触发评估都在 `owner_turn_started` 点发生：
-- 顺序释放先执行 → 可能改变 HP/状态 → 新触发条件可能匹配 → 但矩阵已在 releasing 状态无法再次触发 → OK
-- 但若顺序释放最后一个法术后矩阵变为 `depleted`，同一 turn_start 点不应再评估新触发 → 需要状态机保证释放完成后的同帧不再重新评估
-
-**严重程度：LOW**（状态机设计问题，非代码障碍）
-
----
-
-## 新缺口 G6：跨域事务（仓库扣材料 + PartyMemberState 写充能）无原子保障
-
-**涉及裁决：** F12  
-**裁决要求：** 充能事务先拒绝战斗态，再校验技能/内容/材料/封存，候选状态写 charged/material/reserved，扣宝石，重算 effective max 并 clamp current MP，最后提交；任一步失败不产生部分 mutation。
-
-**代码现状：**
-- 仓库操作通过 `party_warehouse_service.remove_item()` → `commit_batch_swap()` 原子化。
-- PartyMemberState 字段写入是直接赋值，无事务封装。
-- 两者之间无协调器。`submit_item_objective`（`character_management_module.gd:400-470`）采用手动快照回滚模式：先 snapshot `warehouse_state_before`，调用 batch swap，若后续失败则恢复快照。
-
-**缺口：** 需要一个充能协调器，按以下顺序执行：
-1. Snapshot warehouse + PartyMemberState contingency 状态
-2. 校验全部前置条件
-3. 扣材料（commit_batch_swap）
-4. 写 PartyMemberState（charged=true 等）
-5. Clamp current_mp
-6. 任一步失败 → 回滚 snapshot
-
-现有代码中无现成的跨域事务框架，但快照回滚模式可复用。需要明确回滚时是否也需要 restore warehouse snapshot。
-
-**严重程度：MEDIUM**（模式已知，实现量明确）
-
----
-
-## 新缺口 G7：多 effect 法术的 `damage_event_id` 粒度问题
-
-**涉及裁决：** D8, D9  
-**裁决要求：** 同一伤害事件携带稳定 `damage_event_id`；同一 owner 同一 `damage_event_id` 最多一个矩阵进入释放流程。
-
-**代码现状：**
-- `resolve_effects()`（`battle_damage_resolver.gd:258`）按 effect_def 逐个循环处理。一个法术可有多个 effect（damage + status + forced_move）。
-- 每个 effect 独立调用 `_resolve_damage_outcome()` 和 `_apply_damage_to_target()`。
-- 当前 damage outcome dict 无 event_id 字段。
-
-**缺口：** 如果 `damage_event_id` 在单个 effect 级别生成，多 effect 法术会产生多个 ID。如果 contingency 的触发评估只应在"整次施法"级别发生一次，则 `damage_event_id` 必须在 orchestrator 层生成并下传，而非在 resolver 层。这与 F3 的 `before_spell_effect_resolved` hook 存在同一问题——该 hook 会在每个 effect 上触发一次。
-
-**严重程度：MEDIUM**
-
----
-
-## 汇总：第二轮缺口
-
-| 编号 | 严重度 | 问题 | 需要补充裁决的方向 |
-|---|---|---|---|
-| G1 | HIGH | `before_damage_resolved` hook 需支持伤害取消，`_apply_damage_to_target` 当前无此机制 | hook 返回值规范：`{cancel: bool, modified_damage: int}` |
-| G2 | HIGH | `commit_battle_resources` 重建 snapshot，无法感知战前释放的封存 | 明确三步顺序：写持久层 → 重建 snapshot → clamp |
-| G3 | MEDIUM | `end_battle` 无 contingency 写入路径 | 新增 `commit_contingency_charges()` 方法签名 |
-| G4 | MEDIUM | 自动施法未定义命中策略（self 跳过？hostile 正常掷骰？） | 按 target_resolver 类型明确定义命中策略 |
-| G5 | LOW | 顺序释放与 turn_start hook 的执行顺序未定义 | 明确：顺序释放先执行，释放结束后不重新评估同帧触发 |
-| G6 | MEDIUM | 跨域事务（仓库+PartyMemberState）无原子保障框架 | 指定快照回滚模式或二阶段提交模式 |
-| G7 | MEDIUM | 多 effect 法术的 event_id 粒度 | 明确 ID 在 orchestrator 层生成，每法术一个，非每 effect 一个 |
-
----
-
-# 附录：第三轮对抗性审查（G表裁决 × 代码验证）
-
-本节对第21节G表（行2043-2053）的7条裁决进行逐行代码验证。审查文件：`battle_damage_resolver.gd:2561-2615`（`_apply_damage_to_target`）、`battle_runtime_module.gd:953-972`（`end_battle`）、`character_management_module.gd:1194-1201`（`commit_battle_resources`）、`battle_timeline_driver.gd:334-388`（`_activate_next_ready_unit`）。
-
----
-
-## G1-G7 裁决质量评估
-
-| 编号 | 裁决核心 | 代码验证 | 状态 |
-|---|---|---|---|
-| G1 | hook 可修改伤害/取消；`projected_hp_damage_after_shield` 判定 | 见下方 H1 | ⚠️ 可行但有未声明的依赖 |
-| G2 | 三步骤：写持久 → 重建snapshot → clamp | `end_battle:956` 循环中可插入 | ✅ 可行 |
-| G3 | 新方法 `commit_contingency_consumed_setups` | 直接字段写入，模式与现有 `commit_battle_resources` 一致 | ✅ 可行 |
-| G4 | 自动施法走正常命中/豁免 | 自 target 法术无需命中检查；hostile 走 `battle_hit_resolver` 正常路径 | ✅ 可行 |
-| G5 | 先推进队列再回合流程 | `_activate_next_ready_unit:346` trait hook 之后可插入 | ✅ 可行 |
-| G6 | 快照回滚跨域事务 | 仓库 `commit_batch_swap` + 手动 snapshot restore | ✅ 可行 |
-| G7 | 每 effect 一个 `damage_event_id` | `resolve_effects:285` 循环内生成 serial ID | ✅ 可行 |
-
----
-
-## 新缺口 H1：`before_damage_resolved` hook 的时间点与触发条件的计算依赖
-
-**涉及裁决：** G1  
-**G1裁决要点：** hook 对所有即将结算的伤害调用；`incoming_damage_percent` / `fatal_damage_incoming` 按 `projected_hp_damage_after_shield` 判定；hook 必须支持 `cancel_damage` / `modified_resolved_damage`。
-
-**代码现状（`battle_damage_resolver.gd:2561-2615`）：**
-
-```
-2563: normalized_damage = maxi(int(damage_outcome.get("resolved_damage", 0)), 0)
-2564: if normalized_damage <= 0: return      ← 建议的 hook 插入点
-2567: bypass_shield = bool(...)
-2572-2586: 护盾吸收计算（shield_efficiency=1.0 硬编码）
-2588: attempted_hp_damage = maxi(normalized_damage - shield_absorbed, 0)  ← projected_hp_damage_after_shield
-2589: hp_before = target_unit.current_hp
-2590-2612: HP 伤害应用 + 致死链处理
+```text
+PartyState.warehouse_state       # 扣特殊宝石
+PartyMemberState.contingency_*   # 写 charged/material/reserved
+PartyMemberState.current_mp      # 按 effective mp max clamp
 ```
 
-**时序冲突：**
+当前只有 `PartyWarehouseService` 自己的 batch swap 事务和 `GameRuntimeWarehouseHandler` 的私有快照/回滚；没有可复用的 party-wide transaction。实现不应新增泛化事务框架，也不应让 runtime facade 承载具体 contingency 规则。
 
-- hook 插入点在 **2564行之后、2572行之前**（护盾吸收尚未发生）。
-- `projected_hp_damage_after_shield` 在 **2588行** 才被计算（护盾吸收已完成）。
-- 因此 hook 被调用时，触发条件所需的 `projected_hp_damage_after_shield` 值尚不存在。
+**前置 owner / API**
 
-**这不是阻塞性问题，但需要在实现中显式处理：**
+J1 不是第一个可落地改动。充能事务依赖以下 owner/API 已存在，否则只能做空壳测试：
 
-hook 必须自行计算 `projected_hp_damage_after_shield`。由于 `shield_efficiency` 当前硬编码为 `1.0`（2575行），且 `target_unit` 提供了 `current_shield_hp` 和 `has_shield()`，hook 可以执行：
-
+```text
+1. PartyMemberState.contingency_matrix_setups exact schema 已存在。
+2. 保存/编辑预设命令已存在；充能命令只引用 existing SetupId，不携带 Trigger / StoredSpells 直接改配置。
+3. effective MP owner 已定义：
+   - AttributeSourceContext.reserved_mp_max
+   - AttributeService.BuildSnapshot() 最后一步写 mp_max_unreserved / reserved_mp_max / effective mp_max
+   - CharacterManagementModule 只负责汇总持久 charged setup 后传入 AttributeSourceContext，不另建第二套 GetEffectiveMpMax 规则源
+4. CommitBattleResources() 和所有 MP 恢复 / clamp 路径已改用 effective mp max。
+5. 战后 consumed 写回有可失败返回值：
+   - CharacterManagementModule.CommitContingencyConsumedSetups(...)
+   - IBattleRuntimeCharacterGateway 对应方法
+   - BattleRuntimeModule.EndBattle() 能在写回失败时 abort 后续 resource commit，并向 GameRuntimeFacade.FinalizeBattleResolution() 暴露失败结果。
 ```
-projected_hp_damage = normalized_damage - min(normalized_damage, target_unit.current_shield_hp)
+
+第 5 点是半提交防线。如果 `EndBattle()` 仍只能调用 void `CommitBattleResources()` / `CommitBattleDeath()`，则文档中“consumed 写回失败时中止资源提交”的要求无法表达。`IBattleRatingCharacterGateway` 只服务评分 / 成就，不是 battle resource / contingency writeback 的正确桥。
+
+**推荐所有权**
+
+```text
+PartyContingencySetupService
+    owning state: PartyState + PartyWarehouseService + skill/content catalog
+    owns: charge/clear validation, in-memory mutation rollback
+
+GameRuntime command handler / headless command
+    owns: battle-state rejection, PersistPartyState(), command result, log/status
+    owns: persistence failure rollback snapshot
 ```
 
-然后用 `projected_hp_damage >= target_unit.current_hp` 判断是否致命。但这意味着 hook 需要 **复制一份护盾吸收逻辑**，而非复用 `_apply_damage_to_target` 内部的护盾计算。如果未来 `shield_efficiency` 变为非 `1.0`（2575行的 `shield_efficiency := 1.0` 暗示设计预留了变化空间），hook 的独立计算会与真实护盾吸收产生偏差。
+`PartyContingencySetupService` 保证“校验和内存 mutation 原子”。runtime command handler 保证“持久化失败时恢复到命令前状态”。不要让服务直接调用 `GameSession` 或写日志。
 
-**建议：** 在 `_apply_damage_to_target` 的 **2572行之前** 增加一个 `_precompute_shield_aftermath(target_unit, normalized_damage, bypass_shield)` 辅助函数，返回 `{projected_hp_damage_after_shield, shield_absorbed}`，既供 hook 使用，也供后续护盾吸收步骤使用（避免重复计算）。hook 上下文携带预计算结果即可。
+**新增窄类型**
 
-**严重程度：MEDIUM**（不阻塞实现，但需要明确计算归属——由 hook 自行计算 vs 由 resolver 预计算并提供）
+```csharp
+internal sealed class ContingencyChargeRequest
+{
+    public StringName MemberId;
+    public StringName SetupId;
+}
+
+internal sealed class ContingencyChargeMutationSnapshot
+{
+    public WarehouseState WarehouseState;
+    public StringName MemberId;
+    public int CurrentMp;
+    public Godot.Collections.Array<ContingencyMatrixSetupState> ContingencySetups;
+}
+
+internal sealed class ContingencyChargeResult
+{
+    public bool Ok;
+    public StringName ErrorCode;
+    public string Message;
+    public IReadOnlyList<ContingencyMaterialCostState> MaterialCosts;
+    public int ReservedMpMax;
+    public int EffectiveMpMax;
+}
+```
+
+`ContingencyChargeMutationSnapshot` 是 service 内部实现细节，不进存档、不暴露给 UI。若 runtime command handler 需要处理 `PersistPartyState()` 失败，优先在 command handler 侧捕获更粗的 `PartyState.DuplicateState()` / world runtime snapshot，沿用现有 warehouse command 的回滚模式。
+
+`ContingencyChargeRequest` 只引用已保存的 setup。保存 / 编辑预设是独立命令；已 charged 的 setup 不允许编辑，必须先 clear charge。不要让 charge request 同时承载“保存配置”和“扣材料充能”两类职责。
+
+**服务内执行顺序**
+
+```text
+1. Resolve member，member 不存在直接失败，不捕获 snapshot。
+2. 校验当前不是 battle mutation path；battle lock / battle active 由 runtime command 先拒绝，service 也保留防御性 bool 参数或状态 provider。
+3. 按 SetupId 读取 existing setup，校验 source skill、stored skill allowlist、trigger/resolver schema、matrix load、reserved_mp_max。
+4. 把 ContingencyMaterialCostState.quantity 转成仓库 batch 能理解的输入；现有 batch entry 若不支持 quantity，就展开成 N 条 `{ item_id }`。
+5. 用 PartyWarehouseService.PreviewBatchSwapEntriesTyped(...) 预检材料。
+6. Capture ContingencyChargeMutationSnapshot。
+7. PartyWarehouseService.CommitBatchSwapEntriesTyped(...) 扣材料。
+8. 写/替换 member.contingency_matrix_setups[setup_id]：
+   charged=true
+   material_costs=本次扣除收据
+   reserved_mp_max=计算值
+9. 通过 CharacterManagementModule / AttributeService 计算 effective mp max，clamp member.current_mp。
+10. 做 postcondition 校验：setup charged、材料已扣、current_mp <= effective max。
+11. 任一步失败或抛异常：Restore snapshot，返回稳定 error_code。
+```
+
+**恢复规则**
+
+```text
+Restore snapshot:
+    partyState.warehouse_state = snapshot.WarehouseState.DuplicateState()
+    member.contingency_matrix_setups = DeepDuplicate(snapshot.ContingencySetups)
+    member.current_mp = snapshot.CurrentMp
+```
+
+不要复用 `PartyWarehouseService` 当前私有 `_set_transaction_warehouse_state()`。如果直接替换 `partyState.warehouse_state` 会破坏 service 内部视图，就给 `PartyWarehouseService` 增加一个很窄的 internal 方法：
+
+```csharp
+internal WarehouseState CaptureWarehouseStateForTransaction();
+internal void RestoreWarehouseStateForTransaction(WarehouseState snapshot);
+```
+
+这两个方法只做状态复制，不发信号、不写日志、不持久化。
+
+**runtime command 持久化失败处理**
+
+```text
+runtime command:
+    commandSnapshot = CaptureRuntimeCommandSnapshot()
+    result = PartyContingencySetupService.ChargeSetup(request)
+    if !result.Ok:
+        return failure
+    persist = PersistPartyState()
+    if persist != Ok:
+        RestoreRuntimeCommandSnapshot(commandSnapshot)
+        return persistence_failure
+    write command status/log
+    return ok
+```
+
+这一步不能省。否则 service 成功、存档失败时会出现内存已扣材料但磁盘未保存的半提交状态。runtime command 的 rollback 必须沿用 `GameRuntimeWarehouseHandler` 的完整模式：恢复 session/runtime party state、world/runtime snapshot 和 selected member 后重新 setup 相关服务引用；不能只替换 `WarehouseState`。
+
+**必须覆盖的测试**
+
+```text
+tests/progression/run_contingency_charge_transaction_regression.cs
+    - 材料不足：仓库、setup、current_mp 都不变
+    - 材料扣除成功但 setup 写入失败：仓库回滚
+    - 充能成功：材料扣除、charged=true、current_mp 被 effective max clamp
+    - runtime persist failure：command handler 恢复命令前 PartyState
+    - charge request 只能引用 existing SetupId，不能直接写 Trigger / StoredSpells
+    - CommitBattleResources 使用 effective mp max，不再按 raw mp max clamp
+```
+
+#### J2. 伤害投影与 BeforeDamageResolved hook
+
+**问题边界**
+
+`BattleDamageResolver.ApplyDamageToTargetResult()` 现在在同一段里完成：
+
+```text
+resolved damage
+shield absorption
+shield mutation
+hp damage
+death prevention / fatal trait
+```
+
+contingency 的 `BeforeDamageResolved` 需要在扣盾扣血前看到准确的 `projected_hp_damage_after_shield`，并且可以取消或修改本次伤害。由于当前 C# 已支持 `DamageApplicationInput.ShieldAbsorptionPercent`，hook 不能复制护盾公式。
+
+必须区分 live commit 与 preview / AI scoring。当前 `PreviewDamageEffectTyped()` 和 `preview_damage_sequence_typed()` 也会在 clone 上调用 `ApplyDamageToTargetResult()`；如果 hook 不加抑制，UI / AI preview 会提前触发、consume setup 或取消预览伤害。`BeforeDamageResolved` 只允许在 live commit damage 路径触发；preview / scoring 路径必须传 `SuppressDamageApplicationHook=true`，或使用 resolver scoped suppressor。
+
+**新增窄类型**
+
+放在 rules/core 侧，保持普通 C# DTO，不进存档：
+
+```csharp
+internal readonly struct DamageApplicationProjection
+{
+    public readonly int ResolvedDamage;
+    public readonly bool BypassShield;
+    public readonly double ShieldEfficiency;
+    public readonly int ShieldHpBefore;
+    public readonly int ProjectedShieldAbsorbed;
+    public readonly int ProjectedShieldDrain;
+    public readonly bool ShieldWouldBreak;
+    public readonly int HpBefore;
+    public readonly int ProjectedHpDamageAfterShield;
+    public readonly int MinHpAfterDamage;
+    public readonly bool BypassDeathPrevention;
+    public readonly int ProjectedHpBeforeDeathPrevention;
+    public readonly bool WouldEnterDeathResolution;
+    public readonly bool WouldBeFatalBeforeDeathPrevention;
+}
+
+internal sealed class BeforeDamageResolvedContext
+{
+    public BattleUnitState SourceUnit;
+    public BattleUnitState TargetUnit;
+    public DamageApplicationInput Input;
+    public DamageApplicationProjection Projection;
+    public long DamageEventId;
+    public Godot.Collections.Dictionary SourceEventFacts;
+    public BattleDamageHookCommitContext CommitContext;
+}
+
+internal sealed class BeforeDamageResolvedResult
+{
+    public bool CancelDamage;
+    public int? ModifiedResolvedDamage;
+    public bool StateMayHaveChanged;
+    public StringName ReasonId;
+    public Godot.Collections.Array<Godot.Collections.Dictionary> ReportEntries;
+}
+
+internal sealed class BattleDamageHookCommitContext
+{
+    public BattleEventBatch Batch;
+    public IBattleAutoCastExecutor AutoCastExecutor;
+    public IBattleReportSink ReportSink;
+}
+```
+
+**resolver 内顺序**
+
+```text
+ApplyDamageToTargetResult(target, input, source):
+    if target == null or input.ResolvedDamage <= 0:
+        return zero result
+
+    if input.LiveCommit:
+        target.NormalizeShieldState()  # 保持旧路径在正伤害提交前 normalize 的副作用时机
+
+    projection = ProjectDamageApplication(target, input)  # 无副作用
+    hookResult = input.SuppressDamageApplicationHook
+        ? null
+        : _damageApplicationHook?.BeforeDamageResolved(context)
+
+    if hookResult != null && hookResult.ModifiedResolvedDamage != null:
+        input = input.WithResolvedDamage(max(modified, 0))
+        projection = ProjectDamageApplication(target, input)
+
+    if hookResult != null && hookResult.StateMayHaveChanged:
+        projection = ProjectDamageApplication(target, input)
+
+    if hookResult != null && hookResult.CancelDamage:
+        append report entries / cancellation facts
+        return BuildAppliedDamageResult(input, 0, 0, false)
+
+    ApplyProjectedShieldMutation(target, projection)
+    ApplyProjectedHpDamageAndDeathPrevention(target, input, projection, source)
+    return BuildAppliedDamageResult(input, projection.ProjectedHpDamageAfterShield, projection.ProjectedShieldAbsorbed, projection.ShieldWouldBreak)
+```
+
+`DamageApplicationInput.WithResolvedDamage(int)` 必须同步更新 typed field 和 payload 里的 `resolved_damage`，并保留 save、dice、mitigation、shield absorption、min HP 等其它字段。否则后续 report / preview payload 会出现 typed damage 与 payload damage 不一致。
+
+`ProjectDamageApplication()` 不能调用会改状态的方法。live commit 路径仍在投影前调用一次 `NormalizeShieldState()` 以保持旧行为；preview / AI scoring 基于 clone，即使 normalize clone 也不得触发 hook 或影响真实单位。如果当前 shield state 可能不规范，投影 helper 必须用纯读方式解释：
+
+```text
+effectiveShieldHp = target.HasShield() ? max(target.current_shield_hp, 0) : 0
+shieldEfficiency = input.ShieldAbsorptionPercent / 100.0
+projectedShieldAbsorbed = min(resolvedDamage, ceil(effectiveShieldHp * shieldEfficiency))
+projectedShieldDrain = ceil(projectedShieldAbsorbed / shieldEfficiency)
+projectedHpDamageAfterShield = max(resolvedDamage - projectedShieldAbsorbed, 0)
+projectedHpBeforeDeathPrevention = target.current_hp - projectedHpDamageAfterShield
+wouldEnterDeathResolution = projectedHpDamageAfterShield > 0
+    && projectedHpBeforeDeathPrevention <= input.MinHpAfterDamage
+```
+
+实际写入只发生在 `ApplyProjectedShieldMutation()`，并且必须使用 projection 里的 `ProjectedShieldDrain` / `ShieldWouldBreak`，不能重新计算一遍。
+
+**hook 接线**
+
+`BattleDamageResolver` 不直接依赖 `BattleContingencySystem`。增加一个窄接口，由 `BattleRuntimeModule` 在 setup 时注入：
+
+```csharp
+internal interface IBattleDamageApplicationHook
+{
+    BeforeDamageResolvedResult BeforeDamageResolved(BeforeDamageResolvedContext context);
+}
+```
+
+`BattleContingencySystem` 实现该接口。没有 contingency system 时 hook 为 null，伤害行为必须与现状一致。
+
+hook 只允许在 live commit damage 路径执行，并且必须拿到 `BattleDamageHookCommitContext`。该 context 由 runtime / orchestrator 提供，包含当前 `BattleEventBatch`、自动施法执行器和结构化 report sink。`BattleContingencySystem` 可以通过 `CommitContext.AutoCastExecutor` 同步执行 release_context 中的自动法术，但不能在 hook 内绕开 batch/report sink 直接写任意战斗状态；所有可见战斗 mutation 都要走既有 effect commit 路径。preview / AI scoring / clone path 必须 suppress hook，且 `CommitContext` 为空。
+
+只要自动施法可能改变目标或环境状态，例如加盾、治疗、位移、施加免疫、制造地形、杀死来源单位或取消 source event，hook result 必须置 `StateMayHaveChanged=true`。resolver 在继续当前 damage effect 前必须重新投影；不能只在 `ModifiedResolvedDamage` 时重算，否则自动施法造成的新盾、新 HP 或位置变化不会影响即将落地的伤害。
+
+hook 抑制必须是输入级或 scoped 级显式状态，不得靠“target 是 clone”推断。推荐：
+
+```csharp
+internal sealed class DamageApplicationInput
+{
+    public bool SuppressDamageApplicationHook;
+    public DamageApplicationInput WithResolvedDamage(int resolvedDamage);
+}
+```
+
+**取消语义**
+
+```text
+CancelDamage=true:
+    - 不扣 shield
+    - 不扣 HP
+    - 不触发本次 HP crossing
+    - 不阻止同一技能后续 effect 继续结算
+    - 已进入 release_context 的 setup 仍 consumed
+    - 仅 live commit path 可产生；preview / AI scoring path 必须 suppress hook
+    - 不回滚 hook 调用前已经发生的命中、豁免、减伤、状态消耗、守护次数或 AI 记录
+```
+
+取消结果要写入结构化 report，不要只写 log line。V1 推荐让 hook 通过 `BattleDamageHookCommitContext.ReportSink` 写入当前 `BattleEventBatch.report_entries`，或把 report entries 返回给 runtime 层统一 append；不要为了 contingency 重新发明战报通道。
+
+```text
+Preferred: hook / runtime append 到 BattleEventBatch.report_entries。
+Fallback: AppliedDamageResult / AttackEffectResolutionResult 增加 report_entries 数组。
+```
+
+只有在当前调用栈确实拿不到 batch/report sink 时才使用 fallback；一旦给 result 增加数组字段，必须同步更新所有现有 result appender，避免只读取单个 `report_entry`。
+
+**修改伤害语义**
+
+```text
+ModifiedResolvedDamage:
+    - 只改当前 damage effect 的 resolved damage
+    - 必须重算 projection
+    - 不改变原 skill def / effect def
+    - 不跳过命中、豁免、抗性、免疫等前置步骤
+```
+
+`fatal_damage_incoming` 的投影判定发生在死亡预防、death_ward、last stand、fatal trait 等最终落地逻辑之前。它读取的是 `WouldBeFatalBeforeDeathPrevention`，因此“致死前闪现 / 护盾 / 治疗”有机会阻止本次 HP 写入；若没有进入 release_context，后续死亡预防机制仍按原顺序执行。
+
+**必须覆盖的测试**
+
+```text
+tests/battle_runtime/rules/run_damage_application_projection_regression.cs
+    - 无 hook 时，新 projection 路径与旧行为一致
+    - shield_absorption_percent=50/100 时，投影值与实际扣盾扣血一致
+    - CancelDamage 不扣盾、不扣 HP、返回 hp_damage=0
+    - ModifiedResolvedDamage 后重新投影，shield drain 不使用旧值
+    - 自动施法加盾 / 治疗 / 位移后，StateMayHaveChanged 触发重新投影
+    - preview/scoring path suppress hook，不触发 consumed / cancel
+    - death_ward / fatal trait / last stand mastery / min_hp_after_damage 语义不变
+
+tests/battle_runtime/runtime/run_contingency_damage_hook_contract_regression.cs
+    - hook null 行为不变
+    - hook cancel 不中断后续 effect
+    - hook 产生 report_entries，且 ReportSink / batch append 路径能被 headless snapshot 读到
+    - damage=0 时不误触发 on-hit/status/mastery
+```
+
+#### J3. 实施顺序
+
+```text
+1. 先做内容与持久 schema：
+   ContingencyAutomationDef / stored spell allowlist / parameter binding schema / material cost schema
+   PartyMemberState.contingency_matrix_setups exact schema
+   state parser 只校验结构；content validator 在 catalog 加载后校验内容。
+2. 再做 effective MP API：
+   AttributeSourceContext.reserved_mp_max
+   AttributeService.BuildSnapshot() 写 mp_max_unreserved / reserved_mp_max / effective mp_max
+   所有 MP 恢复、刷新、进战、战后 clamp 路径使用 effective mp max。
+3. 再做战后提交防线：
+   CharacterManagementModule.CommitContingencyConsumedSetups(...)
+   IBattleRuntimeCharacterGateway 对应方法
+   BattleRuntimeModule.EndBattle() 返回可失败结果
+   GameRuntimeFacade.FinalizeBattleResolution() 在 persist/flush 失败时恢复结算前内存快照。
+4. 再做战斗外 setup 编辑 / 清除 / headless 命令：
+   保存预设、编辑预设、清除充能、查询状态
+   输出稳定 code / reason_id / charged / reserved_mp_max / material quantity 字段，不依赖中文日志断言。
+5. 再做 J1：
+   PartyContingencySetupService charge transaction
+   仓库材料 quantity 展开或 quantity-aware API
+   失败恢复仓库、setup、current_mp 和 runtime command snapshot。
+6. 再做 battle-local instance / release_context：
+   从 active member charged setup 建 sidecar
+   OnBattleConfirmed / owner_turn_started 的最小可测闭环
+   consumed overlay 刷新 owner 属性，但不提前写 PartyMemberState。
+7. 再做 J2：
+   抽 damage projection helper + hook suppress，hook 为空时 live/preview 行为完全一致
+   接入 BeforeDamageResolved commit context、report sink 和 StateMayHaveChanged 重新投影。
+8. 最后接入完整 BattleContingencySystem、AutoCastRequest、origin 抑制和 damage/status/position/spell hooks。
+```
+
+J2 的无 hook 投影重构可以作为独立安全重构更早执行，但它不能替代 schema、effective MP、EndBattle 写回和 content automation 这些前置条件。首个可上线 gameplay slice 应优先选择 `combat_started` / `owner_turn_started` 这类非伤害触发闭环，确认持久状态、充能、回写、origin 和 report 稳定后，再开放伤害类触发。
+
+`docs/design/project_context_units.md` 当前仍可作为装载索引使用；这次只是 discussion 文档细化，不需要更新上下文单元。等实际新增 `PartyContingencySetupService` / `BattleContingencySystem` 文件后，再把相关 read set 补进 CU-11 / CU-12 / CU-15 / CU-16。
 
 ---
 
-## 新缺口 H2：`cancel_damage=true` 的返回路径未贯穿 `resolve_effects` 循环
+## 22. V1 不做与延期项
 
-**涉及裁决：** G1  
-**G1裁决要求：** `cancel_damage=true` 时不扣护盾、不扣 HP、不产生对应 HP crossing。
+本节只保留仍然有效的范围边界。已经被正文和第 21 节裁决吸收的问题不再重复列为历史意见。
 
-**代码调用链：**
+### V1 明确不做
+
+```text
+1. 不做旧存档兼容、字段默认补齐、alias table、semantic hash、技能 ID 自动迁移或旧 payload fallback。
+2. 不做自然过期、维护费、charged_at_world_step、过期时间、world_step 哨兵值或 expired 状态。
+3. 不允许战斗中存档；不持久化 battle-local ContingencyInstance、release_context、triggering/releasing queue。
+4. 不做战斗内手动触发、战斗内手动清除或战斗内解除；清除只允许战斗外 UI / headless 命令。
+5. 不开放 bound_ally / 队友绑定；V1 严格自用，owner 就是 caster。
+6. 每名玩家角色同一时间只能有一个 charged setup；不做第二矩阵位或多 active 矩阵。
+7. 不做敌人、召唤物或 boss 的持久 charged setup；它们不读取 PartyMemberState.contingency_matrix_setups。
+8. 不开放 summon 作为 stored spell；extra_action、retrigger_contingency、resurrection、permanent_creation、complex_manual_target 默认禁止。
+9. 不支持 fixed_cell 目标解析器；不保存 battle-local 坐标、路径、格子列表或复杂选点结果。
+10. 不把 targeted_by_spell 单独作为 V1 trigger；合并进 affected_by_spell。
+11. 不做 round_started、manual_keyword、entered_dangerous_tile、非战斗触发或世界事件触发。
+12. 不做专注机制，不保存专注字段，不校验连锁应急术与专注冲突。
+13. 不新增通用 BattleEventDispatcher / 战斗事件总线。
+14. 不新增通用 party-wide transaction framework；充能事务由 PartyContingencySetupService 自己做窄快照和恢复。
+15. 不新增 matrix_fallback_policy；进入 release_context 后即消耗，不因全部 stored spell 无效而返还。
+16. 不做爆发释放的原子回滚；前一个 stored spell 成功、后一个失败时，已成功效果保留。
+17. 不做配置“试射”或战斗模拟模式；V1 只提供配置预览、风险提示和结构化 headless 断言。
+18. parameter_bindings 不允许 Dictionary value 或任意嵌套结构；V1 只允许 bool、int、float、String/StringName、Array[StringName]。
+19. 不新增 damage_event_group / separate_damage_events 等技能语义字段；damage_event_id 按单个 damage effect 对单个 target 生成。
+20. 普通解除魔法不能摧毁或解除连锁应急术；V1 只支持反魔法 / 专门压制作为临时压制来源。
 ```
-resolve_effects() [循环 effect_def]
-  → _resolve_damage_outcome()
-    → _apply_damage_to_target()  ← hook 在此
+
+### 延期评估项
+
+```text
+1. 敌人 / boss 连锁应急术：
+   未来只能通过 enemy template、EnemyAiBrainDef 或 special profile 预装 battle-local profile/template；不走玩家宝石和 MP 封存持久成本。
+
+2. 多矩阵 boss / 第二矩阵位：
+   未来作为单独机制设计，不通过 max_active_per_caster 隐式放宽。
+
+3. 召唤类 stored spell：
+   若以后开放，必须由高等级显式解锁，使用高负载，并重新审查召唤物事件归因。
+
+4. 专门破阵 / 裂解 / 永久摧毁：
+   未来单独定义摧毁效果、抵抗、日志和材料不返还规则；不复用普通解除魔法。
+
+5. 护盾相关触发器：
+   若以后需要响应护盾破裂或护盾损耗，新增 shield_break_incoming / shield_damage_percent，不混入 HP 保命触发。
+
+6. 非战斗触发和危险地形触发：
+   需要完整世界事件事实、危险地形语义和 runtime hook 后再评估。
+
+7. 更复杂的 parameter binding：
+   若某些技能确实需要多字段模式参数，新增 typed 子结构和专门校验器后再开放。
+
+8. quantity-aware 仓库 API：
+   V1 可以先把 material quantity 展开成多条 batch entry；以后如有通用需求，再给 PartyWarehouseService 增加 quantity-aware typed API。
+
+9. 战斗中存档：
+   只有在 battle-local instance、release_context、source_event_facts、damage_event_id、队列和 overlay 都有完整序列化方案后，才能重新评估。
+
+10. 技能 ID 重命名：
+    已发布 skill_id 需要重命名时，必须作为显式数据迁移单独确认；不能由连锁应急术系统内置兼容逻辑自动处理。
 ```
-
-当前 `_apply_damage_to_target` 返回 `_build_applied_damage_result(damage_outcome, hp_damage, shield_absorbed, shield_broken)`。如果 hook 返回 `cancel_damage=true`，函数需在 2564行处提前返回零伤害结果。**这是局部改动，不影响上层调用链**——`_resolve_damage_outcome` 和 `resolve_effects` 原本就会处理 `hp_damage=0` 的情况。
-
-**但 G1裁决额外提到"已进入 release_context 的矩阵仍消耗"**——这意味着即使伤害被取消，矩阵仍被视为已触发。这不需要在 `_apply_damage_to_target` 内部处理，而是在 `BattleContingencySystem` 的 hook 回调中完成（hook 被调用 → 触发条件匹配 → 释放矩阵法术 → 矩阵消费 → 返回 `cancel_damage=true`）。
-
-**评估：** 可行，无架构障碍。
-
-**严重程度：LOW**
-
----
-
-## 新缺口 H3：仓库快照回滚需要 `PartyWarehouseService` 支持 snapshot/restore
-
-**涉及裁决：** G6  
-**G6裁决要求：** 快照回滚模式——先 snapshot warehouse + member contingency setup + current_mp，任一步失败恢复快照。
-
-**代码现状：**
-- `party_warehouse_service` 有 `commit_batch_swap()` 用于原子批量操作。
-- `warehouse_state` 是 `WarehouseState` 实例，可通过 `warehouse_state.to_dict()` 获取快照，通过 `warehouse_state.from_dict()` 恢复。
-- 但 `from_dict()` 是 **strict exact-fields 验证**，且会创建 **新的** `WarehouseState` 实例。如果恢复快照时 warehouse 服务的内部引用指向旧实例，需要同时更新引用。
-- `submit_item_objective`（`character_management_module.gd:400`）是现有的快照回滚先例——它 snapshot `warehouse_state_before`，调用 `commit_batch_swap`，失败时恢复。但该模式是单域（仓库内）回滚。
-
-**对于充能跨域事务：**
-1. Snapshot warehouse state → OK
-2. Snapshot PartyMemberState contingency_setups + current_mp → OK（值拷贝）
-3. `commit_batch_swap` 扣宝石 → 成功
-4. 写 `PartyMemberState.contingency_matrix_setups[i].charged = true` → **失败**
-
-此时需要：
-- 恢复 warehouse state 到快照（调用 `warehouse_state.from_dict(snapshot)` 并替换引用）
-- 恢复 PartyMemberState contingency fields + current_mp
-
-**潜在问题：** 如果 `commit_batch_swap` 的成功已经触发了仓库相关的 side effects（如信号发射、UI 刷新），单纯恢复 warehouse state 字典可能不够——side effects 不会被回滚。
-
-**评估：** 基本可行，但需要验证 `commit_batch_swap` 的 side effects 范围。建议充能事务中先不发射仓库变更信号，等整体成功后再统一通知。
-
-**严重程度：MEDIUM**
-
----
-
-## 汇总：第三轮缺口
-
-| 编号 | 严重度 | 问题 | 建议 |
-|---|---|---|---|
-| H1 | MEDIUM | `projected_hp_damage_after_shield` 在 hook 调用时尚未计算（2588行 vs 2564行） | resolver 预计算并提供给 hook context，避免 hook 复制护盾逻辑 |
-| H2 | LOW | `cancel_damage` 返回路径仅需局部修改 | 在 2564行处提前返回零伤害结果 |
-| H3 | MEDIUM | 仓库快照回滚需要处理 side effects 和实例引用替换 | 充能事务内暂缓仓库信号，成功后再统一发射 |
-
-**总体结论：** G表7条裁决均通过代码验证，工程可行。H1 是最需要设计注意的细节——`before_damage_resolved` 的时序与触发条件计算之间存在跨步骤依赖，但通过预计算辅助函数可干净解决。其余均为已知模式的小范围扩展。
