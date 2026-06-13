@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="BattleSimProfileDef" format=3]
+[gd_resource type="Resource" format=3]
 
 [ext_resource type="Script" path="res://scripts/systems/battle/sim/BattleSimProfileDef.cs" id="1_profile"]
 [ext_resource type="Script" path="res://scripts/systems/battle/ai/BattleAiScoreProfile.cs" id="2_score"]
@@ -8,17 +8,17 @@ script = ExtResource("2_score")
 movement_cost_weight = 8
 position_base_score = 72
 action_base_scores = {
-"skill": 0,
-"move": 32,
-"retreat": 35,
-"wait": -70
+&"skill": 0,
+&"move": 32,
+&"retreat": 35,
+&"wait": -70
 }
 bucket_priorities = {
-"mist_support": 120,
-"mist_control": 110,
-"mist_offense": 105,
-"frontline_guard": 130,
-"harrier_pressure": 100
+&"mist_support": 120,
+&"mist_control": 110,
+&"mist_offense": 105,
+&"frontline_guard": 130,
+&"harrier_pressure": 100
 }
 
 [resource]

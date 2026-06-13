@@ -14,10 +14,8 @@ max_skill_level = 2
 effect_target_team_filter = &"ally"
 status_id = &"magic_shield"
 duration_tu = 60
-params = {
-"damage_category": "magic",
-"mitigation_tier": "half"
-}
+mitigation_tier = &"half"
+damage_category = &"magic"
 
 [sub_resource type="Resource" id="MagicShield_l3"]
 script = ExtResource("1_effect")
@@ -28,10 +26,8 @@ max_skill_level = 4
 effect_target_team_filter = &"ally"
 status_id = &"magic_shield"
 duration_tu = 80
-params = {
-"damage_category": "magic",
-"mitigation_tier": "half"
-}
+mitigation_tier = &"half"
+damage_category = &"magic"
 
 [sub_resource type="Resource" id="MagicShield_l5"]
 script = ExtResource("1_effect")
@@ -42,10 +38,8 @@ max_skill_level = 6
 effect_target_team_filter = &"ally"
 status_id = &"magic_shield"
 duration_tu = 100
-params = {
-"damage_category": "magic",
-"mitigation_tier": "half"
-}
+mitigation_tier = &"half"
+damage_category = &"magic"
 
 [sub_resource type="Resource" id="MagicShield_l7"]
 script = ExtResource("1_effect")
@@ -55,10 +49,8 @@ min_skill_level = 7
 effect_target_team_filter = &"ally"
 status_id = &"magic_shield"
 duration_tu = 120
-params = {
-"damage_category": "magic",
-"mitigation_tier": "half"
-}
+mitigation_tier = &"half"
+damage_category = &"magic"
 
 [sub_resource type="Resource" id="Shield_l5"]
 script = ExtResource("1_effect")

@@ -13,12 +13,10 @@ duration_tu = 60
 counts_as_debuff_override = true
 counts_as_debuff = false
 lock_counterattack = true
+lock_dodge_bonus = true
 lock_crit = true
 main_skill_lock_other_debuff_count = 2
-params = {
-"lock_dodge_bonus": true,
-"mitigation_tier": "double"
-}
+mitigation_tier = &"double"
 
 [sub_resource type="Resource" id="Resource_w7s2b"]
 script = ExtResource("3_m0g2p")

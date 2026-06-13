@@ -18,12 +18,10 @@ script = ExtResource("3_effect")
 effect_type = &"heal_fatal"
 trigger_condition = &"on_fatal_damage"
 trigger_status_id = &"death_ward"
-params = {
-"base_heal": 8,
-"con_mod_base": 2,
-"con_mod_per_2_levels": 1,
-"heal_per_level": 4
-}
+base_heal = 8
+heal_per_level = 4
+con_mod_base = 2
+con_mod_per_2_levels = 1
 
 [sub_resource type="Resource" id="Resource_erase_death_ward"]
 script = ExtResource("3_effect")
@@ -46,9 +44,7 @@ trigger_condition = &"on_fatal_damage"
 trigger_status_id = &"death_ward"
 min_skill_level = 7
 duration_tu = 90
-params = {
-"passive_reduction": 1
-}
+passive_reduction = 1
 
 [sub_resource type="Resource" id="Resource_combat_profile"]
 script = ExtResource("2_combat")

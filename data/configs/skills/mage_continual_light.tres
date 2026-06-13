@@ -16,10 +16,10 @@ save_ability = &"willpower"
 save_tag = &"magic"
 status_id = &"blind"
 duration_tu = 60
+attack_roll_penalty = 4
+lock_dodge_bonus = true
 params = {
-"attack_roll_penalty": 4,
-"breaks_barrier_layer": "indigo",
-"lock_dodge_bonus": true
+"breaks_barrier_layer": "indigo"
 }
 
 [sub_resource type="Resource" id="Blind_l1"]
@@ -35,10 +35,10 @@ save_ability = &"willpower"
 save_tag = &"magic"
 status_id = &"blind"
 duration_tu = 60
+attack_roll_penalty = 4
+lock_dodge_bonus = true
 params = {
-"attack_roll_penalty": 4,
-"breaks_barrier_layer": "indigo",
-"lock_dodge_bonus": true
+"breaks_barrier_layer": "indigo"
 }
 
 [sub_resource type="Resource" id="Blind_l3"]
@@ -54,10 +54,10 @@ save_ability = &"willpower"
 save_tag = &"magic"
 status_id = &"blind"
 duration_tu = 80
+attack_roll_penalty = 4
+lock_dodge_bonus = true
 params = {
-"attack_roll_penalty": 4,
-"breaks_barrier_layer": "indigo",
-"lock_dodge_bonus": true
+"breaks_barrier_layer": "indigo"
 }
 
 [sub_resource type="Resource" id="Blind_l5"]
@@ -73,10 +73,10 @@ save_ability = &"willpower"
 save_tag = &"magic"
 status_id = &"blind"
 duration_tu = 100
+attack_roll_penalty = 4
+lock_dodge_bonus = true
 params = {
-"attack_roll_penalty": 4,
-"breaks_barrier_layer": "indigo",
-"lock_dodge_bonus": true
+"breaks_barrier_layer": "indigo"
 }
 
 [sub_resource type="Resource" id="Blind_l7"]
@@ -91,10 +91,10 @@ save_ability = &"willpower"
 save_tag = &"magic"
 status_id = &"blind"
 duration_tu = 120
+attack_roll_penalty = 4
+lock_dodge_bonus = true
 params = {
-"attack_roll_penalty": 4,
-"breaks_barrier_layer": "indigo",
-"lock_dodge_bonus": true
+"breaks_barrier_layer": "indigo"
 }
 
 [sub_resource type="Resource" id="Combat"]

@@ -12,9 +12,9 @@ max_skill_level = 0
 effect_target_team_filter = &"any"
 remove_harmful_from_allies = true
 remove_beneficial_from_enemies = true
+max_status_removed = 1
 params = {
-"breaks_barrier_layer": "violet",
-"max_status_removed": 1
+"breaks_barrier_layer": "violet"
 }
 
 [sub_resource type="Resource" id="Dispel_l1"]
@@ -26,9 +26,9 @@ max_skill_level = 2
 effect_target_team_filter = &"any"
 remove_harmful_from_allies = true
 remove_beneficial_from_enemies = true
+max_status_removed = 1
 params = {
-"breaks_barrier_layer": "violet",
-"max_status_removed": 1
+"breaks_barrier_layer": "violet"
 }
 
 [sub_resource type="Resource" id="Dispel_l3"]
@@ -40,9 +40,9 @@ max_skill_level = 4
 effect_target_team_filter = &"any"
 remove_harmful_from_allies = true
 remove_beneficial_from_enemies = true
+max_status_removed = 2
 params = {
-"breaks_barrier_layer": "violet",
-"max_status_removed": 2
+"breaks_barrier_layer": "violet"
 }
 
 [sub_resource type="Resource" id="Dispel_l5"]
@@ -54,9 +54,9 @@ max_skill_level = 6
 effect_target_team_filter = &"any"
 remove_harmful_from_allies = true
 remove_beneficial_from_enemies = true
+max_status_removed = 3
 params = {
-"breaks_barrier_layer": "violet",
-"max_status_removed": 3
+"breaks_barrier_layer": "violet"
 }
 
 [sub_resource type="Resource" id="Dispel_l7"]
@@ -67,9 +67,9 @@ min_skill_level = 7
 effect_target_team_filter = &"any"
 remove_harmful_from_allies = true
 remove_beneficial_from_enemies = true
+max_status_removed = 4
 params = {
-"breaks_barrier_layer": "violet",
-"max_status_removed": 4
+"breaks_barrier_layer": "violet"
 }
 
 [sub_resource type="Resource" id="Combat"]

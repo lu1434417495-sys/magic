@@ -8,12 +8,9 @@
 script = ExtResource("1_effect")
 effect_type = &"status"
 power = 1
+range_bonus = 1
 status_id = &"archer_shooting_specialization"
 trigger_condition = &"battle_start"
-params = {
-"range_bonus": 1,
-"source_skill_id": "archer_shooting_specialization"
-}
 
 [sub_resource type="Resource" id="Resource_combat_profile"]
 script = ExtResource("2_combat")

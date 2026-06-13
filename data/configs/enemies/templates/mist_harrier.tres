@@ -13,18 +13,18 @@ tags = Array[StringName]([&"beast", &"mist", &"harrier"])
 natural_weapon_damage_tag = &"physical_pierce"
 natural_weapon_attack_range = 5
 base_attribute_overrides = {
-"strength": 5,
-"agility": 7,
-"constitution": 5,
-"perception": 7,
-"intelligence": 4,
-"willpower": 5,
+&"strength": 5,
+&"agility": 7,
+&"constitution": 5,
+&"perception": 7,
+&"intelligence": 4,
+&"willpower": 5,
 }
 skill_ids = Array[StringName]([&"archer_suppressive_fire", &"archer_pinning_shot"])
 attribute_overrides = {
-"hp_max": 26,
-"mp_max": 0,
-"action_points": 2,
-"attack_bonus": 5,
-"deflection_bonus": 4,
+&"hp_max": 26,
+&"mp_max": 0,
+&"action_points": 2,
+&"attack_bonus": 5,
+&"deflection_bonus": 4,
 }

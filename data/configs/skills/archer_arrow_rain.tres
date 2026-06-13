@@ -20,13 +20,12 @@ effect_type = &"terrain_effect"
 max_skill_level = 1
 terrain_effect_id = &"arrow_rain_suppression"
 tick_effect_type = &"movement_cost"
+lifetime_policy = &"timed"
+move_cost_delta = 1
+display_name = "箭雨压制"
+does_not_stack_with_status_id = &"slow"
 duration_tu = 30
 tick_interval_tu = 5
-params = {
-"display_name": "箭雨压制",
-"does_not_stack_with_status_id": "slow",
-"move_cost_delta": 1
-}
 
 [sub_resource type="Resource" id="Resource_suppression_l2"]
 script = ExtResource("3_tx6ou")
@@ -35,13 +34,12 @@ min_skill_level = 2
 max_skill_level = 3
 terrain_effect_id = &"arrow_rain_suppression"
 tick_effect_type = &"movement_cost"
+lifetime_policy = &"timed"
+move_cost_delta = 1
+display_name = "箭雨压制"
+does_not_stack_with_status_id = &"slow"
 duration_tu = 35
 tick_interval_tu = 5
-params = {
-"display_name": "箭雨压制",
-"does_not_stack_with_status_id": "slow",
-"move_cost_delta": 1
-}
 
 [sub_resource type="Resource" id="Resource_suppression_l4"]
 script = ExtResource("3_tx6ou")
@@ -50,13 +48,12 @@ min_skill_level = 4
 max_skill_level = 5
 terrain_effect_id = &"arrow_rain_suppression"
 tick_effect_type = &"movement_cost"
+lifetime_policy = &"timed"
+move_cost_delta = 1
+display_name = "箭雨压制"
+does_not_stack_with_status_id = &"slow"
 duration_tu = 40
 tick_interval_tu = 5
-params = {
-"display_name": "箭雨压制",
-"does_not_stack_with_status_id": "slow",
-"move_cost_delta": 1
-}
 
 [sub_resource type="Resource" id="Resource_suppression_l6"]
 script = ExtResource("3_tx6ou")
@@ -64,13 +61,12 @@ effect_type = &"terrain_effect"
 min_skill_level = 6
 terrain_effect_id = &"arrow_rain_suppression"
 tick_effect_type = &"movement_cost"
+lifetime_policy = &"timed"
+move_cost_delta = 1
+display_name = "箭雨压制"
+does_not_stack_with_status_id = &"slow"
 duration_tu = 45
 tick_interval_tu = 5
-params = {
-"display_name": "箭雨压制",
-"does_not_stack_with_status_id": "slow",
-"move_cost_delta": 1
-}
 
 [sub_resource type="Resource" id="Resource_v_tl"]
 script = ExtResource("2_382hj")
