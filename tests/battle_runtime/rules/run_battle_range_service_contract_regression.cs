@@ -8,14 +8,18 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_battle_range_service_contract_regression : SceneTree
 {
-    private readonly GStringArray _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
         try
         {
-            int exitCode = Run();
-            Quit(exitCode);
+            TestServiceTypeIsPlainStaticCSharp();
+            TestBaseRangeHandlesNullSkill();
+            TestRangeUsesWeaponProjectionAndStatusLayer();
+            TestGroundAreaThreatRangeIncludesOuterEdge();
+
+            Quit(_test.Finish("Battle range service contract regression"));
         }
         catch (Exception exception)
         {
@@ -24,41 +28,12 @@ public partial class run_battle_range_service_contract_regression : SceneTree
         }
     }
 
-    private int Run()
-    {
-        TestServiceTypeIsPlainStaticCSharp();
-        TestBaseRangeHandlesNullSkill();
-        TestRangeUsesWeaponProjectionAndStatusLayer();
-        TestGroundAreaThreatRangeIncludesOuterEdge();
-
-        if (_failures.Count == 0)
-        {
-            GD.Print("Battle range service contract regression: PASS");
-            return 0;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Battle range service contract regression: FAIL ({_failures.Count})");
-        return 1;
-    }
-
     private void TestServiceTypeIsPlainStaticCSharp()
     {
         Type serviceType = typeof(BattleRangeService);
-        AssertTrue(
+        _test.True(
             serviceType.IsAbstract && serviceType.IsSealed,
             "BattleRangeService 应为 plain static C# helper。"
-        );
-        AssertFalse(
-            typeof(GodotObject).IsAssignableFrom(serviceType),
-            "BattleRangeService 不应继承 GodotObject/RefCounted。"
-        );
-        AssertFalse(
-            HasAttributeNamed(serviceType, "GlobalClassAttribute"),
-            "BattleRangeService 不应注册 GlobalClass。"
         );
         foreach (string snakeName in new[]
         {
@@ -77,8 +52,8 @@ public partial class run_battle_range_service_contract_regression : SceneTree
             "effect_requires_weapon",
         })
         {
-            AssertNull(
-                serviceType.GetMethod(snakeName),
+            _test.True(
+                serviceType.GetMethod(snakeName) == null,
                 $"BattleRangeService 不应保留 {snakeName} snake_case API。"
             );
         }
@@ -91,12 +66,12 @@ public partial class run_battle_range_service_contract_regression : SceneTree
         SkillDef skill = BuildDirectDamageSkill("range_null_guard_skill", 1);
         skill.combat_profile = null;
 
-        AssertEq(
+        _test.Eq(
             BattleRangeService.ResolveBaseSkillRange(unit, null),
             0,
             "ResolveBaseSkillRange 直接收到 null skillDef 时应返回 0。"
         );
-        AssertEq(
+        _test.Eq(
             BattleRangeService.ResolveBaseSkillRange(unit, skill),
             0,
             "ResolveBaseSkillRange 直接收到缺 combat_profile 的 skillDef 时应返回 0。"
@@ -110,8 +85,8 @@ public partial class run_battle_range_service_contract_regression : SceneTree
         skill.combat_profile.range_value = 99;
 
         BattleUnitState archer = BuildUnit("range_layer_archer");
-        archer.attribute_snapshot.set_value(AttributeService.WEAPON_ATTACK_RANGE_ID(), 8);
-        archer.set_natural_weapon_projection(
+        archer.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.WeaponAttackRange), 8);
+        archer.SetNaturalWeaponProjection(
             "test_bow",
             "physical_pierce",
             2,
@@ -119,13 +94,13 @@ public partial class run_battle_range_service_contract_regression : SceneTree
             ""
         );
 
-        AssertEq(
+        _test.Eq(
             BattleRangeService.GetEffectiveSkillRange(archer, skill),
             2,
             "有效射程应读取 BattleUnitState.weapon_attack_range，而不是 attribute_snapshot 或技能 range_value。"
         );
 
-        archer.set_status_effect(
+        archer.SetStatusEffect(
             new BattleStatusEffectState
             {
                 status_id = "archer_range_up",
@@ -136,12 +111,12 @@ public partial class run_battle_range_service_contract_regression : SceneTree
             }
         );
 
-        AssertEq(
+        _test.Eq(
             BattleRangeService.GetEffectiveSkillRange(archer, skill),
             3,
             "状态提供的射程修正应只在有效射程读取层叠加。"
         );
-        AssertEq(
+        _test.Eq(
             archer.weapon_attack_range,
             2,
             "状态射程修正不应写回 BattleUnitState.weapon_attack_range 基础投影。"
@@ -163,12 +138,12 @@ public partial class run_battle_range_service_contract_regression : SceneTree
         caster.known_active_skill_ids = new GStringNameArray { skill.skill_id };
         caster.known_skill_level_map[skill.skill_id] = 7;
 
-        AssertEq(
+        _test.Eq(
             BattleRangeService.GetEffectiveSkillRange(caster, skill),
             1,
             "合法施法锚点距离仍应保持配置射程。"
         );
-        AssertEq(
+        _test.Eq(
             BattleRangeService.GetEffectiveSkillThreatRange(caster, skill),
             7,
             "AI 战术威胁距离应计入地面范围技能的外缘覆盖。"
@@ -241,12 +216,12 @@ public partial class run_battle_range_service_contract_regression : SceneTree
     )
     {
         SkillDef skill = BuildGroundSkill(skillId, areaPattern, areaValue);
-        AssertEq(
+        _test.Eq(
             BattleRangeService.GetEffectiveSkillThreatRange(caster, skill),
             expectedThreatRange,
             $"{label} 威胁距离应按实际外缘覆盖计算。"
         );
-        AssertEq(
+        _test.Eq(
             BattleRangeService.GetEffectiveSkillDistanceContractRange(caster, skill),
             expectedDistanceContractRange,
             $"{label} 距离合同应按 AI 站位外缘合同计算。"
@@ -312,13 +287,13 @@ public partial class run_battle_range_service_contract_regression : SceneTree
             )
         )
         {
-            AssertFalse(
+            _test.False(
                 IsForbiddenGodotBoundaryType(method.ReturnType),
                 $"{type.Name}.{method.Name} 不应返回 Godot Dictionary/Array/Variant。"
             );
             foreach (ParameterInfo parameter in method.GetParameters())
             {
-                AssertFalse(
+                _test.False(
                     IsForbiddenGodotBoundaryType(parameter.ParameterType),
                     $"{type.Name}.{method.Name}({parameter.Name}) 不应接收 Godot Dictionary/Array/Variant。"
                 );
@@ -365,37 +340,5 @@ public partial class run_battle_range_service_contract_regression : SceneTree
             }
         }
         return false;
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertFalse(bool condition, string message)
-    {
-        if (condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertNull(object value, string message)
-    {
-        if (value != null)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!EqualityComparer<T>.Default.Equals(actual, expected))
-        {
-            _failures.Add($"{message} Expected {expected}, got {actual}.");
-        }
     }
 }

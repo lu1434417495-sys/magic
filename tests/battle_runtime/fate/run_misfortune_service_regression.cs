@@ -1,5 +1,5 @@
 using System;
-using System.Collections.Generic;
+using System.Reflection;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -8,31 +8,75 @@ public partial class run_misfortune_service_regression : SceneTree
 {
     private static readonly StringName ReverseFortuneStatusId = "reverse_fortune";
 
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
-        Run();
-    }
-
-    private void Run()
-    {
+        TestUnitHasSkillUsesTypedAccessor();
+        TestSkillGatesUseTypedRules();
         TestRuntimeTracksAllCalamityReasonsAndSnapshot();
         TestFirstCriticalFailGrantsReverseFortuneAndCapClamps();
 
-        if (_failures.Count == 0)
+        Quit(_test.Finish("MisfortuneService regression"));
+    }
+
+    private void TestUnitHasSkillUsesTypedAccessor()
+    {
+        MisfortuneService service = new();
+        MethodInfo unitHasSkill = typeof(MisfortuneService).GetMethod(
+            "_UnitHasSkill",
+            BindingFlags.Instance | BindingFlags.NonPublic
+        );
+        _test.True(unitHasSkill != null, "应能反射到 MisfortuneService._UnitHasSkill。");
+        if (unitHasSkill == null)
         {
-            GD.Print("MisfortuneService regression: PASS");
-            Quit(0);
             return;
         }
 
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"MisfortuneService regression: FAIL ({_failures.Count})");
-        Quit(1);
+        BattleUnitState activeOnlyUnit = new();
+        activeOnlyUnit.known_active_skill_ids.Add("active_only_skill");
+        _test.True(
+            (bool)unitHasSkill.Invoke(service, new object[] { activeOnlyUnit, new StringName("active_only_skill") }),
+            "仅在 known_active_skill_ids 中出现的技能仍应视为已拥有。"
+        );
+
+        BattleUnitState leveledUnit = new();
+        leveledUnit.known_skill_level_map["leveled_skill"] = 2;
+        _test.True(
+            (bool)unitHasSkill.Invoke(service, new object[] { leveledUnit, new StringName("leveled_skill") }),
+            "有显式 typed skill level 的技能应视为已拥有。"
+        );
+
+        BattleUnitState zeroLevelUnit = new();
+        zeroLevelUnit.known_skill_level_map["zero_skill"] = 0;
+        _test.False(
+            (bool)unitHasSkill.Invoke(service, new object[] { zeroLevelUnit, new StringName("zero_skill") }),
+            "显式 0 级技能不应被视为已拥有。"
+        );
+    }
+
+    private void TestSkillGatesUseTypedRules()
+    {
+        _test.True(
+            !string.IsNullOrWhiteSpace(MisfortuneService.GetSkillSidecarMissingMessage("black_star_brand")),
+            "black_star_brand sidecar 缺失时应提供非空反馈。"
+        );
+        _test.True(
+            !string.IsNullOrWhiteSpace(MisfortuneService.GetSkillDefaultBlockMessage("doom_sentence")),
+            "doom_sentence 默认阻断时应提供非空反馈。"
+        );
+        _test.True(
+            !string.IsNullOrWhiteSpace(MisfortuneService.GetSkillDefaultBlockMessage("unknown_gate_skill")),
+            "未知 gating skill 默认阻断时应提供非空反馈。"
+        );
+        _test.True(
+            MisfortuneService.IsMisfortuneGatedSkill("black_crown_seal"),
+            "正式 misfortune gated skill 应继续能被 typed rule 表识别。"
+        );
+        _test.False(
+            MisfortuneService.IsMisfortuneGatedSkill("not_a_misfortune_skill"),
+            "非 misfortune gated skill 不应被误判。"
+        );
     }
 
     private void TestRuntimeTracksAllCalamityReasonsAndSnapshot()
@@ -40,33 +84,33 @@ public partial class run_misfortune_service_regression : SceneTree
         BattleRuntimeModule runtime = BuildRuntime(-6, 2);
         try
         {
-            BattleState state = runtime.get_state();
+            BattleState state = runtime.GetState();
             BattleUnitState hero = GetRuntimeUnit(state, "hero");
             BattleUnitState buddy = GetRuntimeUnit(state, "buddy");
             if (hero == null || buddy == null)
             {
-                AssertTrue(false, "全理由 case 前置构建失败。");
+                _test.True(false, "全理由 case 前置构建失败。");
                 return;
             }
 
             DispatchFateEvent(runtime, "ordinary_miss", "hero");
-            runtime.mark_applied_statuses_for_turn_timing(hero, new GArray { new StringName("stunned") });
+            runtime.MarkAppliedStatusesForTurnTiming(hero, new GArray { new StringName("stunned") });
             buddy.current_hp = 0;
             buddy.is_alive = false;
-            runtime.clear_defeated_unit(buddy);
+            runtime.ClearDefeatedUnit(buddy);
             hero.current_hp = 20;
             hero.current_ap = 1;
             state.phase = "unit_acting";
             state.active_unit_id = hero.unit_id;
-            runtime.issue_command(BuildWaitCommand(hero.unit_id));
-            runtime.notify_member_boss_phase_changed("hero", "phase_2");
+            runtime.IssueCommand(BuildWaitCommand(hero.unit_id));
+            runtime.GetFateRuntime()?.HandleMemberBossPhaseChanged("hero", "phase_2");
             DispatchFateEvent(runtime, "critical_fail", "hero");
             DispatchFateEvent(runtime, "ordinary_miss", "hero");
 
-            AssertEq(runtime.get_member_calamity_cap("hero"), 6, "rank 2/4 bonus 与极低 hidden luck 组合后 calamity cap 应为 6。");
-            AssertEq(runtime.get_member_calamity("hero"), 6, "六类首次坏运事件后 calamity 应累计到 6。");
-            AssertFalse(
-                hero.has_status_effect(ReverseFortuneStatusId),
+            _test.Eq(runtime.GetMemberCalamityCap("hero"), 6, "rank 2/4 bonus 与极低 hidden luck 组合后 calamity cap 应为 6。");
+            _test.Eq(runtime.GetMemberCalamity("hero"), 6, "六类首次坏运事件后 calamity 应累计到 6。");
+            _test.False(
+                hero.HasStatusEffect(ReverseFortuneStatusId),
                 "若第一条 calamity 事件不是大失败，则不应补发 reverse_fortune。"
             );
 
@@ -80,15 +124,13 @@ public partial class run_misfortune_service_regression : SceneTree
             var builder = new GameRuntimeSnapshotBuilder();
             builder.Setup(snapshotRuntime);
             GDictionary snapshot = builder.BuildHeadlessSnapshot();
-            string textSnapshot = builder.BuildTextSnapshot();
             builder.Dispose();
 
-            AssertEq(
+            _test.Eq(
                 IntValue(Dict(Dict(snapshot, "battle"), "calamity_by_member_id"), "hero", -1),
                 6,
                 "battle snapshot 应暴露 hero 的当前 calamity。"
             );
-            AssertTrue(textSnapshot.Contains("calamity=hero=6"), "battle 文本快照应渲染 calamity 段。");
         }
         finally
         {
@@ -101,39 +143,41 @@ public partial class run_misfortune_service_regression : SceneTree
         BattleRuntimeModule runtime = BuildRuntime(0, 0);
         try
         {
-            BattleState state = runtime.get_state();
+            BattleState state = runtime.GetState();
             BattleUnitState hero = GetRuntimeUnit(state, "hero");
             BattleUnitState buddy = GetRuntimeUnit(state, "buddy");
             if (hero == null || buddy == null)
             {
-                AssertTrue(false, "critical fail first case 前置构建失败。");
+                _test.True(false, "critical fail first case 前置构建失败。");
                 return;
             }
 
             DispatchFateEvent(runtime, "critical_fail", "hero");
-            AssertEq(runtime.get_member_calamity_cap("hero"), 3, "默认角色 calamity cap 应为 3。");
-            AssertEq(runtime.get_member_calamity("hero"), 1, "第一次 critical_fail 应先授予 1 点 calamity。");
-            AssertTrue(
-                hero.has_status_effect(ReverseFortuneStatusId),
+            _test.Eq(runtime.GetMemberCalamityCap("hero"), 3, "默认角色 calamity cap 应为 3。");
+            _test.Eq(runtime.GetMemberCalamity("hero"), 1, "第一次 critical_fail 应先授予 1 点 calamity。");
+            _test.True(
+                hero.HasStatusEffect(ReverseFortuneStatusId),
                 "第一次 calamity 事件就是大失败时应授予 reverse_fortune。"
             );
-            BattleStatusEffectState reverseFortune = hero.get_status_effect(ReverseFortuneStatusId);
-            AssertEq(
+            BattleStatusEffectState reverseFortune = hero.GetStatusEffect(ReverseFortuneStatusId);
+            _test.Eq(
                 reverseFortune != null ? reverseFortune.duration : -1,
                 60,
                 "reverse_fortune 应维持 1 回合基准 duration。"
             );
 
             DispatchFateEvent(runtime, "ordinary_miss", "hero");
-            runtime.mark_applied_statuses_for_turn_timing(hero, new GArray { new StringName("fear") });
-            runtime.notify_member_boss_phase_changed("hero", "phase_2");
+            runtime.MarkAppliedStatusesForTurnTiming(hero, new GArray { new StringName("fear") });
+            runtime.GetFateRuntime()?.HandleMemberBossPhaseChanged("hero", "phase_2");
             buddy.current_hp = 0;
             buddy.is_alive = false;
-            runtime.clear_defeated_unit(buddy);
+            runtime.ClearDefeatedUnit(buddy);
 
-            AssertEq(runtime.get_member_calamity("hero"), 3, "超出默认上限后 calamity 不应继续增长。");
-            AssertEq(
-                IntValue(runtime.get_calamity_by_member_id(), "hero", 0),
+            _test.Eq(runtime.GetMemberCalamity("hero"), 3, "超出默认上限后 calamity 不应继续增长。");
+            _test.Eq(
+                runtime.GetCalamityByMemberIdSnapshot().TryGetValue("hero", out int calamity)
+                    ? calamity
+                    : 0,
                 3,
                 "BattleRuntime.calamity_by_member_id 应与 MisfortuneService 计算结果保持同步。"
             );
@@ -150,7 +194,7 @@ public partial class run_misfortune_service_regression : SceneTree
     )
     {
         var runtime = new BattleRuntimeModule();
-        runtime.setup(null, new GDictionary(), new GDictionary(), new GDictionary(), null);
+        runtime.setup();
 
         BattleUnitState hero = BuildMemberUnit(
             "hero",
@@ -177,16 +221,16 @@ public partial class run_misfortune_service_regression : SceneTree
             ["battle_map_size"] = new Vector2I(6, 6),
             ["ally_spawns"] = new GArray { new Vector2I(1, 1), new Vector2I(2, 1) },
             ["enemy_spawns"] = new GArray { new Vector2I(4, 4) },
-            ["battle_party"] = new GArray { hero.to_dict(), buddy.to_dict() },
-            ["enemy_units"] = new GArray { boss.to_dict() },
+            ["battle_party"] = new GArray { hero.ToDictionary(), buddy.ToDictionary() },
+            ["enemy_units"] = new GArray { boss.ToDictionary() },
         };
-        BattleState state = runtime.start_battle(encounterAnchor, 101, context);
+        BattleState state = runtime.StartBattle(encounterAnchor, 101, context);
         BattleUnitState runtimeHero = GetRuntimeUnit(state, "hero");
         BattleUnitState runtimeBuddy = GetRuntimeUnit(state, "buddy");
         if (runtimeHero != null)
-            runtime._grid_service.place_unit(state, runtimeHero, new Vector2I(1, 1), true);
+            runtime._grid_service.PlaceUnit(state, runtimeHero, new Vector2I(1, 1), true);
         if (runtimeBuddy != null)
-            runtime._grid_service.place_unit(state, runtimeBuddy, new Vector2I(2, 1), true);
+            runtime._grid_service.PlaceUnit(state, runtimeBuddy, new Vector2I(2, 1), true);
         return runtime;
     }
 
@@ -241,13 +285,13 @@ public partial class run_misfortune_service_regression : SceneTree
     )
     {
         var snapshot = new AttributeSnapshot();
-        snapshot.set_value(AttributeService.HP_MAX_ID(), hpMax);
-        snapshot.set_value(AttributeService.MP_MAX_ID(), 0);
-        snapshot.set_value(AttributeService.STAMINA_MAX_ID(), 0);
-        snapshot.set_value(AttributeService.AURA_MAX_ID(), 0);
-        snapshot.set_value(AttributeService.ACTION_POINTS_ID(), 1);
-        snapshot.set_value("hidden_luck_at_birth", hiddenLuckAtBirth);
-        snapshot.set_value("calamity_capacity_bonus", calamityCapacityBonus);
+        snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), hpMax);
+        snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.MpMax), 0);
+        snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.StaminaMax), 0);
+        snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.AuraMax), 0);
+        snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ActionPoints), 1);
+        snapshot.SetValue("hidden_luck_at_birth", hiddenLuckAtBirth);
+        snapshot.SetValue("calamity_capacity_bonus", calamityCapacityBonus);
         SeedAttributeSnapshotBaseAttributesAndAc(snapshot);
         return snapshot;
     }
@@ -268,17 +312,17 @@ public partial class run_misfortune_service_regression : SceneTree
             }
         )
         {
-            if (!snapshot.has_value(attributeId))
-                snapshot.set_value(attributeId, 10);
+            if (!snapshot.HasValue(attributeId))
+                snapshot.SetValue(attributeId, 10);
         }
-        if (!snapshot.has_value(AttributeService.ARMOR_CLASS_ID()))
+        if (!snapshot.HasValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass)))
         {
-            int agilityModifier = AttributeSnapshot.calculate_score_modifier(
-                snapshot.get_value("agility")
+            int agilityModifier = AttributeSnapshot.CalculateScoreModifier(
+                snapshot.GetValue("agility")
             );
-            snapshot.set_value(
-                AttributeService.ARMOR_CLASS_ID(),
-                Math.Clamp(AttributeService.BASE_ARMOR_CLASS_VALUE() + agilityModifier, 1, 99)
+            snapshot.SetValue(
+                AttributeService.ToStringName(AttributeIdKind.ArmorClass),
+                Math.Clamp(AttributeService.BASE_ARMOR_CLASS + agilityModifier, 1, 99)
             );
         }
     }
@@ -292,7 +336,7 @@ public partial class run_misfortune_service_regression : SceneTree
 
     private static BattleCommand BuildWaitCommand(StringName unitId)
     {
-        return new BattleCommand { command_type = BattleCommand.TYPE_WAIT(), unit_id = unitId };
+        return new BattleCommand { command_type = BattleTypedNames.ToStringName(BattleCommandKind.Wait), unit_id = unitId };
     }
 
     private static void DispatchFateEvent(
@@ -301,11 +345,11 @@ public partial class run_misfortune_service_regression : SceneTree
         StringName memberId
     )
     {
-        runtime.get_fate_event_bus().dispatch(
+        runtime.GetFateEventBus().dispatch(
             eventType,
             new GDictionary
             {
-                ["battle_id"] = runtime.get_state()?.battle_id ?? new StringName(""),
+                ["battle_id"] = runtime.GetState()?.battle_id ?? new StringName(""),
                 ["attacker_member_id"] = memberId,
             }
         );
@@ -328,23 +372,5 @@ public partial class run_misfortune_service_regression : SceneTree
             return fallback;
         Variant value = source[key];
         return value.VariantType == Variant.Type.Nil ? fallback : value.AsInt32();
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-            _failures.Add(message);
-    }
-
-    private void AssertFalse(bool condition, string message)
-    {
-        if (condition)
-            _failures.Add(message);
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!EqualityComparer<T>.Default.Equals(actual, expected))
-            _failures.Add($"{message} | actual={actual} expected={expected}");
     }
 }

@@ -5,7 +5,8 @@ using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_battle_loot_commit_service_regression : SceneTree
 {
-    private readonly List<string> _failures = new();
+    private const string TestWorldConfig = "res://data/configs/world_map/test_world_map_config.tres";
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -14,20 +15,44 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
 
     private void Run()
     {
-        TestEquipmentInstanceCommitKeepsPublicDictionaryShape();
-        TestEquipmentInstanceAliasPayloadIsRejected();
+        RunTest(
+            nameof(TestEquipmentInstanceCommitKeepsPublicDictionaryShape),
+            TestEquipmentInstanceCommitKeepsPublicDictionaryShape
+        );
+        RunTest(
+            nameof(TestEquipmentInstanceAliasPayloadIsRejected),
+            TestEquipmentInstanceAliasPayloadIsRejected
+        );
+        RunTest(
+            nameof(TestStringNameDropEntryFieldsAreRejected),
+            TestStringNameDropEntryFieldsAreRejected
+        );
+        RunTest(
+            nameof(TestBattleSessionWaitOrResolveTypedPropagatesFinalizeFailure),
+            TestBattleSessionWaitOrResolveTypedPropagatesFinalizeFailure
+        );
+        RunTest(
+            nameof(TestBattleStartConfirmRequiresExplicitConfirmBeforeTickAdvances),
+            TestBattleStartConfirmRequiresExplicitConfirmBeforeTickAdvances
+        );
+        RunTest(
+            nameof(TestBattleOverflowFeedbackSurfacesInMessageAndSnapshot),
+            TestBattleOverflowFeedbackSurfacesInMessageAndSnapshot
+        );
 
-        if (_failures.Count == 0)
+        Quit(_test.Finish("Battle loot commit service regression"));
+    }
+
+    private void RunTest(string name, System.Action test)
+    {
+        try
         {
-            GD.Print("Battle loot commit service regression: PASS");
-            Quit(0);
-            return;
+            test?.Invoke();
         }
-
-        foreach (string failure in _failures)
-            GD.PushError(failure);
-        GD.Print($"Battle loot commit service regression: FAIL ({_failures.Count})");
-        Quit(1);
+        catch (System.Exception ex)
+        {
+            _test.Fail($"{name} threw {ex.GetType().Name}: {ex.Message}");
+        }
     }
 
     private void TestEquipmentInstanceCommitKeepsPublicDictionaryShape()
@@ -35,30 +60,31 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
         RuntimeFixture fixture = BuildFixture(capacity: 3);
         try
         {
-            GDictionary result = fixture.Service._commit_equipment_instance_loot_entry(
-                new GDictionary
-                {
-                    ["drop_type"] = BattleLootConstants.DROP_TYPE_EQUIPMENT_INSTANCE(),
-                    ["item_id"] = "iron_sword",
-                    ["equipment_instance"] = EquipmentInstanceState
-                        .create("iron_sword", "eq_000001")
-                        .to_dict(),
-                }
+            var typedResult = fixture.Service.CommitEquipmentInstanceLootEntry(
+                BuildFormalEquipmentInstanceLootEntry("iron_sword", "eq_000001")
             );
-
-            AssertTrue(DictBool(result, "ok", false), "装备实例掉落应提交成功。");
-            AssertEq(DictInt(result, "committed_item_count", -1), 1, "提交成功应保留 committed_item_count。");
-            AssertEq(DictArray(result, "overflow_entries").Count, 0, "容量充足时不应产生 overflow。");
-            AssertEq(
+            _test.True(typedResult.Ok, "装备实例掉落应提交成功。");
+            if (!typedResult.Ok)
+            {
+                _test.Fail(
+                    $"装备实例掉落正式提交失败错误码不应出现。 actual={typedResult.ErrorCode}"
+                );
+            }
+            _test.Eq(typedResult.CommittedItemCount, 1, "提交成功应保留 committed_item_count。");
+            _test.Eq(typedResult.OverflowEntries.Count, 0, "容量充足时不应产生 overflow。");
+            _test.Eq(
                 fixture.PartyState.warehouse_state.equipment_instances.Count,
                 1,
                 "装备实例应写入共享仓库。"
             );
-            AssertEq(
-                fixture.PartyState.warehouse_state.equipment_instances[0].item_id,
-                new StringName("iron_sword"),
-                "写入仓库的装备实例应保留 item_id。"
-            );
+            if (fixture.PartyState.warehouse_state.equipment_instances.Count > 0)
+            {
+                _test.Eq(
+                    fixture.PartyState.warehouse_state.equipment_instances[0].item_id,
+                    new StringName("iron_sword"),
+                    "写入仓库的装备实例应保留 item_id。"
+                );
+            }
         }
         finally
         {
@@ -71,27 +97,274 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
         RuntimeFixture fixture = BuildFixture(capacity: 3);
         try
         {
-            GDictionary result = fixture.Service._commit_equipment_instance_loot_entry(
-                new GDictionary
-                {
-                    ["drop_type"] = BattleLootConstants.DROP_TYPE_EQUIPMENT_INSTANCE(),
-                    ["item_id"] = "iron_sword",
-                    ["equipment_instance_data"] = EquipmentInstanceState
-                        .create("iron_sword", "eq_000002")
-                        .to_dict(),
-                }
-            );
-
-            AssertFalse(DictBool(result, "ok", true), "旧 equipment_instance_data alias 不应被接受。");
-            AssertEq(
-                DictString(result, "error_code", ""),
-                "battle_loot_equipment_instance_missing_payload",
-                "缺失正式 equipment_instance payload 时应返回稳定错误码。"
-            );
-            AssertEq(
+            bool threw = false;
+            try
+            {
+                fixture.Service.CommitEquipmentInstanceLootEntry(
+                    BuildFormalEquipmentInstanceLootEntry(
+                        "iron_sword",
+                        "eq_000002",
+                        "equipment_instance_data"
+                    )
+                );
+            }
+            catch (KeyNotFoundException)
+            {
+                threw = true;
+            }
+            _test.True(threw, "旧 equipment_instance_data alias 现在应沿正式链抛出 KeyNotFoundException。");
+            _test.Eq(
                 fixture.PartyState.warehouse_state.equipment_instances.Count,
                 0,
                 "失败提交不应修改共享仓库。"
+            );
+        }
+        finally
+        {
+            fixture.Dispose();
+        }
+    }
+
+    private static GDictionary BuildFormalEquipmentInstanceLootEntry(
+        string itemId,
+        string instanceId,
+        string payloadKey = "equipment_instance"
+    )
+    {
+        return new GDictionary
+        {
+            ["drop_type"] = BattleLootIds.ToStringName(BattleLootDropKind.EquipmentInstance).ToString(),
+            ["drop_source_kind"] = "enemy_unit",
+            ["drop_source_id"] = "wolf_alpha",
+            ["drop_source_label"] = "Wolf Alpha",
+            ["drop_entry_id"] = $"enemy_unit_wolf_alpha_{instanceId}",
+            ["item_id"] = itemId,
+            ["quantity"] = 1,
+            [payloadKey] = EquipmentInstanceState.CreateInstance(itemId, instanceId).ToDictionary(),
+        };
+    }
+
+    private void TestStringNameDropEntryFieldsAreRejected()
+    {
+        string[] formalStringFields =
+        {
+            "drop_type",
+            "drop_source_kind",
+            "drop_source_id",
+            "drop_source_label",
+            "drop_entry_id",
+            "item_id",
+        };
+        foreach (string fieldName in formalStringFields)
+        {
+            GDictionary payload = BuildFormalEquipmentInstanceLootEntry("iron_sword", $"eq_{fieldName}");
+            payload[fieldName] = new StringName(payload[fieldName].AsString());
+            _test.True(
+                BattleResolutionResult.NormalizeFormalDropEntryPayload(payload) == null,
+                $"StringName {fieldName} 不应被 battle loot drop entry 当作正式字符串字段。"
+            );
+        }
+
+        GDictionary unknownFieldPayload = BuildFormalEquipmentInstanceLootEntry(
+            "iron_sword",
+            "eq_unknown_field"
+        );
+        unknownFieldPayload["legacy_item_id"] = "iron_sword";
+        _test.True(
+            BattleResolutionResult.NormalizeFormalDropEntryPayload(unknownFieldPayload) == null,
+            "旧 legacy_item_id 字段不应被 battle loot drop entry 当作正式字段。"
+        );
+    }
+
+    private void TestBattleSessionWaitOrResolveTypedPropagatesFinalizeFailure()
+    {
+        BattleSessionFacadeFixture fixture = BuildBattleSessionFinalizeFailureFixture();
+        try
+        {
+            GameRuntimeFacade.RuntimeCommandResult commandResult =
+                fixture.Facade.CommandBattleWaitOrResolveTyped();
+
+            _test.False(commandResult.Ok, "战后 finalize 失败时，battle.wait_or_resolve 应返回 ok=false。");
+            _test.True(
+                !string.IsNullOrWhiteSpace(commandResult.Message),
+                "命令级 finalize 失败应返回非空错误反馈。"
+            );
+            _test.False(
+                fixture.BattleRuntime._battle_resolution_result_consumed,
+                "命令级 finalize 失败时不应消费 canonical battle result。"
+            );
+            _test.True(
+                ReferenceEquals(fixture.BattleRuntime._battle_resolution_result, fixture.ExpectedResult),
+                "命令级 finalize 失败时应保留 canonical battle result 供重试。"
+            );
+        }
+        finally
+        {
+            fixture.Dispose();
+        }
+    }
+
+    private void TestBattleStartConfirmRequiresExplicitConfirmBeforeTickAdvances()
+    {
+        WorldBattleFixture fixture = BuildWorldBattleFixture();
+        try
+        {
+            EncounterAnchorData encounterAnchor = FindEncounterAnchorByKind(
+                fixture.GameSession.GetWorldData(),
+                EncounterAnchorData.ToStringName(EncounterAnchorKind.Single)
+            );
+            _test.True(encounterAnchor != null, "确认开战回归需要至少一个单体野怪遭遇。");
+            if (encounterAnchor == null)
+                return;
+
+            fixture.GameSession.SetBattleSaveLock(true);
+            fixture.Facade.StartBattle(encounterAnchor);
+            GDictionary startedSnapshot = DictDictionary(
+                fixture.Facade.BuildHeadlessSnapshot(),
+                "battle"
+            );
+            _test.True(DictBool(startedSnapshot, "active", false), "正式 battle start 后应处于 battle active。");
+            _test.True(
+                DictBool(startedSnapshot, "start_confirm_visible", false),
+                "正式 battle start 后应先弹出开始战斗确认。"
+            );
+            _test.Eq(
+                DictString(startedSnapshot, "modal_state", ""),
+                "start_confirm",
+                "确认前 battle modal_state 应保持在 start_confirm。"
+            );
+            _test.Eq(
+                fixture.Facade._battle_runtime.GetState().timeline.current_tu,
+                0,
+                "确认前 TU 应从 0 开始。"
+            );
+
+            fixture.Facade.advance(2);
+            _test.Eq(
+                fixture.Facade._battle_runtime.GetState().timeline.current_tu,
+                0,
+                "未确认开始战斗前，TU 不应增长。"
+            );
+
+            GameRuntimeFacade.RuntimeCommandResult confirmResult =
+                fixture.Facade.CommandConfirmBattleStartTyped();
+            _test.True(confirmResult.Ok, "确认开始战斗命令应成功。");
+            GDictionary confirmedSnapshot = DictDictionary(
+                fixture.Facade.BuildHeadlessSnapshot(),
+                "battle"
+            );
+            _test.False(
+                DictBool(confirmedSnapshot, "start_confirm_visible", true),
+                "确认后开始战斗确认窗应关闭。"
+            );
+            _test.Eq(
+                DictString(confirmedSnapshot, "modal_state", ""),
+                "",
+                "确认后 battle modal_state 应清空。"
+            );
+
+            GameRuntimeFacade.RuntimeCommandResult tickResult =
+                fixture.Facade.CommandBattleTickTyped(1);
+            _test.True(tickResult.Ok, "确认后 battle tick 应成功。");
+            _test.Eq(
+                fixture.Facade._battle_runtime.GetState().timeline.current_tu,
+                5,
+                "确认后 battle tick 1 秒应推进 5 TU。"
+            );
+        }
+        finally
+        {
+            fixture.Dispose();
+        }
+    }
+
+    private void TestBattleOverflowFeedbackSurfacesInMessageAndSnapshot()
+    {
+        WorldBattleFixture fixture = BuildWorldBattleFixture();
+        try
+        {
+            ForcePartyStorageCapacity(fixture.Facade.GetPartyState(), 1);
+            fixture.Facade.GetPartyState().warehouse_state = new WarehouseState();
+
+            PartyWarehouseService warehouseService = new();
+            warehouseService.Setup(
+                fixture.Facade.GetPartyState(),
+                fixture.GameSession.GetItemDefsTyped()
+            );
+            warehouseService.AddItemTyped("healing_herb", 1);
+
+            EncounterAnchorData encounterAnchor = FindEncounterAnchorByKind(
+                fixture.GameSession.GetWorldData(),
+                EncounterAnchorData.ToStringName(EncounterAnchorKind.Settlement)
+            );
+            _test.True(encounterAnchor != null, "battle overflow 反馈回归需要一个聚落类野怪遭遇。");
+            if (encounterAnchor == null)
+                return;
+
+            encounterAnchor.growth_stage = 3;
+            fixture.GameSession.SetBattleSaveLock(true);
+            fixture.Facade.StartBattle(encounterAnchor);
+            GameRuntimeFacade.RuntimeCommandResult confirmResult =
+                fixture.Facade.CommandConfirmBattleStartTyped();
+            _test.True(
+                confirmResult.Ok,
+                "battle overflow 反馈回归中，开始战斗确认命令应成功返回。"
+            );
+            MarkActiveBattleAsPlayerVictory(fixture.Facade);
+            GameRuntimeFacade.RuntimeCommandResult resolveResult =
+                fixture.Facade.CommandBattleWaitOrResolveTyped();
+
+            warehouseService.Setup(
+                fixture.Facade.GetPartyState(),
+                fixture.GameSession.GetItemDefsTyped()
+            );
+            _test.True(resolveResult.Ok, "battle overflow 反馈回归中，结束战斗命令应成功返回。");
+            _test.Eq(
+                warehouseService.CountItem("healing_herb"),
+                1,
+                "battle overflow 后原有仓库占位物应保留。"
+            );
+            _test.Eq(
+                warehouseService.CountItem("beast_hide"),
+                0,
+                "battle overflow 后 beast_hide 不应误写入共享仓库。"
+            );
+
+            GDictionary snapshot = fixture.Facade.BuildHeadlessSnapshot();
+            GDictionary lootSnapshot = DictDictionary(snapshot, "loot");
+            Godot.Collections.Array lootEntries = DictArray(lootSnapshot, "loot_entries");
+            Godot.Collections.Array overflowEntries = DictArray(lootSnapshot, "overflow_entries");
+            _test.True(
+                DictBool(lootSnapshot, "commit_ok", false),
+                $"headless snapshot 应保留本次战斗 loot commit 成功状态。 loot={lootSnapshot}"
+            );
+            _test.Eq(
+                DictInt(lootSnapshot, "loot_entry_count", 0),
+                lootEntries.Count,
+                "headless snapshot 的 loot_entry_count 应匹配正式 loot_entries 数量。"
+            );
+            _test.Eq(
+                DictInt(lootSnapshot, "overflow_entry_count", 0),
+                overflowEntries.Count,
+                "headless snapshot 的 overflow_entry_count 应匹配正式 overflow_entries 数量。"
+            );
+            _test.True(
+                HasLootEntry(lootEntries, "beast_hide", 4),
+                $"headless snapshot 应暴露本次战斗原始 loot entry。 entries={lootEntries}"
+            );
+            _test.True(
+                HasLootEntry(overflowEntries, "beast_hide", 4),
+                $"headless snapshot 应暴露本次战斗 overflow entry。 entries={overflowEntries}"
+            );
+
+            GDictionary resolvedLog = FindRecentLogEntry(
+                DictArray(fixture.GameSession.GetLogSnapshot(), "entries"),
+                "battle.resolved"
+            );
+            _test.True(resolvedLog.Count > 0, "battle overflow 结算后应写入 battle.resolved 日志。");
+            _test.False(
+                fixture.GameSession.IsBattleSaveLocked(),
+                "battle overflow 结算完成后应释放 battle save lock。"
             );
         }
         finally
@@ -105,7 +378,7 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
         GDictionary itemDefs = BuildItemDefs();
         PartyState partyState = BuildPartyState(capacity);
         PartyWarehouseService warehouseService = new();
-        warehouseService.setup(partyState, itemDefs);
+        warehouseService.Setup(partyState, BuildItemDefIndex(itemDefs));
 
         GameSession gameSession = new()
         {
@@ -116,8 +389,9 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
             _game_session = gameSession,
             _party_state = partyState,
             _party_warehouse_service = warehouseService,
+            _equipment_drop_service = new EquipmentDropService(),
         };
-        runtime._battle_loot_commit_service.setup(runtime);
+        runtime._battle_loot_commit_service.Setup(runtime);
         return new RuntimeFixture(runtime, gameSession, runtime._battle_loot_commit_service, partyState);
     }
 
@@ -140,8 +414,8 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
         memberState
             .progression
             .unit_base_attributes
-            .set_attribute_value(PartyWarehouseService.STORAGE_SPACE_ATTRIBUTE_ID(), capacity);
-        partyState.set_member_state(memberState);
+            .SetAttributeValue(PartyWarehouseService.StorageSpaceAttributeId, capacity);
+        partyState.SetMemberState(memberState);
         return partyState;
     }
 
@@ -151,31 +425,212 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
         {
             item_id = "iron_sword",
             display_name = "Iron Sword",
-            item_category = ItemDef.ITEM_CATEGORY_EQUIPMENT(),
+            CategoryKind = ItemCategoryKind.Equipment,
             is_stackable = false,
             max_stack = 1,
-            equipment_type_id = ItemDef.EQUIPMENT_TYPE_WEAPON(),
-            equipment_slot_ids = new GStringArray { EquipmentRules.MAIN_HAND().ToString() },
+            EquipmentTypeKind = ItemEquipmentTypeKind.Weapon,
+            equipment_slot_ids = new GStringArray
+            {
+                EquipmentRules.ToStringName(EquipmentSlotKind.MainHand).ToString(),
+            },
         };
-        return new GDictionary { ["iron_sword"] = sword };
+        return new GDictionary { [new StringName("iron_sword")] = sword };
     }
 
-    private void AssertTrue(bool condition, string message)
+    private static Dictionary<StringName, ItemDef> BuildItemDefIndex(GDictionary itemDefs)
     {
-        if (!condition)
-            _failures.Add(message);
+        Dictionary<StringName, ItemDef> result = new();
+        if (itemDefs == null)
+            return result;
+        foreach (Variant rawKey in itemDefs.Keys)
+        {
+            if (rawKey.VariantType != Variant.Type.StringName)
+                continue;
+            StringName itemId = rawKey.AsStringName();
+            if (itemId == "")
+                continue;
+            if (itemDefs[rawKey].AsGodotObject() is ItemDef itemDef)
+                result[itemId] = itemDef;
+        }
+        return result;
     }
 
-    private void AssertFalse(bool condition, string message)
+    private static BattleSessionFacadeFixture BuildBattleSessionFinalizeFailureFixture()
     {
-        if (condition)
-            _failures.Add(message);
+        GameSession gameSession = new();
+        BattleRuntimeModule battleRuntime = new();
+        BattleState endedState = BuildEndedBattleState();
+        BattleResolutionResult expectedResult = BuildResolutionResultWithReward(
+            BuildCanonicalReward("hero", "battle_skill")
+        );
+        battleRuntime._state = endedState;
+        battleRuntime._battle_resolution_result = expectedResult;
+        battleRuntime._battle_resolution_result_consumed = false;
+
+        GameRuntimeFacade runtime = new()
+        {
+            _game_session = gameSession,
+            _battle_runtime = battleRuntime,
+            _battle_state = endedState,
+            _character_management = null,
+        };
+
+        BattleSessionFacade facade = new();
+        facade.Setup(runtime);
+        return new BattleSessionFacadeFixture(facade, runtime, gameSession, battleRuntime, expectedResult);
     }
 
-    private void AssertEq<T>(T actual, T expected, string message)
+    private static PendingCharacterReward BuildCanonicalReward(string memberId, string skillId)
     {
-        if (!EqualityComparer<T>.Default.Equals(actual, expected))
-            _failures.Add($"{message} expected={expected} actual={actual}");
+        PendingCharacterReward reward = new()
+        {
+            reward_id = $"{memberId}_reward",
+            member_id = memberId,
+            member_name = memberId,
+            source_type = "battle_rating",
+            source_id = "battle_rating",
+            source_label = "战斗结算",
+            summary_text = "战斗评分结算。",
+        };
+        PendingCharacterRewardEntry entry = new()
+        {
+            entry_type = "skill_mastery",
+            target_id = skillId,
+            target_label = skillId,
+            amount = 4,
+            reason_text = "战斗评分 4 · 渐入佳境",
+        };
+        reward.entries = new Godot.Collections.Array<PendingCharacterRewardEntry> { entry };
+        return reward;
+    }
+
+    private static BattleResolutionResult BuildResolutionResultWithReward(PendingCharacterReward reward)
+    {
+        return new BattleResolutionResult
+        {
+            battle_id = "battle_session",
+            seed = 99,
+            world_coord = new Vector2I(6, 12),
+            encounter_anchor_id = "encounter_session",
+            terrain_profile_id = "default",
+            winner_faction_id = "player",
+            encounter_resolution = "player_victory",
+            pending_character_rewards = new Godot.Collections.Array<PendingCharacterReward>
+            {
+                reward,
+            },
+            quest_progress_events = new Godot.Collections.Array
+            {
+                new GDictionary
+                {
+                    ["quest_id"] = "battle_contract",
+                    ["objective_id"] = "defeat_enemy",
+                    ["progress_delta"] = 1,
+                },
+            },
+        };
+    }
+
+    private static BattleState BuildEndedBattleState()
+    {
+        return new BattleState
+        {
+            battle_id = "battle_session_end",
+            phase = "battle_ended",
+            winner_faction_id = "player",
+            timeline = new BattleTimelineState(),
+        };
+    }
+
+    private static WorldBattleFixture BuildWorldBattleFixture()
+    {
+        GameSession gameSession = new();
+        int createError = gameSession.CreateNewSave(TestWorldConfig);
+        if (createError != (int)Error.Ok)
+        {
+            gameSession.QueueFree();
+            return null;
+        }
+
+        GameRuntimeFacade facade = new();
+        facade.Setup(gameSession);
+        ConfigureFixedCombatForFacade(facade);
+        return new WorldBattleFixture(facade, gameSession);
+    }
+
+    private static void ConfigureFixedCombatForFacade(GameRuntimeFacade facade)
+    {
+        BattleRuntimeModule runtime = facade?.GetBattleRuntime();
+        if (runtime == null)
+            return;
+
+        runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
+        FixedSuccessOneDamageResolver damageResolver = new();
+        damageResolver.SetSkillDefs(facade.GetGameSession().GetSkillDefsTyped());
+        runtime.ConfigureDamageResolverForTests(damageResolver);
+    }
+
+    private static EncounterAnchorData FindEncounterAnchorByKind(
+        GDictionary worldData,
+        StringName encounterKind
+    )
+    {
+        foreach (Variant encounterValue in DictArray(worldData, "encounter_anchors"))
+        {
+            EncounterAnchorData encounterAnchor = encounterValue.AsGodotObject() as EncounterAnchorData;
+            if (encounterAnchor == null)
+                continue;
+            if (encounterAnchor.encounter_kind == encounterKind)
+                return encounterAnchor;
+        }
+        return null;
+    }
+
+    private static void MarkActiveBattleAsPlayerVictory(GameRuntimeFacade facade)
+    {
+        BattleState runtimeState = facade?._battle_runtime?.GetState();
+        if (runtimeState == null || runtimeState.IsEmpty())
+            return;
+
+        BattleUnitState defaultKiller = null;
+        if (runtimeState.ally_unit_ids.Count > 0)
+        {
+            StringName allyUnitId = runtimeState.ally_unit_ids[0];
+            if (runtimeState.units.ContainsKey(allyUnitId))
+                defaultKiller = runtimeState.units[allyUnitId].AsGodotObject() as BattleUnitState;
+        }
+
+        foreach (StringName enemyUnitId in runtimeState.enemy_unit_ids)
+        {
+            if (!runtimeState.units.ContainsKey(enemyUnitId))
+                continue;
+            BattleUnitState enemyUnit = runtimeState.units[enemyUnitId].AsGodotObject() as BattleUnitState;
+            if (enemyUnit == null || !enemyUnit.is_alive)
+                continue;
+            enemyUnit.is_alive = false;
+            facade._battle_runtime._collect_defeated_unit_loot(enemyUnit, defaultKiller);
+        }
+        runtimeState.phase = "battle_ended";
+        runtimeState.winner_faction_id = "player";
+        facade.RefreshBattleRuntimeState();
+    }
+
+    private static void ForcePartyStorageCapacity(PartyState partyState, int capacity)
+    {
+        if (partyState == null)
+            return;
+        int resolvedCapacity = Mathf.Max(capacity, 0);
+        bool firstMemberAssigned = false;
+        foreach (Variant memberValue in partyState.member_states.Values)
+        {
+            PartyMemberState memberState = memberValue.AsGodotObject() as PartyMemberState;
+            if (memberState?.progression?.unit_base_attributes == null)
+                continue;
+            memberState.progression.unit_base_attributes.custom_stats[
+                PartyWarehouseService.StorageSpaceAttributeId
+            ] = !firstMemberAssigned ? resolvedCapacity : 0;
+            firstMemberAssigned = true;
+        }
     }
 
     private static bool DictBool(GDictionary dictionary, string key, bool fallback)
@@ -202,6 +657,18 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
         return value.VariantType == Variant.Type.String ? value.AsString() : fallback;
     }
 
+    private static string DictIdString(GDictionary dictionary, string key, string fallback = "")
+    {
+        if (dictionary == null || !dictionary.ContainsKey(key))
+            return fallback;
+        Variant value = dictionary[key];
+        if (value.VariantType == Variant.Type.StringName)
+            return value.AsStringName().ToString();
+        if (value.VariantType == Variant.Type.String)
+            return value.AsString();
+        return fallback;
+    }
+
     private static Godot.Collections.Array DictArray(GDictionary dictionary, string key)
     {
         if (dictionary == null || !dictionary.ContainsKey(key))
@@ -210,6 +677,47 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
         return value.VariantType == Variant.Type.Array
             ? value.AsGodotArray()
             : new Godot.Collections.Array();
+    }
+
+    private static GDictionary DictDictionary(GDictionary dictionary, string key)
+    {
+        if (dictionary == null || !dictionary.ContainsKey(key))
+            return new GDictionary();
+        Variant value = dictionary[key];
+        return value.VariantType == Variant.Type.Dictionary
+            ? value.AsGodotDictionary()
+            : new GDictionary();
+    }
+
+    private static bool HasLootEntry(Godot.Collections.Array entries, string itemId, int quantity)
+    {
+        if (entries == null)
+            return false;
+        foreach (Variant entryValue in entries)
+        {
+            if (entryValue.VariantType != Variant.Type.Dictionary)
+                continue;
+            GDictionary entry = entryValue.AsGodotDictionary();
+            if (DictIdString(entry, "item_id") == itemId && DictInt(entry, "quantity", 0) == quantity)
+                return true;
+        }
+        return false;
+    }
+
+    private static GDictionary FindRecentLogEntry(Godot.Collections.Array entries, string eventId)
+    {
+        if (entries == null)
+            return new GDictionary();
+        for (int index = entries.Count - 1; index >= 0; index--)
+        {
+            Variant entryValue = entries[index];
+            if (entryValue.VariantType != Variant.Type.Dictionary)
+                continue;
+            GDictionary entry = entryValue.AsGodotDictionary();
+            if (DictString(entry, "event_id", "") == eventId)
+                return entry;
+        }
+        return new GDictionary();
     }
 
     private sealed class RuntimeFixture
@@ -234,8 +742,57 @@ public partial class run_battle_loot_commit_service_regression : SceneTree
 
         public void Dispose()
         {
-            Service?.dispose();
-            Runtime?.dispose();
+            Runtime?.Dispose();
+            GameSession?.QueueFree();
+        }
+    }
+
+    private sealed class BattleSessionFacadeFixture
+    {
+        public BattleSessionFacadeFixture(
+            BattleSessionFacade facade,
+            GameRuntimeFacade runtime,
+            GameSession gameSession,
+            BattleRuntimeModule battleRuntime,
+            BattleResolutionResult expectedResult
+        )
+        {
+            Facade = facade;
+            Runtime = runtime;
+            GameSession = gameSession;
+            BattleRuntime = battleRuntime;
+            ExpectedResult = expectedResult;
+        }
+
+        public BattleSessionFacade Facade { get; }
+        public GameRuntimeFacade Runtime { get; }
+        public GameSession GameSession { get; }
+        public BattleRuntimeModule BattleRuntime { get; }
+        internal BattleResolutionResult ExpectedResult { get; }
+
+        public void Dispose()
+        {
+            Facade?.Dispose();
+            Runtime?.Dispose();
+            GameSession?.QueueFree();
+        }
+    }
+
+    private sealed class WorldBattleFixture
+    {
+        public WorldBattleFixture(GameRuntimeFacade facade, GameSession gameSession)
+        {
+            Facade = facade;
+            GameSession = gameSession;
+        }
+
+        public GameRuntimeFacade Facade { get; }
+        public GameSession GameSession { get; }
+
+        public void Dispose()
+        {
+            Facade?.Dispose();
+            GameSession?.ClearPersistedGame();
             GameSession?.QueueFree();
         }
     }

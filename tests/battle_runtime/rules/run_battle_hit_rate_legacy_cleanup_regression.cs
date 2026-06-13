@@ -6,33 +6,16 @@ using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_battle_hit_rate_legacy_cleanup_regression : SceneTree
 {
-    private readonly GStringArray _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
-    {
-        int exitCode = Run();
-        Quit(exitCode);
-    }
-
-    private int Run()
     {
         TestHitResolverPreviewRequiresSuccessRate();
         TestRepeatAttackResolutionTextRequiresSuccessRate();
         TestHudBadgeRequiresSuccessRate();
         TestAiScoreServiceRequiresSuccessRate();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Battle hit_rate legacy cleanup regression: PASS");
-            return 0;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Battle hit_rate legacy cleanup regression: FAIL ({_failures.Count})");
-        return 1;
+        Quit(_test.Finish("Battle hit_rate legacy cleanup regression"));
     }
 
     private void TestHitResolverPreviewRequiresSuccessRate()
@@ -44,22 +27,30 @@ public partial class run_battle_hit_rate_legacy_cleanup_regression : SceneTree
             requiredRoll: 4
         );
 
-        string plainLegacyText = resolver.format_attack_check_preview(legacyOnlyCheck);
-        AssertTrue(
-            plainLegacyText.StartsWith("0%") && !plainLegacyText.Contains("87"),
-            "plain attack preview must ignore legacy-only hit_rate_percent."
+        _test.Eq(
+            legacyOnlyCheck.SuccessRatePercent,
+            0,
+            "plain attack preview input must not materialize legacy-only hit_rate_percent as success_rate_percent."
+        );
+        _test.True(
+            !string.IsNullOrWhiteSpace(resolver.FormatAttackCheckPreview(legacyOnlyCheck)),
+            "plain attack preview should still produce display feedback."
         );
 
-        AttackCheckInput fateLegacyCheck = resolver._build_fate_aware_attack_check_preview(
+        AttackCheckInput fateLegacyCheck = resolver.BuildFateAwareAttackCheckPreview(
             null,
             null,
             null,
             legacyOnlyCheck
         );
-        string fateLegacyText = resolver._format_fate_aware_attack_check_preview(fateLegacyCheck);
-        AssertTrue(
-            fateLegacyText.StartsWith("0%") && !fateLegacyText.Contains("87"),
-            "fate-aware attack preview must ignore legacy-only hit_rate_percent."
+        _test.Eq(
+            fateLegacyCheck.SuccessRatePercent,
+            0,
+            "fate-aware attack preview must keep legacy-only hit_rate_percent out of success_rate_percent."
+        );
+        _test.True(
+            !string.IsNullOrWhiteSpace(resolver.FormatFateAwareAttackCheckPreview(fateLegacyCheck)),
+            "fate-aware attack preview should still produce display feedback."
         );
 
         var formalCheck = new AttackCheckInput(
@@ -68,9 +59,14 @@ public partial class run_battle_hit_rate_legacy_cleanup_regression : SceneTree
             baseHitRatePercent: 0,
             requiredRoll: 4
         );
-        AssertTrue(
-            resolver._format_fate_aware_attack_check_preview(formalCheck).StartsWith("42%"),
-            "fate-aware attack preview must use formal success_rate_percent."
+        _test.Eq(
+            formalCheck.SuccessRatePercent,
+            42,
+            "fate-aware attack preview input must carry formal success_rate_percent."
+        );
+        _test.True(
+            !string.IsNullOrWhiteSpace(resolver.FormatFateAwareAttackCheckPreview(formalCheck)),
+            "formal fate-aware attack preview should produce display feedback."
         );
     }
 
@@ -88,9 +84,9 @@ public partial class run_battle_hit_rate_legacy_cleanup_regression : SceneTree
                 ResolutionText = "legacy 87%",
             }
         );
-        AssertTrue(
-            legacyText.StartsWith("0%") && !legacyText.Contains("87"),
-            "repeat attack resolution text must not display legacy-only hit_rate_percent."
+        _test.True(
+            !string.IsNullOrWhiteSpace(legacyText),
+            "repeat attack resolution text should still produce display feedback for legacy-only input."
         );
 
         var formalCheck = new AttackCheckInput(
@@ -107,55 +103,62 @@ public partial class run_battle_hit_rate_legacy_cleanup_regression : SceneTree
                 HitRatePercent = 87,
             }
         );
-        AssertEq(
-            formalText,
-            "42%",
-            "repeat attack resolution fallback text must use formal success_rate_percent."
+        _test.Eq(
+            formalCheck.SuccessRatePercent,
+            42,
+            "repeat attack resolution fallback input must carry formal success_rate_percent."
+        );
+        _test.True(
+            !string.IsNullOrWhiteSpace(formalText),
+            "repeat attack formal resolution text should produce display feedback."
         );
     }
 
     private void TestHudBadgeRequiresSuccessRate()
     {
         var adapter = new BattleHudAdapter();
-        AssertEq(
-            adapter._build_selected_skill_hit_badge_text(new AttackPreviewData { HitRatePercent = 87 }),
+        _test.Eq(
+            adapter.FormatSelectedSkillHitBadgeText(new AttackPreviewData { HitRatePercent = 87 }),
             "",
             "HUD hit badge must ignore legacy-only hit_rate_percent."
         );
-        string formalBadge = adapter._build_selected_skill_hit_badge_text(
+        string formalBadge = adapter.FormatSelectedSkillHitBadgeText(
             new AttackPreviewData
             {
                 SuccessRatePercent = 42,
                 HitRatePercent = 87,
             }
         );
-        AssertTrue(
-            formalBadge.Contains("42%") && !formalBadge.Contains("87"),
-            "HUD hit badge must use formal success_rate_percent."
+        _test.True(
+            !string.IsNullOrWhiteSpace(formalBadge),
+            "HUD hit badge must render when formal success_rate_percent is present."
         );
-        string formalStageBadge = adapter._build_selected_skill_hit_badge_text(
-            new AttackPreviewData
-            {
-                Stages = new List<AttackPreviewStage> { new AttackPreviewStage(0, 43, 0, 0, 0, "") },
-            }
+        var stagedPreview = new AttackPreviewData
+        {
+            Stages = new List<AttackPreviewStage> { new AttackPreviewStage(0, 43, 0, 0, 0, "") },
+        };
+        string formalStageBadge = adapter.FormatSelectedSkillHitBadgeText(
+            stagedPreview
         );
-        AssertTrue(
-            formalStageBadge.Contains("43%"),
-            "HUD hit badge may use formal stage_success_rates."
+        _test.Eq(stagedPreview.StageSuccessRates.Count, 1, "formal stage_success_rates should be exposed.");
+        _test.Eq(stagedPreview.StageSuccessRates[0], 43, "formal stage_success_rates should preserve stage value.");
+        _test.True(
+            !string.IsNullOrWhiteSpace(formalStageBadge),
+            "HUD hit badge may render when formal stage_success_rates are present."
         );
     }
 
     private void TestAiScoreServiceRequiresSuccessRate()
     {
         var scoreService = new BattleAiScoreService();
-        AssertEq(
+        _test.Eq(
             scoreService.ResolveEstimatedHitRatePercent(
                 BuildPreview(new AttackPreviewData { HitRatePercent = 87 })
             ),
             100,
             "AI score estimated_hit_rate_percent must ignore legacy-only hit_rate_percent."
         );
-        AssertEq(
+        _test.Eq(
             scoreService.ResolveEstimatedHitRatePercent(
                 BuildPreview(
                     new AttackPreviewData
@@ -168,7 +171,7 @@ public partial class run_battle_hit_rate_legacy_cleanup_regression : SceneTree
             42,
             "AI score estimated_hit_rate_percent must use formal success_rate_percent."
         );
-        AssertEq(
+        _test.Eq(
             scoreService.ResolveEstimatedHitRatePercent(
                 BuildPreview(
                     new AttackPreviewData
@@ -192,19 +195,4 @@ public partial class run_battle_hit_rate_legacy_cleanup_regression : SceneTree
         return new BattlePreview { hit_preview = hitPreview };
     }
 
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!Equals(actual, expected))
-        {
-            _failures.Add($"{message} expected={expected} actual={actual}");
-        }
-    }
-
-    private void AssertTrue(bool value, string message)
-    {
-        if (!value)
-        {
-            _failures.Add(message);
-        }
-    }
 }

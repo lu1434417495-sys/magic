@@ -10,7 +10,7 @@ public partial class run_low_luck_relic_regression : SceneTree
 {
     private static readonly StringName HeroId = "hero";
     private static readonly StringName AllyId = "ally";
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -26,36 +26,19 @@ public partial class run_low_luck_relic_regression : SceneTree
         TestBloodDebtShawlLowHpReductionAllyDownApAndRecoveryPenalty();
         TestDeadRoadLanternRevealsHiddenPaths();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Low luck relic regression: PASS");
-            Quit(0);
-            return;
-        }
-
-        foreach (string failure in _failures)
-            GD.PushError(failure);
-        GD.Print($"Low luck relic regression: FAIL ({_failures.Count})");
-        Quit(1);
+        Quit(_test.Finish("Low luck relic regression"));
     }
 
     private void TestRulesNoLongerRequireGodotRegistration()
     {
         Type rulesType = typeof(LowLuckRelicRules);
-        AssertFalse(
-            typeof(GodotObject).IsAssignableFrom(rulesType),
-            "LowLuckRelicRules 应是普通 C# static rules，不应继承 GodotObject/RefCounted。"
-        );
-        AssertFalse(
-            rulesType.GetCustomAttributes(typeof(GlobalClassAttribute), inherit: false).Length > 0,
-            "LowLuckRelicRules 不应继续注册为 Godot GlobalClass。"
-        );
-        AssertTrue(
+        _test.True(
             rulesType.GetMethod("should_reveal_hidden_path") == null,
             "LowLuckRelicRules 不应保留 GDScript snake_case path API。"
         );
-        AssertTrue(
-            LowLuckRelicRules.VisiblePathTags.Contains(LowLuckRelicRules.PATH_TAG_BLACK_OMEN),
+        _test.True(
+            LowLuckRelicRules.ToPathTagKind(LowLuckRelicRules.ToStringName(LowLuckPathTagKind.BlackOmen))
+                == LowLuckPathTagKind.BlackOmen,
             "可见路径 tag 集合应保留黑兆路径。"
         );
     }
@@ -65,21 +48,21 @@ public partial class run_low_luck_relic_regression : SceneTree
         GDictionary itemDefs = LoadLowLuckItemDefs();
         var cases = new[]
         {
-            (LowLuckRelicRules.ITEM_REVERSE_FATE_AMULET, LowLuckRelicRules.ATTR_REVERSE_FATE_AMULET),
-            (LowLuckRelicRules.ITEM_BLACK_STAR_WEDGE, LowLuckRelicRules.ATTR_BLACK_STAR_WEDGE),
-            (LowLuckRelicRules.ITEM_BLOOD_DEBT_SHAWL, LowLuckRelicRules.ATTR_BLOOD_DEBT_SHAWL),
-            (LowLuckRelicRules.ITEM_DEAD_ROAD_LANTERN, LowLuckRelicRules.ATTR_DEAD_ROAD_LANTERN),
+            (LowLuckRelicRules.ToStringName(LowLuckRelicItemKind.ReverseFateAmulet), LowLuckRelicRules.ToStringName(LowLuckRelicAttributeKind.ReverseFateAmulet)),
+            (LowLuckRelicRules.ToStringName(LowLuckRelicItemKind.BlackStarWedge), LowLuckRelicRules.ToStringName(LowLuckRelicAttributeKind.BlackStarWedge)),
+            (LowLuckRelicRules.ToStringName(LowLuckRelicItemKind.BloodDebtShawl), LowLuckRelicRules.ToStringName(LowLuckRelicAttributeKind.BloodDebtShawl)),
+            (LowLuckRelicRules.ToStringName(LowLuckRelicItemKind.DeadRoadLantern), LowLuckRelicRules.ToStringName(LowLuckRelicAttributeKind.DeadRoadLantern)),
         };
 
         foreach ((StringName itemId, StringName attributeId) in cases)
         {
-            AssertTrue(HasItemDef(itemDefs, itemId), $"ItemContentRegistry 应加载 {itemId}。");
+            _test.True(HasItemDef(itemDefs, itemId), $"ItemContentRegistry 应加载 {itemId}。");
             if (!HasItemDef(itemDefs, itemId))
                 continue;
 
             AttributeSnapshot snapshot = BuildEquippedMemberSnapshot(itemDefs, itemId);
-            AssertTrue(
-                snapshot != null && snapshot.get_value(attributeId) > 0,
+            _test.True(
+                snapshot != null && snapshot.GetValue(attributeId) > 0,
                 $"{itemId} 装备后应把 {attributeId} 写入属性快照。"
             );
         }
@@ -97,7 +80,7 @@ public partial class run_low_luck_relic_regression : SceneTree
         );
         AssertFixedLootEntry(
             reverseResult.LootEntries,
-            LowLuckRelicRules.ITEM_REVERSE_FATE_AMULET,
+            LowLuckRelicRules.ToStringName(LowLuckRelicItemKind.ReverseFateAmulet),
             "逆命护符应只通过 low_luck fixed loot 路径发放。"
         );
 
@@ -111,7 +94,7 @@ public partial class run_low_luck_relic_regression : SceneTree
         );
         AssertFixedLootEntry(
             wedgeResult.LootEntries,
-            LowLuckRelicRules.ITEM_BLACK_STAR_WEDGE,
+            LowLuckRelicRules.ToStringName(LowLuckRelicItemKind.BlackStarWedge),
             "黑星楔钉应只通过 low_luck fixed loot 路径发放。"
         );
 
@@ -121,7 +104,7 @@ public partial class run_low_luck_relic_regression : SceneTree
         );
         AssertFixedLootEntry(
             shawlResult.LootEntries,
-            LowLuckRelicRules.ITEM_BLOOD_DEBT_SHAWL,
+            LowLuckRelicRules.ToStringName(LowLuckRelicItemKind.BloodDebtShawl),
             "血债披肩应只通过 low_luck fixed loot 路径发放。"
         );
 
@@ -139,7 +122,7 @@ public partial class run_low_luck_relic_regression : SceneTree
         );
         AssertFixedLootEntry(
             lanternResult.LootEntries,
-            LowLuckRelicRules.ITEM_DEAD_ROAD_LANTERN,
+            LowLuckRelicRules.ToStringName(LowLuckRelicItemKind.DeadRoadLantern),
             "亡途灯笼应只通过 low_luck fixed loot 路径发放。"
         );
     }
@@ -149,7 +132,7 @@ public partial class run_low_luck_relic_regression : SceneTree
         FixedHitMaxDamageResolver resolver = new();
         BattleUnitState baselineSource = BuildBattleUnit("基准楔钉者", "player");
         BattleUnitState baselineTarget = BuildGuardedTarget("守住的敌人");
-        GDictionary baselineDamageResult = resolver.resolve_effects(
+        GDictionary baselineDamageResult = resolver.ResolveEffects(
             baselineSource,
             baselineTarget,
             new GArray { BuildDamageEffect(18) },
@@ -158,9 +141,9 @@ public partial class run_low_luck_relic_regression : SceneTree
         int baselineDamage = DictInt(baselineDamageResult, "damage");
 
         BattleUnitState wedgeSource = BuildBattleUnit("楔钉者", "player");
-        wedgeSource.attribute_snapshot.set_value(LowLuckRelicRules.ATTR_BLACK_STAR_WEDGE, 1);
+        wedgeSource.attribute_snapshot.SetValue(LowLuckRelicRules.ToStringName(LowLuckRelicAttributeKind.BlackStarWedge), 1);
         BattleUnitState wedgeTarget = BuildGuardedTarget("守住的敌人");
-        GDictionary wedgeResult = resolver.resolve_effects(
+        GDictionary wedgeResult = resolver.ResolveEffects(
             wedgeSource,
             wedgeTarget,
             new GArray { BuildDamageEffect(18) },
@@ -168,16 +151,16 @@ public partial class run_low_luck_relic_regression : SceneTree
         );
         GDictionary wedgeEvent = ExtractFirstDamageEvent(wedgeResult);
 
-        AssertTrue(
+        _test.True(
             DictInt(wedgeEvent, "guard_ignore_applied") > 0,
             $"黑星楔钉的首击应记录 guard_ignore_applied。 event={wedgeEvent}"
         );
-        AssertTrue(
+        _test.True(
             DictInt(wedgeResult, "damage") > baselineDamage,
             $"黑星楔钉首击应比未装备时打出更高伤害。 baseline={baselineDamage} actual={DictInt(wedgeResult, "damage")}"
         );
-        AssertTrue(
-            wedgeSource.has_status_effect(LowLuckRelicRules.STATUS_BLACK_STAR_WEDGE_EXPOSED),
+        _test.True(
+            wedgeSource.HasStatusEffect(LowLuckRelicRules.ToStringName(LowLuckRelicStatusKind.BlackStarWedgeExposed)),
             "黑星楔钉未击杀目标时应给佩戴者挂上 1 回合破绽。"
         );
 
@@ -185,7 +168,7 @@ public partial class run_low_luck_relic_regression : SceneTree
         BattleUnitState normalTarget = BuildBattleUnit("普通持有者", "player");
         BattleUnitState exposedTarget = wedgeSource;
         int normalIncoming = DictInt(
-            resolver.resolve_effects(
+            resolver.ResolveEffects(
                 enemyAttacker,
                 normalTarget,
                 new GArray { BuildDamageEffect(16) },
@@ -194,7 +177,7 @@ public partial class run_low_luck_relic_regression : SceneTree
             "damage"
         );
         int exposedIncoming = DictInt(
-            resolver.resolve_effects(
+            resolver.ResolveEffects(
                 enemyAttacker,
                 exposedTarget,
                 new GArray { BuildDamageEffect(16) },
@@ -202,7 +185,7 @@ public partial class run_low_luck_relic_regression : SceneTree
             ),
             "damage"
         );
-        AssertTrue(
+        _test.True(
             exposedIncoming > normalIncoming,
             $"黑星楔钉代价应让佩戴者承受更高的后续伤害。 normal={normalIncoming} exposed={exposedIncoming}"
         );
@@ -214,9 +197,9 @@ public partial class run_low_luck_relic_regression : SceneTree
         BattleUnitState enemyAttacker = BuildBattleUnit("压迫者", "enemy");
         BattleUnitState baselineTarget = BuildBattleUnit("普通目标", "player", hpMax: 100, currentHp: 35);
         BattleUnitState shawlTarget = BuildBattleUnit("披肩目标", "player", hpMax: 100, currentHp: 35);
-        shawlTarget.attribute_snapshot.set_value(LowLuckRelicRules.ATTR_BLOOD_DEBT_SHAWL, 1);
+        shawlTarget.attribute_snapshot.SetValue(LowLuckRelicRules.ToStringName(LowLuckRelicAttributeKind.BloodDebtShawl), 1);
         int normalDamage = DictInt(
-            resolver.resolve_effects(
+            resolver.ResolveEffects(
                 enemyAttacker,
                 baselineTarget,
                 new GArray { BuildDamageEffect(20) },
@@ -225,7 +208,7 @@ public partial class run_low_luck_relic_regression : SceneTree
             "damage"
         );
         int reducedDamage = DictInt(
-            resolver.resolve_effects(
+            resolver.ResolveEffects(
                 enemyAttacker,
                 shawlTarget,
                 new GArray { BuildDamageEffect(20) },
@@ -233,16 +216,16 @@ public partial class run_low_luck_relic_regression : SceneTree
             ),
             "damage"
         );
-        AssertTrue(
+        _test.True(
             reducedDamage < normalDamage,
             $"血债披肩在低血时应降低承伤。 normal={normalDamage} reduced={reducedDamage}"
         );
 
         BattleRuntimeModule runtime = new();
-        runtime.setup(null, new GDictionary(), new GDictionary(), new GDictionary());
+        runtime.setup();
         BattleState state = BuildRuntimeState("blood_debt_runtime");
         BattleUnitState wearer = BuildBattleUnit("披肩佩戴者", "player", hpMax: 100, currentHp: 80, sourceMemberId: HeroId);
-        wearer.attribute_snapshot.set_value(LowLuckRelicRules.ATTR_BLOOD_DEBT_SHAWL, 1);
+        wearer.attribute_snapshot.SetValue(LowLuckRelicRules.ToStringName(LowLuckRelicAttributeKind.BloodDebtShawl), 1);
         wearer.current_ap = 1;
         BattleUnitState fallenAlly = BuildBattleUnit("倒地队友", "player", hpMax: 100, currentHp: 0, sourceMemberId: AllyId);
         fallenAlly.is_alive = false;
@@ -253,9 +236,9 @@ public partial class run_low_luck_relic_regression : SceneTree
         state.ally_unit_ids = new GStringNameArray { wearer.unit_id, fallenAlly.unit_id };
         state.enemy_unit_ids = new GStringNameArray { enemy.unit_id };
         runtime._state = state;
-        runtime.clear_defeated_unit(fallenAlly, new BattleEventBatch());
-        AssertEq(wearer.current_ap, 2, "血债披肩应在队友倒地时返还 1 点行动点。");
-        runtime.dispose();
+        runtime.ClearDefeatedUnit(fallenAlly, new BattleEventBatch());
+        _test.Eq(wearer.current_ap, 2, "血债披肩应在队友倒地时返还 1 点行动点。");
+        runtime.Dispose();
 
         AssertBloodDebtRecoveryPenalty();
     }
@@ -263,11 +246,11 @@ public partial class run_low_luck_relic_regression : SceneTree
     private void TestDeadRoadLanternRevealsHiddenPaths()
     {
         AttributeSnapshot lanternSnapshot = new();
-        lanternSnapshot.set_value(LowLuckRelicRules.ATTR_DEAD_ROAD_LANTERN, 1);
-        AssertTrue(
+        lanternSnapshot.SetValue(LowLuckRelicRules.ToStringName(LowLuckRelicAttributeKind.DeadRoadLantern), 1);
+        _test.True(
             LowLuckRelicRules.ShouldRevealHiddenPath(
                 lanternSnapshot,
-                new[] { LowLuckRelicRules.PATH_TAG_HIDDEN_TRAP, LowLuckRelicRules.PATH_TAG_BLACK_OMEN }
+                new[] { LowLuckRelicRules.ToStringName(LowLuckPathTagKind.HiddenTrap), LowLuckRelicRules.ToStringName(LowLuckPathTagKind.BlackOmen) }
             ),
             "亡途灯笼应把隐藏陷阱和黑兆路径都标记为可见。"
         );
@@ -277,56 +260,56 @@ public partial class run_low_luck_relic_regression : SceneTree
     {
         GDictionary itemDefs = LoadLowLuckItemDefs();
         PartyState plainParty = BuildRestoreParty(equipBloodDebt: false, itemDefs);
-        PartyMemberState plainMember = plainParty.get_member_state(HeroId);
+        PartyMemberState plainMember = plainParty.GetMemberState(HeroId);
         GameRuntimeFacade plainRuntime = BuildRestoreRuntime(plainParty, itemDefs);
-        AttributeSnapshot plainSnapshot = plainRuntime.get_member_attribute_snapshot(HeroId);
-        int plainHpMax = Math.Max(plainSnapshot.get_value(AttributeService.HP_MAX_ID()), plainMember.current_hp);
-        int plainMpMax = Math.Max(plainSnapshot.get_value(AttributeService.MP_MAX_ID()), plainMember.current_mp);
+        AttributeSnapshot plainSnapshot = plainRuntime.GetMemberAttributeSnapshot(HeroId);
+        int plainHpMax = Math.Max(plainSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.HpMax)), plainMember.current_hp);
+        int plainMpMax = Math.Max(plainSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.MpMax)), plainMember.current_mp);
         GameRuntimeSettlementCommandHandler plainHandler = new();
-        plainHandler.setup(plainRuntime);
-        plainHandler._restore_party_resources(1.0f, true);
+        plainHandler.SetupRuntime(plainRuntime);
+        plainHandler.RestorePartyResources(1.0f, true);
 
         PartyState shawlParty = BuildRestoreParty(equipBloodDebt: true, itemDefs);
-        PartyMemberState shawlMember = shawlParty.get_member_state(HeroId);
+        PartyMemberState shawlMember = shawlParty.GetMemberState(HeroId);
         GameRuntimeFacade shawlRuntime = BuildRestoreRuntime(shawlParty, itemDefs);
-        AttributeSnapshot shawlSnapshot = shawlRuntime.get_member_attribute_snapshot(HeroId);
-        int shawlHpMax = Math.Max(shawlSnapshot.get_value(AttributeService.HP_MAX_ID()), shawlMember.current_hp);
-        int shawlMpMax = Math.Max(shawlSnapshot.get_value(AttributeService.MP_MAX_ID()), shawlMember.current_mp);
+        AttributeSnapshot shawlSnapshot = shawlRuntime.GetMemberAttributeSnapshot(HeroId);
+        int shawlHpMax = Math.Max(shawlSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.HpMax)), shawlMember.current_hp);
+        int shawlMpMax = Math.Max(shawlSnapshot.GetValue(AttributeService.ToStringName(AttributeIdKind.MpMax)), shawlMember.current_mp);
         int oldHp = shawlMember.current_hp;
         int oldMp = shawlMember.current_mp;
         int expectedHp = Math.Min(
-            oldHp + (int)Math.Ceiling(Math.Max(shawlHpMax - oldHp, 0) * LowLuckRelicRules.BLOOD_DEBT_RECOVERY_MULTIPLIER),
+            oldHp + (int)Math.Ceiling(Math.Max(shawlHpMax - oldHp, 0) * LowLuckRelicRules.BloodDebtRecoveryMultiplier),
             shawlHpMax
         );
         int expectedMp = Math.Min(
-            oldMp + (int)Math.Ceiling(Math.Max(shawlMpMax - oldMp, 0) * LowLuckRelicRules.BLOOD_DEBT_RECOVERY_MULTIPLIER),
+            oldMp + (int)Math.Ceiling(Math.Max(shawlMpMax - oldMp, 0) * LowLuckRelicRules.BloodDebtRecoveryMultiplier),
             shawlMpMax
         );
         GameRuntimeSettlementCommandHandler shawlHandler = new();
-        shawlHandler.setup(shawlRuntime);
-        shawlHandler._restore_party_resources(1.0f, true);
+        shawlHandler.SetupRuntime(shawlRuntime);
+        shawlHandler.RestorePartyResources(1.0f, true);
 
-        AssertEq(plainMember.current_hp, plainHpMax, "未装备血债披肩时 full restore 应恢复到 HP 上限。");
-        AssertEq(plainMember.current_mp, plainMpMax, "未装备血债披肩时 full restore 应恢复到 MP 上限。");
-        AssertEq(shawlMember.current_hp, expectedHp, "血债披肩代价应把 full restore 的 HP 恢复量减半。");
-        AssertEq(shawlMember.current_mp, expectedMp, "血债披肩代价应把 full restore 的 MP 恢复量减半。");
-        AssertTrue(
+        _test.Eq(plainMember.current_hp, plainHpMax, "未装备血债披肩时 full restore 应恢复到 HP 上限。");
+        _test.Eq(plainMember.current_mp, plainMpMax, "未装备血债披肩时 full restore 应恢复到 MP 上限。");
+        _test.Eq(shawlMember.current_hp, expectedHp, "血债披肩代价应把 full restore 的 HP 恢复量减半。");
+        _test.Eq(shawlMember.current_mp, expectedMp, "血债披肩代价应把 full restore 的 MP 恢复量减半。");
+        _test.True(
             shawlMember.current_hp < shawlHpMax || oldHp >= shawlHpMax,
             "血债披肩恢复后 HP 不应直接回满。"
         );
-        AssertTrue(
+        _test.True(
             shawlMember.current_mp < shawlMpMax || oldMp >= shawlMpMax,
             "血债披肩恢复后 MP 不应直接回满。"
         );
 
-        plainRuntime.dispose();
-        shawlRuntime.dispose();
+        plainRuntime.Dispose();
+        shawlRuntime.Dispose();
     }
 
     private static GDictionary LoadLowLuckItemDefs()
     {
         ItemContentRegistry registry = new();
-        GDictionary itemDefs = registry.get_item_defs();
+        GDictionary itemDefs = ProjectItemDefs(registry.GetItemDefsTyped());
         registry.Dispose();
         return itemDefs;
     }
@@ -340,17 +323,17 @@ public partial class run_low_luck_relic_regression : SceneTree
     {
         PartyState partyState = BuildPartyShell();
         PartyMemberState memberState = BuildMemberState(HeroId, hiddenLuckAtBirth: -5);
-        memberState.equipment_state.set_equipped_entry(
+        memberState.equipment_state.SetEquippedEntry(
             SlotForItem(itemId),
             itemId,
             BuildSlotArray(SlotForItem(itemId)),
-            EquipmentInstanceState.create_instance(itemId, $"eq_snapshot_{itemId}")
+            EquipmentInstanceState.CreateInstance(itemId, $"eq_snapshot_{itemId}")
         );
-        partyState.set_member_state(memberState);
+        partyState.SetMemberState(memberState);
 
         CharacterManagementModule manager = new();
         manager.setup(partyState, new GDictionary(), new GDictionary(), new GDictionary(), itemDefs);
-        return manager.get_member_attribute_snapshot(HeroId);
+        return manager.GetMemberAttributeSnapshot(HeroId);
     }
 
     private static LowLuckContext BuildLowLuckContext(int hiddenLuckAtBirth, bool includeAlly)
@@ -358,9 +341,9 @@ public partial class run_low_luck_relic_regression : SceneTree
         PartyState partyState = BuildPartyShell();
         if (includeAlly)
             partyState.active_member_ids.Add(AllyId);
-        partyState.set_member_state(BuildMemberState(HeroId, hiddenLuckAtBirth));
+        partyState.SetMemberState(BuildMemberState(HeroId, hiddenLuckAtBirth));
         if (includeAlly)
-            partyState.set_member_state(BuildMemberState(AllyId, 0));
+            partyState.SetMemberState(BuildMemberState(AllyId, 0));
 
         CharacterManagementModule manager = new();
         manager.setup(partyState, new GDictionary(), new GDictionary(), new GDictionary());
@@ -390,16 +373,16 @@ public partial class run_low_luck_relic_regression : SceneTree
         memberState.progression.unit_id = memberId;
         memberState.progression.display_name = memberId.ToString();
         memberState.progression.character_level = 10;
-        memberState.progression.unit_base_attributes.set_attribute_value(
+        memberState.progression.unit_base_attributes.SetAttributeValue(
             "hidden_luck_at_birth",
             hiddenLuckAtBirth
         );
-        memberState.progression.unit_base_attributes.set_attribute_value(
-            AttributeService.HP_MAX_ID(),
+        memberState.progression.unit_base_attributes.SetAttributeValue(
+            AttributeService.ToStringName(AttributeIdKind.HpMax),
             100
         );
-        memberState.progression.unit_base_attributes.set_attribute_value(
-            AttributeService.MP_MAX_ID(),
+        memberState.progression.unit_base_attributes.SetAttributeValue(
+            AttributeService.ToStringName(AttributeIdKind.MpMax),
             30
         );
         return memberState;
@@ -473,11 +456,11 @@ public partial class run_low_luck_relic_regression : SceneTree
             current_mp = 0,
             current_ap = 1,
         };
-        unit.set_anchor_coord(Vector2I.Zero);
-        unit.attribute_snapshot.set_value(AttributeService.HP_MAX_ID(), hpMax);
-        unit.attribute_snapshot.set_value(AttributeService.MP_MAX_ID(), 30);
-        unit.attribute_snapshot.set_value(AttributeService.ATTACK_BONUS_ID(), 20);
-        unit.attribute_snapshot.set_value(AttributeService.ARMOR_CLASS_ID(), 0);
+        unit.SetAnchorCoord(Vector2I.Zero);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), hpMax);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.MpMax), 30);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus), 20);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 0);
         return unit;
     }
 
@@ -490,9 +473,9 @@ public partial class run_low_luck_relic_regression : SceneTree
             power = 1,
             stacks = 1,
             duration = 60,
-            @params = new GDictionary { ["guard_block"] = 4 },
+            guard_block = 4,
         };
-        target.set_status_effect(guardStatus);
+        target.SetStatusEffect(guardStatus);
         return target;
     }
 
@@ -523,20 +506,20 @@ public partial class run_low_luck_relic_regression : SceneTree
                 BattleCellState cell = new()
                 {
                     coord = coord,
-                    base_terrain = BattleCellState.TERRAIN_LAND(),
+                    base_terrain = BattleTerrainRules.ToStringName(BattleTerrainKind.Land),
                     base_height = 4,
                 };
-                cell.recalculate_runtime_values();
+                cell.RecalculateRuntimeValues();
                 state.cells[coord] = cell;
             }
         }
-        state.cell_columns = BattleCellState.build_columns_from_surface_cells(state.cells);
+        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
         return state;
     }
 
     private static void AddUnitToState(BattleState state, BattleUnitState unit)
     {
-        unit.refresh_footprint();
+        unit.RefreshFootprint();
         state.units[unit.unit_id] = unit;
     }
 
@@ -548,17 +531,17 @@ public partial class run_low_luck_relic_regression : SceneTree
         memberState.current_mp = 10;
         if (equipBloodDebt)
         {
-            memberState.equipment_state.set_equipped_entry(
-                SlotForItem(LowLuckRelicRules.ITEM_BLOOD_DEBT_SHAWL),
-                LowLuckRelicRules.ITEM_BLOOD_DEBT_SHAWL,
-                BuildSlotArray(SlotForItem(LowLuckRelicRules.ITEM_BLOOD_DEBT_SHAWL)),
-                EquipmentInstanceState.create_instance(
-                    LowLuckRelicRules.ITEM_BLOOD_DEBT_SHAWL,
+            memberState.equipment_state.SetEquippedEntry(
+                SlotForItem(LowLuckRelicRules.ToStringName(LowLuckRelicItemKind.BloodDebtShawl)),
+                LowLuckRelicRules.ToStringName(LowLuckRelicItemKind.BloodDebtShawl),
+                BuildSlotArray(SlotForItem(LowLuckRelicRules.ToStringName(LowLuckRelicItemKind.BloodDebtShawl))),
+                EquipmentInstanceState.CreateInstance(
+                    LowLuckRelicRules.ToStringName(LowLuckRelicItemKind.BloodDebtShawl),
                     "eq_restore_blood_debt_shawl"
                 )
             );
         }
-        partyState.set_member_state(memberState);
+        partyState.SetMemberState(memberState);
         return partyState;
     }
 
@@ -578,18 +561,29 @@ public partial class run_low_luck_relic_regression : SceneTree
 
     private static StringName SlotForItem(StringName itemId)
     {
-        if (itemId == LowLuckRelicRules.ITEM_DEAD_ROAD_LANTERN)
+        if (itemId == LowLuckRelicRules.ToStringName(LowLuckRelicItemKind.DeadRoadLantern))
             return "special_trinket";
-        if (itemId == LowLuckRelicRules.ITEM_BLOOD_DEBT_SHAWL)
+        if (itemId == LowLuckRelicRules.ToStringName(LowLuckRelicItemKind.BloodDebtShawl))
             return "cloak";
-        if (itemId == LowLuckRelicRules.ITEM_REVERSE_FATE_AMULET)
+        if (itemId == LowLuckRelicRules.ToStringName(LowLuckRelicItemKind.ReverseFateAmulet))
             return "necklace";
-        if (itemId == LowLuckRelicRules.ITEM_BLACK_STAR_WEDGE)
+        if (itemId == LowLuckRelicRules.ToStringName(LowLuckRelicItemKind.BlackStarWedge))
             return "badge";
         return "necklace";
     }
 
     private static GStringNameArray BuildSlotArray(StringName slotId) => new() { slotId };
+
+    private static GDictionary ProjectItemDefs(IReadOnlyDictionary<StringName, ItemDef> itemDefs)
+    {
+        GDictionary projected = new();
+        if (itemDefs == null)
+            return projected;
+
+        foreach (KeyValuePair<StringName, ItemDef> pair in itemDefs)
+            projected[pair.Key] = pair.Value;
+        return projected;
+    }
 
     private static GDictionary ExtractFirstDamageEvent(GDictionary result)
     {
@@ -609,11 +603,11 @@ public partial class run_low_luck_relic_regression : SceneTree
     )
     {
         bool foundEntry = TryFindLootEntry(lootEntries, itemId, out LowLuckLootEntry lootEntry);
-        AssertTrue(foundEntry, message);
+        _test.True(foundEntry, message);
         if (!foundEntry)
             return;
-        AssertEq(lootEntry.DropType.ToString(), "item", $"{message} | fixed low luck 奖励必须是 drop_type=item。");
-        AssertEq(
+        _test.Eq(lootEntry.DropType.ToString(), "item", $"{message} | fixed low luck 奖励必须是 drop_type=item。");
+        _test.Eq(
             lootEntry.DropSourceKind.ToString(),
             "low_luck_event",
             $"{message} | fixed low luck 奖励必须写成 drop_source_kind=low_luck_event。"
@@ -660,24 +654,6 @@ public partial class run_low_luck_relic_regression : SceneTree
             Variant.Type.String => int.TryParse(value.AsString(), out int parsed) ? parsed : fallback,
             _ => fallback,
         };
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-            _failures.Add(message);
-    }
-
-    private void AssertFalse(bool condition, string message)
-    {
-        if (condition)
-            _failures.Add(message);
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!EqualityComparer<T>.Default.Equals(actual, expected))
-            _failures.Add($"{message} | actual={actual} expected={expected}");
     }
 
     private sealed class LowLuckContext : IDisposable

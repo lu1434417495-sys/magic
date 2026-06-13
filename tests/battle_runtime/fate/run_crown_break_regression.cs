@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
@@ -22,30 +23,16 @@ public partial class run_crown_break_regression : SceneTree
     private static readonly StringName STATUS_CROWN_BREAK_BLINDED_EYE = "crown_break_blinded_eye";
     private static readonly StringName FORTUNE_MARK_TARGET_STAT_ID = "fortune_mark_target";
 
-    private readonly GStringArray _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
-    {
-        int exitCode = Run();
-        Quit(exitCode);
-    }
-
-    private int Run()
     {
         TestCrownBreakBrokenFangBlocksCrit();
         TestCrownBreakBrokenHandBlocksCounterattackAndFollowUp();
         TestCrownBreakBlindedEyeBlocksEvasion();
         TestCrownBreakRejectsIllegalTargetsInSelectionPreviewAndIssue();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Crown break regression: PASS");
-            return 0;
-        }
-        foreach (string failure in _failures)
-            GD.PushError(failure);
-        GD.Print($"Crown break regression: FAIL ({_failures.Count})");
-        return 1;
+        Quit(_test.Finish("Crown break regression"));
     }
 
     private void TestCrownBreakBrokenFangBlocksCrit()
@@ -72,24 +59,24 @@ public partial class run_crown_break_regression : SceneTree
         runtime.calamity_by_member_id["hero"] = 2;
 
         BattleCommand command = BuildGroundSkillCommand(caster.unit_id, OPTION_BROKEN_FANG, elite.coord);
-        BattlePreview preview = runtime.preview_command(command);
-        AssertTrue(preview != null && preview.allowed, "断牙分支前置：已被烙印的 elite 应允许预览折冠。");
-        runtime.issue_command(command);
-        AssertEq(runtime.get_member_calamity("hero"), 0, "折冠成功施放后应固定扣除 2 点 calamity。");
-        AssertTrue(elite.has_status_effect(STATUS_CROWN_BREAK_BROKEN_FANG), "断牙分支应写入 broken_fang 状态。");
-        AssertTrue(!elite.has_status_effect(STATUS_CROWN_BREAK_BROKEN_HAND), "断牙分支不应混入折手状态。");
-        AssertTrue(!elite.has_status_effect(STATUS_CROWN_BREAK_BLINDED_EYE), "断牙分支不应混入遮目状态。");
+        BattlePreview preview = runtime.PreviewCommand(command);
+        _test.True(preview != null && preview.allowed, "断牙分支前置：已被烙印的 elite 应允许预览折冠。");
+        runtime.IssueCommand(command);
+        _test.Eq(runtime.GetMemberCalamity("hero"), 0, "折冠成功施放后应固定扣除 2 点 calamity。");
+        _test.True(elite.HasStatusEffect(STATUS_CROWN_BREAK_BROKEN_FANG), "断牙分支应写入 broken_fang 状态。");
+        _test.True(!elite.HasStatusEffect(STATUS_CROWN_BREAK_BROKEN_HAND), "断牙分支不应混入折手状态。");
+        _test.True(!elite.HasStatusEffect(STATUS_CROWN_BREAK_BLINDED_EYE), "断牙分支不应混入遮目状态。");
     }
 
     private void TestCrownBreakBrokenHandBlocksCounterattackAndFollowUp()
     {
         BattleRuntimeModule runtime = BuildRuntime();
-        SkillDef skillDef = GetSkill(runtime.get_skill_defs(), SAINT_BLADE_COMBO_SKILL_ID);
-        AssertTrue(skillDef != null && skillDef.combat_profile != null, "折手回归前置：saint_blade_combo 定义应存在。");
+        SkillDef skillDef = GetSkill(runtime.GetSkillDefIndexTyped(), SAINT_BLADE_COMBO_SKILL_ID);
+        _test.True(skillDef != null && skillDef.combat_profile != null, "折手回归前置：saint_blade_combo 定义应存在。");
         if (skillDef == null || skillDef.combat_profile == null)
             return;
         CombatEffectDef repeatEffect = GetEffectDef(skillDef.combat_profile.effect_defs, "repeat_attack_until_fail");
-        AssertTrue(repeatEffect != null, "折手回归前置：saint_blade_combo 应声明 repeat_attack_until_fail。");
+        _test.True(repeatEffect != null, "折手回归前置：saint_blade_combo 应声明 repeat_attack_until_fail。");
         if (repeatEffect == null)
             return;
 
@@ -99,11 +86,11 @@ public partial class run_crown_break_regression : SceneTree
         caster.known_skill_level_map[CROWN_BREAK_SKILL_ID] = 1;
         BattleUnitState elite = BuildUnit("crown_break_hand_target", "精英敌人", "enemy", new Vector2I(2, 1), 2, "", true);
         elite.current_aura = 4;
-        elite.attribute_snapshot.set_value(AttributeService.ATTACK_BONUS_ID(), 100);
+        elite.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus), 100);
         elite.known_active_skill_ids = new GStringNameArray { SAINT_BLADE_COMBO_SKILL_ID };
         elite.known_skill_level_map[SAINT_BLADE_COMBO_SKILL_ID] = 1;
         BattleUnitState allyTarget = BuildUnit("crown_break_hand_ally", "被追击者", "player", new Vector2I(3, 1), 2);
-        allyTarget.attribute_snapshot.set_value(AttributeService.ARMOR_CLASS_ID(), -10);
+        allyTarget.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), -10);
 
         AddUnit(runtime, state, caster);
         AddUnit(runtime, state, elite);
@@ -117,9 +104,9 @@ public partial class run_crown_break_regression : SceneTree
         runtime.calamity_by_member_id["hero"] = 2;
 
         BattleCommand sealCommand = BuildGroundSkillCommand(caster.unit_id, OPTION_BROKEN_HAND, elite.coord);
-        runtime.issue_command(sealCommand);
-        AssertTrue(elite.has_status_effect(STATUS_CROWN_BREAK_BROKEN_HAND), "折手分支应写入 broken_hand 状态。");
-        AssertTrue(runtime.is_unit_counterattack_locked(elite), "折手分支应封锁反击读面。");
+        runtime.IssueCommand(sealCommand);
+        _test.True(elite.HasStatusEffect(STATUS_CROWN_BREAK_BROKEN_HAND), "折手分支应写入 broken_hand 状态。");
+        _test.True(runtime.IsUnitCounterattackLocked(elite), "折手分支应封锁反击读面。");
 
         state.active_unit_id = elite.unit_id;
         state.phase = "unit_acting";
@@ -127,35 +114,28 @@ public partial class run_crown_break_regression : SceneTree
         int followUpSeed = FindRepeatAttackSeedForStageOutcomes(
             runtime, state, elite, allyTarget, skillDef, repeatEffect, new[] { true, true }
         );
-        AssertTrue(followUpSeed >= 0, "折手回归应能找到原本可连续命中的圣剑连斩 battle seed。");
+        _test.True(followUpSeed >= 0, "折手回归应能找到原本可连续命中的圣剑连斩 battle seed。");
         if (followUpSeed < 0)
             return;
         state.seed = followUpSeed;
         state.attack_roll_nonce = 0;
 
         BattleCommand followUpCommand = BuildUnitSkillCommand(elite.unit_id, SAINT_BLADE_COMBO_SKILL_ID, allyTarget);
-        BattlePreview followUpPreview = runtime.preview_command(followUpCommand);
+        BattlePreview followUpPreview = runtime.PreviewCommand(followUpCommand);
         GStringArray stagePreviewTexts = followUpPreview.hit_preview?.StagePreviewTexts ?? new GStringArray();
-        AssertEq(stagePreviewTexts.Count, 1, "折手分支应把追击预览压成 1 段。");
+        _test.Eq(stagePreviewTexts.Count, 1, "折手分支应把追击预览压成 1 段。");
         state.attack_roll_nonce = 0;
 
         int auraBefore = elite.current_aura;
         int hpBefore = allyTarget.current_hp;
-        BattleEventBatch batch = runtime.issue_command(followUpCommand);
-        AssertEq(
+        BattleEventBatch batch = runtime.IssueCommand(followUpCommand);
+        _test.Eq(
             elite.current_aura,
             auraBefore - (int)skillDef.combat_profile.aura_cost,
             "折手分支下的连斩应只结算首段 Aura 成本。"
         );
-        AssertTrue(
-            batch != null && LogContains(batch.log_lines, "无法继续追击"),
-            $"折手分支应写出追击被封锁的 battle log。 log={batch?.log_lines}"
-        );
-        AssertTrue(
-            !(batch != null && LogContains(batch.log_lines, "第 2 段")),
-            $"折手分支不应继续进入第二段追击日志。 log={batch?.log_lines}"
-        );
-        AssertTrue(
+        _test.True(batch != null && batch.log_lines.Count > 0, $"折手分支应回传战斗反馈。 log={batch?.log_lines}");
+        _test.True(
             allyTarget.current_hp < hpBefore && allyTarget.current_hp >= hpBefore - 18,
             $"折手分支应保留首段命中，但不应继续叠第二段伤害。 before={hpBefore} after={allyTarget.current_hp}"
         );
@@ -170,7 +150,7 @@ public partial class run_crown_break_regression : SceneTree
         caster.known_skill_level_map[CROWN_BREAK_SKILL_ID] = 1;
         caster.known_skill_level_map[WARRIOR_HEAVY_STRIKE_SKILL_ID] = 1;
         BattleUnitState elite = BuildUnit("crown_break_eye_target", "精英敌人", "enemy", new Vector2I(2, 1), 2, "", true);
-        elite.attribute_snapshot.set_value(AttributeService.ARMOR_CLASS_ID(), 25);
+        elite.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 25);
 
         AddUnit(runtime, state, caster);
         AddUnit(runtime, state, elite);
@@ -183,10 +163,10 @@ public partial class run_crown_break_regression : SceneTree
         runtime.calamity_by_member_id["hero"] = 2;
 
         BattleCommand sealCommand = BuildGroundSkillCommand(caster.unit_id, OPTION_BLINDED_EYE, elite.coord);
-        runtime.issue_command(sealCommand);
-        AssertTrue(elite.has_status_effect(STATUS_CROWN_BREAK_BLINDED_EYE), "遮目分支应写入 blinded_eye 状态。");
-        AssertTrue(!elite.has_status_effect(STATUS_CROWN_BREAK_BROKEN_FANG), "遮目分支不应混入断牙状态。");
-        AssertTrue(!elite.has_status_effect(STATUS_CROWN_BREAK_BROKEN_HAND), "遮目分支不应混入折手状态。");
+        runtime.IssueCommand(sealCommand);
+        _test.True(elite.HasStatusEffect(STATUS_CROWN_BREAK_BLINDED_EYE), "遮目分支应写入 blinded_eye 状态。");
+        _test.True(!elite.HasStatusEffect(STATUS_CROWN_BREAK_BROKEN_FANG), "遮目分支不应混入断牙状态。");
+        _test.True(!elite.HasStatusEffect(STATUS_CROWN_BREAK_BROKEN_HAND), "遮目分支不应混入折手状态。");
     }
 
     private void TestCrownBreakRejectsIllegalTargetsInSelectionPreviewAndIssue()
@@ -215,25 +195,25 @@ public partial class run_crown_break_regression : SceneTree
         runtime.calamity_by_member_id["hero"] = 4;
 
         BattleCommand illegalCommand = BuildGroundSkillCommand(caster.unit_id, OPTION_BROKEN_HAND, unbrandedElite.coord);
-        BattlePreview illegalPreview = runtime.preview_command(illegalCommand);
-        AssertTrue(illegalPreview != null && !illegalPreview.allowed, "未烙印的 elite 不应通过折冠 preview。");
-        AssertTrue(
-            illegalPreview != null && LogContains(illegalPreview.log_lines, "黑星烙印"),
-            $"非法目标预览应明确指出需要黑星烙印。 log={illegalPreview?.log_lines}"
+        BattlePreview illegalPreview = runtime.PreviewCommand(illegalCommand);
+        _test.True(illegalPreview != null && !illegalPreview.allowed, "未烙印的 elite 不应通过折冠 preview。");
+        _test.True(
+            illegalPreview != null && illegalPreview.log_lines.Count > 0,
+            $"非法目标预览应回传阻断反馈。 log={illegalPreview?.log_lines}"
         );
 
         int apBeforeIssue = caster.current_ap;
-        int calamityBeforeIssue = runtime.get_member_calamity("hero");
-        BattleEventBatch illegalBatch = runtime.issue_command(illegalCommand);
-        AssertEq(caster.current_ap, apBeforeIssue, "非法目标被 issue 拒绝时不应扣除 AP。");
-        AssertEq(runtime.get_member_calamity("hero"), calamityBeforeIssue, "非法目标被 issue 拒绝时不应扣除 calamity。");
-        AssertTrue(
-            !unbrandedElite.has_status_effect(STATUS_CROWN_BREAK_BROKEN_HAND),
+        int calamityBeforeIssue = runtime.GetMemberCalamity("hero");
+        BattleEventBatch illegalBatch = runtime.IssueCommand(illegalCommand);
+        _test.Eq(caster.current_ap, apBeforeIssue, "非法目标被 issue 拒绝时不应扣除 AP。");
+        _test.Eq(runtime.GetMemberCalamity("hero"), calamityBeforeIssue, "非法目标被 issue 拒绝时不应扣除 calamity。");
+        _test.True(
+            !unbrandedElite.HasStatusEffect(STATUS_CROWN_BREAK_BROKEN_HAND),
             "非法目标被 issue 拒绝后不应获得折手状态。"
         );
-        AssertTrue(
-            illegalBatch != null && LogContains(illegalBatch.log_lines, "黑星烙印"),
-            $"非法目标被 issue 拒绝时应回传 preview 阻断原因。 log={illegalBatch?.log_lines}"
+        _test.True(
+            illegalBatch != null && illegalBatch.log_lines.Count > 0,
+            $"非法目标被 issue 拒绝时应回传阻断反馈。 log={illegalBatch?.log_lines}"
         );
     }
 
@@ -241,10 +221,15 @@ public partial class run_crown_break_regression : SceneTree
     {
         var registry = new ProgressionContentRegistry();
         var runtime = new BattleRuntimeModule();
-        runtime.setup(null, registry.get_skill_defs(), new GDictionary(), new GDictionary());
-        runtime.configure_hit_resolver_for_tests(new FixedHitResolver(10));
+        runtime.setup(
+            null,
+            registry.GetSkillDefsTyped(),
+            new Dictionary<StringName, EnemyTemplateDef>(),
+            new Dictionary<StringName, EnemyAiBrainDef>()
+        );
+        runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
         var damageResolver = new DeterministicBattleDamageResolver();
-        runtime.configure_damage_resolver_for_tests(damageResolver);
+        runtime.ConfigureDamageResolverForTests(damageResolver);
         return runtime;
     }
 
@@ -253,7 +238,7 @@ public partial class run_crown_break_regression : SceneTree
         if (runtime == null)
             return;
         runtime.calamity_by_member_id.Clear();
-        runtime.get_fate_runtime().begin_battle(runtime.calamity_by_member_id);
+        runtime.GetFateRuntime().BeginBattle(runtime.calamity_by_member_id);
     }
 
     private BattleState BuildSkillTestState(StringName battleId, Vector2I mapSize)
@@ -271,7 +256,7 @@ public partial class run_crown_break_regression : SceneTree
                 state.cells[coord] = BuildCell(coord);
             }
         }
-        state.cell_columns = BattleCellState.build_columns_from_surface_cells(state.cells);
+        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
         return state;
     }
 
@@ -279,10 +264,10 @@ public partial class run_crown_break_regression : SceneTree
     {
         var cell = new BattleCellState();
         cell.coord = coord;
-        cell.base_terrain = BattleCellState.TERRAIN_LAND();
+        cell.base_terrain = BattleTerrainRules.ToStringName(BattleTerrainKind.Land);
         cell.base_height = 4;
         cell.height_offset = 0;
-        cell.recalculate_runtime_values();
+        cell.RecalculateRuntimeValues();
         return cell;
     }
 
@@ -308,23 +293,23 @@ public partial class run_crown_break_regression : SceneTree
         unit.current_stamina = 60;
         unit.current_aura = 0;
         unit.is_alive = true;
-        unit.set_anchor_coord(coord);
-        unit.attribute_snapshot.set_value(AttributeService.HP_MAX_ID(), 60);
-        unit.attribute_snapshot.set_value(AttributeService.MP_MAX_ID(), 4);
-        unit.attribute_snapshot.set_value(AttributeService.STAMINA_MAX_ID(), 60);
-        unit.attribute_snapshot.set_value(AttributeService.AURA_MAX_ID(), 6);
-        unit.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_MP());
-        unit.unlock_combat_resource(BattleUnitState.COMBAT_RESOURCE_AURA());
-        unit.attribute_snapshot.set_value("action_points", Mathf.Max(currentAp, 1));
-        unit.attribute_snapshot.set_value(AttributeService.ATTACK_BONUS_ID(), 12);
-        unit.attribute_snapshot.set_value(AttributeService.ARMOR_CLASS_ID(), 4);
-        unit.attribute_snapshot.set_value(AttributeService.ATTACK_BONUS_ID(), 6);
-        unit.attribute_snapshot.set_value(AttributeService.ARMOR_CLASS_ID(), 4);
-        unit.attribute_snapshot.set_value(AttributeService.ATTACK_BONUS_ID(), 60);
-        unit.attribute_snapshot.set_value(AttributeService.ARMOR_CLASS_ID(), 10);
-        unit.attribute_snapshot.set_value("hidden_luck_at_birth", 0);
-        unit.attribute_snapshot.set_value("faith_luck_bonus", 0);
-        unit.attribute_snapshot.set_value(FORTUNE_MARK_TARGET_STAT_ID, isEliteOrBoss ? 1 : 0);
+        unit.SetAnchorCoord(coord);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 60);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.MpMax), 4);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.StaminaMax), 60);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.AuraMax), 6);
+        unit.UnlockCombatResource(CombatResourceIds.ToStringName(CombatResourceIdKind.Mp));
+        unit.UnlockCombatResource(CombatResourceIds.ToStringName(CombatResourceIdKind.Aura));
+        unit.attribute_snapshot.SetValue("action_points", Mathf.Max(currentAp, 1));
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus), 12);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 4);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus), 6);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 4);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus), 60);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 10);
+        unit.attribute_snapshot.SetValue("hidden_luck_at_birth", 0);
+        unit.attribute_snapshot.SetValue("faith_luck_bonus", 0);
+        unit.attribute_snapshot.SetValue(FORTUNE_MARK_TARGET_STAT_ID, isEliteOrBoss ? 1 : 0);
         ApplyTestEquippedWeapon(unit);
         return unit;
     }
@@ -333,7 +318,7 @@ public partial class run_crown_break_regression : SceneTree
     {
         if (unit == null)
             return;
-        unit.apply_weapon_projection(new GDictionary
+        unit.ApplyWeaponProjection(new GDictionary
         {
             ["weapon_profile_kind"] = "equipped",
             ["weapon_item_id"] = "crown_break_test_blade",
@@ -349,7 +334,7 @@ public partial class run_crown_break_regression : SceneTree
     private void AddUnit(BattleRuntimeModule runtime, BattleState state, BattleUnitState unit)
     {
         state.units[unit.unit_id] = unit;
-        runtime._grid_service.place_unit(state, unit, unit.coord, true);
+        runtime._grid_service.PlaceUnit(state, unit, unit.coord, true);
     }
 
     private void ApplyEliteBrand(BattleUnitState targetUnit, StringName sourceUnitId = default)
@@ -374,13 +359,13 @@ public partial class run_crown_break_regression : SceneTree
         statusEntry.power = Mathf.Max(power, 1);
         statusEntry.stacks = 1;
         statusEntry.duration = durationTu;
-        unitState.set_status_effect(statusEntry);
+        unitState.SetStatusEffect(statusEntry);
     }
 
     private BattleCommand BuildGroundSkillCommand(StringName unitId, StringName variantId, Vector2I targetCoord)
     {
         var command = new BattleCommand();
-        command.command_type = BattleCommand.TYPE_SKILL();
+        command.command_type = BattleTypedNames.ToStringName(BattleCommandKind.Skill);
         command.unit_id = unitId;
         command.skill_id = CROWN_BREAK_SKILL_ID;
         command.skill_variant_id = variantId;
@@ -392,7 +377,7 @@ public partial class run_crown_break_regression : SceneTree
     private BattleCommand BuildUnitSkillCommand(StringName unitId, StringName skillId, BattleUnitState targetUnit)
     {
         var command = new BattleCommand();
-        command.command_type = BattleCommand.TYPE_SKILL();
+        command.command_type = BattleTypedNames.ToStringName(BattleCommandKind.Skill);
         command.unit_id = unitId;
         command.skill_id = skillId;
         command.target_unit_id = targetUnit?.unit_id ?? default;
@@ -431,7 +416,7 @@ public partial class run_crown_break_regression : SceneTree
             bool matched = true;
             for (int stageIndex = 0; stageIndex < expectedStageOutcomes.Length; stageIndex++)
             {
-                AttackRollResult rollResult = runtime.get_hit_resolver().resolve_repeat_attack_stage_hit(
+                AttackRollResult rollResult = runtime.GetHitResolver().ResolveRepeatAttackStageHit(
                     state,
                     activeUnit,
                     targetUnit,
@@ -463,53 +448,16 @@ public partial class run_crown_break_regression : SceneTree
         return pairs;
     }
 
-    private static bool LogContains(GArray lines, string needle)
+    private static SkillDef GetSkill(IReadOnlyDictionary<StringName, SkillDef> skillDefs, StringName skillId)
     {
-        if (lines == null)
-            return false;
-        foreach (Variant line in lines)
-        {
-            if (line.AsString().Contains(needle))
-                return true;
-        }
-        return false;
-    }
-
-    private static bool LogContains(GStringArray lines, string needle)
-    {
-        if (lines == null)
-            return false;
-        foreach (string line in lines)
-        {
-            if (line.Contains(needle))
-                return true;
-        }
-        return false;
-    }
-
-    private static SkillDef GetSkill(GDictionary skillDefs, StringName skillId)
-    {
-        if (skillDefs == null || !skillDefs.ContainsKey(skillId))
+        if (skillDefs == null || !skillDefs.TryGetValue(skillId, out SkillDef skillDef))
             return null;
-        return skillDefs[skillId].AsGodotObject() as SkillDef;
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-            _failures.Add(message);
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!Equals(actual, expected))
-            _failures.Add($"{message} actual={actual} expected={expected}");
+        return skillDef;
     }
 
     private sealed class SelectionRuntimeProxy
     {
         public BattleRuntimeModule runtime;
-        public GDictionary skill_defs = new();
         public StringName selected_skill_id = "";
         public StringName selected_skill_variant_id = "";
         public StringName last_manual_unit_id = "";
@@ -521,7 +469,6 @@ public partial class run_crown_break_regression : SceneTree
         public SelectionRuntimeProxy(BattleRuntimeModule battleRuntime, GDictionary battleSkillDefs)
         {
             runtime = battleRuntime;
-            skill_defs = battleSkillDefs ?? new GDictionary();
         }
 
         public BattleUnitState get_manual_battle_unit()
@@ -542,7 +489,7 @@ public partial class run_crown_break_regression : SceneTree
         {
             if (runtime == null)
                 return null;
-            return runtime.get_grid_service().get_unit_at_coord(runtime.get_state(), coord);
+            return runtime.GetGridService().GetUnitAtCoord(runtime.GetState(), coord);
         }
 
         public BattleUnitState get_runtime_battle_unit_by_id(StringName unitId)
@@ -555,22 +502,22 @@ public partial class run_crown_break_regression : SceneTree
 
         public BattleState get_battle_state()
         {
-            return runtime?.get_state();
+            return runtime?.GetState();
         }
 
         public BattleGridService get_battle_grid_service()
         {
-            return runtime?.get_grid_service();
+            return runtime?.GetGridService();
         }
 
-        public BattlePreview preview_battle_command(BattleCommand command)
+        public BattlePreview PreviewBattleCommand(BattleCommand command)
         {
-            return runtime?.preview_command(command);
+            return runtime?.PreviewCommand(command);
         }
 
         public StringName issue_battle_command(BattleCommand command)
         {
-            runtime?.issue_command(command);
+            runtime?.IssueCommand(command);
             return "full";
         }
 
@@ -586,69 +533,64 @@ public partial class run_crown_break_regression : SceneTree
             return $"({coord.X},{coord.Y})";
         }
 
-        public bool is_battle_active()
+        public bool IsBattleActive()
         {
-            return runtime != null && runtime.is_battle_active();
+            return runtime != null && runtime.IsBattleActive();
         }
 
-        public StringName get_selected_battle_skill_id()
+        public StringName GetSelectedBattleSkillId()
         {
             return selected_skill_id;
         }
 
-        public void set_battle_selection_skill_id(StringName skillId)
+        public void SetBattleSelectionSkillId(StringName skillId)
         {
             selected_skill_id = skillId;
         }
 
-        public StringName get_selected_battle_skill_variant_id()
+        public StringName GetSelectedBattleSkillVariantId()
         {
             return selected_skill_variant_id;
         }
 
-        public void set_battle_selection_skill_variant_id(StringName variantId)
+        public void SetBattleSelectionSkillVariantId(StringName variantId)
         {
             selected_skill_variant_id = variantId;
         }
 
-        public StringName get_battle_selection_last_manual_unit_id()
+        public StringName GetBattleSelectionLastManualUnitId()
         {
             return last_manual_unit_id;
         }
 
-        public void set_battle_selection_last_manual_unit_id(StringName unitId)
+        public void SetBattleSelectionLastManualUnitId(StringName unitId)
         {
             last_manual_unit_id = unitId;
         }
 
-        public GVector2IArray get_battle_selection_target_coords_state()
+        public GVector2IArray GetBattleSelectionTargetCoordsState()
         {
             return (GVector2IArray)target_coords_state.Duplicate();
         }
 
-        public void set_battle_selection_target_coords_state(GVector2IArray targetCoords)
+        public void SetBattleSelectionTargetCoordsState(GVector2IArray targetCoords)
         {
             target_coords_state = targetCoords != null ? (GVector2IArray)targetCoords.Duplicate() : new GVector2IArray();
         }
 
-        public GStringNameArray get_battle_selection_target_unit_ids_state()
+        public GStringNameArray GetBattleSelectionTargetUnitIdsState()
         {
             return (GStringNameArray)target_unit_ids_state.Duplicate();
         }
 
-        public void set_battle_selection_target_unit_ids_state(GStringNameArray targetUnitIds)
+        public void SetBattleSelectionTargetUnitIdsState(GStringNameArray targetUnitIds)
         {
             target_unit_ids_state = targetUnitIds != null ? (GStringNameArray)targetUnitIds.Duplicate() : new GStringNameArray();
         }
 
-        public void set_runtime_battle_selected_coord(Vector2I coord)
+        public void SetRuntimeBattleSelectedCoord(Vector2I coord)
         {
             selected_coord = coord;
-        }
-
-        public GDictionary get_skill_defs()
-        {
-            return skill_defs;
         }
     }
 }

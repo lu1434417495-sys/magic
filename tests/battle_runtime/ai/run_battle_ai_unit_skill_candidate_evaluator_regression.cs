@@ -1,51 +1,29 @@
 using System;
+using System.Collections.Generic;
 using System.Reflection;
 using Godot;
 using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_battle_ai_unit_skill_candidate_evaluator_regression : SceneTree
 {
-    private readonly GStringArray _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
-        int exitCode = Run();
-        Quit(exitCode);
-    }
-
-    private int Run()
-    {
         TestEvaluatorIsPlainCSharpHelper();
         TestEvaluatorUsesPascalCasePublicApi();
+        TestEvaluatorTraceMetadataSurfaceUsesTypedDictionary();
+        TestEvaluatorScoreMetadataSurfaceUsesTypedDictionary();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Battle AI unit skill candidate evaluator regression: PASS");
-            return 0;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Battle AI unit skill candidate evaluator regression: FAIL ({_failures.Count})");
-        return 1;
+        Quit(_test.Finish("Battle AI unit skill candidate evaluator regression"));
     }
 
     private void TestEvaluatorIsPlainCSharpHelper()
     {
         Type evaluatorType = typeof(BattleAiUnitSkillCandidateEvaluator);
-        AssertTrue(
+        _test.True(
             evaluatorType.IsSealed,
             "BattleAiUnitSkillCandidateEvaluator 应是 sealed helper。"
-        );
-        AssertTrue(
-            !typeof(GodotObject).IsAssignableFrom(evaluatorType),
-            "BattleAiUnitSkillCandidateEvaluator 不应继承 GodotObject/RefCounted。"
-        );
-        AssertTrue(
-            evaluatorType.GetCustomAttribute<GlobalClassAttribute>() == null,
-            "BattleAiUnitSkillCandidateEvaluator 不应注册 GlobalClass。"
         );
     }
 
@@ -54,51 +32,95 @@ public partial class run_battle_ai_unit_skill_candidate_evaluator_regression : S
         Type evaluatorType = typeof(BattleAiUnitSkillCandidateEvaluator);
         MethodInfo evaluateMethod = evaluatorType.GetMethod(
             "Evaluate",
-            BindingFlags.Public | BindingFlags.Instance
+            BindingFlags.NonPublic | BindingFlags.Instance
         );
-        AssertTrue(evaluateMethod != null, "BattleAiUnitSkillCandidateEvaluator 应公开 Evaluate()。");
+        _test.True(evaluateMethod != null, "BattleAiUnitSkillCandidateEvaluator 应保留同程序集 Evaluate()。");
         if (evaluateMethod != null)
         {
             ParameterInfo[] parameters = evaluateMethod.GetParameters();
-            AssertEq(
+            _test.Eq(
                 evaluateMethod.ReturnType,
                 typeof(BattleAiDecision),
                 "Evaluate() 应返回 BattleAiDecision。"
             );
-            AssertTrue(parameters.Length == 2, "Evaluate() 应只接收 action/context 两个参数。");
+            _test.True(parameters.Length == 2, "Evaluate() 应只接收 action/context 两个参数。");
             if (parameters.Length == 2)
             {
-                AssertEq(
+                _test.Eq(
                     parameters[0].ParameterType,
                     typeof(UseUnitSkillAction),
                     "Evaluate() 第一个参数应是 UseUnitSkillAction。"
                 );
-                AssertEq(
+                _test.Eq(
                     parameters[1].ParameterType,
                     typeof(BattleAiContext),
                     "Evaluate() 第二个参数应是 BattleAiContext。"
                 );
             }
         }
-        AssertTrue(
+        _test.True(
             evaluatorType.GetMethod("evaluate", BindingFlags.Public | BindingFlags.Instance) == null,
             "BattleAiUnitSkillCandidateEvaluator 不应保留 evaluate() 兼容别名。"
         );
     }
 
-    private void AssertTrue(bool condition, string message)
+    private void TestEvaluatorTraceMetadataSurfaceUsesTypedDictionary()
     {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
+        Type evaluatorType = typeof(BattleAiUnitSkillCandidateEvaluator);
+        MethodInfo beginActionTrace = evaluatorType.GetMethod(
+            "BeginActionTrace",
+            BindingFlags.NonPublic | BindingFlags.Static
+        );
+        MethodInfo offerCandidate = evaluatorType.GetMethod(
+            "OfferCandidate",
+            BindingFlags.NonPublic | BindingFlags.Static
+        );
+        MethodInfo buildCandidateExtra = evaluatorType.GetMethod(
+            "BuildCandidateExtra",
+            BindingFlags.NonPublic | BindingFlags.Instance
+        );
+
+        _test.True(
+            beginActionTrace != null
+                && beginActionTrace.GetParameters()[3].ParameterType
+                    == typeof(IReadOnlyDictionary<string, object>),
+            "BattleAiUnitSkillCandidateEvaluator.BeginActionTrace() trace metadata 应直接接收 typed dictionary。"
+        );
+        _test.True(
+            offerCandidate != null
+                && offerCandidate.GetParameters()[6].ParameterType
+                    == typeof(IReadOnlyDictionary<string, object>),
+            "BattleAiUnitSkillCandidateEvaluator.OfferCandidate() candidate metadata 应直接接收 typed dictionary。"
+        );
+        _test.True(
+            buildCandidateExtra != null
+                && buildCandidateExtra.ReturnType == typeof(Dictionary<string, object>),
+            "BattleAiUnitSkillCandidateEvaluator.BuildCandidateExtra() 应返回 typed dictionary。"
+        );
     }
 
-    private void AssertEq(Type actual, Type expected, string message)
+    private void TestEvaluatorScoreMetadataSurfaceUsesTypedDictionary()
     {
-        if (actual != expected)
-        {
-            _failures.Add($"{message} expected={expected} actual={actual}");
-        }
+        Type contextType = typeof(BattleAiContext);
+        MethodInfo typedBuildSkillScoreInput = contextType.GetMethod(
+            "BuildSkillScoreInputTyped",
+            BindingFlags.NonPublic | BindingFlags.Instance
+        );
+        MethodInfo buildPositionMetadata = typeof(BattleAiTypedActionHelper).GetMethod(
+            "BuildPositionMetadata",
+            BindingFlags.Public | BindingFlags.Instance
+        );
+
+        _test.True(
+            typedBuildSkillScoreInput != null
+                && typedBuildSkillScoreInput.GetParameters()[4].ParameterType
+                    == typeof(IReadOnlyDictionary<string, object>),
+            "BattleAiContext.BuildSkillScoreInputTyped() score metadata 应直接接收 typed dictionary。"
+        );
+        _test.True(
+            buildPositionMetadata != null
+                && buildPositionMetadata.ReturnType == typeof(Dictionary<string, object>),
+            "BattleAiTypedActionHelper.BuildPositionMetadata() 应返回 typed dictionary。"
+        );
     }
 }

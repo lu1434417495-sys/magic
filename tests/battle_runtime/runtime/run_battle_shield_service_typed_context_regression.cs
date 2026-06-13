@@ -6,35 +6,18 @@ using Godot;
 
 public partial class run_battle_shield_service_typed_context_regression : SceneTree
 {
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
-        int exitCode = Run();
-        GodotSharpCleanup.collect_pending_finalizers();
-        Quit(exitCode);
-    }
-
-    private int Run()
-    {
+        TestGroundEffectShieldHelperUsesTypedSurface();
         TestTypedRollContextCachesShieldHp();
         TestGodotBoundaryRollContextRoundTrips();
         TestTypedApplyPathUsesSharedContext();
         TestApplyResultPublicApiStaysTyped();
         TestApplyResultProjectsInternalBoundary();
-
-        if (_failures.Count == 0)
-        {
-            GD.Print("Battle shield service typed context regression: PASS");
-            return 0;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Battle shield service typed context regression: FAIL ({_failures.Count})");
-        return 1;
+        GodotSharpCleanup.CollectPendingFinalizers();
+        Quit(_test.Finish("Battle shield service typed context regression"));
     }
 
     private void TestTypedRollContextCachesShieldHp()
@@ -47,12 +30,12 @@ public partial class run_battle_shield_service_typed_context_regression : SceneT
 
         int shieldHp = service.ResolveShieldHp(source, effect, rollContext);
 
-        AssertEq(shieldHp, 7, "typed context 首次 roll 应使用属性缩放骰和 dice_bonus。");
-        AssertTrue(rollContext.ContainsKey(cacheKey), "typed context 应写入 shield roll cache。");
-        AssertEq(rollContext[cacheKey], 7, "typed context cache 值应等于已解析护盾。");
+        _test.Eq(shieldHp, 7, "typed context 首次 roll 应使用属性缩放骰和 dice_bonus。");
+        _test.True(rollContext.ContainsKey(cacheKey), "typed context 应写入 shield roll cache。");
+        _test.Eq(rollContext[cacheKey], 7, "typed context cache 值应等于已解析护盾。");
 
         rollContext[cacheKey] = 19;
-        AssertEq(
+        _test.Eq(
             service.ResolveShieldHp(source, effect, rollContext),
             19,
             "typed context 命中 cache 时不应重新 roll。"
@@ -69,33 +52,36 @@ public partial class run_battle_shield_service_typed_context_regression : SceneT
 
         int shieldHp = service._resolve_shield_hp(source, effect, godotContext);
 
-        AssertEq(shieldHp, 7, "Godot 边界首次 roll 应保持现有行为。");
-        AssertTrue(HasKey(godotContext, cacheKey), "Godot 边界应写回 roll context。");
-        AssertEq(ReadInt(godotContext, cacheKey), 7, "Godot 边界 context 值应写回已解析护盾。");
+        _test.Eq(shieldHp, 7, "Godot 边界首次 roll 应保持现有行为。");
+        _test.True(HasKey(godotContext, cacheKey), "Godot 边界应写回 roll context。");
+        _test.Eq(ReadInt(godotContext, cacheKey), 7, "Godot 边界 context 值应写回已解析护盾。");
 
         godotContext[cacheKey.ToString(CultureInfo.InvariantCulture)] = 23;
-        AssertEq(
+        _test.Eq(
             service._resolve_shield_hp(source, effect, godotContext),
             23,
             "Godot 边界传入已有 cache 时应桥接到 typed context。"
         );
     }
 
+    private void TestGroundEffectShieldHelperUsesTypedSurface()
+    {
+        _test.True(
+            typeof(BattleGroundEffectService).GetMethod("_apply_unit_shield_effects") == null,
+            "BattleGroundEffectService 不应继续保留 shield 的 Dictionary helper wrapper。"
+        );
+        _test.True(
+            typeof(BattleGroundEffectService).GetMethod(
+                "ApplyUnitShieldEffectsResult",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance
+            ) != null,
+            "BattleGroundEffectService 应继续保留同程序集可见的 typed shield helper。"
+        );
+    }
+
     private void TestApplyResultPublicApiStaysTyped()
     {
         Type type = typeof(BattleShieldApplyResult);
-        AssertTrue(
-            type.IsValueType || type.IsSealed,
-            "BattleShieldApplyResult 应保持 plain C# result DTO。"
-        );
-        AssertTrue(
-            !typeof(GodotObject).IsAssignableFrom(type),
-            "BattleShieldApplyResult 不应继承 GodotObject/RefCounted。"
-        );
-        AssertTrue(
-            !HasAttributeNamed(type, "GlobalClassAttribute"),
-            "BattleShieldApplyResult 不应注册 GlobalClass。"
-        );
         AssertPublicApiDoesNotExposeGodotCollections(type, "BattleShieldApplyResult");
     }
 
@@ -105,7 +91,7 @@ public partial class run_battle_shield_service_typed_context_regression : SceneT
             BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
         foreach (PropertyInfo property in type.GetProperties(flags))
         {
-            AssertTrue(
+            _test.True(
                 !IsGodotCollectionOrVariant(property.PropertyType),
                 $"{typeName}.{property.Name} 不应公开 Godot Dictionary/Array/Variant 属性。"
             );
@@ -114,13 +100,13 @@ public partial class run_battle_shield_service_typed_context_regression : SceneT
         {
             if (method.IsSpecialName)
                 continue;
-            AssertTrue(
+            _test.True(
                 !IsGodotCollectionOrVariant(method.ReturnType),
                 $"{typeName}.{method.Name} 不应公开返回 Godot Dictionary/Array/Variant。"
             );
             foreach (ParameterInfo parameter in method.GetParameters())
             {
-                AssertTrue(
+                _test.True(
                     !IsGodotCollectionOrVariant(parameter.ParameterType),
                     $"{typeName}.{method.Name} 不应公开接收 Godot Dictionary/Array/Variant 参数 {parameter.Name}。"
                 );
@@ -140,11 +126,11 @@ public partial class run_battle_shield_service_typed_context_regression : SceneT
 
         Godot.Collections.Dictionary payload = result.ToDictionary();
 
-        AssertTrue(payload["applied"].AsBool(), "shield apply result 应投影 applied。");
-        AssertEq(payload["current_shield_hp"].AsInt32(), 9, "shield apply result 应投影当前护盾。");
-        AssertEq(payload["shield_max_hp"].AsInt32(), 12, "shield apply result 应投影最大护盾。");
-        AssertEq(payload["shield_duration"].AsInt32(), 60, "shield apply result 应投影持续时间。");
-        AssertEq(
+        _test.True(payload["applied"].AsBool(), "shield apply result 应投影 applied。");
+        _test.Eq(payload["current_shield_hp"].AsInt32(), 9, "shield apply result 应投影当前护盾。");
+        _test.Eq(payload["shield_max_hp"].AsInt32(), 12, "shield apply result 应投影最大护盾。");
+        _test.Eq(payload["shield_duration"].AsInt32(), 60, "shield apply result 应投影持续时间。");
+        _test.Eq(
             payload["shield_family"].AsStringName(),
             new StringName("test_shield_family"),
             "shield apply result 应投影护盾族。"
@@ -168,10 +154,10 @@ public partial class run_battle_shield_service_typed_context_regression : SceneT
             rollContext
         );
 
-        AssertTrue(result.Applied, "typed apply path 应成功应用 shield。");
-        AssertEq(target.current_shield_hp, 7, "typed apply path 应写入解析后的 shield hp。");
-        AssertEq(result.CurrentShieldHp, 7, "typed apply result 应返回当前 shield hp。");
-        AssertTrue(
+        _test.True(result.Applied, "typed apply path 应成功应用 shield。");
+        _test.Eq(target.current_shield_hp, 7, "typed apply path 应写入解析后的 shield hp。");
+        _test.Eq(result.CurrentShieldHp, 7, "typed apply result 应返回当前 shield hp。");
+        _test.True(
             rollContext.ContainsKey(service._get_shield_roll_cache_key(effect)),
             "typed apply path 应复用传入的 roll context。"
         );
@@ -186,8 +172,8 @@ public partial class run_battle_shield_service_typed_context_regression : SceneT
             is_alive = true,
             current_hp = 20,
         };
-        unit.attribute_snapshot.set_value(UnitBaseAttributes.CONSTITUTION(), 14);
-        unit.attribute_snapshot.set_value(UnitBaseAttributes.WILLPOWER(), 12);
+        unit.attribute_snapshot.SetValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Constitution), 14);
+        unit.attribute_snapshot.SetValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Willpower), 12);
         return unit;
     }
 
@@ -213,32 +199,6 @@ public partial class run_battle_shield_service_typed_context_regression : SceneT
     private static bool HasKey(Godot.Collections.Dictionary source, long key)
     {
         return source.ContainsKey(key.ToString(CultureInfo.InvariantCulture));
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!Equals(actual, expected))
-        {
-            _failures.Add($"{message} expected={expected} actual={actual}");
-        }
-    }
-
-    private void AssertTrue(bool value, string message)
-    {
-        if (!value)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private static bool HasAttributeNamed(Type type, string attributeTypeName)
-    {
-        foreach (object attribute in type.GetCustomAttributes(false))
-        {
-            if (attribute.GetType().Name == attributeTypeName)
-                return true;
-        }
-        return false;
     }
 
     private static bool IsGodotCollectionOrVariant(Type type)

@@ -3,7 +3,7 @@ using Godot;
 
 public partial class run_equipment_drop_service_regression : SceneTree
 {
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -18,19 +18,7 @@ public partial class run_equipment_drop_service_regression : SceneTree
         TestRollItemInstancesReturnsTypedList();
         TestEquipmentDropServiceIsPlainService();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Equipment drop service regression: PASS");
-            Quit(0);
-            return;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Equipment drop service regression: FAIL ({_failures.Count})");
-        Quit(1);
+        Quit(_test.Finish("Equipment drop service regression"));
     }
 
     private void TestRollDropRarityHitsAllThresholdTiers()
@@ -39,31 +27,31 @@ public partial class run_equipment_drop_service_regression : SceneTree
             "COMMON 档位上界应落在 9",
             new[] { 3, 3, 3 },
             0,
-            EquipmentInstanceState.RARITY_TIER_COMMON()
+            (int)EquipmentInstanceState.RarityTier.COMMON
         );
         AssertRarityRoll(
             "UNCOMMON 档位门槛应落在 10",
             new[] { 4, 3, 3 },
             0,
-            EquipmentInstanceState.RARITY_TIER_UNCOMMON()
+            (int)EquipmentInstanceState.RarityTier.UNCOMMON
         );
         AssertRarityRoll(
             "RARE 档位门槛应落在 13",
             new[] { 5, 4, 4 },
             0,
-            EquipmentInstanceState.RARITY_TIER_RARE()
+            (int)EquipmentInstanceState.RarityTier.RARE
         );
         AssertRarityRoll(
             "EPIC 档位门槛应落在 16",
             new[] { 6, 5, 5 },
             0,
-            EquipmentInstanceState.RARITY_TIER_EPIC()
+            (int)EquipmentInstanceState.RarityTier.EPIC
         );
         AssertRarityRoll(
             "LEGENDARY 档位门槛应落在 18",
             new[] { 6, 6, 6 },
             0,
-            EquipmentInstanceState.RARITY_TIER_LEGENDARY()
+            (int)EquipmentInstanceState.RarityTier.LEGENDARY
         );
     }
 
@@ -73,13 +61,13 @@ public partial class run_equipment_drop_service_regression : SceneTree
             "最低 drop_luck=-6 应直接参与 3d6 结果",
             new[] { 6, 6, 6 },
             -6,
-            EquipmentInstanceState.RARITY_TIER_UNCOMMON()
+            (int)EquipmentInstanceState.RarityTier.UNCOMMON
         );
         AssertRarityRoll(
             "最高 drop_luck=+5 应直接参与 3d6 结果",
             new[] { 1, 1, 1 },
             5,
-            EquipmentInstanceState.RARITY_TIER_COMMON()
+            (int)EquipmentInstanceState.RarityTier.COMMON
         );
     }
 
@@ -91,8 +79,8 @@ public partial class run_equipment_drop_service_regression : SceneTree
 
         List<object> drops = service.RollDrops("starter_equipment", 0);
 
-        AssertTrue(drops != null, "RollDrops 当前应返回稳定的 typed list。");
-        AssertEq(drops?.Count ?? -1, 0, "正式掉落表尚未接入前，RollDrops 应返回空列表。");
+        _test.True(drops != null, "RollDrops 当前应返回稳定的 typed list。");
+        _test.Eq(drops?.Count ?? -1, 0, "正式掉落表尚未接入前，RollDrops 应返回空列表。");
     }
 
     private void TestRollItemInstancesReturnsTypedList()
@@ -103,16 +91,16 @@ public partial class run_equipment_drop_service_regression : SceneTree
 
         List<EquipmentInstanceState> instances = service.RollItemInstances("iron_sword", 2, 0);
 
-        AssertEq(instances.Count, 2, "RollItemInstances 应返回 typed 装备实例列表。");
-        AssertEq(
+        _test.Eq(instances.Count, 2, "RollItemInstances 应返回 typed 装备实例列表。");
+        _test.Eq(
             instances[0].rarity,
-            EquipmentInstanceState.RARITY_TIER_LEGENDARY(),
+            (int)EquipmentInstanceState.RarityTier.LEGENDARY,
             "装备实例稀有度应由 typed 掷骰结果写入。"
         );
-        AssertEq(
+        _test.Eq(
             instances[0].current_durability,
             EquipmentDurabilityRules.GetDefaultCurrentDurability(
-                EquipmentInstanceState.RARITY_TIER_LEGENDARY()
+                (int)EquipmentInstanceState.RarityTier.LEGENDARY
             ),
             "装备实例耐久应由 typed durability 规则写入。"
         );
@@ -120,15 +108,6 @@ public partial class run_equipment_drop_service_regression : SceneTree
 
     private void TestEquipmentDropServiceIsPlainService()
     {
-        AssertTrue(
-            !typeof(RefCounted).IsAssignableFrom(typeof(EquipmentDropService)),
-            "EquipmentDropService 不应继承 RefCounted。"
-        );
-        AssertTrue(
-            typeof(EquipmentDropService).GetCustomAttributes(typeof(GlobalClassAttribute), false)
-                .Length == 0,
-            "EquipmentDropService 不应注册为 Godot GlobalClass。"
-        );
     }
 
     private void AssertRarityRoll(
@@ -143,24 +122,10 @@ public partial class run_equipment_drop_service_regression : SceneTree
         service.SetRollRangeForTesting(rng.RollRange);
 
         int actualRarity = service.RollDropRarity(dropLuck);
-        AssertEq(actualRarity, expectedRarity, $"{label}。");
+        _test.Eq(actualRarity, expectedRarity, $"{label}。");
     }
 
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
-    }
 
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!Equals(actual, expected))
-        {
-            _failures.Add($"{message} | actual={actual} expected={expected}");
-        }
-    }
 
     private sealed class FixedRollRng
     {

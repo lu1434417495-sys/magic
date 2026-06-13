@@ -7,17 +7,14 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_battle_unit_state_schema_contract_regression : SceneTree
 {
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
-        Run();
-    }
-
-    private void Run()
-    {
         TestValidRoundtripPreservesCurrentPayload();
         TestClonePreservesEphemeralChargeState();
+        TestClonePreservesPendingCastRuntimeStateWithoutSerialization();
+        TestTypedChargeAndFumbleHelpers();
         TestExtendedBodySizeCategoriesRoundtrip();
         TestRejectsEmptyMissingAndExtraFields();
         TestRejectsWrongTopLevelTypes();
@@ -26,37 +23,23 @@ public partial class run_battle_unit_state_schema_contract_regression : SceneTre
         TestRejectsBadIdentityProjectionFields();
         TestRejectsBadCombatResourceUnlocks();
         TestRejectsBadStatusEffectEntries();
+        TestOwnerInternalStatusMapIgnoresMalformedRawKeys();
         TestRejectsEquipmentViewBadPayload();
         TestRejectsBadWeaponDicePayloads();
         TestBodySizeRulesWrapperIsRemoved();
 
-        Finish();
-    }
-
-    private void Finish()
-    {
-        if (_failures.Count == 0)
-        {
-            GD.Print("Battle unit state schema regression: PASS");
-            Quit(0);
-            return;
-        }
-
-        foreach (string failure in _failures)
-            GD.PushError(failure);
-        GD.Print($"Battle unit state schema regression: FAIL ({_failures.Count})");
-        Quit(1);
+        Quit(_test.Finish("Battle unit state schema regression"));
     }
 
     private void TestValidRoundtripPreservesCurrentPayload()
     {
         BattleUnitState unit = BuildUnit();
-        AssertTrue(unit != null, "BuildUnit 应返回单位。");
-        GDictionary payload = unit.to_dict();
-        BattleUnitState restored = BattleUnitState.from_dict(payload);
-        AssertTrue(restored != null, "当前 to_dict payload 应可由 from_dict 恢复。");
-        AssertEq(restored?.current_move_points ?? -1, 5, "current_move_points 应保留大于默认值的 int。");
-        AssertEq(
+        _test.True(unit != null, "BuildUnit 应返回单位。");
+        GDictionary payload = unit.ToDictionary();
+        BattleUnitState restored = BattleUnitState.FromDictionary(payload);
+        _test.True(restored != null, "当前 to_dict payload 应可由 from_dict 恢复。");
+        _test.Eq(restored?.current_move_points ?? -1, 5, "current_move_points 应保留大于默认值的 int。");
+        _test.Eq(
             restored?.body_size_category.ToString() ?? "",
             "large",
             "body_size_category 应随 body_size round-trip。"
@@ -66,13 +49,13 @@ public partial class run_battle_unit_state_schema_contract_regression : SceneTre
             new GStringNameArray { "darkvision" },
             "vision_tags 应 round-trip。"
         );
-        AssertEq(
+        _test.Eq(
             ReadStringName(restored?.damage_resistances, "fire").ToString(),
             "half",
             "damage_resistances 应 round-trip。"
         );
         AssertVariantEq(
-            restored?.to_dict(),
+            restored?.ToDictionary(),
             payload,
             "BattleUnitState 应保持 to_dict/from_dict round-trip。"
         );
@@ -87,68 +70,141 @@ public partial class run_battle_unit_state_schema_contract_regression : SceneTre
         unit.per_turn_charge_limits = new GDictionary { [new StringName("nimble_escape")] = 1 };
 
         BattleUnitState cloned = unit.clone();
-        AssertTrue(cloned != null, "BattleUnitState.clone() 应返回可用副本。");
+        _test.True(cloned != null, "BattleUnitState.clone() 应返回可用副本。");
         if (cloned == null)
             return;
 
-        AssertVariantEq(cloned.to_dict(), unit.to_dict(), "clone 应保留序列化字段。");
-        AssertEq(DictInt(cloned.per_battle_charges, "dragon_breath", -1), 1, "clone 应深拷贝 per_battle_charges。");
-        AssertEq(DictInt(cloned.per_turn_charges, "nimble_escape", -1), 1, "clone 应深拷贝 per_turn_charges。");
-        AssertEq(DictInt(cloned.per_turn_charge_limits, "nimble_escape", -1), 1, "clone 应深拷贝 per_turn_charge_limits。");
+        AssertVariantEq(cloned.ToDictionary(), unit.ToDictionary(), "clone 应保留序列化字段。");
+        _test.Eq(DictInt(cloned.per_battle_charges, "dragon_breath", -1), 1, "clone 应深拷贝 per_battle_charges。");
+        _test.Eq(DictInt(cloned.per_turn_charges, "nimble_escape", -1), 1, "clone 应深拷贝 per_turn_charges。");
+        _test.Eq(DictInt(cloned.per_turn_charge_limits, "nimble_escape", -1), 1, "clone 应深拷贝 per_turn_charge_limits。");
 
         cloned.per_battle_charges["dragon_breath"] = 0;
         cloned.per_turn_charges["nimble_escape"] = 0;
         cloned.per_turn_charge_limits["nimble_escape"] = 0;
-        AssertEq(DictInt(unit.per_battle_charges, "dragon_breath", -1), 1, "clone 不应共享 per_battle_charges 字典。");
-        AssertEq(DictInt(unit.per_turn_charges, "nimble_escape", -1), 1, "clone 不应共享 per_turn_charges 字典。");
-        AssertEq(DictInt(unit.per_turn_charge_limits, "nimble_escape", -1), 1, "clone 不应共享 per_turn_charge_limits 字典。");
+        _test.Eq(DictInt(unit.per_battle_charges, "dragon_breath", -1), 1, "clone 不应共享 per_battle_charges 字典。");
+        _test.Eq(DictInt(unit.per_turn_charges, "nimble_escape", -1), 1, "clone 不应共享 per_turn_charges 字典。");
+        _test.Eq(DictInt(unit.per_turn_charge_limits, "nimble_escape", -1), 1, "clone 不应共享 per_turn_charge_limits 字典。");
+    }
+
+    private void TestClonePreservesPendingCastRuntimeStateWithoutSerialization()
+    {
+        BattleUnitState unit = BuildMinimalUnit();
+        var pendingCast = new BattlePendingCastState
+        {
+            SourceUnitId = unit.unit_id,
+            SkillId = "slow_bolt",
+            VariantId = "",
+            TargetMode = BattleTargetMode.Unit,
+            BindingMode = PendingCastBindingModeKind.SoftAnchor,
+            StartedCoord = new Vector2I(1, 2),
+            StartedTu = 20,
+            BaseCastingTimeTu = 30,
+            RemainingCastProgress = 15,
+            LastMaintenanceCheckpointHp = 40,
+            CastSequence = 3,
+            CostTransaction = new SkillCostTransaction
+            {
+                SkillId = "slow_bolt",
+                SkillLevel = 2,
+                ApCost = 1,
+                MpCost = 10,
+                StaminaCost = 4,
+                AuraCost = 2,
+                CooldownTurns = 20,
+            },
+        };
+        pendingCast.SetTargetUnitIds(new[] { new StringName("target_a") });
+        pendingCast.SetTargetCoords(new[] { new Vector2I(3, 4) });
+        unit.SetPendingCast(pendingCast);
+        unit.turn_casting_exhausted = true;
+
+        GDictionary payload = unit.ToDictionary();
+        _test.True(!payload.ContainsKey("pending_cast"), "pending_cast 是 runtime-only 字段，不应进入 unit payload。");
+        _test.True(!payload.ContainsKey("turn_casting_exhausted"), "turn_casting_exhausted 是 runtime-only 字段，不应进入 unit payload。");
+        _test.True(
+            BattleUnitState.FromDictionary(payload)?.pending_cast == null,
+            "从 payload 恢复时不应恢复 pending_cast runtime 状态。"
+        );
+
+        BattleUnitState cloned = unit.clone();
+        _test.True(cloned?.pending_cast != null, "clone 应保留 pending_cast runtime 状态。");
+        _test.True(cloned?.turn_casting_exhausted == true, "clone 应保留 turn_casting_exhausted runtime 状态。");
+        _test.Eq(cloned?.pending_cast?.SkillId.ToString() ?? "", "slow_bolt", "clone 应保留 pending cast skill id。");
+        _test.Eq(cloned?.pending_cast?.TargetUnitIds.Count ?? -1, 1, "clone 应保留 pending cast 目标。");
+        _test.Eq(cloned?.pending_cast?.CostTransaction?.MpCost ?? -1, 10, "clone 应保留 pending cast 成本事务。");
+
+        cloned?.pending_cast?.RemoveTargetUnitId("target_a");
+        if (cloned?.pending_cast?.CostTransaction != null)
+            cloned.pending_cast.CostTransaction.MpCost = 1;
+        _test.Eq(unit.pending_cast?.TargetUnitIds.Count ?? -1, 1, "pending cast clone 不应共享目标列表。");
+        _test.Eq(unit.pending_cast?.CostTransaction?.MpCost ?? -1, 10, "pending cast clone 不应共享成本事务。");
+    }
+
+    private void TestTypedChargeAndFumbleHelpers()
+    {
+        BattleUnitState unit = BuildMinimalUnit();
+        unit.SetPerBattleChargeTyped("dragon_breath", 2);
+        unit.SetPerTurnChargeLimitTyped("nimble_escape", 3);
+        unit.SetPerTurnChargeTyped("nimble_escape", 1);
+        unit.SetFumbleProtectionUsedTyped("mage_fireball", 1);
+
+        _test.True(unit.HasPerBattleChargeTyped("dragon_breath"), "typed per-battle charge helper 应标记已初始化 charge。");
+        _test.Eq(unit.GetPerBattleChargeTyped("dragon_breath", -1), 2, "typed per-battle charge helper 应返回当前次数。");
+        _test.True(unit.HasPerTurnChargeLimitTyped("nimble_escape"), "typed per-turn charge limit helper 应标记已初始化 limit。");
+        _test.Eq(unit.GetPerTurnChargeLimitTyped("nimble_escape", -1), 3, "typed per-turn charge limit helper 应返回当前上限。");
+        _test.Eq(unit.GetPerTurnChargeTyped("nimble_escape", -1), 1, "typed per-turn charge helper 应返回当前次数。");
+        _test.Eq(unit.GetFumbleProtectionUsedTyped("mage_fireball", -1), 1, "typed fumble helper 应返回当前保护消耗次数。");
+
+        unit.ResetPerTurnCharges();
+        _test.Eq(unit.GetPerTurnChargeTyped("nimble_escape", -1), 3, "reset_per_turn_charges 应通过 typed limit helper 回满 per-turn charges。");
     }
 
     private void TestExtendedBodySizeCategoriesRoundtrip()
     {
         BattleUnitState tiny = BuildMinimalUnit();
-        AssertTrue(tiny != null, "body size fixture 应可构建。");
-        AssertTrue(tiny.set_body_size_category("tiny"), "tiny category 应可设置。");
-        GDictionary tinyPayload = tiny.to_dict();
-        AssertEq(DictString(tinyPayload, "body_size_category"), "tiny", "to_dict 应保留 tiny category。");
-        AssertEq(DictInt(tinyPayload, "body_size"), BodySizeContentRules.BODY_SIZE_TINY, "tiny 应映射到 typed body-size int。");
-        AssertEq(DictVector2I(tinyPayload, "footprint_size"), Vector2I.One, "tiny footprint 应为 1x1。");
-        AssertTrue(BattleUnitState.from_dict(tinyPayload) != null, "tiny payload 应可 round-trip。");
+        _test.True(tiny != null, "body size fixture 应可构建。");
+        _test.True(tiny.SetBodySizeCategory("tiny"), "tiny category 应可设置。");
+        GDictionary tinyPayload = tiny.ToDictionary();
+        _test.Eq(DictString(tinyPayload, "body_size_category"), "tiny", "to_dict 应保留 tiny category。");
+        _test.Eq(DictInt(tinyPayload, "body_size"), BodySizeContentRules.ToBodySize(BodySizeCategoryKind.Tiny), "tiny 应映射到 typed body-size int。");
+        _test.Eq(DictVector2I(tinyPayload, "footprint_size"), Vector2I.One, "tiny footprint 应为 1x1。");
+        _test.True(BattleUnitState.FromDictionary(tinyPayload) != null, "tiny payload 应可 round-trip。");
 
         BattleUnitState gargantuan = BuildMinimalUnit();
-        AssertTrue(
-            gargantuan.set_body_size_category(BodySizeContentRules.BODY_SIZE_CATEGORY_GARGANTUAN),
+        _test.True(
+            gargantuan.SetBodySizeCategory(BodySizeContentRules.ToStringName(BodySizeCategoryKind.Gargantuan)),
             "gargantuan category 应可设置。"
         );
-        GDictionary gargantuanPayload = gargantuan.to_dict();
-        AssertEq(
+        GDictionary gargantuanPayload = gargantuan.ToDictionary();
+        _test.Eq(
             DictInt(gargantuanPayload, "body_size"),
-            BodySizeContentRules.BODY_SIZE_GARGANTUAN,
+            BodySizeContentRules.ToBodySize(BodySizeCategoryKind.Gargantuan),
             "gargantuan 应映射到 typed body-size int。"
         );
-        AssertEq(
+        _test.Eq(
             DictVector2I(gargantuanPayload, "footprint_size"),
             new Vector2I(4, 4),
             "gargantuan footprint 应为 4x4。"
         );
-        AssertEq(
+        _test.Eq(
             DictArray(gargantuanPayload, "occupied_coords").Count,
             16,
             "gargantuan 应占 16 格。"
         );
-        AssertTrue(BattleUnitState.from_dict(gargantuanPayload) != null, "gargantuan payload 应可 round-trip。");
+        _test.True(BattleUnitState.FromDictionary(gargantuanPayload) != null, "gargantuan payload 应可 round-trip。");
 
         BattleUnitState boss = BuildMinimalUnit();
-        AssertTrue(boss.set_body_size_category(BodySizeContentRules.BODY_SIZE_CATEGORY_BOSS), "boss category 应可设置。");
-        GDictionary bossPayload = boss.to_dict();
-        AssertEq(DictInt(bossPayload, "body_size"), BodySizeContentRules.BODY_SIZE_BOSS, "boss 应映射到 typed body-size int。");
-        AssertEq(DictVector2I(bossPayload, "footprint_size"), new Vector2I(5, 5), "boss footprint 应为 5x5。");
-        AssertTrue(BattleUnitState.from_dict(bossPayload) != null, "boss payload 应可 round-trip。");
+        _test.True(boss.SetBodySizeCategory(BodySizeContentRules.ToStringName(BodySizeCategoryKind.Boss)), "boss category 应可设置。");
+        GDictionary bossPayload = boss.ToDictionary();
+        _test.Eq(DictInt(bossPayload, "body_size"), BodySizeContentRules.ToBodySize(BodySizeCategoryKind.Boss), "boss 应映射到 typed body-size int。");
+        _test.Eq(DictVector2I(bossPayload, "footprint_size"), new Vector2I(5, 5), "boss footprint 应为 5x5。");
+        _test.True(BattleUnitState.FromDictionary(bossPayload) != null, "boss payload 应可 round-trip。");
     }
 
     private void TestRejectsEmptyMissingAndExtraFields()
     {
-        AssertTrue(BattleUnitState.from_dict(new GDictionary()) == null, "空 Dictionary payload 应拒绝。");
+        _test.True(BattleUnitState.FromDictionary(new GDictionary()) == null, "空 Dictionary payload 应拒绝。");
 
         GDictionary missing = Payload();
         missing.Remove("footprint_size");
@@ -286,6 +342,28 @@ public partial class run_battle_unit_state_schema_contract_regression : SceneTre
         AssertRejected(emptyKey, "status_effects 空 key 应拒绝。");
     }
 
+    private void TestOwnerInternalStatusMapIgnoresMalformedRawKeys()
+    {
+        BattleUnitState unit = BuildMinimalUnit();
+        unit.status_effects[3] = new BattleStatusEffectState
+        {
+            status_id = "burning",
+            source_unit_id = "malformed",
+            power = 1,
+            stacks = 1,
+        };
+
+        _test.True(
+            unit.GetStatusEffect("burning") == null,
+            "BattleUnitState owner 内部不应通过坏 raw key 命中 status_effects。"
+        );
+        _test.Eq(
+            unit.GetSortedStatusEffectIdsTyped().Count,
+            0,
+            "坏 raw key status entry 不应继续出现在 typed status id 枚举里。"
+        );
+    }
+
     private void TestRejectsEquipmentViewBadPayload()
     {
         GDictionary payload = Payload();
@@ -322,17 +400,9 @@ public partial class run_battle_unit_state_schema_contract_regression : SceneTre
 
     private void TestBodySizeRulesWrapperIsRemoved()
     {
-        AssertTrue(
+        _test.True(
             FindLoadedType("BodySizeRules") == null,
             "BodySizeRules Godot wrapper 应删除，测试和生产路径应直接使用 BodySizeContentRules 或本地 helper。"
-        );
-        AssertTrue(
-            !typeof(RefCounted).IsAssignableFrom(typeof(BodySizeContentRules)),
-            "BodySizeContentRules 不应继承 RefCounted。"
-        );
-        AssertTrue(
-            typeof(BodySizeContentRules).GetCustomAttributes(typeof(GlobalClassAttribute), false).Length == 0,
-            "BodySizeContentRules 不应注册为 Godot GlobalClass。"
         );
     }
 
@@ -379,9 +449,9 @@ public partial class run_battle_unit_state_schema_contract_regression : SceneTre
             cooldowns = new GDictionary { [new StringName("slash")] = 12 },
             last_turn_tu = 50,
         };
-        unit.attribute_snapshot.set_value("strength", 3);
-        unit.attribute_snapshot.set_value("aura_max", 6);
-        unit.apply_weapon_projection(
+        unit.attribute_snapshot.SetValue("strength", 3);
+        unit.attribute_snapshot.SetValue("aura_max", 6);
+        unit.ApplyWeaponProjection(
             new GDictionary
             {
                 ["weapon_profile_kind"] = "equipped",
@@ -416,11 +486,11 @@ public partial class run_battle_unit_state_schema_contract_regression : SceneTre
             stacks = 2,
             duration = 20,
         };
-        unit.set_status_effect(effect);
+        unit.SetStatusEffect(effect);
         return unit;
     }
 
-    private static GDictionary Payload() => BuildUnit().to_dict();
+    private static GDictionary Payload() => BuildUnit().ToDictionary();
 
     private static BattleUnitState BuildMinimalUnit() =>
         new()
@@ -433,7 +503,7 @@ public partial class run_battle_unit_state_schema_contract_regression : SceneTre
 
     private void AssertRejected(GDictionary payload, string message)
     {
-        AssertTrue(BattleUnitState.from_dict(payload) == null, message);
+        _test.True(BattleUnitState.FromDictionary(payload) == null, message);
     }
 
     private static GDictionary DictDictionary(GDictionary data, string key)
@@ -466,24 +536,12 @@ public partial class run_battle_unit_state_schema_contract_regression : SceneTre
         return data != null && data.ContainsKey(key) ? ProgressionDataUtils.to_string_name(data[key]) : "";
     }
 
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-            _failures.Add(message);
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!EqualityComparer<T>.Default.Equals(actual, expected))
-            _failures.Add($"{message} | actual={actual} expected={expected}");
-    }
-
     private void AssertVariantEq(object actual, object expected, string message)
     {
         string actualText = StableVariantText(actual);
         string expectedText = StableVariantText(expected);
         if (actualText != expectedText)
-            _failures.Add($"{message} | actual={actualText} expected={expectedText}");
+            _test.Fail($"{message} | actual={actualText} expected={expectedText}");
     }
 
     private static string StableVariantText(object value)

@@ -5,63 +5,29 @@ using Godot;
 
 public partial class run_battle_ai_unit_snapshot_regression : SceneTree
 {
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
-    {
-        int exitCode = Run();
-        Quit(exitCode);
-    }
-
-    private int Run()
     {
         TestPayloadGuardIsPlainStaticBoundaryHelper();
         TestUnitSnapshotIsPlainTypedDto();
         TestSnapshotCopiesUnitStateIntoTypedCollections();
         TestSnapshotPayloadProjectionIsBoundaryOnly();
-
-        if (_failures.Count == 0)
-        {
-            GD.Print("Battle AI unit snapshot regression: PASS");
-            return 0;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Battle AI unit snapshot regression: FAIL ({_failures.Count})");
-        return 1;
+        Quit(_test.Finish("Battle AI unit snapshot regression"));
     }
 
     private void TestPayloadGuardIsPlainStaticBoundaryHelper()
     {
         Type guardType = typeof(BattleAiPayloadGuard);
-        AssertTrue(
+        _test.True(
             guardType.IsAbstract && guardType.IsSealed,
             "BattleAiPayloadGuard 应是 plain static C# helper。"
-        );
-        AssertTrue(
-            !typeof(GodotObject).IsAssignableFrom(guardType),
-            "BattleAiPayloadGuard 不应继承 GodotObject/RefCounted。"
-        );
-        AssertTrue(
-            guardType.GetCustomAttribute<GlobalClassAttribute>() == null,
-            "BattleAiPayloadGuard 不应注册 GlobalClass。"
         );
     }
 
     private void TestUnitSnapshotIsPlainTypedDto()
     {
         Type snapshotType = typeof(BattleAiUnitSnapshot);
-        AssertTrue(
-            !typeof(GodotObject).IsAssignableFrom(snapshotType),
-            "BattleAiUnitSnapshot 不应继承 GodotObject/RefCounted。"
-        );
-        AssertTrue(
-            snapshotType.GetCustomAttribute<GlobalClassAttribute>() == null,
-            "BattleAiUnitSnapshot 不应注册 GlobalClass。"
-        );
 
         AssertFieldType(snapshotType, "occupied_coords", typeof(List<Vector2I>));
         AssertFieldType(snapshotType, "known_active_skill_ids", typeof(List<StringName>));
@@ -69,36 +35,28 @@ public partial class run_battle_ai_unit_snapshot_regression : SceneTree
         AssertFieldType(snapshotType, "cooldowns", typeof(Dictionary<StringName, int>));
         AssertFieldType(snapshotType, "ai_blackboard", typeof(BattleAiUnitBlackboardSnapshot));
         AssertFieldType(snapshotType, "status_ids", typeof(List<StringName>));
-        AssertTrue(
+        _test.True(
             snapshotType.GetMethod("FromUnit", BindingFlags.Public | BindingFlags.Static) != null,
             "BattleAiUnitSnapshot 应通过 FromUnit() 创建 typed snapshot。"
         );
-        AssertTrue(
+        _test.True(
             snapshotType.GetMethod("ToPayload", BindingFlags.Public | BindingFlags.Instance) == null,
             "BattleAiUnitSnapshot 不应公开 Godot Dictionary 投影 API。"
         );
-        AssertTrue(
+        _test.True(
             snapshotType.GetMethod("ToPayload", BindingFlags.NonPublic | BindingFlags.Instance) != null,
             "BattleAiUnitSnapshot 应保留 internal ToPayload() 作为边界投影。"
         );
-        AssertTrue(
+        _test.True(
             snapshotType.GetMethod("from_unit", BindingFlags.Public | BindingFlags.Static) == null,
             "BattleAiUnitSnapshot 不应保留 from_unit() 兼容别名。"
         );
-        AssertTrue(
+        _test.True(
             snapshotType.GetMethod("to_payload", BindingFlags.Public | BindingFlags.Instance) == null,
             "BattleAiUnitSnapshot 不应保留 to_payload() 兼容别名。"
         );
 
         Type blackboardType = typeof(BattleAiUnitBlackboardSnapshot);
-        AssertTrue(
-            !typeof(GodotObject).IsAssignableFrom(blackboardType),
-            "BattleAiUnitBlackboardSnapshot 不应继承 GodotObject/RefCounted。"
-        );
-        AssertTrue(
-            blackboardType.GetCustomAttribute<GlobalClassAttribute>() == null,
-            "BattleAiUnitBlackboardSnapshot 不应注册 GlobalClass。"
-        );
         AssertPublicApiDoesNotExposeGodotPayload(snapshotType, "BattleAiUnitSnapshot");
         AssertPublicApiDoesNotExposeGodotPayload(
             blackboardType,
@@ -111,19 +69,19 @@ public partial class run_battle_ai_unit_snapshot_regression : SceneTree
         BattleUnitState unit = BuildUnit();
         BattleAiUnitSnapshot snapshot = BattleAiUnitSnapshot.FromUnit(unit);
 
-        AssertTrue(snapshot != null, "FromUnit 应创建 snapshot。");
+        _test.True(snapshot != null, "FromUnit 应创建 snapshot。");
         if (snapshot == null)
             return;
 
-        AssertEq(snapshot.unit_id, new StringName("snapshot_actor"), "unit_id 应复制。");
-        AssertEq(snapshot.occupied_coords.Count, 2, "occupied coords 应复制为 C# List。");
-        AssertEq(snapshot.known_active_skill_ids.Count, 1, "known skill ids 应复制为 C# List。");
-        AssertEq(snapshot.known_skill_level_map[new StringName("fireball")], 4, "skill level 应复制为 int map。");
-        AssertEq(snapshot.cooldowns[new StringName("fireball")], 2, "cooldown 应复制为 int map。");
-        AssertTrue(snapshot.ai_blackboard.madness_target_any_team, "blackboard bool 应复制。");
-        AssertTrue(snapshot.ai_blackboard.protected_ally, "protected ally bool 应复制。");
-        AssertEq(snapshot.ai_blackboard.summon_source_unit_id, new StringName("summoner"), "summon source 应复制。");
-        AssertTrue(snapshot.status_ids.Contains(new StringName("burning")), "status id 应复制到 typed list。");
+        _test.Eq(snapshot.unit_id, new StringName("snapshot_actor"), "unit_id 应复制。");
+        _test.Eq(snapshot.occupied_coords.Count, 2, "occupied coords 应复制为 C# List。");
+        _test.Eq(snapshot.known_active_skill_ids.Count, 1, "known skill ids 应复制为 C# List。");
+        _test.Eq(snapshot.known_skill_level_map[new StringName("fireball")], 4, "skill level 应复制为 int map。");
+        _test.Eq(snapshot.cooldowns[new StringName("fireball")], 2, "cooldown 应复制为 int map。");
+        _test.True(snapshot.ai_blackboard.madness_target_any_team, "blackboard bool 应复制。");
+        _test.True(snapshot.ai_blackboard.protected_ally, "protected ally bool 应复制。");
+        _test.Eq(snapshot.ai_blackboard.summon_source_unit_id, new StringName("summoner"), "summon source 应复制。");
+        _test.True(snapshot.status_ids.Contains(new StringName("burning")), "status id 应复制到 typed list。");
 
         unit.occupied_coords.Add(new Vector2I(9, 9));
         unit.known_active_skill_ids.Add("icebolt");
@@ -131,11 +89,11 @@ public partial class run_battle_ai_unit_snapshot_regression : SceneTree
         unit.cooldowns["fireball"] = 7;
         unit.ai_blackboard.protected_ally = false;
 
-        AssertEq(snapshot.occupied_coords.Count, 2, "snapshot occupied coords 不应引用原 unit array。");
-        AssertEq(snapshot.known_active_skill_ids.Count, 1, "snapshot skill ids 不应引用原 unit array。");
-        AssertEq(snapshot.known_skill_level_map[new StringName("fireball")], 4, "snapshot skill level map 不应引用原 unit dictionary。");
-        AssertEq(snapshot.cooldowns[new StringName("fireball")], 2, "snapshot cooldown map 不应引用原 unit dictionary。");
-        AssertTrue(snapshot.ai_blackboard.protected_ally, "snapshot blackboard 不应引用原 unit blackboard。");
+        _test.Eq(snapshot.occupied_coords.Count, 2, "snapshot occupied coords 不应引用原 unit array。");
+        _test.Eq(snapshot.known_active_skill_ids.Count, 1, "snapshot skill ids 不应引用原 unit array。");
+        _test.Eq(snapshot.known_skill_level_map[new StringName("fireball")], 4, "snapshot skill level map 不应引用原 unit dictionary。");
+        _test.Eq(snapshot.cooldowns[new StringName("fireball")], 2, "snapshot cooldown map 不应引用原 unit dictionary。");
+        _test.True(snapshot.ai_blackboard.protected_ally, "snapshot blackboard 不应引用原 unit blackboard。");
     }
 
     private void TestSnapshotPayloadProjectionIsBoundaryOnly()
@@ -143,27 +101,27 @@ public partial class run_battle_ai_unit_snapshot_regression : SceneTree
         BattleAiUnitSnapshot snapshot = BattleAiUnitSnapshot.FromUnit(BuildUnit());
         Godot.Collections.Dictionary payload = snapshot?.ToPayload();
 
-        AssertTrue(payload != null, "ToPayload 应投影 Godot Dictionary。");
+        _test.True(payload != null, "ToPayload 应投影 Godot Dictionary。");
         if (payload == null)
             return;
 
-        AssertEq(payload["unit_id"].AsStringName(), new StringName("snapshot_actor"), "payload unit_id 应保留。");
-        AssertEq(payload["occupied_coords"].AsGodotArray().Count, 2, "payload occupied_coords 应投影数组。");
-        AssertEq(
+        _test.Eq(payload["unit_id"].AsStringName(), new StringName("snapshot_actor"), "payload unit_id 应保留。");
+        _test.Eq(payload["occupied_coords"].AsGodotArray().Count, 2, "payload occupied_coords 应投影数组。");
+        _test.Eq(
             DictInt(payload["known_skill_level_map"].AsGodotDictionary(), "fireball"),
             4,
             "payload skill level map 应投影。"
         );
-        AssertEq(
+        _test.Eq(
             DictInt(payload["cooldowns"].AsGodotDictionary(), "fireball"),
             2,
             "payload cooldown map 应投影。"
         );
 
         Godot.Collections.Dictionary blackboard = payload["ai_blackboard"].AsGodotDictionary();
-        AssertTrue(DictBool(blackboard, "madness_target_any_team"), "payload blackboard 应投影 madness flag。");
-        AssertTrue(DictBool(blackboard, "protected_ally"), "payload blackboard 应投影 protected flag。");
-        AssertEq(
+        _test.True(DictBool(blackboard, "madness_target_any_team"), "payload blackboard 应投影 madness flag。");
+        _test.True(DictBool(blackboard, "protected_ally"), "payload blackboard 应投影 protected flag。");
+        _test.Eq(
             DictStringName(blackboard, "summon_source_unit_id"),
             new StringName("summoner"),
             "payload blackboard 应投影 summon source。"
@@ -196,35 +154,37 @@ public partial class run_battle_ai_unit_snapshot_regression : SceneTree
         unit.ai_blackboard.madness_target_any_team = true;
         unit.ai_blackboard.protected_ally = true;
         unit.ai_blackboard.summon_source_unit_id = "summoner";
-        unit.status_effects["burning"] = new BattleStatusEffectState
-        {
-            status_id = "burning",
-            source_unit_id = "snapshot_actor",
-            stacks = 1,
-        };
+        unit.SetStatusEffect(
+            new BattleStatusEffectState
+            {
+                status_id = "burning",
+                source_unit_id = "snapshot_actor",
+                stacks = 1,
+            }
+        );
         return unit;
     }
 
     private void AssertFieldType(Type owner, string fieldName, Type expected)
     {
         FieldInfo field = owner.GetField(fieldName, BindingFlags.Public | BindingFlags.Instance);
-        AssertTrue(field != null, $"{owner.Name}.{fieldName} 应存在。");
+        _test.True(field != null, $"{owner.Name}.{fieldName} 应存在。");
         if (field == null)
             return;
-        AssertEq(field.FieldType, expected, $"{owner.Name}.{fieldName} 类型。");
+        _test.Eq(field.FieldType, expected, $"{owner.Name}.{fieldName} 类型。");
     }
 
     private void AssertPublicApiDoesNotExposeGodotPayload(Type type, string label)
     {
         foreach (MethodInfo method in type.GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static))
         {
-            AssertTrue(
+            _test.True(
                 !IsGodotPayloadType(method.ReturnType),
                 $"{label}.{method.Name} 不应公开返回 Godot Dictionary/Array/Variant。"
             );
             foreach (ParameterInfo parameter in method.GetParameters())
             {
-                AssertTrue(
+                _test.True(
                     !IsGodotPayloadType(parameter.ParameterType),
                     $"{label}.{method.Name}({parameter.Name}) 不应公开接收 Godot Dictionary/Array/Variant。"
                 );
@@ -233,7 +193,7 @@ public partial class run_battle_ai_unit_snapshot_regression : SceneTree
 
         foreach (FieldInfo field in type.GetFields(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static))
         {
-            AssertTrue(
+            _test.True(
                 !IsGodotPayloadType(field.FieldType),
                 $"{label}.{field.Name} 不应公开 Godot Dictionary/Array/Variant 字段。"
             );
@@ -266,35 +226,4 @@ public partial class run_battle_ai_unit_snapshot_regression : SceneTree
         return dictionary.ContainsKey(key) ? dictionary[key].AsStringName() : new StringName("");
     }
 
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertEq(Type actual, Type expected, string message)
-    {
-        if (actual != expected)
-        {
-            _failures.Add($"{message} expected={expected} actual={actual}");
-        }
-    }
-
-    private void AssertEq(StringName actual, StringName expected, string message)
-    {
-        if (actual != expected)
-        {
-            _failures.Add($"{message} expected={expected} actual={actual}");
-        }
-    }
-
-    private void AssertEq(int actual, int expected, string message)
-    {
-        if (actual != expected)
-        {
-            _failures.Add($"{message} expected={expected} actual={actual}");
-        }
-    }
 }

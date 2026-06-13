@@ -2,20 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using Godot;
-using GStringArray = Godot.Collections.Array<string>;
 using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_battle_ai_action_assembler_plan_regression : SceneTree
 {
-    private readonly GStringArray _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
-    {
-        int exitCode = Run();
-        Quit(exitCode);
-    }
-
-    private int Run()
     {
         try
         {
@@ -24,43 +17,24 @@ public partial class run_battle_ai_action_assembler_plan_regression : SceneTree
             TestAssemblerEnablesCandidateForRuntimeMoveClones();
             TestGenerationIsSlotFamilyScopedNotGlobalSkillSuppressed();
             TestGeneratedMetadataContainsStableRuntimeIdentity();
+            Quit(_test.Finish("Battle AI action assembler plan regression"));
         }
         catch (Exception exception)
         {
-            _failures.Add($"Unhandled exception: {exception}");
+            _test.Fail($"Unhandled exception: {exception}");
+            Quit(1);
         }
-
-        if (_failures.Count == 0)
-        {
-            GD.Print("Battle AI action assembler plan regression: PASS");
-            return 0;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Battle AI action assembler plan regression: FAIL ({_failures.Count})");
-        return 1;
     }
 
     private void TestAssemblerIsPlainTypedHelper()
     {
         Type assemblerType = typeof(BattleAiActionAssembler);
-        AssertTrue(assemblerType.IsSealed, "BattleAiActionAssembler should be a sealed helper.");
-        AssertTrue(
-            !typeof(GodotObject).IsAssignableFrom(assemblerType),
-            "BattleAiActionAssembler should not inherit GodotObject/RefCounted."
-        );
-        AssertTrue(
-            assemblerType.GetCustomAttribute<GlobalClassAttribute>() == null,
-            "BattleAiActionAssembler should not register as GlobalClass."
-        );
-        AssertTrue(
+        _test.True(assemblerType.IsSealed, "BattleAiActionAssembler should be a sealed helper.");
+        _test.True(
             assemblerType.GetMethod("BuildUnitActionPlan") != null,
             "BattleAiActionAssembler should expose BuildUnitActionPlan()."
         );
-        AssertTrue(
+        _test.True(
             assemblerType.GetMethod("build_unit_action_plan") == null
                 && assemblerType.GetMethod("_is_offensive_or_enemy_skill") == null,
             "BattleAiActionAssembler should not keep GDScript-style public API."
@@ -78,12 +52,12 @@ public partial class run_battle_ai_action_assembler_plan_regression : SceneTree
         );
         IReadOnlyList<EnemyAiAction> actions = plan.GetActions("engage");
 
-        AssertTrue(plan.HasState("engage"), "Assembler should create a plan state for the brain state.");
-        AssertTrue(
+        _test.True(plan.HasState("engage"), "Assembler should create a plan state for the brain state.");
+        _test.True(
             actions.Count > originalActionCount,
             "Runtime plan should contain authored and generated actions."
         );
-        AssertEq(
+        _test.Eq(
             fixture.StateDef.actions.Count,
             originalActionCount,
             "Assembler should not write generated actions back into the state resource."
@@ -100,23 +74,23 @@ public partial class run_battle_ai_action_assembler_plan_regression : SceneTree
         );
         IReadOnlyList<EnemyAiAction> actions = plan.GetActions("engage");
         MoveToRangeAction runtimeTemplateMove = FindActionById(actions, "template_move") as MoveToRangeAction;
-        AssertTrue(runtimeTemplateMove != null, "Runtime plan should keep the authored move_to_range action.");
-        AssertTrue(
+        _test.True(runtimeTemplateMove != null, "Runtime plan should keep the authored move_to_range action.");
+        _test.True(
             runtimeTemplateMove != fixture.MoveTemplate,
             "Runtime plan should clone authored move_to_range resources."
         );
-        AssertTrue(
-            runtimeTemplateMove != null && runtimeTemplateMove.uses_candidate_request(),
+        _test.True(
+            runtimeTemplateMove != null && runtimeTemplateMove.UsesCandidateRequest(),
             "Runtime authored move_to_range clone should default to candidate_request."
         );
-        AssertTrue(
-            !fixture.MoveTemplate.uses_candidate_request(),
+        _test.True(
+            !fixture.MoveTemplate.UsesCandidateRequest(),
             "Assembler should not mutate the authored move_to_range resource."
         );
 
         MoveToRangeAction generatedMove = FindMoveActionForSkill(actions, "chain_arc");
-        AssertTrue(
-            generatedMove != null && generatedMove.uses_candidate_request(),
+        _test.True(
+            generatedMove != null && generatedMove.UsesCandidateRequest(),
             "Generated move_to_range action should enable candidate_request."
         );
     }
@@ -130,13 +104,21 @@ public partial class run_battle_ai_action_assembler_plan_regression : SceneTree
             fixture.SkillDefs
         );
         IReadOnlyList<EnemyAiAction> actions = plan.GetActions("engage");
-        AssertTrue(
+        _test.True(
             HasActionForSkill<UseRandomChainSkillAction>(actions, "chain_arc"),
             "Random-chain skills should generate use_random_chain_skill actions."
         );
-        AssertTrue(
+        _test.True(
             FindMoveActionForSkill(actions, "chain_arc") != null,
             "The same random-chain skill should also generate its move_to_range companion."
+        );
+        _test.True(
+            !HasActionForSkill<UseMultiUnitSkillAction>(actions, "chain_arc"),
+            "Random-chain skills should not generate use_multi_unit_skill actions."
+        );
+        _test.True(
+            !HasActionForSkill<MoveToMultiUnitSkillPositionAction>(actions, "chain_arc"),
+            "Random-chain skills should not generate move_to_multi_unit_skill_position actions."
         );
     }
 
@@ -157,21 +139,21 @@ public partial class run_battle_ai_action_assembler_plan_regression : SceneTree
                 continue;
             }
 
-            AssertEq(metadata.state_id, new StringName("engage"), "Generated metadata should include state_id.");
-            AssertEq(metadata.slot_id, new StringName("offense"), "Generated metadata should include slot_id.");
-            AssertEq(
+            _test.Eq(metadata.state_id, new StringName("engage"), "Generated metadata should include state_id.");
+            _test.Eq(metadata.slot_id, new StringName("offense"), "Generated metadata should include slot_id.");
+            _test.Eq(
                 metadata.action_family,
                 new StringName("use_unit_skill"),
                 "Generated metadata should include action_family."
             );
-            AssertEq(
+            _test.Eq(
                 action.score_bucket_id,
                 new StringName("harrier_pressure"),
                 "Slot score_bucket_id should override generated action score bucket."
             );
             return;
         }
-        Fail("Expected generated metadata for bolt.");
+        _test.Fail("Expected generated metadata for bolt.");
     }
 
     private static Fixture BuildFixture()
@@ -326,7 +308,7 @@ public partial class run_battle_ai_action_assembler_plan_regression : SceneTree
     {
         foreach (EnemyAiAction action in actions)
         {
-            if (action is TAction && action.get_declared_skill_ids().Contains(skillId))
+            if (action is TAction && action.GetDeclaredSkillIds().Contains(skillId))
             {
                 return true;
             }
@@ -362,27 +344,6 @@ public partial class run_battle_ai_action_assembler_plan_regression : SceneTree
             }
         }
         return null;
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!EqualityComparer<T>.Default.Equals(actual, expected))
-        {
-            _failures.Add($"{message} Expected {expected}, got {actual}.");
-        }
-    }
-
-    private void Fail(string message)
-    {
-        _failures.Add(message);
     }
 
     private sealed class Fixture

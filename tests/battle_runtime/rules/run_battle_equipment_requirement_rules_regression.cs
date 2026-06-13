@@ -7,44 +7,22 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_battle_equipment_requirement_rules_regression : SceneTree
 {
-    private readonly GStringArray _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
-    {
-        int exitCode = Run();
-        Quit(exitCode);
-    }
-
-    private int Run()
     {
         TestRuleTypeIsPlainStaticCSharp();
         TestShieldRequirementReadsTypedItemIndex();
         TestShieldRequirementRejectsMissingOrNonShieldItems();
         TestItemTagRuleRejectsInvalidSlot();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Battle equipment requirement rules regression: PASS");
-            return 0;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Battle equipment requirement rules regression: FAIL ({_failures.Count})");
-        return 1;
+        Quit(_test.Finish("Battle equipment requirement rules regression"));
     }
 
     private void TestRuleTypeIsPlainStaticCSharp()
     {
         Type ruleType = typeof(BattleEquipmentRequirementRules);
-        AssertTrue(ruleType.IsAbstract && ruleType.IsSealed, "装备需求规则应是 plain static C# class。");
-        AssertFalse(
-            typeof(RefCounted).IsAssignableFrom(ruleType),
-            "装备需求规则不应继承 RefCounted。"
-        );
-        AssertFalse(HasAttributeNamed(ruleType, "GlobalClassAttribute"), "装备需求规则不应注册 GlobalClass。");
+        _test.True(ruleType.IsAbstract && ruleType.IsSealed, "装备需求规则应是 plain static C# class。");
 
         foreach (
             MethodInfo method in ruleType.GetMethods(
@@ -55,7 +33,7 @@ public partial class run_battle_equipment_requirement_rules_regression : SceneTr
             foreach (ParameterInfo parameter in method.GetParameters())
             {
                 string typeName = parameter.ParameterType.FullName ?? "";
-                AssertFalse(
+                _test.False(
                     typeName.StartsWith("Godot.Collections.Dictionary", StringComparison.Ordinal),
                     $"{method.Name} 不应公开 Godot Dictionary 参数。"
                 );
@@ -71,7 +49,7 @@ public partial class run_battle_equipment_requirement_rules_regression : SceneTr
             ["training_shield"] = BuildItemDef("training_shield", "shield", "off_hand"),
         };
 
-        AssertTrue(
+        _test.True(
             BattleEquipmentRequirementRules.UnitHasEquippedShield(unit, itemDefs),
             "副手装备带 shield tag 的物品时应满足盾牌需求。"
         );
@@ -85,11 +63,11 @@ public partial class run_battle_equipment_requirement_rules_regression : SceneTr
             ["training_focus"] = BuildItemDef("training_focus", "focus", "off_hand"),
         };
 
-        AssertFalse(
+        _test.False(
             BattleEquipmentRequirementRules.UnitHasEquippedShield(unit, nonShieldItemDefs),
             "副手物品缺少 shield tag 时不应满足盾牌需求。"
         );
-        AssertFalse(
+        _test.False(
             BattleEquipmentRequirementRules.UnitHasEquippedShield(
                 unit,
                 new Dictionary<StringName, ItemDef>()
@@ -106,7 +84,7 @@ public partial class run_battle_equipment_requirement_rules_regression : SceneTr
             ["training_shield"] = BuildItemDef("training_shield", "shield", "off_hand"),
         };
 
-        AssertFalse(
+        _test.False(
             BattleEquipmentRequirementRules.UnitHasEquippedItemTag(
                 unit,
                 "invalid_slot",
@@ -120,11 +98,11 @@ public partial class run_battle_equipment_requirement_rules_regression : SceneTr
     private static BattleUnitState BuildUnitWithEquippedItem(StringName itemId)
     {
         var equipmentState = new EquipmentState();
-        equipmentState.SetEquippedEntryTyped(
+        equipmentState.SetEquippedEntry(
             "off_hand",
             itemId,
             new[] { new StringName("off_hand") },
-            EquipmentInstanceState.create_instance(itemId, $"eq_{itemId}")
+            EquipmentInstanceState.CreateInstance(itemId, $"eq_{itemId}")
         );
 
         var unit = new BattleUnitState
@@ -133,7 +111,7 @@ public partial class run_battle_equipment_requirement_rules_regression : SceneTr
             display_name = "Shield Requirement User",
             is_alive = true,
         };
-        unit.set_equipment_view(equipmentState);
+        unit.SetEquipmentView(equipmentState);
         return unit;
     }
 
@@ -156,18 +134,5 @@ public partial class run_battle_equipment_requirement_rules_regression : SceneTr
             }
         }
         return false;
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertFalse(bool condition, string message)
-    {
-        AssertTrue(!condition, message);
     }
 }

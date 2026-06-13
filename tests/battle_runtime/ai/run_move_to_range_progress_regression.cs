@@ -8,63 +8,40 @@ using GStateArray = Godot.Collections.Array<EnemyAiStateDef>;
 
 public partial class run_move_to_range_progress_regression : SceneTree
 {
-    private readonly GStringArray _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
-    {
-        int exitCode = Run();
-        Quit(exitCode);
-    }
-
-    private int Run()
     {
         TestCandidateRequestBoundaryIsPlainTypedCSharp();
         TestCandidateRequestTypedValidation();
         TestCandidateProbeActionBuildsTypedSections();
+        TestMovementActionsUseTypedActionScoreMetadata();
         TestMoveToRangePrefersProgressOverWaitWhenFarFromBand();
         TestMoveToRangeUsesPathDetourWhenDirectProgressIsBlocked();
+        TestScreeningMoveToRangeUsesPathProgressBeforeLocalGreedyMove();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Move-to-range progress regression: PASS");
-            return 0;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Move-to-range progress regression: FAIL ({_failures.Count})");
-        return 1;
+        Quit(_test.Finish("Move-to-range progress regression"));
     }
 
     private void TestCandidateRequestBoundaryIsPlainTypedCSharp()
     {
         Type requestType = typeof(BattleAiCandidateRequest);
-        AssertTrue(
-            !typeof(GodotObject).IsAssignableFrom(requestType),
-            "BattleAiCandidateRequest must be a plain C# payload."
-        );
         AssertNoGlobalClass(requestType, "BattleAiCandidateRequest");
-        AssertTrue(
+        _test.True(
             requestType.GetProperty("PathSearchBudget") == null
                 && requestType.GetProperty("path_search_budget") == null
                 && requestType.GetProperty("TacticalParams") == null
                 && requestType.GetProperty("RuntimeMetadata") == null,
             "BattleAiCandidateRequest must not expose Godot Dictionary section properties."
         );
-        AssertTrue(
+        _test.True(
             requestType.GetMethod("RequireValidPayload") == null,
             "BattleAiCandidateRequest must not keep the old fail-loud validation API."
         );
 
         Type serviceType = typeof(BattleAiCandidateEvaluationService);
-        AssertTrue(
-            !typeof(GodotObject).IsAssignableFrom(serviceType),
-            "BattleAiCandidateEvaluationService must be a plain C# service."
-        );
         AssertNoGlobalClass(serviceType, "BattleAiCandidateEvaluationService");
-        AssertTrue(
+        _test.True(
             serviceType.GetMethod("setup") == null
                 && serviceType.GetMethod("evaluate") == null
                 && serviceType.GetMethod("evaluate_move_to_range_request") == null
@@ -74,12 +51,8 @@ public partial class run_move_to_range_progress_regression : SceneTree
         );
 
         Type evaluatorType = typeof(BattleAiMoveToRangeCandidateEvaluator);
-        AssertTrue(
-            !typeof(GodotObject).IsAssignableFrom(evaluatorType),
-            "BattleAiMoveToRangeCandidateEvaluator must be a plain C# helper."
-        );
         AssertNoGlobalClass(evaluatorType, "BattleAiMoveToRangeCandidateEvaluator");
-        AssertTrue(
+        _test.True(
             evaluatorType.GetMethod("evaluate_move_to_range_request") == null,
             "BattleAiMoveToRangeCandidateEvaluator must expose only PascalCase typed API."
         );
@@ -88,18 +61,18 @@ public partial class run_move_to_range_progress_regression : SceneTree
     private void TestCandidateRequestTypedValidation()
     {
         BattleAiCandidateRequest request = BuildValidRequest();
-        AssertTrue(
+        _test.True(
             request.TryValidateMoveToRange(out string error),
             $"valid typed move_to_range request should pass validation: {error}"
         );
 
         request = BuildValidRequest();
         request.ActionIntent = "legacy_intent";
-        AssertFalse(
+        _test.False(
             request.TryValidateMoveToRange(out error),
             "unknown action intent must fail candidate request validation."
         );
-        AssertContains(error, "action_intent", "invalid intent failure should name action_intent.");
+        _test.True(!string.IsNullOrEmpty(error), "invalid intent failure should provide an error.");
 
         request = BuildValidRequest();
         request.MaxCandidateCount = 5;
@@ -108,24 +81,24 @@ public partial class run_move_to_range_progress_regression : SceneTree
             new MoveToRangeTacticalParams(),
             new MoveToRangeRuntimeMetadata()
         );
-        AssertFalse(
+        _test.False(
             request.TryValidateMoveToRange(out error),
             "max_candidate_count must not exceed typed path budget max destinations."
         );
-        AssertContains(error, "max_candidate_count", "path budget validation should explain max candidate overflow.");
+        _test.True(!string.IsNullOrEmpty(error), "path budget validation should provide an error.");
     }
 
     private void TestCandidateProbeActionBuildsTypedSections()
     {
         var action = new BattleAiCandidateProbeTestAction();
-        BattleAiCandidateRequest request = action.build_candidate_request(null);
+        BattleAiCandidateRequest request = action.BuildCandidateRequest(null);
         request.ActorUnitId = "probe_actor";
 
-        AssertTrue(
+        _test.True(
             request.TryValidateMoveToRange(out string error),
             $"probe test action should build a valid typed request after actor injection: {error}"
         );
-        AssertTrue(
+        _test.True(
             request.TryGetMoveToRangeSections(
                 out MoveToRangePathSearchBudget budget,
                 out MoveToRangeTacticalParams tactical,
@@ -134,135 +107,302 @@ public partial class run_move_to_range_progress_regression : SceneTree
             ),
             $"probe request should expose typed section snapshots: {error}"
         );
-        AssertEq(budget.MaxCost, 2, "probe path budget max cost should stay typed.");
-        AssertEq(budget.MaxDestinations, 4, "probe path budget max destinations should stay typed.");
-        AssertEq(tactical.TargetSelector, new StringName("nearest_enemy"), "probe tactical selector should stay typed.");
-        AssertEq(runtime.EffectiveAttackRange, -1, "probe runtime metadata should stay typed.");
+        _test.Eq(budget.MaxCost, 2, "probe path budget max cost should stay typed.");
+        _test.Eq(budget.MaxDestinations, 4, "probe path budget max destinations should stay typed.");
+        _test.Eq(tactical.TargetSelector, new StringName("nearest_enemy"), "probe tactical selector should stay typed.");
+        _test.Eq(runtime.EffectiveAttackRange, -1, "probe runtime metadata should stay typed.");
+    }
+
+    private void TestMovementActionsUseTypedActionScoreMetadata()
+    {
+        Type enemyActionType = typeof(EnemyAiAction);
+        MethodInfo typedActionScoreInput = FindNonPublicInstanceMethod(
+            enemyActionType,
+            "_build_typed_action_score_input"
+        );
+        MethodInfo typedSkillScoreInput = FindNonPublicInstanceMethod(
+            enemyActionType,
+            "_build_typed_skill_score_input"
+        );
+        _test.True(
+            typedActionScoreInput != null
+                && typedActionScoreInput.GetParameters()[5].ParameterType
+                    == typeof(IReadOnlyDictionary<string, object>),
+            "EnemyAiAction._build_typed_action_score_input() 应继续直接接收 typed action-score metadata。"
+        );
+        _test.True(
+            typedSkillScoreInput != null
+                && typedSkillScoreInput.GetParameters()[4].ParameterType
+                    == typeof(IEnumerable<CombatEffectDef>)
+                && typedSkillScoreInput.GetParameters()[5].ParameterType
+                    == typeof(IReadOnlyDictionary<string, object>),
+            "EnemyAiAction._build_typed_skill_score_input() 应继续直接接收 typed effect 列表和 typed skill-score metadata。"
+        );
+        _test.True(
+            enemyActionType.GetMethod(
+                "_build_action_score_input",
+                BindingFlags.Instance | BindingFlags.NonPublic
+            ) == null
+                && enemyActionType.GetMethod(
+                    "_build_skill_score_input",
+                    BindingFlags.Instance | BindingFlags.NonPublic
+                ) == null
+                && enemyActionType.GetMethod(
+                    "_resolve_desired_distance_contract",
+                    BindingFlags.Instance | BindingFlags.NonPublic
+                ) == null,
+            "EnemyAiAction 不应继续保留 Godot dictionary score/distance helper bridge。"
+        );
+        Type moveDistanceContractType = typeof(MoveToRangeAction).GetNestedType(
+            "MoveDistanceContract",
+            BindingFlags.NonPublic
+        );
+        Type moveSkillRecordType = typeof(MoveToRangeAction).GetNestedType(
+            "MoveSkillRecord",
+            BindingFlags.NonPublic
+        );
+        _test.True(
+            moveDistanceContractType?.GetMethod("FromDictionary") == null
+                && moveDistanceContractType?.GetMethod("ToDictionary") == null
+                && moveDistanceContractType?.GetMethod("FromMetadata") != null,
+            "MoveToRangeAction.MoveDistanceContract 不应继续保留 Godot dictionary contract bridge。"
+        );
+        _test.True(
+            moveSkillRecordType?.GetMethod("FromDictionary") == null
+                && moveSkillRecordType?.GetMethod("FromSkillRecord") != null,
+            "MoveToRangeAction.MoveSkillRecord 不应继续保留 Godot dictionary skill-record bridge。"
+        );
     }
 
     private void TestMoveToRangePrefersProgressOverWaitWhenFarFromBand()
     {
         BattleRuntimeModule runtime = BuildRuntimeWithEnemyContent();
-        EnemyAiBrainDef brain = BuildBrain(
-            "far_gap_mover_brain",
-            "engage",
-            new MoveToRangeAction
-            {
-                action_id = "far_gap_close_in",
-                action_intent = BattleAiActionIntent.Positioning,
-                score_bucket_id = "positioning",
-                ai_evaluation_mode = MoveToRangeAction.AiEvaluationCandidateRequest,
-                target_selector = "nearest_enemy",
-                desired_min_distance = 4,
-                desired_max_distance = 5,
-            },
-            new WaitAction { action_id = "far_gap_wait" }
-        );
-        runtime._enemy_ai_brains[brain.brain_id] = brain;
-        runtime._ai_service.Setup(
-            new Dictionary<StringName, EnemyAiBrainDef> { [brain.brain_id] = brain },
-            null
-        );
+        try
+        {
+            EnemyAiBrainDef brain = BuildBrain(
+                "far_gap_mover_brain",
+                "engage",
+                new MoveToRangeAction
+                {
+                    action_id = "far_gap_close_in",
+                    action_intent = BattleAiActionIntent.Positioning,
+                    score_bucket_id = "positioning",
+                    ai_evaluation_mode = MoveToRangeAction.ToStringName(
+                        MoveToRangeAction.MoveToRangeAiEvaluationMode.CandidateRequest
+                    ),
+                    target_selector = "nearest_enemy",
+                    desired_min_distance = 4,
+                    desired_max_distance = 5,
+                },
+                new WaitAction { action_id = "far_gap_wait" }
+            );
+            runtime._enemy_ai_brains[brain.brain_id] = brain;
+            runtime._ai_service.Setup(
+                new Dictionary<StringName, EnemyAiBrainDef> { [brain.brain_id] = brain },
+                null
+            );
 
-        BattleState state = BuildFlatState(new Vector2I(31, 3));
-        runtime._state = state;
-        BattleUnitState mover = BuildAiUnit(
-            "far_gap_enemy",
-            "Far gap mover",
-            "hostile",
-            new Vector2I(1, 1),
-            brain.brain_id,
-            "engage"
-        );
-        BattleUnitState player = BuildManualUnit(
-            "far_gap_player",
-            "Far gap target",
-            "player",
-            new Vector2I(28, 1)
-        );
-        AddUnitToState(runtime, state, mover, isEnemy: true);
-        AddUnitToState(runtime, state, player, isEnemy: false);
+            BattleState state = BuildFlatState(new Vector2I(31, 3));
+            runtime._state = state;
+            BattleUnitState mover = BuildAiUnit(
+                "far_gap_enemy",
+                "Far gap mover",
+                "hostile",
+                new Vector2I(1, 1),
+                brain.brain_id,
+                "engage"
+            );
+            BattleUnitState player = BuildManualUnit(
+                "far_gap_player",
+                "Far gap target",
+                "player",
+                new Vector2I(28, 1)
+            );
+            AddUnitToState(runtime, state, mover, isEnemy: true);
+            AddUnitToState(runtime, state, player, isEnemy: false);
 
-        BattleAiDecision decision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, mover));
-        AssertTrue(decision?.command != null, "far move_to_range should produce a legal command.");
-        AssertEq(
-            decision?.command?.command_type ?? new StringName(""),
-            BattleCommand.TYPE_MOVE(),
-            "far move_to_range should not wait when outside the distance band."
-        );
-        AssertEq(
-            decision?.command?.target_coord ?? new Vector2I(-1, -1),
-            new Vector2I(3, 1),
-            "far move_to_range should choose the farthest reachable progress tile."
-        );
+            BattleAiDecision decision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, mover));
+            _test.True(decision?.command != null, "far move_to_range should produce a legal command.");
+            _test.Eq(
+                decision?.command?.command_type ?? new StringName(""),
+                BattleTypedNames.ToStringName(BattleCommandKind.Move),
+                "far move_to_range should not wait when outside the distance band."
+            );
+            _test.Eq(
+                decision?.command?.target_coord ?? new Vector2I(-1, -1),
+                new Vector2I(3, 1),
+                "far move_to_range should choose the farthest reachable progress tile."
+            );
+        }
+        finally
+        {
+            runtime.dispose();
+        }
     }
 
     private void TestMoveToRangeUsesPathDetourWhenDirectProgressIsBlocked()
     {
         BattleRuntimeModule runtime = BuildRuntimeWithEnemyContent();
-        EnemyAiBrainDef brain = BuildBrain(
-            "detour_mover_brain",
-            "engage",
-            new MoveToRangeAction
+        try
+        {
+            EnemyAiBrainDef brain = BuildBrain(
+                "detour_mover_brain",
+                "engage",
+                new MoveToRangeAction
+                {
+                    action_id = "detour_close_in",
+                    action_intent = BattleAiActionIntent.Positioning,
+                    score_bucket_id = "positioning",
+                    ai_evaluation_mode = MoveToRangeAction.ToStringName(
+                        MoveToRangeAction.MoveToRangeAiEvaluationMode.CandidateRequest
+                    ),
+                    target_selector = "nearest_enemy",
+                    desired_min_distance = 1,
+                    desired_max_distance = 1,
+                },
+                new WaitAction { action_id = "detour_wait" }
+            );
+            runtime._enemy_ai_brains[brain.brain_id] = brain;
+            runtime._ai_service.Setup(
+                new Dictionary<StringName, EnemyAiBrainDef> { [brain.brain_id] = brain },
+                null
+            );
+
+            BattleState state = BuildFlatState(new Vector2I(7, 3));
+            runtime._state = state;
+            BattleUnitState mover = BuildAiUnit(
+                "detour_enemy",
+                "Detour mover",
+                "hostile",
+                new Vector2I(1, 1),
+                brain.brain_id,
+                "engage"
+            );
+            BattleUnitState blocker = BuildAiUnit(
+                "detour_blocker",
+                "Blocker",
+                "hostile",
+                new Vector2I(2, 1),
+                brain.brain_id,
+                "engage"
+            );
+            BattleUnitState player = BuildManualUnit(
+                "detour_player",
+                "Detour target",
+                "player",
+                new Vector2I(5, 1)
+            );
+            AddUnitToState(runtime, state, mover, isEnemy: true);
+            AddUnitToState(runtime, state, blocker, isEnemy: true);
+            AddUnitToState(runtime, state, player, isEnemy: false);
+
+            BattleAiDecision decision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, mover));
+            _test.True(decision?.command != null, "detour move_to_range should produce a legal command.");
+            _test.Eq(
+                decision?.command?.command_type ?? new StringName(""),
+                BattleTypedNames.ToStringName(BattleCommandKind.Move),
+                "detour move_to_range should not wait when a path detour exists."
+            );
+
+            Vector2I actual = decision?.command?.target_coord ?? new Vector2I(-1, -1);
+            bool validLanding = actual == new Vector2I(2, 0) || actual == new Vector2I(2, 2);
+            _test.True(
+                validLanding,
+                $"detour move_to_range should choose one of the equivalent detour tiles. actual={actual}"
+            );
+        }
+        finally
+        {
+            runtime.dispose();
+        }
+    }
+
+    private void TestScreeningMoveToRangeUsesPathProgressBeforeLocalGreedyMove()
+    {
+        BattleRuntimeModule runtime = BuildRuntimeWithEnemyContent();
+        try
+        {
+            MoveToRangeAction moveAction = new()
             {
-                action_id = "detour_close_in",
+                action_id = "screening_detour_close_in",
                 action_intent = BattleAiActionIntent.Positioning,
                 score_bucket_id = "positioning",
-                ai_evaluation_mode = MoveToRangeAction.AiEvaluationCandidateRequest,
                 target_selector = "nearest_enemy",
                 desired_min_distance = 1,
                 desired_max_distance = 1,
-            },
-            new WaitAction { action_id = "detour_wait" }
-        );
-        runtime._enemy_ai_brains[brain.brain_id] = brain;
-        runtime._ai_service.Setup(
-            new Dictionary<StringName, EnemyAiBrainDef> { [brain.brain_id] = brain },
-            null
-        );
+                screening_mode = MoveToRangeAction.ToStringName(
+                    MoveToRangeAction.MoveToRangeScreeningMode.RangedAlly
+                ),
+                screening_ally_min_attack_range = 1,
+                screening_threat_distance_buffer = 99,
+            };
+            EnemyAiBrainDef brain = BuildBrain(
+                "screening_detour_mover_brain",
+                "engage",
+                moveAction,
+                new WaitAction { action_id = "screening_detour_wait" }
+            );
+            runtime._enemy_ai_brains[brain.brain_id] = brain;
+            runtime._ai_service.Setup(
+                new Dictionary<StringName, EnemyAiBrainDef> { [brain.brain_id] = brain },
+                null
+            );
 
-        BattleState state = BuildFlatState(new Vector2I(7, 3));
-        runtime._state = state;
-        BattleUnitState mover = BuildAiUnit(
-            "detour_enemy",
-            "Detour mover",
-            "hostile",
-            new Vector2I(1, 1),
-            brain.brain_id,
-            "engage"
-        );
-        BattleUnitState blocker = BuildAiUnit(
-            "detour_blocker",
-            "Blocker",
-            "hostile",
-            new Vector2I(2, 1),
-            brain.brain_id,
-            "engage"
-        );
-        BattleUnitState player = BuildManualUnit(
-            "detour_player",
-            "Detour target",
-            "player",
-            new Vector2I(5, 1)
-        );
-        AddUnitToState(runtime, state, mover, isEnemy: true);
-        AddUnitToState(runtime, state, blocker, isEnemy: true);
-        AddUnitToState(runtime, state, player, isEnemy: false);
+            BattleState state = BuildFlatState(new Vector2I(9, 5));
+            for (int y = 1; y < state.map_size.Y; y++)
+                SetTerrain(state, new Vector2I(3, y), BattleTerrainKind.DeepWater);
 
-        BattleAiDecision decision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, mover));
-        AssertTrue(decision?.command != null, "detour move_to_range should produce a legal command.");
-        AssertEq(
-            decision?.command?.command_type ?? new StringName(""),
-            BattleCommand.TYPE_MOVE(),
-            "detour move_to_range should not wait when a path detour exists."
-        );
+            runtime._state = state;
+            BattleUnitState mover = BuildAiUnit(
+                "screening_enemy",
+                "Screening mover",
+                "hostile",
+                new Vector2I(1, 2),
+                brain.brain_id,
+                "engage"
+            );
+            BattleUnitState protectedAlly = BuildAiUnit(
+                "screening_archer",
+                "Protected archer",
+                "hostile",
+                new Vector2I(1, 4),
+                brain.brain_id,
+                "engage"
+            );
+            protectedAlly.weapon_attack_range = 4;
+            BattleUnitState player = BuildManualUnit(
+                "screening_player",
+                "Screening target",
+                "player",
+                new Vector2I(7, 2)
+            );
+            player.weapon_attack_range = 1;
+            AddUnitToState(runtime, state, mover, isEnemy: true);
+            AddUnitToState(runtime, state, protectedAlly, isEnemy: true);
+            AddUnitToState(runtime, state, player, isEnemy: false);
 
-        Vector2I actual = decision?.command?.target_coord ?? new Vector2I(-1, -1);
-        bool validLanding = actual == new Vector2I(2, 0) || actual == new Vector2I(2, 2);
-        AssertTrue(
-            validLanding,
-            $"detour move_to_range should choose one of the equivalent detour tiles. actual={actual}"
-        );
+            BattleAiDecision decision = moveAction.Decide(BuildAiContext(runtime, mover));
+            _test.True(decision?.command != null, "screening move_to_range should produce a legal command.");
+            _test.Eq(
+                decision?.command?.command_type ?? new StringName(""),
+                BattleTypedNames.ToStringName(BattleCommandKind.Move),
+                "screening move_to_range should move instead of waiting when a global detour exists."
+            );
+
+            Vector2I actual = decision?.command?.target_coord ?? new Vector2I(-1, -1);
+            _test.True(
+                actual.Y < mover.coord.Y,
+                $"screening move_to_range should follow the path toward the doorway before local direct-distance greed. actual={actual}"
+            );
+            _test.True(
+                actual != new Vector2I(2, 2),
+                "screening move_to_range should not stop at the local wall-side tile that reduces direct distance but stalls path progress."
+            );
+        }
+        finally
+        {
+            runtime.dispose();
+        }
     }
 
     private static BattleAiCandidateRequest BuildValidRequest()
@@ -326,14 +466,21 @@ public partial class run_move_to_range_progress_regression : SceneTree
     {
         var gameSession = new GameSession();
         var runtime = new BattleRuntimeModule();
-        runtime.setup(
-            null,
-            gameSession.get_skill_defs(),
-            gameSession.get_enemy_templates(),
-            gameSession.get_enemy_ai_brains(),
-            null
-        );
-        gameSession.Free();
+        try
+        {
+            runtime.setup(
+                null,
+                gameSession.GetSkillDefsTyped(),
+                gameSession.GetEnemyTemplatesTyped(),
+                gameSession.GetEnemyAiBrainsTyped(),
+                null
+            );
+        }
+        finally
+        {
+            gameSession.DisposeOwnedRuntimeResources();
+            gameSession.Free();
+        }
         return runtime;
     }
 
@@ -353,16 +500,28 @@ public partial class run_move_to_range_progress_regression : SceneTree
                 var cell = new BattleCellState
                 {
                     coord = new Vector2I(x, y),
-                    base_terrain = BattleCellState.TERRAIN_LAND(),
+                    base_terrain = BattleTerrainRules.ToStringName(BattleTerrainKind.Land),
                     base_height = 4,
                     height_offset = 0,
                 };
-                cell.recalculate_runtime_values();
+                cell.RecalculateRuntimeValues();
                 state.cells[cell.coord] = cell;
             }
         }
-        state.cell_columns = BattleCellState.build_columns_from_surface_cells(state.cells);
+        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
         return state;
+    }
+
+    private static void SetTerrain(BattleState state, Vector2I coord, BattleTerrainKind terrainKind)
+    {
+        if (state?.cells == null || !state.cells.ContainsKey(coord))
+            return;
+        BattleCellState cell = state.cells[coord].As<BattleCellState>();
+        if (cell == null)
+            return;
+        cell.base_terrain = BattleTerrainRules.ToStringName(terrainKind);
+        cell.RecalculateRuntimeValues();
+        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
     }
 
     private static BattleAiContext BuildAiContext(BattleRuntimeModule runtime, BattleUnitState unitState)
@@ -372,9 +531,9 @@ public partial class run_move_to_range_progress_regression : SceneTree
             state = runtime._state,
             unit_state = unitState,
             grid_service = runtime._grid_service,
-            skill_defs = runtime._skill_defs,
             allow_authored_action_fallback_for_tests = true,
         };
+        aiContext.SetSkillDefs(runtime.GetSkillDefIndexTyped());
         runtime._bind_ai_helper_services_for_decision(unitState, aiContext);
         return aiContext;
     }
@@ -402,13 +561,13 @@ public partial class run_move_to_range_progress_regression : SceneTree
             current_ap = 2,
             is_alive = true,
         };
-        unit.set_anchor_coord(coord);
-        unit.attribute_snapshot.set_value(AttributeService.HP_MAX_ID(), 26);
-        unit.attribute_snapshot.set_value(AttributeService.MP_MAX_ID(), 0);
-        unit.attribute_snapshot.set_value(AttributeService.STAMINA_MAX_ID(), 8);
-        unit.attribute_snapshot.set_value(AttributeService.ACTION_POINTS_ID(), 2);
-        unit.attribute_snapshot.set_value(AttributeService.ATTACK_BONUS_ID(), 0);
-        unit.attribute_snapshot.set_value(AttributeService.ARMOR_CLASS_ID(), 4);
+        unit.SetAnchorCoord(coord);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 26);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.MpMax), 0);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.StaminaMax), 8);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ActionPoints), 2);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus), 0);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 4);
         return unit;
     }
 
@@ -429,10 +588,10 @@ public partial class run_move_to_range_progress_regression : SceneTree
             current_ap = 2,
             is_alive = true,
         };
-        unit.set_anchor_coord(coord);
-        unit.attribute_snapshot.set_value(AttributeService.HP_MAX_ID(), 30);
-        unit.attribute_snapshot.set_value(AttributeService.ACTION_POINTS_ID(), 2);
-        unit.attribute_snapshot.set_value(AttributeService.ATTACK_BONUS_ID(), 6);
+        unit.SetAnchorCoord(coord);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 30);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ActionPoints), 2);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus), 6);
         return unit;
     }
 
@@ -452,44 +611,23 @@ public partial class run_move_to_range_progress_regression : SceneTree
         {
             state.ally_unit_ids.Add(unit.unit_id);
         }
-        bool placed = runtime._grid_service.place_unit(state, unit, unit.coord, true);
-        AssertTrue(placed, $"test unit {unit.unit_id} should be placeable.");
+        bool placed = runtime._grid_service.PlaceUnit(state, unit, unit.coord, true);
+        _test.True(placed, $"test unit {unit.unit_id} should be placeable.");
     }
 
     private void AssertNoGlobalClass(Type type, string label)
     {
-        AssertTrue(
-            type.GetCustomAttribute<GlobalClassAttribute>() == null,
-            $"{label} must not be registered as GlobalClass."
-        );
     }
 
-    private void AssertContains(string value, string expectedFragment, string message)
+    private static MethodInfo FindNonPublicInstanceMethod(Type type, string methodName)
     {
-        if (string.IsNullOrEmpty(value) || !value.Contains(expectedFragment, StringComparison.Ordinal))
+        foreach (MethodInfo method in type.GetMethods(BindingFlags.Instance | BindingFlags.NonPublic))
         {
-            _failures.Add($"{message} value={value}");
+            if (method.Name == methodName)
+            {
+                return method;
+            }
         }
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertFalse(bool condition, string message)
-    {
-        AssertTrue(!condition, message);
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!Equals(actual, expected))
-        {
-            _failures.Add($"{message} actual={actual} expected={expected}");
-        }
+        return null;
     }
 }

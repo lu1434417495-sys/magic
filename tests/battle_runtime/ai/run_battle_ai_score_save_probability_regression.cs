@@ -8,15 +8,9 @@ using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_battle_ai_score_save_probability_regression : SceneTree
 {
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
-    {
-        int exitCode = Run();
-        Quit(exitCode);
-    }
-
-    private int Run()
     {
         try
         {
@@ -25,21 +19,10 @@ public partial class run_battle_ai_score_save_probability_regression : SceneTree
         }
         catch (Exception exception)
         {
-            _failures.Add($"Unhandled exception: {exception}");
+            _test.Fail($"Unhandled exception: {exception}");
         }
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Battle AI score save probability regression: PASS");
-            return 0;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Battle AI score save probability regression: FAIL ({_failures.Count})");
-        return 1;
+        Quit(_test.Finish("Battle AI score save probability regression"));
     }
 
     private void TestScoreServiceHasTypedEffectListBuildInput()
@@ -56,7 +39,7 @@ public partial class run_battle_ai_score_save_probability_regression : SceneTree
                 return parameters.Length >= 5
                     && parameters[4].ParameterType == typeof(IReadOnlyList<CombatEffectDef>);
             });
-        AssertTrue(
+        _test.True(
             typedBuild != null,
             "BattleAiScoreService 应提供 typed IReadOnlyList<CombatEffectDef> score input 入口。"
         );
@@ -97,7 +80,7 @@ public partial class run_battle_ai_score_save_probability_regression : SceneTree
         {
             allowed = true,
         };
-        preview.target_unit_ids.Add(target.unit_id);
+        preview.AddTargetUnitId(target.unit_id);
 
         var scoreService = new BattleAiScoreService();
         BattleAiScoreInput scoreInput = scoreService.BuildSkillScoreInput(
@@ -106,18 +89,18 @@ public partial class run_battle_ai_score_save_probability_regression : SceneTree
             null,
             preview,
             new[] { effect },
-            new GDictionary()
+            new Dictionary<string, object>(StringComparer.Ordinal)
         );
 
-        AssertEq(scoreInput.estimated_damage, 30, "40 点伤害、50% 半伤豁免时，AI 期望伤害应为 30。");
-        AssertEq(
+        _test.Eq(scoreInput.estimated_damage, 30, "40 点伤害、50% 半伤豁免时，AI 期望伤害应为 30。");
+        _test.Eq(
             scoreInput.estimated_lethal_target_count,
             0,
             "目标 35 HP 时，豁免加权后不应再被估成稳定击杀。"
         );
 
-        string targetKey = target.unit_id.ToString();
-        AssertTrue(
+        StringName targetKey = target.unit_id;
+        _test.True(
             scoreInput.save_estimates_by_target_id.ContainsKey(targetKey),
             "score_input 应暴露目标豁免概率估算。"
         );
@@ -126,23 +109,22 @@ public partial class run_battle_ai_score_save_probability_regression : SceneTree
             return;
         }
 
-        GArray targetEstimates = scoreInput
-            .save_estimates_by_target_id[targetKey]
-            .AsGodotArray();
-        AssertTrue(targetEstimates.Count > 0, "目标豁免估算列表不应为空。");
+        List<BattleAiScoreService.DamageSaveEstimate> targetEstimates = scoreInput
+            .save_estimates_by_target_id[targetKey];
+        _test.True(targetEstimates.Count > 0, "目标豁免估算列表不应为空。");
         if (targetEstimates.Count == 0)
         {
             return;
         }
 
-        GDictionary estimate = targetEstimates[0].AsGodotDictionary();
-        AssertEq(
-            estimate.GetValueOrDefault("save_success_rate_percent", -1).AsInt32(),
+        BattleAiScoreService.DamageSaveEstimate estimate = targetEstimates[0];
+        _test.Eq(
+            estimate.SaveSuccessRatePercent,
             50,
             "DC11/CON0 的豁免成功率应为 50%。"
         );
-        AssertEq(
-            estimate.GetValueOrDefault("damage_after_save_estimate", -1).AsInt32(),
+        _test.Eq(
+            estimate.DamageAfterSaveEstimate,
             30,
             "trace 中也应保留豁免加权后的期望伤害。"
         );
@@ -158,27 +140,12 @@ public partial class run_battle_ai_score_save_probability_regression : SceneTree
             current_hp = hp,
             is_alive = true,
         };
-        unit.attribute_snapshot.set_value(AttributeService.HP_MAX_ID(), hp);
-        unit.attribute_snapshot.set_value("constitution", 10);
-        unit.attribute_snapshot.set_value("intelligence", 10);
-        unit.attribute_snapshot.set_value("willpower", 10);
-        unit.attribute_snapshot.set_value("agility", 10);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), hp);
+        unit.attribute_snapshot.SetValue("constitution", 10);
+        unit.attribute_snapshot.SetValue("intelligence", 10);
+        unit.attribute_snapshot.SetValue("willpower", 10);
+        unit.attribute_snapshot.SetValue("agility", 10);
         return unit;
     }
 
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!EqualityComparer<T>.Default.Equals(actual, expected))
-        {
-            _failures.Add($"{message} (expected={expected}, actual={actual})");
-        }
-    }
 }

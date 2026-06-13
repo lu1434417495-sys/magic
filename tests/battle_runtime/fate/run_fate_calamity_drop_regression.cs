@@ -1,7 +1,6 @@
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
-using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_fate_calamity_drop_regression : SceneTree
 {
@@ -12,15 +11,9 @@ public partial class run_fate_calamity_drop_regression : SceneTree
     private static readonly StringName FortuneMarkTargetStatId = "fortune_mark_target";
     private static readonly StringName BossTargetStatId = "boss_target";
 
-    private readonly GStringArray _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
-    {
-        int exitCode = Run();
-        Quit(exitCode);
-    }
-
-    private int Run()
     {
         TestOrdinaryBattleCalamityConversionRespectsChapterCap();
         TestEliteBossLootPathsBypassOrdinaryChapterCap();
@@ -28,17 +21,8 @@ public partial class run_fate_calamity_drop_regression : SceneTree
         TestBossTargetWithoutFortuneMarkCountsAsEliteOrBoss();
         TestDoomSentenceBossDefeatReturnsCalamityAndCore();
 
-        GodotSharpCleanup.collect_pending_finalizers();
-        if (_failures.Count == 0)
-        {
-            GD.Print("Fate calamity drop regression: PASS");
-            return 0;
-        }
-
-        foreach (string failure in _failures)
-            GD.PushError(failure);
-        GD.Print($"Fate calamity drop regression: FAIL ({_failures.Count})");
-        return 1;
+        GodotSharpCleanup.CollectPendingFinalizers();
+        Quit(_test.Finish("Fate calamity drop regression"));
     }
 
     private void TestOrdinaryBattleCalamityConversionRespectsChapterCap()
@@ -49,8 +33,8 @@ public partial class run_fate_calamity_drop_regression : SceneTree
         GameRuntimeFacade facade = new();
         try
         {
-            facade.setup(gameSession);
-            PartyState partyState = facade.get_party_state();
+            facade.Setup(gameSession);
+            PartyState partyState = facade.GetPartyState();
             ResetPartyWarehouse(partyState);
             EnsureCapacity(partyState, 10);
             SeedRegularBattleShardFlags(partyState, 2);
@@ -59,42 +43,42 @@ public partial class run_fate_calamity_drop_regression : SceneTree
             {
                 winner_faction_id = "player",
             };
-            resolutionResult.set_loot_entries(new GArray
+            resolutionResult.SetLootEntries(new GArray
             {
                 BuildLootEntry(
-                    BattleLootConstants.SOURCE_KIND_CALAMITY_CONVERSION(),
-                    BattleLootConstants.SOURCE_ID_ORDINARY_BATTLE(),
+                    BattleLootIds.ToStringName(BattleLootSourceKind.CalamityConversion),
+                    BattleLootIds.ToStringName(BattleLootSourceIdKind.OrdinaryBattle),
                     "ordinary_conversion",
-                    BattleLootConstants.ITEM_CALAMITY_SHARD(),
+                    BattleLootIds.ToStringName(BattleLootSpecialItemKind.CalamityShard),
                     3
                 ),
             });
 
-            GDictionary commitResult = facade._commit_battle_loot_to_shared_warehouse(
+            GameRuntimeBattleLootCommitService.BattleLootCommitResult commitResult = facade.CommitBattleLootToSharedWarehouseTyped(
                 resolutionResult
             );
-            AssertTrue(DictBool(commitResult, "ok", false), "普通战 calamity 结算应能正常提交。");
-            AssertEq(
-                DictInt(commitResult, "committed_item_count", -1),
+            _test.True(commitResult.Ok, "普通战 calamity 结算应能正常提交。");
+            _test.Eq(
+                commitResult.CommittedItemCount,
                 2,
                 "章节内已拿 2 个碎片后，普通战结算最多还能提交 2 个。"
             );
-            AssertEq(
-                CountStackQuantity(partyState, BattleLootConstants.ITEM_CALAMITY_SHARD()),
+            _test.Eq(
+                CountStackQuantity(partyState, BattleLootIds.ToStringName(BattleLootSpecialItemKind.CalamityShard)),
                 2,
                 "普通战结算应只向仓库写入剩余额度内的碎片。"
             );
-            AssertEq(
+            _test.Eq(
                 GetRegularBattleShardFlagCount(partyState),
                 4,
                 "普通战结算成功后，应补齐本章 4 个碎片上限标记。"
             );
-            AssertEq(
+            _test.Eq(
                 CountMatchingLootQuantity(
                     resolutionResult.loot_entries,
-                    BattleLootConstants.ITEM_CALAMITY_SHARD(),
-                    BattleLootConstants.SOURCE_KIND_CALAMITY_CONVERSION(),
-                    BattleLootConstants.SOURCE_ID_ORDINARY_BATTLE()
+                    BattleLootIds.ToStringName(BattleLootSpecialItemKind.CalamityShard),
+                    BattleLootIds.ToStringName(BattleLootSourceKind.CalamityConversion),
+                    BattleLootIds.ToStringName(BattleLootSourceIdKind.OrdinaryBattle)
                 ),
                 2,
                 "结算结果中的普通战碎片数量应在提交前被裁切到章节剩余额度。"
@@ -102,7 +86,7 @@ public partial class run_fate_calamity_drop_regression : SceneTree
         }
         finally
         {
-            facade.dispose();
+            facade.Dispose();
             CleanupTestSession(gameSession);
         }
     }
@@ -115,52 +99,52 @@ public partial class run_fate_calamity_drop_regression : SceneTree
         GameRuntimeFacade facade = new();
         try
         {
-            facade.setup(gameSession);
-            PartyState partyState = facade.get_party_state();
+            facade.Setup(gameSession);
+            PartyState partyState = facade.GetPartyState();
             ResetPartyWarehouse(partyState);
             EnsureCapacity(partyState, 16);
             SeedRegularBattleShardFlags(
                 partyState,
-                BattleLootConstants.ORDINARY_BATTLE_CALAMITY_SHARD_CHAPTER_CAP()
+                BattleLootIds.OrdinaryBattleCalamityShardChapterCap
             );
 
             BattleResolutionResult resolutionResult = new()
             {
                 winner_faction_id = "player",
             };
-            resolutionResult.set_loot_entries(new GArray
+            resolutionResult.SetLootEntries(new GArray
             {
                 BuildLootEntry(
-                    BattleLootConstants.SOURCE_KIND_CALAMITY_CONVERSION(),
-                    BattleLootConstants.SOURCE_ID_ELITE_BOSS_BATTLE(),
+                    BattleLootIds.ToStringName(BattleLootSourceKind.CalamityConversion),
+                    BattleLootIds.ToStringName(BattleLootSourceIdKind.EliteBossBattle),
                     "elite_boss_conversion",
-                    BattleLootConstants.ITEM_CALAMITY_SHARD(),
+                    BattleLootIds.ToStringName(BattleLootSpecialItemKind.CalamityShard),
                     6
                 ),
                 BuildLootEntry(
-                    BattleLootConstants.SOURCE_KIND_FATE_STATUS_DROP(),
+                    BattleLootIds.ToStringName(BattleLootSourceKind.FateStatusDrop),
                     "elite_target",
                     "elite_fixed_shard",
-                    BattleLootConstants.ITEM_CALAMITY_SHARD(),
+                    BattleLootIds.ToStringName(BattleLootSpecialItemKind.CalamityShard),
                     1
                 ),
             });
 
-            GDictionary commitResult = facade._commit_battle_loot_to_shared_warehouse(
+            GameRuntimeBattleLootCommitService.BattleLootCommitResult commitResult = facade.CommitBattleLootToSharedWarehouseTyped(
                 resolutionResult
             );
-            AssertTrue(DictBool(commitResult, "ok", false), "elite/boss 旁路掉落应能正常提交。");
-            AssertEq(
-                DictInt(commitResult, "committed_item_count", -1),
+            _test.True(commitResult.Ok, "elite/boss 旁路掉落应能正常提交。");
+            _test.Eq(
+                commitResult.CommittedItemCount,
                 7,
                 "elite/boss 战结算与固定状态掉落不应受到普通战章节上限影响。"
             );
-            AssertEq(
-                CountStackQuantity(partyState, BattleLootConstants.ITEM_CALAMITY_SHARD()),
+            _test.Eq(
+                CountStackQuantity(partyState, BattleLootIds.ToStringName(BattleLootSpecialItemKind.CalamityShard)),
                 7,
                 "elite/boss 旁路路径应完整写入全部碎片。"
             );
-            AssertEq(
+            _test.Eq(
                 GetRegularBattleShardFlagCount(partyState),
                 4,
                 "elite/boss 旁路路径不应污染普通战章节上限标记。"
@@ -168,7 +152,7 @@ public partial class run_fate_calamity_drop_regression : SceneTree
         }
         finally
         {
-            facade.dispose();
+            facade.Dispose();
             CleanupTestSession(gameSession);
         }
     }
@@ -188,11 +172,11 @@ public partial class run_fate_calamity_drop_regression : SceneTree
             runtime._state = state;
 
             BattleResolutionResult result = runtime._build_battle_resolution_result();
-            AssertEq(
+            _test.Eq(
                 CountMatchingLootQuantity(
                     result.loot_entries,
-                    BattleLootConstants.ITEM_CALAMITY_SHARD(),
-                    BattleLootConstants.SOURCE_KIND_FATE_STATUS_DROP(),
+                    BattleLootIds.ToStringName(BattleLootSpecialItemKind.CalamityShard),
+                    BattleLootIds.ToStringName(BattleLootSourceKind.FateStatusDrop),
                     "brand_elite_target"
                 ),
                 1,
@@ -220,11 +204,11 @@ public partial class run_fate_calamity_drop_regression : SceneTree
             runtime._state = state;
 
             BattleResolutionResult result = runtime._build_battle_resolution_result();
-            AssertEq(
+            _test.Eq(
                 CountMatchingLootQuantity(
                     result.loot_entries,
-                    BattleLootConstants.ITEM_CALAMITY_SHARD(),
-                    BattleLootConstants.SOURCE_KIND_FATE_STATUS_DROP(),
+                    BattleLootIds.ToStringName(BattleLootSpecialItemKind.CalamityShard),
+                    BattleLootIds.ToStringName(BattleLootSourceKind.FateStatusDrop),
                     "boss_target_only"
                 ),
                 1,
@@ -252,27 +236,27 @@ public partial class run_fate_calamity_drop_regression : SceneTree
             runtime._state = state;
 
             BattleResolutionResult result = runtime._build_battle_resolution_result();
-            AssertEq(
+            _test.Eq(
                 DictInt(result.party_resource_commit, "returned_calamity", 0),
                 5,
                 "boss 在厄命宣判下死亡时应返还 5 点 calamity，用于后续碎片结算。"
             );
-            AssertEq(
+            _test.Eq(
                 CountMatchingLootQuantity(
                     result.loot_entries,
-                    BattleLootConstants.ITEM_BLACK_CROWN_CORE(),
-                    BattleLootConstants.SOURCE_KIND_FATE_STATUS_DROP(),
+                    BattleLootIds.ToStringName(BattleLootSpecialItemKind.BlackCrownCore),
+                    BattleLootIds.ToStringName(BattleLootSourceKind.FateStatusDrop),
                     "doom_boss_target"
                 ),
                 1,
                 "boss 在厄命宣判下死亡时应固定掉落 1 个 black_crown_core。"
             );
-            AssertEq(
+            _test.Eq(
                 CountMatchingLootQuantity(
                     result.loot_entries,
-                    BattleLootConstants.ITEM_CALAMITY_SHARD(),
-                    BattleLootConstants.SOURCE_KIND_CALAMITY_CONVERSION(),
-                    BattleLootConstants.SOURCE_ID_ELITE_BOSS_BATTLE()
+                    BattleLootIds.ToStringName(BattleLootSpecialItemKind.CalamityShard),
+                    BattleLootIds.ToStringName(BattleLootSourceKind.CalamityConversion),
+                    BattleLootIds.ToStringName(BattleLootSourceIdKind.EliteBossBattle)
                 ),
                 2,
                 "宣判击杀返还的 calamity 应在战后折算为 2 个 calamity_shard。"
@@ -287,7 +271,7 @@ public partial class run_fate_calamity_drop_regression : SceneTree
     private static BattleRuntimeModule BuildRuntime()
     {
         BattleRuntimeModule runtime = new();
-        runtime.setup(null, new GDictionary(), new GDictionary(), new GDictionary());
+        runtime.setup();
         return runtime;
     }
 
@@ -316,9 +300,9 @@ public partial class run_fate_calamity_drop_regression : SceneTree
             current_hp = 60,
             is_alive = true,
         };
-        unit.attribute_snapshot.set_value(AttributeService.HP_MAX_ID(), 60);
-        unit.attribute_snapshot.set_value(FortuneMarkTargetStatId, isEliteOrBoss ? 1 : 0);
-        unit.attribute_snapshot.set_value(BossTargetStatId, isBoss ? 1 : 0);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 60);
+        unit.attribute_snapshot.SetValue(FortuneMarkTargetStatId, isEliteOrBoss ? 1 : 0);
+        unit.attribute_snapshot.SetValue(BossTargetStatId, isBoss ? 1 : 0);
         return unit;
     }
 
@@ -338,14 +322,14 @@ public partial class run_fate_calamity_drop_regression : SceneTree
             stacks = 1,
             duration = 60,
         };
-        unitState.set_status_effect(statusEntry);
+        unitState.SetStatusEffect(statusEntry);
     }
 
     private GameSession CreateTestSession()
     {
         GameSession gameSession = new();
-        int createError = gameSession.create_new_save(TestWorldConfig);
-        AssertEq(createError, (int)Error.Ok, "GameSession 应能为灾厄掉落回归创建测试存档。");
+        int createError = gameSession.CreateNewSave(TestWorldConfig);
+        _test.Eq(createError, (int)Error.Ok, "GameSession 应能为灾厄掉落回归创建测试存档。");
         if (createError == (int)Error.Ok)
             return gameSession;
         CleanupTestSession(gameSession);
@@ -356,7 +340,7 @@ public partial class run_fate_calamity_drop_regression : SceneTree
     {
         if (gameSession == null)
             return;
-        gameSession.clear_persisted_game();
+        gameSession.ClearPersistedGame();
         gameSession.Free();
     }
 
@@ -371,15 +355,15 @@ public partial class run_fate_calamity_drop_regression : SceneTree
     {
         if (partyState == null)
             return;
-        foreach (PartyMemberState memberState in partyState.get_member_states())
+        foreach (PartyMemberState memberState in partyState.GetMemberStates())
         {
             if (memberState?.progression?.unit_base_attributes == null)
                 continue;
             memberState
                 .progression
                 .unit_base_attributes
-                .set_attribute_value(
-                    PartyWarehouseService.STORAGE_SPACE_ATTRIBUTE_ID(),
+                .SetAttributeValue(
+                    PartyWarehouseService.StorageSpaceAttributeId,
                     Mathf.Max(storageSpace, 0)
                 );
             return;
@@ -390,12 +374,12 @@ public partial class run_fate_calamity_drop_regression : SceneTree
     {
         if (partyState == null)
             return;
-        int cap = BattleLootConstants.ORDINARY_BATTLE_CALAMITY_SHARD_CHAPTER_CAP();
+        int cap = BattleLootIds.OrdinaryBattleCalamityShardChapterCap;
         for (int slotIndex = 0; slotIndex < cap; slotIndex++)
-            partyState.clear_fate_run_flag(BuildRegularBattleShardFlagId(slotIndex));
+            partyState.ClearFateRunFlag(BuildRegularBattleShardFlagId(slotIndex));
         int seededCount = Mathf.Min(Mathf.Max(count, 0), cap);
         for (int slotIndex = 0; slotIndex < seededCount; slotIndex++)
-            partyState.set_fate_run_flag(BuildRegularBattleShardFlagId(slotIndex), true);
+            partyState.SetFateRunFlag(BuildRegularBattleShardFlagId(slotIndex), true);
     }
 
     private static int GetRegularBattleShardFlagCount(PartyState partyState)
@@ -403,10 +387,10 @@ public partial class run_fate_calamity_drop_regression : SceneTree
         if (partyState == null)
             return 0;
         int flagCount = 0;
-        int cap = BattleLootConstants.ORDINARY_BATTLE_CALAMITY_SHARD_CHAPTER_CAP();
+        int cap = BattleLootIds.OrdinaryBattleCalamityShardChapterCap;
         for (int slotIndex = 0; slotIndex < cap; slotIndex++)
         {
-            if (partyState.get_fate_run_flag(BuildRegularBattleShardFlagId(slotIndex), false))
+            if (partyState.GetFateRunFlag(BuildRegularBattleShardFlagId(slotIndex), false))
                 flagCount++;
         }
         return flagCount;
@@ -415,7 +399,7 @@ public partial class run_fate_calamity_drop_regression : SceneTree
     private static StringName BuildRegularBattleShardFlagId(int slotIndex)
     {
         return new StringName(
-            $"{BattleLootConstants.CALAMITY_SHARD_CHAPTER_FLAG_PREFIX()}{Mathf.Max(slotIndex, 0)}"
+            $"{BattleLootIds.CalamityShardChapterFlagPrefix}{Mathf.Max(slotIndex, 0)}"
         );
     }
 
@@ -443,7 +427,7 @@ public partial class run_fate_calamity_drop_regression : SceneTree
     {
         return new GDictionary
         {
-            ["drop_type"] = BattleLootConstants.DROP_TYPE_ITEM().ToString(),
+            ["drop_type"] = BattleLootIds.ToStringName(BattleLootDropKind.Item).ToString(),
             ["drop_source_kind"] = dropSourceKind.ToString(),
             ["drop_source_id"] = dropSourceId.ToString(),
             ["drop_source_label"] = dropSourceId.ToString(),
@@ -495,23 +479,17 @@ public partial class run_fate_calamity_drop_regression : SceneTree
         return value.VariantType == Variant.Type.Bool ? value.AsBool() : fallback;
     }
 
-    private static int DictInt(GDictionary dictionary, string key, int fallback)
+    private static int DictInt(GDictionary dictionary, string key, int fallback = 0)
     {
         if (dictionary == null || string.IsNullOrEmpty(key) || !dictionary.ContainsKey(key))
             return fallback;
         Variant value = dictionary[key];
-        return value.VariantType == Variant.Type.Int ? value.AsInt32() : fallback;
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-            _failures.Add(message);
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!Equals(actual, expected))
-            _failures.Add($"{message} actual={actual} expected={expected}");
+        return value.VariantType switch
+        {
+            Variant.Type.Int => value.AsInt32(),
+            Variant.Type.Float => (int)value.AsDouble(),
+            Variant.Type.String => int.TryParse(value.AsString(), out int parsed) ? parsed : fallback,
+            _ => fallback,
+        };
     }
 }

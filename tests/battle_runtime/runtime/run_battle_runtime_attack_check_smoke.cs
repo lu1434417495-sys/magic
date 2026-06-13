@@ -1,35 +1,16 @@
 using Godot;
 using GArray = Godot.Collections.Array;
 using GDictionary = Godot.Collections.Dictionary;
-using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_battle_runtime_attack_check_smoke : SceneTree
 {
-    private readonly GStringArray _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
-        int exitCode = Run();
-        Quit(exitCode);
-    }
-
-    private int Run()
-    {
         TestHitResolverBoundaryNaturalRulesAreExplicit();
         TestArmorBreakLowersTargetAcWithoutDamageVulnerability();
-
-        if (_failures.Count == 0)
-        {
-            GD.Print("Battle runtime attack check smoke: PASS");
-            return 0;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Battle runtime attack check smoke: FAIL ({_failures.Count})");
-        return 1;
+        Quit(_test.Finish("Battle runtime attack check smoke"));
     }
 
     private void TestHitResolverBoundaryNaturalRulesAreExplicit()
@@ -37,55 +18,49 @@ public partial class run_battle_runtime_attack_check_smoke : SceneTree
         var resolver = new BattleHitResolver();
 
         BattleUnitState accurateAttacker = BuildUnit("hit_boundary_accurate", Vector2I.Zero, 1);
-        accurateAttacker.attribute_snapshot.set_value(AttributeService.ATTACK_BONUS_ID(), 100);
+        accurateAttacker.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus), 100);
         BattleUnitState easyTarget = BuildEnemyUnit("hit_boundary_easy_target", new Vector2I(1, 0));
-        easyTarget.attribute_snapshot.set_value(AttributeService.ARMOR_CLASS_ID(), -10);
-        AttackCheckInput easyCheck = resolver.build_skill_attack_check(
+        easyTarget.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), -10);
+        AttackCheckInput easyCheck = resolver.BuildSkillAttackCheck(
             accurateAttacker,
             easyTarget,
             null
         );
-        AssertTrue(
+        _test.True(
             easyCheck.RequiredRoll <= 1,
             "低 required roll 夹具应进入天然 1 边界语义。"
         );
-        AssertEq(easyCheck.DisplayRequiredRoll, 2, "低 required roll 预览应稳定显示为 2+。");
-        AssertEq(
+        _test.Eq(easyCheck.DisplayRequiredRoll, 2, "低 required roll 预览应稳定显示为 2+。");
+        _test.Eq(
             easyCheck.HitRatePercent,
             95,
             "低 required roll 在天然 1 语义下应只保留 95% 命中。"
         );
-        AssertTrue(
-            easyCheck.PreviewText.Contains("天然 1 仍失手"),
-            "低 required roll 预览应显式提示天然 1 失手语义。"
-        );
+        _test.True(easyCheck.NaturalOneAutoMiss, "低 required roll 预览应保留天然 1 失手语义。");
 
         BattleUnitState weakAttacker = BuildUnit("hit_boundary_weak", Vector2I.Zero, 1);
-        weakAttacker.attribute_snapshot.set_value(AttributeService.ATTACK_BONUS_ID(), 0);
+        weakAttacker.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus), 0);
         BattleUnitState evasiveTarget = BuildEnemyUnit(
             "hit_boundary_evasive_target",
             new Vector2I(1, 0)
         );
-        evasiveTarget.attribute_snapshot.set_value(AttributeService.ARMOR_CLASS_ID(), 100);
-        AttackCheckInput hardCheck = resolver.build_skill_attack_check(
+        evasiveTarget.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 100);
+        AttackCheckInput hardCheck = resolver.BuildSkillAttackCheck(
             weakAttacker,
             evasiveTarget,
             null
         );
-        AssertTrue(
+        _test.True(
             hardCheck.RequiredRoll > 20,
             "高 required roll 夹具应进入仅天然 20 命中语义。"
         );
-        AssertEq(hardCheck.DisplayRequiredRoll, 20, "高 required roll 预览应稳定显示为 20+。");
-        AssertEq(
+        _test.Eq(hardCheck.DisplayRequiredRoll, 20, "高 required roll 预览应稳定显示为 20+。");
+        _test.Eq(
             hardCheck.HitRatePercent,
             5,
             "高 required roll 在天然 20 语义下应只保留 5% 命中。"
         );
-        AssertTrue(
-            hardCheck.PreviewText.Contains("仅天然 20"),
-            "高 required roll 预览应显式提示天然 20 语义。"
-        );
+        _test.True(hardCheck.NaturalTwentyAutoHit, "高 required roll 预览应保留天然 20 自动命中语义。");
     }
 
     private void TestArmorBreakLowersTargetAcWithoutDamageVulnerability()
@@ -93,11 +68,11 @@ public partial class run_battle_runtime_attack_check_smoke : SceneTree
         var hitResolver = new BattleHitResolver();
         var damageResolver = new FixedHitMaxDamageResolver();
         BattleUnitState attacker = BuildUnit("armor_break_attacker", Vector2I.Zero, 1);
-        attacker.attribute_snapshot.set_value(AttributeService.ATTACK_BONUS_ID(), 4);
+        attacker.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus), 4);
         BattleUnitState target = BuildEnemyUnit("armor_break_target", new Vector2I(1, 0));
-        target.attribute_snapshot.set_value(AttributeService.ARMOR_CLASS_ID(), 16);
+        target.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 16);
 
-        AttackCheckInput baselineCheck = hitResolver.build_skill_attack_check(
+        AttackCheckInput baselineCheck = hitResolver.BuildSkillAttackCheck(
             attacker,
             target,
             null
@@ -109,19 +84,19 @@ public partial class run_battle_runtime_attack_check_smoke : SceneTree
             power = 1,
             duration_tu = 90,
         };
-        damageResolver.resolve_effects(
+        damageResolver.ResolveEffects(
             attacker,
             target,
             new GArray { armorBreakEffect },
             new GDictionary()
         );
-        AttackCheckInput brokenCheck = hitResolver.build_skill_attack_check(attacker, target, null);
-        AssertEq(
+        AttackCheckInput brokenCheck = hitResolver.BuildSkillAttackCheck(attacker, target, null);
+        _test.Eq(
             brokenCheck.TargetArmorClass,
             baselineCheck.TargetArmorClass - 2,
             "armor_break power 1 应把有效 AC 降低 2。"
         );
-        AssertEq(
+        _test.Eq(
             brokenCheck.HitRatePercent,
             baselineCheck.HitRatePercent + 10,
             "armor_break 降低 AC 后应提高 10 个百分点命中率。"
@@ -129,7 +104,7 @@ public partial class run_battle_runtime_attack_check_smoke : SceneTree
 
         BattleUnitState plainTarget = BuildEnemyUnit("plain_damage_target", new Vector2I(1, 0));
         BattleUnitState brokenTarget = BuildEnemyUnit("broken_damage_target", new Vector2I(1, 0));
-        damageResolver.resolve_effects(
+        damageResolver.ResolveEffects(
             attacker,
             brokenTarget,
             new GArray { armorBreakEffect },
@@ -141,19 +116,19 @@ public partial class run_battle_runtime_attack_check_smoke : SceneTree
             damage_tag = "physical_slash",
             power = 10,
         };
-        GDictionary plainResult = damageResolver.resolve_effects(
+        GDictionary plainResult = damageResolver.ResolveEffects(
             attacker,
             plainTarget,
             new GArray { damageEffect },
             new GDictionary()
         );
-        GDictionary brokenResult = damageResolver.resolve_effects(
+        GDictionary brokenResult = damageResolver.ResolveEffects(
             attacker,
             brokenTarget,
             new GArray { damageEffect },
             new GDictionary()
         );
-        AssertEq(
+        _test.Eq(
             DictInt(brokenResult, "damage", 0),
             DictInt(plainResult, "damage", 0),
             "armor_break 不应再提供承伤易伤倍率。"
@@ -168,15 +143,15 @@ public partial class run_battle_runtime_attack_check_smoke : SceneTree
             display_name = unitId.ToString(),
             faction_id = "player",
             current_ap = currentAp,
-            current_move_points = BattleUnitState.DEFAULT_MOVE_POINTS_PER_TURN(),
+            current_move_points = BattleUnitState.DefaultMovePointsPerTurn,
             current_hp = 10,
             current_stamina = 60,
             is_alive = true,
         };
-        unit.set_anchor_coord(coord);
-        unit.attribute_snapshot.set_value(
-            AttributeService.ARMOR_CLASS_ID(),
-            AttributeService.BASE_ARMOR_CLASS_VALUE()
+        unit.SetAnchorCoord(coord);
+        unit.attribute_snapshot.SetValue(
+            AttributeService.ToStringName(AttributeIdKind.ArmorClass),
+            AttributeService.BASE_ARMOR_CLASS
         );
         return unit;
     }
@@ -187,22 +162,6 @@ public partial class run_battle_runtime_attack_check_smoke : SceneTree
         unit.faction_id = "enemy";
         unit.current_hp = 30;
         return unit;
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!Equals(actual, expected))
-        {
-            _failures.Add($"{message} actual={actual} expected={expected}");
-        }
     }
 
     private static int DictInt(GDictionary dictionary, string key, int fallback)

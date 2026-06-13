@@ -5,15 +5,9 @@ using Godot;
 
 public partial class run_battle_ai_runtime_action_plan_regression : SceneTree
 {
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
-    {
-        int exitCode = Run();
-        Quit(exitCode);
-    }
-
-    private int Run()
     {
         try
         {
@@ -26,36 +20,17 @@ public partial class run_battle_ai_runtime_action_plan_regression : SceneTree
         }
         catch (Exception exception)
         {
-            _failures.Add($"Unhandled exception: {exception}");
+            _test.Fail($"Unhandled exception: {exception}");
         }
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Battle AI runtime action plan regression: PASS");
-            return 0;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Battle AI runtime action plan regression: FAIL ({_failures.Count})");
-        return 1;
+        Quit(_test.Finish("Battle AI runtime action plan regression"));
     }
 
     private void TestPlanIsPlainTypedBoundary()
     {
         Type planType = typeof(BattleAiRuntimeActionPlan);
-        AssertTrue(planType.IsSealed, "BattleAiRuntimeActionPlan should be a sealed C# boundary.");
-        AssertTrue(
-            !typeof(GodotObject).IsAssignableFrom(planType),
-            "BattleAiRuntimeActionPlan should not inherit GodotObject/RefCounted."
-        );
-        AssertTrue(
-            planType.GetCustomAttribute<GlobalClassAttribute>() == null,
-            "BattleAiRuntimeActionPlan should not register as GlobalClass."
-        );
-        AssertTrue(
+        _test.True(planType.IsSealed, "BattleAiRuntimeActionPlan should be a sealed C# boundary.");
+        _test.True(
             planType.GetMethod("set_source") == null
                 && planType.GetMethod("add_state_actions") == null
                 && planType.GetMethod("get_actions") == null
@@ -77,16 +52,8 @@ public partial class run_battle_ai_runtime_action_plan_regression : SceneTree
     private void TestServiceAndDecisionEngineArePlainTypedBoundary()
     {
         Type serviceType = typeof(BattleAiService);
-        AssertTrue(serviceType.IsSealed, "BattleAiService should be a sealed C# service.");
-        AssertTrue(
-            !typeof(GodotObject).IsAssignableFrom(serviceType),
-            "BattleAiService should not inherit GodotObject/RefCounted."
-        );
-        AssertTrue(
-            serviceType.GetCustomAttribute<GlobalClassAttribute>() == null,
-            "BattleAiService should not register as GlobalClass."
-        );
-        AssertTrue(
+        _test.True(serviceType.IsSealed, "BattleAiService should be a sealed C# service.");
+        _test.True(
             serviceType.GetMethod("setup") == null
                 && serviceType.GetMethod("set_score_profile") == null
                 && serviceType.GetMethod("get_score_profile") == null
@@ -99,16 +66,8 @@ public partial class run_battle_ai_runtime_action_plan_regression : SceneTree
         AssertPublicApiDoesNotExposeGodotDynamicBoundaryTypes(serviceType, "BattleAiService");
 
         Type engineType = typeof(BattleAiDecisionEngine);
-        AssertTrue(engineType.IsSealed, "BattleAiDecisionEngine should be a sealed C# helper.");
-        AssertTrue(
-            !typeof(GodotObject).IsAssignableFrom(engineType),
-            "BattleAiDecisionEngine should not inherit GodotObject/RefCounted."
-        );
-        AssertTrue(
-            engineType.GetCustomAttribute<GlobalClassAttribute>() == null,
-            "BattleAiDecisionEngine should not register as GlobalClass."
-        );
-        AssertTrue(
+        _test.True(engineType.IsSealed, "BattleAiDecisionEngine should be a sealed C# helper.");
+        _test.True(
             engineType.GetMethod("choose_command_impl") == null
                 && engineType.GetMethod("is_better_score_input") == null,
             "BattleAiDecisionEngine should not keep GDScript-style public API."
@@ -116,6 +75,82 @@ public partial class run_battle_ai_runtime_action_plan_regression : SceneTree
         AssertPublicApiDoesNotExposeGodotDynamicBoundaryTypes(
             engineType,
             "BattleAiDecisionEngine"
+        );
+
+        Type contextType = typeof(BattleAiContext);
+        Type contextRuntimeMetadataType = contextType.GetNestedType(
+            "RuntimeActionMetadata",
+            BindingFlags.NonPublic
+        );
+        _test.True(
+            contextType.GetMethod("push_action_metadata") == null
+                && contextType.GetMethod("pop_action_metadata") == null
+                && contextType.GetMethod("get_current_action_metadata") == null
+                && contextType.GetMethod("merge_current_action_metadata") == null
+                && contextType.GetMethod("get_runtime_actions") == null
+                && contextType.GetMethod("get_runtime_action_metadata") == null
+                && contextType.GetMethod("has_skill_affordance") == null
+                && contextType.GetMethod("get_skill_affordance_record") == null
+                && contextType.GetMethod("build_skill_score_input") == null
+                && contextType.GetMethod("build_action_score_input") == null
+                && contextType.GetMethod("_build_command_dict") == null
+                && contextType.GetMethod("_normalize_runtime_action_metadata") == null
+                && contextType.GetMethod(
+                    "ToObjectArray",
+                    BindingFlags.Static | BindingFlags.NonPublic
+                ) == null
+                && contextType.GetMethod(
+                    "ToStringArray",
+                    BindingFlags.Static | BindingFlags.NonPublic
+                ) == null,
+            "BattleAiContext should not keep public Godot dictionary metadata/affordance helpers."
+        );
+        _test.True(
+            contextType.GetMethod(
+                "PushActionMetadata",
+                BindingFlags.Instance | BindingFlags.NonPublic
+            )?.GetParameters()[0].ParameterType
+                == typeof(BattleAiRuntimeActionPlan.RuntimeActionMetadata)
+                && contextType.GetMethod(
+                    "ClearMutationGuardViolations",
+                    BindingFlags.Instance | BindingFlags.NonPublic
+                )?.ReturnType == typeof(void)
+                && contextType.GetMethod(
+                    "SetMutationGuardViolations",
+                    BindingFlags.Instance | BindingFlags.NonPublic
+                )?.GetParameters()[0].ParameterType == typeof(IEnumerable<string>)
+                && contextType.GetMethod(
+                    "PopActionMetadata",
+                    BindingFlags.Instance | BindingFlags.NonPublic
+                )?.ReturnType == typeof(void)
+                && contextType.GetMethod(
+                    "MergeCurrentActionMetadataTyped",
+                    BindingFlags.Instance | BindingFlags.NonPublic
+                )?.ReturnType == typeof(Dictionary<string, object>)
+                && contextType.GetMethod(
+                    "GetRuntimeActionMetadataTyped",
+                    BindingFlags.Instance | BindingFlags.NonPublic
+                )?.ReturnType == typeof(BattleAiRuntimeActionPlan.RuntimeActionMetadata)
+                && contextType.GetMethod(
+                    "GetSkillAffordanceRecordTyped",
+                    BindingFlags.Instance | BindingFlags.NonPublic
+                )?.ReturnType == typeof(BattleAiSkillAffordanceRecord)
+                && contextType.GetProperty("action_traces", BindingFlags.Instance | BindingFlags.Public) == null
+                && contextType.GetProperty("mutation_guard_violations", BindingFlags.Instance | BindingFlags.Public) == null
+                && contextType.GetMethod(
+                    "GetActionTracesTyped",
+                    BindingFlags.Instance | BindingFlags.NonPublic
+                )?.ReturnType == typeof(IReadOnlyList<AiActionTrace>)
+                && contextType.GetMethod(
+                    "GetMutationGuardViolationsTyped",
+                    BindingFlags.Instance | BindingFlags.NonPublic
+                )?.ReturnType == typeof(IReadOnlyList<string>)
+                && contextRuntimeMetadataType?.GetMethod("FromDictionary") == null
+                && contextRuntimeMetadataType?.GetMethod(
+                    "FromTraceDictionary",
+                    BindingFlags.Public | BindingFlags.Static
+                ) != null,
+            "BattleAiContext metadata/affordance state should stay on internal typed helpers."
         );
     }
 
@@ -129,13 +164,13 @@ public partial class run_battle_ai_runtime_action_plan_regression : SceneTree
 
         var plan = new BattleAiRuntimeActionPlan();
         plan.SetSource(unit, brain);
-        AssertTrue(!plan.IsStaleFor(unit, brain), "Same unit/brain/skill signature should not be stale.");
+        _test.True(!plan.IsStaleFor(unit, brain), "Same unit/brain/skill signature should not be stale.");
 
         unit.current_ap = 0;
-        AssertTrue(!plan.IsStaleFor(unit, brain), "Turn resources should not affect plan staleness.");
+        _test.True(!plan.IsStaleFor(unit, brain), "Turn resources should not affect plan staleness.");
 
         unit.known_skill_level_map["bolt"] = 2;
-        AssertTrue(plan.IsStaleFor(unit, brain), "Skill level changes should make the plan stale.");
+        _test.True(plan.IsStaleFor(unit, brain), "Skill level changes should make the plan stale.");
 
         unit.known_skill_level_map["bolt"] = 1;
         var extraState = new EnemyAiStateDef
@@ -144,7 +179,7 @@ public partial class run_battle_ai_runtime_action_plan_regression : SceneTree
             actions = new Godot.Collections.Array<EnemyAiAction> { Wait("support_wait") },
         };
         brain.states.Add(extraState);
-        AssertTrue(plan.IsStaleFor(unit, brain), "Brain state/action shape changes should make the plan stale.");
+        _test.True(plan.IsStaleFor(unit, brain), "Brain state/action shape changes should make the plan stale.");
 
         var transitionPlan = new BattleAiRuntimeActionPlan();
         transitionPlan.SetSource(unit, brain);
@@ -157,7 +192,7 @@ public partial class run_battle_ai_runtime_action_plan_regression : SceneTree
                 new[] { Condition("self_hp_at_or_below_basis_points", basisPoints: 5000) }
             ),
         };
-        AssertTrue(
+        _test.True(
             transitionPlan.IsStaleFor(unit, brain),
             "Brain transition rule shape changes should make the plan stale."
         );
@@ -167,8 +202,8 @@ public partial class run_battle_ai_runtime_action_plan_regression : SceneTree
     {
         Fixture fixture = BuildServiceFixture(false, null);
         BattleAiDecision decision = fixture.Service.ChooseCommand(fixture.Context);
-        AssertTrue(decision != null, "Missing runtime plan should still return a wait decision.");
-        AssertEq(
+        _test.True(decision != null, "Missing runtime plan should still return a wait decision.");
+        _test.Eq(
             decision.action_id,
             new StringName("wait_missing_runtime_plan"),
             "Default path should not fall back to authored actions."
@@ -179,8 +214,8 @@ public partial class run_battle_ai_runtime_action_plan_regression : SceneTree
     {
         Fixture fixture = BuildServiceFixture(true, null);
         BattleAiDecision decision = fixture.Service.ChooseCommand(fixture.Context);
-        AssertTrue(decision != null, "Explicit test fallback should return an authored decision.");
-        AssertEq(
+        _test.True(decision != null, "Explicit test fallback should return an authored decision.");
+        _test.Eq(
             decision.action_id,
             new StringName("authored_wait"),
             "Authored fallback should require allow_authored_action_fallback_for_tests=true."
@@ -195,8 +230,8 @@ public partial class run_battle_ai_runtime_action_plan_regression : SceneTree
         plan.AddStateActions("engage", Array.Empty<EnemyAiAction>());
 
         BattleAiDecision decision = fixture.Service.ChooseCommand(fixture.Context);
-        AssertTrue(decision != null, "Empty runtime state should return a wait decision.");
-        AssertEq(
+        _test.True(decision != null, "Empty runtime state should return a wait decision.");
+        _test.Eq(
             decision.action_id,
             new StringName("wait_empty_runtime_state"),
             "Empty runtime state should use the dedicated wait reason."
@@ -215,8 +250,8 @@ public partial class run_battle_ai_runtime_action_plan_regression : SceneTree
         hero.control_mode = "manual";
         actor.faction_id = "hostile";
         hero.faction_id = "player";
-        actor.set_anchor_coord(new Vector2I(1, 1));
-        hero.set_anchor_coord(new Vector2I(3, 1));
+        actor.SetAnchorCoord(new Vector2I(1, 1));
+        hero.SetAnchorCoord(new Vector2I(3, 1));
         AddUnit(gridService, state, actor, true);
         AddUnit(gridService, state, hero, false);
         state.phase = "unit_acting";
@@ -234,10 +269,10 @@ public partial class run_battle_ai_runtime_action_plan_regression : SceneTree
             state = state,
             unit_state = actor,
             grid_service = gridService,
-            skill_defs = new Godot.Collections.Dictionary(),
             runtime_action_plan = plan,
             allow_authored_action_fallback_for_tests = enableTestFallback,
         };
+        context.SetSkillDefs(new Dictionary<StringName, SkillDef>());
 
         return new Fixture
         {
@@ -306,7 +341,7 @@ public partial class run_battle_ai_runtime_action_plan_regression : SceneTree
         bool isEnemy
     )
     {
-        gridService.place_unit(state, unit, unit.coord, true);
+        gridService.PlaceUnit(state, unit, unit.coord, true);
         state.units[unit.unit_id] = unit;
         if (isEnemy)
         {
@@ -357,22 +392,6 @@ public partial class run_battle_ai_runtime_action_plan_regression : SceneTree
         };
     }
 
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!EqualityComparer<T>.Default.Equals(actual, expected))
-        {
-            _failures.Add($"{message} Expected {expected}, got {actual}.");
-        }
-    }
-
     private void AssertNoGodotDynamicBoundaryTypes(Type type, string label)
     {
         const BindingFlags Flags =
@@ -387,13 +406,13 @@ public partial class run_battle_ai_runtime_action_plan_regression : SceneTree
             {
                 continue;
             }
-            AssertTrue(
+            _test.True(
                 !IsGodotDynamicBoundaryType(method.ReturnType),
                 $"{label}.{method.Name} should not return Godot dynamic boundary type {method.ReturnType}."
             );
             foreach (ParameterInfo parameter in method.GetParameters())
             {
-                AssertTrue(
+                _test.True(
                     !IsGodotDynamicBoundaryType(parameter.ParameterType),
                     $"{label}.{method.Name} should not accept Godot dynamic boundary type {parameter.ParameterType}."
                 );
@@ -401,14 +420,14 @@ public partial class run_battle_ai_runtime_action_plan_regression : SceneTree
         }
         foreach (FieldInfo field in type.GetFields(Flags))
         {
-            AssertTrue(
+            _test.True(
                 !IsGodotDynamicBoundaryType(field.FieldType),
                 $"{label}.{field.Name} should not store Godot dynamic boundary type {field.FieldType}."
             );
         }
         foreach (PropertyInfo property in type.GetProperties(Flags))
         {
-            AssertTrue(
+            _test.True(
                 !IsGodotDynamicBoundaryType(property.PropertyType),
                 $"{label}.{property.Name} should not expose Godot dynamic boundary type {property.PropertyType}."
             );
@@ -428,13 +447,13 @@ public partial class run_battle_ai_runtime_action_plan_regression : SceneTree
             {
                 continue;
             }
-            AssertTrue(
+            _test.True(
                 !IsGodotDynamicBoundaryType(method.ReturnType),
                 $"{label}.{method.Name} should not return Godot dynamic boundary type {method.ReturnType}."
             );
             foreach (ParameterInfo parameter in method.GetParameters())
             {
-                AssertTrue(
+                _test.True(
                     !IsGodotDynamicBoundaryType(parameter.ParameterType),
                     $"{label}.{method.Name} should not accept Godot dynamic boundary type {parameter.ParameterType}."
                 );
@@ -442,14 +461,14 @@ public partial class run_battle_ai_runtime_action_plan_regression : SceneTree
         }
         foreach (FieldInfo field in type.GetFields(Flags))
         {
-            AssertTrue(
+            _test.True(
                 !IsGodotDynamicBoundaryType(field.FieldType),
                 $"{label}.{field.Name} should not expose Godot dynamic boundary type {field.FieldType}."
             );
         }
         foreach (PropertyInfo property in type.GetProperties(Flags))
         {
-            AssertTrue(
+            _test.True(
                 !IsGodotDynamicBoundaryType(property.PropertyType),
                 $"{label}.{property.Name} should not expose Godot dynamic boundary type {property.PropertyType}."
             );

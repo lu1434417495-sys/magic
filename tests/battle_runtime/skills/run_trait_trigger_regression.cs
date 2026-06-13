@@ -6,7 +6,13 @@ using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_trait_trigger_regression : SceneTree
 {
-    private readonly GStringArray _failures = new();
+    private readonly TestHarness _test = new();
+    private static StringName HalflingLuck =>
+        RaceTraitDef.ToStringName(RaceTraitEffectKind.HalflingLuck);
+    private static StringName SavageAttacks =>
+        RaceTraitDef.ToStringName(RaceTraitEffectKind.SavageAttacks);
+    private static StringName RelentlessEndurance =>
+        RaceTraitDef.ToStringName(RaceTraitEffectKind.RelentlessEndurance);
 
     public override void _Initialize()
     {
@@ -22,18 +28,7 @@ public partial class run_trait_trigger_regression : SceneTree
         TestTurnStartRefreshesHalflingLuck();
         TestTraitDispatchContentRulesMatchRuntimeMethods();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Trait trigger regression: PASS");
-            return 0;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Trait trigger regression: FAIL ({_failures.Count})");
-        return 1;
+        return _test.Finish("Trait trigger regression");
     }
 
     private void TestHalflingLuckRerollsNaturalOneAttack()
@@ -42,13 +37,13 @@ public partial class run_trait_trigger_regression : SceneTree
         BattleUnitState source = BuildUnit("halfling_attacker", "player", 20);
         source.race_trait_ids = new Godot.Collections.Array<StringName>
         {
-            TraitTriggerHooks.TRAIT_HALFLING_LUCK(),
+            HalflingLuck,
         };
         BattleUnitState target = BuildUnit("halfling_target", "enemy", 20);
         CombatEffectDef effect = MakeDamageEffect(5, false);
         var attackContext = new AttackContext(new[] { 1, 20 });
 
-        GDictionary result = resolver.resolve_attack_effects(
+        GDictionary result = resolver.ResolveAttackEffects(
             source,
             target,
             new GArray { effect },
@@ -56,23 +51,23 @@ public partial class run_trait_trigger_regression : SceneTree
             attackContext
         );
 
-        AssertTrue(
+        _test.True(
             DictBool(result, "attack_success", false),
             "halfling_luck reroll should turn a natural 1 into the overridden natural 20 success."
         );
-        AssertEq(
+        _test.Eq(
             DictInt(result, "hit_roll", 0),
             20,
             "halfling_luck should expose the rerolled hit_roll."
         );
-        AssertEq(
-            DictInt(source.per_turn_charges, TraitTriggerHooks.TRAIT_HALFLING_LUCK(), -1),
+        _test.Eq(
+            DictInt(source.per_turn_charges, HalflingLuck, -1),
             0,
             "halfling_luck should consume its per-turn charge."
         );
         AssertHasTraitResult(
             result,
-            TraitTriggerHooks.TRAIT_HALFLING_LUCK(),
+            HalflingLuck,
             "attack result should record halfling_luck."
         );
     }
@@ -83,9 +78,9 @@ public partial class run_trait_trigger_regression : SceneTree
         BattleUnitState source = BuildUnit("savage_attacker", "player", 20);
         source.race_trait_ids = new Godot.Collections.Array<StringName>
         {
-            TraitTriggerHooks.TRAIT_SAVAGE_ATTACKS(),
+            SavageAttacks,
         };
-        source.set_unarmed_weapon_projection(
+        source.SetUnarmedWeaponProjection(
             "physical_slash",
             new GDictionary
             {
@@ -98,7 +93,7 @@ public partial class run_trait_trigger_regression : SceneTree
         BattleUnitState target = BuildUnit("savage_target", "enemy", 100);
         CombatEffectDef effect = MakeDamageEffect(0, true);
 
-        GDictionary result = resolver.resolve_effects(
+        GDictionary result = resolver.ResolveEffects(
             source,
             target,
             new GArray { effect },
@@ -106,19 +101,19 @@ public partial class run_trait_trigger_regression : SceneTree
         );
         GDictionary damageEvent = FirstDamageEvent(result);
 
-        AssertEq(
+        _test.Eq(
             DictInt(damageEvent, "trait_extra_weapon_damage_dice_count", 0),
             1,
             "savage_attacks should add exactly one extra weapon die on melee crit."
         );
-        AssertEq(
+        _test.Eq(
             DictInt(damageEvent, "trait_extra_weapon_damage_dice_sides", 0),
             6,
             "savage_attacks should reuse the current melee weapon die size."
         );
         AssertHasTraitResult(
             damageEvent,
-            TraitTriggerHooks.TRAIT_SAVAGE_ATTACKS(),
+            SavageAttacks,
             "damage event should record savage_attacks."
         );
     }
@@ -130,35 +125,35 @@ public partial class run_trait_trigger_regression : SceneTree
         BattleUnitState target = BuildUnit("relentless_target", "player", 8);
         target.race_trait_ids = new Godot.Collections.Array<StringName>
         {
-            TraitTriggerHooks.TRAIT_RELENTLESS_ENDURANCE(),
+            RelentlessEndurance,
         };
         SetStatus(target, "death_ward");
         CombatEffectDef effect = MakeDamageEffect(99, false);
 
-        GDictionary result = resolver.resolve_effects(source, target, new GArray { effect });
-        AssertEq(target.current_hp, 1, "relentless_endurance should clamp fatal damage to 1 HP.");
-        AssertTrue(target.is_alive, "relentless_endurance should keep the target alive.");
-        AssertTrue(
-            target.has_status_effect("death_ward"),
+        GDictionary result = resolver.ResolveEffects(source, target, new GArray { effect });
+        _test.Eq(target.current_hp, 1, "relentless_endurance should clamp fatal damage to 1 HP.");
+        _test.True(target.is_alive, "relentless_endurance should keep the target alive.");
+        _test.True(
+            target.HasStatusEffect("death_ward"),
             "relentless_endurance should trigger before death_ward consumption."
         );
         AssertHasTraitResult(
             FirstDamageEvent(result),
-            TraitTriggerHooks.TRAIT_RELENTLESS_ENDURANCE(),
+            RelentlessEndurance,
             "fatal damage event should record relentless_endurance."
         );
 
-        GDictionary secondResult = resolver.resolve_effects(source, target, new GArray { effect });
-        AssertEq(
+        GDictionary secondResult = resolver.ResolveEffects(source, target, new GArray { effect });
+        _test.Eq(
             target.current_hp,
             0,
             "relentless_endurance should not trigger a second time in the same battle."
         );
-        AssertTrue(
+        _test.True(
             !target.is_alive,
             "relentless_endurance spent charge should allow the next fatal damage to kill."
         );
-        AssertTrue(
+        _test.True(
             GetArray(FirstDamageEvent(secondResult), "trait_trigger_results").Count == 0,
             "second fatal damage should not record a spent relentless_endurance."
         );
@@ -170,64 +165,60 @@ public partial class run_trait_trigger_regression : SceneTree
         BattleUnitState unit = BuildUnit("turn_halfling", "player", 20);
         unit.race_trait_ids = new Godot.Collections.Array<StringName>
         {
-            TraitTriggerHooks.TRAIT_HALFLING_LUCK(),
+            HalflingLuck,
         };
-        hooks.on_battle_start(unit, new GDictionary());
-        GDictionary firstResult = hooks.on_natural_one(
-            unit,
-            new GDictionary
-            {
-                ["roll"] = 1,
-                ["die_size"] = 20,
-            }
-        );
+        TraitDispatchResult battleStartResult = hooks.OnBattleStartResult(unit);
+        AttackTraitTriggerResult firstResult = hooks.OnNaturalOne(unit, 1, 20);
 
-        AssertTrue(
-            DictBool(firstResult, "triggered", false),
+        _test.True(
+            battleStartResult.Changed,
+            "battle start should initialize trait charges for dispatch traits."
+        );
+        _test.True(
+            firstResult.Triggered,
             "halfling_luck should trigger after battle start initialization."
         );
-        AssertEq(
-            DictInt(unit.per_turn_charges, TraitTriggerHooks.TRAIT_HALFLING_LUCK(), -1),
+        _test.Eq(
+            DictInt(unit.per_turn_charges, HalflingLuck, -1),
             0,
             "halfling_luck charge should be spent after use."
         );
-        unit.reset_per_turn_charges();
-        hooks.on_turn_start(unit, new GDictionary());
-        AssertEq(
-            DictInt(unit.per_turn_charges, TraitTriggerHooks.TRAIT_HALFLING_LUCK(), -1),
+        unit.ResetPerTurnCharges();
+        TraitDispatchResult turnStartResult = hooks.OnTurnStartResult(unit);
+        _test.Eq(
+            DictInt(unit.per_turn_charges, HalflingLuck, -1),
             1,
             "turn start should refresh halfling_luck."
         );
+        _test.True(turnStartResult.Changed, "turn start should report trait charge refresh.");
     }
 
     private void TestTraitDispatchContentRulesMatchRuntimeMethods()
     {
         var hooks = new TraitTriggerHooks();
-        IReadOnlyDictionary<StringName, IReadOnlyDictionary<StringName, string>> dispatchTriggerTypes =
-            TraitTriggerContentRules.get_dispatch_trigger_types();
-        foreach (StringName traitId in TraitTriggerContentRules.get_dispatch_trait_ids())
+        IReadOnlyDictionary<RaceTraitEffectKind, IReadOnlyDictionary<TraitTriggerKind, string>> dispatchTriggerTypes =
+            TraitTriggerContentRules.GetDispatchTriggerTypes();
+        foreach (StringName traitId in TraitTriggerContentRules.GetDispatchTraitIds())
         {
-            IReadOnlyDictionary<StringName, string> triggerMap =
+            RaceTraitEffectKind traitKind = RaceTraitDef.ToEffectKind(traitId);
+            IReadOnlyDictionary<TraitTriggerKind, string> triggerMap =
                 dispatchTriggerTypes.GetValueOrDefault(
-                    traitId,
-                    new Dictionary<StringName, string>()
+                    traitKind,
+                    new Dictionary<TraitTriggerKind, string>()
                 );
-            foreach (StringName triggerType in triggerMap.Keys)
+            foreach (TraitTriggerKind triggerKind in triggerMap.Keys)
             {
-                StringName methodName = TraitTriggerContentRules.get_dispatch_method_name(
+                StringName triggerType = TraitTriggerContentRules.ToStringName(triggerKind);
+                string dispatchKey = TraitTriggerContentRules.GetDispatchKey(
                     traitId,
                     triggerType
                 );
-                AssertTrue(
-                    !string.IsNullOrEmpty(methodName.ToString()),
-                    $"content dispatch should expose a method for {traitId}/{triggerType}."
+                _test.True(
+                    !string.IsNullOrEmpty(dispatchKey),
+                    $"content dispatch should expose a dispatch key for {traitId}/{triggerType}."
                 );
-                AssertTrue(
-                    hooks.HasMethod(methodName),
-                    $"runtime hooks should implement content dispatch method {methodName}."
-                );
-                AssertTrue(
-                    TraitTriggerHooks.has_dispatch_for_trait_trigger(traitId, triggerType),
+                _test.True(
+                    TraitTriggerHooks.HasDispatchForTraitTrigger(traitId, triggerType),
                     "runtime static dispatch query should agree with content dispatch table."
                 );
             }
@@ -247,7 +238,7 @@ public partial class run_trait_trigger_regression : SceneTree
             body_size = 1,
             is_alive = hp > 0,
         };
-        unit.refresh_footprint();
+        unit.RefreshFootprint();
         return unit;
     }
 
@@ -274,7 +265,7 @@ public partial class run_trait_trigger_regression : SceneTree
             source_unit_id = "",
             @params = new GDictionary(),
         };
-        unit.set_status_effect(status);
+        unit.SetStatusEffect(status);
     }
 
     private static GDictionary FirstDamageEvent(GDictionary result)
@@ -301,23 +292,7 @@ public partial class run_trait_trigger_regression : SceneTree
                 return;
             }
         }
-        _failures.Add(message);
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!Equals(actual, expected))
-        {
-            _failures.Add($"{message} expected={expected} actual={actual}");
-        }
+        _test.Fail(message);
     }
 
     private static GArray GetArray(GDictionary dictionary, Variant key)

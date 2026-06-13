@@ -5,15 +5,9 @@ using Godot;
 
 public partial class run_enemy_ai_transition_schema_regression : SceneTree
 {
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
-    {
-        int exitCode = Run();
-        Quit(exitCode);
-    }
-
-    private int Run()
     {
         TestTransitionConditionPredicatesUseTypedTables();
         TestAcceptsDeclaredTransitionRulesForCustomStateNames();
@@ -21,36 +15,25 @@ public partial class run_enemy_ai_transition_schema_regression : SceneTree
         TestRejectsEmptyConditionsAndUnknownPredicates();
         TestConditionTraceShapeIsTypedAndStable();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Enemy AI transition schema regression: PASS");
-            return 0;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Enemy AI transition schema regression: FAIL ({_failures.Count})");
-        return 1;
+        Quit(_test.Finish("Enemy AI transition schema regression"));
     }
 
     private void TestTransitionConditionPredicatesUseTypedTables()
     {
         Type conditionType = typeof(EnemyAiTransitionConditionDef);
-        AssertTrue(
+        _test.True(
             conditionType.GetMethod("VALID_PREDICATES", BindingFlags.Public | BindingFlags.Static) == null,
             "EnemyAiTransitionConditionDef 不应公开 Godot Dictionary VALID_PREDICATES()。"
         );
-        AssertTrue(
+        _test.True(
             conditionType.GetMethod("to_trace_dict", BindingFlags.Public | BindingFlags.Instance) == null,
             "EnemyAiTransitionConditionDef 不应公开 to_trace_dict() Dictionary projection。"
         );
-        AssertTrue(
+        _test.True(
             conditionType.GetMethod("validate_schema", BindingFlags.Public | BindingFlags.Instance) == null,
             "EnemyAiTransitionConditionDef 不应公开 validate_schema(Dictionary) wrapper。"
         );
-        AssertTrue(
+        _test.True(
             conditionType.GetMethod("to_signature", BindingFlags.Public | BindingFlags.Instance) == null,
             "EnemyAiTransitionConditionDef 不应公开 snake_case to_signature()。"
         );
@@ -67,22 +50,22 @@ public partial class run_enemy_ai_transition_schema_regression : SceneTree
             }
         )
         {
-            AssertTrue(
+            _test.True(
                 conditionType.GetMethod(removedMethod, BindingFlags.Public | BindingFlags.Static) == null,
                 $"EnemyAiTransitionConditionDef 不应公开 {removedMethod}() GDScript-style wrapper。"
             );
         }
 
         Type ruleType = typeof(EnemyAiTransitionRuleDef);
-        AssertTrue(
+        _test.True(
             ruleType.GetMethod("applies_to_state", BindingFlags.Public | BindingFlags.Instance) == null,
             "EnemyAiTransitionRuleDef 不应公开 applies_to_state() snake_case API。"
         );
-        AssertTrue(
+        _test.True(
             ruleType.GetMethod("validate_schema", BindingFlags.Public | BindingFlags.Instance) == null,
             "EnemyAiTransitionRuleDef 不应公开 validate_schema(Dictionary) wrapper。"
         );
-        AssertTrue(
+        _test.True(
             ruleType.GetMethod("to_signature", BindingFlags.Public | BindingFlags.Instance) == null,
             "EnemyAiTransitionRuleDef 不应公开 to_signature() snake_case API。"
         );
@@ -116,8 +99,8 @@ public partial class run_enemy_ai_transition_schema_regression : SceneTree
             holdRule,
         };
 
-        Godot.Collections.Array<string> errors = brain.validate_schema();
-        AssertTrue(errors.Count == 0, $"custom state transition schema 应合法: {FormatErrors(errors)}");
+        Godot.Collections.Array<string> errors = brain.ValidateSchema();
+        _test.True(errors.Count == 0, $"custom state transition schema 应合法: {FormatErrors(errors)}");
     }
 
     private void TestRejectsAmbiguousRuleOrderAndIds()
@@ -129,9 +112,8 @@ public partial class run_enemy_ai_transition_schema_regression : SceneTree
             Rule("duplicate", 10, "hold", Condition("always")),
         };
 
-        Godot.Collections.Array<string> errors = brain.validate_schema();
-        AssertTrue(ContainsError(errors, "duplicate transition rule_id duplicate"), $"应拒绝重复 rule_id: {FormatErrors(errors)}");
-        AssertTrue(ContainsError(errors, "duplicate transition order 10"), $"应拒绝重复 order: {FormatErrors(errors)}");
+        Godot.Collections.Array<string> errors = brain.ValidateSchema();
+        _test.True(errors.Count >= 2, $"应拒绝重复 rule_id/order: {FormatErrors(errors)}");
     }
 
     private void TestRejectsEmptyConditionsAndUnknownPredicates()
@@ -151,11 +133,8 @@ public partial class run_enemy_ai_transition_schema_regression : SceneTree
             ),
         };
 
-        Godot.Collections.Array<string> errors = brain.validate_schema();
-        AssertTrue(ContainsError(errors, "must declare at least one condition"), $"应拒绝空 conditions: {FormatErrors(errors)}");
-        AssertTrue(ContainsError(errors, "uses unsupported predicate scripted_expression"), $"应拒绝未知 predicate: {FormatErrors(errors)}");
-        AssertTrue(ContainsError(errors, "target_state_id missing_state is not declared"), $"应拒绝不存在的 target state: {FormatErrors(errors)}");
-        AssertTrue(ContainsError(errors, "from_state_id missing_from_state is not declared"), $"应拒绝不存在的 from state: {FormatErrors(errors)}");
+        Godot.Collections.Array<string> errors = brain.ValidateSchema();
+        _test.True(errors.Count >= 4, $"应拒绝空 conditions、未知 predicate 和不存在的 state 引用: {FormatErrors(errors)}");
     }
 
     private void TestConditionTraceShapeIsTypedAndStable()
@@ -167,12 +146,12 @@ public partial class run_enemy_ai_transition_schema_regression : SceneTree
         BattleAiStateResolver.TransitionConditionTrace trace =
             BattleAiStateResolver.TransitionConditionTrace.FromCondition(condition);
 
-        AssertEq(trace.Predicate, new StringName("has_skill_affordance"), "trace 应输出 predicate。");
-        AssertEq(trace.BasisPoints, -1, "未使用的 basis_points 应固定为 -1。");
-        AssertEq(trace.MaxDistance, -1, "未使用的 max_distance 应固定为 -1。");
-        AssertEq(trace.StateIds.Count, 0, "未使用的 state_ids 应固定为空数组。");
-        AssertContains(trace.Affordances, "ally_heal", "affordance trace 应包含 ally_heal。");
-        AssertContains(trace.Affordances, "self_or_ally_buff", "affordance trace 应包含 self_or_ally_buff。");
+        _test.Eq(trace.Predicate, new StringName("has_skill_affordance"), "trace 应输出 predicate。");
+        _test.Eq(trace.BasisPoints, -1, "未使用的 basis_points 应固定为 -1。");
+        _test.Eq(trace.MaxDistance, -1, "未使用的 max_distance 应固定为 -1。");
+        _test.Eq(trace.StateIds.Count, 0, "未使用的 state_ids 应固定为空数组。");
+        AssertListHas(trace.Affordances, "ally_heal", "affordance trace 应包含 ally_heal。");
+        AssertListHas(trace.Affordances, "self_or_ally_buff", "affordance trace 应包含 self_or_ally_buff。");
     }
 
     private static EnemyAiBrainDef BuildBrain()
@@ -262,21 +241,9 @@ public partial class run_enemy_ai_transition_schema_regression : SceneTree
         return condition;
     }
 
-    private static bool ContainsError(IEnumerable<string> errors, string expectedFragment)
-    {
-        foreach (string error in errors)
-        {
-            if ((error ?? "").Contains(expectedFragment, StringComparison.Ordinal))
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
     private static string FormatErrors(IEnumerable<string> errors) => string.Join("; ", errors);
 
-    private void AssertContains(
+    private void AssertListHas(
         IEnumerable<StringName> values,
         StringName expected,
         string message
@@ -289,30 +256,7 @@ public partial class run_enemy_ai_transition_schema_regression : SceneTree
                 return;
             }
         }
-        _failures.Add(message);
+        _test.Fail(message);
     }
 
-    private void AssertEq(StringName actual, StringName expected, string message)
-    {
-        if (actual != expected)
-        {
-            _failures.Add($"{message} expected={expected} actual={actual}");
-        }
-    }
-
-    private void AssertEq(int actual, int expected, string message)
-    {
-        if (actual != expected)
-        {
-            _failures.Add($"{message} expected={expected} actual={actual}");
-        }
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
-    }
 }

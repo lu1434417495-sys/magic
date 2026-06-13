@@ -4,7 +4,7 @@ public partial class BattleAiCandidateProbeTestAction : EnemyAiAction
 {
     public int desired_min_distance { get; set; } = 1;
     public int desired_max_distance { get; set; } = 2;
-    public bool legacy_decide_called { get; set; }
+    public bool inline_decide_called { get; set; }
 
     public BattleAiCandidateProbeTestAction()
     {
@@ -13,9 +13,9 @@ public partial class BattleAiCandidateProbeTestAction : EnemyAiAction
         action_intent = "positioning";
     }
 
-    public override bool uses_candidate_request() => true;
+    public override bool UsesCandidateRequest() => true;
 
-    public override BattleAiCandidateRequest build_candidate_request(BattleAiQueryService query)
+    internal override BattleAiCandidateRequest BuildCandidateRequest(BattleAiQueryService query)
     {
         var request = new BattleAiCandidateRequest
         {
@@ -52,13 +52,13 @@ public partial class BattleAiCandidateProbeTestAction : EnemyAiAction
         return request;
     }
 
-    public override BattleAiDecision decide(BattleAiContext context)
+    internal override BattleAiDecision Decide(BattleAiContext context)
     {
-        legacy_decide_called = true;
+        inline_decide_called = true;
         return null;
     }
 
-    public override Godot.Collections.Array<string> validate_schema()
+    public override Godot.Collections.Array<string> ValidateSchema()
     {
         return new Godot.Collections.Array<string>();
     }

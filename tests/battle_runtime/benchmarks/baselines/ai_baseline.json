@@ -1,185 +1,614 @@
 {
-	"generated_at_unix": 1778680285,
-	"git_commit": "762191f",
-	"godot_version": "4.6.2-stable (official)",
-	"scenarios": {
-		"large_6v40": {
-			"ai_turns_per_run": [
-				78,
-				78
-			],
-			"ai_turns_total": 156,
-			"layers": {
-				"build_action_score_input": {
-					"avg_usec": 45,
-					"call_count": 3172,
-					"max_usec": 231,
-					"p50_usec": 41,
-					"p95_usec": 74,
-					"total_usec": 145446
-				},
-				"build_skill_score_input": {
-					"avg_usec": 64,
-					"call_count": 4798,
-					"max_usec": 231,
-					"p50_usec": 59,
-					"p95_usec": 92,
-					"total_usec": 307114
-				},
-				"build_unit_action_plan": {
-					"avg_usec": 131,
-					"call_count": 80,
-					"max_usec": 364,
-					"p50_usec": 115,
-					"p95_usec": 193,
-					"total_usec": 10484
-				},
-				"choose_command": {
-					"avg_usec": 139163,
-					"call_count": 156,
-					"max_usec": 535682,
-					"p50_usec": 102117,
-					"p95_usec": 447175,
-					"total_inclusive_usec": 21709494,
-					"total_self_usec": 21256934,
-					"total_usec": 21709494
-				}
-			},
-			"repeat_measured": 2,
-			"runs_meta": [
-				{
-					"ai_turns": 78,
-					"battle_ended": false,
-					"final_tu": 200,
-					"winner": ""
-				},
-				{
-					"ai_turns": 78,
-					"battle_ended": false,
-					"final_tu": 200,
-					"winner": ""
-				}
-			],
-			"target_tu": 200
-		},
-		"medium_6v20": {
-			"ai_turns_per_run": [
-				40,
-				40
-			],
-			"ai_turns_total": 80,
-			"layers": {
-				"build_action_score_input": {
-					"avg_usec": 41,
-					"call_count": 1816,
-					"max_usec": 155,
-					"p50_usec": 39,
-					"p95_usec": 56,
-					"total_usec": 74751
-				},
-				"build_skill_score_input": {
-					"avg_usec": 59,
-					"call_count": 2498,
-					"max_usec": 237,
-					"p50_usec": 57,
-					"p95_usec": 80,
-					"total_usec": 149682
-				},
-				"build_unit_action_plan": {
-					"avg_usec": 105,
-					"call_count": 40,
-					"max_usec": 211,
-					"p50_usec": 107,
-					"p95_usec": 205,
-					"total_usec": 4225
-				},
-				"choose_command": {
-					"avg_usec": 153378,
-					"call_count": 80,
-					"max_usec": 443606,
-					"p50_usec": 99271,
-					"p95_usec": 426705,
-					"total_inclusive_usec": 12270297,
-					"total_self_usec": 12045864,
-					"total_usec": 12270297
-				}
-			},
-			"repeat_measured": 2,
-			"runs_meta": [
-				{
-					"ai_turns": 40,
-					"battle_ended": false,
-					"final_tu": 200,
-					"winner": ""
-				},
-				{
-					"ai_turns": 40,
-					"battle_ended": false,
-					"final_tu": 200,
-					"winner": ""
-				}
-			],
-			"target_tu": 200
-		},
-		"small_4v8": {
-			"ai_turns_per_run": [
-				16,
-				16
-			],
-			"ai_turns_total": 32,
-			"layers": {
-				"build_action_score_input": {
-					"avg_usec": 39,
-					"call_count": 720,
-					"max_usec": 82,
-					"p50_usec": 39,
-					"p95_usec": 48,
-					"total_usec": 28578
-				},
-				"build_skill_score_input": {
-					"avg_usec": 58,
-					"call_count": 960,
-					"max_usec": 163,
-					"p50_usec": 57,
-					"p95_usec": 69,
-					"total_usec": 56607
-				},
-				"build_unit_action_plan": {
-					"avg_usec": 113,
-					"call_count": 16,
-					"max_usec": 211,
-					"p50_usec": 108,
-					"p95_usec": 211,
-					"total_usec": 1822
-				},
-				"choose_command": {
-					"avg_usec": 138923,
-					"call_count": 32,
-					"max_usec": 368228,
-					"p50_usec": 92451,
-					"p95_usec": 362127,
-					"total_inclusive_usec": 4445554,
-					"total_self_usec": 4360369,
-					"total_usec": 4445554
-				}
-			},
-			"repeat_measured": 2,
-			"runs_meta": [
-				{
-					"ai_turns": 16,
-					"battle_ended": false,
-					"final_tu": 200,
-					"winner": ""
-				},
-				{
-					"ai_turns": 16,
-					"battle_ended": false,
-					"final_tu": 200,
-					"winner": ""
-				}
-			],
-			"target_tu": 200
-		}
-	},
-	"schema_version": 1
+  "schema_version": 1,
+  "godot_version": "4.6.2-stable (official)",
+  "generated_at_unix": 1781193046,
+  "git_commit": "6d7c96a",
+  "completion_policy": "battle_ended",
+  "max_iterations": 2147483647,
+  "repeat_measured": 3,
+  "ai_mutation_guard_enabled": false,
+  "ai_mutation_guard_abort_process": false,
+  "baseline_source_files": [
+    "tmp/ai_baseline_stability_guard_off_run1.json",
+    "tmp/ai_baseline_stability_guard_off_run2.json",
+    "tmp/ai_baseline_stability_guard_off_run3.json"
+  ],
+  "baseline_aggregation_policy": "Comparison metrics avg_usec, p50_usec, and p95_usec use the max observed value across the three measured guard-off full-battle runs. Totals and runs_meta are retained as context.",
+  "measurement_note": "Full-battle AI performance baseline. Mutation guard is disabled by default. The check script compares profiler-layer avg/p95 metrics with a 20% tolerance plus a 500us absolute tolerance; layers with fewer than 100 baseline/current calls are reported but not used as failure gates because low-sample metrics are outlier-sensitive. elapsed_seconds, p50, and ai_turns are retained as context because full-battle length and low-percentile timings vary between runs.",
+  "scenarios": {
+    "small_4v8": {
+      "completion_policy": "battle_ended",
+      "repeat_measured": 3,
+      "ai_turns_per_run": [
+        518,
+        519,
+        505
+      ],
+      "ai_turns_total": 1542,
+      "runs_meta": [
+        {
+          "ai_turns": 518,
+          "manual_turns": 97,
+          "final_tu": 4080,
+          "iterations": 1759,
+          "battle_ended": true,
+          "winner": "hostile",
+          "elapsed_seconds": 8.498
+        },
+        {
+          "ai_turns": 519,
+          "manual_turns": 97,
+          "final_tu": 4080,
+          "iterations": 1761,
+          "battle_ended": true,
+          "winner": "hostile",
+          "elapsed_seconds": 9.223
+        },
+        {
+          "ai_turns": 505,
+          "manual_turns": 97,
+          "final_tu": 3960,
+          "iterations": 1716,
+          "battle_ended": true,
+          "winner": "hostile",
+          "elapsed_seconds": 8.156
+        }
+      ],
+      "layers": {
+        "choose_command": {
+          "call_count": 1542,
+          "total_usec": 16990063,
+          "max_usec": 85115,
+          "avg_usec": 11719,
+          "p50_usec": 4340,
+          "p95_usec": 49556,
+          "total_inclusive_usec": 16990063,
+          "total_self_usec": 15586111,
+          "source_run_values": [
+            {
+              "avg_usec": 10902,
+              "p50_usec": 3970,
+              "p95_usec": 44864,
+              "max_usec": 69082,
+              "call_count": 518
+            },
+            {
+              "avg_usec": 11719,
+              "p50_usec": 4340,
+              "p95_usec": 49556,
+              "max_usec": 85115,
+              "call_count": 519
+            },
+            {
+              "avg_usec": 10416,
+              "p50_usec": 3908,
+              "p95_usec": 44013,
+              "max_usec": 63326,
+              "call_count": 505
+            }
+          ]
+        },
+        "build_skill_score_input": {
+          "call_count": 585,
+          "total_usec": 716976,
+          "max_usec": 32789,
+          "avg_usec": 1731,
+          "p50_usec": 862,
+          "p95_usec": 2097,
+          "source_run_values": [
+            {
+              "avg_usec": 1731,
+              "p50_usec": 850,
+              "p95_usec": 2097,
+              "max_usec": 32789,
+              "call_count": 191
+            },
+            {
+              "avg_usec": 938,
+              "p50_usec": 862,
+              "p95_usec": 1741,
+              "max_usec": 3753,
+              "call_count": 196
+            },
+            {
+              "avg_usec": 1021,
+              "p50_usec": 812,
+              "p95_usec": 1731,
+              "max_usec": 30927,
+              "call_count": 198
+            }
+          ]
+        },
+        "build_action_score_input": {
+          "call_count": 5148,
+          "total_usec": 686976,
+          "max_usec": 30329,
+          "avg_usec": 150,
+          "p50_usec": 103,
+          "p95_usec": 172,
+          "source_run_values": [
+            {
+              "avg_usec": 122,
+              "p50_usec": 101,
+              "p95_usec": 172,
+              "max_usec": 29339,
+              "call_count": 1797
+            },
+            {
+              "avg_usec": 127,
+              "p50_usec": 103,
+              "p95_usec": 172,
+              "max_usec": 30247,
+              "call_count": 1637
+            },
+            {
+              "avg_usec": 150,
+              "p50_usec": 98,
+              "p95_usec": 131,
+              "max_usec": 30329,
+              "call_count": 1714
+            }
+          ]
+        },
+        "build_unit_action_plan": {
+          "call_count": 24,
+          "total_usec": 59502,
+          "max_usec": 3766,
+          "avg_usec": 2534,
+          "p50_usec": 2725,
+          "p95_usec": 3766,
+          "source_run_values": [
+            {
+              "avg_usec": 2441,
+              "p50_usec": 2652,
+              "p95_usec": 3583,
+              "max_usec": 3583,
+              "call_count": 8
+            },
+            {
+              "avg_usec": 2534,
+              "p50_usec": 2725,
+              "p95_usec": 3766,
+              "max_usec": 3766,
+              "call_count": 8
+            },
+            {
+              "avg_usec": 2462,
+              "p50_usec": 2655,
+              "p95_usec": 3673,
+              "max_usec": 3673,
+              "call_count": 8
+            }
+          ]
+        },
+        "movement_distance_band_path_targets": {
+          "call_count": 640,
+          "total_usec": 4896592,
+          "max_usec": 68481,
+          "avg_usec": 8383,
+          "p50_usec": 5240,
+          "p95_usec": 40062,
+          "source_run_values": [
+            {
+              "avg_usec": 7988,
+              "p50_usec": 5240,
+              "p95_usec": 36460,
+              "max_usec": 42691,
+              "call_count": 222
+            },
+            {
+              "avg_usec": 8383,
+              "p50_usec": 5188,
+              "p95_usec": 40062,
+              "max_usec": 68481,
+              "call_count": 208
+            },
+            {
+              "avg_usec": 6568,
+              "p50_usec": 4335,
+              "p95_usec": 30517,
+              "max_usec": 44155,
+              "call_count": 210
+            }
+          ]
+        }
+      }
+    },
+    "medium_6v20": {
+      "completion_policy": "battle_ended",
+      "repeat_measured": 3,
+      "ai_turns_per_run": [
+        1242,
+        1330,
+        1191
+      ],
+      "ai_turns_total": 3763,
+      "runs_meta": [
+        {
+          "ai_turns": 1242,
+          "manual_turns": 152,
+          "final_tu": 4320,
+          "iterations": 3086,
+          "battle_ended": true,
+          "winner": "hostile",
+          "elapsed_seconds": 23.072
+        },
+        {
+          "ai_turns": 1330,
+          "manual_turns": 160,
+          "final_tu": 4680,
+          "iterations": 3313,
+          "battle_ended": true,
+          "winner": "hostile",
+          "elapsed_seconds": 26.173
+        },
+        {
+          "ai_turns": 1191,
+          "manual_turns": 149,
+          "final_tu": 4080,
+          "iterations": 2941,
+          "battle_ended": true,
+          "winner": "hostile",
+          "elapsed_seconds": 22.674
+        }
+      ],
+      "layers": {
+        "choose_command": {
+          "call_count": 3763,
+          "total_usec": 54431156,
+          "max_usec": 85765,
+          "avg_usec": 15055,
+          "p50_usec": 8403,
+          "p95_usec": 55901,
+          "total_inclusive_usec": 54431156,
+          "total_self_usec": 52022476,
+          "source_run_values": [
+            {
+              "avg_usec": 13820,
+              "p50_usec": 8013,
+              "p95_usec": 51372,
+              "max_usec": 80889,
+              "call_count": 1242
+            },
+            {
+              "avg_usec": 15055,
+              "p50_usec": 8056,
+              "p95_usec": 55901,
+              "max_usec": 79897,
+              "call_count": 1330
+            },
+            {
+              "avg_usec": 14477,
+              "p50_usec": 8403,
+              "p95_usec": 54250,
+              "max_usec": 85765,
+              "call_count": 1191
+            }
+          ]
+        },
+        "build_skill_score_input": {
+          "call_count": 846,
+          "total_usec": 893665,
+          "max_usec": 32863,
+          "avg_usec": 1170,
+          "p50_usec": 881,
+          "p95_usec": 1746,
+          "source_run_values": [
+            {
+              "avg_usec": 1009,
+              "p50_usec": 848,
+              "p95_usec": 1537,
+              "max_usec": 32665,
+              "call_count": 281
+            },
+            {
+              "avg_usec": 1170,
+              "p50_usec": 881,
+              "p95_usec": 1746,
+              "max_usec": 32863,
+              "call_count": 295
+            },
+            {
+              "avg_usec": 979,
+              "p50_usec": 832,
+              "p95_usec": 1510,
+              "max_usec": 29873,
+              "call_count": 270
+            }
+          ]
+        },
+        "build_action_score_input": {
+          "call_count": 9035,
+          "total_usec": 1515015,
+          "max_usec": 45767,
+          "avg_usec": 208,
+          "p50_usec": 106,
+          "p95_usec": 208,
+          "source_run_values": [
+            {
+              "avg_usec": 128,
+              "p50_usec": 101,
+              "p95_usec": 181,
+              "max_usec": 32359,
+              "call_count": 2927
+            },
+            {
+              "avg_usec": 208,
+              "p50_usec": 106,
+              "p95_usec": 208,
+              "max_usec": 45767,
+              "call_count": 3191
+            },
+            {
+              "avg_usec": 162,
+              "p50_usec": 102,
+              "p95_usec": 183,
+              "max_usec": 37363,
+              "call_count": 2917
+            }
+          ]
+        },
+        "build_unit_action_plan": {
+          "call_count": 60,
+          "total_usec": 146063,
+          "max_usec": 4333,
+          "avg_usec": 2550,
+          "p50_usec": 2782,
+          "p95_usec": 4333,
+          "source_run_values": [
+            {
+              "avg_usec": 2399,
+              "p50_usec": 2705,
+              "p95_usec": 2997,
+              "max_usec": 2997,
+              "call_count": 20
+            },
+            {
+              "avg_usec": 2550,
+              "p50_usec": 2782,
+              "p95_usec": 4333,
+              "max_usec": 4333,
+              "call_count": 20
+            },
+            {
+              "avg_usec": 2353,
+              "p50_usec": 2659,
+              "p95_usec": 2981,
+              "max_usec": 2981,
+              "call_count": 20
+            }
+          ]
+        },
+        "movement_distance_band_path_targets": {
+          "call_count": 1532,
+          "total_usec": 15532103,
+          "max_usec": 56733,
+          "avg_usec": 10827,
+          "p50_usec": 9644,
+          "p95_usec": 44618,
+          "source_run_values": [
+            {
+              "avg_usec": 8934,
+              "p50_usec": 9020,
+              "p95_usec": 38272,
+              "max_usec": 51126,
+              "call_count": 503
+            },
+            {
+              "avg_usec": 10827,
+              "p50_usec": 9644,
+              "p95_usec": 44618,
+              "max_usec": 51888,
+              "call_count": 543
+            },
+            {
+              "avg_usec": 10614,
+              "p50_usec": 9208,
+              "p95_usec": 43057,
+              "max_usec": 56733,
+              "call_count": 486
+            }
+          ]
+        }
+      }
+    },
+    "large_6v40": {
+      "completion_policy": "battle_ended",
+      "repeat_measured": 3,
+      "ai_turns_per_run": [
+        2302,
+        2560,
+        2697
+      ],
+      "ai_turns_total": 7559,
+      "runs_meta": [
+        {
+          "ai_turns": 2302,
+          "manual_turns": 164,
+          "final_tu": 4440,
+          "iterations": 4949,
+          "battle_ended": true,
+          "winner": "hostile",
+          "elapsed_seconds": 43.685
+        },
+        {
+          "ai_turns": 2560,
+          "manual_turns": 197,
+          "final_tu": 5040,
+          "iterations": 5569,
+          "battle_ended": true,
+          "winner": "hostile",
+          "elapsed_seconds": 50.3
+        },
+        {
+          "ai_turns": 2697,
+          "manual_turns": 166,
+          "final_tu": 5280,
+          "iterations": 5773,
+          "battle_ended": true,
+          "winner": "hostile",
+          "elapsed_seconds": 55.202
+        }
+      ],
+      "layers": {
+        "choose_command": {
+          "call_count": 7559,
+          "total_usec": 117238417,
+          "max_usec": 153431,
+          "avg_usec": 16091,
+          "p50_usec": 9888,
+          "p95_usec": 63465,
+          "total_inclusive_usec": 117238417,
+          "total_self_usec": 113908818,
+          "source_run_values": [
+            {
+              "avg_usec": 14804,
+              "p50_usec": 9888,
+              "p95_usec": 53346,
+              "max_usec": 75801,
+              "call_count": 2302
+            },
+            {
+              "avg_usec": 15531,
+              "p50_usec": 7196,
+              "p95_usec": 58986,
+              "max_usec": 84956,
+              "call_count": 2560
+            },
+            {
+              "avg_usec": 16091,
+              "p50_usec": 9238,
+              "p95_usec": 63465,
+              "max_usec": 153431,
+              "call_count": 2697
+            }
+          ]
+        },
+        "build_skill_score_input": {
+          "call_count": 1128,
+          "total_usec": 1558549,
+          "max_usec": 35658,
+          "avg_usec": 1655,
+          "p50_usec": 875,
+          "p95_usec": 2087,
+          "source_run_values": [
+            {
+              "avg_usec": 1560,
+              "p50_usec": 843,
+              "p95_usec": 1987,
+              "max_usec": 32808,
+              "call_count": 359
+            },
+            {
+              "avg_usec": 1655,
+              "p50_usec": 870,
+              "p95_usec": 1821,
+              "max_usec": 35530,
+              "call_count": 358
+            },
+            {
+              "avg_usec": 986,
+              "p50_usec": 875,
+              "p95_usec": 2087,
+              "max_usec": 35658,
+              "call_count": 411
+            }
+          ]
+        },
+        "build_action_score_input": {
+          "call_count": 14432,
+          "total_usec": 1771050,
+          "max_usec": 35999,
+          "avg_usec": 140,
+          "p50_usec": 105,
+          "p95_usec": 199,
+          "source_run_values": [
+            {
+              "avg_usec": 102,
+              "p50_usec": 99,
+              "p95_usec": 143,
+              "max_usec": 434,
+              "call_count": 4442
+            },
+            {
+              "avg_usec": 122,
+              "p50_usec": 102,
+              "p95_usec": 191,
+              "max_usec": 34252,
+              "call_count": 4980
+            },
+            {
+              "avg_usec": 140,
+              "p50_usec": 105,
+              "p95_usec": 199,
+              "max_usec": 35999,
+              "call_count": 5010
+            }
+          ]
+        },
+        "build_unit_action_plan": {
+          "call_count": 120,
+          "total_usec": 396373,
+          "max_usec": 39046,
+          "avg_usec": 3332,
+          "p50_usec": 2693,
+          "p95_usec": 3438,
+          "source_run_values": [
+            {
+              "avg_usec": 3307,
+              "p50_usec": 2610,
+              "p95_usec": 3120,
+              "max_usec": 39046,
+              "call_count": 40
+            },
+            {
+              "avg_usec": 3270,
+              "p50_usec": 2663,
+              "p95_usec": 3340,
+              "max_usec": 37221,
+              "call_count": 40
+            },
+            {
+              "avg_usec": 3332,
+              "p50_usec": 2693,
+              "p95_usec": 3438,
+              "max_usec": 38434,
+              "call_count": 40
+            }
+          ]
+        },
+        "movement_distance_band_path_targets": {
+          "call_count": 3711,
+          "total_usec": 35084251,
+          "max_usec": 58153,
+          "avg_usec": 9726,
+          "p50_usec": 8650,
+          "p95_usec": 44849,
+          "source_run_values": [
+            {
+              "avg_usec": 9118,
+              "p50_usec": 8331,
+              "p95_usec": 39871,
+              "max_usec": 46846,
+              "call_count": 1122
+            },
+            {
+              "avg_usec": 9726,
+              "p50_usec": 8508,
+              "p95_usec": 43044,
+              "max_usec": 53031,
+              "call_count": 1247
+            },
+            {
+              "avg_usec": 9481,
+              "p50_usec": 8650,
+              "p95_usec": 44849,
+              "max_usec": 58153,
+              "call_count": 1342
+            }
+          ]
+        }
+      }
+    }
+  }
 }

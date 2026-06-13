@@ -6,7 +6,7 @@ using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_battle_timeline_state_schema_regression : SceneTree
 {
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -24,19 +24,7 @@ public partial class run_battle_timeline_state_schema_regression : SceneTree
         TestNonArrayReadyUnitIdsReturnsNull();
         TestNumericBoundariesReturnNull();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Battle timeline state schema regression: PASS");
-            Quit(0);
-            return;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Battle timeline state schema regression: FAIL ({_failures.Count})");
-        Quit(1);
+        Quit(_test.Finish("Battle timeline state schema regression"));
     }
 
     private void TestValidToDictRoundtrip()
@@ -49,16 +37,16 @@ public partial class run_battle_timeline_state_schema_regression : SceneTree
             ready_unit_ids = new GStringNameArray { new StringName("hero"), new StringName("enemy") },
         };
 
-        BattleTimelineState restored = BattleTimelineState.from_dict(state.to_dict());
-        AssertTrue(restored != null, "合法 to_dict payload 应能恢复。");
+        BattleTimelineState restored = BattleTimelineState.FromDictionary(state.ToDictionary());
+        _test.True(restored != null, "合法 to_dict payload 应能恢复。");
         if (restored == null)
         {
             return;
         }
 
-        AssertEq(restored.current_tu, 15, "roundtrip 应保留 current_tu。");
-        AssertEq(restored.tu_per_tick, 5, "roundtrip 应保留 tu_per_tick。");
-        AssertTrue(restored.frozen, "roundtrip 应保留 frozen。");
+        _test.Eq(restored.current_tu, 15, "roundtrip 应保留 current_tu。");
+        _test.Eq(restored.tu_per_tick, 5, "roundtrip 应保留 tu_per_tick。");
+        _test.True(restored.frozen, "roundtrip 应保留 frozen。");
         AssertStringNameArrayEq(
             restored.ready_unit_ids,
             new[] { "hero", "enemy" },
@@ -70,60 +58,60 @@ public partial class run_battle_timeline_state_schema_regression : SceneTree
     {
         GDictionary payload = ValidPayload();
         payload.Remove("current_tu");
-        AssertNull(BattleTimelineState.from_dict(payload), "缺少 current_tu 应返回 null。");
+        _test.True(BattleTimelineState.FromDictionary(payload) == null, "缺少 current_tu 应返回 null。");
     }
 
     private void TestExtraFieldReturnsNull()
     {
         GDictionary payload = ValidPayload();
         payload["speed"] = 5;
-        AssertNull(BattleTimelineState.from_dict(payload), "额外旧字段应返回 null。");
+        _test.True(BattleTimelineState.FromDictionary(payload) == null, "额外旧字段应返回 null。");
     }
 
     private void TestWrongTypesReturnNull()
     {
-        AssertNull(BattleTimelineState.from_dict(PayloadWith("current_tu", 1.0)), "current_tu 必须是 int。");
-        AssertNull(BattleTimelineState.from_dict(PayloadWith("tu_per_tick", 5.0)), "tu_per_tick 必须是 int。");
-        AssertNull(BattleTimelineState.from_dict(PayloadWith("frozen", 1)), "frozen 必须是 bool。");
-        AssertNull(
-            BattleTimelineState.from_dict(PayloadWith("ready_unit_ids", new GArray { 7 })),
+        _test.True(BattleTimelineState.FromDictionary(PayloadWith("current_tu", 1.0)) == null, "current_tu 必须是 int。");
+        _test.True(BattleTimelineState.FromDictionary(PayloadWith("tu_per_tick", 5.0)) == null, "tu_per_tick 必须是 int。");
+        _test.True(BattleTimelineState.FromDictionary(PayloadWith("frozen", 1)) == null, "frozen 必须是 bool。");
+        _test.True(
+            BattleTimelineState.FromDictionary(PayloadWith("ready_unit_ids", new GArray { 7 })) == null,
             "ready_unit_ids entry 只能是 String/StringName。"
         );
     }
 
     private void TestStringNumbersReturnNull()
     {
-        AssertNull(BattleTimelineState.from_dict(PayloadWith("current_tu", "1")), "current_tu 不接受字符串数字。");
-        AssertNull(BattleTimelineState.from_dict(PayloadWith("tu_per_tick", "5")), "tu_per_tick 不接受字符串数字。");
+        _test.True(BattleTimelineState.FromDictionary(PayloadWith("current_tu", "1")) == null, "current_tu 不接受字符串数字。");
+        _test.True(BattleTimelineState.FromDictionary(PayloadWith("tu_per_tick", "5")) == null, "tu_per_tick 不接受字符串数字。");
     }
 
     private void TestEmptyReadyIdReturnsNull()
     {
-        AssertNull(
-            BattleTimelineState.from_dict(PayloadWith("ready_unit_ids", new GArray { "" })),
+        _test.True(
+            BattleTimelineState.FromDictionary(PayloadWith("ready_unit_ids", new GArray { "" })) == null,
             "空 String ready id 应返回 null。"
         );
-        AssertNull(
-            BattleTimelineState.from_dict(
+        _test.True(
+            BattleTimelineState.FromDictionary(
                 PayloadWith("ready_unit_ids", new GArray { new StringName("") })
-            ),
+            ) == null,
             "空 StringName ready id 应返回 null。"
         );
     }
 
     private void TestNonArrayReadyUnitIdsReturnsNull()
     {
-        AssertNull(
-            BattleTimelineState.from_dict(PayloadWith("ready_unit_ids", "hero")),
+        _test.True(
+            BattleTimelineState.FromDictionary(PayloadWith("ready_unit_ids", "hero")) == null,
             "ready_unit_ids 非 Array 应返回 null。"
         );
     }
 
     private void TestNumericBoundariesReturnNull()
     {
-        AssertNull(BattleTimelineState.from_dict(PayloadWith("current_tu", -1)), "current_tu 不能为负数。");
-        AssertNull(BattleTimelineState.from_dict(PayloadWith("tu_per_tick", 0)), "tu_per_tick 必须为正数。");
-        AssertNull(BattleTimelineState.from_dict(PayloadWith("tu_per_tick", -5)), "tu_per_tick 不能为负数。");
+        _test.True(BattleTimelineState.FromDictionary(PayloadWith("current_tu", -1)) == null, "current_tu 不能为负数。");
+        _test.True(BattleTimelineState.FromDictionary(PayloadWith("tu_per_tick", 0)) == null, "tu_per_tick 必须为正数。");
+        _test.True(BattleTimelineState.FromDictionary(PayloadWith("tu_per_tick", -5)) == null, "tu_per_tick 不能为负数。");
     }
 
     private static GDictionary ValidPayload()
@@ -144,42 +132,18 @@ public partial class run_battle_timeline_state_schema_regression : SceneTree
         return payload;
     }
 
-    private void AssertNull(object value, string message)
-    {
-        if (value != null)
-        {
-            _failures.Add($"{message} | actual={value}");
-        }
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!EqualityComparer<T>.Default.Equals(actual, expected))
-        {
-            _failures.Add($"{message} | actual={actual} expected={expected}");
-        }
-    }
-
     private void AssertStringNameArrayEq(GStringNameArray actual, IReadOnlyList<string> expected, string message)
     {
         if (actual == null || actual.Count != expected.Count)
         {
-            _failures.Add($"{message} | actual={FormatStringNameArray(actual)} expected=[{string.Join(", ", expected)}]");
+            _test.Fail($"{message} | actual={FormatStringNameArray(actual)} expected=[{string.Join(", ", expected)}]");
             return;
         }
         for (int index = 0; index < expected.Count; index++)
         {
             if (actual[index].ToString() != expected[index])
             {
-                _failures.Add($"{message} | actual={FormatStringNameArray(actual)} expected=[{string.Join(", ", expected)}]");
+                _test.Fail($"{message} | actual={FormatStringNameArray(actual)} expected=[{string.Join(", ", expected)}]");
                 return;
             }
         }

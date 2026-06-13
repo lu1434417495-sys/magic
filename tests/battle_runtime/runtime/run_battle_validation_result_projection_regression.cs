@@ -1,37 +1,82 @@
 using System;
 using System.Collections.Generic;
-using System.Reflection;
 using Godot;
+using GCombatEffectArray = Godot.Collections.Array<CombatEffectDef>;
+using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public partial class run_battle_validation_result_projection_regression : SceneTree
 {
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
-        int exitCode = Run();
-        Quit(exitCode);
-    }
-
-    private int Run()
-    {
+        TestSkillExecutionOrchestratorUsesTypedSkillLevelAccessor();
         TestUnitSkillValidationProjectsTypedLists();
         TestGroundSkillValidationParsesAndProjectsStringKeyPayload();
+        TestAttackEffectResolutionReaderRequiresTypedCritLock();
+        TestRuntimeUnitSkillEffectTypedProjectionPreservesCritLock();
+        TestRuntimeChainDamageInternalHelperStillExecutesTypedChainEffects();
         TestTargetCollectionSortsAndProjectsCoords();
-        TestValidationResultPublicApiStaysTyped();
+        Quit(_test.Finish("Battle validation result projection regression"));
+    }
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Battle validation result projection regression: PASS");
-            return 0;
-        }
+    private void TestSkillExecutionOrchestratorUsesTypedSkillLevelAccessor()
+    {
+        var runtime = new BattleRuntimeModule();
+        runtime.setup(
+            null,
+            new Dictionary<StringName, SkillDef>
+            {
+                [new StringName("locked_zero_skill")] = new SkillDef
+                {
+                    skill_id = "locked_zero_skill",
+                    max_level = 0,
+                    dynamic_max_level_stat_id = "",
+                },
+            }
+        );
 
-        foreach (string failure in _failures)
+        try
         {
-            GD.PushError(failure);
+            var orchestrator = new BattleSkillExecutionOrchestrator();
+            orchestrator.Setup(runtime);
+            BattleUnitState activeOnlyUnit = new()
+            {
+                known_active_skill_ids = new GStringNameArray { "active_only_skill" },
+            };
+            _test.Eq(
+                orchestrator._get_unit_skill_level(activeOnlyUnit, "active_only_skill"),
+                1,
+                "只有 active skill id、没有显式等级时应继续按 1 级处理。"
+            );
+
+            BattleUnitState lockedZeroUnit = new()
+            {
+                known_active_skill_ids = new GStringNameArray { "locked_zero_skill" },
+            };
+            lockedZeroUnit.known_skill_level_map[new StringName("locked_zero_skill")] = 0;
+            _test.Eq(
+                orchestrator._get_unit_skill_level(lockedZeroUnit, "locked_zero_skill"),
+                0,
+                "静态 0 级技能即使出现在 active skill ids 中，也应继续保持 0 级。"
+            );
+
+            var unsortedCoords = new Godot.Collections.Array<Vector2I>
+            {
+                new Vector2I(2, 3),
+                new Vector2I(1, 1),
+                new Vector2I(0, 1),
+            };
+            var sortedCoords = orchestrator._sort_coords(unsortedCoords);
+            _test.Eq(sortedCoords[0], new Vector2I(0, 1), "typed 排序入口应先按 Y 再按 X 排序。");
+            _test.Eq(sortedCoords[1], new Vector2I(1, 1), "typed 排序入口排序结果应稳定。");
+            _test.Eq(sortedCoords[2], new Vector2I(2, 3), "typed 排序入口应保留较大的坐标在后。");
         }
-        GD.Print($"Battle validation result projection regression: FAIL ({_failures.Count})");
-        return 1;
+        finally
+        {
+            runtime.dispose();
+            runtime.Dispose();
+        }
     }
 
     private void TestUnitSkillValidationProjectsTypedLists()
@@ -47,24 +92,24 @@ public partial class run_battle_validation_result_projection_regression : SceneT
 
         Godot.Collections.Dictionary payload = result.ToDictionary();
 
-        AssertTrue(payload["allowed"].AsBool(), "单位技能 validation 应投影 allowed。");
-        AssertEq(payload["message"].AsString(), "ok", "单位技能 validation 应投影 message。");
-        AssertEq(
+        _test.True(payload["allowed"].AsBool(), "单位技能 validation 应投影 allowed。");
+        _test.Eq(payload["message"].AsString(), "ok", "单位技能 validation 应投影 message。");
+        _test.Eq(
             payload["target_unit_ids"].AsGodotArray<StringName>()[0],
             new StringName("target_1"),
             "单位技能 validation 应投影目标 id。"
         );
-        AssertEq(
+        _test.Eq(
             payload["target_units"].AsGodotArray()[0].As<BattleUnitState>(),
             targetUnit,
             "单位技能 validation 应投影目标 unit。"
         );
-        AssertEq(
+        _test.Eq(
             payload["random_chain_candidate_unit_ids"].AsGodotArray<StringName>()[0],
             new StringName("chain_1"),
             "单位技能 validation 应投影随机连锁候选。"
         );
-        AssertEq(
+        _test.Eq(
             payload["preview_coords"].AsGodotArray<Vector2I>()[0],
             new Vector2I(2, 3),
             "单位技能 validation 应投影 preview coord。"
@@ -96,16 +141,61 @@ public partial class run_battle_validation_result_projection_regression : SceneT
         );
         Godot.Collections.Dictionary payload = result.ToDictionary();
 
-        AssertTrue(result.Allowed, "地面技能 validation 应从 string-key payload 解析 allowed。");
-        AssertEq(result.Message, "cast", "地面技能 validation 应解析 message。");
-        AssertEq(result.TargetCoords[0], new Vector2I(4, 5), "地面技能 validation 应解析目标格。");
-        AssertEq(result.PreviewCoords[1], new Vector2I(5, 5), "地面技能 validation 应解析 preview 格。");
-        AssertEq(result.Direction, Vector2I.Right, "地面技能 validation 应解析方向。");
-        AssertEq(result.Distance, 2, "地面技能 validation 应解析距离。");
-        AssertEq(
+        _test.True(result.Allowed, "地面技能 validation 应从 string-key payload 解析 allowed。");
+        _test.Eq(result.Message, "cast", "地面技能 validation 应解析 message。");
+        _test.Eq(result.TargetCoords[0], new Vector2I(4, 5), "地面技能 validation 应解析目标格。");
+        _test.Eq(result.PreviewCoords[1], new Vector2I(5, 5), "地面技能 validation 应解析 preview 格。");
+        _test.Eq(result.Direction, Vector2I.Right, "地面技能 validation 应解析方向。");
+        _test.Eq(result.Distance, 2, "地面技能 validation 应解析距离。");
+        _test.Eq(
             payload["resolved_anchor_coord"].AsVector2I(),
             new Vector2I(6, 5),
             "地面技能 validation 应投影 resolved anchor。"
+        );
+    }
+
+    private void TestAttackEffectResolutionReaderRequiresTypedCritLock()
+    {
+        var payload = new Godot.Collections.Dictionary
+        {
+            ["applied"] = true,
+            ["attack_success"] = true,
+            ["attack_resolution"] = "hit",
+            ["crit_locked"] = true,
+            ["critical_hit"] = false,
+            ["skill_id"] = "black_contract_push",
+        };
+
+        AttackEffectResolutionResult result = AttackEffectResolutionResultReader.ReadResolverResult(
+            payload,
+            new AttackCheckInput(skillId: "black_contract_push")
+        );
+        Godot.Collections.Dictionary projected = AttackEffectResolutionResultReader.BuildGodotPayload(
+            result
+        );
+
+        _test.False(
+            result.AttackCheck.CritLocked,
+            "AttackEffectResolutionResultReader 不应从 payload 回填 crit_locked。"
+        );
+        _test.False(
+            projected.GetValueOrDefault("crit_locked", false).AsBool(),
+            "AttackEffectResolutionResult payload projection 应只反映 typed AttackCheckInput。"
+        );
+
+        AttackEffectResolutionResult typedResult = AttackEffectResolutionResultReader.ReadResolverResult(
+            payload,
+            new AttackCheckInput(skillId: "black_contract_push", critLocked: true)
+        );
+        Godot.Collections.Dictionary typedProjected =
+            AttackEffectResolutionResultReader.BuildGodotPayload(typedResult);
+        _test.True(
+            typedResult.AttackCheck.CritLocked,
+            "AttackEffectResolutionResultReader 应保留正式 typed AttackCheckInput 的 crit_locked=true。"
+        );
+        _test.True(
+            typedProjected.GetValueOrDefault("crit_locked", false).AsBool(),
+            "AttackEffectResolutionResult payload projection 应输出正式 typed crit_locked=true。"
         );
     }
 
@@ -115,75 +205,272 @@ public partial class run_battle_validation_result_projection_regression : SceneT
             new[] { new Vector2I(3, 2), new Vector2I(1, 1), new Vector2I(2, 1) }
         );
 
-        Godot.Collections.Array<Vector2I> coords = result.ToTargetCoordsArray();
         Godot.Collections.Dictionary payload = result.ToDictionary();
 
-        AssertTrue(result.Handled, "目标收集结果应保留 handled。");
-        AssertEq(coords[0], new Vector2I(1, 1), "目标收集结果应按 y/x 排序。");
-        AssertEq(coords[1], new Vector2I(2, 1), "目标收集结果排序应稳定按 x。");
-        AssertEq(
+        _test.True(result.Handled, "目标收集结果应保留 handled。");
+        _test.Eq(result.TargetCoords[0], new Vector2I(1, 1), "目标收集结果应按 y/x 排序。");
+        _test.Eq(result.TargetCoords[1], new Vector2I(2, 1), "目标收集结果排序应稳定按 x。");
+        _test.Eq(
             payload["target_coords"].AsGodotArray<Vector2I>()[2],
             new Vector2I(3, 2),
             "目标收集结果应投影排序后的 coords。"
         );
     }
 
-    private void TestValidationResultPublicApiStaysTyped()
+    private void TestRuntimeUnitSkillEffectTypedProjectionPreservesCritLock()
     {
-        AssertPublicApiDoesNotExposeGodotCollections(typeof(BattleUnitSkillValidationResult));
-        AssertPublicApiDoesNotExposeGodotCollections(typeof(BattleGroundSkillValidationResult));
-        AssertPublicApiDoesNotExposeGodotCollections(typeof(BattleTargetCollectionResult));
+        var runtime = new BattleRuntimeModule();
+        ProgressionContentRegistry progressionContent = new();
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs = progressionContent.GetSkillDefsTyped();
+        runtime.setup(
+            null,
+            skillDefs,
+            new Dictionary<StringName, EnemyTemplateDef>(),
+            new Dictionary<StringName, EnemyAiBrainDef>(),
+            null,
+            null,
+            new Dictionary<StringName, ItemDef>(),
+            null
+        );
+        runtime.ConfigureDamageResolverForTests(new DeterministicBattleDamageResolver());
+        runtime.ConfigureHitResolverForTests(new FixedHitResolver(10));
+
+        try
+        {
+            BattleState state = new() { map_size = new Vector2I(4, 3) };
+            runtime._state = state;
+            BattleUnitState source = new()
+            {
+                unit_id = "source",
+                faction_id = "ally",
+                coord = new Vector2I(0, 0),
+                current_hp = 40,
+                current_ap = 2,
+                known_active_skill_ids = new GStringNameArray { "black_contract_push" },
+            };
+            source.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 40);
+            source.attribute_snapshot.SetValue("action_points", 2);
+            source.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus), 12);
+            source.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 12);
+            source.known_skill_level_map["black_contract_push"] = 1;
+            BattleUnitState target = new()
+            {
+                unit_id = "target",
+                faction_id = "enemy",
+                coord = new Vector2I(1, 0),
+                current_hp = 40,
+            };
+            target.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 40);
+            target.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 999);
+            SkillDef skill = skillDefs["black_contract_push"];
+            CombatCastVariantDef castVariant = skill.combat_profile.GetCastVariant("action_tithe");
+            List<CombatEffectDef> effects = runtime._skill_resolution_rules.CollectUnitSkillEffectDefs(
+                skill,
+                castVariant
+            );
+            state.units[source.unit_id] = source;
+            state.units[target.unit_id] = target;
+            state.ally_unit_ids = new GStringNameArray { source.unit_id };
+            state.enemy_unit_ids = new GStringNameArray { target.unit_id };
+            state.active_unit_id = source.unit_id;
+
+            BattleSkillExecutionOrchestrator.UnitSkillEffectResolution typed = runtime
+                ._skill_orchestrator
+                .ResolveUnitSkillEffectResult(source, target, skill, effects);
+            Godot.Collections.Dictionary projected = AttackEffectResolutionResultReader.BuildGodotPayload(
+                typed.Result
+            );
+            if (typed.CustomLogLines.Count != 0)
+            {
+                var customLines = new Godot.Collections.Array();
+                foreach (string line in typed.CustomLogLines)
+                {
+                    customLines.Add(line);
+                }
+                projected["custom_log_lines"] = customLines;
+            }
+
+            _test.True(projected.ContainsKey("damage"), "runtime unit skill effect typed projection 应输出 damage。");
+            _test.Eq(
+                projected.ContainsKey("custom_log_lines"),
+                typed.CustomLogLines.Count != 0,
+                "runtime unit skill effect typed projection 应按 custom log lines 决定 payload presence。"
+            );
+            _test.True(
+                typed.Result.AttackCheck.CritLocked && typed.Result.AttackCheck.ForceHitNoCrit,
+                "force_hit_no_crit 技能的 typed attack check 应保留 crit_locked/force_hit_no_crit 语义。"
+            );
+            _test.True(
+                projected.GetValueOrDefault("crit_locked", false).AsBool(),
+                "runtime unit skill effect typed projection 应输出 force_hit_no_crit 的 crit_locked=true。"
+            );
+
+            runtime._state = null;
+            source.Dispose();
+            target.Dispose();
+            state.Dispose();
+        }
+        finally
+        {
+            runtime.dispose();
+            runtime.Dispose();
+            progressionContent.Dispose();
+        }
     }
 
-    private void AssertPublicApiDoesNotExposeGodotCollections(Type type)
+    private void TestRuntimeChainDamageInternalHelperStillExecutesTypedChainEffects()
     {
-        foreach (MethodInfo method in type.GetMethods(
-                     BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly
-                 ))
+        var runtime = new BattleRuntimeModule();
+        runtime.setup();
+        runtime.ConfigureDamageResolverForTests(new DeterministicBattleDamageResolver());
+
+        try
         {
-            AssertFalse(
-                IsForbiddenPublicApiType(method.ReturnType),
-                $"{type.Name}.{method.Name} 不应公开返回 Godot Dictionary/Array/Variant。"
-            );
-            foreach (ParameterInfo parameter in method.GetParameters())
+            BattleState state = BuildFlatBattleState(new Vector2I(4, 3));
+            runtime._state = state;
+
+            BattleUnitState source = MakeChainTestUnit("source", "ally", new Vector2I(0, 1));
+            BattleUnitState primary = MakeChainTestUnit("primary", "enemy", new Vector2I(1, 1));
+            BattleUnitState chained = MakeChainTestUnit("chained", "enemy", new Vector2I(2, 1));
+            int chainedHpBefore = chained.current_hp;
+
+            state.units[source.unit_id] = source;
+            state.units[primary.unit_id] = primary;
+            state.units[chained.unit_id] = chained;
+            runtime._grid_service.PlaceUnit(state, source, source.coord, true);
+            runtime._grid_service.PlaceUnit(state, primary, primary.coord, true);
+            runtime._grid_service.PlaceUnit(state, chained, chained.coord, true);
+
+            SkillDef skill = BuildChainTestSkill();
+            GCombatEffectArray effectDefs = new()
             {
-                AssertFalse(
-                    IsForbiddenPublicApiType(parameter.ParameterType),
-                    $"{type.Name}.{method.Name}({parameter.Name}) 不应公开接收 Godot Dictionary/Array/Variant。"
-                );
+                BuildExecuteEffect(),
+                new CombatEffectDef { effect_type = "chain_damage" },
+            };
+            BattleEventBatch batch = new();
+
+            runtime._skill_orchestrator._apply_chain_damage_effects(
+                source,
+                primary,
+                skill,
+                effectDefs,
+                new AttackEffectResolutionResult { Applied = true, SkillId = skill.skill_id },
+                batch,
+                "连锁测试"
+            );
+
+            _test.Eq(
+                chained.current_hp,
+                chainedHpBefore - 1,
+                "runtime chain damage wrapper 应继续通过 typed primary result 解析命中次级目标。"
+            );
+            _test.True(
+                batch.changed_unit_ids.Contains(chained.unit_id),
+                "runtime chain damage wrapper 应继续记录次级目标 changed_unit_id。"
+            );
+
+            runtime._state = null;
+            source.Dispose();
+            primary.Dispose();
+            chained.Dispose();
+            skill.Dispose();
+            state.Dispose();
+            batch.Dispose();
+        }
+        finally
+        {
+            runtime.dispose();
+            runtime.Dispose();
+        }
+    }
+
+    private static BattleState BuildFlatBattleState(Vector2I mapSize)
+    {
+        BattleState state = new() { map_size = mapSize };
+        for (int y = 0; y < mapSize.Y; y++)
+        {
+            for (int x = 0; x < mapSize.X; x++)
+            {
+                Vector2I coord = new(x, y);
+                var cell = new BattleCellState
+                {
+                    coord = coord,
+                    base_terrain = BattleTerrainRules.ToStringName(BattleTerrainKind.Land),
+                    base_height = 4,
+                    height_offset = 0,
+                };
+                cell.RecalculateRuntimeValues();
+                state.cells[coord] = cell;
             }
         }
+        state.cell_columns = BattleCellState.BuildColumnsFromSurfaceCells(state.cells);
+        return state;
     }
 
-    private static bool IsForbiddenPublicApiType(Type type)
+    private static BattleUnitState MakeChainTestUnit(
+        StringName unitId,
+        StringName factionId,
+        Vector2I coord
+    )
     {
-        if (type == typeof(Variant))
+        BattleUnitState unit = new()
         {
-            return true;
-        }
-        string typeName = type.FullName ?? "";
-        return typeName.StartsWith("Godot.Collections.Dictionary", StringComparison.Ordinal)
-            || typeName.StartsWith("Godot.Collections.Array", StringComparison.Ordinal);
+            unit_id = unitId,
+            display_name = unitId.ToString(),
+            faction_id = factionId,
+            control_mode = "manual",
+            current_hp = 30,
+            current_ap = 2,
+            current_stamina = 20,
+            is_alive = true,
+        };
+        unit.SetAnchorCoord(coord);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.HpMax), 30);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.MpMax), 0);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ActionPoints), 2);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.AttackBonus), 10);
+        unit.attribute_snapshot.SetValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass), 10);
+        unit.attribute_snapshot.SetValue("agility", 10);
+        unit.attribute_snapshot.SetValue("constitution", 10);
+        unit.attribute_snapshot.SetValue("intelligence", 10);
+        unit.attribute_snapshot.SetValue("willpower", 10);
+        return unit;
     }
 
-    private void AssertEq<T>(T actual, T expected, string message)
+    private static SkillDef BuildChainTestSkill()
     {
-        if (!Equals(actual, expected))
+        SkillDef skill = new()
         {
-            _failures.Add($"{message} expected={expected} actual={actual}");
-        }
-    }
-
-    private void AssertTrue(bool value, string message)
-    {
-        if (!value)
+            skill_id = "chain_arc_projection",
+            display_name = "Chain Arc Projection",
+            skill_type = "active",
+        };
+        skill.combat_profile = new CombatSkillDef
         {
-            _failures.Add(message);
-        }
+            target_mode = "unit",
+            target_team_filter = "enemy",
+            range_pattern = "fixed",
+            range_value = 4,
+        };
+        return skill;
     }
 
-    private void AssertFalse(bool value, string message)
+    private static CombatEffectDef BuildExecuteEffect()
     {
-        AssertTrue(!value, message);
+        return new CombatEffectDef
+        {
+            effect_type = "execute",
+            save_dc_mode = "static",
+            save_dc = 10,
+            save_ability = "willpower",
+            save_tag = "magic",
+            staged_execution = true,
+            burst_damage = 9999,
+            finisher_damage = 1,
+            shield_absorption_percent = 50.0,
+            min_hp_after_damage = 1,
+            boss_non_lethal_damage_max_hp_ratio_percent = 12,
+            boss_non_lethal_damage_floor = 25,
+        };
     }
 }

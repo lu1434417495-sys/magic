@@ -1,10 +1,9 @@
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 using GStringArray = Godot.Collections.Array<string>;
 
 public partial class run_meteor_swarm_terrain_modifier_regression : SceneTree
 {
-    private readonly GStringArray _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -18,26 +17,15 @@ public partial class run_meteor_swarm_terrain_modifier_regression : SceneTree
         TestDustDistanceGateAndEndpointStacking();
         TestDustExpiresWhileBattleLifetimeTerrainStaysActive();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Meteor swarm terrain modifier regression: PASS");
-            return 0;
-        }
-
-        foreach (string failure in _failures)
-        {
-            GD.PushError(failure);
-        }
-        GD.Print($"Meteor swarm terrain modifier regression: FAIL ({_failures.Count})");
-        return 1;
+        return _test.Finish("Meteor swarm terrain modifier regression");
     }
 
     private void TestDustAttackModifierUsesSchemaNotSourceId()
     {
         Fixture setup = BuildRuntimeWithUnits(new Vector2I(5, 3), new Vector2I(0, 1), new Vector2I(3, 1));
         CombatEffectDef oddNamedDust = BuildDustEffect("schema_driven_not_meteor_named");
-        AssertTrue(
-            setup.Runtime._terrain_effect_system.upsert_timed_terrain_effect(
+        _test.True(
+            setup.Runtime._terrain_effect_system.UpsertTimedTerrainEffect(
                 setup.Target.coord,
                 setup.Attacker,
                 null,
@@ -48,13 +36,13 @@ public partial class run_meteor_swarm_terrain_modifier_regression : SceneTree
         );
 
         AttackPolicyProbe probe = BuildPolicyAttackProbe(setup.Runtime, setup.Attacker, setup.Target);
-        AssertEq(
+        _test.Eq(
             probe.AttackCheck.SituationalAttackPenalty,
             2,
             "尘土命中 -2 应通过 accuracy_modifier_spec 生效，而不是靠 source id。"
         );
-        AssertEq(probe.ModifierBundle.Breakdown.Count, 1, "尘土命中修饰应输出一条 post-stack breakdown。");
-        AssertEq(
+        _test.Eq(probe.ModifierBundle.Breakdown.Count, 1, "尘土命中修饰应输出一条 post-stack breakdown。");
+        _test.Eq(
             probe.ModifierBundle.Breakdown.Count > 0
                 ? probe.ModifierBundle.Breakdown[0].modifier_delta
                 : 0,
@@ -70,8 +58,8 @@ public partial class run_meteor_swarm_terrain_modifier_regression : SceneTree
             new Vector2I(0, 0),
             new Vector2I(1, 0)
         );
-        AssertTrue(
-            adjacentSetup.Runtime._terrain_effect_system.upsert_timed_terrain_effect(
+        _test.True(
+            adjacentSetup.Runtime._terrain_effect_system.UpsertTimedTerrainEffect(
                 adjacentSetup.Target.coord,
                 adjacentSetup.Attacker,
                 null,
@@ -85,7 +73,7 @@ public partial class run_meteor_swarm_terrain_modifier_regression : SceneTree
             adjacentSetup.Attacker,
             adjacentSetup.Target
         );
-        AssertEq(
+        _test.Eq(
             adjacentProbe.ModifierBundle.Breakdown.Count,
             0,
             "distance_min_exclusive=1 时相邻攻击不应吃尘土命中惩罚。"
@@ -96,8 +84,8 @@ public partial class run_meteor_swarm_terrain_modifier_regression : SceneTree
             new Vector2I(0, 0),
             new Vector2I(3, 0)
         );
-        AssertTrue(
-            doubleSetup.Runtime._terrain_effect_system.upsert_timed_terrain_effect(
+        _test.True(
+            doubleSetup.Runtime._terrain_effect_system.UpsertTimedTerrainEffect(
                 doubleSetup.Attacker.coord,
                 doubleSetup.Attacker,
                 null,
@@ -106,8 +94,8 @@ public partial class run_meteor_swarm_terrain_modifier_regression : SceneTree
             ),
             "attacker footprint 尘土应能写入。"
         );
-        AssertTrue(
-            doubleSetup.Runtime._terrain_effect_system.upsert_timed_terrain_effect(
+        _test.True(
+            doubleSetup.Runtime._terrain_effect_system.UpsertTimedTerrainEffect(
                 doubleSetup.Target.coord,
                 doubleSetup.Attacker,
                 null,
@@ -121,12 +109,12 @@ public partial class run_meteor_swarm_terrain_modifier_regression : SceneTree
             doubleSetup.Attacker,
             doubleSetup.Target
         );
-        AssertEq(
+        _test.Eq(
             doubleProbe.AttackCheck.SituationalAttackPenalty,
             2,
             "attacker/target 同时处于 dust 时同 stack_key 不应叠成 -4。"
         );
-        AssertEq(
+        _test.Eq(
             doubleProbe.ModifierBundle.Breakdown.Count,
             1,
             "同 stack_key dust 只应保留一条 post-stack breakdown。"
@@ -136,8 +124,8 @@ public partial class run_meteor_swarm_terrain_modifier_regression : SceneTree
     private void TestDustExpiresWhileBattleLifetimeTerrainStaysActive()
     {
         Fixture setup = BuildRuntimeWithUnits(new Vector2I(5, 2), new Vector2I(0, 0), new Vector2I(3, 0));
-        AssertTrue(
-            setup.Runtime._terrain_effect_system.upsert_timed_terrain_effect(
+        _test.True(
+            setup.Runtime._terrain_effect_system.UpsertTimedTerrainEffect(
                 setup.Target.coord,
                 setup.Attacker,
                 null,
@@ -146,8 +134,8 @@ public partial class run_meteor_swarm_terrain_modifier_regression : SceneTree
             ),
             "timed dust 应能写入。"
         );
-        AssertTrue(
-            setup.Runtime._terrain_effect_system.upsert_timed_terrain_effect(
+        _test.True(
+            setup.Runtime._terrain_effect_system.UpsertTimedTerrainEffect(
                 setup.Target.coord,
                 setup.Attacker,
                 null,
@@ -157,16 +145,16 @@ public partial class run_meteor_swarm_terrain_modifier_regression : SceneTree
             "battle lifetime rubble 应能写入。"
         );
         setup.State.timeline.current_tu = 55;
-        setup.Runtime._terrain_effect_system.process_timed_terrain_effects(new BattleEventBatch());
+        setup.Runtime._terrain_effect_system.ProcessTimedTerrainEffects(new BattleEventBatch());
 
         AttackPolicyProbe probe = BuildPolicyAttackProbe(setup.Runtime, setup.Attacker, setup.Target);
-        AssertEq(
+        _test.Eq(
             probe.ModifierBundle.Breakdown.Count,
             0,
             "timed dust 到期后不应继续提供命中惩罚。"
         );
-        AssertEq(
-            setup.Runtime._terrain_effect_system.get_move_cost_delta_for_unit_target(
+        _test.Eq(
+            setup.Runtime._terrain_effect_system.GetMoveCostDeltaForUnitTarget(
                 setup.Target,
                 setup.Target.coord
             ),
@@ -181,9 +169,9 @@ public partial class run_meteor_swarm_terrain_modifier_regression : SceneTree
         BattleUnitState target
     )
     {
-        BattleAttackCheckPolicyService attackPolicy = runtime.get_attack_check_policy_service();
+        BattleAttackCheckPolicyService attackPolicy = runtime.GetAttackCheckPolicyService();
         BattleAttackCheckPolicyContext context = attackPolicy.BuildAttackContext(
-            runtime.get_state(),
+            runtime.GetState(),
             attacker,
             target,
             null,
@@ -201,7 +189,7 @@ public partial class run_meteor_swarm_terrain_modifier_regression : SceneTree
     private Fixture BuildRuntimeWithUnits(Vector2I mapSize, Vector2I attackerCoord, Vector2I targetCoord)
     {
         var runtime = new BattleRuntimeModule();
-        runtime.setup(null, new GDictionary(), new GDictionary(), new GDictionary());
+        runtime.setup();
         BattleState state = BuildState(mapSize);
         BattleUnitState attacker = BuildUnit("attacker", attackerCoord, "player");
         BattleUnitState target = BuildUnit("target", targetCoord, "enemy");
@@ -210,12 +198,12 @@ public partial class run_meteor_swarm_terrain_modifier_regression : SceneTree
         state.ally_unit_ids = new Godot.Collections.Array<StringName> { attacker.unit_id };
         state.enemy_unit_ids = new Godot.Collections.Array<StringName> { target.unit_id };
         state.active_unit_id = attacker.unit_id;
-        AssertTrue(
-            runtime._grid_service.place_unit(state, attacker, attacker.coord, true),
+        _test.True(
+            runtime._grid_service.PlaceUnit(state, attacker, attacker.coord, true),
             "attacker 应能放入 terrain modifier fixture。"
         );
-        AssertTrue(
-            runtime._grid_service.place_unit(state, target, target.coord, true),
+        _test.True(
+            runtime._grid_service.PlaceUnit(state, target, target.coord, true),
             "target 应能放入 terrain modifier fixture。"
         );
         runtime._state = state;
@@ -258,7 +246,7 @@ public partial class run_meteor_swarm_terrain_modifier_regression : SceneTree
             is_alive = true,
         };
         SeedBaseAttributesAndDeriveAc(unit);
-        unit.refresh_footprint();
+        unit.RefreshFootprint();
         return unit;
     }
 
@@ -276,26 +264,26 @@ public partial class run_meteor_swarm_terrain_modifier_regression : SceneTree
         foreach (
             StringName attributeId in new Godot.Collections.Array<StringName>
             {
-                UnitBaseAttributes.STRENGTH(),
-                UnitBaseAttributes.AGILITY(),
-                UnitBaseAttributes.CONSTITUTION(),
-                UnitBaseAttributes.PERCEPTION(),
-                UnitBaseAttributes.INTELLIGENCE(),
-                UnitBaseAttributes.WILLPOWER(),
+                UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Strength),
+                UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility),
+                UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Constitution),
+                UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Perception),
+                UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Intelligence),
+                UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Willpower),
             }
         )
         {
-            if (!snapshot.has_value(attributeId))
-                snapshot.set_value(attributeId, 10);
+            if (!snapshot.HasValue(attributeId))
+                snapshot.SetValue(attributeId, 10);
         }
-        if (!snapshot.has_value(AttributeService.ARMOR_CLASS_ID()))
+        if (!snapshot.HasValue(AttributeService.ToStringName(AttributeIdKind.ArmorClass)))
         {
-            int agilityModifier = AttributeSnapshot.calculate_score_modifier(
-                snapshot.get_value(UnitBaseAttributes.AGILITY())
+            int agilityModifier = AttributeSnapshot.CalculateScoreModifier(
+                snapshot.GetValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Agility))
             );
-            snapshot.set_value(
-                AttributeService.ARMOR_CLASS_ID(),
-                Mathf.Clamp(AttributeService.BASE_ARMOR_CLASS_VALUE() + agilityModifier, 1, 99)
+            snapshot.SetValue(
+                AttributeService.ToStringName(AttributeIdKind.ArmorClass),
+                Mathf.Clamp(AttributeService.BASE_ARMOR_CLASS + agilityModifier, 1, 99)
             );
         }
     }
@@ -303,20 +291,20 @@ public partial class run_meteor_swarm_terrain_modifier_regression : SceneTree
     private static CombatEffectDef BuildDustEffect(StringName effectId)
     {
         CombatEffectDef effect = BuildTimedTerrainEffect(effectId, 0, "timed", 50, 5);
-        effect.@params["accuracy_modifier_spec"] = new GDictionary
+        effect.accuracy_modifier_spec = new BattleAttackRollModifierSpec
         {
-            ["source_domain"] = "terrain",
-            ["label"] = "尘土",
-            ["modifier_delta"] = -2,
-            ["stack_key"] = "dust_attack_roll_penalty",
-            ["stack_mode"] = "max",
-            ["roll_kind_filter"] = "spell_attack",
-            ["endpoint_mode"] = "either",
-            ["distance_min_exclusive"] = 1,
-            ["distance_max_inclusive"] = -1,
-            ["target_team_filter"] = "any",
-            ["footprint_mode"] = "any_cell",
-            ["applies_to"] = "attack_roll",
+            source_domain = "terrain",
+            label = "尘土",
+            modifier_delta = -2,
+            stack_key = "dust_attack_roll_penalty",
+            stack_mode = "max",
+            roll_kind_filter = "spell_attack",
+            endpoint_mode = "either",
+            distance_min_exclusive = 1,
+            distance_max_inclusive = -1,
+            target_team_filter = "any",
+            footprint_mode = "any_cell",
+            applies_to = "attack_roll",
         };
         return effect;
     }
@@ -338,34 +326,15 @@ public partial class run_meteor_swarm_terrain_modifier_regression : SceneTree
         {
             effect_type = "terrain_effect",
             tick_effect_type = "none",
+            lifetime_policy = lifetimePolicy,
+            move_cost_delta = moveCostDelta,
             terrain_effect_id = effectId,
+            display_name = effectId.ToString(),
+            render_overlay_id = effectId,
             duration_tu = durationTu,
             tick_interval_tu = tickIntervalTu,
             effect_target_team_filter = "any",
-            @params = new GDictionary
-            {
-                ["lifetime_policy"] = lifetimePolicy,
-                ["move_cost_delta"] = moveCostDelta,
-                ["display_name"] = effectId.ToString(),
-                ["render_overlay_id"] = effectId.ToString(),
-            },
         };
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!Equals(actual, expected))
-        {
-            _failures.Add($"{message} actual={actual} expected={expected}");
-        }
-    }
-
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-        {
-            _failures.Add(message);
-        }
     }
 
     private sealed class Fixture

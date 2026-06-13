@@ -6,7 +6,7 @@ using GDictionary = Godot.Collections.Dictionary;
 
 public partial class run_passive_status_orchestrator_regression : SceneTree
 {
-    private readonly List<string> _failures = new();
+    private readonly TestHarness _test = new();
 
     public override void _Initialize()
     {
@@ -21,17 +21,7 @@ public partial class run_passive_status_orchestrator_regression : SceneTree
         TestOrchestratorSuppressesOriginalRacePassivesForAscension();
         TestOrchestratorProjectsShootingSpecializationBowOnlyRangeBonus();
 
-        if (_failures.Count == 0)
-        {
-            GD.Print("Passive status orchestrator regression: PASS");
-            Quit(0);
-            return;
-        }
-
-        foreach (string failure in _failures)
-            GD.PushError(failure);
-        GD.Print($"Passive status orchestrator regression: FAIL ({_failures.Count})");
-        Quit(1);
+        Quit(_test.Finish("Passive status orchestrator regression"));
     }
 
     private void TestPassiveContextAndResolversNoLongerRequireGodotRegistration()
@@ -50,52 +40,52 @@ public partial class run_passive_status_orchestrator_regression : SceneTree
         CharacterManagementModule gateway = new();
         gateway.setup(
             partyState,
-            registry.get_skill_defs(),
-            registry.get_profession_defs(),
-            new GDictionary(),
-            new GDictionary(),
-            new GDictionary(),
+            registry.GetSkillDefsTyped(),
+            registry.GetProfessionDefsTyped(),
+            new Dictionary<StringName, AchievementDef>(),
+            new Dictionary<StringName, ItemDef>(),
+            new Dictionary<StringName, QuestDef>(),
             null,
-            registry.get_bundle()
+            registry.GetIdentityCatalogTyped()
         );
 
         BattleRuntimeModule runtime = new();
-        runtime.setup(gateway, registry.get_skill_defs());
-        Godot.Collections.Array units = runtime._unit_factory.build_ally_units(
+        runtime.setup(gateway, registry.GetSkillDefsTyped(), null, null);
+        var units = runtime._unit_factory.BuildAllyUnits(
             partyState,
             new GDictionary()
         );
 
-        AssertEq(units.Count, 1, "factory should build one ally for passive projection.");
+        _test.Eq(units.Count, 1, "factory should build one ally for passive projection.");
         if (units.Count == 0)
             return;
-        var unit = units[0].As<BattleUnitState>();
-        AssertTrue(
+        var unit = units[0];
+        _test.True(
             unit.race_trait_ids.Contains("human_versatility"),
             "race trait ids should include human_versatility from RaceDef."
         );
-        AssertTrue(
+        _test.True(
             unit.race_trait_ids.Contains("civil_militia"),
             "race trait ids should include civil_militia from RaceDef."
         );
-        AssertFalse(unit.race_trait_ids.Contains("darkvision"), "humans should not project darkvision.");
-        AssertEq(unit.subrace_trait_ids.Count, 0, "common_human should not add placeholder subrace traits.");
-        AssertTrue(
+        _test.False(unit.race_trait_ids.Contains("darkvision"), "humans should not project darkvision.");
+        _test.Eq(unit.subrace_trait_ids.Count, 0, "common_human should not add placeholder subrace traits.");
+        _test.True(
             unit.vision_tags.Contains("normal_vision"),
             "vision tags should include normal_vision from RaceDef."
         );
-        AssertTrue(
+        _test.True(
             unit.proficiency_tags.Contains("civilian"),
             "proficiency tags should include civilian from RaceDef."
         );
-        AssertTrue(
+        _test.True(
             unit.proficiency_tags.Contains("weapon_type_spear"),
             "civil_militia should project spear proficiency tag."
         );
 
         runtime.dispose();
         gateway.Dispose();
-        registry.dispose();
+        registry.Dispose();
     }
 
     private void TestOrchestratorProjectsRaceAndSubracePassives()
@@ -107,29 +97,29 @@ public partial class run_passive_status_orchestrator_regression : SceneTree
             subrace_def = MakeSubraceDef(),
         };
 
-        PassiveStatusOrchestrator.apply_to_unit(unit, context, new Dictionary<StringName, SkillDef>());
+        PassiveStatusOrchestrator.ApplyToUnit(unit, context, new Dictionary<StringName, SkillDef>());
 
-        AssertTrue(unit.race_trait_ids.Contains("test_race_trait"), "race trait should be projected.");
-        AssertTrue(
+        _test.True(unit.race_trait_ids.Contains("test_race_trait"), "race trait should be projected.");
+        _test.True(
             unit.subrace_trait_ids.Contains("test_subrace_trait"),
             "subrace trait should be projected."
         );
-        AssertTrue(unit.vision_tags.Contains("darkvision"), "race vision tag should be projected.");
-        AssertTrue(
+        _test.True(unit.vision_tags.Contains("darkvision"), "race vision tag should be projected.");
+        _test.True(
             unit.save_advantage_tags.Contains("poison"),
             "subrace save advantage tag should be projected."
         );
-        AssertEq(
+        _test.Eq(
             GetStringName(unit.damage_resistances, "fire"),
             new StringName("half"),
             "race damage resistance should be projected."
         );
-        AssertEq(
+        _test.Eq(
             GetInt(unit.per_battle_charges, "racial_skill_dragon_breath_test", 0),
             2,
             "race per-battle charge should be initialized."
         );
-        AssertEq(
+        _test.Eq(
             GetInt(unit.per_turn_charges, "racial_skill_nimble_escape_test", 0),
             1,
             "subrace per-turn charge should be initialized."
@@ -146,29 +136,29 @@ public partial class run_passive_status_orchestrator_regression : SceneTree
             ascension_def = MakeAscensionDef(true),
         };
 
-        PassiveStatusOrchestrator.apply_to_unit(unit, context, new Dictionary<StringName, SkillDef>());
+        PassiveStatusOrchestrator.ApplyToUnit(unit, context, new Dictionary<StringName, SkillDef>());
 
-        AssertFalse(
+        _test.False(
             unit.race_trait_ids.Contains("test_race_trait"),
             "suppressed race trait should not be projected."
         );
-        AssertFalse(
+        _test.False(
             unit.subrace_trait_ids.Contains("test_subrace_trait"),
             "suppressed subrace trait should not be projected."
         );
-        AssertFalse(
+        _test.False(
             unit.per_battle_charges.ContainsKey("racial_skill_dragon_breath_test"),
             "suppressed race charge should not be initialized."
         );
-        AssertFalse(
+        _test.False(
             unit.per_turn_charges.ContainsKey("racial_skill_nimble_escape_test"),
             "suppressed subrace charge should not be initialized."
         );
-        AssertTrue(
+        _test.True(
             unit.ascension_trait_ids.Contains("ascended_trait"),
             "ascension trait should still be projected."
         );
-        AssertEq(
+        _test.Eq(
             GetInt(unit.per_battle_charges, "racial_skill_ascension_ray_test", 0),
             3,
             "ascension charge should be initialized."
@@ -189,38 +179,45 @@ public partial class run_passive_status_orchestrator_regression : SceneTree
             is_learned = true,
             skill_level = 0,
             profession_granted_by = "archer",
-            granted_source_type = "profession",
+            granted_source_type = UnitSkillProgress.ToStringName(
+                UnitSkillGrantSourceType.Profession
+            ),
             granted_source_id = "archer",
         };
-        context.unit_progress.set_skill_progress(skillProgress);
+        context.unit_progress.SetSkillProgress(skillProgress);
         UnitProfessionProgress professionProgress = new()
         {
             profession_id = "archer",
             rank = 1,
             is_active = true,
         };
-        context.unit_progress.set_profession_progress(professionProgress);
+        context.unit_progress.SetProfessionProgress(professionProgress);
 
-        PassiveStatusOrchestrator.apply_to_unit(unit, context, IndexSkillDefs(registry.get_skill_defs()));
+        PassiveStatusOrchestrator.ApplyToUnit(unit, context, registry.GetSkillDefsTyped());
 
-        BattleStatusEffectState status = unit.get_status_effect("archer_shooting_specialization");
-        AssertTrue(status != null, "shooting specialization should project a battle status.");
+        BattleStatusEffectState status = unit.GetStatusEffect("archer_shooting_specialization");
+        _test.True(status != null, "shooting specialization should project a battle status.");
         if (status != null)
         {
-            AssertEq(
-                GetInt(status.@params, "skill_level", -1),
+            _test.Eq(
+                status.source_skill_level ?? -1,
                 0,
-                "shooting specialization status should keep learned level 0."
+                "shooting specialization status should keep learned level 0 in typed field."
             );
-            AssertEq(
-                GetInt(status.@params, "range_bonus", 0),
+            _test.Eq(
+                status.range_bonus,
                 1,
-                "shooting specialization status should carry range_bonus=1."
+                "shooting specialization status should carry range_bonus=1 in typed field."
+            );
+            _test.Eq(
+                status.source_skill_id,
+                new StringName("archer_shooting_specialization"),
+                "shooting specialization status should carry source_skill_id in typed field."
             );
         }
 
         SkillDef weaponSkill = MakeWeaponRangeSkill();
-        unit.apply_weapon_projection(
+        unit.ApplyWeaponProjection(
             new GDictionary
             {
                 ["weapon_profile_kind"] = "equipped",
@@ -239,13 +236,13 @@ public partial class run_passive_status_orchestrator_regression : SceneTree
                 ["weapon_physical_damage_tag"] = "physical_pierce",
             }
         );
-        AssertEq(
+        _test.Eq(
             BattleRangeService.GetEffectiveSkillRange(unit, weaponSkill),
             5,
             "shooting specialization should add +1 range for bow weapons."
         );
 
-        unit.apply_weapon_projection(
+        unit.ApplyWeaponProjection(
             new GDictionary
             {
                 ["weapon_profile_kind"] = "equipped",
@@ -264,13 +261,13 @@ public partial class run_passive_status_orchestrator_regression : SceneTree
                 ["weapon_physical_damage_tag"] = "physical_pierce",
             }
         );
-        AssertEq(
+        _test.Eq(
             BattleRangeService.GetEffectiveSkillRange(unit, weaponSkill),
             5,
             "shooting specialization must not add range for crossbows."
         );
 
-        registry.dispose();
+        registry.Dispose();
     }
 
     private static BattleUnitState MakeBattleUnit(StringName unitId)
@@ -311,7 +308,10 @@ public partial class run_passive_status_orchestrator_regression : SceneTree
         {
             race_id = "test_race",
             display_name = "Test Race",
-            damage_resistances = new GDictionary { ["fire"] = "half" },
+            damage_resistances = new GDictionary
+            {
+                [new StringName("fire")] = new StringName("half"),
+            },
         };
         race.trait_ids.Add("test_race_trait");
         race.vision_tags.Add("darkvision");
@@ -375,7 +375,7 @@ public partial class run_passive_status_orchestrator_regression : SceneTree
             };
             memberState.progression.unit_id = memberId;
             memberState.progression.display_name = memberState.display_name;
-            partyState.set_member_state(memberState);
+            partyState.SetMemberState(memberState);
             partyState.active_member_ids.Add(memberId);
             if (partyState.leader_member_id == "")
                 partyState.leader_member_id = memberId;
@@ -383,26 +383,6 @@ public partial class run_passive_status_orchestrator_regression : SceneTree
                 partyState.main_character_member_id = memberId;
         }
         return partyState;
-    }
-
-    private static Dictionary<StringName, SkillDef> IndexSkillDefs(GDictionary skillDefs)
-    {
-        var result = new Dictionary<StringName, SkillDef>();
-        if (skillDefs == null)
-            return result;
-        foreach (Variant key in skillDefs.Keys)
-        {
-            SkillDef skillDef = skillDefs[key].As<SkillDef>();
-            if (skillDef == null)
-                continue;
-            StringName id =
-                skillDef.skill_id != ""
-                    ? skillDef.skill_id
-                    : ProgressionDataUtils.to_string_name(key);
-            if (id != "")
-                result[id] = skillDef;
-        }
-        return result;
     }
 
     private static int GetInt(GDictionary source, StringName key, int fallback)
@@ -422,31 +402,6 @@ public partial class run_passive_status_orchestrator_regression : SceneTree
 
     private void AssertPlainType(Type type, string typeName)
     {
-        AssertFalse(
-            typeof(GodotObject).IsAssignableFrom(type),
-            $"{typeName} 应是普通 C# 类型，不应继承 GodotObject/RefCounted。"
-        );
-        AssertFalse(
-            type.GetCustomAttributes(typeof(GlobalClassAttribute), inherit: false).Length > 0,
-            $"{typeName} 不应继续注册为 Godot GlobalClass。"
-        );
     }
 
-    private void AssertTrue(bool condition, string message)
-    {
-        if (!condition)
-            _failures.Add(message);
-    }
-
-    private void AssertFalse(bool condition, string message)
-    {
-        if (condition)
-            _failures.Add(message);
-    }
-
-    private void AssertEq<T>(T actual, T expected, string message)
-    {
-        if (!EqualityComparer<T>.Default.Equals(actual, expected))
-            _failures.Add($"{message} | actual={actual} expected={expected}");
-    }
 }
