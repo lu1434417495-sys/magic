@@ -275,10 +275,13 @@ internal class BattleGroundEffectService
             : Runtime._get_unit_skill_level(unit_state, skill_id);
     }
 
-    internal string _get_skill_cast_block_reason(BattleUnitState active_unit, SkillDef skill_def)
+    internal BattleSkillCastBlockReasonKind _get_skill_cast_block_reason(
+        BattleUnitState active_unit,
+        SkillDef skill_def
+    )
     {
         return _runtime == null
-            ? ""
+            ? BattleSkillCastBlockReasonKind.SkillCastCheckUnbound
             : Runtime._get_skill_cast_block_reason(active_unit, skill_def);
     }
 
@@ -2143,10 +2146,18 @@ internal class BattleGroundEffectService
         {
             return deniedResult with { Message = "该技能形态不是地面施法。" };
         }
-        string blockReason = _get_skill_cast_block_reason(active_unit, skill_def);
-        if (!string.IsNullOrEmpty(blockReason))
+        BattleSkillCastBlockReasonKind blockReason = _get_skill_cast_block_reason(
+            active_unit,
+            skill_def
+        );
+        if (BattleSkillCastBlockReasonKinds.IsBlocked(blockReason))
         {
-            return deniedResult with { Message = blockReason };
+            return deniedResult with
+            {
+                Message =
+                    Runtime?._get_skill_cast_block_message(active_unit, skill_def)
+                    ?? "正式技能检查未绑定，无法施放该技能。",
+            };
         }
         if (normalizedCoords.Count != cast_variant.required_coord_count)
         {

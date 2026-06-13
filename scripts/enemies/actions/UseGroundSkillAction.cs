@@ -176,10 +176,16 @@ public partial class UseGroundSkillAction : EnemyAiAction
                 continue;
             }
 
-            string blockReason = _get_skill_cast_block_reason(context, skillDef);
-            if (!string.IsNullOrEmpty(blockReason))
+            BattleSkillCastBlockReasonKind blockReason = _get_skill_cast_block_reason(
+                context,
+                skillDef
+            );
+            if (BattleSkillCastBlockReasonKinds.IsBlocked(blockReason))
             {
-                _trace_add_block_reason(actionTrace, blockReason);
+                _trace_add_block_reason(
+                    actionTrace,
+                    BattleSkillCastBlockReasonKinds.ToTraceKey(blockReason)
+                );
                 continue;
             }
 

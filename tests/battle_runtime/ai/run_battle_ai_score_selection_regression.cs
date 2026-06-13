@@ -568,6 +568,7 @@ public partial class run_battle_ai_score_selection_regression : SceneTree
         public readonly BattleState State;
         public readonly BattleGridService GridService = new();
         public readonly BattleAiScoreService ScoreService = new();
+        private readonly BattleRuntimeModule _runtime = new();
         private readonly Dictionary<StringName, SkillDef> _skillDefs = new();
 
         public Fixture(string battleId, Vector2I mapSize)
@@ -608,11 +609,13 @@ public partial class run_battle_ai_score_selection_regression : SceneTree
 
         public BattleAiContext BuildContext(BattleUnitState actor)
         {
+            _runtime.setup(null, _skillDefs);
             var context = new BattleAiContext
             {
                 state = State,
                 unit_state = actor,
                 grid_service = GridService,
+                skill_cast_block_reason_callback = _runtime.GetSkillCastBlockReason,
             };
             context.SetSkillDefs(_skillDefs);
             return context;

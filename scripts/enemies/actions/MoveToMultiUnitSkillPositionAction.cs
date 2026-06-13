@@ -71,9 +71,9 @@ public partial class MoveToMultiUnitSkillPositionAction : UseMultiUnitSkillActio
                 continue;
             }
             var br = _get_skill_cast_block_reason(context, sd);
-            if (br.Length > 0)
+            if (BattleSkillCastBlockReasonKinds.IsBlocked(br))
             {
-                _trace_add_block_reason(at, br);
+                _trace_add_block_reason(at, BattleSkillCastBlockReasonKinds.ToTraceKey(br));
                 continue;
             }
             List<BattleUnitState> st = _sort_target_units_typed(

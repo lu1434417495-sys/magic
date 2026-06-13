@@ -55,37 +55,19 @@ internal sealed class BattleAiTypedActionHelper
         return context?.GetSkillDefTyped(skillId);
     }
 
-    public string GetSkillCastBlockReason(BattleAiContext context, SkillDef skillDef)
+    public BattleSkillCastBlockReasonKind GetSkillCastBlockReason(
+        BattleAiContext context,
+        SkillDef skillDef
+    )
     {
         BattleUnitState unitState = context?.unit_state;
         CombatSkillDef combatProfile = skillDef?.combat_profile;
         if (unitState == null || skillDef == null || combatProfile == null)
-            return "技能或目标无效。";
+            return BattleSkillCastBlockReasonKind.InvalidSkillOrTarget;
 
-        int skillLevel = GetSkillLevel(unitState, skillDef.skill_id);
-        SkillEffectiveCombatProfile effectiveProfile =
-            SkillEffectiveCombatProfileResolver.Resolve(
-                context?.skill_catalog,
-                skillDef,
-                skillLevel
-            );
-        CombatSkillResourceCosts costs = effectiveProfile.ResourceCosts;
-        int cooldown = unitState.GetCooldownTyped(skillDef.skill_id);
-        if (cooldown > 0)
-            return $"{skillDef.display_name} 仍在冷却中（{cooldown}）。";
-
-        string lockedReason = GetLockedCombatResourceBlockReason(unitState, costs);
-        if (!string.IsNullOrEmpty(lockedReason))
-            return lockedReason;
-        if (unitState.current_ap < costs.ApCost)
-            return "AP不足，无法施放该技能。";
-        if (unitState.current_mp < costs.MpCost)
-            return "法力不足，无法施放该技能。";
-        if (unitState.current_stamina < costs.StaminaCost)
-            return "体力不足，无法施放该技能。";
-        if (unitState.current_aura < costs.AuraCost)
-            return "斗气不足，无法施放该技能。";
-        return "";
+        return context.skill_cast_block_reason_callback == null
+            ? BattleSkillCastBlockReasonKind.SkillCastCheckUnbound
+            : context.skill_cast_block_reason_callback.Invoke(unitState, skillDef);
     }
 
     public List<BattleUnitState> SortTargetUnits(
@@ -581,24 +563,6 @@ internal sealed class BattleAiTypedActionHelper
             : unitState.known_active_skill_ids.Contains(skillId)
                 ? 1
                 : 0;
-    }
-
-    private static string GetLockedCombatResourceBlockReason(
-        BattleUnitState unitState,
-        CombatSkillResourceCosts costs
-    )
-    {
-        if (unitState == null)
-            return "技能施放者无效。";
-        if (costs.MpCost > 0 && !unitState.HasCombatResourceUnlocked("mp"))
-            return "法力尚未解锁，无法施放该技能。";
-        if (costs.StaminaCost > 0 && !unitState.HasCombatResourceUnlocked("stamina"))
-        {
-            return "体力尚未解锁，无法施放该技能。";
-        }
-        if (costs.AuraCost > 0 && !unitState.HasCombatResourceUnlocked("aura"))
-            return "斗气尚未解锁，无法施放该技能。";
-        return "";
     }
 
     private static bool IsEmpty(StringName value)

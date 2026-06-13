@@ -2328,7 +2328,11 @@ public partial class MoveToRangeAction : EnemyAiAction
             {
                 continue;
             }
-            if (_get_skill_cast_block_reason(context, skillDef).Length > 0)
+            if (
+                BattleSkillCastBlockReasonKinds.IsBlocked(
+                    _get_skill_cast_block_reason(context, skillDef)
+                )
+            )
             {
                 continue;
             }

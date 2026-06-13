@@ -165,7 +165,7 @@ public partial class run_doom_sentence_regression : SceneTree
 
         SkillDef skillDef = GetSkill(runtime.GetSkillDefIndexTyped(), DOOM_SENTENCE_SKILL_ID);
         _test.True(
-            !string.IsNullOrWhiteSpace(runtime.GetSkillCastBlockReason(caster, skillDef)),
+            BattleSkillCastBlockReasonKinds.IsBlocked(runtime.GetSkillCastBlockReason(caster, skillDef)),
             "每战 1 次用尽后，技能应进入阻断状态并提供反馈。"
         );
 
@@ -207,7 +207,7 @@ public partial class run_doom_sentence_regression : SceneTree
 
         SkillDef skillDef = GetSkill(runtime.GetSkillDefIndexTyped(), DOOM_SENTENCE_SKILL_ID);
         _test.True(
-            !string.IsNullOrWhiteSpace(runtime.GetSkillCastBlockReason(caster, skillDef)),
+            BattleSkillCastBlockReasonKinds.IsBlocked(runtime.GetSkillCastBlockReason(caster, skillDef)),
             "当本战 calamity 上限小于 5 时，技能应进入阻断状态并提供反馈。"
         );
 

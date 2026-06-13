@@ -96,9 +96,10 @@ public partial class run_dragon_breath_regression : SceneTree
         SkillDef skillDef = BuildDragonBreathSkill(DragonBreathFireCone, "fire", "cone");
         unit.SetCooldownTyped(skillDef.skill_id, 2);
 
-        string blockReason = resolver.GetSkillCastBlockReason(unit, skillDef);
-        _test.True(
-            !string.IsNullOrEmpty(blockReason),
+        BattleSkillCastBlockReasonKind blockReason = resolver.GetSkillCastBlockReason(unit, skillDef);
+        _test.Eq(
+            blockReason,
+            BattleSkillCastBlockReasonKind.Cooldown,
             "skill turn resolver 应通过 typed cooldown accessor 返回冷却 block reason。"
         );
     }

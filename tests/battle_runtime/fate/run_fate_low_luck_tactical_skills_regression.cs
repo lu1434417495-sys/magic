@@ -213,8 +213,8 @@ public partial class run_fate_low_luck_tactical_skills_regression : SceneTree
         _test.True(counterRuntime.IsUnitCounterattackLocked(boss), "黑冠封印·禁反击应封锁 boss 的反击。");
         counterCaster.current_ap = 1;
         _test.Eq(
-            string.IsNullOrWhiteSpace(counterRuntime.GetSkillCastBlockReason(counterCaster, skillDef)),
-            false,
+            BattleSkillCastBlockReasonKinds.IsBlocked(counterRuntime.GetSkillCastBlockReason(counterCaster, skillDef)),
+            true,
             "黑冠封印成功后应立刻进入每战 1 次的封锁状态并提供反馈。"
         );
         counterRuntime.dispose();

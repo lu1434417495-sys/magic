@@ -311,6 +311,8 @@ public partial class BattleRuntimeModule : RefCounted
         BattleAiScoreInput
     > _ai_query_action_score_input_callback;
     private readonly Func<StringName, bool> _ai_movement_blocked_callback;
+    private readonly Func<BattleUnitState, SkillDef, BattleSkillCastBlockReasonKind>
+        _ai_skill_cast_block_reason_callback;
     internal BattleMetricsState _battle_metrics = new();
     internal GDictionary _last_start_failure = new();
     internal GDictionary calamity_by_member_id = new();
@@ -324,6 +326,7 @@ public partial class BattleRuntimeModule : RefCounted
         _ai_action_score_input_callback = BuildAiActionScoreInput;
         _ai_query_action_score_input_callback = BuildAiQueryActionScoreInput;
         _ai_movement_blocked_callback = IsAiMovementBlocked;
+        _ai_skill_cast_block_reason_callback = GetSkillCastBlockReason;
     }
 
     public void setup(
@@ -739,6 +742,7 @@ public partial class BattleRuntimeModule : RefCounted
         ai_context.preview_command_callback = _ai_preview_command_callback;
         ai_context.skill_score_input_callback = _ai_skill_score_input_callback;
         ai_context.action_score_input_callback = _ai_action_score_input_callback;
+        ai_context.skill_cast_block_reason_callback = _ai_skill_cast_block_reason_callback;
         var movementQuery = _ai_movement_query_service;
         AiTraceRecorder.Enter("bind_ai_helpers:movement_query_setup");
         movementQuery.Setup(_state, _grid_service, _get_ai_move_query_cost);
@@ -794,6 +798,7 @@ public partial class BattleRuntimeModule : RefCounted
         _ai_decision_context.preview_command_callback = _ai_preview_command_callback;
         _ai_decision_context.skill_score_input_callback = _ai_skill_score_input_callback;
         _ai_decision_context.action_score_input_callback = _ai_action_score_input_callback;
+        _ai_decision_context.skill_cast_block_reason_callback = _ai_skill_cast_block_reason_callback;
         return _ai_decision_context;
     }
 
@@ -1518,8 +1523,18 @@ public partial class BattleRuntimeModule : RefCounted
             )
             : _fate_runtime.ConsumeMisfortuneSkillCastResult(active_unit, skill_id);
 
-    internal string GetSkillCastBlockReason(BattleUnitState active_unit, SkillDef skill_def) =>
+    internal BattleSkillCastBlockReasonKind GetSkillCastBlockReason(
+        BattleUnitState active_unit,
+        SkillDef skill_def
+    ) =>
         _get_skill_cast_block_reason(active_unit, skill_def);
+
+    internal string GetSkillCastBlockMessage(BattleUnitState active_unit, SkillDef skill_def) =>
+        _skill_turn_resolver.FormatSkillCastBlockReason(
+            active_unit,
+            skill_def,
+            GetSkillCastBlockReason(active_unit, skill_def)
+        );
 
     public bool IsUnitGuardLocked(BattleUnitState unit_state) =>
         _has_status(unit_state, STATUS_BLACK_STAR_BRAND_NORMAL);
@@ -4680,8 +4695,18 @@ public partial class BattleRuntimeModule : RefCounted
         _timeline_driver.ActivateNextReadyUnit(batch);
     }
 
-    internal string _get_skill_cast_block_reason(BattleUnitState active_unit, SkillDef skill_def) =>
+    internal BattleSkillCastBlockReasonKind _get_skill_cast_block_reason(
+        BattleUnitState active_unit,
+        SkillDef skill_def
+    ) =>
         _skill_turn_resolver.GetSkillCastBlockReason(active_unit, skill_def);
+
+    internal string _get_skill_cast_block_message(BattleUnitState active_unit, SkillDef skill_def) =>
+        _skill_turn_resolver.FormatSkillCastBlockReason(
+            active_unit,
+            skill_def,
+            _get_skill_cast_block_reason(active_unit, skill_def)
+        );
 
     internal bool _unit_has_melee_weapon(BattleUnitState active_unit) =>
         _skill_turn_resolver.UnitHasMeleeWeapon(active_unit);
@@ -4713,11 +4738,20 @@ public partial class BattleRuntimeModule : RefCounted
     internal string _get_black_contract_push_variant_block_reason(
         BattleUnitState active_unit,
         CombatCastVariantDef cast_variant
-    ) =>
-        _skill_turn_resolver.GetBlackContractPushVariantBlockReason(
+    )
+    {
+        BattleSkillCastBlockReasonKind blockReason =
+            _skill_turn_resolver.GetBlackContractPushVariantBlockReason(
             active_unit,
             cast_variant
         );
+        return _skill_turn_resolver.FormatSkillCastBlockReason(
+            active_unit,
+            null,
+            blockReason,
+            cast_variant
+        );
+    }
 
     internal bool _consume_black_contract_push_cast(
         BattleUnitState active_unit,

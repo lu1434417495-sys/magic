@@ -124,7 +124,7 @@ public partial class GameRuntimeBattleSelection : RefCounted
             return SelectionOkTyped();
         }
 
-        string blockReason = GetSkillCastBlockReason(activeUnit, skillDef);
+        string blockReason = GetSkillCastBlockMessage(activeUnit, skillDef);
         if (!string.IsNullOrEmpty(blockReason))
         {
             RefreshBattleSelectionState();
@@ -506,7 +506,7 @@ public partial class GameRuntimeBattleSelection : RefCounted
             return BattleRefreshMode.Overlay;
         }
 
-        string blockReason = GetSkillCastBlockReason(activeUnit, skillDef);
+        string blockReason = GetSkillCastBlockMessage(activeUnit, skillDef);
         if (!string.IsNullOrEmpty(blockReason))
         {
             RefreshBattleSelectionState();
@@ -593,7 +593,7 @@ public partial class GameRuntimeBattleSelection : RefCounted
         {
             return BattleRefreshMode.None;
         }
-        string blockReason = GetSkillCastBlockReason(activeUnit, skillDef);
+        string blockReason = GetSkillCastBlockMessage(activeUnit, skillDef);
         if (!string.IsNullOrEmpty(blockReason))
         {
             RefreshBattleSelectionState();
@@ -727,7 +727,7 @@ public partial class GameRuntimeBattleSelection : RefCounted
         {
             return new GVector2IArray();
         }
-        if (!string.IsNullOrEmpty(GetSkillCastBlockReason(activeUnit, skillDef)))
+        if (!string.IsNullOrEmpty(GetSkillCastBlockMessage(activeUnit, skillDef)))
         {
             return new GVector2IArray();
         }
@@ -813,7 +813,7 @@ public partial class GameRuntimeBattleSelection : RefCounted
         {
             return new GVector2IArray();
         }
-        if (!string.IsNullOrEmpty(GetSkillCastBlockReason(activeUnit, skillDef)))
+        if (!string.IsNullOrEmpty(GetSkillCastBlockMessage(activeUnit, skillDef)))
         {
             return new GVector2IArray();
         }
@@ -851,7 +851,7 @@ public partial class GameRuntimeBattleSelection : RefCounted
         Vector2I candidateCoord
     )
     {
-        if (!string.IsNullOrEmpty(GetSkillCastBlockReason(activeUnit, skillDef)))
+        if (!string.IsNullOrEmpty(GetSkillCastBlockMessage(activeUnit, skillDef)))
         {
             return false;
         }
@@ -1220,11 +1220,7 @@ public partial class GameRuntimeBattleSelection : RefCounted
         {
             return false;
         }
-        if (!string.IsNullOrEmpty(GetSkillCastBlockReason(activeUnit, skillDef)))
-        {
-            return false;
-        }
-        if (activeUnit.current_ap < skillDef.combat_profile.ap_cost)
+        if (!string.IsNullOrEmpty(GetSkillCastBlockMessage(activeUnit, skillDef)))
         {
             return false;
         }
@@ -1364,82 +1360,13 @@ public partial class GameRuntimeBattleSelection : RefCounted
         );
     }
 
-    private string GetSkillCastBlockReason(BattleUnitState activeUnit, SkillDef skillDef)
+    private string GetSkillCastBlockMessage(BattleUnitState activeUnit, SkillDef skillDef)
     {
         if (Runtime != null)
         {
-            return Runtime.GetBattleSkillCastBlockReason(activeUnit, skillDef);
+            return Runtime.GetBattleSkillCastBlockMessage(activeUnit, skillDef);
         }
-        if (activeUnit == null || skillDef?.combat_profile == null)
-        {
-            return "技能或目标无效。";
-        }
-
-        SkillEffectiveCombatProfile effectiveProfile = GetEffectiveCombatProfileForUnit(
-            activeUnit,
-            skillDef
-        );
-        CombatSkillResourceCosts costs = effectiveProfile.ResourceCosts;
-        int cooldown = activeUnit.GetCooldownTyped(skillDef.skill_id, 0);
-        if (cooldown > 0)
-        {
-            return $"{skillDef.display_name} 仍在冷却中（{cooldown}）。";
-        }
-        string lockedResourceBlockReason = GetLockedCombatResourceBlockReason(activeUnit, costs);
-        if (!string.IsNullOrEmpty(lockedResourceBlockReason))
-        {
-            return lockedResourceBlockReason;
-        }
-        if (activeUnit.current_ap < costs.ApCost)
-        {
-            return "AP不足，无法施放该技能。";
-        }
-        if (activeUnit.current_mp < costs.MpCost)
-        {
-            return "法力不足，无法施放该技能。";
-        }
-        if (activeUnit.current_stamina < costs.StaminaCost)
-        {
-            return "体力不足，无法施放该技能。";
-        }
-        if (activeUnit.current_aura < costs.AuraCost)
-        {
-            return "斗气不足，无法施放该技能。";
-        }
-        return "";
-    }
-
-    private static string GetLockedCombatResourceBlockReason(
-        BattleUnitState activeUnit,
-        CombatSkillResourceCosts costs
-    )
-    {
-        if (activeUnit == null)
-        {
-            return "技能施放者无效。";
-        }
-        if (
-            costs.MpCost > 0
-            && !activeUnit.HasCombatResourceUnlocked(CombatResourceIds.ToStringName(CombatResourceIdKind.Mp))
-        )
-        {
-            return "法力尚未解锁，无法施放该技能。";
-        }
-        if (
-            costs.StaminaCost > 0
-            && !activeUnit.HasCombatResourceUnlocked(CombatResourceIds.ToStringName(CombatResourceIdKind.Stamina))
-        )
-        {
-            return "体力尚未解锁，无法施放该技能。";
-        }
-        if (
-            costs.AuraCost > 0
-            && !activeUnit.HasCombatResourceUnlocked(CombatResourceIds.ToStringName(CombatResourceIdKind.Aura))
-        )
-        {
-            return "斗气尚未解锁，无法施放该技能。";
-        }
-        return "";
+        return "正式技能检查未绑定，无法施放该技能。";
     }
 
     private int GetUnitSkillLevel(BattleUnitState unitState, StringName skillId)
@@ -1492,7 +1419,7 @@ public partial class GameRuntimeBattleSelection : RefCounted
             return "当前技能不可用。";
         }
 
-        string blockReason = GetSkillCastBlockReason(activeUnit, skillDef);
+        string blockReason = GetSkillCastBlockMessage(activeUnit, skillDef);
         if (!string.IsNullOrEmpty(blockReason))
         {
             return $"{blockReason}按 Esc 清除选择。";
@@ -1573,7 +1500,7 @@ public partial class GameRuntimeBattleSelection : RefCounted
         {
             return BattleRefreshMode.Overlay;
         }
-        string blockReason = GetSkillCastBlockReason(activeUnit, skillDef);
+        string blockReason = GetSkillCastBlockMessage(activeUnit, skillDef);
         if (!string.IsNullOrEmpty(blockReason))
         {
             RefreshBattleSelectionState();

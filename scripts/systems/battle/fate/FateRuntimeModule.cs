@@ -101,7 +101,7 @@ internal partial class FateRuntimeModule : RefCounted
     {
         if (_misfortuneService == null)
             return GetSkillSidecarMissingMessage(skill_id);
-        return _misfortuneService.GetSkillCastBlockReason(unit_state, skill_id);
+        return _misfortuneService.GetSkillCastBlockMessage(unit_state, skill_id);
     }
 
     internal MisfortuneSkillCastResult ConsumeMisfortuneSkillCastResult(

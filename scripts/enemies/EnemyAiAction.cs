@@ -155,55 +155,16 @@ public partial class EnemyAiAction : Resource
     protected static SkillDef _get_skill_def(BattleAiContext context, StringName skillId) =>
         context?.GetSkillDefTyped(skillId);
 
-    protected string _get_skill_cast_block_reason(BattleAiContext context, SkillDef skillDef)
-    {
-        if (context?.unit_state == null || skillDef?.combat_profile == null)
-            return "技能或目标无效。";
-        BattleUnitState us = context.unit_state;
-        SkillEffectiveCombatProfile effectiveProfile =
-            SkillEffectiveCombatProfileResolver.Resolve(
-                context.skill_catalog,
-                skillDef,
-                _get_skill_level(us, skillDef.skill_id)
-            );
-        CombatSkillResourceCosts costs = effectiveProfile.ResourceCosts;
-        int cd = us.GetCooldownTyped(skillDef.skill_id);
-        if (cd > 0)
-            return $"{skillDef.display_name} 仍在冷却中（{cd}）。";
-        var lrbr = _get_locked_combat_resource_block_reason(us, costs);
-        if (lrbr.Length > 0)
-            return lrbr;
-        if (us.current_ap < costs.ApCost)
-            return "AP不足，无法施放该技能。";
-        if (us.current_mp < costs.MpCost)
-            return "法力不足，无法施放该技能。";
-        if (us.current_stamina < costs.StaminaCost)
-            return "体力不足，无法施放该技能。";
-        if (us.current_aura < costs.AuraCost)
-            return "斗气不足，无法施放该技能。";
-        return "";
-    }
-
-    protected static string _get_locked_combat_resource_block_reason(
-        BattleUnitState us,
-        CombatSkillResourceCosts costs
+    protected BattleSkillCastBlockReasonKind _get_skill_cast_block_reason(
+        BattleAiContext context,
+        SkillDef skillDef
     )
     {
-        if (us == null)
-            return "技能施放者无效。";
-        if (costs.MpCost > 0 && !us.HasCombatResourceUnlocked(CombatResourceIds.ToStringName(CombatResourceIdKind.Mp)))
-            return "法力尚未解锁，无法施放该技能。";
-        if (
-            costs.StaminaCost > 0
-            && !us.HasCombatResourceUnlocked(CombatResourceIds.ToStringName(CombatResourceIdKind.Stamina))
-        )
-            return "体力尚未解锁，无法施放该技能。";
-        if (
-            costs.AuraCost > 0
-            && !us.HasCombatResourceUnlocked(CombatResourceIds.ToStringName(CombatResourceIdKind.Aura))
-        )
-            return "斗气尚未解锁，无法施放该技能。";
-        return "";
+        if (context?.unit_state == null || skillDef?.combat_profile == null)
+            return BattleSkillCastBlockReasonKind.InvalidSkillOrTarget;
+        if (context.skill_cast_block_reason_callback == null)
+            return BattleSkillCastBlockReasonKind.SkillCastCheckUnbound;
+        return context.skill_cast_block_reason_callback.Invoke(context.unit_state, skillDef);
     }
 
     protected static BattlePreview _build_fast_typed_move_preview(
@@ -1065,7 +1026,11 @@ public partial class EnemyAiAction : Resource
             var csd = _get_skill_def(context, sid);
             if (csd?.combat_profile == null)
                 continue;
-            if (_get_skill_cast_block_reason(context, csd).Length > 0)
+            if (
+                BattleSkillCastBlockReasonKinds.IsBlocked(
+                    _get_skill_cast_block_reason(context, csd)
+                )
+            )
                 continue;
             br = Mathf.Max(
                 br,

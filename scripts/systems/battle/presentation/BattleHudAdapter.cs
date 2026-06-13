@@ -1237,47 +1237,44 @@ public partial class BattleHudAdapter : RefCounted
         StringName skillId
     )
     {
-        CombatSkillDef combatProfile = skillDef?.combat_profile;
         CombatSkillResourceCosts costs = GetEffectiveSkillCosts(activeUnit, skillDef);
         int apCost = costs.ApCost;
         int mpCost = costs.MpCost;
         int staminaCost = costs.StaminaCost;
         int auraCost = costs.AuraCost;
         int cooldown = activeUnit != null ? DictionaryInt(activeUnit.cooldowns, skillId, 0) : 0;
-        if (cooldown > 0)
+
+        // Skill slots only ever hold active combat skills — BattleUnitFactory
+        // builds known_active_skill_ids with a SkillTypeKind.Active &&
+        // CanUseInCombat() filter, so passives/weapon trainings never reach here
+        // and every slot has a combat profile. Battle runtime is the
+        // single source of truth for cast-gating
+        // (cooldown, AP/MP/ST/AU, weapon family/type, required shield/melee
+        // weapon, status locks), so mirror its verdict instead of re-deriving
+        // any of it. Target validity is excluded — it can only be known once the
+        // player picks a target.
+        if (activeUnit != null && skillDef != null && _runtime != null)
         {
-            return new GDictionary
-            {
-                ["footer_text"] = $"CD {cooldown}",
-                ["is_disabled"] = true,
-                ["cooldown"] = cooldown,
-                ["disabled_reason"] = $"冷却中（{cooldown}）",
-            };
+            string castBlockReason = _runtime.GetBattleSkillCastBlockMessage(activeUnit, skillDef);
+            if (!string.IsNullOrEmpty(castBlockReason))
+                return DisabledSkillSlot(
+                    cooldown > 0 ? $"CD {cooldown}" : "不可用",
+                    cooldown,
+                    castBlockReason
+                );
         }
 
-        if (activeUnit != null)
-        {
-            string lockedReason = GetLockedCombatResourceBlockReason(activeUnit, costs);
-            if (!string.IsNullOrEmpty(lockedReason))
-            {
-                return new GDictionary
-                {
-                    ["footer_text"] = GetLockedCombatResourceFooterText(activeUnit, costs),
-                    ["is_disabled"] = true,
-                    ["cooldown"] = cooldown,
-                    ["disabled_reason"] = lockedReason,
-                };
-            }
-            if (activeUnit.current_ap < apCost)
-                return DisabledSkillSlot("AP不足", cooldown, "AP不足");
-            if (activeUnit.current_mp < mpCost)
-                return DisabledSkillSlot("MP不足", cooldown, "法力不足");
-            if (activeUnit.current_stamina < staminaCost)
-                return DisabledSkillSlot("ST不足", cooldown, "体力不足");
-            if (activeUnit.current_aura < auraCost)
-                return DisabledSkillSlot("AU不足", cooldown, "斗气不足");
-        }
+        return EnabledSkillSlot(apCost, mpCost, staminaCost, auraCost, cooldown);
+    }
 
+    private GDictionary EnabledSkillSlot(
+        int apCost,
+        int mpCost,
+        int staminaCost,
+        int auraCost,
+        int cooldown
+    )
+    {
         return new GDictionary
         {
             ["footer_text"] = BuildSkillFooter(apCost, mpCost, staminaCost, auraCost, cooldown),
@@ -1878,7 +1875,12 @@ public partial class BattleHudAdapter : RefCounted
             return false;
         if (!targetUnit.is_alive || targetUnit.unit_id == activeUnit.unit_id)
             return false;
-        if (!string.IsNullOrEmpty(GetSkillCastBlockReason(activeUnit, skillDef)))
+        if (
+            _runtime == null
+            || BattleSkillCastBlockReasonKinds.IsBlocked(
+                _runtime.GetBattleSkillCastBlockReasonKind(activeUnit, skillDef)
+            )
+        )
             return false;
         if (
             !SkillTargetFilterMatchesUnit(
@@ -2007,66 +2009,6 @@ public partial class BattleHudAdapter : RefCounted
             ["confirm_ready"] = confirmReady,
             ["auto_cast_ready"] = autoCastReady,
         };
-    }
-
-    private string GetSkillCastBlockReason(BattleUnitState activeUnit, SkillDef skillDef)
-    {
-        if (activeUnit == null || skillDef?.combat_profile == null)
-            return "技能或目标无效。";
-        CombatSkillResourceCosts costs = GetEffectiveSkillCosts(activeUnit, skillDef);
-        int cooldown = DictionaryInt(activeUnit.cooldowns, skillDef.skill_id, 0);
-        if (cooldown > 0)
-            return $"{skillDef.display_name} 仍在冷却中（{cooldown}）。";
-        string lockedReason = GetLockedCombatResourceBlockReason(activeUnit, costs);
-        if (!string.IsNullOrEmpty(lockedReason))
-            return lockedReason;
-        if (activeUnit.current_ap < costs.ApCost)
-            return "AP不足，无法施放该技能。";
-        if (activeUnit.current_mp < costs.MpCost)
-            return "法力不足，无法施放该技能。";
-        if (activeUnit.current_stamina < costs.StaminaCost)
-            return "体力不足，无法施放该技能。";
-        if (activeUnit.current_aura < costs.AuraCost)
-            return "斗气不足，无法施放该技能。";
-        return "";
-    }
-
-    private static string GetLockedCombatResourceBlockReason(
-        BattleUnitState activeUnit,
-        CombatSkillResourceCosts costs
-    )
-    {
-        if (activeUnit == null)
-            return "技能施放者无效。";
-        if (costs.MpCost > 0
-            && !activeUnit.HasCombatResourceUnlocked(CombatResourceIds.ToStringName(CombatResourceIdKind.Mp)))
-            return "法力尚未解锁，无法施放该技能。";
-        if (costs.StaminaCost > 0
-            && !activeUnit.HasCombatResourceUnlocked(CombatResourceIds.ToStringName(CombatResourceIdKind.Stamina)))
-            return "体力尚未解锁，无法施放该技能。";
-        if (costs.AuraCost > 0
-            && !activeUnit.HasCombatResourceUnlocked(CombatResourceIds.ToStringName(CombatResourceIdKind.Aura)))
-            return "斗气尚未解锁，无法施放该技能。";
-        return "";
-    }
-
-    private static string GetLockedCombatResourceFooterText(
-        BattleUnitState activeUnit,
-        CombatSkillResourceCosts costs
-    )
-    {
-        if (activeUnit == null)
-            return "资源未解锁";
-        if (costs.MpCost > 0
-            && !activeUnit.HasCombatResourceUnlocked(CombatResourceIds.ToStringName(CombatResourceIdKind.Mp)))
-            return "MP未解锁";
-        if (costs.StaminaCost > 0
-            && !activeUnit.HasCombatResourceUnlocked(CombatResourceIds.ToStringName(CombatResourceIdKind.Stamina)))
-            return "ST未解锁";
-        if (costs.AuraCost > 0
-            && !activeUnit.HasCombatResourceUnlocked(CombatResourceIds.ToStringName(CombatResourceIdKind.Aura)))
-            return "AU未解锁";
-        return "资源未解锁";
     }
 
     private CombatSkillResourceCosts GetEffectiveSkillCosts(BattleUnitState activeUnit, SkillDef skillDef)

@@ -221,7 +221,7 @@ internal partial class BattleRuntimeSkillTurnResolver : RefCounted
             {
                 continue;
             }
-            if (!string.IsNullOrEmpty(GetSkillCastBlockReason(activeUnit, skillDef)))
+            if (BattleSkillCastBlockReasonKinds.IsBlocked(GetSkillCastBlockReason(activeUnit, skillDef)))
             {
                 continue;
             }
@@ -252,12 +252,15 @@ internal partial class BattleRuntimeSkillTurnResolver : RefCounted
         return waitCommand;
     }
 
-    internal string GetSkillCastBlockReason(BattleUnitState active_unit, SkillDef skill_def)
+    internal BattleSkillCastBlockReasonKind GetSkillCastBlockReason(
+        BattleUnitState active_unit,
+        SkillDef skill_def
+    )
     {
         CombatSkillDef combatProfile = skill_def?.combat_profile;
         if (active_unit == null || skill_def == null || combatProfile == null)
         {
-            return "技能或目标无效。";
+            return BattleSkillCastBlockReasonKind.InvalidSkillOrTarget;
         }
         CombatSkillResourceCosts costs = GetEffectiveSkillResourceCosts(
             active_unit,
@@ -266,13 +269,13 @@ internal partial class BattleRuntimeSkillTurnResolver : RefCounted
         int cooldown = active_unit.GetCooldownTyped(skill_def.skill_id);
         if (cooldown > 0)
         {
-            return $"{DisplayName(skill_def)} 仍在冷却中（{cooldown}）。";
+            return BattleSkillCastBlockReasonKind.Cooldown;
         }
-        string lockedResourceBlockReason = GetLockedCombatResourceBlockReason(
+        BattleSkillCastBlockReasonKind lockedResourceBlockReason = GetLockedCombatResourceBlockReasonKind(
             active_unit,
             costs
         );
-        if (!string.IsNullOrEmpty(lockedResourceBlockReason))
+        if (BattleSkillCastBlockReasonKinds.IsBlocked(lockedResourceBlockReason))
         {
             return lockedResourceBlockReason;
         }
@@ -280,35 +283,35 @@ internal partial class BattleRuntimeSkillTurnResolver : RefCounted
             active_unit.current_ap < costs.ApCost
         )
         {
-            return "AP不足，无法施放该技能。";
+            return BattleSkillCastBlockReasonKind.InsufficientAp;
         }
         if (
             active_unit.current_mp < costs.MpCost
         )
         {
-            return "法力不足，无法施放该技能。";
+            return BattleSkillCastBlockReasonKind.InsufficientMp;
         }
         if (
             active_unit.current_stamina < costs.StaminaCost
         )
         {
-            return "体力不足，无法施放该技能。";
+            return BattleSkillCastBlockReasonKind.InsufficientStamina;
         }
         if (active_unit.HasStatusEffect(STATUS_PETRIFIED))
         {
-            return "当前处于石化状态，无法施放技能。";
+            return BattleSkillCastBlockReasonKind.Petrified;
         }
         if (
             active_unit.current_aura < costs.AuraCost
         )
         {
-            return "斗气不足，无法施放该技能。";
+            return BattleSkillCastBlockReasonKind.InsufficientAura;
         }
-        string racialChargeBlockReason = GetRacialSkillChargeBlockReason(
+        BattleSkillCastBlockReasonKind racialChargeBlockReason = GetRacialSkillChargeBlockReason(
             active_unit,
             skill_def
         );
-        if (!string.IsNullOrEmpty(racialChargeBlockReason))
+        if (BattleSkillCastBlockReasonKinds.IsBlocked(racialChargeBlockReason))
         {
             return racialChargeBlockReason;
         }
@@ -320,36 +323,36 @@ internal partial class BattleRuntimeSkillTurnResolver : RefCounted
             )
         )
         {
-            return "需要装备指定武器家族，无法施放该技能。";
+            return BattleSkillCastBlockReasonKind.RequiredWeaponFamilyMissing;
         }
         if (
             combatProfile.requires_equipped_shield
             && !UnitHasEquippedShield(active_unit)
         )
         {
-            return "需要装备盾牌，无法施放该技能。";
+            return BattleSkillCastBlockReasonKind.ShieldRequired;
         }
         if (RequiresMeleeWeapon(skill_def) && !UnitHasMeleeWeapon(active_unit))
         {
-            return "需要装备有效武器，无法施放该技能。";
+            return BattleSkillCastBlockReasonKind.MeleeWeaponRequired;
         }
         if (
             combatProfile.excluded_weapon_families.Count > 0
             && combatProfile.excluded_weapon_families.Contains(active_unit.weapon_family)
         )
         {
-            return "当前武器类型无法施放该技能。";
+            return BattleSkillCastBlockReasonKind.ExcludedWeaponFamily;
         }
         if (
             combatProfile.excluded_weapon_type_ids.Count > 0
             && combatProfile.excluded_weapon_type_ids.Contains(active_unit.weapon_profile_type_id)
         )
         {
-            return "当前武器类型无法施放该技能。";
+            return BattleSkillCastBlockReasonKind.ExcludedWeaponType;
         }
         if (IsMainSkillLockedByStatus(active_unit, skill_def))
         {
-            return "厄命宣判压制了主技能，无法施放该技能。";
+            return BattleSkillCastBlockReasonKind.MainSkillLockedByStatus;
         }
         string misfortuneBlockReason = GetMisfortuneSkillCastBlockReason(
             active_unit,
@@ -357,16 +360,80 @@ internal partial class BattleRuntimeSkillTurnResolver : RefCounted
         );
         if (!string.IsNullOrEmpty(misfortuneBlockReason))
         {
-            return misfortuneBlockReason;
+            return _runtime == null
+                ? BattleSkillCastBlockReasonKind.MisfortuneSidecarMissing
+                : BattleSkillCastBlockReasonKind.MisfortuneBlocked;
         }
         if (
             active_unit.HasStatusEffect(STATUS_BLACK_STAR_BRAND_NORMAL)
             && _runtime._skill_grants_guarding(skill_def)
         )
         {
-            return "黑星烙印封锁了格挡，无法施放该技能。";
+            return BattleSkillCastBlockReasonKind.BlackStarGuardLock;
         }
-        return "";
+        return BattleSkillCastBlockReasonKind.None;
+    }
+
+    internal string FormatSkillCastBlockReason(
+        BattleUnitState active_unit,
+        SkillDef skill_def,
+        BattleSkillCastBlockReasonKind reason_kind,
+        CombatCastVariantDef cast_variant = null
+    )
+    {
+        if (!BattleSkillCastBlockReasonKinds.IsBlocked(reason_kind))
+        {
+            return "";
+        }
+        return reason_kind switch
+        {
+            BattleSkillCastBlockReasonKind.InvalidSkillOrTarget => "技能或目标无效。",
+            BattleSkillCastBlockReasonKind.SkillCastCheckUnbound =>
+                "正式技能检查未绑定，无法施放该技能。",
+            BattleSkillCastBlockReasonKind.InvalidCaster => "技能施放者无效。",
+            BattleSkillCastBlockReasonKind.Cooldown =>
+                $"{DisplayName(skill_def)} 仍在冷却中（{active_unit?.GetCooldownTyped(skill_def?.skill_id ?? Empty) ?? 0}）。",
+            BattleSkillCastBlockReasonKind.MpLocked => "法力尚未解锁，无法施放该技能。",
+            BattleSkillCastBlockReasonKind.StaminaLocked => "体力尚未解锁，无法施放该技能。",
+            BattleSkillCastBlockReasonKind.AuraLocked => "斗气尚未解锁，无法施放该技能。",
+            BattleSkillCastBlockReasonKind.InsufficientAp => "AP不足，无法施放该技能。",
+            BattleSkillCastBlockReasonKind.InsufficientMp => "法力不足，无法施放该技能。",
+            BattleSkillCastBlockReasonKind.InsufficientStamina => "体力不足，无法施放该技能。",
+            BattleSkillCastBlockReasonKind.Petrified => "当前处于石化状态，无法施放技能。",
+            BattleSkillCastBlockReasonKind.InsufficientAura => "斗气不足，无法施放该技能。",
+            BattleSkillCastBlockReasonKind.RacialSkillPerBattleChargeDepleted =>
+                $"{_get_skill_display_name(skill_def)} 的身份技能次数已用尽。",
+            BattleSkillCastBlockReasonKind.RacialSkillPerTurnChargeDepleted =>
+                $"{_get_skill_display_name(skill_def)} 本回合无法再次使用。",
+            BattleSkillCastBlockReasonKind.RacialSkillChargeUninitialized =>
+                $"{_get_skill_display_name(skill_def)} 的身份技能次数未初始化。",
+            BattleSkillCastBlockReasonKind.RequiredWeaponFamilyMissing =>
+                "需要装备指定武器家族，无法施放该技能。",
+            BattleSkillCastBlockReasonKind.ShieldRequired => "需要装备盾牌，无法施放该技能。",
+            BattleSkillCastBlockReasonKind.MeleeWeaponRequired =>
+                "需要装备有效武器，无法施放该技能。",
+            BattleSkillCastBlockReasonKind.ExcludedWeaponFamily =>
+                "当前武器类型无法施放该技能。",
+            BattleSkillCastBlockReasonKind.ExcludedWeaponType =>
+                "当前武器类型无法施放该技能。",
+            BattleSkillCastBlockReasonKind.MainSkillLockedByStatus =>
+                "厄命宣判压制了主技能，无法施放该技能。",
+            BattleSkillCastBlockReasonKind.MisfortuneSidecarMissing =>
+                MisfortuneService.GetSkillSidecarMissingMessage(skill_def?.skill_id ?? Empty),
+            BattleSkillCastBlockReasonKind.MisfortuneBlocked =>
+                GetMisfortuneSkillCastBlockReason(active_unit, skill_def),
+            BattleSkillCastBlockReasonKind.BlackStarGuardLock =>
+                "黑星烙印封锁了格挡，无法施放该技能。",
+            BattleSkillCastBlockReasonKind.BlackContractPushVariantMissing =>
+                "黑契推进需要先选择一个代价分支。",
+            BattleSkillCastBlockReasonKind.BlackContractPushHpCostUnavailable =>
+                "当前生命不足，无法支付血契代价。",
+            BattleSkillCastBlockReasonKind.BlackContractPushGuardCostUnavailable =>
+                "当前没有 Guard，无法支付护契代价。",
+            BattleSkillCastBlockReasonKind.BlackContractPushInvalidVariant =>
+                "黑契推进的施法形态无效。",
+            _ => "",
+        };
     }
 
     internal bool UnitHasMeleeWeapon(BattleUnitState active_unit) =>
@@ -443,14 +510,24 @@ internal partial class BattleRuntimeSkillTurnResolver : RefCounted
         CombatCastVariantDef cast_variant
     )
     {
-        string blockReason = GetSkillCastBlockReason(active_unit, skill_def);
-        if (!string.IsNullOrEmpty(blockReason))
+        BattleSkillCastBlockReasonKind blockReason = GetSkillCastBlockReason(
+            active_unit,
+            skill_def
+        );
+        if (BattleSkillCastBlockReasonKinds.IsBlocked(blockReason))
         {
-            return blockReason;
+            return FormatSkillCastBlockReason(active_unit, skill_def, blockReason);
         }
         if (_is_black_contract_push_skill(skill_def.skill_id))
         {
-            return GetBlackContractPushVariantBlockReason(active_unit, cast_variant);
+            BattleSkillCastBlockReasonKind variantBlockReason =
+                GetBlackContractPushVariantBlockReason(active_unit, cast_variant);
+            return FormatSkillCastBlockReason(
+                active_unit,
+                skill_def,
+                variantBlockReason,
+                cast_variant
+            );
         }
         return "";
     }
@@ -491,13 +568,17 @@ internal partial class BattleRuntimeSkillTurnResolver : RefCounted
             active_unit,
             skill_def
         );
-        string lockedResourceBlockReason = GetLockedCombatResourceBlockReason(
-            active_unit,
-            costs
-        );
-        if (!string.IsNullOrEmpty(lockedResourceBlockReason))
+        BattleSkillCastBlockReasonKind lockedResourceBlockReason =
+            GetLockedCombatResourceBlockReasonKind(
+                active_unit,
+                costs
+            );
+        if (BattleSkillCastBlockReasonKinds.IsBlocked(lockedResourceBlockReason))
         {
-            AppendLog(batch, lockedResourceBlockReason);
+            AppendLog(
+                batch,
+                FormatSkillCastBlockReason(active_unit, skill_def, lockedResourceBlockReason)
+            );
             return false;
         }
         if (
@@ -573,10 +654,14 @@ internal partial class BattleRuntimeSkillTurnResolver : RefCounted
             return false;
         }
         CombatSkillResourceCosts costs = GetEffectiveSkillResourceCosts(active_unit, skill_def);
-        string lockedResourceBlockReason = GetLockedCombatResourceBlockReason(active_unit, costs);
-        if (!string.IsNullOrEmpty(lockedResourceBlockReason))
+        BattleSkillCastBlockReasonKind lockedResourceBlockReason =
+            GetLockedCombatResourceBlockReasonKind(active_unit, costs);
+        if (BattleSkillCastBlockReasonKinds.IsBlocked(lockedResourceBlockReason))
         {
-            AppendLog(batch, lockedResourceBlockReason);
+            AppendLog(
+                batch,
+                FormatSkillCastBlockReason(active_unit, skill_def, lockedResourceBlockReason)
+            );
             return false;
         }
         if (
@@ -758,35 +843,35 @@ internal partial class BattleRuntimeSkillTurnResolver : RefCounted
         return true;
     }
 
-    private string GetRacialSkillChargeBlockReason(
+    private BattleSkillCastBlockReasonKind GetRacialSkillChargeBlockReason(
         BattleUnitState active_unit,
         SkillDef skill_def
     )
     {
         if (active_unit == null || !_is_identity_granted_skill(skill_def))
         {
-            return "";
+            return BattleSkillCastBlockReasonKind.None;
         }
         StringName chargeKey = GetRacialSkillChargeKey(skill_def.skill_id);
         if (active_unit.HasPerBattleChargeTyped(chargeKey))
         {
             if (active_unit.GetPerBattleChargeTyped(chargeKey) <= 0)
             {
-                return $"{_get_skill_display_name(skill_def)} 的身份技能次数已用尽。";
+                return BattleSkillCastBlockReasonKind.RacialSkillPerBattleChargeDepleted;
             }
         }
         else if (active_unit.HasPerTurnChargeTyped(chargeKey))
         {
             if (active_unit.GetPerTurnChargeTyped(chargeKey) <= 0)
             {
-                return $"{_get_skill_display_name(skill_def)} 本回合无法再次使用。";
+                return BattleSkillCastBlockReasonKind.RacialSkillPerTurnChargeDepleted;
             }
         }
         else
         {
-            return $"{_get_skill_display_name(skill_def)} 的身份技能次数未初始化。";
+            return BattleSkillCastBlockReasonKind.RacialSkillChargeUninitialized;
         }
-        return "";
+        return BattleSkillCastBlockReasonKind.None;
     }
 
     private bool ConsumeRacialSkillCharge(
@@ -795,10 +880,13 @@ internal partial class BattleRuntimeSkillTurnResolver : RefCounted
         BattleEventBatch batch = null
     )
     {
-        string blockReason = GetRacialSkillChargeBlockReason(active_unit, skill_def);
-        if (!string.IsNullOrEmpty(blockReason))
+        BattleSkillCastBlockReasonKind blockReason = GetRacialSkillChargeBlockReason(
+            active_unit,
+            skill_def
+        );
+        if (BattleSkillCastBlockReasonKinds.IsBlocked(blockReason))
         {
-            AppendLog(batch, blockReason);
+            AppendLog(batch, FormatSkillCastBlockReason(active_unit, skill_def, blockReason));
             return false;
         }
         if (active_unit == null || !_is_identity_granted_skill(skill_def))
@@ -843,37 +931,32 @@ internal partial class BattleRuntimeSkillTurnResolver : RefCounted
         return combatProfile.GetEffectiveResourceCostValues(skillLevel);
     }
 
-    internal string GetLockedCombatResourceBlockReason(
+    internal BattleSkillCastBlockReasonKind GetLockedCombatResourceBlockReasonKind(
         BattleUnitState active_unit,
         CombatSkillResourceCosts costs
     )
     {
         if (active_unit == null)
         {
-            return "技能施放者无效。";
+            return BattleSkillCastBlockReasonKind.InvalidCaster;
         }
         if (
             costs.MpCost > 0
             && !HasCombatResourceUnlocked(active_unit, CombatResourceMp)
         )
         {
-            return "法力尚未解锁，无法施放该技能。";
+            return BattleSkillCastBlockReasonKind.MpLocked;
         }
-        if (
-            costs.StaminaCost > 0
-            && !HasCombatResourceUnlocked(active_unit, CombatResourceStamina)
-        )
-        {
-            return "体力尚未解锁，无法施放该技能。";
-        }
+        // Stamina (and HP) are in CombatResourceIds.DefaultUnlocked, so every
+        // unit always has them unlocked — no lock check needed for stamina.
         if (
             costs.AuraCost > 0
             && !HasCombatResourceUnlocked(active_unit, CombatResourceAura)
         )
         {
-            return "斗气尚未解锁，无法施放该技能。";
+            return BattleSkillCastBlockReasonKind.AuraLocked;
         }
-        return "";
+        return BattleSkillCastBlockReasonKind.None;
     }
 
     internal bool _is_identity_granted_skill(SkillDef skill_def)
@@ -897,18 +980,18 @@ internal partial class BattleRuntimeSkillTurnResolver : RefCounted
         return skillId != Empty ? skillId.ToString() : "身份技能";
     }
 
-    internal string GetBlackContractPushVariantBlockReason(
+    internal BattleSkillCastBlockReasonKind GetBlackContractPushVariantBlockReason(
         BattleUnitState active_unit,
         CombatCastVariantDef cast_variant
     )
     {
         if (active_unit == null)
         {
-            return "技能施放者无效。";
+            return BattleSkillCastBlockReasonKind.InvalidCaster;
         }
         if (cast_variant == null)
         {
-            return "黑契推进需要先选择一个代价分支。";
+            return BattleSkillCastBlockReasonKind.BlackContractPushVariantMissing;
         }
         StringName optionId = cast_variant.variant_id;
         if (
@@ -916,27 +999,27 @@ internal partial class BattleRuntimeSkillTurnResolver : RefCounted
             && active_unit.current_hp <= BLACK_CONTRACT_PUSH_HP_COST
         )
         {
-            return "当前生命不足，无法支付血契代价。";
+            return BattleSkillCastBlockReasonKind.BlackContractPushHpCostUnavailable;
         }
         if (
             optionId == BLACK_CONTRACT_PUSH_OPTION_GUARD
             && !HasStatus(active_unit, STATUS_GUARDING)
         )
         {
-            return "当前没有 Guard，无法支付护契代价。";
+            return BattleSkillCastBlockReasonKind.BlackContractPushGuardCostUnavailable;
         }
         if (optionId == BLACK_CONTRACT_PUSH_OPTION_ACTION)
         {
-            return "";
+            return BattleSkillCastBlockReasonKind.None;
         }
         if (
             optionId != BLACK_CONTRACT_PUSH_OPTION_BLOOD
             && optionId != BLACK_CONTRACT_PUSH_OPTION_GUARD
         )
         {
-            return "黑契推进的施法形态无效。";
+            return BattleSkillCastBlockReasonKind.BlackContractPushInvalidVariant;
         }
-        return "";
+        return BattleSkillCastBlockReasonKind.None;
     }
 
     internal bool ConsumeBlackContractPushCast(
@@ -945,13 +1028,16 @@ internal partial class BattleRuntimeSkillTurnResolver : RefCounted
         BattleEventBatch batch = null
     )
     {
-        string blockReason = GetBlackContractPushVariantBlockReason(
+        BattleSkillCastBlockReasonKind blockReason = GetBlackContractPushVariantBlockReason(
             active_unit,
             cast_variant
         );
-        if (!string.IsNullOrEmpty(blockReason))
+        if (BattleSkillCastBlockReasonKinds.IsBlocked(blockReason))
         {
-            AppendLog(batch, blockReason);
+            AppendLog(
+                batch,
+                FormatSkillCastBlockReason(active_unit, null, blockReason, cast_variant)
+            );
             return false;
         }
         if (active_unit == null || cast_variant == null)

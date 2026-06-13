@@ -80,9 +80,12 @@ public partial class UseChargeAction : EnemyAiAction
             return null;
         }
         var blockReason = _get_skill_cast_block_reason(context, skillDef);
-        if (blockReason.Length > 0)
+        if (BattleSkillCastBlockReasonKinds.IsBlocked(blockReason))
         {
-            _trace_add_block_reason(actionTrace, blockReason);
+            _trace_add_block_reason(
+                actionTrace,
+                BattleSkillCastBlockReasonKinds.ToTraceKey(blockReason)
+            );
             _finalize_action_trace(context, actionTrace);
             return null;
         }

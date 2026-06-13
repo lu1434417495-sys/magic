@@ -767,13 +767,21 @@ public partial class GameRuntimeFacade : RefCounted, IGameRuntimeSnapshotSource
             ? _battle_runtime.PreviewCommand(command)
             : null;
 
-    internal string GetBattleSkillCastBlockReason(
+    internal BattleSkillCastBlockReasonKind GetBattleSkillCastBlockReasonKind(
         BattleUnitState active_unit,
         SkillDef skill_def
     ) =>
         _battle_runtime != null
             ? _battle_runtime.GetSkillCastBlockReason(active_unit, skill_def)
-            : "";
+            : BattleSkillCastBlockReasonKind.SkillCastCheckUnbound;
+
+    internal string GetBattleSkillCastBlockMessage(
+        BattleUnitState active_unit,
+        SkillDef skill_def
+    ) =>
+        _battle_runtime != null
+            ? _battle_runtime.GetSkillCastBlockMessage(active_unit, skill_def)
+            : "正式技能检查未绑定，无法施放该技能。";
 
     internal BattleRefreshMode IssueBattleCommand(BattleCommand command) =>
         _issue_battle_command(command);

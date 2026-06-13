@@ -52,6 +52,11 @@ public class BattleAiContext : IBattleAiScoreContext
     > action_score_input_callback { get; set; }
     public Func<BattleCommand, BattlePreview> preview_command_callback { get; set; }
     public Func<BattleUnitState, Vector2I, int> move_cost_callback { get; set; }
+    public Func<
+        BattleUnitState,
+        SkillDef,
+        BattleSkillCastBlockReasonKind
+    > skill_cast_block_reason_callback { get; set; }
     internal BattleAiRuntimeActionPlan runtime_action_plan { get; set; }
     internal BattleAiQueryService ai_query_service;
     internal BattleAiCandidateEvaluationService candidate_evaluator { get; set; }
@@ -497,6 +502,7 @@ public class BattleAiContext : IBattleAiScoreContext
         preview_command_callback = null;
         skill_score_input_callback = null;
         action_score_input_callback = null;
+        skill_cast_block_reason_callback = null;
         ClearDecisionState();
         _skillDefsSource = null;
         skill_catalog = null;

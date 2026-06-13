@@ -68,10 +68,16 @@ internal sealed class BattleAiUnitSkillCandidateEvaluator
                 continue;
             }
 
-            string blockReason = _helper.GetSkillCastBlockReason(context, skillDef);
-            if (!string.IsNullOrEmpty(blockReason))
+            BattleSkillCastBlockReasonKind blockReason = _helper.GetSkillCastBlockReason(
+                context,
+                skillDef
+            );
+            if (BattleSkillCastBlockReasonKinds.IsBlocked(blockReason))
             {
-                TraceAddBlockReason(actionTrace, blockReason);
+                TraceAddBlockReason(
+                    actionTrace,
+                    BattleSkillCastBlockReasonKinds.ToTraceKey(blockReason)
+                );
                 continue;
             }
 

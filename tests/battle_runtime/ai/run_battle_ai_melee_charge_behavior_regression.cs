@@ -53,6 +53,8 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
                 flat_bonus = 0,
             }
         );
+        wolf.current_stamina = 80;
+        wolf.attribute_snapshot.SetValue("stamina_max", 80);
         BattleUnitState player = BuildManualUnit(
             "basic_attack_target",
             "玩家",
@@ -62,6 +64,16 @@ public partial class run_battle_ai_melee_charge_behavior_regression : SceneTree
         );
         AddUnitToState(runtime, state, wolf, isEnemy: true);
         AddUnitToState(runtime, state, player, isEnemy: false);
+
+        BattleSkillCastBlockReasonKind heavyStrikeBlockReason = runtime.GetSkillCastBlockReason(
+            wolf,
+            runtime.GetSkillDefTyped("warrior_heavy_strike")
+        );
+        _test.Eq(
+            heavyStrikeBlockReason,
+            BattleSkillCastBlockReasonKind.MeleeWeaponRequired,
+            $"体力充足时，天生武器荒狼的重击应被 runtime 武器门槛阻断。 reason={heavyStrikeBlockReason}"
+        );
 
         BattleAiDecision decision = runtime._ai_service.ChooseCommand(BuildAiContext(runtime, wolf));
         _test.True(decision?.command != null, "天生武器单位在近身 pressure 状态下应能产出攻击指令。");
