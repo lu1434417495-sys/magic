@@ -1,6 +1,6 @@
-using Godot;
+using System.Collections.Generic;
 
 public interface IValidatableRegistry
 {
-    Godot.Collections.Array<string> validate();
+    IReadOnlyList<string> ValidateTyped();
 }

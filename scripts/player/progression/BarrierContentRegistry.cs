@@ -1,34 +1,10 @@
+using System.Collections.Generic;
 using Godot;
 
 [GlobalClass]
 public partial class BarrierContentRegistry : RefCounted
 {
     private const string BARRIER_CONFIG_DIRECTORY = "res://data/configs/barriers";
-
-    private static readonly Godot.Collections.Dictionary VALID_ANCHOR_MODES = new()
-    {
-        { "fixed", true },
-    };
-
-    private static readonly Godot.Collections.Dictionary VALID_AREA_PATTERNS = new()
-    {
-        { "single", true },
-        { "diamond", true },
-        { "square", true },
-        { "radius", true },
-        { "cross", true },
-    };
-
-    private static readonly Godot.Collections.Dictionary VALID_OUTCOME_TYPES = new()
-    {
-        { "damage", true },
-        { "fatal_damage", true },
-        { "status", true },
-        { "banish", true },
-        { "reflect", true },
-        { "absorb", true },
-        { "custom", true },
-    };
 
     private System.Collections.Generic.Dictionary<StringName, BarrierProfileDef> _profile_defs = new();
 
@@ -39,7 +15,7 @@ public partial class BarrierContentRegistry : RefCounted
     public BarrierContentRegistry()
     {
         System.GC.SuppressFinalize(this);
-        rebuild();
+        Rebuild();
     }
 
     public new void Dispose()
@@ -49,32 +25,23 @@ public partial class BarrierContentRegistry : RefCounted
             return;
         }
         _disposed = true;
+        System.GC.SuppressFinalize(this);
         _profile_defs.Clear();
         _validation_errors.Clear();
         base.Dispose();
     }
 
-    public void dispose() => Dispose();
-
-    public void rebuild()
+    public void Rebuild()
     {
         _profile_defs.Clear();
         _validation_errors.Clear();
         _scan_directory(BARRIER_CONFIG_DIRECTORY);
     }
 
-    public Godot.Collections.Dictionary get_profile_defs()
-    {
-        var result = new Godot.Collections.Dictionary();
-        foreach (var kvp in _profile_defs)
-            result[kvp.Key] = kvp.Value;
-        return result;
-    }
-
-    public BarrierProfileDef get_profile_def(StringName profileId) =>
+    public BarrierProfileDef GetProfileDef(StringName profileId) =>
         profileId != "" && _profile_defs.TryGetValue(profileId, out var def) ? def : null;
 
-    public Godot.Collections.Array<string> validate()
+    public Godot.Collections.Array<string> Validate()
     {
         var c = new Godot.Collections.Array<string>();
         foreach (var e in _validation_errors)
@@ -127,7 +94,7 @@ public partial class BarrierContentRegistry : RefCounted
 
     private void _register_profile_resource(string resourcePath)
     {
-        var resource = GodotContentResourceLifetime.Keep(GD.Load<Resource>(resourcePath));
+        var resource = GD.Load<Resource>(resourcePath);
         var profile = resource as BarrierProfileDef;
 
         if (profile == null)
@@ -157,12 +124,12 @@ public partial class BarrierContentRegistry : RefCounted
     {
         var ownerLabel = $"Barrier profile {profile.profile_id}";
 
-        if (!VALID_ANCHOR_MODES.ContainsKey(profile.anchor_mode))
+        if (profile.AnchorModeKind == BarrierAnchorMode.Unknown)
             _validation_errors.Add(
                 $"{ownerLabel} declares unsupported anchor_mode {profile.anchor_mode}."
             );
 
-        if (!VALID_AREA_PATTERNS.ContainsKey(profile.area_pattern))
+        if (!IsSupportedBarrierAreaPattern(profile.AreaPatternKind))
             _validation_errors.Add(
                 $"{ownerLabel} declares unsupported area_pattern {profile.area_pattern}."
             );
@@ -223,14 +190,21 @@ public partial class BarrierContentRegistry : RefCounted
                     continue;
                 }
 
-                if (
-                    outcome.outcome_type != ""
-                    && !VALID_OUTCOME_TYPES.ContainsKey(outcome.outcome_type)
-                )
+                if (outcome.OutcomeKind == BarrierOutcomeKind.Unknown)
                     _validation_errors.Add(
                         $"{outcomeLabel} declares unsupported outcome_type {outcome.outcome_type}."
                     );
             }
         }
+    }
+
+    private static bool IsSupportedBarrierAreaPattern(BattleAreaPattern areaPattern)
+    {
+        return areaPattern
+            is BattleAreaPattern.Single
+                or BattleAreaPattern.Diamond
+                or BattleAreaPattern.Square
+                or BattleAreaPattern.Radius
+                or BattleAreaPattern.Cross;
     }
 }

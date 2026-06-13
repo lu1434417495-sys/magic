@@ -9,27 +9,6 @@ public partial class ProfessionContentRegistry : RefCounted
     private static readonly StringName GateContextUnlock = "unlock";
     private static readonly StringName GateContextRank = "rank";
 
-    private static readonly HashSet<StringName> ValidBabProgressions = new()
-    {
-        "full",
-        "three_quarter",
-        "half",
-    };
-
-    private static readonly HashSet<StringName> ValidReactivationModes = new() { "auto", "manual" };
-
-    private static readonly HashSet<StringName> ValidDependencyVisibilityModes = new()
-    {
-        "count_when_hidden",
-        "ignore_when_hidden",
-    };
-
-    private static readonly HashSet<StringName> ValidGateCheckModes = new()
-    {
-        "historical",
-        "active_only",
-    };
-
     private readonly record struct TransitionNode(string Node, Array<string> Deps);
     private readonly record struct GateRecord(string ProfessionId, string Node, string ContextLabel, string CheckMode);
 
@@ -40,33 +19,43 @@ public partial class ProfessionContentRegistry : RefCounted
     public ProfessionContentRegistry()
     {
         System.GC.SuppressFinalize(this);
-        setup(new Dictionary());
+        Setup(new Dictionary());
     }
 
-    public static string profession_config_directory() => ProfessionConfigDirectory;
-
-    public void setup(Dictionary skillDefs = null)
+    public void Setup(Dictionary skillDefs = null)
     {
         _skill_defs = skillDefs ?? new Dictionary();
-        rebuild();
+        Rebuild();
     }
 
-    public void rebuild()
+    public void Rebuild()
     {
-        load_from_directory(ProfessionConfigDirectory);
+        LoadFromDirectory(ProfessionConfigDirectory);
     }
 
-    public void load_from_directory(string directoryPath)
+    public void LoadFromDirectory(string directoryPath)
     {
         _profession_defs.Clear();
         _validation_errors.Clear();
-        _scan_directory(directoryPath);
-        AppendArray(_validation_errors, _collect_validation_errors());
+        ScanDirectory(directoryPath);
+        AppendArray(_validation_errors, CollectValidationErrors());
     }
 
-    public Dictionary get_profession_defs() => _profession_defs.Duplicate();
+    public IReadOnlyDictionary<StringName, ProfessionDef> GetProfessionDefsTyped()
+    {
+        var result = new System.Collections.Generic.Dictionary<StringName, ProfessionDef>();
+        foreach (string professionKey in ProgressionDataUtils.sorted_string_keys(_profession_defs))
+        {
+            var professionId = new StringName(professionKey);
+            ProfessionDef professionDef = GetTyped<ProfessionDef>(_profession_defs, professionId);
+            if (professionDef == null || professionDef.profession_id == "")
+                continue;
+            result[professionDef.profession_id] = professionDef;
+        }
+        return result;
+    }
 
-    public Array<string> validate()
+    public Array<string> Validate()
     {
         var copy = new Array<string>();
         foreach (string error in _validation_errors)
@@ -74,7 +63,7 @@ public partial class ProfessionContentRegistry : RefCounted
         return copy;
     }
 
-    public void _scan_directory(string directoryPath)
+    private void ScanDirectory(string directoryPath)
     {
         if (!DirAccess.DirExistsAbsolute(ProjectSettings.GlobalizePath(directoryPath)))
         {
@@ -101,19 +90,19 @@ public partial class ProfessionContentRegistry : RefCounted
             string entryPath = $"{directoryPath}/{entryName}";
             if (directory.CurrentIsDir())
             {
-                _scan_directory(entryPath);
+                ScanDirectory(entryPath);
                 continue;
             }
             if (!entryName.EndsWith(".tres") && !entryName.EndsWith(".res"))
                 continue;
-            _register_profession_resource(entryPath);
+            RegisterProfessionResource(entryPath);
         }
         directory.ListDirEnd();
     }
 
-    public void _register_profession_resource(string resourcePath)
+    private void RegisterProfessionResource(string resourcePath)
     {
-        var resource = GodotContentResourceLifetime.Keep(GD.Load<Resource>(resourcePath));
+        var resource = GD.Load<Resource>(resourcePath);
         if (resource == null)
         {
             _validation_errors.Add($"Failed to load profession config {resourcePath}.");
@@ -140,7 +129,7 @@ public partial class ProfessionContentRegistry : RefCounted
         _profession_defs[professionDef.profession_id] = professionDef;
     }
 
-    public Array<string> _collect_validation_errors()
+    private Array<string> CollectValidationErrors()
     {
         var errors = new Array<string>();
         foreach (string professionKey in ProgressionDataUtils.sorted_string_keys(_profession_defs))
@@ -149,14 +138,14 @@ public partial class ProfessionContentRegistry : RefCounted
             ProfessionDef professionDef = GetTyped<ProfessionDef>(_profession_defs, professionId);
             if (professionDef == null)
                 continue;
-            _append_profession_validation_errors(errors, professionId, professionDef);
+            AppendProfessionValidationErrors(errors, professionId, professionDef);
         }
 
-        _append_profession_rank_reachability_errors(errors);
+        AppendProfessionRankReachabilityErrors(errors);
         return errors;
     }
 
-    public void _append_profession_validation_errors(
+    private void AppendProfessionValidationErrors(
         Array<string> errors,
         StringName professionId,
         ProfessionDef professionDef
@@ -168,31 +157,34 @@ public partial class ProfessionContentRegistry : RefCounted
         if (professionDef.hit_die_sides <= 0)
             errors.Add($"Profession {professionId} must have hit_die_sides >= 1.");
 
-        if (!ValidBabProgressions.Contains(professionDef.bab_progression))
+        if (professionDef.BabProgressionKind == ProfessionBaseAttackProgression.Unknown)
             errors.Add(
                 $"Profession {professionId} uses unsupported bab_progression {professionDef.bab_progression}."
             );
 
-        if (professionDef.requires_knowledge_unlock() && professionDef.unlock_knowledge_id == "")
+        if (professionDef.RequiresKnowledgeUnlock() && professionDef.unlock_knowledge_id == "")
             errors.Add($"Profession {professionId} is missing unlock_knowledge_id.");
 
-        if (!ValidReactivationModes.Contains(professionDef.reactivation_mode))
+        if (professionDef.ReactivationModeKind == ProfessionReactivationMode.Unknown)
             errors.Add(
                 $"Profession {professionId} uses unsupported reactivation_mode {professionDef.reactivation_mode}."
             );
 
-        if (!ValidDependencyVisibilityModes.Contains(professionDef.dependency_visibility_mode))
+        if (
+            professionDef.DependencyVisibilityModeKind
+            == ProfessionDependencyVisibilityMode.Unknown
+        )
             errors.Add(
                 $"Profession {professionId} uses unsupported dependency_visibility_mode {professionDef.dependency_visibility_mode}."
             );
 
-        _append_unlock_requirement_errors(errors, professionId, professionDef.unlock_requirement);
-        _append_granted_skill_errors(errors, professionId, professionDef);
-        _append_active_condition_errors(errors, professionId, professionDef.active_conditions);
-        _append_rank_requirement_errors(errors, professionId, professionDef);
+        AppendUnlockRequirementErrors(errors, professionId, professionDef.unlock_requirement);
+        AppendGrantedSkillErrors(errors, professionId, professionDef);
+        AppendActiveConditionErrors(errors, professionId, professionDef.active_conditions);
+        AppendRankRequirementErrors(errors, professionId, professionDef);
     }
 
-    public void _append_unlock_requirement_errors(
+    private void AppendUnlockRequirementErrors(
         Array<string> errors,
         StringName professionId,
         ProfessionPromotionRequirement unlockRequirement
@@ -208,13 +200,13 @@ public partial class ProfessionContentRegistry : RefCounted
                 errors.Add($"Profession {professionId} has an empty required_skill_id in unlock.");
                 continue;
             }
-            if (_skill_defs.Count > 0 && !ContainsKeyFlexible(_skill_defs, requiredSkillId))
+            if (_skill_defs.Count > 0 && !ContainsKeyExact(_skill_defs, requiredSkillId))
                 errors.Add(
                     $"Profession {professionId} references missing skill {requiredSkillId} in unlock.required_skill_ids."
                 );
         }
 
-        _append_profession_gate_errors(
+        AppendProfessionGateErrors(
             errors,
             professionId,
             unlockRequirement.required_profession_ranks,
@@ -245,10 +237,10 @@ public partial class ProfessionContentRegistry : RefCounted
         }
 
         foreach (TagRequirement tagRule in unlockRequirement.required_tag_rules)
-            _append_tag_rule_errors(errors, professionId, tagRule, "unlock.required_tag_rules");
+            AppendTagRuleErrors(errors, professionId, tagRule, "unlock.required_tag_rules");
     }
 
-    public void _append_rank_requirement_errors(
+    private void AppendRankRequirementErrors(
         Array<string> errors,
         StringName professionId,
         ProfessionDef professionDef
@@ -277,14 +269,14 @@ public partial class ProfessionContentRegistry : RefCounted
             }
 
             foreach (TagRequirement tagRule in rankRequirement.required_tag_rules)
-                _append_tag_rule_errors(
+                AppendTagRuleErrors(
                     errors,
                     professionId,
                     tagRule,
                     $"rank_{rankRequirement.target_rank}.required_tag_rules"
                 );
 
-            _append_profession_gate_errors(
+            AppendProfessionGateErrors(
                 errors,
                 professionId,
                 rankRequirement.required_profession_ranks,
@@ -303,7 +295,7 @@ public partial class ProfessionContentRegistry : RefCounted
         }
     }
 
-    public void _append_granted_skill_errors(
+    private void AppendGrantedSkillErrors(
         Array<string> errors,
         StringName professionId,
         ProfessionDef professionDef
@@ -318,7 +310,7 @@ public partial class ProfessionContentRegistry : RefCounted
                 errors.Add($"Profession {professionId} has a granted skill without skill_id.");
                 continue;
             }
-            if (_skill_defs.Count > 0 && !ContainsKeyFlexible(_skill_defs, grantedSkill.skill_id))
+            if (_skill_defs.Count > 0 && !ContainsKeyExact(_skill_defs, grantedSkill.skill_id))
             {
                 errors.Add(
                     $"Profession {professionId} grants missing skill {grantedSkill.skill_id}."
@@ -327,7 +319,10 @@ public partial class ProfessionContentRegistry : RefCounted
             else if (_skill_defs.Count > 0)
             {
                 SkillDef skillDef = GetTyped<SkillDef>(_skill_defs, grantedSkill.skill_id);
-                if (skillDef != null && skillDef.learn_source != "profession")
+                if (
+                    skillDef != null
+                    && skillDef.LearnSourceKind != SkillLearnSourceKind.Profession
+                )
                     errors.Add(
                         $"Profession {professionId} granted skill {grantedSkill.skill_id} learn_source must be profession, got {skillDef.learn_source}."
                     );
@@ -339,7 +334,7 @@ public partial class ProfessionContentRegistry : RefCounted
         }
     }
 
-    public void _append_active_condition_errors(
+    private void AppendActiveConditionErrors(
         Array<string> errors,
         StringName professionId,
         Array<ProfessionActiveCondition> activeConditions
@@ -350,14 +345,20 @@ public partial class ProfessionContentRegistry : RefCounted
             if (activeCondition == null)
                 continue;
 
-            if (activeCondition.condition_type == "attribute_range")
+            if (
+                activeCondition.ConditionKind
+                == ProfessionActiveConditionKind.AttributeRange
+            )
             {
                 if (activeCondition.attribute_id == "")
                     errors.Add(
                         $"Profession {professionId} has an attribute_range active condition without attribute_id."
                     );
             }
-            else if (activeCondition.condition_type == "reputation_range")
+            else if (
+                activeCondition.ConditionKind
+                == ProfessionActiveConditionKind.ReputationRange
+            )
             {
                 if (activeCondition.state_id == "")
                     errors.Add(
@@ -373,7 +374,7 @@ public partial class ProfessionContentRegistry : RefCounted
         }
     }
 
-    public void _append_tag_rule_errors(
+    private void AppendTagRuleErrors(
         Array<string> errors,
         StringName professionId,
         TagRequirement tagRule,
@@ -391,26 +392,23 @@ public partial class ProfessionContentRegistry : RefCounted
                 $"Profession {professionId} has a non-positive tag count in {contextLabel} for tag {tagRule.tag}."
             );
 
-        StringName normalizedSkillState = tagRule.get_normalized_skill_state();
-        if (tagRule.skill_state != normalizedSkillState)
+        if (tagRule.SkillStateKind == TagRequirementSkillState.Unknown)
             errors.Add(
                 $"Profession {professionId} uses unsupported skill_state {tagRule.skill_state} in {contextLabel}."
             );
 
-        StringName normalizedOriginFilter = tagRule.get_normalized_origin_filter();
-        if (tagRule.origin_filter != normalizedOriginFilter)
+        if (tagRule.OriginFilterKind == TagRequirementOriginFilter.Unknown)
             errors.Add(
                 $"Profession {professionId} uses unsupported origin_filter {tagRule.origin_filter} in {contextLabel}."
             );
 
-        StringName normalizedSelectionRole = tagRule.get_normalized_selection_role();
-        if (tagRule.selection_role != normalizedSelectionRole)
+        if (tagRule.SelectionRoleKind == TagRequirementSelectionRole.Unknown)
             errors.Add(
                 $"Profession {professionId} uses unsupported selection_role {tagRule.selection_role} in {contextLabel}."
             );
     }
 
-    public void _append_profession_gate_errors(
+    private void AppendProfessionGateErrors(
         Array<string> errors,
         StringName professionId,
         Array<ProfessionRankGate> gates,
@@ -432,7 +430,7 @@ public partial class ProfessionContentRegistry : RefCounted
                 );
                 continue;
             }
-            if (!ContainsKeyFlexible(_profession_defs, gate.profession_id))
+            if (!ContainsKeyExact(_profession_defs, gate.profession_id))
             {
                 errors.Add(
                     $"Profession {professionId} references missing profession {gate.profession_id} in {contextLabel}."
@@ -472,14 +470,17 @@ public partial class ProfessionContentRegistry : RefCounted
                 errors.Add(
                     $"Profession {professionId} {contextLabel} cannot require self rank {gate.min_rank}."
                 );
-            if (gate.check_mode != "" && !ValidGateCheckModes.Contains(gate.check_mode))
+            if (
+                gate.check_mode != ""
+                && gate.CheckModeKind == ProfessionGateCheckMode.Unknown
+            )
                 errors.Add(
                     $"Profession {professionId} uses unsupported gate check_mode {gate.check_mode} in {contextLabel}."
                 );
         }
     }
 
-    public void _append_profession_rank_reachability_errors(Array<string> errors)
+    private void AppendProfessionRankReachabilityErrors(Array<string> errors)
     {
         var transitions = new List<TransitionNode>();
         var gateRecords = new List<GateRecord>();
@@ -497,8 +498,8 @@ public partial class ProfessionContentRegistry : RefCounted
 
             transitions.Add(
                 new TransitionNode(
-                    _profession_rank_node(professionId, 1),
-                    _collect_profession_gate_dependency_nodes(
+                    ProfessionRankNode(professionId, 1),
+                    CollectProfessionGateDependencyNodes(
                         professionId,
                         unlockGates,
                         "unlock.required_profession_ranks",
@@ -519,10 +520,10 @@ public partial class ProfessionContentRegistry : RefCounted
 
                 var deps = new Array<string>
                 {
-                    _profession_rank_node(professionId, targetRank - 1),
+                    ProfessionRankNode(professionId, targetRank - 1),
                 };
                 foreach (
-                    string dep in _collect_profession_gate_dependency_nodes(
+                    string dep in CollectProfessionGateDependencyNodes(
                         professionId,
                         rankRequirement.required_profession_ranks,
                         $"rank_{targetRank}.required_profession_ranks",
@@ -537,10 +538,10 @@ public partial class ProfessionContentRegistry : RefCounted
 
                 transitions.Add(
                     new TransitionNode(
-                        _profession_rank_node(professionId, targetRank),
-                        deps
-                    )
-                );
+                        ProfessionRankNode(professionId, targetRank),
+                    deps
+                )
+            );
             }
         }
 
@@ -572,7 +573,7 @@ public partial class ProfessionContentRegistry : RefCounted
         }
     }
 
-    private Array<string> _collect_profession_gate_dependency_nodes(
+    private Array<string> CollectProfessionGateDependencyNodes(
         StringName professionId,
         Array<ProfessionRankGate> gates,
         string contextLabel,
@@ -586,7 +587,7 @@ public partial class ProfessionContentRegistry : RefCounted
         foreach (ProfessionRankGate gate in gates)
         {
             if (
-                !_is_profession_gate_valid_for_reachability(
+                !IsProfessionGateValidForReachability(
                     professionId,
                     gate,
                     contextKind,
@@ -594,7 +595,7 @@ public partial class ProfessionContentRegistry : RefCounted
                 )
             )
                 continue;
-            string dependencyNode = _profession_rank_node(gate.profession_id, gate.min_rank);
+            string dependencyNode = ProfessionRankNode(gate.profession_id, gate.min_rank);
             if (seenNodes.Add(dependencyNode))
                 dependencyNodes.Add(dependencyNode);
             gateRecords.Add(
@@ -602,14 +603,16 @@ public partial class ProfessionContentRegistry : RefCounted
                     professionId.ToString(),
                     dependencyNode,
                     contextLabel,
-                    _resolve_gate_check_mode_for_validation(gate).ToString()
+                    ProfessionRankGate
+                        .ToStringName(ResolveGateCheckModeForValidation(gate))
+                        .ToString()
                 )
             );
         }
         return dependencyNodes;
     }
 
-    public bool _is_profession_gate_valid_for_reachability(
+    private bool IsProfessionGateValidForReachability(
         StringName professionId,
         ProfessionRankGate gate,
         StringName contextKind,
@@ -622,7 +625,10 @@ public partial class ProfessionContentRegistry : RefCounted
             return false;
         if (gate.min_rank <= 0)
             return false;
-        if (gate.check_mode != "" && !ValidGateCheckModes.Contains(gate.check_mode))
+        if (
+            gate.check_mode != ""
+            && gate.CheckModeKind == ProfessionGateCheckMode.Unknown
+        )
             return false;
         ProfessionDef referencedProfessionDef = GetTyped<ProfessionDef>(
             _profession_defs,
@@ -659,26 +665,29 @@ public partial class ProfessionContentRegistry : RefCounted
         return true;
     }
 
-    public string _profession_rank_node(StringName professionId, int rank)
+    private string ProfessionRankNode(StringName professionId, int rank)
     {
         return $"{professionId}@{rank}";
     }
 
-    public StringName _resolve_gate_check_mode_for_validation(ProfessionRankGate gate)
+    private ProfessionGateCheckMode ResolveGateCheckModeForValidation(ProfessionRankGate gate)
     {
         if (gate == null)
-            return "historical";
+            return ProfessionGateCheckMode.Historical;
         if (gate.check_mode != "")
-            return gate.check_mode;
+            return gate.CheckModeKind;
         ProfessionDef sourceProfessionDef = GetTyped<ProfessionDef>(
             _profession_defs,
             gate.profession_id
         );
         if (sourceProfessionDef == null)
-            return "historical";
-        if (sourceProfessionDef.dependency_visibility_mode == "ignore_when_hidden")
-            return "active_only";
-        return "historical";
+            return ProfessionGateCheckMode.Historical;
+        if (
+            sourceProfessionDef.DependencyVisibilityModeKind
+            == ProfessionDependencyVisibilityMode.IgnoreWhenHidden
+        )
+            return ProfessionGateCheckMode.ActiveOnly;
+        return ProfessionGateCheckMode.Historical;
     }
 
     private static T GetTyped<T>(Dictionary dictionary, StringName key)
@@ -686,22 +695,11 @@ public partial class ProfessionContentRegistry : RefCounted
     {
         if (dictionary.ContainsKey(key))
             return dictionary[key].AsGodotObject() as T;
-        string keyText = key.ToString();
-        if (dictionary.ContainsKey(keyText))
-            return dictionary[keyText].AsGodotObject() as T;
-        var keyName = new StringName(keyText);
-        if (dictionary.ContainsKey(keyName))
-            return dictionary[keyName].AsGodotObject() as T;
         return null;
     }
 
-    private static bool ContainsKeyFlexible(Dictionary dictionary, StringName key)
-    {
-        if (dictionary.ContainsKey(key))
-            return true;
-        string keyText = key.ToString();
-        return dictionary.ContainsKey(keyText) || dictionary.ContainsKey(new StringName(keyText));
-    }
+    private static bool ContainsKeyExact(Dictionary dictionary, StringName key) =>
+        dictionary.ContainsKey(key);
 
     private static void AppendArray(Array<string> target, Array<string> source)
     {

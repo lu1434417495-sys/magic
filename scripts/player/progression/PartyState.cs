@@ -37,19 +37,33 @@ public partial class PartyState : RefCounted
     public Godot.Collections.Array<StringName> completed_quest_ids = new();
     public WarehouseState warehouse_state = new WarehouseState();
 
-    public PartyMemberState get_member_state(StringName id) =>
-        member_states.ContainsKey(id)
-            ? member_states[id].AsGodotObject() as PartyMemberState
-            : null;
+    public PartyMemberState GetMemberState(StringName id)
+    {
+        StringName normalizedId = ProgressionDataUtils.to_string_name(id);
+        if (normalizedId == "")
+            return null;
 
-    public bool has_member_state(StringName id) => get_member_state(id) != null;
+        if (member_states.ContainsKey(normalizedId))
+            return member_states[normalizedId].AsGodotObject() as PartyMemberState;
 
-    public List<PartyMemberState> get_member_states()
+        foreach (Variant key in member_states.Keys)
+        {
+            if (ProgressionDataUtils.to_string_name(key) != normalizedId)
+                continue;
+            return member_states[key].AsGodotObject() as PartyMemberState;
+        }
+
+        return null;
+    }
+
+    public bool HasMemberState(StringName id) => GetMemberState(id) != null;
+
+    public List<PartyMemberState> GetMemberStates()
     {
         var result = new List<PartyMemberState>();
         foreach (string key in ProgressionDataUtils.sorted_string_keys(member_states))
         {
-            PartyMemberState memberState = get_member_state(new StringName(key));
+            PartyMemberState memberState = GetMemberState(new StringName(key));
             if (memberState != null)
             {
                 result.Add(memberState);
@@ -58,37 +72,37 @@ public partial class PartyState : RefCounted
         return result;
     }
 
-    public bool is_member_dead(StringName id)
+    public bool IsMemberDead(StringName id)
     {
-        var m = get_member_state(id);
+        var m = GetMemberState(id);
         return m != null && m.is_dead;
     }
 
-    public StringName get_resolved_main_character_member_id() =>
-        main_character_member_id != "" && has_member_state(main_character_member_id)
+    public StringName GetResolvedMainCharacterMemberId() =>
+        main_character_member_id != "" && HasMemberState(main_character_member_id)
             ? main_character_member_id
             : new StringName("");
 
-    public bool get_fate_run_flag(StringName id, bool defVal = false)
+    public bool GetFateRunFlag(StringName id, bool defVal = false)
     {
         return id != "" && fate_run_flags.TryGetValue(id, out bool value) ? value : defVal;
     }
 
-    public bool has_fate_run_flag(StringName id) => get_fate_run_flag(id);
+    public bool HasFateRunFlag(StringName id) => GetFateRunFlag(id);
 
-    public void set_fate_run_flag(StringName id, bool en = true)
+    public void SetFateRunFlag(StringName id, bool en = true)
     {
         if (id != "")
             fate_run_flags[id] = en;
     }
 
-    public void clear_fate_run_flag(StringName id)
+    public void ClearFateRunFlag(StringName id)
     {
         if (id != "")
             fate_run_flags.Remove(id);
     }
 
-    public Godot.Collections.Dictionary capture_fate_run_flags()
+    public Godot.Collections.Dictionary CaptureFateRunFlags()
     {
         var result = new Godot.Collections.Dictionary();
         foreach (var kv in fate_run_flags)
@@ -96,7 +110,7 @@ public partial class PartyState : RefCounted
         return result;
     }
 
-    public void apply_fate_run_flags(Godot.Collections.Dictionary flags)
+    public void ApplyFateRunFlags(Godot.Collections.Dictionary flags)
     {
         var next = new Dictionary<StringName, bool>();
         if (flags != null)
@@ -111,26 +125,26 @@ public partial class PartyState : RefCounted
         fate_run_flags = next;
     }
 
-    public bool get_meta_flag(StringName id, bool defVal = false)
+    public bool GetMetaFlag(StringName id, bool defVal = false)
     {
         return id != "" && meta_flags.TryGetValue(id, out bool value) ? value : defVal;
     }
 
-    public bool has_meta_flag(StringName id) => get_meta_flag(id);
+    public bool HasMetaFlag(StringName id) => GetMetaFlag(id);
 
-    public void set_meta_flag(StringName id, bool en = true)
+    public void SetMetaFlag(StringName id, bool en = true)
     {
         if (id != "")
             meta_flags[id] = en;
     }
 
-    public void clear_meta_flag(StringName id)
+    public void ClearMetaFlag(StringName id)
     {
         if (id != "")
             meta_flags.Remove(id);
     }
 
-    public void remove_member_from_rosters(StringName id)
+    public void RemoveMemberFromRosters(StringName id)
     {
         if (id == "")
             return;
@@ -147,17 +161,15 @@ public partial class PartyState : RefCounted
                 active_member_ids.Count > 0 ? active_member_ids[0] : new StringName("");
     }
 
-    public Godot.Collections.Array<QuestState> get_active_quests() => active_quests.Duplicate();
+    public List<QuestState> GetActiveQuestsTyped() => new(active_quests);
 
-    public Godot.Collections.Array<QuestState> get_claimable_quests() =>
-        claimable_quests.Duplicate();
+    public List<QuestState> GetClaimableQuestsTyped() => new(claimable_quests);
 
-    public Godot.Collections.Array<StringName> get_completed_quest_ids() =>
-        completed_quest_ids.Duplicate();
+    public List<StringName> GetCompletedQuestIdsTyped() => new(completed_quest_ids);
 
-    public int get_gold() => Mathf.Max(gold, 0);
+    public int GetGold() => Mathf.Max(gold, 0);
 
-    public PartyState duplicate_state()
+    public PartyState DuplicateState()
     {
         return new PartyState
         {
@@ -174,46 +186,46 @@ public partial class PartyState : RefCounted
             active_quests = DuplicateQuestStates(active_quests),
             claimable_quests = DuplicateQuestStates(claimable_quests),
             completed_quest_ids = DuplicateStringNameArray(completed_quest_ids),
-            warehouse_state = warehouse_state?.duplicate_state() ?? new WarehouseState(),
+            warehouse_state = warehouse_state?.DuplicateState() ?? new WarehouseState(),
         };
     }
 
-    public void set_gold(int v) => gold = Mathf.Max(v, 0);
+    public void SetGold(int v) => gold = Mathf.Max(v, 0);
 
-    public int add_gold(int a)
+    public int AddGold(int a)
     {
-        set_gold(get_gold() + a);
+        SetGold(GetGold() + a);
         return gold;
     }
 
-    public bool can_afford(int amount) => get_gold() >= Mathf.Max(amount, 0);
+    public bool CanAfford(int amount) => GetGold() >= Mathf.Max(amount, 0);
 
-    public bool spend_gold(int amount)
+    public bool SpendGold(int amount)
     {
         int cost = Mathf.Max(amount, 0);
         if (cost == 0)
             return true;
-        if (!can_afford(cost))
+        if (!CanAfford(cost))
             return false;
-        set_gold(get_gold() - cost);
+        SetGold(GetGold() - cost);
         return true;
     }
 
-    public void set_member_state(PartyMemberState ms)
+    public void SetMemberState(PartyMemberState ms)
     {
         if (ms != null && ms.member_id != "")
             member_states[ms.member_id] = ms;
     }
 
-    public void remove_member_state(StringName id) => member_states.Remove(id);
+    public void RemoveMemberState(StringName id) => member_states.Remove(id);
 
-    public void enqueue_pending_character_reward(PendingCharacterReward r)
+    public void EnqueuePendingCharacterReward(PendingCharacterReward r)
     {
-        if (r != null && !r.is_empty())
+        if (r != null && !r.IsEmpty())
             pending_character_rewards.Add(r);
     }
 
-    public PendingCharacterReward get_pending_character_reward(StringName rid)
+    public PendingCharacterReward GetPendingCharacterReward(StringName rid)
     {
         foreach (var r in pending_character_rewards)
             if (r != null && r.reward_id == rid)
@@ -221,10 +233,10 @@ public partial class PartyState : RefCounted
         return null;
     }
 
-    public PendingCharacterReward get_next_pending_character_reward() =>
+    public PendingCharacterReward GetNextPendingCharacterReward() =>
         pending_character_rewards.Count > 0 ? pending_character_rewards[0] : null;
 
-    public bool remove_pending_character_reward(StringName rid)
+    public bool RemovePendingCharacterReward(StringName rid)
     {
         for (int i = 0; i < pending_character_rewards.Count; i++)
         {
@@ -240,7 +252,7 @@ public partial class PartyState : RefCounted
         return false;
     }
 
-    public QuestState get_active_quest_state(StringName qid)
+    public QuestState GetActiveQuestState(StringName qid)
     {
         foreach (var q in active_quests)
             if (q != null && q.quest_id == qid)
@@ -248,9 +260,9 @@ public partial class PartyState : RefCounted
         return null;
     }
 
-    public bool has_active_quest(StringName qid) => get_active_quest_state(qid) != null;
+    public bool HasActiveQuest(StringName qid) => GetActiveQuestState(qid) != null;
 
-    public QuestState get_claimable_quest_state(StringName qid)
+    public QuestState GetClaimableQuestState(StringName qid)
     {
         foreach (var q in claimable_quests)
             if (q != null && q.quest_id == qid)
@@ -258,17 +270,17 @@ public partial class PartyState : RefCounted
         return null;
     }
 
-    public bool has_claimable_quest(StringName qid) => get_claimable_quest_state(qid) != null;
+    public bool HasClaimableQuest(StringName qid) => GetClaimableQuestState(qid) != null;
 
-    public QuestState get_quest_state(StringName qid)
+    public QuestState GetQuestState(StringName qid)
     {
-        var activeQuest = get_active_quest_state(qid);
+        var activeQuest = GetActiveQuestState(qid);
         if (activeQuest != null)
             return activeQuest;
-        return get_claimable_quest_state(qid);
+        return GetClaimableQuestState(qid);
     }
 
-    public void set_quest_state(StringName qid, QuestState q)
+    public void SetQuestState(StringName qid, QuestState q)
     {
         if (q == null)
             return;
@@ -276,19 +288,19 @@ public partial class PartyState : RefCounted
             q.quest_id = qid;
         if (q.quest_id == "")
             return;
-        if (q.status_id == QuestState.STATUS_COMPLETED)
-            set_claimable_quest_state(q);
-        else if (q.status_id == QuestState.STATUS_REWARDED)
-            add_completed_quest_id(q.quest_id);
+        if (q.status_id == QuestState.ToStringName(QuestStatusKind.Completed))
+            SetClaimableQuestState(q);
+        else if (q.status_id == QuestState.ToStringName(QuestStatusKind.Rewarded))
+            AddCompletedQuestId(q.quest_id);
         else
-            set_active_quest_state(q);
+            SetActiveQuestState(q);
     }
 
-    public void set_active_quest_state(QuestState q)
+    public void SetActiveQuestState(QuestState q)
     {
         if (q == null || q.quest_id == "")
             return;
-        remove_claimable_quest(q.quest_id);
+        RemoveClaimableQuest(q.quest_id);
         completed_quest_ids.Remove(q.quest_id);
         for (int i = 0; i < active_quests.Count; i++)
         {
@@ -301,11 +313,11 @@ public partial class PartyState : RefCounted
         active_quests.Add(q);
     }
 
-    public void set_claimable_quest_state(QuestState q)
+    public void SetClaimableQuestState(QuestState q)
     {
         if (q == null || q.quest_id == "")
             return;
-        remove_active_quest(q.quest_id);
+        RemoveActiveQuest(q.quest_id);
         completed_quest_ids.Remove(q.quest_id);
         for (int i = 0; i < claimable_quests.Count; i++)
         {
@@ -318,7 +330,7 @@ public partial class PartyState : RefCounted
         claimable_quests.Add(q);
     }
 
-    public bool remove_active_quest(StringName qid)
+    public bool RemoveActiveQuest(StringName qid)
     {
         for (int i = 0; i < active_quests.Count; i++)
         {
@@ -331,7 +343,7 @@ public partial class PartyState : RefCounted
         return false;
     }
 
-    public bool remove_claimable_quest(StringName qid)
+    public bool RemoveClaimableQuest(StringName qid)
     {
         for (int i = 0; i < claimable_quests.Count; i++)
         {
@@ -344,78 +356,78 @@ public partial class PartyState : RefCounted
         return false;
     }
 
-    public Godot.Collections.Array<StringName> get_active_quest_ids()
+    public List<StringName> GetActiveQuestIdsTyped()
     {
-        var r = new Godot.Collections.Array<StringName>();
+        var r = new List<StringName>();
         foreach (var q in active_quests)
             if (q != null && q.quest_id != "")
                 r.Add(q.quest_id);
         return r;
     }
 
-    public Godot.Collections.Array<StringName> get_claimable_quest_ids()
+    public List<StringName> GetClaimableQuestIdsTyped()
     {
-        var r = new Godot.Collections.Array<StringName>();
+        var r = new List<StringName>();
         foreach (var q in claimable_quests)
             if (q != null && q.quest_id != "")
                 r.Add(q.quest_id);
         return r;
     }
 
-    public bool has_completed_quest(StringName qid) => completed_quest_ids.Contains(qid);
+    public bool HasCompletedQuest(StringName qid) => completed_quest_ids.Contains(qid);
 
-    public void add_completed_quest_id(StringName qid)
+    public void AddCompletedQuestId(StringName qid)
     {
         if (qid == "" || completed_quest_ids.Contains(qid))
             return;
-        remove_active_quest(qid);
-        remove_claimable_quest(qid);
+        RemoveActiveQuest(qid);
+        RemoveClaimableQuest(qid);
         completed_quest_ids.Add(qid);
     }
 
-    public bool mark_quest_claimable(StringName qid, int ws = -1)
+    public bool MarkQuestClaimable(StringName qid, int ws = -1)
     {
-        var q = get_active_quest_state(qid);
+        var q = GetActiveQuestState(qid);
         if (q == null)
             return false;
-        q.mark_completed(ws);
-        remove_active_quest(qid);
-        set_claimable_quest_state(q);
+        q.MarkCompleted(ws);
+        RemoveActiveQuest(qid);
+        SetClaimableQuestState(q);
         return true;
     }
 
-    public bool mark_quest_completed(StringName qid, int ws = -1) => mark_quest_claimable(qid, ws);
+    public bool MarkQuestCompleted(StringName qid, int ws = -1) => MarkQuestClaimable(qid, ws);
 
-    public bool mark_quest_reward_claimed(StringName qid, int ws = -1)
+    public bool MarkQuestRewardClaimed(StringName qid, int ws = -1)
     {
-        var q = get_claimable_quest_state(qid);
+        var q = GetClaimableQuestState(qid);
         if (q == null)
             return false;
-        q.mark_reward_claimed(ws);
-        remove_claimable_quest(qid);
-        add_completed_quest_id(qid);
+        q.MarkRewardClaimed(ws);
+        RemoveClaimableQuest(qid);
+        AddCompletedQuestId(qid);
         return true;
     }
 
-    public Godot.Collections.Dictionary to_dict()
+    public Godot.Collections.Dictionary ToDictionary()
     {
         var msd = new Godot.Collections.Dictionary();
         foreach (var k in ProgressionDataUtils.sorted_string_keys(member_states))
         {
-            var m = get_member_state(new StringName(k));
+            var m = GetMemberState(new StringName(k));
             if (m != null)
-                msd[k] = m.to_dict();
+                msd[k] = m.ToDictionary();
         }
         var prd = new Godot.Collections.Array<Godot.Collections.Dictionary>();
         foreach (var r in pending_character_rewards)
             if (r != null)
-                prd.Add(r.to_dict());
+                prd.Add(r.ToDictionary());
         var aqd = _serialize_quest_state_array(active_quests);
         var cqd = _serialize_quest_state_array(claimable_quests);
         return new Godot.Collections.Dictionary
         {
             { "version", version },
-            { "gold", get_gold() },
+            { "gold", GetGold() },
             { "leader_member_id", (string)leader_member_id },
             { "main_character_member_id", (string)main_character_member_id },
             { "fate_run_flags", _serialize_flags(fate_run_flags) },
@@ -440,11 +452,14 @@ public partial class PartyState : RefCounted
                 "completed_quest_ids",
                 ProgressionDataUtils.string_name_array_to_string_array(_nusna(completed_quest_ids))
             },
-            { "warehouse_state", warehouse_state?.to_dict() ?? new Godot.Collections.Dictionary() },
+            {
+                "warehouse_state",
+                warehouse_state?.ToDictionary() ?? new Godot.Collections.Dictionary()
+            },
         };
     }
 
-    public static PartyState from_dict(Godot.Collections.Dictionary data)
+    public static PartyState FromDictionary(Godot.Collections.Dictionary data)
     {
         if (data.Count == 0)
             return null;
@@ -507,7 +522,9 @@ public partial class PartyState : RefCounted
         if (parsedReserveMemberIds == null)
             return null;
 
-        var warehouseState = WarehouseState.from_dict(data["warehouse_state"].AsGodotDictionary());
+        var warehouseState = WarehouseState.FromDictionary(
+            data["warehouse_state"].AsGodotDictionary()
+        );
         if (warehouseState == null)
             return null;
 
@@ -535,7 +552,7 @@ public partial class PartyState : RefCounted
             if (memberStatePayload.VariantType != Variant.Type.Dictionary)
                 return null;
 
-            var memberState = PartyMemberState.from_dict(memberStatePayload.AsGodotDictionary());
+            var memberState = PartyMemberState.FromDictionary(memberStatePayload.AsGodotDictionary());
             if (memberState == null || memberState.member_id != serializedMemberId)
                 return null;
             if (partyState.member_states.ContainsKey(memberState.member_id))
@@ -547,20 +564,20 @@ public partial class PartyState : RefCounted
             return null;
         if (
             partyState.leader_member_id == ""
-            || !partyState.has_member_state(partyState.leader_member_id)
+            || !partyState.HasMemberState(partyState.leader_member_id)
         )
             return null;
 
         var rosterSeenIds = new Godot.Collections.Dictionary();
         foreach (var memberId in partyState.active_member_ids)
         {
-            if (!partyState.has_member_state(memberId))
+            if (!partyState.HasMemberState(memberId))
                 return null;
             rosterSeenIds[memberId] = true;
         }
         foreach (var memberId in partyState.reserve_member_ids)
         {
-            if (rosterSeenIds.ContainsKey(memberId) || !partyState.has_member_state(memberId))
+            if (rosterSeenIds.ContainsKey(memberId) || !partyState.HasMemberState(memberId))
                 return null;
             rosterSeenIds[memberId] = true;
         }
@@ -569,8 +586,8 @@ public partial class PartyState : RefCounted
         {
             if (rewardValue.VariantType != Variant.Type.Dictionary)
                 return null;
-            var reward = PendingCharacterReward.from_dict(rewardValue.AsGodotDictionary());
-            if (reward == null || reward.is_empty())
+            var reward = PendingCharacterReward.FromDictionary(rewardValue.AsGodotDictionary());
+            if (reward == null || reward.IsEmpty())
                 return null;
             partyState.pending_character_rewards.Add(reward);
         }
@@ -579,14 +596,14 @@ public partial class PartyState : RefCounted
         {
             if (questValue.VariantType != Variant.Type.Dictionary)
                 return null;
-            var questState = QuestState.from_dict(questValue.AsGodotDictionary());
+            var questState = QuestState.FromDictionary(questValue.AsGodotDictionary());
             if (
                 questState == null
                 || questState.quest_id == ""
-                || partyState.has_active_quest(questState.quest_id)
+                || partyState.HasActiveQuest(questState.quest_id)
             )
                 return null;
-            if (questState.status_id != QuestState.STATUS_ACTIVE)
+            if (questState.status_id != QuestState.ToStringName(QuestStatusKind.Active))
                 return null;
             partyState.active_quests.Add(questState);
         }
@@ -595,14 +612,14 @@ public partial class PartyState : RefCounted
         {
             if (questValue.VariantType != Variant.Type.Dictionary)
                 return null;
-            var questState = QuestState.from_dict(questValue.AsGodotDictionary());
+            var questState = QuestState.FromDictionary(questValue.AsGodotDictionary());
             if (
                 questState == null
                 || questState.quest_id == ""
-                || partyState.has_claimable_quest(questState.quest_id)
+                || partyState.HasClaimableQuest(questState.quest_id)
             )
                 return null;
-            if (questState.status_id != QuestState.STATUS_COMPLETED)
+            if (questState.status_id != QuestState.ToStringName(QuestStatusKind.Completed))
                 return null;
             partyState.claimable_quests.Add(questState);
         }
@@ -614,8 +631,8 @@ public partial class PartyState : RefCounted
             return null;
         partyState.completed_quest_ids = parsedCompletedQuestIds;
 
-        var activeQuestIds = partyState.get_active_quest_ids();
-        var claimableQuestIds = partyState.get_claimable_quest_ids();
+        var activeQuestIds = partyState.GetActiveQuestIdsTyped();
+        var claimableQuestIds = partyState.GetClaimableQuestIdsTyped();
         foreach (var questId in activeQuestIds)
         {
             if (
@@ -631,7 +648,7 @@ public partial class PartyState : RefCounted
         }
         if (
             partyState.main_character_member_id == ""
-            || !partyState.has_member_state(partyState.main_character_member_id)
+            || !partyState.HasMemberState(partyState.main_character_member_id)
         )
             return null;
 
@@ -645,7 +662,7 @@ public partial class PartyState : RefCounted
         var e = new System.Collections.Generic.List<(string, Godot.Collections.Dictionary)>();
         foreach (var q in qs)
             if (q != null && q.quest_id != "")
-                e.Add(((string)q.quest_id, q.to_dict()));
+                e.Add(((string)q.quest_id, q.ToDictionary()));
         e.Sort((a, b) => string.CompareOrdinal(a.Item1, b.Item1));
         var r = new Godot.Collections.Array<Godot.Collections.Dictionary>();
         foreach (var (_, d) in e)
@@ -683,7 +700,7 @@ public partial class PartyState : RefCounted
             if (memberId == "")
                 continue;
             var memberState = values[rawKey].AsGodotObject() as PartyMemberState;
-            var duplicate = memberState?.duplicate_state();
+            var duplicate = memberState?.DuplicateState();
             if (duplicate != null)
                 result[memberId] = duplicate;
         }
@@ -699,7 +716,7 @@ public partial class PartyState : RefCounted
             return result;
         foreach (var reward in values)
             if (reward != null)
-                result.Add(reward.duplicate_state());
+                result.Add(reward.DuplicateState());
         return result;
     }
 
@@ -712,7 +729,7 @@ public partial class PartyState : RefCounted
             return result;
         foreach (var questState in values)
             if (questState != null)
-                result.Add(questState.duplicate_state());
+                result.Add(questState.DuplicateState());
         return result;
     }
 
@@ -855,7 +872,7 @@ public partial class PartyState : RefCounted
             foreach (var entrySlotId in equipmentState.GetEntrySlotIdsTyped())
             {
                 var instanceId = ProgressionDataUtils.to_string_name(
-                    equipmentState.get_equipped_instance_id(entrySlotId)
+                    equipmentState.GetEquippedInstanceId(entrySlotId)
                 );
                 if (instanceId == "")
                     continue;

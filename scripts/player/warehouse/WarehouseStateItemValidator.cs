@@ -62,7 +62,7 @@ public static class WarehouseStateItemValidator
                 continue;
             }
 
-            if (itemDef.is_equipment())
+            if (itemDef.IsEquipment())
             {
                 errors.Add(
                     $"{stackPath} stores equipment item '{itemId}' in stacks; equipment must use equipment_instances."
@@ -70,7 +70,7 @@ public static class WarehouseStateItemValidator
                 continue;
             }
 
-            int maxStack = itemDef.get_effective_max_stack();
+            int maxStack = itemDef.GetEffectiveMaxStack();
 
             if (quantity > maxStack)
                 errors.Add(
@@ -116,7 +116,7 @@ public static class WarehouseStateItemValidator
                 continue;
             }
 
-            if (!itemDef.is_equipment())
+            if (!itemDef.IsEquipment())
             {
                 errors.Add(
                     $"{instancePath} stores non-equipment item '{itemId}' in equipment_instances."

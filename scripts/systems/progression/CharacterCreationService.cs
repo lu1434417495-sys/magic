@@ -1,16 +1,25 @@
 using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
-[GlobalClass]
+public sealed class CharacterCreationOptions
+{
+    public static readonly CharacterCreationOptions Default = new();
+
+    public bool BakeRerollLuck { get; }
+
+    public CharacterCreationOptions(bool bakeRerollLuck = false)
+    {
+        BakeRerollLuck = bakeRerollLuck;
+    }
+}
+
 public partial class CharacterCreationService : RefCounted
 {
     private const int HIDDEN_LUCK_AT_BIRTH_MAX = 2,
         HIDDEN_LUCK_AT_BIRTH_MIN = -6,
         INITIAL_HP_BASE = 14,
         MAXIMUM_REROLL_TIER_MINIMUM = 10_000_000;
-    private static readonly StringName DefaultSourceId = "birth_roll";
-    private const string CreationOptionBakeRerollLuck = "bake_reroll_luck";
+    internal static readonly StringName DefaultSourceId = "birth_roll";
     private static readonly Godot.Collections.Array<string> IDENTITY_BODY_SIZE_SOURCE_FIELDS = new()
     {
         "race_id",
@@ -23,33 +32,17 @@ public partial class CharacterCreationService : RefCounted
         "body_size_category",
     };
 
-    public static StringName DEFAULT_SOURCE_ID() => DefaultSourceId;
-
-    public static string CREATION_OPTION_BAKE_REROLL_LUCK() => CreationOptionBakeRerollLuck;
-
-    public static int calculate_initial_hp_max(int constitutionValue) =>
+    public static int CalculateInitialHpMax(int constitutionValue) =>
         Mathf.Max(
             1,
             INITIAL_HP_BASE
-                + ProgressionService.calculate_constitution_modifier(constitutionValue) * 2
+                + ProgressionService.CalculateConstitutionModifier(constitutionValue) * 2
         );
 
-    public static PartyMemberState create_member_from_character_creation_payload(
+    public static PartyMemberState CreateMemberFromCharacterCreationPayloadWithoutContentSource(
         StringName memberId,
         Godot.Collections.Dictionary payload,
-        Godot.Collections.Dictionary progressionContentSource = null,
-        Godot.Collections.Dictionary options = null
-    ) => CreateMemberFromCharacterCreationPayload(
-        memberId,
-        payload,
-        ProgressionContentSourceRef.FromDictionary(progressionContentSource),
-        options
-    );
-
-    public static PartyMemberState create_member_from_character_creation_payload_without_content_source(
-        StringName memberId,
-        Godot.Collections.Dictionary payload,
-        Godot.Collections.Dictionary options
+        CharacterCreationOptions options = null
     ) => CreateMemberFromCharacterCreationPayload(
         memberId,
         payload,
@@ -57,11 +50,11 @@ public partial class CharacterCreationService : RefCounted
         options
     );
 
-    public static PartyMemberState create_member_from_character_creation_payload_for_content_source(
+    public static PartyMemberState CreateMemberFromCharacterCreationPayloadForContentSource(
         StringName memberId,
         Godot.Collections.Dictionary payload,
         ProgressionContentRegistry progressionContentSource,
-        Godot.Collections.Dictionary options = null
+        CharacterCreationOptions options = null
     ) => CreateMemberFromCharacterCreationPayload(
         memberId,
         payload,
@@ -69,14 +62,26 @@ public partial class CharacterCreationService : RefCounted
         options
     );
 
+    internal static PartyMemberState CreateMemberFromCharacterCreationPayloadForIdentityCatalog(
+        StringName memberId,
+        Godot.Collections.Dictionary payload,
+        ProgressionIdentityCatalogData progressionContentSource,
+        CharacterCreationOptions options = null
+    ) => CreateMemberFromCharacterCreationPayload(
+        memberId,
+        payload,
+        ProgressionContentSourceRef.FromIdentityCatalog(progressionContentSource),
+        options
+    );
+
     private static PartyMemberState CreateMemberFromCharacterCreationPayload(
         StringName memberId,
         Godot.Collections.Dictionary payload,
         ProgressionContentSourceRef progressionContentSource,
-        Godot.Collections.Dictionary options = null
+        CharacterCreationOptions options = null
     )
     {
-        options ??= new Godot.Collections.Dictionary();
+        options ??= CharacterCreationOptions.Default;
         var ms = new PartyMemberState { member_id = memberId };
         ms.progression = new UnitProgress
         {
@@ -93,22 +98,10 @@ public partial class CharacterCreationService : RefCounted
             : null;
     }
 
-    public static bool apply_character_creation_payload_to_member(
+    public static bool ApplyCharacterCreationPayloadToMemberWithoutContentSource(
         PartyMemberState memberState,
         Godot.Collections.Dictionary payload,
-        Godot.Collections.Dictionary progressionContentSource = null,
-        Godot.Collections.Dictionary options = null
-    ) => ApplyCharacterCreationPayloadToMember(
-        memberState,
-        payload,
-        ProgressionContentSourceRef.FromDictionary(progressionContentSource),
-        options
-    );
-
-    public static bool apply_character_creation_payload_to_member_without_content_source(
-        PartyMemberState memberState,
-        Godot.Collections.Dictionary payload,
-        Godot.Collections.Dictionary options
+        CharacterCreationOptions options = null
     ) => ApplyCharacterCreationPayloadToMember(
         memberState,
         payload,
@@ -116,11 +109,11 @@ public partial class CharacterCreationService : RefCounted
         options
     );
 
-    public static bool apply_character_creation_payload_to_member_for_content_source(
+    public static bool ApplyCharacterCreationPayloadToMemberForContentSource(
         PartyMemberState memberState,
         Godot.Collections.Dictionary payload,
         ProgressionContentRegistry progressionContentSource,
-        Godot.Collections.Dictionary options = null
+        CharacterCreationOptions options = null
     ) => ApplyCharacterCreationPayloadToMember(
         memberState,
         payload,
@@ -128,14 +121,26 @@ public partial class CharacterCreationService : RefCounted
         options
     );
 
+    internal static bool ApplyCharacterCreationPayloadToMemberForIdentityCatalog(
+        PartyMemberState memberState,
+        Godot.Collections.Dictionary payload,
+        ProgressionIdentityCatalogData progressionContentSource,
+        CharacterCreationOptions options = null
+    ) => ApplyCharacterCreationPayloadToMember(
+        memberState,
+        payload,
+        ProgressionContentSourceRef.FromIdentityCatalog(progressionContentSource),
+        options
+    );
+
     private static bool ApplyCharacterCreationPayloadToMember(
         PartyMemberState memberState,
         Godot.Collections.Dictionary payload,
         ProgressionContentSourceRef progressionContentSource,
-        Godot.Collections.Dictionary options = null
+        CharacterCreationOptions options = null
     )
     {
-        options ??= new Godot.Collections.Dictionary();
+        options ??= CharacterCreationOptions.Default;
         if (memberState == null || payload == null || payload.Count == 0)
             return false;
         if (
@@ -175,35 +180,32 @@ public partial class CharacterCreationService : RefCounted
             }
         )
             if (payload.ContainsKey(aid))
-                ba.set_attribute_value(new StringName(aid), payload[aid].AsInt32());
+                ba.SetAttributeValue(new StringName(aid), payload[aid].AsInt32());
         if (!_apply_identity_payload_to_member(memberState, payload, progressionContentSource))
             return false;
-        var at = AttributeService.ACTION_THRESHOLD_ID();
+        var at = AttributeService.ToStringName(AttributeIdKind.ActionThreshold);
         if (payload.ContainsKey((string)at))
-            ba.set_attribute_value(at, payload[(string)at].AsInt32());
-        if (
-            TryReadBool(options, CreationOptionBakeRerollLuck, out bool bakeRerollLuck)
-            && bakeRerollLuck
-        )
+            ba.SetAttributeValue(at, payload[(string)at].AsInt32());
+        if (options.BakeRerollLuck)
         {
             var asv = new AttributeService();
-            asv.setup(memberState.progression);
+            asv.Setup(memberState.progression);
             var cc = new CharacterCreationService();
             if (!TryReadRerollCount(payload, out int rerollCount))
                 return false;
-            cc.bake_hidden_luck_at_birth(asv, rerollCount);
+            cc.BakeHiddenLuckAtBirth(asv, rerollCount);
         }
-        int con = ba.get_attribute_value(new StringName("constitution"));
-        int ihp = calculate_initial_hp_max(con);
-        ba.set_attribute_value(AttributeService.HP_MAX_ID(), ihp);
+        int con = ba.GetAttributeValue(new StringName("constitution"));
+        int ihp = CalculateInitialHpMax(con);
+        ba.SetAttributeValue(AttributeService.ToStringName(AttributeIdKind.HpMax), ihp);
         memberState.current_hp = ihp;
         return true;
     }
 
-    public static int map_reroll_count_to_hidden_luck_at_birth(int rerollCount) =>
+    public static int MapRerollCountToHiddenLuckAtBirth(int rerollCount) =>
         _map_integer_reroll_count(rerollCount);
 
-    public bool bake_hidden_luck_at_birth(
+    public bool BakeHiddenLuckAtBirth(
         AttributeService attributeService,
         int rerollCount,
         StringName sourceId = default
@@ -212,19 +214,19 @@ public partial class CharacterCreationService : RefCounted
         if (attributeService == null)
             return false;
         sourceId = sourceId == "" ? DefaultSourceId : sourceId;
-        int targetHL = map_reroll_count_to_hidden_luck_at_birth(rerollCount);
-        int currentHL = attributeService.get_base_value(UnitBaseAttributes.HIDDEN_LUCK_AT_BIRTH());
+        int targetHL = MapRerollCountToHiddenLuckAtBirth(rerollCount);
+        int currentHL = attributeService.GetBaseValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.HiddenLuckAtBirth));
         int delta = targetHL - currentHL;
         if (delta == 0)
             return true;
-        return attributeService.apply_permanent_attribute_change(
-            UnitBaseAttributes.HIDDEN_LUCK_AT_BIRTH(),
+        return attributeService.ApplyPermanentAttributeChange(
+            UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.HiddenLuckAtBirth),
             delta,
             new Godot.Collections.Dictionary
             {
                 {
                     "source_type",
-                    AttributeService.PROTECTED_CUSTOM_STAT_SOURCE_CHARACTER_CREATION_ID()
+                    AttributeService.ToStringName(AttributeSourceKind.CharacterCreation)
                 },
                 { "source_id", sourceId },
             }
@@ -251,22 +253,6 @@ public partial class CharacterCreationService : RefCounted
             return false;
         }
         rerollCount = value.AsInt32();
-        return true;
-    }
-
-    private static bool TryReadBool(
-        Godot.Collections.Dictionary data,
-        string key,
-        out bool result
-    )
-    {
-        result = false;
-        if (data == null || !data.ContainsKey(key))
-            return false;
-        Variant value = data[key];
-        if (value.VariantType != Variant.Type.Bool)
-            return false;
-        result = value.AsBool();
         return true;
     }
 
@@ -410,61 +396,51 @@ public partial class CharacterCreationService : RefCounted
     {
         internal static readonly ProgressionContentSourceRef Empty = new();
 
-        private readonly GDictionary _dictionary;
-        private readonly ProgressionContentRegistry _registry;
+        private readonly ProgressionIdentityCatalogData _identityCatalog;
 
-        private ProgressionContentSourceRef(GDictionary dictionary, ProgressionContentRegistry registry)
+        private ProgressionContentSourceRef(ProgressionIdentityCatalogData identityCatalog)
         {
-            _dictionary = dictionary;
-            _registry = registry;
+            _identityCatalog = identityCatalog;
         }
 
-        internal bool HasSource => _dictionary != null || _registry != null;
-
-        internal static ProgressionContentSourceRef FromDictionary(GDictionary contentSource)
-        {
-            return contentSource != null ? new ProgressionContentSourceRef(contentSource, null) : Empty;
-        }
+        internal bool HasSource => _identityCatalog != null;
 
         internal static ProgressionContentSourceRef FromRegistry(ProgressionContentRegistry contentSource)
         {
-            return contentSource != null ? new ProgressionContentSourceRef(null, contentSource) : Empty;
+            return contentSource != null
+                ? new ProgressionContentSourceRef(contentSource.GetIdentityCatalogTyped())
+                : Empty;
+        }
+
+        internal static ProgressionContentSourceRef FromIdentityCatalog(
+            ProgressionIdentityCatalogData contentSource
+        )
+        {
+            return contentSource != null ? new ProgressionContentSourceRef(contentSource) : Empty;
         }
 
         internal IReadOnlyList<string> ValidateMemberIdentity(PartyMemberState memberState)
         {
-            return _registry != null
-                ? IdentityPayloadValidator.ValidateMemberIdentityForContentSource(
-                    memberState,
-                    _registry
-                )
-                : IdentityPayloadValidator.ValidateMemberIdentity(memberState, _dictionary);
+            return IdentityPayloadValidator.ValidateMemberIdentityTyped(
+                memberState,
+                _identityCatalog
+            );
         }
 
         internal StringName ResolveBodySizeCategory(PartyMemberState memberState)
         {
-            return _registry != null
-                ? IdentityPayloadValidator.ResolveBodySizeCategoryForContentSource(
-                    memberState,
-                    _registry
-                )
-                : IdentityPayloadValidator.ResolveBodySizeCategoryForMember(
-                    memberState,
-                    _dictionary
-                );
+            return IdentityPayloadValidator.ResolveBodySizeCategoryForMemberTyped(
+                memberState,
+                _identityCatalog
+            );
         }
 
         internal bool RefreshMemberBodySize(PartyMemberState memberState)
         {
-            return _registry != null
-                ? IdentityPayloadValidator.RefreshMemberBodySizeFromContentSource(
-                    memberState,
-                    _registry
-                )
-                : IdentityPayloadValidator.RefreshMemberBodySizeFromIdentity(
-                    memberState,
-                    _dictionary
-                );
+            return IdentityPayloadValidator.RefreshMemberBodySizeFromIdentityTyped(
+                memberState,
+                _identityCatalog
+            );
         }
     }
 }

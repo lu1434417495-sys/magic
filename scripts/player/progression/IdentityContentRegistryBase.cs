@@ -34,7 +34,7 @@ public partial class IdentityContentRegistryBase : RefCounted
 
         var allowed = new Godot.Collections.Dictionary();
 
-        foreach (var attributeId in UnitBaseAttributes.BASE_ATTRIBUTE_IDS())
+        foreach (var attributeId in UnitBaseAttributes.GetBaseAttributeIdsTyped())
             allowed[attributeId] = true;
 
         foreach (var attributeId in ResourceAttributeIds)
@@ -57,7 +57,7 @@ public partial class IdentityContentRegistryBase : RefCounted
         System.GC.SuppressFinalize(this);
     }
 
-    public Godot.Collections.Array<string> validate()
+    public Godot.Collections.Array<string> Validate()
     {
         var copy = new Godot.Collections.Array<string>();
 
@@ -228,19 +228,19 @@ public partial class IdentityContentRegistryBase : RefCounted
     {
         foreach (var key in values.Keys)
         {
-            if (!TryAsStringLike(key, out string keyText) || keyText.StripEdges() == "")
+            if (key.VariantType != Variant.Type.StringName || key.AsStringName() == "")
                 errors.Add(
-                    $"{ownerLabel}.{fieldLabel} key {key} must be a non-empty String or StringName."
+                    $"{ownerLabel}.{fieldLabel} key {key} must be a non-empty StringName."
                 );
 
             var dictValue = values[key];
 
             if (
-                !TryAsStringLike(dictValue, out string dictText)
-                || dictText.StripEdges() == ""
+                dictValue.VariantType != Variant.Type.StringName
+                || dictValue.AsStringName() == ""
             )
                 errors.Add(
-                    $"{ownerLabel}.{fieldLabel}[{key}] must be a non-empty String or StringName."
+                    $"{ownerLabel}.{fieldLabel}[{key}] must be a non-empty StringName."
                 );
         }
     }
@@ -312,7 +312,7 @@ public partial class IdentityContentRegistryBase : RefCounted
             if (mode == "")
                 errors.Add($"{modifierLabel}.mode must be a non-empty StringName.");
 
-            if (!AttributeModifier.is_valid_mode(mode))
+            if (!AttributeModifier.IsValidMode(mode))
                 errors.Add($"{modifierLabel}.mode uses unsupported value {mode}.");
         }
     }
@@ -345,20 +345,27 @@ public partial class IdentityContentRegistryBase : RefCounted
             if (minLevel < 0)
                 errors.Add($"{skillLabel}.minimum_skill_level must be >= 0.");
 
-            StringName chargeKind = grantedSkill.charge_kind;
-            if (chargeKind == "")
+            RacialSkillChargeKind chargeKind = grantedSkill.ChargeKind;
+            if (chargeKind == RacialSkillChargeKind.Unknown)
                 errors.Add($"{skillLabel}.charge_kind must be a non-empty StringName.");
 
-            if (!RacialGrantedSkill.VALID_CHARGE_KINDS().Contains(chargeKind))
-                errors.Add($"{skillLabel}.charge_kind uses unsupported value {chargeKind}.");
+            if (chargeKind == RacialSkillChargeKind.Unknown)
+                errors.Add(
+                    $"{skillLabel}.charge_kind uses unsupported value {grantedSkill.charge_kind}."
+                );
 
             int charges = grantedSkill.charges;
             if (
-                (chargeKind == RacialGrantedSkill.CHARGE_KIND_PER_BATTLE()
-                    || chargeKind == RacialGrantedSkill.CHARGE_KIND_PER_TURN())
+                (
+                    chargeKind
+                    is RacialSkillChargeKind.PerBattle
+                        or RacialSkillChargeKind.PerTurn
+                )
                 && charges <= 0
             )
-                errors.Add($"{skillLabel}.charges must be > 0 for charge_kind {chargeKind}.");
+                errors.Add(
+                    $"{skillLabel}.charges must be > 0 for charge_kind {grantedSkill.charge_kind}."
+                );
         }
     }
 

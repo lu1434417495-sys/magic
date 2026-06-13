@@ -4,38 +4,34 @@ using GDictionary = Godot.Collections.Dictionary;
 [GlobalClass]
 public partial class AchievementRewardDef : RefCounted
 {
-    private static readonly StringName TypeKnowledgeUnlock = "knowledge_unlock";
-    private static readonly StringName TypeSkillUnlock = "skill_unlock";
-    private static readonly StringName TypeSkillMastery = "skill_mastery";
-    private static readonly StringName TypeAttributeDelta = "attribute_delta";
-
     public StringName reward_type = "";
     public StringName target_id = "";
     public string target_label = "";
     public int amount;
     public string reason_text = "";
 
-    public static StringName TYPE_KNOWLEDGE_UNLOCK() => TypeKnowledgeUnlock;
-
-    public static StringName TYPE_SKILL_UNLOCK() => TypeSkillUnlock;
-
-    public static StringName TYPE_SKILL_MASTERY() => TypeSkillMastery;
-
-    public static StringName TYPE_ATTRIBUTE_DELTA() => TypeAttributeDelta;
-
-    public bool is_empty()
+    internal PendingCharacterRewardEntryKind RewardKind
     {
-        if (reward_type == "" || target_id == "")
+        get => PendingCharacterRewardContentRules.ToEntryKind(reward_type);
+        set => reward_type = PendingCharacterRewardContentRules.ToStringName(value);
+    }
+
+    public bool IsEmpty()
+    {
+        if (RewardKind == PendingCharacterRewardEntryKind.Unknown || target_id == "")
             return true;
         if (
-            (reward_type == TypeAttributeDelta || reward_type == TypeSkillMastery)
+            (
+                RewardKind == PendingCharacterRewardEntryKind.AttributeDelta
+                || RewardKind == PendingCharacterRewardEntryKind.SkillMastery
+            )
             && amount == 0
         )
             return true;
         return false;
     }
 
-    public GDictionary to_dict()
+    public GDictionary ToDictionary()
     {
         return new GDictionary
         {
@@ -47,7 +43,7 @@ public partial class AchievementRewardDef : RefCounted
         };
     }
 
-    public static AchievementRewardDef from_dict(GDictionary payload)
+    public static AchievementRewardDef FromDictionary(GDictionary payload)
     {
         if (
             !HasExactFields(
@@ -68,7 +64,9 @@ public partial class AchievementRewardDef : RefCounted
         StringName targetId = payload["target_id"].AsString();
         if (rewardType == "" || targetId == "")
             return null;
-        if (!PendingCharacterRewardContentRules.is_supported_entry_type(rewardType))
+        PendingCharacterRewardEntryKind rewardKind =
+            PendingCharacterRewardContentRules.ToEntryKind(rewardType);
+        if (rewardKind == PendingCharacterRewardEntryKind.Unknown)
             return null;
 
         string targetLabel = payload["target_label"].AsString();
@@ -80,14 +78,17 @@ public partial class AchievementRewardDef : RefCounted
             return null;
         int parsedAmount = (int)amountLong;
         if (
-            (rewardType == TypeAttributeDelta || rewardType == TypeSkillMastery)
+            (
+                rewardKind == PendingCharacterRewardEntryKind.AttributeDelta
+                || rewardKind == PendingCharacterRewardEntryKind.SkillMastery
+            )
             && parsedAmount <= 0
         )
             return null;
 
         return new AchievementRewardDef
         {
-            reward_type = rewardType,
+            RewardKind = rewardKind,
             target_id = targetId,
             target_label = targetLabel,
             amount = parsedAmount,

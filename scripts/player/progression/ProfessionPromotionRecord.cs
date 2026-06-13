@@ -21,7 +21,7 @@ public partial class ProfessionPromotionRecord : RefCounted
     public GDictionary snapshot_unit_base_attributes = new();
     public int timestamp;
 
-    public ProfessionPromotionRecord duplicate_state()
+    public ProfessionPromotionRecord DuplicateState()
     {
         return new ProfessionPromotionRecord
         {
@@ -33,7 +33,7 @@ public partial class ProfessionPromotionRecord : RefCounted
         };
     }
 
-    public GDictionary to_dict()
+    public GDictionary ToDictionary()
     {
         return new GDictionary
         {
@@ -49,7 +49,7 @@ public partial class ProfessionPromotionRecord : RefCounted
         };
     }
 
-    public static ProfessionPromotionRecord from_dict(GDictionary data)
+    public static ProfessionPromotionRecord FromDictionary(GDictionary data)
     {
         if (data == null || !_has_exact_fields(data, ToDictFields))
         {

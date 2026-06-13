@@ -1,10 +1,7 @@
 using Godot;
 
-[GlobalClass]
 public partial class PendingCharacterRewardEntry : RefCounted
 {
-    public static readonly StringName SKILL_MASTERY_ENTRY_TYPE = "skill_mastery";
-
     private static readonly Godot.Collections.Array<string> TO_DICT_FIELDS = new()
     {
         "entry_type",
@@ -16,6 +13,12 @@ public partial class PendingCharacterRewardEntry : RefCounted
 
     public StringName entry_type = "";
 
+    internal PendingCharacterRewardEntryKind EntryKind
+    {
+        get => PendingCharacterRewardContentRules.ToEntryKind(entry_type);
+        set => entry_type = PendingCharacterRewardContentRules.ToStringName(value);
+    }
+
     public StringName target_id = "";
 
     public string target_label = "";
@@ -24,9 +27,10 @@ public partial class PendingCharacterRewardEntry : RefCounted
 
     public string reason_text = "";
 
-    public bool is_empty() => entry_type == "" || target_id == "" || amount == 0;
+    public bool IsEmpty() =>
+        EntryKind == PendingCharacterRewardEntryKind.Unknown || target_id == "" || amount == 0;
 
-    public PendingCharacterRewardEntry duplicate_state()
+    public PendingCharacterRewardEntry DuplicateState()
     {
         return new PendingCharacterRewardEntry
         {
@@ -38,7 +42,7 @@ public partial class PendingCharacterRewardEntry : RefCounted
         };
     }
 
-    public Godot.Collections.Dictionary to_dict()
+    public Godot.Collections.Dictionary ToDictionary()
     {
         return new Godot.Collections.Dictionary
         {
@@ -50,7 +54,7 @@ public partial class PendingCharacterRewardEntry : RefCounted
         };
     }
 
-    public static PendingCharacterRewardEntry from_dict(Godot.Collections.Dictionary data)
+    public static PendingCharacterRewardEntry FromDictionary(Godot.Collections.Dictionary data)
     {
         if (!_has_exact_fields(data, TO_DICT_FIELDS))
             return null;
@@ -62,7 +66,10 @@ public partial class PendingCharacterRewardEntry : RefCounted
         if (!ok1 || !ok2)
             return null;
 
-        if (!PendingCharacterRewardContentRules.is_supported_entry_type(entryType))
+        if (
+            PendingCharacterRewardContentRules.ToEntryKind(entryType)
+            == PendingCharacterRewardEntryKind.Unknown
+        )
             return null;
 
         if (

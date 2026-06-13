@@ -8,16 +8,16 @@ public class EquipmentEntryState
     public StringName instance_id = "";
     public EquipmentInstanceState equipment_instance;
 
-    public bool is_empty() =>
+    public bool IsEmpty() =>
         equipment_instance == null || item_id == "" || instance_id == "";
 
-    public EquipmentInstanceState get_equipment_instance() => equipment_instance;
+    public EquipmentInstanceState GetEquipmentInstance() => equipment_instance;
 
-    public bool set_equipment_instance(EquipmentInstanceState instance)
+    public bool SetEquipmentInstance(EquipmentInstanceState instance)
     {
         if (instance == null)
             return false;
-        var ni = instance.duplicate_state();
+        var ni = instance.DuplicateState();
         if (ni == null)
             return false;
         if (ni.item_id == "" || ni.instance_id == "")
@@ -28,18 +28,18 @@ public class EquipmentEntryState
         return true;
     }
 
-    public EquipmentEntryState duplicate_state()
+    public EquipmentEntryState DuplicateState()
     {
-        if (is_empty())
+        if (IsEmpty())
             return new EquipmentEntryState();
         var entry = new EquipmentEntryState();
-        if (!entry.set_equipment_instance(equipment_instance))
+        if (!entry.SetEquipmentInstance(equipment_instance))
             return new EquipmentEntryState();
         entry.occupied_slot_ids = new List<StringName>(occupied_slot_ids);
         return entry;
     }
 
-    public Godot.Collections.Dictionary to_dict() =>
+    public Godot.Collections.Dictionary ToDictionary() =>
         new()
         {
             {
@@ -48,11 +48,11 @@ public class EquipmentEntryState
             },
             {
                 "equipment_instance",
-                equipment_instance?.to_dict() ?? new Godot.Collections.Dictionary()
+                equipment_instance?.ToDictionary() ?? new Godot.Collections.Dictionary()
             },
         };
 
-    public static EquipmentEntryState from_dict(Godot.Collections.Dictionary payload)
+    public static EquipmentEntryState FromDictionary(Godot.Collections.Dictionary payload)
     {
         if (payload == null)
             return null;
@@ -65,21 +65,24 @@ public class EquipmentEntryState
             return null;
         if (payload["equipment_instance"].VariantType != Variant.Type.Dictionary)
             return null;
-        var inst = EquipmentInstanceState.from_dict(
+        var inst = EquipmentInstanceState.FromDictionary(
             payload["equipment_instance"].AsGodotDictionary()
         );
         if (inst == null)
             return null;
         var entry = new EquipmentEntryState();
-        if (!entry.set_equipment_instance(inst))
+        if (!entry.SetEquipmentInstance(inst))
             return null;
         var occupiedSlotIds = new HashSet<StringName>();
         foreach (var rsv in ov.AsGodotArray())
         {
-            if (!_is_string_name_payload_type((long)rsv.VariantType))
+            if (rsv.VariantType != Variant.Type.String)
                 return null;
-            var slot_id = ProgressionDataUtils.to_string_name(rsv);
-            if (slot_id == "" || !EquipmentRules.is_valid_slot(slot_id))
+            string slotText = rsv.AsString().StripEdges();
+            if (slotText.Length == 0)
+                return null;
+            var slot_id = new StringName(slotText);
+            if (!EquipmentRules.IsValidSlot(slot_id))
                 return null;
             if (!occupiedSlotIds.Add(slot_id))
                 return null;
@@ -88,10 +91,5 @@ public class EquipmentEntryState
         if (entry.item_id == "" || entry.occupied_slot_ids.Count == 0)
             return null;
         return entry;
-    }
-
-    private static bool _is_string_name_payload_type(long valueType)
-    {
-        return valueType == (long)Variant.Type.String || valueType == (long)Variant.Type.StringName;
     }
 }

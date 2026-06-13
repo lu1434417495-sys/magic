@@ -19,24 +19,8 @@ public class PartyItemUseService
             ConfirmPracticeReplacement = confirmPracticeReplacement;
         }
 
-        public static PartyItemUseOptions FromDictionary(GDictionary options)
-        {
-            if (options == null || !options.ContainsKey("confirm_practice_replacement"))
-                return new PartyItemUseOptions();
-
-            Variant value = options["confirm_practice_replacement"];
-            return new PartyItemUseOptions(
-                value.VariantType == Variant.Type.Bool && value.AsBool()
-            );
-        }
-
-        public GDictionary ToLearnSkillOptionsDictionary()
-        {
-            var result = new GDictionary();
-            if (ConfirmPracticeReplacement)
-                result["confirm_practice_replacement"] = true;
-            return result;
-        }
+        public CharacterManagementModule.LearnSkillOptionsData ToLearnSkillOptions() =>
+            new(ConfirmPracticeReplacement);
     }
 
     internal sealed class PartyItemUseResult
@@ -93,7 +77,7 @@ public class PartyItemUseService
             return this;
         }
 
-        public GDictionary ToDictionary() =>
+        internal GDictionary ToDictionary() =>
             new()
             {
                 { "success", Success },
@@ -110,24 +94,7 @@ public class PartyItemUseService
             };
     }
 
-    public void setup(
-        PartyState partyState,
-        GDictionary itemDefs,
-        GDictionary skillDefs,
-        PartyWarehouseService warehouseService,
-        CharacterManagementModule characterManagement
-    )
-    {
-        SetupTyped(
-            partyState,
-            MaterializeContentDefs<ItemDef>(itemDefs, itemDef => itemDef.item_id),
-            MaterializeContentDefs<SkillDef>(skillDefs, skillDef => skillDef.skill_id),
-            warehouseService,
-            characterManagement
-        );
-    }
-
-    internal void SetupTyped(
+    public void Setup(
         PartyState partyState,
         IReadOnlyDictionary<StringName, ItemDef> itemDefs,
         IReadOnlyDictionary<StringName, SkillDef> skillDefs,
@@ -146,14 +113,14 @@ public class PartyItemUseService
         _character_management = characterManagement;
     }
 
-    public GDictionary use_item(StringName itemId, StringName memberId) =>
-        use_item(itemId, memberId, new GDictionary());
-
-    public GDictionary use_item(
-        StringName itemId,
-        StringName memberId,
-        GDictionary options
-    ) => UseItemTyped(itemId, memberId, PartyItemUseOptions.FromDictionary(options)).ToDictionary();
+    public void Dispose()
+    {
+        _party_state = null;
+        _item_defs.Clear();
+        _skill_defs.Clear();
+        _warehouse_service = null;
+        _character_management = null;
+    }
 
     internal PartyItemUseResult UseItemTyped(
         StringName itemId,
@@ -172,13 +139,13 @@ public class PartyItemUseService
 
         if (!TryGetItemDef(normalizedItemId, out var itemDef))
             return result.WithReason("missing_item_def");
-        if (!itemDef.is_skill_book())
+        if (!itemDef.IsSkillBook())
             return result.WithReason("item_not_usable");
 
-        var memberState = _party_state.get_member_state(normalizedMemberId);
+        var memberState = _party_state.GetMemberState(normalizedMemberId);
         if (memberState == null || memberState.progression == null)
             return result.WithReason("missing_member");
-        if (_warehouse_service.count_item(normalizedItemId) <= 0)
+        if (_warehouse_service.CountItem(normalizedItemId) <= 0)
             return result.WithReason("missing_inventory");
 
         var skillId = itemDef.granted_skill_id;
@@ -193,13 +160,7 @@ public class PartyItemUseService
         if (needsReplacement && !confirmed)
             return result.WithConfirmationRequired(practiceStatus);
 
-        if (
-            !_character_management.learn_skill(
-                normalizedMemberId,
-                skillId,
-                options.ToLearnSkillOptionsDictionary()
-            )
-        )
+        if (!_character_management.LearnSkillTyped(normalizedMemberId, skillId, options.ToLearnSkillOptions()))
             return result.WithReason("learn_failed");
 
         var removeResult = _warehouse_service.RemoveItemTyped(normalizedItemId, 1);
@@ -236,30 +197,5 @@ public class PartyItemUseService
             return PracticeSkillLearnStatus.NonPractice();
         return _character_management.GetPracticeSkillLearnStatusTyped(memberId, skillId)
             ?? PracticeSkillLearnStatus.NonPractice();
-    }
-
-    private static Dictionary<StringName, T> MaterializeContentDefs<T>(
-        GDictionary source,
-        System.Func<T, StringName> idSelector
-    )
-        where T : class
-    {
-        var result = new Dictionary<StringName, T>();
-        if (source == null)
-            return result;
-
-        foreach (Variant rawKey in source.Keys)
-        {
-            Variant rawValue = source[rawKey];
-            if (rawValue.VariantType != Variant.Type.Object || rawValue.AsGodotObject() is not T entry)
-                continue;
-
-            var entryId = idSelector(entry);
-            if (entryId == "")
-                entryId = ProgressionDataUtils.to_string_name(rawKey);
-            if (entryId != "")
-                result[entryId] = entry;
-        }
-        return result;
     }
 }

@@ -22,22 +22,22 @@ public static class RacialSkillGrantService
         }
     }
 
-    public static bool backfill_party(
+    public static bool BackfillParty(
         PartyState partyState,
-        Godot.Collections.Dictionary contentBundle,
-        Godot.Collections.Dictionary skillDefs,
-        Godot.Collections.Dictionary professionDefs,
+        ProgressionIdentityCatalogData identityCatalog,
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, ProfessionDef> professionDefs,
         Func<UnitProgress, ProgressionService> progressionServiceFactory = null
     )
     {
         if (partyState == null)
             return false;
         bool changed = false;
-        foreach (PartyMemberState memberState in partyState.get_member_states())
+        foreach (PartyMemberState memberState in partyState.GetMemberStates())
             changed =
-                backfill_member(
+                BackfillMember(
                     memberState,
-                    contentBundle,
+                    identityCatalog,
                     skillDefs,
                     professionDefs,
                     progressionServiceFactory
@@ -45,22 +45,22 @@ public static class RacialSkillGrantService
         return changed;
     }
 
-    public static bool revoke_orphan_party(
+    public static bool RevokeOrphanParty(
         PartyState partyState,
-        Godot.Collections.Dictionary contentBundle,
-        Godot.Collections.Dictionary skillDefs,
-        Godot.Collections.Dictionary professionDefs,
+        ProgressionIdentityCatalogData identityCatalog,
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, ProfessionDef> professionDefs,
         Func<UnitProgress, ProgressionService> progressionServiceFactory = null
     )
     {
         if (partyState == null)
             return false;
         bool changed = false;
-        foreach (PartyMemberState memberState in partyState.get_member_states())
+        foreach (PartyMemberState memberState in partyState.GetMemberStates())
             changed =
-                revoke_orphan_member(
+                RevokeOrphanMember(
                     memberState,
-                    contentBundle,
+                    identityCatalog,
                     skillDefs,
                     professionDefs,
                     progressionServiceFactory
@@ -68,11 +68,11 @@ public static class RacialSkillGrantService
         return changed;
     }
 
-    public static bool backfill_member(
+    public static bool BackfillMember(
         PartyMemberState memberState,
-        Godot.Collections.Dictionary contentBundle,
-        Godot.Collections.Dictionary skillDefs,
-        Godot.Collections.Dictionary professionDefs,
+        ProgressionIdentityCatalogData identityCatalog,
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, ProfessionDef> professionDefs,
         Func<UnitProgress, ProgressionService> progressionServiceFactory = null
     )
     {
@@ -80,7 +80,7 @@ public static class RacialSkillGrantService
             return false;
         List<RacialGrantEntry> grantEntries = CollectMemberRacialGrantEntries(
             memberState,
-            contentBundle
+            identityCatalog
         );
         if (grantEntries.Count == 0)
             return false;
@@ -94,7 +94,7 @@ public static class RacialSkillGrantService
         foreach (RacialGrantEntry grantEntry in grantEntries)
         {
             if (
-                ps.grant_racial_skill(
+                ps.GrantRacialSkill(
                     grantEntry.Grant,
                     grantEntry.SourceType,
                     grantEntry.SourceId
@@ -105,11 +105,11 @@ public static class RacialSkillGrantService
         return changed;
     }
 
-    public static bool revoke_orphan_member(
+    public static bool RevokeOrphanMember(
         PartyMemberState memberState,
-        Godot.Collections.Dictionary contentBundle,
-        Godot.Collections.Dictionary skillDefs,
-        Godot.Collections.Dictionary professionDefs,
+        ProgressionIdentityCatalogData identityCatalog,
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, ProfessionDef> professionDefs,
         Func<UnitProgress, ProgressionService> progressionServiceFactory = null
     )
     {
@@ -117,24 +117,19 @@ public static class RacialSkillGrantService
             return false;
         HashSet<string> activeGrantLookup = CollectActiveIdentityGrantLookup(
             memberState,
-            contentBundle
+            identityCatalog
         );
         List<StringName> skillIdsToRemove = new();
-        foreach (
-            var sk in ProgressionDataUtils.sorted_string_keys(
-                memberState.progression.skills
-            )
-        )
+        foreach (var skId in memberState.progression.GetSortedSkillIdsTyped())
         {
-            var skId = new StringName(sk);
-            var sp = memberState.progression.get_skill_progress(skId);
+            var sp = memberState.progression.GetSkillProgress(skId);
             if (sp == null)
                 continue;
             var st = ProgressionDataUtils.to_string_name(sp.granted_source_type);
-            if (!is_racial_granted_source_type(st))
+            if (!IsRacialGrantedSourceType(st))
                 continue;
             var si = ProgressionDataUtils.to_string_name(sp.granted_source_id);
-            if (activeGrantLookup.Contains(identity_grant_key(st, si, skId)))
+            if (activeGrantLookup.Contains(IdentityGrantKey(st, si, skId)))
                 continue;
             if (sp.profession_granted_by != "")
                 continue;
@@ -143,58 +138,44 @@ public static class RacialSkillGrantService
         if (skillIdsToRemove.Count == 0)
             return false;
         foreach (var skId in skillIdsToRemove)
-            memberState.progression.remove_skill_progress(skId);
+            memberState.progression.RemoveSkillProgress(skId);
         var ps = _build_progression_service(
             memberState.progression,
             skillDefs,
             professionDefs,
             progressionServiceFactory
         );
-        ps.refresh_runtime_state();
+        ps.RefreshRuntimeState();
         return true;
     }
 
     private static List<RacialGrantEntry> CollectMemberRacialGrantEntries(
         PartyMemberState memberState,
-        Godot.Collections.Dictionary contentBundle
+        ProgressionIdentityCatalogData identityCatalog
     )
     {
         List<RacialGrantEntry> entries = new();
         if (memberState == null)
             return entries;
-        RaceDef rd =
-            _get_content_def<RaceDef>(contentBundle, "race_defs", "race", memberState.race_id);
+        identityCatalog ??= new ProgressionIdentityCatalogData();
+        RaceDef rd = Lookup(identityCatalog.RaceDefs, memberState.race_id);
         if (rd != null)
             _append(entries, rd.racial_granted_skills, "race", memberState.race_id);
-        SubraceDef srd = _get_content_def<SubraceDef>(
-            contentBundle,
-            "subrace_defs",
-            "subrace",
-            memberState.subrace_id
-        );
+        SubraceDef srd = Lookup(identityCatalog.SubraceDefs, memberState.subrace_id);
         if (srd != null)
             _append(entries, srd.racial_granted_skills, "subrace", memberState.subrace_id);
         if (memberState.bloodline_id != "")
         {
-            BloodlineDef bld =
-                _get_content_def<BloodlineDef>(
-                    contentBundle,
-                    "bloodline_defs",
-                    "bloodline",
-                    memberState.bloodline_id
-                );
+            BloodlineDef bld = Lookup(identityCatalog.BloodlineDefs, memberState.bloodline_id);
             if (bld != null)
                 _append(entries, bld.racial_granted_skills, "bloodline", memberState.bloodline_id);
         }
         if (memberState.bloodline_stage_id != "")
         {
-            BloodlineStageDef blsd =
-                _get_content_def<BloodlineStageDef>(
-                    contentBundle,
-                    "bloodline_stage_defs",
-                    "bloodline_stage",
-                    memberState.bloodline_stage_id
-                );
+            BloodlineStageDef blsd = Lookup(
+                identityCatalog.BloodlineStageDefs,
+                memberState.bloodline_stage_id
+            );
             if (blsd != null)
                 _append(
                     entries,
@@ -205,25 +186,16 @@ public static class RacialSkillGrantService
         }
         if (memberState.ascension_id != "")
         {
-            AscensionDef ad =
-                _get_content_def<AscensionDef>(
-                    contentBundle,
-                    "ascension_defs",
-                    "ascension",
-                    memberState.ascension_id
-                );
+            AscensionDef ad = Lookup(identityCatalog.AscensionDefs, memberState.ascension_id);
             if (ad != null)
                 _append(entries, ad.racial_granted_skills, "ascension", memberState.ascension_id);
         }
         if (memberState.ascension_stage_id != "")
         {
-            AscensionStageDef asd =
-                _get_content_def<AscensionStageDef>(
-                    contentBundle,
-                    "ascension_stage_defs",
-                    "ascension_stage",
-                    memberState.ascension_stage_id
-                );
+            AscensionStageDef asd = Lookup(
+                identityCatalog.AscensionStageDefs,
+                memberState.ascension_stage_id
+            );
             if (asd != null)
                 _append(
                     entries,
@@ -254,13 +226,13 @@ public static class RacialSkillGrantService
 
     private static HashSet<string> CollectActiveIdentityGrantLookup(
         PartyMemberState memberState,
-        Godot.Collections.Dictionary contentBundle
+        ProgressionIdentityCatalogData identityCatalog
     )
     {
         HashSet<string> lookup = new(StringComparer.Ordinal);
         if (memberState == null)
             return lookup;
-        foreach (RacialGrantEntry grantEntry in CollectMemberRacialGrantEntries(memberState, contentBundle))
+        foreach (RacialGrantEntry grantEntry in CollectMemberRacialGrantEntries(memberState, identityCatalog))
         {
             RacialGrantedSkill grant = grantEntry.Grant;
             if (grant == null || grant.skill_id == "")
@@ -268,69 +240,41 @@ public static class RacialSkillGrantService
             if (grantEntry.SourceType == "" || grantEntry.SourceId == "")
                 continue;
             lookup.Add(
-                identity_grant_key(grantEntry.SourceType, grantEntry.SourceId, grant.skill_id)
+                IdentityGrantKey(grantEntry.SourceType, grantEntry.SourceId, grant.skill_id)
             );
         }
         return lookup;
     }
 
-    public static string identity_grant_key(
+    public static string IdentityGrantKey(
         StringName sourceType,
         StringName sourceId,
         StringName skillId
     ) => $"{(string)sourceType}:{(string)sourceId}:{(string)skillId}";
 
-    public static bool is_racial_granted_source_type(StringName sourceType) =>
-        sourceType == "race"
-        || sourceType == "subrace"
-        || sourceType == "ascension"
-        || sourceType == "bloodline";
+    public static bool IsRacialGrantedSourceType(StringName sourceType) =>
+        UnitSkillProgress.ToGrantSourceType(sourceType)
+            is UnitSkillGrantSourceType.Race
+                or UnitSkillGrantSourceType.Subrace
+                or UnitSkillGrantSourceType.Ascension
+                or UnitSkillGrantSourceType.Bloodline;
 
-    private static T _get_content_def<T>(
-        Godot.Collections.Dictionary contentBundle,
-        string primaryBucket,
-        string aliasBucket,
-        StringName entryId
-    ) where T : class
-    {
-        if (entryId == "")
-            return null;
-        var bucket = _get_content_bucket(contentBundle, primaryBucket, aliasBucket);
-        return bucket.ContainsKey(entryId) ? bucket[entryId].AsGodotObject() as T : null;
-    }
-
-    private static Godot.Collections.Dictionary _get_content_bucket(
-        Godot.Collections.Dictionary contentBundle,
-        string primaryBucket,
-        string aliasBucket
-    )
-    {
-        if (contentBundle.ContainsKey(primaryBucket))
-        {
-            var bv = contentBundle[primaryBucket];
-            if (bv.VariantType == Variant.Type.Dictionary)
-                return bv.AsGodotDictionary();
-        }
-        if (contentBundle.ContainsKey(aliasBucket))
-        {
-            var bv = contentBundle[aliasBucket];
-            if (bv.VariantType == Variant.Type.Dictionary)
-                return bv.AsGodotDictionary();
-        }
-        return new Godot.Collections.Dictionary();
-    }
+    private static T Lookup<T>(IReadOnlyDictionary<StringName, T> defs, StringName entryId)
+        where T : class =>
+        entryId != "" && defs != null && defs.TryGetValue(entryId, out T entry) ? entry : null;
 
     private static ProgressionService _build_progression_service(
         UnitProgress progressionState,
-        Godot.Collections.Dictionary skillDefs,
-        Godot.Collections.Dictionary professionDefs,
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, ProfessionDef> professionDefs,
         Func<UnitProgress, ProgressionService> factory
     )
     {
         if (factory != null)
             return factory.Invoke(progressionState);
         var ps = new ProgressionService();
-        ps.setup(progressionState, skillDefs, professionDefs);
+        ps.Setup(progressionState, skillDefs, professionDefs);
         return ps;
     }
+
 }

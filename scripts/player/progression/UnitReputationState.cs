@@ -1,29 +1,35 @@
 using Godot;
 
+internal enum UnitReputationKind
+{
+    Unknown = 0,
+    Morality,
+}
+
 [GlobalClass]
 public partial class UnitReputationState : RefCounted
 {
-    public static readonly StringName MORALITY = "morality";
+    private static readonly StringName Morality = "morality";
 
     public int morality;
     public Godot.Collections.Dictionary custom_states = new();
 
-    public int get_reputation_value(StringName state_id)
+    public int GetReputationValue(StringName state_id)
     {
-        if (state_id == MORALITY)
+        if (ToReputationKind(state_id) == UnitReputationKind.Morality)
             return morality;
         return custom_states.ContainsKey(state_id) ? custom_states[state_id].AsInt32() : 0;
     }
 
-    public void set_reputation_value(StringName state_id, int value)
+    public void SetReputationValue(StringName state_id, int value)
     {
-        if (state_id == MORALITY)
+        if (ToReputationKind(state_id) == UnitReputationKind.Morality)
             morality = value;
         else
             custom_states[state_id] = value;
     }
 
-    public UnitReputationState duplicate_state()
+    public UnitReputationState DuplicateState()
     {
         return new UnitReputationState
         {
@@ -32,7 +38,7 @@ public partial class UnitReputationState : RefCounted
         };
     }
 
-    public Godot.Collections.Dictionary to_dict() =>
+    public Godot.Collections.Dictionary ToDictionary() =>
         new()
         {
             { "morality", morality },
@@ -42,7 +48,7 @@ public partial class UnitReputationState : RefCounted
             },
         };
 
-    public static UnitReputationState from_dict(Godot.Collections.Dictionary data)
+    public static UnitReputationState FromDictionary(Godot.Collections.Dictionary data)
     {
         if (!_hfs(data, new Godot.Collections.Array<string> { "morality", "custom_states" }))
             return null;
@@ -90,4 +96,10 @@ public partial class UnitReputationState : RefCounted
         }
         return p;
     }
+
+    internal static StringName ToStringName(UnitReputationKind kind) =>
+        kind == UnitReputationKind.Morality ? Morality : "";
+
+    internal static UnitReputationKind ToReputationKind(StringName stateId) =>
+        stateId == Morality ? UnitReputationKind.Morality : UnitReputationKind.Unknown;
 }

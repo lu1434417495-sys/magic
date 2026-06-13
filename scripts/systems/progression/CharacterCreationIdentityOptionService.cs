@@ -1,7 +1,5 @@
 using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
-using GStringNameArray = Godot.Collections.Array<Godot.StringName>;
 
 public static class CharacterCreationIdentityOptionService
 {
@@ -9,23 +7,36 @@ public static class CharacterCreationIdentityOptionService
         ProgressionContentRegistry contentSource
     )
     {
-        var ids = new List<StringName>();
-        Dictionary<StringName, RaceDef> raceDefs = ReadBucket<RaceDef>(
-            contentSource?.get_race_defs()
+        return CollectCreationRaceIds(
+            contentSource?.GetRaceDefsTyped() ?? new Dictionary<StringName, RaceDef>(),
+            contentSource?.GetSubraceDefsTyped() ?? new Dictionary<StringName, SubraceDef>()
         );
+    }
+
+    internal static IReadOnlyList<StringName> CollectCreationRaceIds(
+        ProgressionIdentityCatalogData identityCatalog
+    )
+    {
+        return CollectCreationRaceIds(
+            identityCatalog?.RaceDefs ?? new Dictionary<StringName, RaceDef>(),
+            identityCatalog?.SubraceDefs ?? new Dictionary<StringName, SubraceDef>()
+        );
+    }
+
+    internal static IReadOnlyList<StringName> CollectCreationRaceIds(
+        IReadOnlyDictionary<StringName, RaceDef> raceDefs,
+        IReadOnlyDictionary<StringName, SubraceDef> subraceDefs
+    )
+    {
+        var ids = new List<StringName>();
+        raceDefs ??= new Dictionary<StringName, RaceDef>();
+        subraceDefs ??= new Dictionary<StringName, SubraceDef>();
         foreach (StringName raceId in SortedBucketIds(raceDefs))
         {
-            if (CollectSubraceIdsForRace(contentSource, raceId).Count > 0)
+            if (CollectSubraceIdsForRace(raceDefs, subraceDefs, raceId).Count > 0)
                 ids.Add(raceId);
         }
         return ids;
-    }
-
-    public static GStringNameArray collect_creation_race_ids(
-        ProgressionContentRegistry content_source
-    )
-    {
-        return ToStringNameArray(CollectCreationRaceIds(content_source));
     }
 
     public static IReadOnlyList<StringName> CollectSubraceIdsForRace(
@@ -37,15 +48,40 @@ public static class CharacterCreationIdentityOptionService
         if (contentSource == null || raceId == "")
             return ids;
 
-        Dictionary<StringName, RaceDef> raceDefs = ReadBucket<RaceDef>(
-            contentSource.get_race_defs()
+        return CollectSubraceIdsForRace(
+            contentSource.GetRaceDefsTyped(),
+            contentSource.GetSubraceDefsTyped(),
+            raceId
         );
+    }
+
+    internal static IReadOnlyList<StringName> CollectSubraceIdsForRace(
+        ProgressionIdentityCatalogData identityCatalog,
+        StringName raceId
+    )
+    {
+        return CollectSubraceIdsForRace(
+            identityCatalog?.RaceDefs ?? new Dictionary<StringName, RaceDef>(),
+            identityCatalog?.SubraceDefs ?? new Dictionary<StringName, SubraceDef>(),
+            raceId
+        );
+    }
+
+    internal static IReadOnlyList<StringName> CollectSubraceIdsForRace(
+        IReadOnlyDictionary<StringName, RaceDef> raceDefs,
+        IReadOnlyDictionary<StringName, SubraceDef> subraceDefs,
+        StringName raceId
+    )
+    {
+        var ids = new List<StringName>();
+        if (raceId == "")
+            return ids;
+
+        raceDefs ??= new Dictionary<StringName, RaceDef>();
+        subraceDefs ??= new Dictionary<StringName, SubraceDef>();
         if (!raceDefs.TryGetValue(raceId, out RaceDef raceDef) || raceDef == null)
             return ids;
 
-        Dictionary<StringName, SubraceDef> subraceDefs = ReadBucket<SubraceDef>(
-            contentSource.get_subrace_defs()
-        );
         var seen = new HashSet<StringName>();
         foreach (StringName subraceId in raceDef.subrace_ids)
         {
@@ -66,35 +102,47 @@ public static class CharacterCreationIdentityOptionService
         return ids;
     }
 
-    public static GStringNameArray collect_subrace_ids_for_race(
-        ProgressionContentRegistry content_source,
-        StringName race_id
-    )
-    {
-        return ToStringNameArray(CollectSubraceIdsForRace(content_source, race_id));
-    }
-
     public static StringName ChooseRaceId(
         ProgressionContentRegistry contentSource,
         StringName currentId,
         StringName defaultId
     )
     {
-        IReadOnlyList<StringName> candidates = CollectCreationRaceIds(contentSource);
+        return ChooseRaceId(
+            contentSource?.GetRaceDefsTyped() ?? new Dictionary<StringName, RaceDef>(),
+            contentSource?.GetSubraceDefsTyped() ?? new Dictionary<StringName, SubraceDef>(),
+            currentId,
+            defaultId
+        );
+    }
+
+    internal static StringName ChooseRaceId(
+        ProgressionIdentityCatalogData identityCatalog,
+        StringName currentId,
+        StringName defaultId
+    )
+    {
+        return ChooseRaceId(
+            identityCatalog?.RaceDefs ?? new Dictionary<StringName, RaceDef>(),
+            identityCatalog?.SubraceDefs ?? new Dictionary<StringName, SubraceDef>(),
+            currentId,
+            defaultId
+        );
+    }
+
+    internal static StringName ChooseRaceId(
+        IReadOnlyDictionary<StringName, RaceDef> raceDefs,
+        IReadOnlyDictionary<StringName, SubraceDef> subraceDefs,
+        StringName currentId,
+        StringName defaultId
+    )
+    {
+        IReadOnlyList<StringName> candidates = CollectCreationRaceIds(raceDefs, subraceDefs);
         if (currentId != "" && ContainsId(candidates, currentId))
             return currentId;
         if (defaultId != "" && ContainsId(candidates, defaultId))
             return defaultId;
         return candidates.Count > 0 ? candidates[0] : new StringName("");
-    }
-
-    public static StringName choose_race_id(
-        ProgressionContentRegistry content_source,
-        StringName current_id,
-        StringName default_id
-    )
-    {
-        return ChooseRaceId(content_source, current_id, default_id);
     }
 
     public static StringName ChooseSubraceId(
@@ -103,27 +151,49 @@ public static class CharacterCreationIdentityOptionService
         StringName currentId
     )
     {
-        IReadOnlyList<StringName> candidates = CollectSubraceIdsForRace(contentSource, raceId);
+        return ChooseSubraceId(
+            contentSource?.GetRaceDefsTyped() ?? new Dictionary<StringName, RaceDef>(),
+            contentSource?.GetSubraceDefsTyped() ?? new Dictionary<StringName, SubraceDef>(),
+            raceId,
+            currentId
+        );
+    }
+
+    internal static StringName ChooseSubraceId(
+        ProgressionIdentityCatalogData identityCatalog,
+        StringName raceId,
+        StringName currentId
+    )
+    {
+        return ChooseSubraceId(
+            identityCatalog?.RaceDefs ?? new Dictionary<StringName, RaceDef>(),
+            identityCatalog?.SubraceDefs ?? new Dictionary<StringName, SubraceDef>(),
+            raceId,
+            currentId
+        );
+    }
+
+    internal static StringName ChooseSubraceId(
+        IReadOnlyDictionary<StringName, RaceDef> raceDefs,
+        IReadOnlyDictionary<StringName, SubraceDef> subraceDefs,
+        StringName raceId,
+        StringName currentId
+    )
+    {
+        IReadOnlyList<StringName> candidates = CollectSubraceIdsForRace(
+            raceDefs,
+            subraceDefs,
+            raceId
+        );
         if (currentId != "" && ContainsId(candidates, currentId))
             return currentId;
 
-        Dictionary<StringName, RaceDef> raceDefs = ReadBucket<RaceDef>(
-            contentSource?.get_race_defs()
-        );
+        raceDefs ??= new Dictionary<StringName, RaceDef>();
         raceDefs.TryGetValue(raceId, out RaceDef raceDef);
         StringName defaultSubraceId = raceDef?.default_subrace_id ?? new StringName("");
         if (defaultSubraceId != "" && ContainsId(candidates, defaultSubraceId))
             return defaultSubraceId;
         return candidates.Count > 0 ? candidates[0] : new StringName("");
-    }
-
-    public static StringName choose_subrace_id(
-        ProgressionContentRegistry content_source,
-        StringName race_id,
-        StringName current_id
-    )
-    {
-        return ChooseSubraceId(content_source, race_id, current_id);
     }
 
     public static bool IsValidCreationRaceSubracePair(
@@ -136,20 +206,25 @@ public static class CharacterCreationIdentityOptionService
             return false;
 
         return IsValidCreationRaceSubracePair(
-            ReadBucket<RaceDef>(contentSource.get_race_defs()),
-            ReadBucket<SubraceDef>(contentSource.get_subrace_defs()),
+            contentSource.GetRaceDefsTyped(),
+            contentSource.GetSubraceDefsTyped(),
             raceId,
             subraceId
         );
     }
 
-    public static bool is_valid_creation_race_subrace_pair(
-        ProgressionContentRegistry content_source,
-        StringName race_id,
-        StringName subrace_id
+    internal static bool IsValidCreationRaceSubracePair(
+        ProgressionIdentityCatalogData identityCatalog,
+        StringName raceId,
+        StringName subraceId
     )
     {
-        return IsValidCreationRaceSubracePair(content_source, race_id, subrace_id);
+        return IsValidCreationRaceSubracePair(
+            identityCatalog?.RaceDefs ?? new Dictionary<StringName, RaceDef>(),
+            identityCatalog?.SubraceDefs ?? new Dictionary<StringName, SubraceDef>(),
+            raceId,
+            subraceId
+        );
     }
 
     private static bool IsValidCreationRaceSubracePair(
@@ -166,25 +241,6 @@ public static class CharacterCreationIdentityOptionService
         if (!subraceDefs.TryGetValue(subraceId, out SubraceDef subraceDef) || subraceDef == null)
             return false;
         return subraceDef.parent_race_id == raceId && ContainsId(raceDef.subrace_ids, subraceId);
-    }
-
-    private static Dictionary<StringName, T> ReadBucket<T>(GDictionary bucket)
-        where T : class
-    {
-        var entries = new Dictionary<StringName, T>();
-        if (bucket == null)
-            return entries;
-
-        foreach (Variant rawKey in bucket.Keys)
-        {
-            StringName id = ToStringName(rawKey);
-            if (id == "" || entries.ContainsKey(id))
-                continue;
-            T value = ReadObject<T>(bucket[rawKey]);
-            if (value != null)
-                entries[id] = value;
-        }
-        return entries;
     }
 
     private static IReadOnlyList<StringName> SortedBucketIds<T>(
@@ -209,29 +265,5 @@ public static class CharacterCreationIdentityOptionService
                 return true;
         }
         return false;
-    }
-
-    private static T ReadObject<T>(Variant rawValue)
-        where T : class
-    {
-        return rawValue.VariantType == Variant.Type.Object ? rawValue.AsGodotObject() as T : null;
-    }
-
-    private static StringName ToStringName(Variant rawKey)
-    {
-        return rawKey.VariantType switch
-        {
-            Variant.Type.StringName => rawKey.AsStringName(),
-            Variant.Type.String => new StringName(rawKey.AsString()),
-            _ => new StringName(rawKey.AsString()),
-        };
-    }
-
-    private static GStringNameArray ToStringNameArray(IEnumerable<StringName> ids)
-    {
-        var result = new GStringNameArray();
-        foreach (StringName id in ids)
-            result.Add(id);
-        return result;
     }
 }

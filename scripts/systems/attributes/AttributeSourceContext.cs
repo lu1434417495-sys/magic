@@ -21,7 +21,7 @@ public sealed class AttributeSourceContext
     public List<AttributeModifier> temporary_effects = new();
     public List<StageAdvancementModifier> stage_advancement_modifiers = new();
 
-    public void set_effective_age_stage(
+    public void SetEffectiveAgeStage(
         AgeStageRule rule,
         StringName sourceType,
         StringName sourceId

@@ -1,4 +1,21 @@
+using System.Collections.Generic;
 using Godot;
+
+internal enum QuestObjectiveKind
+{
+    Unknown = 0,
+    SubmitItem,
+    DefeatEnemy,
+    SettlementAction,
+}
+
+internal enum QuestRewardKind
+{
+    Unknown = 0,
+    Gold,
+    Item,
+    PendingCharacterReward,
+}
 
 [GlobalClass]
 public partial class QuestDef : Resource
@@ -23,17 +40,49 @@ public partial class QuestDef : Resource
         "is_repeatable",
     };
 
-    public static StringName OBJECTIVE_SUBMIT_ITEM() => ObjectiveSubmitItem;
+    internal static StringName ToStringName(QuestObjectiveKind kind)
+    {
+        return kind switch
+        {
+            QuestObjectiveKind.SubmitItem => ObjectiveSubmitItem,
+            QuestObjectiveKind.DefeatEnemy => ObjectiveDefeatEnemy,
+            QuestObjectiveKind.SettlementAction => ObjectiveSettlementAction,
+            _ => new StringName(""),
+        };
+    }
 
-    public static StringName OBJECTIVE_DEFEAT_ENEMY() => ObjectiveDefeatEnemy;
+    internal static QuestObjectiveKind ToObjectiveKind(StringName value)
+    {
+        if (value == ObjectiveSubmitItem)
+            return QuestObjectiveKind.SubmitItem;
+        if (value == ObjectiveDefeatEnemy)
+            return QuestObjectiveKind.DefeatEnemy;
+        if (value == ObjectiveSettlementAction)
+            return QuestObjectiveKind.SettlementAction;
+        return QuestObjectiveKind.Unknown;
+    }
 
-    public static StringName OBJECTIVE_SETTLEMENT_ACTION() => ObjectiveSettlementAction;
+    internal static StringName ToStringName(QuestRewardKind kind)
+    {
+        return kind switch
+        {
+            QuestRewardKind.Gold => RewardGold,
+            QuestRewardKind.Item => RewardItem,
+            QuestRewardKind.PendingCharacterReward => RewardPendingCharacterReward,
+            _ => new StringName(""),
+        };
+    }
 
-    public static StringName REWARD_GOLD() => RewardGold;
-
-    public static StringName REWARD_ITEM() => RewardItem;
-
-    public static StringName REWARD_PENDING_CHARACTER_REWARD() => RewardPendingCharacterReward;
+    internal static QuestRewardKind ToRewardKind(StringName value)
+    {
+        if (value == RewardGold)
+            return QuestRewardKind.Gold;
+        if (value == RewardItem)
+            return QuestRewardKind.Item;
+        if (value == RewardPendingCharacterReward)
+            return QuestRewardKind.PendingCharacterReward;
+        return QuestRewardKind.Unknown;
+    }
 
     [Export]
     public StringName quest_id { get; set; } = "";
@@ -65,34 +114,144 @@ public partial class QuestDef : Resource
     [Export]
     public bool is_repeatable { get; set; }
 
-    public bool is_empty()
+    internal sealed class ObjectiveEntryData
+    {
+        public readonly StringName ObjectiveId;
+        public readonly StringName ObjectiveType;
+        public readonly StringName TargetId;
+        public readonly bool HasStrictTargetValue;
+        public readonly int TargetValue;
+
+        private ObjectiveEntryData(
+            StringName objectiveId,
+            StringName objectiveType,
+            StringName targetId,
+            bool hasStrictTargetValue,
+            int targetValue
+        )
+        {
+            ObjectiveId = objectiveId;
+            ObjectiveType = objectiveType;
+            TargetId = targetId;
+            HasStrictTargetValue = hasStrictTargetValue;
+            TargetValue = targetValue;
+        }
+
+        public static ObjectiveEntryData FromDictionary(Godot.Collections.Dictionary objectiveData)
+        {
+            bool hasStrictTargetValue = TryGetStrictInt(
+                objectiveData,
+                "target_value",
+                out int targetValue
+            );
+            return new ObjectiveEntryData(
+                DictStringName(objectiveData, "objective_id"),
+                DictStringName(objectiveData, "objective_type"),
+                DictStringName(objectiveData, "target_id"),
+                hasStrictTargetValue,
+                hasStrictTargetValue ? targetValue : 0
+            );
+        }
+    }
+
+    internal sealed class RewardEntryData
+    {
+        public readonly StringName RewardType;
+        public readonly bool HasStrictGoldAmount;
+        public readonly int GoldAmount;
+        public readonly StringName ItemId;
+        public readonly bool HasStrictItemQuantity;
+        public readonly int ItemQuantity;
+        public readonly StringName PendingRewardMemberId;
+        public readonly IReadOnlyList<PendingRewardEntryData> PendingRewardEntries;
+
+        private RewardEntryData(
+            StringName rewardType,
+            bool hasStrictGoldAmount,
+            int goldAmount,
+            StringName itemId,
+            bool hasStrictItemQuantity,
+            int itemQuantity,
+            StringName pendingRewardMemberId,
+            IReadOnlyList<PendingRewardEntryData> pendingRewardEntries
+        )
+        {
+            RewardType = rewardType;
+            HasStrictGoldAmount = hasStrictGoldAmount;
+            GoldAmount = goldAmount;
+            ItemId = itemId;
+            HasStrictItemQuantity = hasStrictItemQuantity;
+            ItemQuantity = itemQuantity;
+            PendingRewardMemberId = pendingRewardMemberId;
+            PendingRewardEntries = pendingRewardEntries ?? System.Array.Empty<PendingRewardEntryData>();
+        }
+
+        public static RewardEntryData FromDictionary(Godot.Collections.Dictionary rewardData)
+        {
+            bool hasStrictGoldAmount = TryGetStrictInt(rewardData, "amount", out int goldAmount);
+            bool hasStrictItemQuantity = TryGetStrictInt(
+                rewardData,
+                "quantity",
+                out int itemQuantity
+            );
+            return new RewardEntryData(
+                DictStringName(rewardData, "reward_type"),
+                hasStrictGoldAmount,
+                hasStrictGoldAmount ? goldAmount : 0,
+                DictStringName(rewardData, "item_id"),
+                hasStrictItemQuantity,
+                hasStrictItemQuantity ? itemQuantity : 0,
+                DictStringName(rewardData, "member_id"),
+                CollectPendingRewardEntries(rewardData)
+            );
+        }
+    }
+
+    internal sealed class PendingRewardEntryData
+    {
+        public readonly bool IsDictionaryEntry;
+        public readonly StringName EntryType;
+        public readonly StringName TargetId;
+        public readonly bool HasStrictAmount;
+        public readonly int Amount;
+
+        private PendingRewardEntryData(
+            bool isDictionaryEntry,
+            StringName entryType,
+            StringName targetId,
+            bool hasStrictAmount,
+            int amount
+        )
+        {
+            IsDictionaryEntry = isDictionaryEntry;
+            EntryType = entryType;
+            TargetId = targetId;
+            HasStrictAmount = hasStrictAmount;
+            Amount = amount;
+        }
+
+        public static PendingRewardEntryData FromDictionary(Godot.Collections.Dictionary entryData)
+        {
+            bool hasStrictAmount = TryGetStrictInt(entryData, "amount", out int amount);
+            return new PendingRewardEntryData(
+                true,
+                DictStringName(entryData, "entry_type"),
+                DictStringName(entryData, "target_id"),
+                hasStrictAmount,
+                hasStrictAmount ? amount : 0
+            );
+        }
+
+        public static PendingRewardEntryData InvalidNonDictionary() =>
+            new(false, "", "", false, 0);
+    }
+
+    public bool IsEmpty()
     {
         return quest_id == "";
     }
 
-    public Godot.Collections.Array<StringName> get_objective_ids()
-    {
-        var result = new Godot.Collections.Array<StringName>();
-        foreach (var objectiveData in objective_defs)
-        {
-            var objectiveId = DictStringName(objectiveData, "objective_id");
-            if (objectiveId != "")
-                result.Add(objectiveId);
-        }
-        return result;
-    }
-
-    public Godot.Collections.Dictionary get_objective_def(StringName objective_id)
-    {
-        foreach (var objectiveData in objective_defs)
-        {
-            if (DictStringName(objectiveData, "objective_id") == objective_id)
-                return objectiveData.Duplicate(true);
-        }
-        return new Godot.Collections.Dictionary();
-    }
-
-    public Godot.Collections.Array<string> validate_schema()
+    public Godot.Collections.Array<string> ValidateSchema()
     {
         var errors = new Godot.Collections.Array<string>();
         if (quest_id == "")
@@ -102,24 +261,23 @@ public partial class QuestDef : Resource
         if (objective_defs.Count == 0)
             errors.Add($"QuestDef {(string)quest_id} 至少需要一个 objective_def。");
 
-        var seenObjectiveIds = new Godot.Collections.Dictionary();
-        foreach (var objectiveData in objective_defs)
+        var seenObjectiveIds = new System.Collections.Generic.HashSet<StringName>();
+        foreach (ObjectiveEntryData objective in GetObjectiveEntriesTyped())
         {
-            var objectiveId = DictStringName(objectiveData, "objective_id");
-            var objectiveType = DictStringName(objectiveData, "objective_type");
+            var objectiveId = objective.ObjectiveId;
+            var objectiveType = objective.ObjectiveType;
             if (objectiveId == "")
             {
                 errors.Add($"QuestDef {(string)quest_id} 存在空 objective_id。");
                 continue;
             }
-            if (seenObjectiveIds.ContainsKey(objectiveId))
+            if (!seenObjectiveIds.Add(objectiveId))
             {
                 errors.Add(
                     $"QuestDef {(string)quest_id} 存在重复 objective_id {(string)objectiveId}。"
                 );
                 continue;
             }
-            seenObjectiveIds[objectiveId] = true;
 
             if (objectiveType == "")
             {
@@ -134,13 +292,14 @@ public partial class QuestDef : Resource
                 );
             }
 
-            if (!TryGetStrictInt(objectiveData, "target_value", out int targetValue))
+            if (!objective.HasStrictTargetValue)
             {
                 errors.Add(
                     $"QuestDef {(string)quest_id} 的 objective {(string)objectiveId} 必须显式提供 int target_value。"
                 );
                 continue;
             }
+            int targetValue = objective.TargetValue;
             if (targetValue <= 0)
                 errors.Add(
                     $"QuestDef {(string)quest_id} 的 objective {(string)objectiveId} 必须有正 target_value。"
@@ -148,7 +307,7 @@ public partial class QuestDef : Resource
 
             if (objectiveType == ObjectiveSubmitItem)
             {
-                var submitItemId = DictStringName(objectiveData, "target_id");
+                var submitItemId = objective.TargetId;
                 if (submitItemId == "")
                     errors.Add(
                         $"QuestDef {(string)quest_id} 的 submit_item objective {(string)objectiveId} 缺少 target_id。"
@@ -156,7 +315,7 @@ public partial class QuestDef : Resource
             }
             else if (objectiveType == ObjectiveSettlementAction)
             {
-                var settlementActionId = DictStringName(objectiveData, "target_id");
+                var settlementActionId = objective.TargetId;
                 if (settlementActionId == "")
                     errors.Add(
                         $"QuestDef {(string)quest_id} 的 settlement_action objective {(string)objectiveId} 缺少 target_id（settlement action 必须显式指定 action_id）。"
@@ -164,9 +323,9 @@ public partial class QuestDef : Resource
             }
         }
 
-        foreach (var rewardData in reward_entries)
+        foreach (RewardEntryData reward in GetRewardEntriesTyped())
         {
-            var rewardType = DictStringName(rewardData, "reward_type");
+            var rewardType = reward.RewardType;
             if (rewardType == "")
             {
                 errors.Add($"QuestDef {(string)quest_id} 存在缺少 reward_type 的 reward_entry。");
@@ -182,43 +341,43 @@ public partial class QuestDef : Resource
 
             if (rewardType == RewardGold)
             {
-                if (!TryGetStrictInt(rewardData, "amount", out int amount) || amount <= 0)
+                if (!reward.HasStrictGoldAmount || reward.GoldAmount <= 0)
                     errors.Add($"QuestDef {(string)quest_id} 的 gold reward 必须有正 amount。");
             }
             else if (rewardType == RewardItem)
             {
-                var rewardItemId = get_reward_item_id(rewardData);
+                var rewardItemId = reward.ItemId;
                 if (rewardItemId == "")
                     errors.Add($"QuestDef {(string)quest_id} 的 item reward 缺少 item_id。");
-                if (get_reward_quantity(rewardData) <= 0)
+                if (!reward.HasStrictItemQuantity || reward.ItemQuantity <= 0)
                     errors.Add($"QuestDef {(string)quest_id} 的 item reward 必须有正 quantity。");
             }
             else if (rewardType == RewardPendingCharacterReward)
             {
-                foreach (string error in ValidatePendingCharacterReward(quest_id, rewardData))
+                foreach (string error in ValidatePendingCharacterReward(quest_id, reward))
                     errors.Add(error);
             }
         }
         return errors;
     }
 
-    public Godot.Collections.Dictionary to_dict()
+    internal IReadOnlyList<ObjectiveEntryData> GetObjectiveEntriesTyped()
     {
-        return new Godot.Collections.Dictionary
-        {
-            { "quest_id", (string)quest_id },
-            { "display_name", display_name },
-            { "description", description },
-            { "provider_interaction_id", (string)provider_interaction_id },
-            { "tags", ProgressionDataUtils.string_name_array_to_string_array(tags) },
-            { "accept_requirements", DuplicateDictionaryArray(accept_requirements) },
-            { "objective_defs", DuplicateDictionaryArray(objective_defs) },
-            { "reward_entries", DuplicateDictionaryArray(reward_entries) },
-            { "is_repeatable", is_repeatable },
-        };
+        var result = new System.Collections.Generic.List<ObjectiveEntryData>();
+        foreach (var objectiveData in objective_defs)
+            result.Add(ObjectiveEntryData.FromDictionary(objectiveData));
+        return result;
     }
 
-    public static QuestDef from_dict(Godot.Collections.Dictionary payload)
+    internal IReadOnlyList<RewardEntryData> GetRewardEntriesTyped()
+    {
+        var result = new System.Collections.Generic.List<RewardEntryData>();
+        foreach (var rewardData in reward_entries)
+            result.Add(RewardEntryData.FromDictionary(rewardData));
+        return result;
+    }
+
+    public static QuestDef FromDictionary(Godot.Collections.Dictionary payload)
     {
         if (payload == null)
             return null;
@@ -282,19 +441,7 @@ public partial class QuestDef : Resource
             reward_entries = rewardEntryValues,
             is_repeatable = isRepeatableValue,
         };
-        return questDef.validate_schema().Count == 0 ? questDef : null;
-    }
-
-    public static StringName get_reward_item_id(Godot.Collections.Dictionary reward_data)
-    {
-        return TryReadStringName(reward_data, "item_id", out StringName itemIdValue)
-            ? itemIdValue
-            : new StringName("");
-    }
-
-    public static int get_reward_quantity(Godot.Collections.Dictionary reward_data)
-    {
-        return TryGetStrictInt(reward_data, "quantity", out int quantityValue) ? quantityValue : 0;
+        return questDef.ValidateSchema().Count == 0 ? questDef : null;
     }
 
     private static bool HasExactSerializedFields(Godot.Collections.Dictionary payload)
@@ -343,17 +490,16 @@ public partial class QuestDef : Resource
 
     private static Godot.Collections.Array<string> ValidatePendingCharacterReward(
         StringName questIdValue,
-        Godot.Collections.Dictionary rewardData
+        RewardEntryData reward
     )
     {
         var errors = new Godot.Collections.Array<string>();
         string questIdText = (string)questIdValue;
-        var memberId = DictStringName(rewardData, "member_id");
+        var memberId = reward.PendingRewardMemberId;
         if (memberId == "")
             errors.Add($"QuestDef {questIdText} 的 pending_character_reward 缺少 member_id。");
 
-        if (!TryGetArray(rewardData, "entries", out Godot.Collections.Array entries)
-            || entries.Count == 0)
+        if (reward.PendingRewardEntries.Count == 0)
         {
             errors.Add(
                 $"QuestDef {questIdText} 的 pending_character_reward 至少需要一条 entries。"
@@ -361,34 +507,35 @@ public partial class QuestDef : Resource
             return errors;
         }
 
-        foreach (var entryValue in entries)
+        foreach (PendingRewardEntryData entry in reward.PendingRewardEntries)
         {
-            if (!TryAsDictionary(entryValue, out Godot.Collections.Dictionary entryData))
+            if (!entry.IsDictionaryEntry)
             {
                 errors.Add(
                     $"QuestDef {questIdText} 的 pending_character_reward 包含非 Dictionary entry。"
                 );
                 continue;
             }
-            var entryType = DictStringName(entryData, "entry_type");
-            var targetId = DictStringName(entryData, "target_id");
-            if (!TryGetStrictInt(entryData, "amount", out int amount))
+            var entryType = entry.EntryType;
+            var targetId = entry.TargetId;
+            if (!entry.HasStrictAmount)
             {
                 errors.Add(
                     $"QuestDef {questIdText} 的 pending_character_reward entry amount 必须是 int。"
                 );
                 continue;
             }
+            int amount = entry.Amount;
             if (entryType == "")
             {
                 errors.Add(
                     $"QuestDef {questIdText} 的 pending_character_reward entry 缺少 entry_type。"
                 );
             }
-            else if (!PendingCharacterRewardContentRules.is_supported_entry_type(entryType))
+            else if (!PendingCharacterRewardContentRules.IsSupportedEntryType(entryType))
             {
                 errors.Add(
-                    $"QuestDef {questIdText} has unsupported pending_character_reward entry_type {(string)entryType}. Supported: {PendingCharacterRewardContentRules.valid_entry_type_label()}."
+                    $"QuestDef {questIdText} has unsupported pending_character_reward entry_type {(string)entryType}. Supported: {PendingCharacterRewardContentRules.ValidEntryTypeLabel()}."
                 );
             }
             if (targetId == "")
@@ -401,6 +548,25 @@ public partial class QuestDef : Resource
                 );
         }
         return errors;
+    }
+
+    private static IReadOnlyList<PendingRewardEntryData> CollectPendingRewardEntries(
+        Godot.Collections.Dictionary rewardData
+    )
+    {
+        var result = new System.Collections.Generic.List<PendingRewardEntryData>();
+        if (!TryGetArray(rewardData, "entries", out Godot.Collections.Array entries))
+            return result;
+        foreach (var entryValue in entries)
+        {
+            if (!TryAsDictionary(entryValue, out Godot.Collections.Dictionary entryData))
+            {
+                result.Add(PendingRewardEntryData.InvalidNonDictionary());
+                continue;
+            }
+            result.Add(PendingRewardEntryData.FromDictionary(entryData));
+        }
+        return result;
     }
 
     private static bool TryReadDictionaryArray(
@@ -424,16 +590,6 @@ public partial class QuestDef : Resource
             result.Add(itemData.Duplicate(true));
         }
         return true;
-    }
-
-    private static Godot.Collections.Array<Godot.Collections.Dictionary> DuplicateDictionaryArray(
-        Godot.Collections.Array<Godot.Collections.Dictionary> source
-    )
-    {
-        var result = new Godot.Collections.Array<Godot.Collections.Dictionary>();
-        foreach (var item in source)
-            result.Add(item.Duplicate(true));
-        return result;
     }
 
     private static StringName DictStringName(Godot.Collections.Dictionary dict, string key)

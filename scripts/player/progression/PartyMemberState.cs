@@ -46,6 +46,11 @@ public partial class PartyMemberState : RefCounted
     public UnitProgress progression;
     public EquipmentState equipment_state = new EquipmentState();
     public StringName control_mode = "manual";
+    internal BattleUnitControlMode ControlModeKind
+    {
+        get => BattleTypedNames.ToControlMode(control_mode);
+        set => control_mode = BattleTypedNames.ToStringName(value);
+    }
     public int current_hp = 1;
     public int current_mp;
     public int current_aura;
@@ -77,7 +82,7 @@ public partial class PartyMemberState : RefCounted
         progression = new UnitProgress();
     }
 
-    public PartyMemberState duplicate_state()
+    public PartyMemberState DuplicateState()
     {
         return new PartyMemberState
         {
@@ -85,8 +90,8 @@ public partial class PartyMemberState : RefCounted
             display_name = display_name,
             faction_id = faction_id,
             portrait_id = portrait_id,
-            progression = progression?.duplicate_state() ?? new UnitProgress(),
-            equipment_state = equipment_state?.duplicate_state() ?? new EquipmentState(),
+            progression = progression?.DuplicateState() ?? new UnitProgress(),
+            equipment_state = equipment_state?.DuplicateState() ?? new EquipmentState(),
             control_mode = control_mode,
             current_hp = current_hp,
             current_mp = current_mp,
@@ -117,37 +122,37 @@ public partial class PartyMemberState : RefCounted
         };
     }
 
-    public int get_hidden_luck_at_birth()
+    public int GetHiddenLuckAtBirth()
     {
         var a = _get_unit_base_attributes();
-        return a?.get_hidden_luck_at_birth() ?? 0;
+        return a?.GetHiddenLuckAtBirth() ?? 0;
     }
 
-    public int get_faith_luck_bonus()
+    public int GetFaithLuckBonus()
     {
         var a = _get_unit_base_attributes();
-        return a?.get_faith_luck_bonus() ?? 0;
+        return a?.GetFaithLuckBonus() ?? 0;
     }
 
-    public int get_effective_luck()
+    public int GetEffectiveLuck()
     {
         var a = _get_unit_base_attributes();
-        return a?.get_effective_luck() ?? 0;
+        return a?.GetEffectiveLuck() ?? 0;
     }
 
-    public int get_combat_luck_score()
+    public int GetCombatLuckScore()
     {
         var a = _get_unit_base_attributes();
-        return a?.get_combat_luck_score() ?? 0;
+        return a?.GetCombatLuckScore() ?? 0;
     }
 
-    public int get_drop_luck()
+    public int GetDropLuck()
     {
         var a = _get_unit_base_attributes();
-        return a?.get_drop_luck() ?? 0;
+        return a?.GetDropLuck() ?? 0;
     }
 
-    public Godot.Collections.Dictionary to_dict()
+    public Godot.Collections.Dictionary ToDictionary()
     {
         return new Godot.Collections.Dictionary
         {
@@ -155,8 +160,8 @@ public partial class PartyMemberState : RefCounted
             { "display_name", display_name },
             { "faction_id", (string)faction_id },
             { "portrait_id", (string)portrait_id },
-            { "progression", progression?.to_dict() ?? new Godot.Collections.Dictionary() },
-            { "equipment_state", equipment_state?.to_dict() ?? new Godot.Collections.Dictionary() },
+            { "progression", progression?.ToDictionary() ?? new Godot.Collections.Dictionary() },
+            { "equipment_state", equipment_state?.ToDictionary() ?? new Godot.Collections.Dictionary() },
             { "control_mode", (string)control_mode },
             { "current_hp", current_hp },
             { "current_mp", current_mp },
@@ -191,7 +196,7 @@ public partial class PartyMemberState : RefCounted
         };
     }
 
-    public static PartyMemberState from_dict(Godot.Collections.Dictionary data)
+    public static PartyMemberState FromDictionary(Godot.Collections.Dictionary data)
     {
         if (data.Count == 0)
             return null;
@@ -215,7 +220,7 @@ public partial class PartyMemberState : RefCounted
         if (!o3)
             return null;
         var ctrl = _parse_string_name_field(data["control_mode"], false, out bool o4);
-        if (!o4 || (ctrl != "manual" && ctrl != "ai"))
+        if (!o4 || BattleTypedNames.ToControlMode(ctrl) == BattleUnitControlMode.Unknown)
             return null;
         if (!TryGetStrictInt(data, "current_hp", out int currentHp) || currentHp < 0)
             return null;
@@ -354,8 +359,8 @@ public partial class PartyMemberState : RefCounted
             biological_age_years = biologicalAgeYears,
             astral_memory_years = astralMemoryYears,
         };
-        ms.progression = UnitProgress.from_dict(progData);
-        ms.equipment_state = EquipmentState.from_dict(esData);
+        ms.progression = UnitProgress.FromDictionary(progData);
+        ms.equipment_state = EquipmentState.FromDictionary(esData);
         if (ms.progression == null || ms.equipment_state == null)
             return null;
         if (ms.progression.unit_id == "" || ms.progression.unit_id != ms.member_id)

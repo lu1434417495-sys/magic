@@ -1,36 +1,26 @@
+using System.Collections.Generic;
 using Godot;
+
+internal enum UnitSkillGrantSourceType
+{
+    Unknown,
+    Player,
+    Profession,
+    Race,
+    Subrace,
+    Ascension,
+    Bloodline,
+}
 
 [GlobalClass]
 public partial class UnitSkillProgress : RefCounted
 {
-    private static readonly StringName _GRANTED_SOURCE_PLAYER = "player";
-    private static readonly StringName _GRANTED_SOURCE_PROFESSION = "profession";
-    private static readonly StringName _GRANTED_SOURCE_RACE = "race";
-    private static readonly StringName _GRANTED_SOURCE_SUBRACE = "subrace";
-    private static readonly StringName _GRANTED_SOURCE_ASCENSION = "ascension";
-    private static readonly StringName _GRANTED_SOURCE_BLOODLINE = "bloodline";
-
-    public static StringName GRANTED_SOURCE_PLAYER() => _GRANTED_SOURCE_PLAYER;
-
-    public static StringName GRANTED_SOURCE_PROFESSION() => _GRANTED_SOURCE_PROFESSION;
-
-    public static StringName GRANTED_SOURCE_RACE() => _GRANTED_SOURCE_RACE;
-
-    public static StringName GRANTED_SOURCE_SUBRACE() => _GRANTED_SOURCE_SUBRACE;
-
-    public static StringName GRANTED_SOURCE_ASCENSION() => _GRANTED_SOURCE_ASCENSION;
-
-    public static StringName GRANTED_SOURCE_BLOODLINE() => _GRANTED_SOURCE_BLOODLINE;
-
-    private static readonly Godot.Collections.Dictionary VALID_GRANTED_SOURCE_TYPES = new()
-    {
-        { _GRANTED_SOURCE_PLAYER, true },
-        { _GRANTED_SOURCE_PROFESSION, true },
-        { _GRANTED_SOURCE_RACE, true },
-        { _GRANTED_SOURCE_SUBRACE, true },
-        { _GRANTED_SOURCE_ASCENSION, true },
-        { _GRANTED_SOURCE_BLOODLINE, true },
-    };
+    private static readonly StringName GrantedSourcePlayer = "player";
+    private static readonly StringName GrantedSourceProfession = "profession";
+    private static readonly StringName GrantedSourceRace = "race";
+    private static readonly StringName GrantedSourceSubrace = "subrace";
+    private static readonly StringName GrantedSourceAscension = "ascension";
+    private static readonly StringName GrantedSourceBloodline = "bloodline";
 
     private static readonly Godot.Collections.Array<string> TO_DICT_FIELDS = new()
     {
@@ -75,7 +65,13 @@ public partial class UnitSkillProgress : RefCounted
 
     public StringName profession_granted_by = "";
 
-    public StringName granted_source_type = _GRANTED_SOURCE_PLAYER;
+    public StringName granted_source_type = GrantedSourcePlayer;
+    internal UnitSkillGrantSourceType GrantedSourceTypeKind
+    {
+        get => ToGrantSourceType(granted_source_type);
+        set => granted_source_type = ToStringName(value);
+    }
+
     public StringName granted_source_id = "";
 
     public bool core_max_growth_claimed;
@@ -86,11 +82,11 @@ public partial class UnitSkillProgress : RefCounted
 
     public int bonus_to_hit_from_lock = 1;
 
-    public bool is_max_level(int maxLevel) => skill_level >= maxLevel;
+    public bool IsMaxLevel(int maxLevel) => skill_level >= maxLevel;
 
-    public void clear_profession_assignment() => assigned_profession_id = "";
+    public void ClearProfessionAssignment() => assigned_profession_id = "";
 
-    public UnitSkillProgress duplicate_state()
+    public UnitSkillProgress DuplicateState()
     {
         return new UnitSkillProgress
         {
@@ -114,7 +110,7 @@ public partial class UnitSkillProgress : RefCounted
         };
     }
 
-    public Godot.Collections.Dictionary to_dict()
+    public Godot.Collections.Dictionary ToDictionary()
     {
         return new Godot.Collections.Dictionary
         {
@@ -141,7 +137,7 @@ public partial class UnitSkillProgress : RefCounted
         };
     }
 
-    public static UnitSkillProgress from_dict(Godot.Collections.Dictionary data)
+    public static UnitSkillProgress FromDictionary(Godot.Collections.Dictionary data)
     {
         if (!_has_exact_fields(data, TO_DICT_FIELDS))
             return null;
@@ -209,12 +205,13 @@ public partial class UnitSkillProgress : RefCounted
             out bool ok4
         );
 
-        if (!ok4 || !VALID_GRANTED_SOURCE_TYPES.ContainsKey(grantSourceType))
+        UnitSkillGrantSourceType grantSourceKind = ToGrantSourceType(grantSourceType);
+        if (!ok4 || grantSourceKind == UnitSkillGrantSourceType.Unknown)
             return null;
 
         var grantSourceId = _parse_string_name_field(
             data["granted_source_id"],
-            grantSourceType == _GRANTED_SOURCE_PLAYER,
+            grantSourceKind == UnitSkillGrantSourceType.Player,
             out bool ok5
         );
         if (!ok5)
@@ -305,6 +302,35 @@ public partial class UnitSkillProgress : RefCounted
             bonus_to_hit_from_lock = data["bonus_to_hit_from_lock"].AsInt32(),
         };
     }
+
+    internal static UnitSkillGrantSourceType ToGrantSourceType(StringName sourceType)
+    {
+        if (sourceType == GrantedSourcePlayer)
+            return UnitSkillGrantSourceType.Player;
+        if (sourceType == GrantedSourceProfession)
+            return UnitSkillGrantSourceType.Profession;
+        if (sourceType == GrantedSourceRace)
+            return UnitSkillGrantSourceType.Race;
+        if (sourceType == GrantedSourceSubrace)
+            return UnitSkillGrantSourceType.Subrace;
+        if (sourceType == GrantedSourceAscension)
+            return UnitSkillGrantSourceType.Ascension;
+        if (sourceType == GrantedSourceBloodline)
+            return UnitSkillGrantSourceType.Bloodline;
+        return UnitSkillGrantSourceType.Unknown;
+    }
+
+    internal static StringName ToStringName(UnitSkillGrantSourceType sourceType) =>
+        sourceType switch
+        {
+            UnitSkillGrantSourceType.Player => GrantedSourcePlayer,
+            UnitSkillGrantSourceType.Profession => GrantedSourceProfession,
+            UnitSkillGrantSourceType.Race => GrantedSourceRace,
+            UnitSkillGrantSourceType.Subrace => GrantedSourceSubrace,
+            UnitSkillGrantSourceType.Ascension => GrantedSourceAscension,
+            UnitSkillGrantSourceType.Bloodline => GrantedSourceBloodline,
+            _ => "",
+        };
 
     private static StringName _parse_string_name_field(object rawValue, bool allowEmpty, out bool ok)
     {

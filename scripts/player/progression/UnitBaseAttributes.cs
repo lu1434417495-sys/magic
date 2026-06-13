@@ -1,5 +1,20 @@
+using System.Collections.Generic;
 using Godot;
 using GDictionary = Godot.Collections.Dictionary;
+
+internal enum UnitBaseAttributeKind
+{
+    Unknown = 0,
+    Strength,
+    Agility,
+    Constitution,
+    Perception,
+    Intelligence,
+    Willpower,
+    ActionThreshold,
+    HiddenLuckAtBirth,
+    FaithLuckBonus,
+}
 
 [GlobalClass]
 public partial class UnitBaseAttributes : RefCounted
@@ -14,10 +29,19 @@ public partial class UnitBaseAttributes : RefCounted
     private static readonly StringName HiddenLuckAtBirthId = "hidden_luck_at_birth";
     private static readonly StringName FaithLuckBonusId = "faith_luck_bonus";
 
-    private const int EffectiveLuckMin = -6;
-    private const int EffectiveLuckMax = 7;
-    private const int DropLuckMax = 5;
-    private const int CombatLuckScoreMax = 4;
+    internal const int EffectiveLuckMin = -6;
+    internal const int EffectiveLuckMax = 7;
+    internal const int DropLuckMax = 5;
+    internal const int CombatLuckScoreMax = 4;
+    private static readonly StringName[] BaseAttributeIds =
+    {
+        StrengthId,
+        AgilityId,
+        ConstitutionId,
+        PerceptionId,
+        IntelligenceId,
+        WillpowerId,
+    };
 
     public int strength;
     public int agility;
@@ -27,104 +51,126 @@ public partial class UnitBaseAttributes : RefCounted
     public int willpower;
     public GDictionary custom_stats = new();
 
-    public static StringName STRENGTH() => StrengthId;
+    public static IReadOnlyList<StringName> GetBaseAttributeIdsTyped() => BaseAttributeIds;
 
-    public static StringName AGILITY() => AgilityId;
+    public static bool IsBaseAttributeId(StringName attributeId) =>
+        ToAttributeKind(attributeId) is
+            UnitBaseAttributeKind.Strength
+            or UnitBaseAttributeKind.Agility
+            or UnitBaseAttributeKind.Constitution
+            or UnitBaseAttributeKind.Perception
+            or UnitBaseAttributeKind.Intelligence
+            or UnitBaseAttributeKind.Willpower;
 
-    public static StringName CONSTITUTION() => ConstitutionId;
-
-    public static StringName PERCEPTION() => PerceptionId;
-
-    public static StringName INTELLIGENCE() => IntelligenceId;
-
-    public static StringName WILLPOWER() => WillpowerId;
-
-    public static StringName ACTION_THRESHOLD() => ActionThresholdId;
-
-    public static StringName HIDDEN_LUCK_AT_BIRTH() => HiddenLuckAtBirthId;
-
-    public static StringName FAITH_LUCK_BONUS() => FaithLuckBonusId;
-
-    public static int EFFECTIVE_LUCK_MIN() => EffectiveLuckMin;
-
-    public static int EFFECTIVE_LUCK_MAX() => EffectiveLuckMax;
-
-    public static int DROP_LUCK_MAX() => DropLuckMax;
-
-    public static int COMBAT_LUCK_SCORE_MAX() => CombatLuckScoreMax;
-
-    public static Godot.Collections.Array<StringName> BASE_ATTRIBUTE_IDS()
+    internal static StringName ToStringName(UnitBaseAttributeKind kind)
     {
-        return new Godot.Collections.Array<StringName>
+        return kind switch
         {
-            StrengthId,
-            AgilityId,
-            ConstitutionId,
-            PerceptionId,
-            IntelligenceId,
-            WillpowerId,
+            UnitBaseAttributeKind.Strength => StrengthId,
+            UnitBaseAttributeKind.Agility => AgilityId,
+            UnitBaseAttributeKind.Constitution => ConstitutionId,
+            UnitBaseAttributeKind.Perception => PerceptionId,
+            UnitBaseAttributeKind.Intelligence => IntelligenceId,
+            UnitBaseAttributeKind.Willpower => WillpowerId,
+            UnitBaseAttributeKind.ActionThreshold => ActionThresholdId,
+            UnitBaseAttributeKind.HiddenLuckAtBirth => HiddenLuckAtBirthId,
+            UnitBaseAttributeKind.FaithLuckBonus => FaithLuckBonusId,
+            _ => new StringName(""),
         };
     }
 
-    public int get_attribute_value(StringName attribute_id)
+    internal static UnitBaseAttributeKind ToAttributeKind(StringName attributeId)
     {
-        if (attribute_id == StrengthId)
-            return strength;
-        if (attribute_id == AgilityId)
-            return agility;
-        if (attribute_id == ConstitutionId)
-            return constitution;
-        if (attribute_id == PerceptionId)
-            return perception;
-        if (attribute_id == IntelligenceId)
-            return intelligence;
-        if (attribute_id == WillpowerId)
-            return willpower;
+        if (attributeId == StrengthId)
+            return UnitBaseAttributeKind.Strength;
+        if (attributeId == AgilityId)
+            return UnitBaseAttributeKind.Agility;
+        if (attributeId == ConstitutionId)
+            return UnitBaseAttributeKind.Constitution;
+        if (attributeId == PerceptionId)
+            return UnitBaseAttributeKind.Perception;
+        if (attributeId == IntelligenceId)
+            return UnitBaseAttributeKind.Intelligence;
+        if (attributeId == WillpowerId)
+            return UnitBaseAttributeKind.Willpower;
+        if (attributeId == ActionThresholdId)
+            return UnitBaseAttributeKind.ActionThreshold;
+        if (attributeId == HiddenLuckAtBirthId)
+            return UnitBaseAttributeKind.HiddenLuckAtBirth;
+        if (attributeId == FaithLuckBonusId)
+            return UnitBaseAttributeKind.FaithLuckBonus;
+        return UnitBaseAttributeKind.Unknown;
+    }
+
+    public int GetAttributeValue(StringName attribute_id)
+    {
+        switch (ToAttributeKind(attribute_id))
+        {
+            case UnitBaseAttributeKind.Strength:
+                return strength;
+            case UnitBaseAttributeKind.Agility:
+                return agility;
+            case UnitBaseAttributeKind.Constitution:
+                return constitution;
+            case UnitBaseAttributeKind.Perception:
+                return perception;
+            case UnitBaseAttributeKind.Intelligence:
+                return intelligence;
+            case UnitBaseAttributeKind.Willpower:
+                return willpower;
+        }
         return custom_stats.ContainsKey(attribute_id) ? custom_stats[attribute_id].AsInt32() : 0;
     }
 
-    public void set_attribute_value(StringName attribute_id, int value)
+    public void SetAttributeValue(StringName attribute_id, int value)
     {
-        if (attribute_id == StrengthId)
-            strength = value;
-        else if (attribute_id == AgilityId)
-            agility = value;
-        else if (attribute_id == ConstitutionId)
-            constitution = value;
-        else if (attribute_id == PerceptionId)
-            perception = value;
-        else if (attribute_id == IntelligenceId)
-            intelligence = value;
-        else if (attribute_id == WillpowerId)
-            willpower = value;
-        else
-            custom_stats[attribute_id] = value;
+        switch (ToAttributeKind(attribute_id))
+        {
+            case UnitBaseAttributeKind.Strength:
+                strength = value;
+                return;
+            case UnitBaseAttributeKind.Agility:
+                agility = value;
+                return;
+            case UnitBaseAttributeKind.Constitution:
+                constitution = value;
+                return;
+            case UnitBaseAttributeKind.Perception:
+                perception = value;
+                return;
+            case UnitBaseAttributeKind.Intelligence:
+                intelligence = value;
+                return;
+            case UnitBaseAttributeKind.Willpower:
+                willpower = value;
+                return;
+        }
+        custom_stats[attribute_id] = value;
     }
 
-    public static Godot.Collections.Array<StringName> get_all_base_attribute_ids() =>
-        BASE_ATTRIBUTE_IDS();
+    public int GetHiddenLuckAtBirth() =>
+        GetAttributeValue(ToStringName(UnitBaseAttributeKind.HiddenLuckAtBirth));
 
-    public int get_hidden_luck_at_birth() => get_attribute_value(HiddenLuckAtBirthId);
+    public int GetFaithLuckBonus() =>
+        GetAttributeValue(ToStringName(UnitBaseAttributeKind.FaithLuckBonus));
 
-    public int get_faith_luck_bonus() => get_attribute_value(FaithLuckBonusId);
-
-    public int get_effective_luck() =>
+    public int GetEffectiveLuck() =>
         Mathf.Clamp(
-            get_hidden_luck_at_birth() + get_faith_luck_bonus(),
+            GetHiddenLuckAtBirth() + GetFaithLuckBonus(),
             EffectiveLuckMin,
             EffectiveLuckMax
         );
 
-    public int get_combat_luck_score() =>
+    public int GetCombatLuckScore() =>
         Mathf.Min(
             CombatLuckScoreMax,
-            Mathf.Max(0, get_hidden_luck_at_birth())
-                + Mathf.FloorToInt(Mathf.Max(0, get_faith_luck_bonus()) / 2.0f)
+            Mathf.Max(0, GetHiddenLuckAtBirth())
+                + Mathf.FloorToInt(Mathf.Max(0, GetFaithLuckBonus()) / 2.0f)
         );
 
-    public int get_drop_luck() => Mathf.Clamp(get_effective_luck(), EffectiveLuckMin, DropLuckMax);
+    public int GetDropLuck() => Mathf.Clamp(GetEffectiveLuck(), EffectiveLuckMin, DropLuckMax);
 
-    public UnitBaseAttributes duplicate_state()
+    public UnitBaseAttributes DuplicateState()
     {
         return new UnitBaseAttributes
         {
@@ -138,7 +184,7 @@ public partial class UnitBaseAttributes : RefCounted
         };
     }
 
-    public GDictionary to_dict()
+    public GDictionary ToDictionary()
     {
         return new GDictionary
         {
@@ -154,7 +200,7 @@ public partial class UnitBaseAttributes : RefCounted
         };
     }
 
-    public static UnitBaseAttributes from_dict(GDictionary data)
+    public static UnitBaseAttributes FromDictionary(GDictionary data)
     {
         if (
             !HasExactFields(
@@ -181,7 +227,7 @@ public partial class UnitBaseAttributes : RefCounted
             return null;
         }
 
-        foreach (StringName attributeId in BASE_ATTRIBUTE_IDS())
+        foreach (StringName attributeId in GetBaseAttributeIdsTyped())
         {
             if (data[attributeId.ToString()].VariantType != Variant.Type.Int)
             {

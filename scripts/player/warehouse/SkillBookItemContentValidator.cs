@@ -33,7 +33,7 @@ public static class SkillBookItemContentValidator
             if (!itemDefs.TryGetValue(itemId, out ItemDef itemDef))
                 continue;
 
-            if (itemDef.get_item_category_normalized() != ItemDef.ITEM_CATEGORY_SKILL_BOOK())
+            if (itemDef.CategoryKind != ItemCategoryKind.SkillBook)
                 continue;
             if (itemDef.granted_skill_id == "")
                 continue;
@@ -46,7 +46,7 @@ public static class SkillBookItemContentValidator
                 continue;
             }
 
-            if (skillDef.learn_source != "book")
+            if (skillDef.LearnSourceKind != SkillLearnSourceKind.Book)
                 errors.Add(
                     $"Skill book item {itemDef.item_id} granted_skill_id {itemDef.granted_skill_id} learn_source must be book, got {skillDef.learn_source}."
                 );
@@ -69,7 +69,7 @@ public static class SkillBookItemContentValidator
             if (
                 skillDef == null
                 || skillDef.skill_id == ""
-                || skillDef.learn_source != "book"
+                || skillDef.LearnSourceKind != SkillLearnSourceKind.Book
             )
                 continue;
 
@@ -80,7 +80,7 @@ public static class SkillBookItemContentValidator
             if (!itemDefs.TryGetValue(canonicalItemId, out ItemDef occupyingItem))
                 continue;
 
-            if (occupyingItem.get_item_category_normalized() != ItemDef.ITEM_CATEGORY_SKILL_BOOK())
+            if (occupyingItem.CategoryKind != ItemCategoryKind.SkillBook)
             {
                 errors.Add(
                     $"Item {canonicalItemId} occupies generated skill book id for skill {skillDef.skill_id} but item_category must be skill_book."

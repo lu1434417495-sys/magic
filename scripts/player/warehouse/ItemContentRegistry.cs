@@ -30,6 +30,7 @@ public partial class ItemContentRegistry : RefCounted
 
     public new void Dispose()
     {
+        System.GC.SuppressFinalize(this);
         _itemDefs.Clear();
         _templateDefs.Clear();
         _resolvedTemplateCache.Clear();
@@ -37,9 +38,7 @@ public partial class ItemContentRegistry : RefCounted
         base.Dispose();
     }
 
-    public void dispose() => Dispose();
-
-    public void rebuild()
+    public void Rebuild()
     {
         EnsureDefaultSnapshotBuilt();
         _itemDefs.Clear();
@@ -53,7 +52,7 @@ public partial class ItemContentRegistry : RefCounted
         _hasBuilt = true;
     }
 
-    public void rebuild_from_directories(
+    public void RebuildFromDirectories(
         Godot.Collections.Array itemDirectories,
         Godot.Collections.Array templateDirectories
     )
@@ -83,16 +82,7 @@ public partial class ItemContentRegistry : RefCounted
         }
     }
 
-    public Godot.Collections.Dictionary get_item_defs()
-    {
-        EnsureBuilt();
-        var result = new Godot.Collections.Dictionary();
-        foreach (var entry in _itemDefs)
-            result[entry.Key] = entry.Value;
-        return result;
-    }
-
-    public Godot.Collections.Array<string> validate()
+    public Godot.Collections.Array<string> Validate()
     {
         EnsureBuilt();
         var result = new Godot.Collections.Array<string>();
@@ -101,10 +91,22 @@ public partial class ItemContentRegistry : RefCounted
         return result;
     }
 
+    internal IReadOnlyDictionary<StringName, ItemDef> GetItemDefsTyped()
+    {
+        EnsureBuilt();
+        return _itemDefs;
+    }
+
+    internal IReadOnlyList<string> ValidateTyped()
+    {
+        EnsureBuilt();
+        return _validationErrors;
+    }
+
     private void EnsureBuilt()
     {
         if (!_hasBuilt)
-            rebuild();
+            Rebuild();
     }
 
     private static void EnsureDefaultSnapshotBuilt()
@@ -113,7 +115,7 @@ public partial class ItemContentRegistry : RefCounted
             return;
 
         using var registry = new ItemContentRegistry(false);
-        registry.rebuild_from_directories(
+        registry.RebuildFromDirectories(
             new Godot.Collections.Array { ItemConfigDirectory },
             new Godot.Collections.Array { ItemTemplateDirectory }
         );
@@ -165,9 +167,7 @@ public partial class ItemContentRegistry : RefCounted
 
     private void RegisterTemplateResource(string resourcePath)
     {
-        var resource = GodotContentResourceLifetime.Keep(
-            ResourceLoader.Load<Resource>(resourcePath)
-        );
+        var resource = ResourceLoader.Load<Resource>(resourcePath);
         if (resource == null)
         {
             _validationErrors.Add($"Failed to load item template {resourcePath}.");
@@ -249,9 +249,7 @@ public partial class ItemContentRegistry : RefCounted
 
     private void RegisterItemResource(string resourcePath)
     {
-        var resource = GodotContentResourceLifetime.Keep(
-            ResourceLoader.Load<Resource>(resourcePath)
-        );
+        var resource = ResourceLoader.Load<Resource>(resourcePath);
         if (resource == null)
         {
             _validationErrors.Add($"Failed to load item config {resourcePath}.");
@@ -286,19 +284,18 @@ public partial class ItemContentRegistry : RefCounted
         if (itemDef == null)
             return;
 
-        var itemTags = itemDef.get_tags();
-        var itemCraftingGroups = itemDef.get_crafting_groups();
+        var itemTags = itemDef.GetTagsTyped();
+        var itemCraftingGroups = itemDef.GetCraftingGroupsTyped();
         if (_itemDefs.ContainsKey(itemDef.item_id))
         {
             _validationErrors.Add($"Duplicate item_id registered: {(string)itemDef.item_id}");
             return;
         }
 
-        var rawCategory = itemDef.item_category;
-        if (rawCategory != "" && !ItemDef.get_valid_item_categories().Contains(rawCategory))
+        if (itemDef.CategoryKind == ItemCategoryKind.Unknown)
         {
             _validationErrors.Add(
-                $"Item {(string)itemDef.item_id} declares unsupported item_category {(string)rawCategory}; expected one of misc / equipment / skill_book."
+                $"Item {(string)itemDef.item_id} declares unsupported item_category {(string)itemDef.item_category}; expected one of misc / equipment / skill_book."
             );
             return;
         }
@@ -330,7 +327,7 @@ public partial class ItemContentRegistry : RefCounted
         }
         if (
             itemTags.Contains(new StringName("quest_item"))
-            && itemDef.get_quest_groups().Count == 0
+            && itemDef.GetQuestGroupsTyped().Count == 0
         )
         {
             _validationErrors.Add(
@@ -339,8 +336,7 @@ public partial class ItemContentRegistry : RefCounted
             return;
         }
         if (
-            itemDef.get_item_category_normalized() == new StringName("skill_book")
-            && itemDef.granted_skill_id == ""
+            itemDef.CategoryKind == ItemCategoryKind.SkillBook && itemDef.granted_skill_id == ""
         )
         {
             _validationErrors.Add(
@@ -349,9 +345,9 @@ public partial class ItemContentRegistry : RefCounted
             return;
         }
 
-        if (itemDef.has_equipment_category())
+        if (itemDef.HasEquipmentCategory())
         {
-            if (itemDef.is_stackable || itemDef.get_effective_max_stack() != 1)
+            if (itemDef.is_stackable || itemDef.GetEffectiveMaxStack() != 1)
             {
                 _validationErrors.Add(
                     $"Equipment item {(string)itemDef.item_id} must be non-stackable."
@@ -368,7 +364,7 @@ public partial class ItemContentRegistry : RefCounted
             foreach (string rawSlotId in itemDef.equipment_slot_ids)
             {
                 if (
-                    EquipmentRules.is_valid_slot(
+                    EquipmentRules.IsValidSlot(
                         ProgressionDataUtils.to_string_name(Variant.From(rawSlotId))
                     )
                 )
@@ -378,14 +374,14 @@ public partial class ItemContentRegistry : RefCounted
                 );
                 return;
             }
-            if (!itemDef.has_valid_equipment_type())
+            if (!itemDef.HasValidEquipmentType())
             {
                 _validationErrors.Add(
                     $"Equipment item {(string)itemDef.item_id} must declare equipment_type_id as weapon, armor, or accessory."
                 );
                 return;
             }
-            if (itemDef.is_weapon() && !ValidateWeaponProfile(itemDef, itemTags))
+            if (itemDef.IsWeapon() && !ValidateWeaponProfile(itemDef, itemTags))
                 return;
 
             for (
@@ -409,7 +405,7 @@ public partial class ItemContentRegistry : RefCounted
                     _validationErrors.Add($"{modifierLabel}.attribute_id must be non-empty.");
                     return;
                 }
-                if (!AttributeModifier.is_valid_mode(modifier.mode))
+                if (!AttributeModifier.IsValidMode(modifier.mode))
                 {
                     _validationErrors.Add(
                         $"{modifierLabel}.mode uses unsupported value {(string)modifier.mode}."
@@ -436,7 +432,7 @@ public partial class ItemContentRegistry : RefCounted
                 foreach (string rawSlotId in itemDef.occupied_slot_ids)
                 {
                     var slotId = ProgressionDataUtils.to_string_name(Variant.From(rawSlotId));
-                    if (!EquipmentRules.is_valid_slot(slotId))
+                    if (!EquipmentRules.IsValidSlot(slotId))
                     {
                         _validationErrors.Add(
                             $"Equipment item {(string)itemDef.item_id} declares invalid occupied_slot {rawSlotId}."
@@ -469,7 +465,7 @@ public partial class ItemContentRegistry : RefCounted
 
     private bool ValidateWeaponProfile(
         ItemDef itemDef,
-        Godot.Collections.Array<StringName> itemTags
+        List<StringName> itemTags
     )
     {
         var resolvedProfile = GetWeaponProfile(itemDef);
@@ -534,7 +530,7 @@ public partial class ItemContentRegistry : RefCounted
         if (resolvedProfile.one_handed_dice != null)
         {
             foreach (
-                string error in WeaponDamageDiceDef.validate_dice(
+                string error in WeaponDamageDiceDef.ValidateDice(
                     $"Weapon item {(string)itemDef.item_id} weapon_profile.one_handed_dice",
                     resolvedProfile.one_handed_dice
                 )
@@ -544,7 +540,7 @@ public partial class ItemContentRegistry : RefCounted
         if (resolvedProfile.two_handed_dice != null)
         {
             foreach (
-                string error in WeaponDamageDiceDef.validate_dice(
+                string error in WeaponDamageDiceDef.ValidateDice(
                     $"Weapon item {(string)itemDef.item_id} weapon_profile.two_handed_dice",
                     resolvedProfile.two_handed_dice
                 )
@@ -559,7 +555,7 @@ public partial class ItemContentRegistry : RefCounted
         }
         if (
             itemTags.Contains(new StringName("melee"))
-            && itemDef.get_weapon_physical_damage_tag() == ""
+            && itemDef.GetWeaponPhysicalDamageTag() == ""
         )
         {
             _validationErrors.Add(
@@ -570,7 +566,7 @@ public partial class ItemContentRegistry : RefCounted
         return true;
     }
 
-    public static ItemDef resolve_with_template_chain(
+    public static ItemDef ResolveWithTemplateChain(
         ItemDef item_def,
         Godot.Collections.Dictionary template_defs,
         Godot.Collections.Array visited,
@@ -578,7 +574,7 @@ public partial class ItemContentRegistry : RefCounted
         Godot.Collections.Array errors
     )
     {
-        return ResolveWithTemplateChain(item_def, template_defs, visited, cache, errors);
+        return ResolveWithTemplateChainProjected(item_def, template_defs, visited, cache, errors);
     }
 
     private static ItemDef ResolveWithTemplateChain(
@@ -636,10 +632,10 @@ public partial class ItemContentRegistry : RefCounted
                 cache[templateId] = resolvedTemplate;
         }
 
-        return resolvedTemplate == null ? null : merge_with_template(resolvedTemplate, itemDef);
+        return resolvedTemplate == null ? null : MergeWithTemplate(resolvedTemplate, itemDef);
     }
 
-    private static ItemDef ResolveWithTemplateChain(
+    private static ItemDef ResolveWithTemplateChainProjected(
         ItemDef itemDef,
         Godot.Collections.Dictionary templateDefs,
         Godot.Collections.Array visited,
@@ -684,7 +680,7 @@ public partial class ItemContentRegistry : RefCounted
         {
             var nextVisited = new Godot.Collections.Array(visited);
             nextVisited.Add(currentId);
-            resolvedTemplate = ResolveWithTemplateChain(
+            resolvedTemplate = ResolveWithTemplateChainProjected(
                 DictItemDef(templateDefs, templateId),
                 templateDefs,
                 nextVisited,
@@ -695,10 +691,10 @@ public partial class ItemContentRegistry : RefCounted
                 cache[templateId] = resolvedTemplate;
         }
 
-        return resolvedTemplate == null ? null : merge_with_template(resolvedTemplate, itemDef);
+        return resolvedTemplate == null ? null : MergeWithTemplate(resolvedTemplate, itemDef);
     }
 
-    public static ItemDef merge_with_template(ItemDef template, ItemDef instance)
+    public static ItemDef MergeWithTemplate(ItemDef template, ItemDef instance)
     {
         var merged = new ItemDef
         {
@@ -712,7 +708,7 @@ public partial class ItemContentRegistry : RefCounted
                 instance.equipment_type_id != ""
                     ? instance.equipment_type_id
                     : template.equipment_type_id,
-            weapon_profile = WeaponProfileDef.merge(
+            weapon_profile = WeaponProfileDef.Merge(
                 GetWeaponProfile(template),
                 GetWeaponProfile(instance)
             ),

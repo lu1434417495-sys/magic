@@ -7,16 +7,7 @@ public sealed class ProfessionAssignmentService
     private readonly Dictionary<StringName, SkillDef> _skillDefs = new();
     private readonly Dictionary<StringName, ProfessionDef> _professionDefs = new();
 
-    public void setup(
-        UnitProgress unit_progress,
-        Godot.Collections.Dictionary skill_defs,
-        Godot.Collections.Dictionary profession_defs
-    )
-    {
-        setup(unit_progress, IndexSkillDefs(skill_defs), IndexProfessionDefs(profession_defs));
-    }
-
-    public void setup(
+    public void Setup(
         UnitProgress unit_progress,
         IReadOnlyDictionary<StringName, SkillDef> skill_defs,
         IReadOnlyDictionary<StringName, ProfessionDef> profession_defs
@@ -45,7 +36,7 @@ public sealed class ProfessionAssignmentService
         }
     }
 
-    public bool can_assign_core_skill_to_profession(StringName skill_id, StringName profession_id)
+    public bool CanAssignCoreSkillToProfession(StringName skill_id, StringName profession_id)
     {
         UnitSkillProgress skillProgress = GetSkillProgress(skill_id);
         UnitProfessionProgress professionProgress = GetProfessionProgress(profession_id);
@@ -57,7 +48,7 @@ public sealed class ProfessionAssignmentService
         if (!skillProgress.is_core)
             return false;
         if (
-            !SkillEffectiveMaxLevelRules.is_at_effective_max_level(
+            !SkillEffectiveMaxLevelRules.IsAtEffectiveMaxLevel(
                 skillDef,
                 skillProgress,
                 _unit_progress
@@ -71,21 +62,21 @@ public sealed class ProfessionAssignmentService
         return true;
     }
 
-    public bool assign_core_skill_to_profession(StringName skill_id, StringName profession_id)
+    public bool AssignCoreSkillToProfession(StringName skill_id, StringName profession_id)
     {
-        if (!can_assign_core_skill_to_profession(skill_id, profession_id))
+        if (!CanAssignCoreSkillToProfession(skill_id, profession_id))
             return false;
 
         UnitSkillProgress skillProgress = GetSkillProgress(skill_id);
         UnitProfessionProgress professionProgress = GetProfessionProgress(profession_id);
         RemoveSkillFromAllProfessions(skill_id, profession_id);
         skillProgress.assigned_profession_id = profession_id;
-        professionProgress.add_core_skill(skill_id);
-        _unit_progress.sync_active_core_skill_ids();
+        professionProgress.AddCoreSkill(skill_id);
+        _unit_progress.SyncActiveCoreSkillIds();
         return true;
     }
 
-    public bool remove_core_skill_from_profession(StringName skill_id, StringName profession_id)
+    public bool RemoveCoreSkillFromProfession(StringName skill_id, StringName profession_id)
     {
         UnitProfessionProgress professionProgress = GetProfessionProgress(profession_id);
         if (professionProgress == null)
@@ -94,16 +85,16 @@ public sealed class ProfessionAssignmentService
         if (!professionProgress.core_skill_ids.Contains(skill_id))
             return false;
 
-        professionProgress.remove_core_skill(skill_id);
+        professionProgress.RemoveCoreSkill(skill_id);
         UnitSkillProgress skillProgress = GetSkillProgress(skill_id);
         if (skillProgress != null && skillProgress.assigned_profession_id == profession_id)
-            skillProgress.clear_profession_assignment();
+            skillProgress.ClearProfessionAssignment();
 
-        _unit_progress.sync_active_core_skill_ids();
+        _unit_progress.SyncActiveCoreSkillIds();
         return true;
     }
 
-    public bool can_promote_non_core_to_core(StringName skill_id, StringName profession_id)
+    public bool CanPromoteNonCoreToCore(StringName skill_id, StringName profession_id)
     {
         if (_unit_progress == null)
             return false;
@@ -121,10 +112,8 @@ public sealed class ProfessionAssignmentService
             return false;
 
         int currentCharacterLevel = GetEffectiveCharacterLevel();
-        _unit_progress.sync_active_core_skill_ids();
-        if (
-            _unit_progress.active_core_skill_ids.Count >= currentCharacterLevel
-        )
+        _unit_progress.SyncActiveCoreSkillIds();
+        if (_unit_progress.ActiveCoreSkillIdsTyped.Count >= currentCharacterLevel)
             return false;
         if (
             professionProgress.core_skill_ids.Count >= professionProgress.rank
@@ -139,7 +128,7 @@ public sealed class ProfessionAssignmentService
         if (skillProgress.assigned_profession_id != "")
             return false;
         if (
-            !SkillEffectiveMaxLevelRules.is_at_effective_max_level(
+            !SkillEffectiveMaxLevelRules.IsAtEffectiveMaxLevel(
                 skillDef,
                 skillProgress,
                 _unit_progress
@@ -151,7 +140,7 @@ public sealed class ProfessionAssignmentService
         if (acceptedTags.Count == 0)
             return false;
 
-        foreach (var rawTag in skillDef.tags)
+        foreach (StringName rawTag in skillDef.TagsTyped)
         {
             StringName tag = ProgressionDataUtils.to_string_name(rawTag);
             if (acceptedTags.Contains(tag))
@@ -160,9 +149,9 @@ public sealed class ProfessionAssignmentService
         return false;
     }
 
-    public bool promote_non_core_to_core(StringName skill_id, StringName profession_id)
+    public bool PromoteNonCoreToCore(StringName skill_id, StringName profession_id)
     {
-        if (!can_promote_non_core_to_core(skill_id, profession_id))
+        if (!CanPromoteNonCoreToCore(skill_id, profession_id))
             return false;
 
         UnitSkillProgress skillProgress = GetSkillProgress(skill_id);
@@ -173,12 +162,12 @@ public sealed class ProfessionAssignmentService
         skillProgress.assigned_profession_id = profession_id;
 
         UnitProfessionProgress professionProgress = GetProfessionProgress(profession_id);
-        professionProgress.add_core_skill(skill_id);
-        _unit_progress.sync_active_core_skill_ids();
+        professionProgress.AddCoreSkill(skill_id);
+        _unit_progress.SyncActiveCoreSkillIds();
         return true;
     }
 
-    public IReadOnlyList<StringName> get_profession_core_skill_ids(StringName profession_id)
+    public IReadOnlyList<StringName> GetProfessionCoreSkillIds(StringName profession_id)
     {
         UnitProfessionProgress professionProgress = GetProfessionProgress(profession_id);
         if (professionProgress == null)
@@ -194,7 +183,7 @@ public sealed class ProfessionAssignmentService
         return result;
     }
 
-    public StringName get_skill_assigned_profession(StringName skill_id)
+    public StringName GetSkillAssignedProfession(StringName skill_id)
     {
         UnitSkillProgress skillProgress = GetSkillProgress(skill_id);
         return skillProgress == null
@@ -202,56 +191,14 @@ public sealed class ProfessionAssignmentService
             : skillProgress.assigned_profession_id;
     }
 
-    private static Dictionary<StringName, SkillDef> IndexSkillDefs(
-        Godot.Collections.Dictionary skillDefs
-    )
-    {
-        Dictionary<StringName, SkillDef> indexedDefs = new();
-        if (skillDefs == null)
-            return indexedDefs;
-
-        foreach (var key in skillDefs.Keys)
-        {
-            if (skillDefs[key].AsGodotObject() is not SkillDef skillDef)
-                continue;
-            StringName indexedId = skillDef.skill_id != ""
-                ? skillDef.skill_id
-                : ProgressionDataUtils.to_string_name(key);
-            if (indexedId != "")
-                indexedDefs[indexedId] = skillDef;
-        }
-        return indexedDefs;
-    }
-
-    private static Dictionary<StringName, ProfessionDef> IndexProfessionDefs(
-        Godot.Collections.Dictionary professionDefs
-    )
-    {
-        Dictionary<StringName, ProfessionDef> indexedDefs = new();
-        if (professionDefs == null)
-            return indexedDefs;
-
-        foreach (var key in professionDefs.Keys)
-        {
-            if (professionDefs[key].AsGodotObject() is not ProfessionDef professionDef)
-                continue;
-            StringName indexedId = professionDef.profession_id != ""
-                ? professionDef.profession_id
-                : ProgressionDataUtils.to_string_name(key);
-            if (indexedId != "")
-                indexedDefs[indexedId] = professionDef;
-        }
-        return indexedDefs;
-    }
-
     private UnitSkillProgress GetSkillProgress(StringName skillId)
     {
-        return _unit_progress?.get_skill_progress(skillId);
+        return _unit_progress?.GetSkillProgress(skillId);
     }
 
     private UnitProfessionProgress GetProfessionProgress(StringName professionId)
     {
-        return _unit_progress?.get_profession_progress(professionId);
+        return _unit_progress?.GetProfessionProgress(professionId);
     }
 
     private SkillDef GetSkillDef(StringName skillId)
@@ -274,14 +221,13 @@ public sealed class ProfessionAssignmentService
         if (_unit_progress == null)
             return;
 
-        foreach (var professionKey in _unit_progress.professions.Keys)
+        foreach (StringName professionId in _unit_progress.GetSortedProfessionIdsTyped())
         {
-            StringName professionId = ProgressionDataUtils.to_string_name(professionKey);
             if (exceptProfessionId != "" && professionId == exceptProfessionId)
                 continue;
 
             UnitProfessionProgress professionProgress = GetProfessionProgress(professionId);
-            professionProgress?.remove_core_skill(skillId);
+            professionProgress?.RemoveCoreSkill(skillId);
         }
     }
 
@@ -336,9 +282,8 @@ public sealed class ProfessionAssignmentService
             return 0;
 
         int rankTotal = 0;
-        foreach (var professionKey in _unit_progress.professions.Keys)
+        foreach (StringName professionId in _unit_progress.GetSortedProfessionIdsTyped())
         {
-            StringName professionId = ProgressionDataUtils.to_string_name(professionKey);
             UnitProfessionProgress professionProgress = GetProfessionProgress(professionId);
             if (professionProgress != null)
                 rankTotal += professionProgress.rank;

@@ -40,12 +40,12 @@ public partial class FaithRankDef : Resource
     public Godot.Collections.Array<Godot.Collections.Dictionary> reward_entries { get; set; } =
         new();
 
-    public bool has_custom_stat_requirement()
+    public bool HasCustomStatRequirement()
     {
         return required_custom_stat_id != "" && required_custom_stat_min_value > 0;
     }
 
-    public bool has_achievement_requirement()
+    public bool HasAchievementRequirement()
     {
         return required_achievement_id != "";
     }
@@ -60,7 +60,7 @@ public partial class FaithRankDef : Resource
         return result;
     }
 
-    public Godot.Collections.Array<string> validate()
+    public Godot.Collections.Array<string> Validate()
     {
         var errors = new Godot.Collections.Array<string>();
         if (rank_index <= 0)
@@ -71,7 +71,7 @@ public partial class FaithRankDef : Resource
             errors.Add($"Faith rank {rank_index} uses negative required_gold {required_gold}.");
         if (required_level < 0)
             errors.Add($"Faith rank {rank_index} uses negative required_level {required_level}.");
-        if (has_custom_stat_requirement() && has_achievement_requirement())
+        if (HasCustomStatRequirement() && HasAchievementRequirement())
             errors.Add(
                 $"Faith rank {rank_index} should not mix custom stat and achievement placeholder gates."
             );
@@ -89,7 +89,7 @@ public partial class FaithRankDef : Resource
                 errors.Add($"Faith rank {rank_index} contains an invalid reward entry.");
                 continue;
             }
-            if (!PendingCharacterRewardContentRules.is_supported_entry_type(rewardSpec.EntryType))
+            if (!PendingCharacterRewardContentRules.IsSupportedEntryType(rewardSpec.EntryType))
             {
                 errors.Add(
                     $"Faith rank {rank_index} contains unsupported reward entry_type {rewardSpec.EntryType}."
@@ -97,10 +97,10 @@ public partial class FaithRankDef : Resource
                 continue;
             }
             if (
-                PendingCharacterRewardContentRules.is_attribute_progress_entry(
+                PendingCharacterRewardContentRules.IsAttributeProgressEntry(
                     rewardSpec.EntryType
                 )
-                && !PendingCharacterRewardContentRules.is_valid_attribute_progress_target(
+                && !PendingCharacterRewardContentRules.IsValidAttributeProgressTarget(
                     rewardSpec.TargetId
                 )
             )

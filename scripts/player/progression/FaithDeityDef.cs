@@ -25,7 +25,7 @@ public partial class FaithDeityDef : Resource
     [Export]
     public Godot.Collections.Array<FaithRankDef> rank_defs { get; set; } = new();
 
-    public FaithRankDef get_rank_def(int rankIndex)
+    public FaithRankDef GetRankDef(int rankIndex)
     {
         foreach (var rd in rank_defs)
         {
@@ -35,7 +35,7 @@ public partial class FaithDeityDef : Resource
         return null;
     }
 
-    public int get_max_rank()
+    public int GetMaxRank()
     {
         int m = 0;
         foreach (var rd in rank_defs)
@@ -46,7 +46,7 @@ public partial class FaithDeityDef : Resource
         return m;
     }
 
-    public GStringArray validate()
+    public GStringArray Validate()
     {
         var errors = new GStringArray();
         if (deity_id == "")
@@ -72,7 +72,7 @@ public partial class FaithDeityDef : Resource
                 continue;
             }
             seenRanks[rd.rank_index] = true;
-            foreach (var rankError in rd.validate())
+            foreach (var rankError in rd.Validate())
                 errors.Add($"Faith deity {deity_id}: {rankError}");
             if (rank_progress_stat_id != "" && !_has_rank_progress_reward(rd))
                 errors.Add(
@@ -80,7 +80,7 @@ public partial class FaithDeityDef : Resource
                 );
         }
 
-        int maxRank = get_max_rank();
+        int maxRank = GetMaxRank();
         for (int expected = 1; expected <= maxRank; expected++)
             if (!seenRanks.ContainsKey(expected))
                 errors.Add($"Faith deity {deity_id} is missing rank {expected}.");

@@ -1,6 +1,16 @@
 using Godot;
-using System;
 using System.Collections.Generic;
+
+internal enum TraitTriggerKind
+{
+    Unknown = 0,
+    Passive,
+    OnNaturalOne,
+    OnCrit,
+    OnFatalDamage,
+    OnBattleStart,
+    OnTurnStart,
+}
 
 public static class TraitTriggerContentRules
 {
@@ -22,104 +32,129 @@ public static class TraitTriggerContentRules
 
     private static readonly StringName TraitRelentlessEndurance = "relentless_endurance";
 
-    private static readonly HashSet<StringName> VALID_TRIGGER_TYPES = new()
-    {
-        TriggerPassive,
-        TriggerOnNaturalOne,
-        TriggerOnCrit,
-        TriggerOnFatalDamage,
-        TriggerOnBattleStart,
-        TriggerOnTurnStart,
-    };
+    private const string DispatchHalflingLuck = "halfling_luck";
 
-    private static readonly IReadOnlyDictionary<StringName, IReadOnlyDictionary<StringName, string>>
+    private const string DispatchSavageAttacks = "savage_attacks";
+
+    private const string DispatchRelentlessEndurance = "relentless_endurance";
+
+    private static readonly IReadOnlyDictionary<
+        RaceTraitEffectKind,
+        IReadOnlyDictionary<TraitTriggerKind, string>
+    >
         DISPATCH_TRIGGER_TYPES =
-            new Dictionary<StringName, IReadOnlyDictionary<StringName, string>>
+            new Dictionary<RaceTraitEffectKind, IReadOnlyDictionary<TraitTriggerKind, string>>
     {
         {
-            TraitHalflingLuck,
-            new Dictionary<StringName, string> { { TriggerOnNaturalOne, "_handle_halfling_luck" } }
-        },
-        {
-            TraitSavageAttacks,
-            new Dictionary<StringName, string> { { TriggerOnCrit, "_handle_savage_attacks" } }
-        },
-        {
-            TraitRelentlessEndurance,
-            new Dictionary<StringName, string>
+            RaceTraitEffectKind.HalflingLuck,
+            new Dictionary<TraitTriggerKind, string>
             {
-                { TriggerOnFatalDamage, "_handle_relentless_endurance" },
+                { TraitTriggerKind.OnNaturalOne, DispatchHalflingLuck },
+            }
+        },
+        {
+            RaceTraitEffectKind.SavageAttacks,
+            new Dictionary<TraitTriggerKind, string>
+            {
+                { TraitTriggerKind.OnCrit, DispatchSavageAttacks },
+            }
+        },
+        {
+            RaceTraitEffectKind.RelentlessEndurance,
+            new Dictionary<TraitTriggerKind, string>
+            {
+                { TraitTriggerKind.OnFatalDamage, DispatchRelentlessEndurance },
             }
         },
     };
 
-    public static StringName TRIGGER_PASSIVE() => TriggerPassive;
+    internal static IReadOnlyDictionary<
+        RaceTraitEffectKind,
+        IReadOnlyDictionary<TraitTriggerKind, string>
+    >
+        GetDispatchTriggerTypes() => DISPATCH_TRIGGER_TYPES;
 
-    public static StringName TRIGGER_ON_NATURAL_ONE() => TriggerOnNaturalOne;
-
-    public static StringName TRIGGER_ON_CRIT() => TriggerOnCrit;
-
-    public static StringName TRIGGER_ON_FATAL_DAMAGE() => TriggerOnFatalDamage;
-
-    public static StringName TRIGGER_ON_BATTLE_START() => TriggerOnBattleStart;
-
-    public static StringName TRIGGER_ON_TURN_START() => TriggerOnTurnStart;
-
-    public static StringName TRAIT_HALFLING_LUCK() => TraitHalflingLuck;
-
-    public static StringName TRAIT_SAVAGE_ATTACKS() => TraitSavageAttacks;
-
-    public static StringName TRAIT_RELENTLESS_ENDURANCE() => TraitRelentlessEndurance;
-
-    public static IReadOnlySet<StringName> get_valid_trigger_types() => VALID_TRIGGER_TYPES;
-
-    public static IReadOnlyDictionary<StringName, IReadOnlyDictionary<StringName, string>>
-        get_dispatch_trigger_types() => DISPATCH_TRIGGER_TYPES;
-
-    public static bool is_valid_trigger_type(StringName triggerType)
-    {
-        return VALID_TRIGGER_TYPES.Contains(triggerType);
-    }
-
-    public static bool has_dispatch_for_trait_trigger(StringName traitId, StringName triggerType)
+    public static bool HasDispatchForTraitTrigger(StringName traitId, StringName triggerType)
     {
         if (traitId == "" || triggerType == "")
             return false;
 
-        if (!DISPATCH_TRIGGER_TYPES.TryGetValue(traitId, out var dispatchEntry))
+        RaceTraitEffectKind traitKind = RaceTraitDef.ToEffectKind(traitId);
+        TraitTriggerKind triggerKind = ToTriggerKind(triggerType);
+        if (traitKind == RaceTraitEffectKind.Unknown || triggerKind == TraitTriggerKind.Unknown)
             return false;
 
-        return dispatchEntry.ContainsKey(triggerType);
+        if (!DISPATCH_TRIGGER_TYPES.TryGetValue(traitKind, out var dispatchEntry))
+            return false;
+
+        return dispatchEntry.ContainsKey(triggerKind);
     }
 
-    public static string get_dispatch_method_name(StringName traitId, StringName triggerType)
+    public static string GetDispatchKey(StringName traitId, StringName triggerType)
     {
         if (traitId == "" || triggerType == "")
             return "";
 
-        if (!DISPATCH_TRIGGER_TYPES.TryGetValue(traitId, out var dispatchEntry))
+        RaceTraitEffectKind traitKind = RaceTraitDef.ToEffectKind(traitId);
+        TraitTriggerKind triggerKind = ToTriggerKind(triggerType);
+        if (traitKind == RaceTraitEffectKind.Unknown || triggerKind == TraitTriggerKind.Unknown)
             return "";
 
-        if (!dispatchEntry.TryGetValue(triggerType, out string methodName))
+        if (!DISPATCH_TRIGGER_TYPES.TryGetValue(traitKind, out var dispatchEntry))
             return "";
 
-        return methodName;
+        if (!dispatchEntry.TryGetValue(triggerKind, out string dispatchKey))
+            return "";
+
+        return dispatchKey;
     }
 
-    public static IReadOnlyList<StringName> get_dispatch_trait_ids()
+    public static IReadOnlyList<StringName> GetDispatchTraitIds()
     {
         var traitIds = new List<StringName>();
 
-        foreach (StringName traitId in DISPATCH_TRIGGER_TYPES.Keys)
+        foreach (RaceTraitEffectKind traitKind in DISPATCH_TRIGGER_TYPES.Keys)
         {
+            StringName traitId = RaceTraitDef.ToStringName(traitKind);
             if (traitId != "")
                 traitIds.Add(traitId);
         }
 
         traitIds.Sort((left, right) =>
-            string.Compare(left.ToString(), right.ToString(), StringComparison.Ordinal)
+            string.CompareOrdinal(left.ToString(), right.ToString())
         );
 
         return traitIds;
+    }
+
+    internal static TraitTriggerKind ToTriggerKind(StringName value)
+    {
+        if (value == TriggerPassive)
+            return TraitTriggerKind.Passive;
+        if (value == TriggerOnNaturalOne)
+            return TraitTriggerKind.OnNaturalOne;
+        if (value == TriggerOnCrit)
+            return TraitTriggerKind.OnCrit;
+        if (value == TriggerOnFatalDamage)
+            return TraitTriggerKind.OnFatalDamage;
+        if (value == TriggerOnBattleStart)
+            return TraitTriggerKind.OnBattleStart;
+        if (value == TriggerOnTurnStart)
+            return TraitTriggerKind.OnTurnStart;
+        return TraitTriggerKind.Unknown;
+    }
+
+    internal static StringName ToStringName(TraitTriggerKind value)
+    {
+        return value switch
+        {
+            TraitTriggerKind.Passive => TriggerPassive,
+            TraitTriggerKind.OnNaturalOne => TriggerOnNaturalOne,
+            TraitTriggerKind.OnCrit => TriggerOnCrit,
+            TraitTriggerKind.OnFatalDamage => TriggerOnFatalDamage,
+            TraitTriggerKind.OnBattleStart => TriggerOnBattleStart,
+            TraitTriggerKind.OnTurnStart => TriggerOnTurnStart,
+            _ => "",
+        };
     }
 }

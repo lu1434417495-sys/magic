@@ -170,9 +170,9 @@ internal sealed class QuestClaimResultData
         _unsupportedRewardTypes = CloneStringNameList(unsupportedRewardTypes);
     }
 
-    public GArray CloneItemRewards() => _itemRewards.Duplicate(true);
+    private GArray CloneItemRewards() => _itemRewards.Duplicate(true);
 
-    public GArray ClonePendingCharacterRewards() => _pendingCharacterRewards.Duplicate(true);
+    private GArray ClonePendingCharacterRewards() => _pendingCharacterRewards.Duplicate(true);
 
     public GStringNameArray CloneUnsupportedRewardTypes() =>
         CloneStringNameArray(_unsupportedRewardTypes);

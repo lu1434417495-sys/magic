@@ -1,9 +1,10 @@
 using Godot;
+using System.Collections.Generic;
 
 [GlobalClass]
 public partial class WeaponProfileDef : Resource
 {
-    public const int ATTACK_RANGE_INHERIT = -1;
+    private const int AttackRangeInherit = -1;
 
     public enum PropertyMergeMode
     {
@@ -12,14 +13,6 @@ public partial class WeaponProfileDef : Resource
         ADD = 2,
         REMOVE = 3,
     }
-
-    public static int PROPERTY_MERGE_MODE_INHERIT() => (int)PropertyMergeMode.INHERIT;
-
-    public static int PROPERTY_MERGE_MODE_REPLACE() => (int)PropertyMergeMode.REPLACE;
-
-    public static int PROPERTY_MERGE_MODE_ADD() => (int)PropertyMergeMode.ADD;
-
-    public static int PROPERTY_MERGE_MODE_REMOVE() => (int)PropertyMergeMode.REMOVE;
 
     [Export]
     public StringName weapon_type_id { get; set; } = new("");
@@ -37,7 +30,7 @@ public partial class WeaponProfileDef : Resource
     public StringName damage_tag { get; set; } = new("");
 
     [Export]
-    public int attack_range { get; set; } = ATTACK_RANGE_INHERIT;
+    public int attack_range { get; set; } = AttackRangeInherit;
 
     [Export]
     public WeaponDamageDiceDef one_handed_dice { get; set; } = null;
@@ -51,37 +44,35 @@ public partial class WeaponProfileDef : Resource
     [Export]
     public Godot.Collections.Array<StringName> properties = new();
 
-    public WeaponProfileDef merge_with_template(WeaponProfileDef template_profile)
+    public WeaponProfileDef MergeWithTemplate(WeaponProfileDef template_profile)
     {
-        return merge_profiles(template_profile, this);
+        return MergeProfiles(template_profile, this);
     }
 
-    public WeaponProfileDef duplicate_profile()
+    public WeaponProfileDef DuplicateProfile()
     {
-        return merge_profiles(null, this);
+        return MergeProfiles(null, this);
     }
 
-    public bool has_attack_range_override()
+    public bool HasAttackRangeOverride()
     {
-        return attack_range != ATTACK_RANGE_INHERIT;
+        return attack_range != AttackRangeInherit;
     }
 
-    public Godot.Collections.Array<StringName> get_properties()
+    public List<StringName> GetPropertiesTyped()
     {
-        return _normalize_properties(properties);
+        return new List<StringName>(_normalize_properties(properties));
     }
 
-    public Godot.Collections.Array<StringName> GetProperties() => get_properties();
-
-    public static WeaponProfileDef merge(
+    public static WeaponProfileDef Merge(
         WeaponProfileDef template_profile,
         WeaponProfileDef instance_profile
     )
     {
-        return merge_profiles(template_profile, instance_profile);
+        return MergeProfiles(template_profile, instance_profile);
     }
 
-    public static WeaponProfileDef merge_profiles(
+    public static WeaponProfileDef MergeProfiles(
         WeaponProfileDef template_profile,
         WeaponProfileDef instance_profile
     )
@@ -122,7 +113,7 @@ public partial class WeaponProfileDef : Resource
             template_profile.damage_tag,
             instance_profile.damage_tag
         );
-        merged.attack_range = instance_profile.has_attack_range_override()
+        merged.attack_range = instance_profile.HasAttackRangeOverride()
             ? instance_profile.attack_range
             : template_profile.attack_range;
         merged.one_handed_dice = _inherit_dice(
@@ -142,7 +133,7 @@ public partial class WeaponProfileDef : Resource
         return merged;
     }
 
-    public static int normalize_properties_mode(int mode)
+    public static int NormalizePropertiesMode(int mode)
     {
         if (mode < (int)PropertyMergeMode.INHERIT || mode > (int)PropertyMergeMode.REMOVE)
         {
@@ -161,7 +152,7 @@ public partial class WeaponProfileDef : Resource
         target.attack_range = source.attack_range;
         target.one_handed_dice = _duplicate_dice(source.one_handed_dice);
         target.two_handed_dice = _duplicate_dice(source.two_handed_dice);
-        target.properties_mode = normalize_properties_mode(source.properties_mode);
+        target.properties_mode = NormalizePropertiesMode(source.properties_mode);
         target.properties = _normalize_properties(source.properties);
     }
 
@@ -183,7 +174,7 @@ public partial class WeaponProfileDef : Resource
 
     private static WeaponDamageDiceDef _duplicate_dice(WeaponDamageDiceDef source)
     {
-        return source?.duplicate_dice();
+        return source?.DuplicateDice();
     }
 
     private static Godot.Collections.Array<StringName> _resolve_properties(
@@ -192,7 +183,7 @@ public partial class WeaponProfileDef : Resource
         int mode
     )
     {
-        switch (normalize_properties_mode(mode))
+        switch (NormalizePropertiesMode(mode))
         {
             case (int)PropertyMergeMode.REPLACE:
                 return _normalize_properties(instance_properties);

@@ -1,8 +1,16 @@
 using Godot;
 
+internal enum BarrierAnchorMode
+{
+    Unknown = 0,
+    Fixed,
+}
+
 [GlobalClass]
 public partial class BarrierProfileDef : Resource
 {
+    private static readonly StringName AnchorModeFixed = "fixed";
+
     [Export]
     public StringName profile_id = "";
 
@@ -11,9 +19,19 @@ public partial class BarrierProfileDef : Resource
 
     [Export]
     public StringName anchor_mode = "fixed";
+    internal BarrierAnchorMode AnchorModeKind
+    {
+        get => ToAnchorMode(anchor_mode);
+        set => anchor_mode = ToStringName(value);
+    }
 
     [Export]
     public StringName area_pattern = "diamond";
+    internal BattleAreaPattern AreaPatternKind
+    {
+        get => BattleTypedNames.ToAreaPattern(area_pattern);
+        set => area_pattern = BattleTypedNames.ToStringName(value);
+    }
 
     [Export]
     public int radius_cells;
@@ -40,8 +58,19 @@ public partial class BarrierProfileDef : Resource
         return result;
     }
 
-    public Godot.Collections.Array<BarrierLayerDef> get_ordered_layers()
+    internal static BarrierAnchorMode ToAnchorMode(StringName value)
     {
-        return GetOrderedLayers();
+        if (value == AnchorModeFixed)
+            return BarrierAnchorMode.Fixed;
+        return BarrierAnchorMode.Unknown;
+    }
+
+    internal static StringName ToStringName(BarrierAnchorMode mode)
+    {
+        return mode switch
+        {
+            BarrierAnchorMode.Fixed => AnchorModeFixed,
+            _ => "",
+        };
     }
 }

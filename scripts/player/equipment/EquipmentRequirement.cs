@@ -37,11 +37,6 @@ public partial class EquipmentRequirement : Resource
     [Export(PropertyHint.Range, "0,99,1")]
     public int max_body_size;
 
-    public Godot.Collections.Dictionary Check(PartyMemberState member_state)
-    {
-        return CheckResult(member_state).ToDictionary();
-    }
-
     public EquipmentRequirementCheckResult CheckResult(PartyMemberState member_state)
     {
         var blockers = new List<string>();
@@ -51,7 +46,7 @@ public partial class EquipmentRequirement : Resource
             foreach (string raw_id in required_profession_ids)
             {
                 var prof_id = ProgressionDataUtils.to_string_name(raw_id);
-                if (member_state?.progression?.get_profession_progress(prof_id) != null)
+                if (member_state?.progression?.GetProfessionProgress(prof_id) != null)
                 {
                     has_profession = true;
                     break;

@@ -1,15 +1,21 @@
 using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
+
+internal enum PracticeTrackKind
+{
+    Unknown = 0,
+    Meditation,
+    Cultivation,
+}
 
 public sealed class PracticeGrowthService
 {
-    public static readonly StringName TRACK_MEDITATION = "meditation";
-    public static readonly StringName TRACK_CULTIVATION = "cultivation";
+    private static readonly StringName TrackMeditation = "meditation";
+    private static readonly StringName TrackCultivation = "cultivation";
     private static readonly HashSet<StringName> PracticeTracks = new()
     {
-        TRACK_MEDITATION,
-        TRACK_CULTIVATION,
+        TrackMeditation,
+        TrackCultivation,
     };
 
     private const int TierBasic = 0;
@@ -17,79 +23,88 @@ public sealed class PracticeGrowthService
     private const int TierAdvanced = 2;
     private const int TierUltimate = 3;
 
-    private static readonly Dictionary<StringName, int> TierNameToValue = new()
-    {
-        ["basic"] = TierBasic,
-        ["intermediate"] = TierIntermediate,
-        ["advanced"] = TierAdvanced,
-        ["ultimate"] = TierUltimate,
-    };
-    private static readonly Dictionary<int, StringName> TierValueToName = new()
-    {
-        [TierBasic] = "basic",
-        [TierIntermediate] = "intermediate",
-        [TierAdvanced] = "advanced",
-        [TierUltimate] = "ultimate",
-    };
-
     private static readonly StringName MpMaxAttr = "mp_max";
     private static readonly StringName AuraMaxAttr = "aura_max";
 
     private readonly Dictionary<StringName, SkillDef> _skillDefs = new();
 
-    public void setup(GDictionary skillDefs, GDictionary _professionDefs)
+    internal static StringName ToStringName(PracticeTrackKind kind)
+    {
+        return kind switch
+        {
+            PracticeTrackKind.Meditation => TrackMeditation,
+            PracticeTrackKind.Cultivation => TrackCultivation,
+            _ => "",
+        };
+    }
+
+    internal static PracticeTrackKind ToTrackKind(StringName trackType)
+    {
+        if (trackType == TrackMeditation)
+            return PracticeTrackKind.Meditation;
+        if (trackType == TrackCultivation)
+            return PracticeTrackKind.Cultivation;
+        return PracticeTrackKind.Unknown;
+    }
+
+    public void Setup(
+        IReadOnlyDictionary<StringName, SkillDef> skillDefs,
+        IReadOnlyDictionary<StringName, ProfessionDef> _professionDefs
+    )
     {
         _skillDefs.Clear();
         if (skillDefs == null)
             return;
-        foreach (Variant rawKey in skillDefs.Keys)
+        foreach (KeyValuePair<StringName, SkillDef> pair in skillDefs)
         {
-            if (!TryReadStringName(rawKey, out StringName skillId) || skillId == "")
-                continue;
-            Variant rawDef = skillDefs[rawKey];
-            if (rawDef.VariantType == Variant.Type.Object && rawDef.AsGodotObject() is SkillDef skillDef)
-                _skillDefs[skillId] = skillDef;
+            if (pair.Key != "" && pair.Value != null)
+                _skillDefs[pair.Key] = pair.Value;
         }
     }
 
-    public StringName get_track_type_for_skill(StringName skillId)
+    public StringName GetTrackTypeForSkill(StringName skillId)
     {
         SkillDef skillDef = GetSkillDef(skillId);
         return skillDef != null ? GetExclusivePracticeTrack(skillDef) : "";
     }
 
-    public int get_practice_tier(StringName skillId)
+    public int GetPracticeTier(StringName skillId)
     {
         SkillDef skillDef = GetSkillDef(skillId);
         if (skillDef == null)
             return -1;
-        return TierNameToValue.TryGetValue(skillDef.practice_tier, out int tierValue)
-            ? tierValue
-            : -1;
+        return ResolveTierValue(skillDef.PracticeTierKind);
     }
 
-    public static int resolve_tier_value(StringName tierName)
+    public static int ResolveTierValue(StringName tierName)
     {
-        return TierNameToValue.TryGetValue(tierName, out int tierValue) ? tierValue : -1;
+        return ResolveTierValue(SkillDef.ToPracticeTier(tierName));
     }
 
-    public static StringName resolve_tier_name(int tierValue)
+    public static StringName ResolveTierName(int tierValue)
     {
-        return TierValueToName.TryGetValue(tierValue, out StringName tierName) ? tierName : "";
+        return tierValue switch
+        {
+            TierBasic => SkillDef.ToStringName(SkillPracticeTierKind.Basic),
+            TierIntermediate => SkillDef.ToStringName(SkillPracticeTierKind.Intermediate),
+            TierAdvanced => SkillDef.ToStringName(SkillPracticeTierKind.Advanced),
+            TierUltimate => SkillDef.ToStringName(SkillPracticeTierKind.Ultimate),
+            _ => "",
+        };
     }
 
-    public StringName get_active_practice_skill(UnitProgress unitProgress, StringName trackType)
+    public StringName GetActivePracticeSkill(UnitProgress unitProgress, StringName trackType)
     {
         List<StringName> activeSkillIds = GetActivePracticeSkillIds(unitProgress, trackType);
         return activeSkillIds.Count == 1 ? activeSkillIds[0] : "";
     }
 
-    public PracticeSkillLearnStatus can_learn_practice_skill_typed(
+    public PracticeSkillLearnStatus CanLearnPracticeSkillTyped(
         StringName skillId,
         UnitProgress unitProgress
     )
     {
-        StringName trackType = get_track_type_for_skill(skillId);
+        StringName trackType = GetTrackTypeForSkill(skillId);
         if (trackType == "")
             return PracticeSkillLearnStatus.NonPractice();
         if (!HasValidPracticeTier(skillId))
@@ -115,18 +130,18 @@ public sealed class PracticeGrowthService
         return PracticeSkillLearnStatus.Practice(trackType, false, true, existingSkillId);
     }
 
-    public int calculate_replacement_level(
+    public int CalculateReplacementLevel(
         StringName oldSkillId,
         StringName newSkillId,
         UnitProgress unitProgress
     )
     {
-        int oldTier = get_practice_tier(oldSkillId);
-        int newTier = get_practice_tier(newSkillId);
+        int oldTier = GetPracticeTier(oldSkillId);
+        int newTier = GetPracticeTier(newSkillId);
         if (oldTier < 0 || newTier < 0)
             return -1;
 
-        UnitSkillProgress oldSkillProgress = unitProgress?.get_skill_progress(oldSkillId);
+        UnitSkillProgress oldSkillProgress = unitProgress?.GetSkillProgress(oldSkillId);
         int oldLevel = oldSkillProgress?.skill_level ?? 0;
         SkillDef newSkillDef = GetSkillDef(newSkillId);
         if (newSkillDef == null)
@@ -136,7 +151,7 @@ public sealed class PracticeGrowthService
         int maxLevel = newSkillDef.max_level >= 0 ? Mathf.Max(newSkillDef.max_level, 0) : 999;
         if (newSkillDef.dynamic_max_level_stat_id != "")
         {
-            int absoluteMax = SkillEffectiveMaxLevelRules.get_effective_absolute_max_level(
+            int absoluteMax = SkillEffectiveMaxLevelRules.GetEffectiveAbsoluteMaxLevel(
                 newSkillDef,
                 unitProgress
             );
@@ -146,12 +161,12 @@ public sealed class PracticeGrowthService
         return Mathf.Clamp(rawNewLevel, 0, maxLevel);
     }
 
-    public bool apply_replacement(StringName newSkillId, UnitProgress unitProgress)
+    public bool ApplyReplacement(StringName newSkillId, UnitProgress unitProgress)
     {
-        return apply_replacement(newSkillId, unitProgress, false);
+        return ApplyReplacement(newSkillId, unitProgress, false);
     }
 
-    public bool apply_replacement(
+    public bool ApplyReplacement(
         StringName newSkillId,
         UnitProgress unitProgress,
         bool formalLearningVerified
@@ -160,11 +175,11 @@ public sealed class PracticeGrowthService
         if (!formalLearningVerified)
             return false;
 
-        StringName trackType = get_track_type_for_skill(newSkillId);
+        StringName trackType = GetTrackTypeForSkill(newSkillId);
         if (trackType == "")
             return false;
 
-        PracticeSkillLearnStatus learnResult = can_learn_practice_skill_typed(
+        PracticeSkillLearnStatus learnResult = CanLearnPracticeSkillTyped(
             newSkillId,
             unitProgress
         );
@@ -175,12 +190,12 @@ public sealed class PracticeGrowthService
         if (oldSkillId == "")
             return false;
 
-        int predictedLevel = calculate_replacement_level(oldSkillId, newSkillId, unitProgress);
+        int predictedLevel = CalculateReplacementLevel(oldSkillId, newSkillId, unitProgress);
         if (predictedLevel < 0)
             return false;
 
         ClearReplacedSkillReferences(unitProgress, oldSkillId);
-        unitProgress.remove_skill_progress(oldSkillId);
+        unitProgress.RemoveSkillProgress(oldSkillId);
 
         UnitSkillProgress newSkillProgress = new()
         {
@@ -188,28 +203,28 @@ public sealed class PracticeGrowthService
             is_learned = true,
             skill_level = predictedLevel,
         };
-        unitProgress.set_skill_progress(newSkillProgress);
+        unitProgress.SetSkillProgress(newSkillProgress);
         return true;
     }
 
-    public PracticeSkillLearnStatus get_skill_learned_status_typed(
+    public PracticeSkillLearnStatus GetSkillLearnedStatusTyped(
         StringName skillId,
         UnitProgress unitProgress
     )
     {
-        StringName trackType = get_track_type_for_skill(skillId);
+        StringName trackType = GetTrackTypeForSkill(skillId);
         if (trackType == "")
             return PracticeSkillLearnStatus.NonPractice();
 
-        PracticeSkillLearnStatus result = can_learn_practice_skill_typed(skillId, unitProgress);
+        PracticeSkillLearnStatus result = CanLearnPracticeSkillTyped(skillId, unitProgress);
         return result.NeedsReplacement
             ? result.WithPredictedLevel(
-                calculate_replacement_level(result.ExistingSkillId, skillId, unitProgress)
+                CalculateReplacementLevel(result.ExistingSkillId, skillId, unitProgress)
             )
             : result;
     }
 
-    public void inject_first_unlock_starting_values(
+    public void InjectFirstUnlockStartingValues(
         PartyMemberState memberState,
         StringName trackType
     )
@@ -224,26 +239,26 @@ public sealed class PracticeGrowthService
         if (baseAttrs == null)
             return;
 
-        StringName existingSkillId = get_active_practice_skill(unitProgress, trackType);
+        StringName existingSkillId = GetActivePracticeSkill(unitProgress, trackType);
         if (existingSkillId == "")
             return;
         if (GetSkillDef(existingSkillId) == null)
             return;
 
         int growth = CalculateDailyUpperLimitGrowth(unitProgress, existingSkillId, trackType);
-        if (trackType == TRACK_MEDITATION)
+        if (ToTrackKind(trackType) == PracticeTrackKind.Meditation)
         {
-            baseAttrs.set_attribute_value(MpMaxAttr, growth);
+            baseAttrs.SetAttributeValue(MpMaxAttr, growth);
             memberState.current_mp = growth;
         }
-        else if (trackType == TRACK_CULTIVATION)
+        else if (ToTrackKind(trackType) == PracticeTrackKind.Cultivation)
         {
-            baseAttrs.set_attribute_value(AuraMaxAttr, growth);
+            baseAttrs.SetAttributeValue(AuraMaxAttr, growth);
             memberState.current_aura = growth;
         }
     }
 
-    public void apply_daily_growth_to_member(PartyMemberState memberState, int daysElapsed)
+    public void ApplyDailyGrowthToMember(PartyMemberState memberState, int daysElapsed)
     {
         if (memberState?.progression == null || daysElapsed <= 0)
             return;
@@ -257,46 +272,46 @@ public sealed class PracticeGrowthService
 
         foreach (StringName trackType in PracticeTracks)
         {
-            StringName skillId = get_active_practice_skill(unitProgress, trackType);
+            StringName skillId = GetActivePracticeSkill(unitProgress, trackType);
             if (skillId == "")
                 continue;
 
             int singleDayGrowth = CalculateDailyUpperLimitGrowth(unitProgress, skillId, trackType);
             int singleDayRecovery = CalculateDailyRecovery(unitProgress, skillId, trackType);
 
-            if (trackType == TRACK_MEDITATION)
+            if (ToTrackKind(trackType) == PracticeTrackKind.Meditation)
             {
-                int currentMax = baseAttrs.get_attribute_value(MpMaxAttr);
-                baseAttrs.set_attribute_value(
+                int currentMax = baseAttrs.GetAttributeValue(MpMaxAttr);
+                baseAttrs.SetAttributeValue(
                     MpMaxAttr,
                     currentMax + singleDayGrowth * daysElapsed
                 );
                 memberState.current_mp = Mathf.Min(
                     memberState.current_mp + singleDayRecovery * daysElapsed,
-                    baseAttrs.get_attribute_value(MpMaxAttr)
+                    baseAttrs.GetAttributeValue(MpMaxAttr)
                 );
             }
-            else if (trackType == TRACK_CULTIVATION)
+            else if (ToTrackKind(trackType) == PracticeTrackKind.Cultivation)
             {
-                int currentMax = baseAttrs.get_attribute_value(AuraMaxAttr);
-                baseAttrs.set_attribute_value(
+                int currentMax = baseAttrs.GetAttributeValue(AuraMaxAttr);
+                baseAttrs.SetAttributeValue(
                     AuraMaxAttr,
                     currentMax + singleDayGrowth * daysElapsed
                 );
                 memberState.current_aura = Mathf.Min(
                     memberState.current_aura + singleDayRecovery * daysElapsed,
-                    baseAttrs.get_attribute_value(AuraMaxAttr)
+                    baseAttrs.GetAttributeValue(AuraMaxAttr)
                 );
             }
         }
     }
 
-    public static string get_track_display_name(StringName trackType)
+    public static string GetTrackDisplayName(StringName trackType)
     {
-        return trackType == TRACK_MEDITATION ? "冥想" : "修炼";
+        return ToTrackKind(trackType) == PracticeTrackKind.Meditation ? "冥想" : "修炼";
     }
 
-    public static string get_tier_display_name(int tierValue)
+    public static string GetTierDisplayName(int tierValue)
     {
         return tierValue switch
         {
@@ -322,13 +337,13 @@ public sealed class PracticeGrowthService
         int matchedCount = 0;
         foreach (StringName trackType in PracticeTracks)
         {
-            if (skillDef.tags.Contains(trackType))
+            if (skillDef.HasTag(trackType))
             {
                 matchedTrack = trackType;
                 matchedCount += 1;
             }
         }
-        if (matchedCount != 1 || skillDef.tags.Count != 1)
+        if (matchedCount != 1 || skillDef.TagsTyped.Count != 1)
             return "";
         return matchedTrack;
     }
@@ -336,7 +351,19 @@ public sealed class PracticeGrowthService
     private bool HasValidPracticeTier(StringName skillId)
     {
         SkillDef skillDef = GetSkillDef(skillId);
-        return skillDef != null && TierNameToValue.ContainsKey(skillDef.practice_tier);
+        return skillDef != null && ResolveTierValue(skillDef.PracticeTierKind) >= 0;
+    }
+
+    private static int ResolveTierValue(SkillPracticeTierKind tierKind)
+    {
+        return tierKind switch
+        {
+            SkillPracticeTierKind.Basic => TierBasic,
+            SkillPracticeTierKind.Intermediate => TierIntermediate,
+            SkillPracticeTierKind.Advanced => TierAdvanced,
+            SkillPracticeTierKind.Ultimate => TierUltimate,
+            _ => -1,
+        };
     }
 
     private List<StringName> GetActivePracticeSkillIds(
@@ -348,13 +375,12 @@ public sealed class PracticeGrowthService
         if (unitProgress == null || !PracticeTracks.Contains(trackType))
             return activeSkillIds;
 
-        foreach (string skillKey in ProgressionDataUtils.sorted_string_keys(unitProgress.skills))
+        foreach (StringName skillId in unitProgress.GetSortedSkillIdsTyped())
         {
-            StringName skillId = new(skillKey);
-            UnitSkillProgress skillProgress = unitProgress.get_skill_progress(skillId);
+            UnitSkillProgress skillProgress = unitProgress.GetSkillProgress(skillId);
             if (skillProgress == null || !skillProgress.is_learned)
                 continue;
-            if (get_track_type_for_skill(skillId) == trackType)
+            if (GetTrackTypeForSkill(skillId) == trackType)
                 activeSkillIds.Add(skillId);
         }
         return activeSkillIds;
@@ -370,32 +396,27 @@ public sealed class PracticeGrowthService
 
         if (unitProgress.active_level_trigger_core_skill_id == oldSkillId)
             unitProgress.active_level_trigger_core_skill_id = "";
-        unitProgress.locked_level_trigger_skill_ids.Remove(oldSkillId);
+        unitProgress.RemoveLockedLevelTriggerSkillId(oldSkillId);
 
-        UnitSkillProgress oldSkillProgress = unitProgress.get_skill_progress(oldSkillId);
+        UnitSkillProgress oldSkillProgress = unitProgress.GetSkillProgress(oldSkillId);
         if (oldSkillProgress != null)
         {
             oldSkillProgress.is_level_trigger_active = false;
             oldSkillProgress.is_level_trigger_locked = false;
-            unitProgress.set_skill_progress(oldSkillProgress);
+            unitProgress.SetSkillProgress(oldSkillProgress);
         }
 
-        foreach (
-            string professionKey in ProgressionDataUtils.sorted_string_keys(
-                unitProgress.professions
-            )
-        )
+        foreach (StringName professionId in unitProgress.GetSortedProfessionIdsTyped())
         {
-            StringName professionId = ProgressionDataUtils.to_string_name(professionKey);
-            UnitProfessionProgress professionProgress = unitProgress.get_profession_progress(
+            UnitProfessionProgress professionProgress = unitProgress.GetProfessionProgress(
                 professionId
             );
             if (professionProgress == null)
                 continue;
             if (professionProgress.core_skill_ids.Contains(oldSkillId))
             {
-                professionProgress.remove_core_skill(oldSkillId);
-                unitProgress.set_profession_progress(professionProgress);
+                professionProgress.RemoveCoreSkill(oldSkillId);
+                unitProgress.SetProfessionProgress(professionProgress);
             }
         }
     }
@@ -406,7 +427,7 @@ public sealed class PracticeGrowthService
         StringName trackType
     )
     {
-        UnitSkillProgress skillProgress = unitProgress?.get_skill_progress(skillId);
+        UnitSkillProgress skillProgress = unitProgress?.GetSkillProgress(skillId);
         if (skillProgress == null)
             return 0;
 
@@ -418,16 +439,16 @@ public sealed class PracticeGrowthService
         int professionBonus = GetProfessionWhitelistBonus(unitProgress, trackType);
         int knowledgeBonus = GetKnowledgeWhitelistBonus(unitProgress, trackType);
 
-        if (trackType == TRACK_MEDITATION)
+        if (ToTrackKind(trackType) == PracticeTrackKind.Meditation)
         {
-            int intelligence = baseAttrs.get_attribute_value(UnitBaseAttributes.INTELLIGENCE());
-            int willpower = baseAttrs.get_attribute_value(UnitBaseAttributes.WILLPOWER());
+            int intelligence = baseAttrs.GetAttributeValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Intelligence));
+            int willpower = baseAttrs.GetAttributeValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Willpower));
             return skillLevel + (intelligence + willpower) / 4 + professionBonus + knowledgeBonus;
         }
-        if (trackType == TRACK_CULTIVATION)
+        if (ToTrackKind(trackType) == PracticeTrackKind.Cultivation)
         {
-            int strength = baseAttrs.get_attribute_value(UnitBaseAttributes.STRENGTH());
-            int willpower = baseAttrs.get_attribute_value(UnitBaseAttributes.WILLPOWER());
+            int strength = baseAttrs.GetAttributeValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Strength));
+            int willpower = baseAttrs.GetAttributeValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Willpower));
             return skillLevel + (strength + willpower) / 4 + professionBonus + knowledgeBonus;
         }
         return 0;
@@ -439,7 +460,7 @@ public sealed class PracticeGrowthService
         StringName trackType
     )
     {
-        UnitSkillProgress skillProgress = unitProgress?.get_skill_progress(skillId);
+        UnitSkillProgress skillProgress = unitProgress?.GetSkillProgress(skillId);
         if (skillProgress == null)
             return 0;
 
@@ -448,7 +469,7 @@ public sealed class PracticeGrowthService
             return 0;
 
         int skillLevel = skillProgress.skill_level;
-        int willpower = baseAttrs.get_attribute_value(UnitBaseAttributes.WILLPOWER());
+        int willpower = baseAttrs.GetAttributeValue(UnitBaseAttributes.ToStringName(UnitBaseAttributeKind.Willpower));
         int professionBonus = GetProfessionWhitelistBonus(unitProgress, trackType);
         int knowledgeBonus = GetKnowledgeWhitelistBonus(unitProgress, trackType);
 
@@ -466,21 +487,5 @@ public sealed class PracticeGrowthService
     private static int GetKnowledgeWhitelistBonus(UnitProgress unitProgress, StringName trackType)
     {
         return 0;
-    }
-
-    private static bool TryReadStringName(Variant value, out StringName result)
-    {
-        if (value.VariantType == Variant.Type.StringName)
-        {
-            result = value.AsStringName();
-            return true;
-        }
-        if (value.VariantType == Variant.Type.String)
-        {
-            result = new StringName(value.AsString());
-            return true;
-        }
-        result = "";
-        return false;
     }
 }

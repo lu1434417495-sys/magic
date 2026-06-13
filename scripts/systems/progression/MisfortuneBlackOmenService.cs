@@ -27,20 +27,42 @@ public sealed class MisfortuneBlackOmenResult
     public string ErrorCode { get; init; } = "";
 }
 
+internal enum MisfortuneBlackOmenHookKind
+{
+    Unknown = 0,
+    CursedRelicEliteOrBossVictory,
+    BossCurseSurvivalVictory,
+    DeadRoadLanternBlackOmenPath,
+}
+
 public sealed class MisfortuneBlackOmenService
 {
-    public static readonly StringName DOOM_MARKED_STAT_ID = "doom_marked";
-    public static readonly StringName HOOK_CURSED_RELIC_ELITE_OR_BOSS_VICTORY =
+    internal static readonly StringName DOOM_MARKED_STAT_ID = "doom_marked";
+    private static readonly StringName HOOK_CURSED_RELIC_ELITE_OR_BOSS_VICTORY =
         "cursed_relic_elite_or_boss_victory";
-    public static readonly StringName HOOK_BOSS_CURSE_SURVIVAL_VICTORY =
+    private static readonly StringName HOOK_BOSS_CURSE_SURVIVAL_VICTORY =
         "boss_curse_survival_victory";
-    public static readonly StringName HOOK_DEAD_ROAD_LANTERN_BLACK_OMEN_PATH =
+    private static readonly StringName HOOK_DEAD_ROAD_LANTERN_BLACK_OMEN_PATH =
         "dead_road_lantern_black_omen_path";
 
     private static readonly StringName[] CursedRelicRequiredTags = { "cursed", "relic" };
 
     private CharacterManagementModule _characterGateway;
     private readonly Dictionary<StringName, ItemDef> _itemDefs = new();
+
+    internal static StringName ToStringName(MisfortuneBlackOmenHookKind kind)
+    {
+        return kind switch
+        {
+            MisfortuneBlackOmenHookKind.CursedRelicEliteOrBossVictory =>
+                HOOK_CURSED_RELIC_ELITE_OR_BOSS_VICTORY,
+            MisfortuneBlackOmenHookKind.BossCurseSurvivalVictory =>
+                HOOK_BOSS_CURSE_SURVIVAL_VICTORY,
+            MisfortuneBlackOmenHookKind.DeadRoadLanternBlackOmenPath =>
+                HOOK_DEAD_ROAD_LANTERN_BLACK_OMEN_PATH,
+            _ => "",
+        };
+    }
 
     public void Setup(
         CharacterManagementModule characterGateway = null,
@@ -108,7 +130,7 @@ public sealed class MisfortuneBlackOmenService
             );
         }
 
-        GetUnitBaseAttributes(memberState).set_attribute_value(DOOM_MARKED_STAT_ID, 1);
+        GetUnitBaseAttributes(memberState).SetAttributeValue(DOOM_MARKED_STAT_ID, 1);
         return BuildResult(
             memberId,
             sourceId,
@@ -188,8 +210,8 @@ public sealed class MisfortuneBlackOmenService
             return BuildResult(memberId, HOOK_DEAD_ROAD_LANTERN_BLACK_OMEN_PATH, errorCode: "member_not_found");
 
         bool conditionsMet =
-            MemberHasEquippedItem(memberState, LowLuckRelicRules.ITEM_DEAD_ROAD_LANTERN)
-            && ContainsId(payload.PathTags, LowLuckRelicRules.PATH_TAG_BLACK_OMEN);
+            MemberHasEquippedItem(memberState, LowLuckRelicRules.ToStringName(LowLuckRelicItemKind.DeadRoadLantern))
+            && ContainsId(payload.PathTags, LowLuckRelicRules.ToStringName(LowLuckPathTagKind.BlackOmen));
         if (!conditionsMet)
         {
             return BuildResult(
@@ -215,7 +237,7 @@ public sealed class MisfortuneBlackOmenService
 
         foreach (var slotId in memberState.equipment_state.GetEntrySlotIdsTyped())
         {
-            var entry = memberState.equipment_state.get_entry(slotId);
+            var entry = memberState.equipment_state.GetEntry(slotId);
             var itemId = entry?.item_id ?? new StringName("");
             if (entry == null || itemId == "" || !_itemDefs.TryGetValue(itemId, out ItemDef itemDef))
                 continue;
@@ -240,7 +262,7 @@ public sealed class MisfortuneBlackOmenService
         foreach (var slotId in memberState.equipment_state.GetEntrySlotIdsTyped())
         {
             var equippedItemId = ProgressionDataUtils.to_string_name(
-                memberState.equipment_state.get_equipped_item_id(slotId)
+                memberState.equipment_state.GetEquippedItemId(slotId)
             );
             if (equippedItemId == itemId)
                 return true;
@@ -253,7 +275,7 @@ public sealed class MisfortuneBlackOmenService
         if (itemDef == null || requiredTags == null || requiredTags.Count == 0)
             return false;
 
-        var itemTags = itemDef.get_tags();
+        var itemTags = itemDef.GetTagsTyped();
         foreach (var requiredTag in requiredTags)
         {
             if (!itemTags.Contains(requiredTag))
@@ -266,13 +288,13 @@ public sealed class MisfortuneBlackOmenService
     {
         if (_characterGateway == null || memberId == "")
             return null;
-        return _characterGateway.get_member_state(memberId);
+        return _characterGateway.GetMemberState(memberId);
     }
 
     private int GetDoomMarkedValue(PartyMemberState memberState)
     {
         var attributes = GetUnitBaseAttributes(memberState);
-        return attributes?.get_attribute_value(DOOM_MARKED_STAT_ID) ?? 0;
+        return attributes?.GetAttributeValue(DOOM_MARKED_STAT_ID) ?? 0;
     }
 
     private static UnitBaseAttributes GetUnitBaseAttributes(PartyMemberState memberState) =>

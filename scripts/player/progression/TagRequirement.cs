@@ -1,5 +1,28 @@
 using Godot;
 
+internal enum TagRequirementSkillState
+{
+    Unknown = 0,
+    Learned,
+    Core,
+    CoreMax,
+}
+
+internal enum TagRequirementOriginFilter
+{
+    Unknown = 0,
+    Any,
+    UnmergedOnly,
+    MergedOnly,
+}
+
+internal enum TagRequirementSelectionRole
+{
+    Unknown = 0,
+    AssignedCore,
+    Qualifier,
+}
+
 [GlobalClass]
 public partial class TagRequirement : Resource
 {
@@ -20,54 +43,88 @@ public partial class TagRequirement : Resource
 
     [Export]
     public StringName skill_state = SkillStateCoreMax;
+    internal TagRequirementSkillState SkillStateKind
+    {
+        get => ToSkillState(skill_state);
+        set => skill_state = ToStringName(value);
+    }
 
     [Export]
     public StringName origin_filter = OriginFilterAny;
+    internal TagRequirementOriginFilter OriginFilterKind
+    {
+        get => ToOriginFilter(origin_filter);
+        set => origin_filter = ToStringName(value);
+    }
 
     [Export]
     public StringName selection_role = SelectionRoleAssignedCore;
-
-    public static StringName SKILL_STATE_LEARNED() => SkillStateLearned;
-
-    public static StringName SKILL_STATE_CORE() => SkillStateCore;
-
-    public static StringName SKILL_STATE_CORE_MAX() => SkillStateCoreMax;
-
-    public static StringName ORIGIN_FILTER_ANY() => OriginFilterAny;
-
-    public static StringName ORIGIN_FILTER_UNMERGED_ONLY() => OriginFilterUnmergedOnly;
-
-    public static StringName ORIGIN_FILTER_MERGED_ONLY() => OriginFilterMergedOnly;
-
-    public static StringName SELECTION_ROLE_ASSIGNED_CORE() => SelectionRoleAssignedCore;
-
-    public static StringName SELECTION_ROLE_QUALIFIER() => SelectionRoleQualifier;
-
-    public StringName get_normalized_skill_state()
+    internal TagRequirementSelectionRole SelectionRoleKind
     {
-        return
-            skill_state == SkillStateLearned
-            || skill_state == SkillStateCore
-            || skill_state == SkillStateCoreMax
-            ? skill_state
-            : SkillStateCoreMax;
+        get => ToSelectionRole(selection_role);
+        set => selection_role = ToStringName(value);
     }
 
-    public StringName get_normalized_origin_filter()
+    internal static TagRequirementSkillState ToSkillState(StringName value)
     {
-        return
-            origin_filter == OriginFilterAny
-            || origin_filter == OriginFilterUnmergedOnly
-            || origin_filter == OriginFilterMergedOnly
-            ? origin_filter
-            : OriginFilterAny;
+        if (value == SkillStateLearned)
+            return TagRequirementSkillState.Learned;
+        if (value == SkillStateCore)
+            return TagRequirementSkillState.Core;
+        if (value == SkillStateCoreMax)
+            return TagRequirementSkillState.CoreMax;
+        return TagRequirementSkillState.Unknown;
     }
 
-    public StringName get_normalized_selection_role()
+    internal static TagRequirementOriginFilter ToOriginFilter(StringName value)
     {
-        return
-            selection_role == SelectionRoleQualifier || selection_role == SelectionRoleAssignedCore
-            ? selection_role
-            : SelectionRoleAssignedCore;
+        if (value == OriginFilterAny)
+            return TagRequirementOriginFilter.Any;
+        if (value == OriginFilterUnmergedOnly)
+            return TagRequirementOriginFilter.UnmergedOnly;
+        if (value == OriginFilterMergedOnly)
+            return TagRequirementOriginFilter.MergedOnly;
+        return TagRequirementOriginFilter.Unknown;
+    }
+
+    internal static TagRequirementSelectionRole ToSelectionRole(StringName value)
+    {
+        if (value == SelectionRoleAssignedCore)
+            return TagRequirementSelectionRole.AssignedCore;
+        if (value == SelectionRoleQualifier)
+            return TagRequirementSelectionRole.Qualifier;
+        return TagRequirementSelectionRole.Unknown;
+    }
+
+    internal static StringName ToStringName(TagRequirementSkillState kind)
+    {
+        return kind switch
+        {
+            TagRequirementSkillState.Learned => SkillStateLearned,
+            TagRequirementSkillState.Core => SkillStateCore,
+            TagRequirementSkillState.CoreMax => SkillStateCoreMax,
+            _ => "",
+        };
+    }
+
+    internal static StringName ToStringName(TagRequirementOriginFilter kind)
+    {
+        return kind switch
+        {
+            TagRequirementOriginFilter.Any => OriginFilterAny,
+            TagRequirementOriginFilter.UnmergedOnly => OriginFilterUnmergedOnly,
+            TagRequirementOriginFilter.MergedOnly => OriginFilterMergedOnly,
+            _ => "",
+        };
+    }
+
+    internal static StringName ToStringName(TagRequirementSelectionRole kind)
+    {
+        return kind switch
+        {
+            TagRequirementSelectionRole.AssignedCore => SelectionRoleAssignedCore,
+            TagRequirementSelectionRole.Qualifier => SelectionRoleQualifier,
+            _ => "",
+        };
     }
 }

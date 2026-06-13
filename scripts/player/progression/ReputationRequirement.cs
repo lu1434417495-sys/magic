@@ -12,6 +12,6 @@ public partial class ReputationRequirement : Resource
     [Export]
     public int max_value = 0;
 
-    public bool matches_value(int value) =>
+    public bool MatchesValue(int value) =>
         ProgressionDataUtils.MatchesValueRange(value, min_value, max_value);
 }

@@ -11,7 +11,7 @@ public partial class AchievementDef : RefCounted
     public int threshold;
     public Godot.Collections.Array<AchievementRewardDef> rewards = new();
 
-    public bool matches_event(StringName target_event_type, StringName target_subject_id = default)
+    public bool MatchesEvent(StringName target_event_type, StringName target_subject_id = default)
     {
         if ((string)achievement_id == "" || (string)event_type == "" || threshold <= 0)
             return false;
@@ -20,15 +20,15 @@ public partial class AchievementDef : RefCounted
         return (string)subject_id == "" || subject_id == target_subject_id;
     }
 
-    public bool is_empty() =>
+    public bool IsEmpty() =>
         (string)achievement_id == "" || (string)event_type == "" || threshold <= 0;
 
-    public Godot.Collections.Dictionary to_dict()
+    public Godot.Collections.Dictionary ToDictionary()
     {
         var rd = new Godot.Collections.Array<Godot.Collections.Dictionary>();
         foreach (var r in rewards)
             if (r != null)
-                rd.Add(r.to_dict());
+                rd.Add(r.ToDictionary());
         return new Godot.Collections.Dictionary
         {
             { "achievement_id", (string)achievement_id },
@@ -41,7 +41,7 @@ public partial class AchievementDef : RefCounted
         };
     }
 
-    public static AchievementDef from_dict(Godot.Collections.Dictionary payload)
+    public static AchievementDef FromDictionary(Godot.Collections.Dictionary payload)
     {
         if (payload == null)
             return null;
@@ -77,7 +77,7 @@ public partial class AchievementDef : RefCounted
         {
             if (rv.VariantType != Variant.Type.Dictionary)
                 return null;
-            var reward = AchievementRewardDef.from_dict(rv.AsGodotDictionary());
+            var reward = AchievementRewardDef.FromDictionary(rv.AsGodotDictionary());
             if (reward == null)
                 return null;
             def.rewards.Add(reward);

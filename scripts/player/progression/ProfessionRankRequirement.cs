@@ -18,7 +18,7 @@ public partial class ProfessionRankRequirement : Resource
     [Export]
     public Godot.Collections.Array<ReputationRequirement> required_reputation_rules = new();
 
-    public bool is_empty() =>
+    public bool IsEmpty() =>
         required_tag_rules.Count == 0
         && required_profession_ranks.Count == 0
         && required_attribute_rules.Count == 0

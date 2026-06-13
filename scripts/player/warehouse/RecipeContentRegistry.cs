@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Godot;
 
 [GlobalClass]
@@ -7,54 +8,57 @@ public partial class RecipeContentRegistry : RefCounted, IValidatableRegistry
 
     private const int RECIPE_QUANTITY_MAX = 9999;
 
-    private System.Collections.Generic.Dictionary<StringName, RecipeDef> _recipe_defs = new();
+    private readonly Dictionary<StringName, RecipeDef> _recipe_defs = new();
 
-    private Godot.Collections.Array<string> _validation_errors = new();
+    private readonly List<string> _validation_errors = new();
 
-    private Godot.Collections.Dictionary _item_defs = new();
+    private Dictionary<StringName, ItemDef> _item_defs = new();
 
     public RecipeContentRegistry()
-        : this(null) { }
-
-    public RecipeContentRegistry(Godot.Collections.Dictionary itemDefs)
     {
         System.GC.SuppressFinalize(this);
-        setup(itemDefs);
     }
 
-    public void setup(Godot.Collections.Dictionary itemDefs = null)
+    public new void Dispose()
     {
-        _item_defs = itemDefs ?? new Godot.Collections.Dictionary();
-        rebuild();
+        System.GC.SuppressFinalize(this);
+        _recipe_defs.Clear();
+        _validation_errors.Clear();
+        _item_defs.Clear();
+        base.Dispose();
     }
 
-    public void rebuild()
+    internal void Setup(IReadOnlyDictionary<StringName, ItemDef> itemDefs)
     {
-        load_from_directory(RECIPE_CONFIG_DIRECTORY);
+        _item_defs = itemDefs != null
+            ? new Dictionary<StringName, ItemDef>(itemDefs)
+            : new Dictionary<StringName, ItemDef>();
+        Rebuild();
     }
 
-    public void load_from_directory(string directoryPath)
+    public void Rebuild()
+    {
+        LoadFromDirectory(RECIPE_CONFIG_DIRECTORY);
+    }
+
+    public void LoadFromDirectory(string directoryPath)
     {
         _recipe_defs.Clear();
         _validation_errors.Clear();
         _scan_directory(directoryPath);
     }
 
-    public Godot.Collections.Dictionary get_recipe_defs()
-    {
-        var result = new Godot.Collections.Dictionary();
-        foreach (var kvp in _recipe_defs)
-            result[kvp.Key] = kvp.Value;
-        return result;
-    }
-
-    public Godot.Collections.Array<string> validate()
+    public Godot.Collections.Array<string> Validate()
     {
         var c = new Godot.Collections.Array<string>();
         foreach (var e in _validation_errors)
             c.Add(e);
         return c;
     }
+
+    internal IReadOnlyDictionary<StringName, RecipeDef> GetRecipeDefsTyped() => _recipe_defs;
+
+    public IReadOnlyList<string> ValidateTyped() => _validation_errors;
 
     private void _scan_directory(string directoryPath)
     {
@@ -93,7 +97,7 @@ public partial class RecipeContentRegistry : RefCounted, IValidatableRegistry
 
     private void _register_recipe_resource(string resourcePath)
     {
-        var resource = GodotContentResourceLifetime.Keep(GD.Load<Resource>(resourcePath));
+        var resource = GD.Load<Resource>(resourcePath);
         if (resource == null)
         {
             _validation_errors.Add($"Failed to load recipe config {resourcePath}.");
@@ -160,7 +164,7 @@ public partial class RecipeContentRegistry : RefCounted, IValidatableRegistry
             return;
         }
 
-        var facilityTagSet = new Godot.Collections.Dictionary();
+        var facilityTagSet = new HashSet<StringName>();
 
         foreach (var rawTag in rd.required_facility_tags)
         {
@@ -172,17 +176,16 @@ public partial class RecipeContentRegistry : RefCounted, IValidatableRegistry
                 );
                 return;
             }
-            if (facilityTagSet.ContainsKey(ft))
+            if (!facilityTagSet.Add(ft))
             {
                 _validation_errors.Add(
                     $"Recipe {rd.recipe_id} declares duplicate required_facility_tag {ft}."
                 );
                 return;
             }
-            facilityTagSet[ft] = true;
         }
 
-        var seenInputItems = new Godot.Collections.Dictionary();
+        var seenInputItems = new HashSet<StringName>();
 
         for (int i = 0; i < rd.input_item_ids.Count; i++)
         {
@@ -196,15 +199,13 @@ public partial class RecipeContentRegistry : RefCounted, IValidatableRegistry
                 return;
             }
 
-            if (seenInputItems.ContainsKey(inputId))
+            if (!seenInputItems.Add(inputId))
             {
                 _validation_errors.Add(
                     $"Recipe {rd.recipe_id} declares duplicate input_item_id {inputId}; aggregate quantity in a single entry."
                 );
                 return;
             }
-
-            seenInputItems[inputId] = true;
 
             if (inputQty <= 0)
             {
@@ -241,4 +242,5 @@ public partial class RecipeContentRegistry : RefCounted, IValidatableRegistry
 
         _recipe_defs[rd.recipe_id] = rd;
     }
+
 }

@@ -1,22 +1,19 @@
 using System.Collections.Generic;
 using Godot;
-using GDictionary = Godot.Collections.Dictionary;
 
 public sealed class StageAdvancementApplyService
 {
     private Dictionary<StringName, StageAdvancementModifier> _stageAdvancementDefs = new();
 
-    public void setup(GDictionary contentBundle = null)
+    public void Setup(ProgressionIdentityCatalogData identityCatalog)
     {
-        _stageAdvancementDefs =
-            ProgressionContentBundleAdapter.ReadDefMap<StageAdvancementModifier>(
-                contentBundle,
-                "stage_advancement_defs",
-                "stage_advancement"
-            );
+        identityCatalog ??= new ProgressionIdentityCatalogData();
+        _stageAdvancementDefs = new Dictionary<StringName, StageAdvancementModifier>(
+            identityCatalog.StageAdvancementDefs
+        );
     }
 
-    public bool add_stage_advancement_modifier(PartyMemberState memberState, StringName modifierId)
+    public bool AddStageAdvancementModifier(PartyMemberState memberState, StringName modifierId)
     {
         if (memberState == null || modifierId == "")
             return false;
@@ -32,7 +29,7 @@ public sealed class StageAdvancementApplyService
         return true;
     }
 
-    public bool remove_stage_advancement_modifier(PartyMemberState memberState, StringName modifierId)
+    public bool RemoveStageAdvancementModifier(PartyMemberState memberState, StringName modifierId)
     {
         if (memberState == null || modifierId == "")
             return false;
